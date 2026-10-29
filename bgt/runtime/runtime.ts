@@ -18,6 +18,7 @@ import {
   DT_US,
   FLAG_INTEGER_SCALE,
   LIMITS,
+  OP,
 } from './abi';
 import type { CommandError, DecodeResult } from './commands';
 import { GameHost, InputSnapshot, emptyInput } from './host';
@@ -103,6 +104,8 @@ export interface BGTDiagnostics {
   suspended: boolean;
   /** v0.2: the game's own kit metrics (bgt_metrics export), if any */
   metrics: unknown;
+  /** kit coverage: BGT commands executed (by name) and runtime imports called */
+  coverage: { ops: Record<string, number>; imports: Record<string, number> };
 }
 
 export class RuntimeFailure extends Error {
@@ -116,6 +119,7 @@ export class RuntimeFailure extends Error {
 }
 
 const STEP_MS = DT_US / 1000;
+const OP_NAMES: Record<number, string> = Object.fromEntries(Object.entries(OP).map(([k, v]) => [v, k]));
 const LOST_TIMEOUT_MS = 5000;
 
 async function sha256Hex(data: ArrayBuffer): Promise<string | null> {
@@ -681,6 +685,10 @@ export class BGTRuntime {
       yields: host?.yields ?? 0,
       suspended: host?.suspended ?? false,
       metrics: host?.metrics() ?? null,
+      coverage: {
+        ops: Object.fromEntries(Object.entries(host?.opCounts ?? {}).map(([k, v]) => [OP_NAMES[Number(k)] ?? k, v])),
+        imports: { ...(host?.importCounts ?? {}) },
+      },
     };
   }
 

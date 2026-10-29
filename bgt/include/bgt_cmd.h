@@ -39,7 +39,7 @@ enum {
 #define BGT_BLEND_ALPHA         1u /* src*a + dst*(1-a)              */
 #define BGT_BLEND_ADD           2u /* src*a + dst                    */
 #define BGT_BLEND_PREMULTIPLIED 3u /* src + dst*(1-a)                */
-#define BGT_BLEND_INVERT        4u /* v0.2: dst = 1 - dst (src ignored; alpha kept) */
+#define BGT_BLEND_INVERT        4u /* v0.2: dst = src*(1-dst) + dst*(1-src): XOR for 0/255 channels; white src inverts, black keeps */
 #define BGT_BLEND_MULTIPLY      5u /* v0.2: dst = src * dst          */
 
 #define BGT_FILTER_NEAREST 0u

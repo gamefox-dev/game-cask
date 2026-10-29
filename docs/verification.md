@@ -112,3 +112,18 @@ Deferred (ABI change, v0.2 candidates):
 - a pixel-aspect flag for 320×200 DOS games
 - per-player gamepad assignment
 - running the game in a Worker so runaway loops can be pre-empted
+
+## Kit v0.2 (2026-10-30): systematic pipeline
+
+| item | evidence |
+|---|---|
+| ABI v0.2: render targets, XOR-like invert, multiply, `bgt_yield`/asyncify, runtime logical size, `bgt_metrics` | conformance probes pass on WebGPU (Metal) and WebGL 2 (SwiftShader): render-target orientation, invert white/black, multiply. Unit test suspends a never-returning loop with stack locals intact |
+| x86 decoder, shared semantics, interpreter, lifter (`tools/x86`) | decoder unit test on hand-checked encodings. Lifting is byte-deterministic |
+| Win32 profile (`platforms/win32`) on BGT | `examples/win32-hello`, built from our source (CC0), runs **fully lifted**: `interp_insns` 0, 0 stubs, 0 command errors; window, menu, popup, MessageBox, BitBlt, InvertRect, TextOut, timers, registry. Browser e2e passes on both backends |
+| differential oracle | 600 frames of scripted input: lifted (0 interpreted insns) and interpreted (211,605 insns) builds give identical API traces (9,228 calls, 11,977 GDI ops) |
+| generic extractor | reproduces trial 1's Solitaire payload byte-identically (same SHA-256), with names taken from the payloads' own metadata |
+| bug found by CI | unrecoverable WebGPU device loss hung the runtime → mid-game WebGL 2 fallback (CI green) |
+
+Totals: `npm test` 45/45, `npm run test:e2e` 50 passed / 3 skipped (by design).
+
+Not verified: iPhone Safari; DOS/console profiles (not implemented); x87 FPU lifting (not implemented).

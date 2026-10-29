@@ -223,6 +223,8 @@ export interface DecodeContext {
   triangles: boolean;
   /** v0.2 render targets enabled (BGT_CAP_RENDER_TARGETS) */
   renderTargets?: boolean;
+  /** kit coverage: executed commands per opcode (incremented by the decoder) */
+  opCounts?: Record<number, number>;
 }
 
 /** Size of the current target's coordinate space (logical surface or render-target texture). */
@@ -336,6 +338,7 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
       errors.push({ code, message: describe(op, code, flags), offset: off, op });
     } else {
       executed++;
+      if (ctx.opCounts) ctx.opCounts[op] = (ctx.opCounts[op] ?? 0) + 1;
     }
     off = p + payload;
   }

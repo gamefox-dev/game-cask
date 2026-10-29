@@ -1,0 +1,10 @@
+{
+  "bitmaps": { "101": "tiles.bmp" },
+  "menus": {
+    "102": [
+      { "popup": "&Game", "items": [ { "text": "&New\tF2", "id": 201 }, { "separator": true }, { "text": "E&xit", "id": 203 } ] },
+      { "popup": "&Help", "items": [ { "text": "&About", "id": 202 } ] }
+    ]
+  },
+  "accelerators": { "103": [ { "key": 113, "id": 201, "virt": true } ] }
+}

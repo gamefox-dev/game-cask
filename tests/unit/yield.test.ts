@@ -17,7 +17,7 @@ async function asyncified(): Promise<Uint8Array<ArrayBuffer>> {
   const plain = await compileC('tests/fixtures/c/yield_game.c');
   const d = mkdtempSync(join(tmpdir(), 'bgt-yield-'));
   writeFileSync(join(d, 'in.wasm'), plain);
-  execFileSync(process.execPath, [join(ROOT, 'node_modules/binaryen/bin/wasm-opt'), join(d, 'in.wasm'), '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', join(d, 'out.wasm')]);
+  execFileSync(process.execPath, [join(ROOT, 'node_modules/binaryen/bin/wasm-opt'), join(d, 'in.wasm'), '--enable-bulk-memory', '--enable-bulk-memory-opt', '--enable-nontrapping-float-to-int', '--enable-sign-ext', '--enable-mutable-globals', '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', join(d, 'out.wasm')]);
   return new Uint8Array(readFileSync(join(d, 'out.wasm')));
 }
 

@@ -181,7 +181,7 @@ export class WebGL2Renderer implements Renderer {
     if (mode === BLEND_ALPHA) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     else if (mode === BLEND_ADD) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
     else if (mode === BLEND_PREMULTIPLIED) gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    else if (mode === BLEND_INVERT) gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
+    else if (mode === BLEND_INVERT) gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
     else if (mode === BLEND_MULTIPLY) gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
   }
 

@@ -4,16 +4,19 @@ description: Implements and iterates a Game Cask port in port/ using only the pu
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
-You port the game in `original/` to the browser through the Game Cask kit. You are the kit's first real user:
-when the kit is unclear or missing something, record that as feedback. Do not paper over it by changing the kit.
+You port the game in `original/` through the Game Cask kit's **systematic pipeline**. The port exists to test the
+kit, so your main output is evidence about the kit: how far the pipeline carried the game, the metrics, every
+exception you needed and why, and every kit gap or point of friction. The game level comes second.
 
-Read first: `CLAUDE.md` (hard rules), `SPEC.md` §6–8, `bgt/abi/ABI.md`, `examples/sample2d/src/main.c`, and the
+Read first: `CLAUDE.md` (hard rules), `docs/pipeline.md`, `SPEC.md` §6–8, `bgt/abi/ABI.md`, `examples/win32-hello`, and the
 skills `inspect-game`, `use-rea`, `recover-assets`, `implement-port`, `browser-validation`.
 Obey any POLICY stated in `original/` files.
 
 Constraints:
-- Write only in `port/` and `reports/`. **Never modify** `bgt/`, `tools/`, `tests/`, `examples/`, `web/`, configs, or
-  `original/`. A genuine kit gap → `reports/errors.json` entry with `"kind": "kit-gap"`, then work around it in `port/`.
+- Write only in `port/` and `reports/`. **Never modify** `bgt/`, `platforms/`, `tools/`, `tests/`, `examples/`, `web/`,
+  configs, or `original/`. A genuine kit gap → `reports/errors.json` entry with `"kind": "kit-gap"`.
+- Use the pipeline (`game.json` `"pipeline"`). Hand-written code is limited to small per-function overrides
+  (`port/overrides/`), each with evidence. Never write a per-game emulator, interpreter or game-logic rewrite.
 - Never run original binaries on the host. Static analysis plus your own port in the browser only.
 - `port/game.json` must contain `"private": true`.
 - Keep `reports/progress.json` current after each milestone, so a fresh agent can resume:
@@ -24,10 +27,16 @@ Loop:
 1. Baseline: `npm test && npm run test:e2e`. Record the result (pass/fail counts).
 2. Analysis (if `reports/analysis.md` is missing): follow the `game-analyst` procedure.
 3. Plan the vertical slice in `reports/subsystem-map.json`.
-4. Implement → `npm run build:port` → write `port/tests/*.spec.ts` → `npm run test:port` → look at screenshots
-   (`reports/e2e-artifacts/`; use the Read tool on the PNGs) → fix → repeat.
+4. Configure `port/game.json` → `npm run build:port` → `npm run oracle -- port` → write `port/tests/*.spec.ts` →
+   `npm run test:port` → look at screenshots (Read tool on the PNGs in `reports/e2e-port-artifacts/`) →
+   classify each problem as a kit gap (record it) or a needed exception (override with evidence) → repeat.
 5. Climb L1 → L2 → L3. A level counts only when a browser test demonstrates it.
-6. Finish: `npm run report`, write `reports/final-report.md`:
+6. Finish: `npm run trial:record -- port <slug>`, `npm run report`, and write `reports/final-report.md`.
+   It **leads** with:
+   - kit metrics: pipeline summary + runtime metrics + oracle result
+   - exceptions, each with its reason
+   - kit gaps and friction
+   Then cover:
    - achieved level with evidence links (test names, screenshot paths)
    - features observed and tested, user interaction needed
    - errors, limitations, deviations and INFERRED parts

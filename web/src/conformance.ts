@@ -101,10 +101,11 @@ export function buildScene(): { bytes: Uint8Array; texData: Uint8Array; probes: 
     .texture(3, FILTER_NEAREST)
     .rect(80, 96, 16, 16, rgba(255, 255, 255))
     .texture(0, FILTER_NEAREST)
-    // v0.2 invert: white src inverts dst
+    // v0.2 invert (XOR-like): white src inverts dst, black src keeps it
     .rect(0, 112, 16, 16, rgba(100, 100, 100))
     .blend(BLEND_INVERT)
-    .rect(0, 112, 16, 16, rgba(255, 255, 255))
+    .rect(0, 112, 8, 16, rgba(255, 255, 255))
+    .rect(8, 112, 8, 16, rgba(0, 0, 0))
     // v0.2 multiply
     .blend(BLEND_OPAQUE)
     .rect(64, 112, 16, 16, rgba(200, 100, 50))
@@ -140,7 +141,8 @@ export function buildScene(): { bytes: Uint8Array; texData: Uint8Array; probes: 
     { name: 'texture 0 after delete', x: 72, y: 104, expect: [128, 128, 128], tol: 2 },
     { name: 'render target top-left (orientation)', x: 84, y: 100, expect: [0, 0, 255], tol: 2 },
     { name: 'render target bottom-right', x: 92, y: 108, expect: [255, 0, 0], tol: 2 },
-    { name: 'invert blend', x: 8, y: 120, expect: [155, 155, 155], tol: 2 },
+    { name: 'invert blend: white inverts', x: 4, y: 120, expect: [155, 155, 155], tol: 2 },
+    { name: 'invert blend: black keeps', x: 12, y: 120, expect: [100, 100, 100], tol: 2 },
     { name: 'multiply blend', x: 72, y: 120, expect: [100, 100, 0], tol: 3 },
   ];
   // The 'viewport clip outside' and 'nearest texel (0,0)' probes overlap by

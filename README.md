@@ -27,6 +27,21 @@ Claude follows [`CLAUDE.md`](CLAUDE.md):
 
 Ports, reports and screenshots stay private and local by default.
 
+## How porting works (kit v0.2)
+
+Ports go through a **systematic, reproducible pipeline** rather than per-game rewrites
+([docs/pipeline.md](docs/pipeline.md)):
+
+```
+extract installer/archive → analyze x86 (imports, call graph, jump tables) → lift each function to C
+→ platform profile maps the OS API onto BGT by meaning (Win32: windows, messages, menus, dialogs,
+  GDI on GPU render targets, registry on storage) → wasm → differential oracle + browser tests
+```
+
+A port is a `game.json` with a `"pipeline"` section, plus a few hand-written, justified per-function
+**exceptions** at most. `examples/win32-hello` is a complete pipeline game built from our own source:
+it is lifted with zero hand-written code, and the oracle shows its lifted and interpreted runs agree frame by frame.
+
 ## Try the sample (no game files needed)
 
 ```sh
@@ -51,6 +66,7 @@ Useful URL flags:
 |---|---|---|
 | Node.js | 24.19.0 (`.nvmrc`, ≥ 20 works) | `nvm install` |
 | Zig (C → wasm32 compiler) | 0.13.0 (`.zig-version`) | `brew install zig` or <https://ziglang.org/download/> |
+| host C compiler + Python 3 | any (`cc`/clang/gcc; python3 stdlib) | for the x86 tools and the extractor (preinstalled on macOS/Linux) |
 | Playwright Chromium | pinned by `package-lock.json` | `npx playwright install chromium` |
 
 `npm run doctor` checks all three and prints fixes.
@@ -66,6 +82,9 @@ Useful URL flags:
 | `npm run test:e2e` | browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) |
 | `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json` |
+| `npm run extract -- IN OUT` / `npm run analyze -- FILE` | static unpacking / x86 analysis + disassembly |
+| `npm run oracle -- <gameDir>` | differential oracle: lifted vs interpreted builds |
+| `npm run trial:record -- <gameDir> <slug>` | trial record (`trial.json` + port note) for the trials repo |
 | `npm run report` | validate + redact `reports/`, write `reports/summary.md` |
 | `npm run leakcheck` | fail if private game data/secrets could be committed (also a pre-commit hook); `-- --against DIR` adds extracted payloads as reference |
 | `npm run bench` | batched command buffer vs per-sprite import calls → `reports/bench.md` |

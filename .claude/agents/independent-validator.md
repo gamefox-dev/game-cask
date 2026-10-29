@@ -20,8 +20,11 @@ Procedure:
      (e.g. no assertion on state change, or tolerance so wide anything passes).
    - Open the screenshots (Read tool on the PNG files). Check they show what the report claims.
    - Spot-check `debugState`/`stateHash` usage, and the console/diagnostics error collection.
-3. Check the strategy choices: every subsystem marked `reconstruct` must carry analysis numbers showing why running the
-   original code (`selective-emulate`) was infeasible. Flag game logic that was rewritten without that justification.
+3. Check the pipeline use:
+   - Re-run `npm run build:port` and `npm run oracle -- port` and compare their numbers with the report: generated vs
+     hand-written LOC, overrides, `interp_insns`, unresolved jumps, oracle identical/divergent.
+   - Every override needs evidence that the pipeline could not handle that function.
+   - Flag any hand-written game logic, per-game emulator, or kit modification.
 4. Check honesty rules: INFERRED labels present where logic is not evidenced, any POLICY from `original/`
    respected (e.g. binary-only), no claim of REA use without a recorded call, no device claims
    (iPhone) without device evidence, `port/game.json` private, `npm run leakcheck` passes.

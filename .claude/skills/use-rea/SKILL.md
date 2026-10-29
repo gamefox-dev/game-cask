@@ -26,11 +26,13 @@ Then tell the user how to connect it:
 claude mcp add rea -- <rea-mcp-server-command> [args]
 # or set REA_MCP_URL / put `rea` on PATH, then re-run: npm run inspect
 ```
-Continue with deterministic tools:
+Continue with deterministic tools. The kit's own come first:
 
 | need | tool |
 |---|---|
-| x86 16/32-bit disassembly | `ndisasm` (`brew install nasm` / `apt install nasm`): `ndisasm -b 16 -o 0x100 FILE.COM` for .COM. `objdump -D -b binary -m i8086` (GNU binutils; Apple's llvm `objdump` cannot read raw binaries) |
+| x86-32 PE analysis: imports + call sites, functions, call graph, jump tables, instruction census | `npm run analyze -- FILE` (JSON) |
+| x86-32 disassembly with import names | `npm run analyze -- FILE --disasm [--func HEX]` |
+| x86 16-bit (DOS) disassembly | not in the kit yet (kit gap). `ndisasm -b 16 -o 0x100 FILE.COM` if installed (ask first) |
 | interactive RE | radare2/rizin (`r2 -a x86 -b 16 -m 0x100 FILE.COM`), Ghidra headless (`analyzeHeadless`) |
 | your own decoders | small Python (`python3 -I`) or Node scripts that parse headers, tables and formats. Keep them in the scratchpad or `port/tools/`, never inside `original/` |
 | strings | `npm run inspect -- --strings FILE` |

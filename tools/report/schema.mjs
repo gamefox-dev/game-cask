@@ -1,6 +1,7 @@
 // Required structure of the resumable porting state in reports/.
 export const STATUSES = ['unknown', 'in_progress', 'implemented', 'tested', 'verified'];
-export const STRATEGIES = ['preserve', 'reconstruct', 'replace', 'selective-emulate'];
+/* v0.2 pipeline strategies first; v0.1 names kept so older reports still validate */
+export const STRATEGIES = ['lifted', 'profile', 'override', 'unsupported', 'preserve', 'reconstruct', 'replace', 'selective-emulate'];
 export const CONFIDENCE = ['low', 'medium', 'high'];
 export const LEVELS = ['blocked', 'L0', 'L1', 'L2', 'L3', 'L4', 'L5'];
 

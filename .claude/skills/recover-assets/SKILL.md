@@ -5,6 +5,10 @@ description: Recover graphics, palettes, fonts, levels and sound from original g
 
 # Recover assets
 
+For **pipeline games** (Win32), the platform profile loads resources (bitmaps, menus, dialogs, strings,
+accelerators) straight from the original images at runtime, so nothing needs converting. This skill covers data the
+program reads itself (custom archives, level files) and non-pipeline ports.
+
 Original assets stay private: generated assets go to `port/assets/` (git-ignored) and are served from
 `web/public/games/<id>/assets/` after `npm run build:port`.
 
@@ -27,7 +31,7 @@ Original assets stay private: generated assets go to `port/assets/` (git-ignored
    Note the check in `subsystem-map.json` → `verification_evidence`.
 
 ## Embedding vs. files
-If the port must read an original file itself (e.g. the code image for `selective-emulate`), list it in
+If a non-pipeline port must read an original file itself at runtime, list it in
 `port/game.json` instead of copying it:
 ```json
 "originals": [{ "from": "GAME.EXE", "to": "game.exe", "sha256": "<from npm run inspect>" }]

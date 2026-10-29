@@ -12,6 +12,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, requireZig } from './toolchain.mjs';
+import { runPipeline, pipelineSummary } from './pipeline.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -30,6 +31,9 @@ export const CFLAGS = [
   '-Werror',
   '-Wno-unused-function',
 ];
+
+/* the features CFLAGS enable; zig's output does not declare them, binaryen must be told */
+export const WASM_OPT_FEATURES = ['--enable-bulk-memory', '--enable-bulk-memory-opt', '--enable-nontrapping-float-to-int', '--enable-sign-ext', '--enable-mutable-globals'];
 
 export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=1048576', '-Wl,--strip-debug'];
 
@@ -50,7 +54,7 @@ export function loadGameConfig(gameDir) {
   const file = join(gameDir, 'game.json');
   if (!existsSync(file)) throw new Error(`${relative(ROOT, gameDir)}: missing game.json`);
   const cfg = JSON.parse(readFileSync(file, 'utf8'));
-  for (const key of ['id', 'name', 'sources']) {
+  for (const key of cfg.pipeline ? ['id', 'name'] : ['id', 'name', 'sources']) {
     if (!cfg[key]) throw new Error(`${relative(ROOT, file)}: missing "${key}"`);
   }
   if (cfg.originals && !Array.isArray(cfg.originals)) throw new Error(`${relative(ROOT, file)}: "originals" must be an array`);
@@ -58,19 +62,36 @@ export function loadGameConfig(gameDir) {
   return cfg;
 }
 
-export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
+export function buildGame(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT } = {}) {
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  if (interpretOnly) {
+    /* differential-oracle build: same game, nothing lifted, everything interpreted */
+    if (!cfg.pipeline) throw new Error(`${cfg.id}: --interpret-only needs a pipeline game`);
+    cfg.pipeline = { ...cfg.pipeline, interpretOnly: true };
+    cfg.id = `${cfg.id}-interp`;
+  }
   const zig = requireZig({ quiet: true });
-  const outDir = check ? mkdtempSync(join(tmpdir(), 'bgt-check-')) : join(OUT_ROOT, cfg.id);
+  const outDir = check ? mkdtempSync(join(tmpdir(), 'bgt-check-')) : join(outRoot, cfg.id);
   if (!check) {
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
   }
 
-  const sources = cfg.sources.map((s) => join(gameDir, s));
+  const sources = (cfg.sources ?? []).map((s) => join(gameDir, s));
   for (const s of sources) if (!existsSync(s)) throw new Error(`source not found: ${relative(ROOT, s)}`);
   const includes = ['bgt/include', ...(cfg.includes ?? []).map((i) => relative(ROOT, join(gameDir, i)))];
+  let pipe = null;
+  if (cfg.pipeline) {
+    /* systematic conversion: lifted modules + platform profile (+ overrides) replace hand-written sources */
+    mkdirSync(join(outDir, 'assets'), { recursive: true });
+    pipe = runPipeline(gameDir, cfg, join(outDir, 'assets'));
+    sources.push(...pipe.sources);
+    includes.push(...pipe.includes);
+    cfg.cflags = [...(cfg.cflags ?? []), ...pipe.cflags];
+    cfg.asyncify = true;
+    if (!quiet) console.log(pipelineSummary(pipe.report));
+  }
   const wasmPath = join(outDir, 'game.wasm');
   const args = [
     'cc',
@@ -95,7 +116,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
     try {
-      execFileSync(process.execPath, [wasmOpt, wasmPath, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+      execFileSync(process.execPath, [wasmOpt, wasmPath, ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
     } catch {
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
     }
@@ -103,6 +124,14 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
   const wasm = readFileSync(wasmPath);
 
   const assets = [];
+  if (pipe) {
+    for (const file of walk(join(outDir, 'assets'))) {
+      const rel = relative(join(outDir, 'assets'), file).split(sep).join('/');
+      const data = readFileSync(file);
+      const hash = sha256(data);
+      assets.push({ path: rel, size: data.byteLength, sha256: hash, url: `assets/${rel}?h=${hash.slice(0, 16)}`, original: true });
+    }
+  }
   if (cfg.assets) {
     const assetRoot = join(gameDir, cfg.assets);
     if (!existsSync(assetRoot)) throw new Error(`assets dir not found: ${relative(ROOT, assetRoot)}`);
@@ -148,6 +177,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
     input: cfg.input ?? {},
     toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
   };
+  if (pipe) manifest.pipeline = pipe.report;
   if (check) {
     rmSync(outDir, { recursive: true, force: true });
   } else {
@@ -189,6 +219,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   const check = argv.includes('--check');
   const all = argv.includes('--all');
+  const interpretOnly = argv.includes('--interpret-only');
   const targets = all ? allGameDirs() : argv.filter((a) => !a.startsWith('--'));
   if (!targets.length) {
     console.error('usage: build.mjs <gameDir...> | --all [--check]');
@@ -197,7 +228,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check });
+      buildGame(t, { check, interpretOnly });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);

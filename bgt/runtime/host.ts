@@ -158,6 +158,9 @@ export class GameHost {
   flags = 0;
   frameIndex = 0;
   commandErrors: CommandError[] = [];
+  /** kit coverage: BGT commands executed per opcode, and runtime imports called */
+  readonly opCounts: Record<number, number> = {};
+  readonly importCounts: Record<string, number> = {};
   commandErrorCount = 0;
   readonly timings: HostTimings = { updateMs: 0, renderMs: 0, decodeMs: 0 };
   private exports!: GameExports;
@@ -257,6 +260,7 @@ export class GameHost {
       linearFilter: (this.config.caps & CAP_LINEAR_FILTER) !== 0,
       triangles: (this.config.caps & CAP_TRIANGLES) !== 0,
       renderTargets: (this.config.caps & CAP_RENDER_TARGETS) !== 0,
+      opCounts: this.opCounts,
     };
   }
 
@@ -269,6 +273,18 @@ export class GameHost {
   }
 
   private imports(): { bgt: Record<string, (...args: never[]) => unknown> } {
+    const raw = this.rawImports();
+    const counted: Record<string, (...args: never[]) => unknown> = {};
+    for (const [name, fn] of Object.entries(raw.bgt)) {
+      counted[name] = (...args: never[]) => {
+        this.importCounts[name] = (this.importCounts[name] ?? 0) + 1;
+        return (fn as (...a: never[]) => unknown)(...args);
+      };
+    }
+    return { bgt: counted };
+  }
+
+  private rawImports(): { bgt: Record<string, (...args: never[]) => unknown> } {
     const s = this.services;
     const keyOf = (ptr: number, len: number): string | null => {
       const k = this.str(ptr, len, LIMITS.storageKeyBytes);

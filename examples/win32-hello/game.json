@@ -1,0 +1,12 @@
+{
+  "id": "win32-hello",
+  "name": "Win32 hello (pipeline example)",
+  "license": "CC0-1.0",
+  "private": false,
+  "pipeline": {
+    "platform": "win32",
+    "fixture": { "sources": ["src/hello.c"], "resources": "src/resources.json", "out": "hello.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32", "advapi32"] },
+    "modules": [{ "from": "./build/hello.exe", "name": "hello.exe", "main": true }]
+  },
+  "touch": { "dpad": true, "buttons": ["A"] }
+}

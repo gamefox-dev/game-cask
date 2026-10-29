@@ -293,7 +293,7 @@ All additions are opt-in; v0.1 games are unaffected.
 ### Blend modes
 | mode | value | result |
 |---|---:|---|
-| `BGT_BLEND_INVERT` | 4 | `dst = src × (1 − dst)`; with a white source this is the classic invert (GDI `DSTINVERT`/`PATINVERT` with white) |
+| `BGT_BLEND_INVERT` | 4 | `dst = src × (1 − dst) + dst × (1 − src)`: an exact XOR for 0/255 channels (GDI `SRCINVERT`/`PATINVERT` with black-and-white sources), an exact invert under a white source (`DSTINVERT`), and black leaves the destination unchanged; a smooth blend for other colours |
 | `BGT_BLEND_MULTIPLY` | 5 | `dst = src × dst`; equals a bitwise AND for 0/255 mask colours (GDI `SRCAND` masks) |
 
 Alpha is kept for both. General bitwise raster ops (XOR of arbitrary colours) have no GPU equivalent in WebGPU or

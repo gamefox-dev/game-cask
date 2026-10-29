@@ -28,7 +28,11 @@
     "inspect": "node tools/inspect/inspect.mjs",
     "report": "node tools/report/report.mjs",
     "leakcheck": "node tools/report/leakcheck.mjs",
-    "bench": "npm run build:games && node tools/bench/bench.mjs"
+    "bench": "npm run build:games && node tools/bench/bench.mjs",
+    "oracle": "node tools/build/oracle-cli.mjs",
+    "trial:record": "node tools/report/trial-record.mjs",
+    "extract": "python3 -I tools/extract/extract.py",
+    "analyze": "node tools/x86/analyze-cli.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",

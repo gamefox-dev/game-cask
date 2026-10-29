@@ -44,9 +44,9 @@ function blendState(mode: number): GPUBlendState | undefined {
         color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
         alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       };
-    case BLEND_INVERT: // dst' = src * (1 - dst): white src inverts
+    case BLEND_INVERT: // dst' = src*(1-dst) + dst*(1-src): XOR for 0/1 channels, white src inverts, black keeps
       return {
-        color: { srcFactor: 'one-minus-dst', dstFactor: 'zero', operation: 'add' },
+        color: { srcFactor: 'one-minus-dst', dstFactor: 'one-minus-src', operation: 'add' },
         alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
       };
     case BLEND_MULTIPLY:

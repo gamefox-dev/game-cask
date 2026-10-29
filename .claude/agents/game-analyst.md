@@ -13,8 +13,9 @@ no third-party descriptions of the game's internals).
 Procedure:
 1. `npm run inspect`. Read `reports/inventory.json`.
 2. Detect REA per the `use-rea` skill. State plainly whether it was available and used.
-3. Disassemble or decode the main executable with available deterministic tools. Write any helper scripts to
-   the session scratchpad (outside the repo), not into `original/`.
+3. Unpack with `npm run extract` if needed. Analyse with `npm run analyze -- FILE` (and `--disasm`): imports,
+   functions, call graph, jump tables, unsupported/FPU instructions. Write any helper scripts to the session
+   scratchpad, not into `original/`.
 4. Recover, with evidence (offsets, instruction excerpts ≤ 10 lines, table locations):
    - program structure: entry, init, main loop, exit
    - video: mode, resolution, palette, how the frame is drawn, vsync use
@@ -26,9 +27,9 @@ Procedure:
    - DRM/protection: present or not. If present, the port is blocked; report it
 5. Write `reports/analysis.md` with sections Inventory, Tools used, Subsystems (one per item above), and Unknowns.
    Each claim carries a confidence (low/medium/high) and evidence. Inferences are labelled `INFERRED`.
-6. Write `reports/subsystem-map.json` (schema in `implement-port` skill) with all statuses `unknown` or `in_progress`,
-   plus a recommended `implementation_strategy` per subsystem, following the minimal-swap preference order
-   (preserve > selective-emulate > replace glue > reconstruct) with the numbers that justify it.
+6. Write `reports/subsystem-map.json` (schema in `implement-port` skill) with all statuses `unknown` or `in_progress`.
+   For each subsystem, give the expected pipeline coverage (`lifted` / `profile` / `override` / `unsupported`) and the
+   evidence: which imports or instructions a platform profile or the lifter must handle, and what is not covered yet.
 7. Run `npm run report`. Fix schema problems it reports.
 
 Output: a short summary of what was found, what remains unknown, and the recommended next step.

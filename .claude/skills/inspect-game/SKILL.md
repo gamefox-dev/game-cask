@@ -24,9 +24,16 @@ Goal: a factual inventory with confidence levels. No execution of game code, no 
      before disassembling.
 4. Strings, for your eyes only: `npm run inspect -- --strings original/<file>`. They go to stdout and are never
    written to reports. Quote only short, necessary strings in `analysis.md`.
-5. Archives (`zip`, `iso`, …): extract into a **new directory outside the repo** (e.g. the session scratchpad).
-   Treat the contents as untrusted. Inspect them with `node tools/inspect/inspect.mjs <dir> --out reports/inventory-<name>.json`.
-6. Summarize in `reports/analysis.md` §Inventory:
+5. Installers and archives: `npm run extract -- original/<file> <scratch dir>`. This is static and never executes
+   anything. It unpacks zip, RCDATA-embedded PEs (bundlers/wrappers) and Inno Setup 5.x, verifies the installer's own
+   SHA-1s, and names payload files from their PE metadata. It writes `extract.json` with the chain of each file.
+   Treat the contents as untrusted. Inventory them with
+   `node tools/inspect/inspect.mjs <dir> --out reports/inventory-extracted.json`. In `game.json`, refer to them as
+   `"installer.exe#NAME.EXE"`. The build re-extracts them reproducibly.
+   Unsupported formats (other installers, Inno 6, encryption) are kit gaps: record them.
+6. Executables: `npm run analyze -- <file>` (JSON) and `npm run analyze -- <file> --disasm [--func HEX]`
+   (listing). See the `use-rea` skill.
+7. Summarize in `reports/analysis.md` §Inventory:
    - which file is the game
    - platform/engine assumptions, each with **confidence** and **evidence** (byte offsets, header fields, census counts)
    - what is unknown

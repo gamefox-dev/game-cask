@@ -8,9 +8,27 @@ description: Exercise a BGT game in a real browser (Playwright, WebGPU + WebGL 2
 ## Run
 - Kit suites: `npm run test:e2e` (projects `chromium-webgl2`, `chromium-webgpu`, `chromium-auto`).
 - Port: write Playwright specs that use `tests/e2e/fixtures.ts`, load `/?game=<id>&backend=<b>&paused=1&ephemeral=1`,
-  and run under both GPU projects. Results go to `reports/e2e-results.json` + `reports/e2e-html/`.
-  Artifacts (screenshots/traces) go to `reports/e2e-artifacts/`, which is private.
+  in `port/tests/`, and run them with `npm run test:port` (projects `port-webgl2`, `port-webgpu`). Results go to
+  `reports/e2e-port-results.json`, and artifacts to `reports/e2e-port-artifacts/` (private).
+  For pipeline games, assert on pixels and `diagnostics().metrics`. Programs have no game-specific debug export.
 - Manual look: `npm run dev`, open `http://localhost:5173/?game=<id>&debug=1` (diagnostics overlay).
+
+## Differential oracle (pipeline games)
+`npm run oracle -- port [frames]` builds the game twice: lifted, and interpret-only. It drives both with the same
+deterministic clicks and keys and compares the API-call trace hash every frame (report: `reports/oracle-<id>.json`).
+- Identical traces mean lifted control flow matches the shared semantics.
+- The first divergent frame localises a lifter bug, which is a kit gap: report the frame and the APIs around it.
+- The oracle cannot detect errors in the shared semantics or the platform profile. Browser evidence covers those.
+
+## Kit metrics (always report them)
+`diagnostics().metrics` (pipeline games):
+- `interp_insns` (0 = fully lifted), `continues`, `exec_one`
+- `api_calls`, `apis_hit`, `stubs`
+- `gdi_ops`, `gdi_approx_rop`, `gdi_unsupported`, `gdi_getpixel_noread`
+- `yields`, `peek_yields`, `trace_hash`
+
+The pipeline summary from the build adds generated vs hand-written LOC and override count. Put these first in
+the final report.
 
 ## The test API (`window.__BGT_TEST__`)
 `pause()`, `step(n)` (fixed timestep + render + GPU completion), `input([...])`, `readPixels()`,
