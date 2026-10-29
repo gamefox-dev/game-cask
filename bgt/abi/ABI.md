@@ -213,8 +213,15 @@ Decoding (`bgt/runtime/commands.ts`), shared by both renderers:
 The runtime keeps a CPU **shadow copy** of every texture. On WebGPU `device.lost` or
 WebGL `webglcontextlost`, frames are skipped. On restore, the runtime recreates GPU
 objects from the shadows and sets `BGT_EVENT_DEVICE_RESET`. The game needs no action;
-handles stay valid. A canvas that produced a WebGPU context cannot be reused for WebGL,
-so the WebGPU → WebGL 2 fallback happens only at startup, on a fresh canvas.
+handles stay valid.
+
+If a WebGPU device cannot be recovered, the runtime switches to WebGL 2 **mid-game**. This happens when
+recovery fails, or when there is no recovery within 5 s; headless Linux Chromium, for example, loses
+software WebGPU devices and cannot request new ones. A canvas that produced a WebGPU context cannot
+be reused for WebGL, so the runtime swaps in a fresh canvas. It re-uploads all textures from the
+shadows, updates `io.backend` and sets `BGT_EVENT_DEVICE_RESET`, and records the reason in
+`backendNotes`. The simulation is not interrupted. If WebGL 2 itself is lost for good, the runtime
+stops with an accessible error instead of hanging.
 
 ## 8. Backend selection
 

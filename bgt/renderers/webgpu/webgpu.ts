@@ -75,12 +75,14 @@ export class WebGPURenderer implements Renderer {
   private lostCbs: Array<(r: string) => void> = [];
   private restoredCbs: Array<() => void> = [];
   private errorCbs: Array<(m: string) => void> = [];
+  private unrecoverableCbs: Array<(m: string) => void> = [];
   private destroyed = false;
+  private failRecovery = false;
 
   private constructor(
     readonly canvas: HTMLCanvasElement,
     private readonly ctx: GPUCanvasContext,
-    private readonly adapter: GPUAdapter,
+    readonly adapter: GPUAdapter,
     private readonly format: GPUTextureFormat,
     readonly opts: WebGPUOptions,
   ) {}
@@ -161,13 +163,21 @@ export class WebGPURenderer implements Renderer {
     this.lost = true;
     for (const cb of this.lostCbs) cb(`webgpu device lost (${info.reason}): ${info.message}`);
     try {
-      // A lost adapter cannot hand out new devices; request a fresh one.
-      const adapter = (await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })) ?? this.adapter;
-      await this.initDevice(adapter);
+      if (this.failRecovery) throw new Error('recovery disabled for test (simulateLoss unrecoverable)');
+      // A lost adapter cannot hand out new devices; request a fresh one. Some
+      // stacks (e.g. headless Linux) never answer, hence the timeout.
+      const recover = async () => {
+        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (!adapter) throw new Error('no WebGPU adapter after device loss');
+        await this.initDevice(adapter);
+      };
+      await Promise.race([recover(), new Promise((_, rej) => setTimeout(() => rej(new Error('recovery timed out')), 3000))]);
+      if (this.destroyed) return;
       this.lost = false;
       for (const cb of this.restoredCbs) cb();
     } catch (e) {
-      for (const cb of this.errorCbs) cb(`WebGPU device recovery failed: ${(e as Error).message}`);
+      if (this.destroyed) return;
+      for (const cb of this.unrecoverableCbs) cb(`WebGPU device recovery failed: ${(e as Error).message}`);
     }
   }
 
@@ -339,10 +349,18 @@ export class WebGPURenderer implements Renderer {
     }
   }
 
-  async simulateLoss(): Promise<void> {
-    const restored = new Promise<void>((resolve) => this.restoredCbs.push(() => resolve()));
+  async simulateLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
+    this.failRecovery = !!opts.unrecoverable;
+    const done = new Promise<void>((resolve) => {
+      this.restoredCbs.push(() => resolve());
+      this.unrecoverableCbs.push(() => resolve());
+    });
     this.o.device.destroy();
-    await restored;
+    await done;
+  }
+
+  onUnrecoverable(cb: (reason: string) => void): void {
+    this.unrecoverableCbs.push(cb);
   }
 
   onLost(cb: (reason: string) => void): void {

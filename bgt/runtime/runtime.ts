@@ -110,6 +110,7 @@ export class RuntimeFailure extends Error {
 }
 
 const STEP_MS = DT_US / 1000;
+const LOST_TIMEOUT_MS = 5000;
 
 async function sha256Hex(data: ArrayBuffer): Promise<string | null> {
   if (!crypto?.subtle) return null; // insecure context (e.g. LAN http on a phone)
@@ -313,21 +314,7 @@ export class BGTRuntime {
     this.renderer = await this.pickRenderer(this.opts.backend ?? 'auto');
     this.input = new InputManager(this.canvas, manifest.input);
     this.input.attach();
-    this.renderer.onError((m) => {
-      this.record('gpu', m);
-      console.error(`[bgt] gpu: ${m}`);
-    });
-    this.renderer.onLost((reason) => {
-      this.record('device-lost', reason);
-      console.warn(`[bgt] ${reason}`);
-    });
-    this.renderer.onRestored(() => {
-      if (!this.host) return;
-      this.renderer!.restoreTextures(this.host.textures);
-      this.deviceResets++;
-      this.input.markEvent('deviceReset');
-      this.applySize();
-    });
+    this.wireRenderer(this.renderer);
 
     this.storage = new BrowserStorage(manifest.id, { ephemeral: this.opts.ephemeralStorage });
     this.audio.armUnlock();
@@ -378,6 +365,75 @@ export class BGTRuntime {
     if (this.opts.startPaused) this.paused = true;
     this.ready = true;
     this.canvas.focus({ preventScroll: true });
+  }
+
+  private lostSince = 0;
+
+  private wireRenderer(r: Renderer): void {
+    r.onError((m) => {
+      if (r !== this.renderer) return;
+      this.record('gpu', m);
+      console.error(`[bgt] gpu: ${m}`);
+    });
+    r.onLost((reason) => {
+      if (r !== this.renderer) return;
+      this.lostSince = performance.now();
+      this.record('device-lost', reason);
+      console.warn(`[bgt] ${reason}`);
+    });
+    r.onRestored(() => {
+      if (r !== this.renderer || !this.host) return;
+      this.lostSince = 0;
+      r.restoreTextures(this.host.textures);
+      this.deviceResets++;
+      this.input.markEvent('deviceReset');
+      this.applySize();
+    });
+    r.onUnrecoverable((reason) => {
+      if (r !== this.renderer) return;
+      this.switchToWebGL2(reason);
+    });
+  }
+
+  /**
+   * Unrecoverable GPU loss: continue on WebGL 2 with a fresh canvas (a canvas that
+   * produced a WebGPU context cannot produce WebGL). Textures come back from the
+   * runtime's CPU shadow copies; the simulation is untouched. If WebGL 2 is
+   * already the backend, or cannot be created, stop with an accessible error.
+   */
+  private switchToWebGL2(reason: string): void {
+    const old = this.renderer;
+    if (!this.host || this.failed) return;
+    if (!old || old.kind === 'webgl2') {
+      this.fail('device-lost', `graphics device lost and could not be recovered (${reason})`);
+      return;
+    }
+    console.warn(`[bgt] ${reason}; switching to WebGL 2`);
+    this.canvas = this.newCanvas();
+    const gl = WebGL2Renderer.create(this.canvas, { debug: !!this.opts.debug });
+    if (!gl) {
+      this.fail('device-lost', `WebGPU device lost (${reason}) and WebGL 2 is unavailable`);
+      return;
+    }
+    old.destroy();
+    this.renderer = gl;
+    this.wireRenderer(gl);
+    this.input.retarget(this.canvas);
+    this.lostSince = 0;
+    this.measure();
+    gl.restoreTextures(this.host.textures);
+    this.host.setBackend(BACKEND_WEBGL2);
+    this.backendNotes.push(`webgpu: device lost and not recoverable (${reason}); switched to webgl2`);
+    this.deviceResets++;
+    this.input.markEvent('deviceReset');
+    this.applySize();
+  }
+
+  /** Loss that neither recovers nor reports failure within the timeout is treated as unrecoverable. */
+  private checkLossWatchdog(): void {
+    if (this.renderer?.lost && this.lostSince && performance.now() - this.lostSince > LOST_TIMEOUT_MS) {
+      this.switchToWebGL2(`no recovery within ${LOST_TIMEOUT_MS} ms`);
+    }
   }
 
   private async pickRenderer(pref: BackendPreference): Promise<Renderer> {
@@ -501,6 +557,7 @@ export class BGTRuntime {
         if (!this.paused && this.ready && !this.failed) this.acc += Math.min(d, 250);
       }
       this.last = t;
+      this.checkLossWatchdog();
       if (this.paused || !this.ready || this.failed || this.renderer?.lost) return;
       let n = 0;
       while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates) {
@@ -533,8 +590,12 @@ export class BGTRuntime {
       if (this.failed) break;
       this.guard(() => this.stepOnce());
       if (this.failed) break;
-      // Wait out device-loss recovery instead of drawing into a dead context.
-      while (this.renderer?.lost) await new Promise((r) => setTimeout(r, 10));
+      // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.
+      while (this.renderer?.lost && !this.failed) {
+        this.checkLossWatchdog();
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      if (this.failed) break;
       await this.renderFrame(false);
     }
     await this.renderer?.finish();
@@ -555,8 +616,8 @@ export class BGTRuntime {
     return this.host.submitExternal(bytes);
   }
 
-  async simulateDeviceLoss(): Promise<void> {
-    await this.renderer?.simulateLoss();
+  async simulateDeviceLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
+    await this.renderer?.simulateLoss(opts);
   }
 
   diagnostics(): BGTDiagnostics {

@@ -357,6 +357,11 @@ export class GameHost {
     return rc;
   }
 
+  /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
+  setBackend(backend: number): void {
+    this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
+  }
+
   setDisplaySize(w: number, h: number): void {
     const dv = this.dv();
     dv.setUint32(this.ioPtr + IO.display_width, w, true);

@@ -43,9 +43,11 @@ export interface Renderer {
   finish(): Promise<void>;
   /** Recreate GPU objects for every texture in the table (after device/context loss). */
   restoreTextures(textures: TextureTable): void;
-  /** Debug: provoke a device/context loss. */
-  simulateLoss(): Promise<void>;
+  /** Debug: provoke a device/context loss; `unrecoverable` makes recovery fail (WebGPU). */
+  simulateLoss(opts?: { unrecoverable?: boolean }): Promise<void>;
   onLost(cb: (reason: string) => void): void;
+  /** The backend gave up recovering; the runtime should switch backends or stop. */
+  onUnrecoverable(cb: (reason: string) => void): void;
   onRestored(cb: () => void): void;
   onError(cb: (message: string) => void): void;
   destroy(): void;

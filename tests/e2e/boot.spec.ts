@@ -1,7 +1,8 @@
 import { test, expect, openGame, assertBackend, diagnostics, step, readPixels, findColor, attachScreenshot, PLAYER_CYAN, WALL_BLUE } from './fixtures';
 
 test('sample boots to its title screen with no errors', async ({ page, backendParam, collector }, testInfo) => {
-  void collector;
+  // A device loss is acceptable only if the runtime recovered from it (see backendNotes / deviceResets).
+  collector.allow(/device lost|switching to WebGL 2/i);
   expect(await openGame(page, backendParam)).toBe('ready');
   const backend = await assertBackend(page, backendParam, testInfo);
   expect(['webgpu', 'webgl2']).toContain(backend);
@@ -15,7 +16,8 @@ test('sample boots to its title screen with no errors', async ({ page, backendPa
   expect(d.textures.count).toBe(1);
   expect(d.assets.count).toBe(2);
   expect(d.assets.missing).toEqual([]);
-  expect(d.errors).toEqual([]);
+  expect(d.errors.filter((e) => e.kind !== 'device-lost')).toEqual([]);
+  if (d.errors.length) expect(d.deviceResets).toBeGreaterThan(0);
   expect(d.commandErrors.count).toBe(0);
   expect(d.stateHashAvailable).toBe(true);
   expect(d.logs.map((l) => l.message)).toContain('coin cave ready');

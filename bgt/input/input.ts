@@ -75,13 +75,14 @@ export class InputManager {
   private axes: [number, number, number, number] = [0, 0, 0, 0];
   private overlayEl: HTMLElement | null = null;
   private disposers: Array<() => void> = [];
+  private canvasDisposers: Array<() => void> = [];
   letterbox: Letterbox = { x: 0, y: 0, w: 1, h: 1, scale: 1 };
   logicalW = 1;
   logicalH = 1;
   dpr = 1;
 
   constructor(
-    private readonly canvas: HTMLCanvasElement,
+    private canvas: HTMLCanvasElement,
     cfg: InputConfig = {},
   ) {
     this.keymap = { ...DEFAULT_KEYMAP };
@@ -109,6 +110,22 @@ export class InputManager {
       this.sources.keys = 0;
       this.events |= EVENT_FOCUS_LOST;
     });
+    this.bindCanvas();
+  }
+
+  /** Move pointer handling to a new canvas (backend switch replaces the canvas). */
+  retarget(canvas: HTMLCanvasElement): void {
+    for (const d of this.canvasDisposers) d();
+    this.canvasDisposers = [];
+    this.canvas = canvas;
+    this.bindCanvas();
+  }
+
+  private bindCanvas(): void {
+    const on = (t: EventTarget, type: string, fn: (e: never) => void) => {
+      t.addEventListener(type, fn as EventListener);
+      this.canvasDisposers.push(() => t.removeEventListener(type, fn as EventListener));
+    };
     const pt = (e: PointerEvent) => {
       const r = this.canvas.getBoundingClientRect();
       const dx = (e.clientX - r.left) * this.dpr, dy = (e.clientY - r.top) * this.dpr;
@@ -283,8 +300,9 @@ export class InputManager {
   }
 
   detach(): void {
-    for (const d of this.disposers) d();
+    for (const d of [...this.disposers, ...this.canvasDisposers]) d();
     this.disposers = [];
+    this.canvasDisposers = [];
     this.overlayEl?.remove();
   }
 }

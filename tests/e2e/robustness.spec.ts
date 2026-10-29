@@ -1,6 +1,6 @@
 import { CommandEncoder, rgba } from '../../bgt/runtime/commands';
 import { CMD_MAGIC, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_UNSUPPORTED, OP } from '../../bgt/runtime/abi';
-import { test, expect, openGame, assertBackend, diagnostics, step, readPixels, findColor, attachScreenshot, PLAYER_CYAN, WALL_BLUE, debugState } from './fixtures';
+import { test, expect, openGame, assertBackend, diagnostics, step, input, readPixels, findColor, attachScreenshot, PLAYER_CYAN, WALL_BLUE, debugState } from './fixtures';
 
 const b64 = (u: Uint8Array) => Buffer.from(u).toString('base64');
 
@@ -106,4 +106,43 @@ test('GPU device/context loss is recovered and textures are restored', async ({ 
   const d = await diagnostics(page);
   expect(d.errors.map((e) => e.kind)).toEqual(['device-lost']);
   expect((await debugState(page)).state).toBe('title'); // simulation untouched
+});
+
+test('unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing', async ({ page, backendParam, collector }, testInfo) => {
+  collector.allow(/device lost|switching to WebGL 2|recovery failed/i);
+  test.skip(backendParam !== 'webgpu', 'needs a WebGPU start');
+  expect(await openGame(page, backendParam)).toBe('ready');
+  await assertBackend(page, backendParam, testInfo);
+  await page.evaluate(() => (window as any).__BGT_TEST__.pause());
+  await input(page, [{ type: 'button', button: 'START', down: true }]);
+  await step(page, 1);
+  await input(page, [{ type: 'button', button: 'START', down: false }, { type: 'button', button: 'RIGHT', down: true }]);
+  await step(page, 20);
+  const before = await debugState(page);
+  const walls = findColor(await readPixels(page), WALL_BLUE, 4).count;
+  await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
+  await expect.poll(() => page.evaluate(() => (window as any).__BGT_TEST__.backend()), { timeout: 10_000 }).toBe('webgl2');
+  expect((await debugState(page)).player).toEqual(before.player); // simulation untouched by the switch
+  await step(page, 10); // RIGHT still held: the game keeps running on the new backend
+  const after = await debugState(page);
+  expect(after.state).toBe('playing');
+  expect(after.player.x).toBeGreaterThan(before.player.x);
+  const px = await readPixels(page);
+  expect(findColor(px, WALL_BLUE, 4).count).toBe(walls); // atlas restored from shadow copy
+  const d = await diagnostics(page);
+  expect(d.failed).toBe(false);
+  expect(d.deviceResets).toBe(1);
+  expect(d.backendNotes.join(' ')).toMatch(/switched to webgl2/);
+  expect(d.errors.map((e) => e.kind)).toEqual(['device-lost']);
+  await attachScreenshot(page, testInfo, 'after-webgpu-to-webgl2-switch.png');
+});
+
+test('a WebGL 2 context that is never restored stops with an accessible error, not a hang', async ({ page, backendParam, collector }, testInfo) => {
+  collector.allow(/context lost|could not be recovered|device-lost/i);
+  test.skip(backendParam !== 'webgl2', 'WebGL 2 is the last backend');
+  expect(await openGame(page, backendParam)).toBe('ready');
+  await assertBackend(page, backendParam, testInfo);
+  await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
+  await expect(page.getByRole('alert')).toContainText(/could not be recovered/);
+  expect((await diagnostics(page)).failed).toBe(true);
 });

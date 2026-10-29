@@ -259,7 +259,19 @@ export class WebGL2Renderer implements Renderer {
     }
   }
 
-  async simulateLoss(): Promise<void> {
+  onUnrecoverable(cb: (reason: string) => void): void {
+    // WebGL restoration is browser-driven; the runtime's loss watchdog covers the
+    // never-restored case. Kept for interface parity.
+    this.unrecoverableCbs.push(cb);
+  }
+  private unrecoverableCbs: Array<(m: string) => void> = [];
+
+  async simulateLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
+    if (opts.unrecoverable) {
+      this.gl.getExtension('WEBGL_lose_context')?.loseContext();
+      for (const cb of this.unrecoverableCbs) cb('WebGL context lost (simulated, unrecoverable)');
+      return;
+    }
     const ext = this.gl.getExtension('WEBGL_lose_context');
     if (!ext) throw new Error('WEBGL_lose_context unavailable');
     const restored = new Promise<void>((resolve) => this.restoredCbs.push(() => resolve()));

@@ -30,7 +30,7 @@ export interface BGTTestAPI {
   readPixels(): Promise<BGTPixels | null>;
   debugState(): unknown;
   injectCommands(base64: string): DecodeResult | null;
-  simulateDeviceLoss(): Promise<void>;
+  simulateDeviceLoss(opts?: { unrecoverable?: boolean }): Promise<void>;
 }
 
 function b64(bytes: Uint8Array): string {
@@ -74,7 +74,7 @@ export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
     },
     debugState: () => rt.host?.debugState() ?? null,
     injectCommands: (base64) => rt.injectCommands(unb64(base64)),
-    simulateDeviceLoss: () => rt.simulateDeviceLoss(),
+    simulateDeviceLoss: (opts) => rt.simulateDeviceLoss(opts),
   };
   (window as unknown as { __BGT_TEST__: BGTTestAPI }).__BGT_TEST__ = api;
   return api;
