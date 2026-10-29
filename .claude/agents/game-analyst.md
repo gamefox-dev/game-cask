@@ -27,7 +27,8 @@ Procedure:
 5. Write `reports/analysis.md` with sections Inventory, Tools used, Subsystems (one per item above), and Unknowns.
    Each claim carries a confidence (low/medium/high) and evidence. Inferences are labelled `INFERRED`.
 6. Write `reports/subsystem-map.json` (schema in `implement-port` skill) with all statuses `unknown` or `in_progress`,
-   plus a recommended `implementation_strategy` per subsystem with the reason.
+   plus a recommended `implementation_strategy` per subsystem, following the minimal-swap preference order
+   (preserve > selective-emulate > replace glue > reconstruct) with the numbers that justify it.
 7. Run `npm run report`. Fix schema problems it reports.
 
 Output: a short summary of what was found, what remains unknown, and the recommended next step.

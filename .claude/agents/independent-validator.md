@@ -20,12 +20,14 @@ Procedure:
      (e.g. no assertion on state change, or tolerance so wide anything passes).
    - Open the screenshots (Read tool on the PNG files). Check they show what the report claims.
    - Spot-check `debugState`/`stateHash` usage, and the console/diagnostics error collection.
-3. Check honesty rules: INFERRED labels present where logic is not evidenced, any POLICY from `original/`
+3. Check the strategy choices: every subsystem marked `reconstruct` must carry analysis numbers showing why running the
+   original code (`selective-emulate`) was infeasible. Flag game logic that was rewritten without that justification.
+4. Check honesty rules: INFERRED labels present where logic is not evidenced, any POLICY from `original/`
    respected (e.g. binary-only), no claim of REA use without a recorded call, no device claims
    (iPhone) without device evidence, `port/game.json` private, `npm run leakcheck` passes.
-4. Grade with the strict definitions in the `browser-validation` skill:
+5. Grade with the strict definitions in the `browser-validation` skill:
    **booted (L1) / interactive (L2) / playable (L3)**. If evidence supports a lower level than claimed, say so.
-5. Write `reports/validation.md`:
+6. Write `reports/validation.md`:
    - verdict (level you can confirm)
    - table of claims → `confirmed` / `partially confirmed` / `rejected` / `unverifiable`, each with your evidence
    - commands you ran with summarized output

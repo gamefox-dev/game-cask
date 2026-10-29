@@ -26,7 +26,7 @@ If the baseline fails, fix or report that first. Never start a port on a red bas
 | 1 | `npm run inspect` → `reports/inventory.json`: candidates, formats, platform hints, tool availability | `inspect-game` |
 | 2 | Detect REA. Use it **only if actually callable**; otherwise say so and use the deterministic tools | `use-rea` |
 | 3 | Analyse the executable(s) and assets: entry, game loop, rendering, input, timing, sound, files, with evidence and confidence | `game-analyst` agent, `recover-assets` |
-| 4 | Choose a strategy per subsystem: `preserve` / `reconstruct` / `replace` / `selective-emulate`. Write `reports/analysis.md` and `reports/subsystem-map.json` | `implement-port` |
+| 4 | **After** the call-graph/import analysis, choose a strategy per subsystem. Principle: keep the original running, swap only the minimum (see the preference order in `implement-port`). Write `reports/analysis.md` and `reports/subsystem-map.json` | `implement-port` |
 | 5 | Implement the **smallest interactive vertical slice** in `port/` (C + `game.json`) | `game-porter` agent, `implement-port` |
 | 6 | `npm run build:port`, then open `/?game=<id>`. Exercise the **actual game** in the browser, capture evidence, iterate | `browser-validation` |
 | 7 | Broaden; keep `reports/progress.json` and `reports/errors.json` current (resumable) | |
@@ -44,6 +44,8 @@ If the baseline fails, fix or report that first. Never start a port on a red bas
 - Do not modify `bgt/` (shared ABI/runtime) to make a port pass. If a general capability is genuinely
   missing, record it in `reports/errors.json` as `kit-gap` with justification, and work around it in `port/`.
 - Ports are private by default: `port/game.json` has `"private": true`. Only the user may change that.
+- **Minimal swap.** Run the original code and data wherever feasible; replace only the platform layer (video, input,
+  audio, files, OS/API calls). Rewriting game logic is a last resort, justified per subsystem with analysis numbers.
 - **Label inference.** Any logic not directly evidenced by the binary is marked `INFERRED` in code comments
   and in `known_deviations`. Never present guesses as recovered behaviour.
 - **Never claim a tool ran when it did not, a test passed when it did not, or a level that was not

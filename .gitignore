@@ -32,3 +32,6 @@
 *.swp
 .idea/
 .vscode/
+
+# finished ports moved aside (private, never committed)
+/archive/

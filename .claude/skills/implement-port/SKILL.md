@@ -9,17 +9,32 @@ description: Plan and implement a game port in port/ against the frozen BGT ABI 
 `reports/subsystem-map.json`:
 ```json
 { "game": "<name>", "subsystems": [
-  { "name": "game loop & timing", "implementation_strategy": "reconstruct", "status": "in_progress",
+  { "name": "game loop & timing", "implementation_strategy": "replace", "status": "in_progress",
     "confidence": "medium", "source_evidence": ["0x01a3: PIT reprogrammed to divisor 0x2e9c (~100 Hz)"],
     "known_deviations": ["runs at BGT fixed 60 Hz; original tick 100 Hz resampled"], "verification_evidence": [] } ] }
 ```
-Strategies:
-- **preserve**: keep original data as-is (level tables, palettes, fonts)
-- **reconstruct**: re-implement recovered logic in C (game rules, AI, physics), citing evidence
-- **replace**: new code for platform glue (video/audio/input/files/OS calls) mapped onto BGT
-- **selective-emulate**: interpret a small original code image (e.g. a CPU-core interpreter for a tiny
-  real-mode program) with BGT-backed device shims. Use it when the logic is too entangled to reconstruct
-  faithfully and the code is small. Document emulator coverage and gaps.
+Principle: **keep the original experience, swap out the minimum.** The original code and data stay; only the
+platform layer underneath them is replaced. Decide this only **after** analysis has mapped:
+- the import table (per DLL/function, with call-site counts) or the interrupt/port usage
+- the call graph from the entry point through the main loop / message handlers
+- which platform calls the boot → play → end paths actually reach
+
+Strategies, in order of preference:
+1. **preserve**: original data used as-is (graphics, levels, palettes, fonts, sounds).
+2. **selective-emulate**: run the original code image under a CPU interpreter (real-mode or 32-bit flat), with
+   shims that implement only the platform calls this binary actually uses, on top of BGT:
+   - DOS/BIOS/VGA/PIT for DOS programs
+   - the imported Win32/GDI/USER/KERNEL functions for Windows programs. Statically linked frameworks such as
+     Delphi VCL or MFC-static are just more original code and run as-is.
+
+   This is the default for game logic. The spec's non-goal is *arbitrary* binary execution; a shim scoped to one
+   binary's measured import set is in scope. Track shim coverage: implemented, stubbed, and stubs hit at runtime.
+3. **replace**: new code for the platform glue itself (rendering, input, audio, storage, timing), mapped onto BGT.
+   This is what the shims are made of.
+4. **reconstruct**: re-implement original logic in C. Use it only for a subsystem where the analysis shows emulation is
+   infeasible, e.g. an unshimmable dependency or a surface far too large for the slice, and record the numbers
+   behind that decision. Every reconstructed rule cites code evidence (addresses); general genre knowledge is
+   `INFERRED`.
 
 `status`: `unknown → in_progress → implemented → tested → verified`. `verified` requires
 `verification_evidence` (a test name, screenshot or trace) from a run you actually did.
