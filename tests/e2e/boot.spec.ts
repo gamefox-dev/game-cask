@@ -10,7 +10,7 @@ test('sample boots to its title screen with no errors', async ({ page, backendPa
   await page.evaluate(() => (window as any).__BGT_TEST__.pause());
   await step(page, 2);
   const d = await diagnostics(page);
-  expect(d.abi).toBe('0.1');
+  expect(d.abi).toBe('0.2');
   expect(d.game?.id).toBe('sample2d');
   expect(d.logical).toEqual({ width: 320, height: 180 });
   expect(d.textures.count).toBe(1);

@@ -89,6 +89,17 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
   } catch {
     throw new Error(`compile failed for ${cfg.id} (zig ${zig.version})`);
   }
+  if (cfg.asyncify) {
+    // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can
+    // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
+    const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
+    if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
+    try {
+      execFileSync(process.execPath, [wasmOpt, wasmPath, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+    } catch {
+      throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
+    }
+  }
   const wasm = readFileSync(wasmPath);
 
   const assets = [];
@@ -135,7 +146,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
     assets,
     touch: cfg.touch ?? { dpad: true, buttons: ['A', 'B', 'START'] },
     input: cfg.input ?? {},
-    toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])] },
+    toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
   };
   if (check) {
     rmSync(outDir, { recursive: true, force: true });

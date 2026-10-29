@@ -1,6 +1,6 @@
 // WebGPU backend (preferred). Consumes the shared decoded Frame.
 
-import { BLEND_ADD, BLEND_ALPHA, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
+import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice } from '../types';
 
@@ -44,6 +44,16 @@ function blendState(mode: number): GPUBlendState | undefined {
         color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
         alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       };
+    case BLEND_INVERT: // dst' = src * (1 - dst): white src inverts
+      return {
+        color: { srcFactor: 'one-minus-dst', dstFactor: 'zero', operation: 'add' },
+        alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+      };
+    case BLEND_MULTIPLY:
+      return {
+        color: { srcFactor: 'dst', dstFactor: 'zero', operation: 'add' },
+        alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+      };
   }
   return undefined;
 }
@@ -54,7 +64,10 @@ export interface WebGPUOptions {
 
 interface DeviceObjects {
   device: GPUDevice;
+  /** [screen-format pipelines, rgba8unorm render-target pipelines], indexed by blend mode */
   pipelines: GPURenderPipeline[];
+  rtPipelines: GPURenderPipeline[];
+  uLayout: GPUBindGroupLayout;
   texLayout: GPUBindGroupLayout;
   uniform: GPUBuffer;
   uniformGroup: GPUBindGroup;
@@ -71,6 +84,7 @@ export class WebGPURenderer implements Renderer {
   maxTextureSize = 4096;
   private o!: DeviceObjects;
   private textures = new Map<number, GPUTexture>();
+  private targets = new Map<number, { w: number; h: number; group: GPUBindGroup; buf: GPUBuffer }>();
   private bindGroups = new Map<string, GPUBindGroup>();
   private lostCbs: Array<(r: string) => void> = [];
   private restoredCbs: Array<() => void> = [];
@@ -125,7 +139,7 @@ export class WebGPURenderer implements Renderer {
       ],
     });
     const layout = device.createPipelineLayout({ bindGroupLayouts: [uLayout, texLayout] });
-    const pipelines = [0, 1, 2, 3].map((mode) =>
+    const mk = (format: GPUTextureFormat) => [0, 1, 2, 3, 4, 5].map((mode) =>
       device.createRenderPipeline({
         layout,
         vertex: {
@@ -142,10 +156,12 @@ export class WebGPURenderer implements Renderer {
             },
           ],
         },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: this.format, blend: blendState(mode) }] },
+        fragment: { module, entryPoint: 'fs', targets: [{ format, blend: blendState(mode) }] },
         primitive: { topology: 'triangle-list' },
       }),
     );
+    const pipelines = mk(this.format);
+    const rtPipelines = mk('rgba8unorm');
     const uniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const uniformGroup = device.createBindGroup({ layout: uLayout, entries: [{ binding: 0, resource: { buffer: uniform } }] });
     const samplers = (['nearest', 'linear'] as const).map((f) =>
@@ -153,8 +169,9 @@ export class WebGPURenderer implements Renderer {
     );
     const white = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     device.queue.writeTexture({ texture: white }, WHITE_PIXEL, { bytesPerRow: 4 }, [1, 1]);
-    this.o = { device, pipelines, texLayout, uniform, uniformGroup, samplers, white, vbuf: null, vbufSize: 0 };
+    this.o = { device, pipelines, rtPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white, vbuf: null, vbufSize: 0 };
     this.textures.clear();
+    this.targets.clear();
     this.bindGroups.clear();
   }
 
@@ -208,16 +225,28 @@ export class WebGPURenderer implements Renderer {
     this.bindGroups.delete(`${handle}:1`);
   }
 
-  private createTex(handle: number, w: number, h: number): GPUTexture {
+  private createTex(handle: number, w: number, h: number, renderTarget = false): GPUTexture {
     this.textures.get(handle)?.destroy();
+    this.dropTarget(handle);
     const t = this.o.device.createTexture({
       size: [w, h],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (renderTarget ? GPUTextureUsage.RENDER_ATTACHMENT : 0),
     });
     this.textures.set(handle, t);
     this.dropBindGroups(handle);
+    if (renderTarget) {
+      const buf = this.o.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.o.device.queue.writeBuffer(buf, 0, new Float32Array([w, h, 0, 0]));
+      const group = this.o.device.createBindGroup({ layout: this.o.uLayout, entries: [{ binding: 0, resource: { buffer: buf } }] });
+      this.targets.set(handle, { w, h, group, buf });
+    }
     return t;
+  }
+
+  private dropTarget(handle: number): void {
+    this.targets.get(handle)?.buf.destroy();
+    this.targets.delete(handle);
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Promise<Pixels | null> | null {
@@ -244,22 +273,30 @@ export class WebGPURenderer implements Renderer {
     const view = target.createView();
     let encoder: GPUCommandEncoder | null = null;
     let pass: GPURenderPassEncoder | null = null;
-    let first = true;
+    let passTarget = -1;
+    let first = true; // screen not yet cleared this frame
     const W = this.canvas.width;
     const H = this.canvas.height;
 
-    const open = () => {
+    const open = (targetHandle: number) => {
       encoder = device.createCommandEncoder();
-      pass = encoder.beginRenderPass({
-        colorAttachments: [
-          { view, loadOp: first ? 'clear' : 'load', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } },
-        ],
-      });
-      first = false;
+      const rt = targetHandle ? this.targets.get(targetHandle) : undefined;
+      const tex = rt ? this.textures.get(targetHandle) : undefined;
+      if (rt && tex) {
+        pass = encoder.beginRenderPass({ colorAttachments: [{ view: tex.createView(), loadOp: 'load', storeOp: 'store' }] });
+        pass.setViewport(0, 0, rt.w, rt.h, 0, 1);
+        pass.setBindGroup(0, rt.group);
+      } else {
+        pass = encoder.beginRenderPass({
+          colorAttachments: [{ view, loadOp: first ? 'clear' : 'load', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+        });
+        first = false;
+        pass.setViewport(lb.x, lb.y, lb.w, lb.h, 0, 1);
+        pass.setBindGroup(0, this.o.uniformGroup);
+      }
+      passTarget = targetHandle;
       this.stats.passes++;
-      pass.setViewport(lb.x, lb.y, lb.w, lb.h, 0, 1);
       if (this.o.vbuf) pass.setVertexBuffer(0, this.o.vbuf);
-      pass.setBindGroup(0, this.o.uniformGroup);
     };
     const close = () => {
       if (!pass || !encoder) return;
@@ -273,7 +310,7 @@ export class WebGPURenderer implements Renderer {
       switch (it.kind) {
         case 'texCreate':
           close();
-          this.createTex(it.handle, it.width, it.height);
+          this.createTex(it.handle, it.width, it.height, it.renderTarget);
           break;
         case 'texUpdate': {
           close();
@@ -286,16 +323,29 @@ export class WebGPURenderer implements Renderer {
           this.textures.get(it.handle)?.destroy();
           this.textures.delete(it.handle);
           this.dropBindGroups(it.handle);
+          this.dropTarget(it.handle);
           break;
         case 'draw': {
-          const r = clipToDevice(it.clip, lb, frame.logicalW, frame.logicalH);
-          const x = Math.max(0, r.x), y = Math.max(0, r.y);
-          const w = Math.min(W, r.x + r.w) - x, h = Math.min(H, r.y + r.h) - y;
+          let x: number, y: number, w: number, h: number;
+          if (it.target) {
+            const rt = this.targets.get(it.target);
+            if (!rt) break;
+            x = Math.max(0, it.clip.x); y = Math.max(0, it.clip.y);
+            w = Math.min(rt.w, it.clip.x + it.clip.w) - x; h = Math.min(rt.h, it.clip.y + it.clip.h) - y;
+          } else {
+            const r = clipToDevice(it.clip, lb, frame.logicalW, frame.logicalH);
+            x = Math.max(0, r.x); y = Math.max(0, r.y);
+            w = Math.min(W, r.x + r.w) - x; h = Math.min(H, r.y + r.h) - y;
+          }
           if (w <= 0 || h <= 0) break;
-          if (!pass) open();
+          if (!pass || passTarget !== it.target) {
+            close();
+            open(it.target);
+          }
           const p = pass as unknown as GPURenderPassEncoder;
           p.setScissorRect(x, y, w, h);
-          p.setPipeline(this.o.pipelines[it.blend] ?? this.o.pipelines[BLEND_ALPHA]);
+          const set = it.target ? this.o.rtPipelines : this.o.pipelines;
+          p.setPipeline(set[it.blend] ?? set[BLEND_ALPHA]);
           p.setBindGroup(1, this.bindGroup(it.texture, it.filter));
           p.draw(it.count, 1, it.first, 0);
           this.stats.drawCalls++;
@@ -303,7 +353,10 @@ export class WebGPURenderer implements Renderer {
         }
       }
     }
-    if (first) open(); // no draws: still clear the canvas
+    if (first) {
+      close();
+      open(0); // screen never drawn this frame: still clear it
+    }
     close();
 
     let pending: Promise<Pixels> | null = null;
@@ -344,7 +397,7 @@ export class WebGPURenderer implements Renderer {
 
   restoreTextures(textures: TextureTable): void {
     for (const [handle, e] of textures.entries) {
-      const t = this.createTex(handle, e.width, e.height);
+      const t = this.createTex(handle, e.width, e.height, e.renderTarget); // GPU-drawn RT contents are lost
       this.o.device.queue.writeTexture({ texture: t }, e.shadow, { bytesPerRow: e.width * 4, rowsPerImage: e.height }, [e.width, e.height]);
     }
   }

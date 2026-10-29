@@ -21,8 +21,8 @@ extern "C" {
 /* ---------------------------------------------------------------- version */
 
 #define BGT_ABI_VERSION_MAJOR 0
-#define BGT_ABI_VERSION_MINOR 1
-/* Packed as (major << 16) | (minor << 8) | patch. v0.1.0 == 0x000100. */
+#define BGT_ABI_VERSION_MINOR 2
+/* Packed as (major << 16) | (minor << 8) | patch. v0.2.0 == 0x000200 (v0.1 games still load). */
 #define BGT_ABI_VERSION ((BGT_ABI_VERSION_MAJOR << 16) | (BGT_ABI_VERSION_MINOR << 8))
 
 #if defined(__wasm__)
@@ -54,6 +54,8 @@ extern "C" {
 #define BGT_CAP_SCISSOR        (1u << 5)
 #define BGT_CAP_TRIANGLES      (1u << 6)
 #define BGT_CAP_DIRECT_DRAW    (1u << 7)  /* debug/bench reference path    */
+#define BGT_CAP_RENDER_TARGETS (1u << 8)  /* v0.2: TEX_CREATE with BGT_TEX_RENDER_TARGET + TARGET op */
+#define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
 
 #define BGT_BACKEND_NONE     0
 #define BGT_BACKEND_WEBGPU   1
@@ -127,10 +129,12 @@ extern "C" {
 #define BGT_EVENT_DEVICE_RESET   (1u << 1)  /* GPU lost+restored; textures were re-uploaded by runtime */
 #define BGT_EVENT_AUDIO_UNLOCKED (1u << 2)
 #define BGT_EVENT_FOCUS_LOST     (1u << 3)
+#define BGT_EVENT_TARGETS_LOST   (1u << 4)  /* v0.2: render-target contents were lost (device reset); redraw them */
 
 /* game -> runtime flags (bgt_io_t.flags, set in bgt_init) */
 #define BGT_FLAG_INTEGER_SCALE   (1u << 0)  /* letterbox with integer scale when possible */
 #define BGT_FLAG_POINTER_LOCK    (1u << 1)  /* reserved, unsupported in v0.1 */
+/* v0.2: logical_width/height may be changed by the game in any bgt_update; the runtime relayouts. */
 
 #define BGT_MAX_TOUCHES 4
 
@@ -231,6 +235,12 @@ BGT_IMPORT(audio_queued) int32_t bgt_audio_queued(void); /* frames scheduled but
 BGT_IMPORT(storage_read)  int32_t bgt_storage_read(const char *key, uint32_t key_len, void *dst, uint32_t cap);
 BGT_IMPORT(storage_write) int32_t bgt_storage_write(const char *key, uint32_t key_len, const void *src, uint32_t len);
 
+/* v0.2: suspend the game until the next frame, from anywhere on the call stack. Valid only inside
+ * bgt_update, and only in games built with "asyncify": true (game.json) which export
+ * bgt_async_buffer. Lets blocking legacy loops (message pumps, vsync waits) run unchanged:
+ * the runtime unwinds the stack, returns from bgt_update, and resumes right here next frame. */
+BGT_IMPORT(yield) void bgt_yield(void);
+
 /* Wall-clock microseconds for profiling only. Never use for simulation. */
 BGT_IMPORT(time_us) double bgt_time_us(void);
 
@@ -250,6 +260,12 @@ BGT_IMPORT(debug_draw_sprite) void bgt_debug_draw_sprite(uint32_t texture, float
  *   void     bgt_shutdown(void);
  * Optional:
  *   uint32_t bgt_state_hash(void);         stable hash of deterministic simulation state
+ *   uint32_t bgt_async_buffer(void);       v0.2, required with bgt_yield: address of a game-owned
+ *                                          buffer (>= 64 KiB, 8-byte aligned) for the asyncify stack;
+ *                                          its first 8 bytes are overwritten by the runtime
+ *   uint32_t bgt_async_buffer_size(void);  its size in bytes
+ *   uint32_t bgt_metrics(void);            v0.2, optional: address of NUL-terminated JSON with kit metrics
+ *                                          (e.g. lifted vs interpreted instructions, stubs hit)
  *   uint32_t bgt_debug_state(void);        address of a game-owned NUL-terminated UTF-8 JSON
  *                                          string describing observable state (debug/test only;
  *                                          valid until the next bgt_* call)

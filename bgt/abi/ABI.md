@@ -1,6 +1,6 @@
-# Game Cask Browser Target (BGT) — ABI v0.1
+# Game Cask Browser Target (BGT) — ABI v0.2
 
-Status: **frozen for v0.1**. The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
+Status: **v0.2** (adds §11 to the frozen v0.1; every v0.1 game still loads unchanged). The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
 [`bgt_cmd.h`](../include/bgt_cmd.h). The TypeScript mirror is
 [`bgt/runtime/abi.ts`](../runtime/abi.ts). `tests/unit/abi-layout.test.ts` compiles a C
 probe against the headers and fails if the mirror drifts.
@@ -33,7 +33,7 @@ sees a JS, DOM or WebGPU object.
   | -6 | `BGT_E_IO` | storage backend failure |
   | -7 | `BGT_E_STATE` | call not valid in the current lifecycle state |
 
-- Versioning: `BGT_ABI_VERSION = (major << 16) | (minor << 8) | patch`, currently `0x000100`.
+- Versioning: `BGT_ABI_VERSION = (major << 16) | (minor << 8) | patch`, currently `0x000200` (v0.2).
   The runtime refuses a module whose major differs, or whose minor is newer than the runtime's.
   Minor versions only add functionality.
 
@@ -270,3 +270,55 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
 - Pointer lock, multi-touch gestures and gamepad rumble are not exposed.
 - Storage is localStorage (≈5 MiB per origin).
 - No hardware iPhone Safari verification has been performed by the kit's own tests. See `docs/verification.md`.
+
+## 11. v0.2 additions
+
+All additions are opt-in; v0.1 games are unaffected.
+
+### Render targets (`BGT_CAP_RENDER_TARGETS`)
+- `TEX_CREATE` with `format = BGT_FORMAT_RGBA8 | BGT_TEX_RENDER_TARGET` (bit 8) creates a texture that can be drawn
+  into. It starts transparent black and **keeps its contents across frames**. Platforms that draw incrementally
+  (GDI windows, VGA framebuffers, off-screen bitmaps) map onto this without CPU pixel work.
+- `TARGET {u32 handle}` (op `0x07`): subsequent draws go into that render target (`0` = the screen). Coordinates are the
+  target's pixels. Viewport and scissor reset to the full target; transform, blend and texture are kept. At the start
+  of every `bgt_render` the target is the screen.
+- Errors:
+  - `TARGET` on a non-render-target texture → `BGT_E_INVALID`; on an unknown handle → `BGT_E_NOT_FOUND`
+  - sampling the texture currently being drawn into → `BGT_E_STATE`
+  - deleting it → `BGT_E_STATE`
+- Render-target contents live only on the GPU. After a device/context reset the runtime recreates them (from the last
+  `TEX_UPDATE` data, if any) and sets `BGT_EVENT_TARGETS_LOST`: redraw them. There is no GPU→CPU readback in v0.2.
+- Both backends render targets with texture row 0 at the top. The conformance scene checks this orientation.
+
+### Blend modes
+| mode | value | result |
+|---|---:|---|
+| `BGT_BLEND_INVERT` | 4 | `dst = src × (1 − dst)`; with a white source this is the classic invert (GDI `DSTINVERT`/`PATINVERT` with white) |
+| `BGT_BLEND_MULTIPLY` | 5 | `dst = src × dst`; equals a bitwise AND for 0/255 mask colours (GDI `SRCAND` masks) |
+
+Alpha is kept for both. General bitwise raster ops (XOR of arbitrary colours) have no GPU equivalent in WebGPU or
+WebGL 2. Platforms must emulate those on the CPU and report them as exceptions.
+
+### Yield: blocking loops (`BGT_CAP_YIELD`)
+`void bgt_yield(void)` suspends the game until the next frame **from anywhere on the call stack**. A legacy loop that
+"owns the machine" (a message pump in `GetMessage`, a vsync wait, a polling loop) can then run unchanged.
+- Build with `"asyncify": true` in `game.json`. The build runs binaryen's asyncify pass, with `bgt.yield` as the only
+  suspending import.
+- The game exports `bgt_async_buffer()` and `bgt_async_buffer_size()`: a static, 8-byte aligned buffer of at least
+  64 KiB for the saved stack.
+- Resuming continues **at the yield point**: code in `bgt_update` before the call that eventually yields is *not* re-run
+  on later frames. Read per-frame input (`io`) after `bgt_yield` returns, inside the loop.
+- Valid only inside `bgt_update`. The runtime unwinds, returns from `bgt_update`, may call `bgt_render`, and on the next
+  update rewinds into `bgt_yield`, which returns. Input for that frame is already in `io`.
+- Cost: instrumented functions are larger and slower. Only functions that can reach `bgt.yield` (directly or through
+  indirect calls) are instrumented.
+- Diagnostics report `yields` (frames that ended suspended) and `suspended`.
+
+### Runtime-changeable logical size
+The game may change `io.logical_width/height` in any `bgt_update`; the runtime relayouts (letterbox, pointer mapping).
+Useful when a platform only learns its window size after start-up.
+
+### Metrics export
+Optional `uint32_t bgt_metrics(void)` returns NUL-terminated JSON with kit metrics the game or platform layer counts
+(e.g. lifted vs. interpreted instructions, stubbed APIs hit, GPU vs. CPU drawing operations). It appears in
+`diagnostics().metrics` and in trial reports.

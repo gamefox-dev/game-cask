@@ -27,6 +27,7 @@ import {
   VERTEX_SIZE,
   BLEND_OPAQUE,
   FILTER_NEAREST,
+  TEX_RENDER_TARGET,
 } from './abi';
 
 export interface Rect {
@@ -37,8 +38,9 @@ export interface Rect {
 }
 
 export type FrameItem =
-  | { kind: 'draw'; first: number; count: number; texture: number; filter: number; blend: number; clip: Rect }
-  | { kind: 'texCreate'; handle: number; width: number; height: number }
+  /** `target` 0 = screen (logical surface), else a render-target texture handle. */
+  | { kind: 'draw'; first: number; count: number; texture: number; filter: number; blend: number; clip: Rect; target: number }
+  | { kind: 'texCreate'; handle: number; width: number; height: number; renderTarget: boolean }
   | { kind: 'texUpdate'; handle: number; x: number; y: number; w: number; h: number; data: Uint8Array<ArrayBuffer> }
   | { kind: 'texDelete'; handle: number };
 
@@ -106,12 +108,13 @@ export class Frame {
       prev.filter === filter &&
       prev.blend === blend &&
       prev.first + prev.count === first &&
+      prev.target === st.target &&
       rectEq(prev.clip, clip)
     ) {
       prev.count += count;
       return;
     }
-    this.items.push({ kind: 'draw', first, count, texture, filter, blend, clip: { ...clip } });
+    this.items.push({ kind: 'draw', first, count, texture, filter, blend, clip: { ...clip }, target: st.target });
   }
 
   drawCalls(): number {
@@ -128,6 +131,8 @@ function rectEq(a: Rect, b: Rect): boolean {
 export interface TextureEntry {
   width: number;
   height: number;
+  /** v0.2 render target: GPU-side contents are not shadowed (lost on device reset). */
+  renderTarget: boolean;
   /** CPU shadow copy; used to restore after GPU device/context loss. */
   shadow: Uint8Array<ArrayBuffer>;
 }
@@ -169,6 +174,8 @@ export interface DrawState {
   blend: number;
   texture: number;
   filter: number;
+  /** current draw target (0 = screen) */
+  target: number;
 }
 
 export function defaultState(logicalW: number, logicalH: number): DrawState {
@@ -191,6 +198,7 @@ export function defaultState(logicalW: number, logicalH: number): DrawState {
     blend: 1,
     texture: 0,
     filter: FILTER_NEAREST,
+    target: 0,
   };
 }
 
@@ -213,6 +221,15 @@ export interface DecodeContext {
   textures: TextureTable;
   linearFilter: boolean;
   triangles: boolean;
+  /** v0.2 render targets enabled (BGT_CAP_RENDER_TARGETS) */
+  renderTargets?: boolean;
+}
+
+/** Size of the current target's coordinate space (logical surface or render-target texture). */
+export function targetSize(ctx: DecodeContext): { w: number; h: number } {
+  if (ctx.state.target === 0) return { w: ctx.frame.logicalW, h: ctx.frame.logicalH };
+  const t = ctx.textures.entries.get(ctx.state.target);
+  return t ? { w: t.width, h: t.height } : { w: 0, h: 0 };
 }
 
 /** Effective clip = viewport ∩ scissor ∩ logical surface, integer logical px. */
@@ -349,7 +366,8 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
   switch (op) {
     case OP.CLEAR: {
       if (n !== 4) return E_INVALID;
-      const clip = effectiveClip(st, fr.logicalW, fr.logicalH);
+      const ts = targetSize(ctx);
+      const clip = effectiveClip(st, ts.w, ts.h);
       if (clip.w === 0 || clip.h === 0) return BGT_OK;
       if (!fr.reserve(6)) return E_LIMIT;
       const c = u(0);
@@ -409,18 +427,36 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
       st.filter = filter;
       return BGT_OK;
     }
+    case OP.TARGET: {
+      if (n !== 4) return E_INVALID;
+      const handle = u(0);
+      if (handle !== 0) {
+        if (!ctx.renderTargets) return E_UNSUPPORTED;
+        const t = ctx.textures.entries.get(handle);
+        if (!t) return E_NOT_FOUND;
+        if (!t.renderTarget) return E_INVALID;
+      }
+      st.target = handle;
+      const ts = targetSize(ctx);
+      st.vx = 0; st.vy = 0; st.vw = ts.w; st.vh = ts.h;
+      st.scissor = false;
+      return BGT_OK;
+    }
     case OP.TEX_CREATE: {
       if (n !== 16) return E_INVALID;
-      const handle = u(0), w = u(4), h = u(8), fmt = u(12);
+      const handle = u(0), w = u(4), h = u(8), fmtWord = u(12);
+      const rt = (fmtWord & TEX_RENDER_TARGET) !== 0;
+      const fmt = fmtWord & ~TEX_RENDER_TARGET;
       if (fmt !== FORMAT_RGBA8) return E_UNSUPPORTED;
+      if (rt && !ctx.renderTargets) return E_UNSUPPORTED;
       if (handle === 0 || handle >= LIMITS.textures) return E_INVALID;
       if (ctx.textures.entries.has(handle)) return E_STATE;
       if (w === 0 || h === 0 || w > LIMITS.textureDim || h > LIMITS.textureDim) return E_LIMIT;
       const bytes = w * h * 4;
       if (ctx.textures.totalBytes + bytes > LIMITS.textureBytes) return E_LIMIT;
-      ctx.textures.entries.set(handle, { width: w, height: h, shadow: new Uint8Array(bytes) });
+      ctx.textures.entries.set(handle, { width: w, height: h, renderTarget: rt, shadow: new Uint8Array(bytes) });
       ctx.textures.totalBytes += bytes;
-      fr.items.push({ kind: 'texCreate', handle, width: w, height: h });
+      fr.items.push({ kind: 'texCreate', handle, width: w, height: h, renderTarget: rt });
       return BGT_OK;
     }
     case OP.TEX_UPDATE: {
@@ -443,6 +479,7 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
       const handle = u(0);
       const tex = ctx.textures.entries.get(handle);
       if (!tex) return E_NOT_FOUND;
+      if (st.target === handle) return E_STATE; // cannot delete the texture being drawn into
       ctx.textures.entries.delete(handle);
       ctx.textures.totalBytes -= tex.shadow.byteLength;
       if (st.texture === handle) st.texture = 0;
@@ -454,7 +491,9 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
       const cnt = u(0);
       if (n !== 4 + cnt * SPRITE_SIZE) return E_INVALID;
       if (!ctx.textures.has(st.texture)) return E_NOT_FOUND;
-      const clip = effectiveClip(st, fr.logicalW, fr.logicalH);
+      if (st.target !== 0 && st.texture === st.target) return E_STATE; // feedback loop
+      const ts = targetSize(ctx);
+      const clip = effectiveClip(st, ts.w, ts.h);
       if (cnt === 0 || clip.w === 0 || clip.h === 0) return BGT_OK;
       if (!fr.reserve(cnt * 6)) return E_LIMIT;
       for (let k = 0, o = 4; k < cnt; k++, o += SPRITE_SIZE) {
@@ -469,7 +508,9 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
       const cnt = u(0);
       if (cnt % 3 !== 0 || n !== 4 + cnt * VERTEX_SIZE) return E_INVALID;
       if (!ctx.textures.has(st.texture)) return E_NOT_FOUND;
-      const clip = effectiveClip(st, fr.logicalW, fr.logicalH);
+      if (st.target !== 0 && st.texture === st.target) return E_STATE;
+      const ts = targetSize(ctx);
+      const clip = effectiveClip(st, ts.w, ts.h);
       if (cnt === 0 || clip.w === 0 || clip.h === 0) return BGT_OK;
       if (!fr.reserve(cnt)) return E_LIMIT;
       const ox = st.vx + st.tx, oy = st.vy + st.ty;
@@ -522,7 +563,10 @@ export class CommandEncoder {
   }
   blend(mode: number) { return this.cmd(OP.BLEND, 4).u32(mode); }
   texture(handle: number, filter = 0) { return this.cmd(OP.TEXTURE, 8).u32(handle).u32(filter); }
-  texCreate(handle: number, w: number, h: number) { return this.cmd(OP.TEX_CREATE, 16).u32(handle).u32(w).u32(h).u32(FORMAT_RGBA8); }
+  texCreate(handle: number, w: number, h: number, renderTarget = false) {
+    return this.cmd(OP.TEX_CREATE, 16).u32(handle).u32(w).u32(h).u32(FORMAT_RGBA8 | (renderTarget ? TEX_RENDER_TARGET : 0));
+  }
+  target(handle: number) { return this.cmd(OP.TARGET, 4).u32(handle); }
   texUpdate(handle: number, x: number, y: number, w: number, h: number, dataPtr: number, dataLen: number) {
     return this.cmd(OP.TEX_UPDATE, 28).u32(handle).u32(x).u32(y).u32(w).u32(h).u32(dataPtr).u32(dataLen);
   }

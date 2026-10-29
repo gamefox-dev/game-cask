@@ -5,7 +5,7 @@ import { CommandEncoder, DecodeContext, Frame, TextureTable, decodeCommands, def
 function ctx(lw = 100, lh = 100): DecodeContext {
   const frame = new Frame();
   frame.reset(lw, lh);
-  return { state: defaultState(lw, lh), frame, textures: new TextureTable(), linearFilter: true, triangles: true };
+  return { state: defaultState(lw, lh), frame, textures: new TextureTable(), linearFilter: true, triangles: true, renderTargets: true };
 }
 
 function run(bytes: Uint8Array, c = ctx(), extra?: Uint8Array) {
@@ -128,5 +128,19 @@ describe('command decoding', () => {
       if (rnd() < 0.5) new DataView(mem.buffer).setUint32(8, len & ~3, true);
       expect(() => decodeCommands(mem, 0, len & ~3, ctx())).not.toThrow();
     }
+  });
+
+  it('v0.2 render targets: draws carry their target, clip uses target size, misuse is rejected', () => {
+    const c = ctx(320, 200);
+    const { res } = run(new CommandEncoder().texCreate(7, 32, 16, true).target(7).rect(0, 0, 100, 100, 1).target(0).rect(0, 0, 10, 10, 2).finish(), c);
+    expect(res.status).toBe(0);
+    const draws = c.frame.items.filter((i) => i.kind === 'draw') as Array<{ target: number; clip: { w: number; h: number } }>;
+    expect(draws.map((d) => d.target)).toEqual([7, 0]);
+    expect(draws[0].clip).toMatchObject({ w: 32, h: 16 });
+    const bad = run(new CommandEncoder().texCreate(8, 4, 4).target(8).texCreate(9, 4, 4, true).target(9).texture(9).rect(0, 0, 1, 1, 0).texDelete(9).target(99).finish());
+    expect(bad.res.errors.map((e) => e.code)).toEqual([A.E_INVALID, A.E_STATE, A.E_STATE, A.E_NOT_FOUND]);
+    const off = ctx();
+    off.renderTargets = false;
+    expect(run(new CommandEncoder().texCreate(5, 4, 4, true).finish(), off).res.status).toBe(A.E_UNSUPPORTED);
   });
 });

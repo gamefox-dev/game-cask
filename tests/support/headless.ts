@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BACKEND_HEADLESS, BUTTONS, ButtonName, CAP_DIRECT_DRAW, CAP_LINEAR_FILTER, CAP_SCISSOR, CAP_STORAGE, CAP_TRIANGLES } from '../../bgt/runtime/abi';
+import { BACKEND_HEADLESS, BUTTONS, ButtonName, CAP_DIRECT_DRAW, CAP_LINEAR_FILTER, CAP_RENDER_TARGETS, CAP_SCISSOR, CAP_STORAGE, CAP_TRIANGLES } from '../../bgt/runtime/abi';
 import { GameHost, InputSnapshot, StorageSink, emptyInput } from '../../bgt/runtime/host';
 import { Vfs } from '../../bgt/runtime/vfs';
 
@@ -39,7 +39,7 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
     now: () => performance.now(),
   }, {
     backend: BACKEND_HEADLESS,
-    caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW,
+    caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS,
     seed: opts.seed ?? 1,
     displayWidth: 640,
     displayHeight: 360,

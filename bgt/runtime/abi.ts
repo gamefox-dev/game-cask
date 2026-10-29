@@ -1,7 +1,7 @@
 // Mirror of bgt/include/bgt.h and bgt_cmd.h. tests/unit/abi-layout.test.ts
 // compiles a C probe against the headers and checks these values match.
 
-export const ABI_VERSION = (0 << 16) | (1 << 8);
+export const ABI_VERSION = (0 << 16) | (2 << 8);
 
 export const BGT_OK = 0;
 export const E_INVALID = -1;
@@ -31,6 +31,8 @@ export const CAP_LINEAR_FILTER = 1 << 4;
 export const CAP_SCISSOR = 1 << 5;
 export const CAP_TRIANGLES = 1 << 6;
 export const CAP_DIRECT_DRAW = 1 << 7;
+export const CAP_RENDER_TARGETS = 1 << 8;
+export const CAP_YIELD = 1 << 9;
 
 export const BACKEND_NONE = 0;
 export const BACKEND_WEBGPU = 1;
@@ -57,6 +59,7 @@ export const EVENT_RESIZED = 1 << 0;
 export const EVENT_DEVICE_RESET = 1 << 1;
 export const EVENT_AUDIO_UNLOCKED = 1 << 2;
 export const EVENT_FOCUS_LOST = 1 << 3;
+export const EVENT_TARGETS_LOST = 1 << 4;
 
 export const FLAG_INTEGER_SCALE = 1 << 0;
 
@@ -108,6 +111,7 @@ export const OP = {
   TRANSFORM: 0x04,
   BLEND: 0x05,
   TEXTURE: 0x06,
+  TARGET: 0x07,
   TEX_CREATE: 0x10,
   TEX_UPDATE: 0x11,
   TEX_DELETE: 0x12,
@@ -122,11 +126,14 @@ export const BLEND_OPAQUE = 0;
 export const BLEND_ALPHA = 1;
 export const BLEND_ADD = 2;
 export const BLEND_PREMULTIPLIED = 3;
-export const BLEND_MODES = 4;
+export const BLEND_INVERT = 4;
+export const BLEND_MULTIPLY = 5;
+export const BLEND_MODES = 6;
 
 export const FILTER_NEAREST = 0;
 export const FILTER_LINEAR = 1;
 export const FORMAT_RGBA8 = 0;
+export const TEX_RENDER_TARGET = 1 << 8;
 
 export const LIMITS = {
   submitBytes: 8 * 1024 * 1024,

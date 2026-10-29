@@ -7,6 +7,8 @@ import {
   BGT_OK,
   CAP_DIRECT_DRAW,
   CAP_LINEAR_FILTER,
+  CAP_RENDER_TARGETS,
+  CAP_YIELD,
   CAP_TRIANGLES,
   DT_US,
   E_BOUNDS,
@@ -120,6 +122,21 @@ interface GameExports {
   bgt_shutdown(): void;
   bgt_state_hash?(): number;
   bgt_debug_state?(): number;
+  bgt_metrics?(): number;
+  bgt_async_buffer?(): number;
+  bgt_async_buffer_size?(): number;
+  // added by binaryen's asyncify pass (game.json "asyncify": true)
+  asyncify_start_unwind?(data: number): void;
+  asyncify_stop_unwind?(): void;
+  asyncify_start_rewind?(data: number): void;
+  asyncify_stop_rewind?(): void;
+}
+
+const enum AsyncState {
+  Normal,
+  Unwinding,
+  Suspended,
+  Rewinding,
 }
 
 const REQUIRED_EXPORTS = ['memory', 'bgt_abi_version', 'bgt_io', 'bgt_init', 'bgt_update', 'bgt_render', 'bgt_shutdown'];
@@ -147,6 +164,13 @@ export class GameHost {
   private ioPtr = 0;
   private initialized = false;
   private decodeTime = 0;
+  private asyncState = AsyncState.Normal;
+  private asyncBuf = 0;
+  private inUpdate = false;
+  /** updates that ended suspended in bgt_yield (vs. returning normally) */
+  yields = 0;
+  /** set when the game changed its logical size during an update (v0.2) */
+  sizeChanged = false;
 
   private constructor(
     private readonly services: HostServices,
@@ -193,6 +217,15 @@ export class GameHost {
     return typeof this.exports.bgt_state_hash === 'function';
   }
 
+  get asyncCapable(): boolean {
+    return typeof this.exports.asyncify_start_unwind === 'function';
+  }
+
+  /** True while the game is parked inside bgt_yield between frames. */
+  get suspended(): boolean {
+    return this.asyncState === AsyncState.Suspended;
+  }
+
   get hasDebugState(): boolean {
     return typeof this.exports.bgt_debug_state === 'function';
   }
@@ -223,6 +256,7 @@ export class GameHost {
       textures: this.textures,
       linearFilter: (this.config.caps & CAP_LINEAR_FILTER) !== 0,
       triangles: (this.config.caps & CAP_TRIANGLES) !== 0,
+      renderTargets: (this.config.caps & CAP_RENDER_TARGETS) !== 0,
     };
   }
 
@@ -293,6 +327,22 @@ export class GameHost {
           return s.storage.write(key, this.mem().slice(src >>> 0, (src >>> 0) + (len >>> 0)));
         },
         time_us: () => s.now() * 1000,
+        yield: () => {
+          const ex = this.exports;
+          if (this.asyncState === AsyncState.Rewinding) {
+            ex.asyncify_stop_rewind!();
+            this.asyncState = AsyncState.Normal;
+            return;
+          }
+          if (!this.asyncCapable || !this.asyncBuf) throw new GameAbort(-7, 'bgt_yield used, but the game was not built with "asyncify": true');
+          if (!this.inUpdate) throw new GameAbort(-7, 'bgt_yield is only valid inside bgt_update');
+          const dv = this.dv();
+          const size = this.exports.bgt_async_buffer_size!() >>> 0;
+          dv.setUint32(this.asyncBuf, this.asyncBuf + 8, true);
+          dv.setUint32(this.asyncBuf + 4, this.asyncBuf + size, true);
+          ex.asyncify_start_unwind!(this.asyncBuf);
+          this.asyncState = AsyncState.Unwinding;
+        },
         debug_draw_sprite: (
           tex: number,
           x: number,
@@ -326,7 +376,7 @@ export class GameHost {
     const c = this.config;
     dv.setUint32(p + IO.abi_version, ABI_VERSION, true);
     dv.setUint32(p + IO.backend, c.backend, true);
-    dv.setUint32(p + IO.caps, c.caps, true);
+    dv.setUint32(p + IO.caps, (c.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
     dv.setUint32(p + IO.audio_sample_rate, this.services.audio?.sampleRate ?? 0, true);
     dv.setUint32(p + IO.seed, c.seed >>> 0, true);
     dv.setUint32(p + IO.display_width, c.displayWidth, true);
@@ -348,6 +398,13 @@ export class GameHost {
       this.logicalHeight > LIMITS.logicalDim
     ) {
       throw new HostError(`game set invalid logical size ${this.logicalWidth}x${this.logicalHeight}`);
+    }
+    if (this.asyncCapable) {
+      const fb = this.exports.bgt_async_buffer, fs = this.exports.bgt_async_buffer_size;
+      if (!fb || !fs) throw new HostError('asyncify build must export bgt_async_buffer and bgt_async_buffer_size');
+      this.asyncBuf = fb() >>> 0;
+      const size = fs() >>> 0;
+      if (this.asyncBuf % 8 || size < 4096 || !this.inRange(this.asyncBuf, size)) throw new HostError('invalid bgt_async_buffer');
     }
     // Commands submitted during init (e.g. texture creation) are kept and
     // flushed with the first rendered frame.
@@ -401,9 +458,51 @@ export class GameHost {
   update(): void {
     if (!this.initialized) throw new HostError('update before init');
     const t0 = this.services.now();
-    this.exports.bgt_update(DT_US);
+    const ex = this.exports;
+    if (this.asyncState === AsyncState.Suspended) {
+      // resume inside bgt_yield where the previous update stopped
+      ex.asyncify_start_rewind!(this.asyncBuf);
+      this.asyncState = AsyncState.Rewinding;
+    }
+    this.inUpdate = true;
+    try {
+      ex.bgt_update(DT_US);
+    } finally {
+      this.inUpdate = false;
+    }
+    if (this.asyncState === AsyncState.Unwinding) {
+      ex.asyncify_stop_unwind!();
+      this.asyncState = AsyncState.Suspended;
+      this.yields++;
+    } else if (this.asyncState === AsyncState.Rewinding) {
+      throw new HostError('asyncify rewind did not reach bgt_yield (game state diverged)');
+    }
     this.timings.updateMs = this.services.now() - t0;
     this.frameIndex++;
+    // v0.2: the game may change its logical size at runtime
+    const dv = this.dv();
+    const lw = dv.getUint32(this.ioPtr + IO.logical_width, true), lh = dv.getUint32(this.ioPtr + IO.logical_height, true);
+    if ((lw !== this.logicalWidth || lh !== this.logicalHeight) && lw > 0 && lh > 0 && lw <= LIMITS.logicalDim && lh <= LIMITS.logicalDim) {
+      this.logicalWidth = lw;
+      this.logicalHeight = lh;
+      this.sizeChanged = true;
+    }
+  }
+
+  /** Optional kit metrics JSON exported by the game (bgt_metrics). */
+  metrics(): unknown {
+    const fn = this.exports.bgt_metrics;
+    if (!fn) return null;
+    const ptr = fn() >>> 0;
+    const mem = this.mem();
+    if (!ptr || ptr >= mem.byteLength) return null;
+    const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.debugStateBytes)).indexOf(0);
+    if (end < 0) return null;
+    try {
+      return JSON.parse(utf8.decode(mem.subarray(ptr, ptr + end)));
+    } catch {
+      return null;
+    }
   }
 
   /**

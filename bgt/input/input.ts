@@ -3,7 +3,7 @@
 // simulation step. Presses are latched so a tap shorter than one step is
 // never lost.
 
-import { BUTTONS, ButtonName, EVENT_AUDIO_UNLOCKED, EVENT_FOCUS_LOST, EVENT_RESIZED, EVENT_DEVICE_RESET } from '../runtime/abi';
+import { BUTTONS, ButtonName, EVENT_AUDIO_UNLOCKED, EVENT_FOCUS_LOST, EVENT_RESIZED, EVENT_DEVICE_RESET, EVENT_TARGETS_LOST } from '../runtime/abi';
 import type { InputSnapshot } from '../runtime/host';
 import type { Letterbox } from '../renderers/types';
 
@@ -201,8 +201,9 @@ export class InputManager {
     }
   }
 
-  markEvent(ev: 'resized' | 'deviceReset' | 'audioUnlocked'): void {
-    this.events |= ev === 'resized' ? EVENT_RESIZED : ev === 'deviceReset' ? EVENT_DEVICE_RESET : EVENT_AUDIO_UNLOCKED;
+  markEvent(ev: 'resized' | 'deviceReset' | 'audioUnlocked' | 'targetsLost'): void {
+    const bits = { resized: EVENT_RESIZED, deviceReset: EVENT_DEVICE_RESET, audioUnlocked: EVENT_AUDIO_UNLOCKED, targetsLost: EVENT_TARGETS_LOST };
+    this.events |= bits[ev];
   }
 
   private pollGamepads(): void {

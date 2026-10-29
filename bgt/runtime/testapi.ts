@@ -40,7 +40,7 @@ function b64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-function unb64(s: string): Uint8Array {
+function unb64(s: string): Uint8Array<ArrayBuffer> {
   const bin = atob(s);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
@@ -63,7 +63,9 @@ export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
       cv.height = px.height;
       const c2 = cv.getContext('2d')!;
       c2.putImageData(new ImageData(new Uint8ClampedArray(px.data.buffer, px.data.byteOffset, px.data.byteLength), px.width, px.height), 0, 0);
-      return await new Promise<Blob>((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'));
+      // Build the Blob from in-memory bytes: Chromium can back toBlob() results with a temp file
+      // that intermittently fails to read (NotReadableError).
+      return new Blob([unb64(cv.toDataURL('image/png').split(',')[1])], { type: 'image/png' });
     },
     diagnostics: () => rt.diagnostics(),
     stateHash: () => rt.host?.stateHash() ?? null,

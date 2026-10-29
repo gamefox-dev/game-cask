@@ -1,6 +1,6 @@
 // WebGL 2 backend (fallback). Consumes the shared decoded Frame.
 
-import { BLEND_ADD, BLEND_ALPHA, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
+import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice } from '../types';
 
@@ -9,10 +9,11 @@ layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec2 a_uv;
 layout(location = 2) in vec4 a_col;
 uniform vec2 u_size;
+uniform float u_flip; // 1 for the screen; -1 for render targets so texture row 0 stays the top row
 out vec2 v_uv;
 out vec4 v_col;
 void main() {
-  gl_Position = vec4(a_pos.x / u_size.x * 2.0 - 1.0, 1.0 - a_pos.y / u_size.y * 2.0, 0.0, 1.0);
+  gl_Position = vec4(a_pos.x / u_size.x * 2.0 - 1.0, (1.0 - a_pos.y / u_size.y * 2.0) * u_flip, 0.0, 1.0);
   v_uv = a_uv;
   v_col = a_col;
 }`;
@@ -41,6 +42,8 @@ export class WebGL2Renderer implements Renderer {
   private vao!: WebGLVertexArrayObject;
   private vbo!: WebGLBuffer;
   private uSize!: WebGLUniformLocation;
+  private uFlip!: WebGLUniformLocation;
+  private targets = new Map<number, { fbo: WebGLFramebuffer; w: number; h: number }>();
   private samplers: WebGLSampler[] = [];
   private white!: WebGLTexture;
   private textures = new Map<number, WebGLTexture>();
@@ -58,6 +61,7 @@ export class WebGL2Renderer implements Renderer {
       e.preventDefault();
       this.lost = true;
       this.textures.clear();
+      this.targets.clear();
       for (const cb of this.lostCbs) cb('webgl context lost');
     });
     canvas.addEventListener('webglcontextrestored', () => {
@@ -105,6 +109,7 @@ export class WebGL2Renderer implements Renderer {
     }
     this.program = p;
     this.uSize = gl.getUniformLocation(p, 'u_size')!;
+    this.uFlip = gl.getUniformLocation(p, 'u_flip')!;
     gl.useProgram(p);
     gl.uniform1i(gl.getUniformLocation(p, 'u_tex'), 0);
 
@@ -145,6 +150,21 @@ export class WebGL2Renderer implements Renderer {
     return t;
   }
 
+  private makeTarget(handle: number, tex: WebGLTexture, w: number, h: number): void {
+    const gl = this.gl;
+    const fbo = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.targets.set(handle, { fbo, w, h });
+  }
+
+  private dropTarget(handle: number): void {
+    const t = this.targets.get(handle);
+    if (t) this.gl.deleteFramebuffer(t.fbo);
+    this.targets.delete(handle);
+  }
+
   resize(width: number, height: number): void {
     this.canvas.width = width;
     this.canvas.height = height;
@@ -161,6 +181,8 @@ export class WebGL2Renderer implements Renderer {
     if (mode === BLEND_ALPHA) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     else if (mode === BLEND_ADD) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
     else if (mode === BLEND_PREMULTIPLIED) gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    else if (mode === BLEND_INVERT) gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
+    else if (mode === BLEND_MULTIPLY) gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Pixels | null {
@@ -183,18 +205,42 @@ export class WebGL2Renderer implements Renderer {
     const bytes = frame.vertexBytes();
     gl.bufferData(gl.ARRAY_BUFFER, bytes, gl.STREAM_DRAW);
     this.stats.vertexBytes = bytes.byteLength;
-    gl.uniform2f(this.uSize, frame.logicalW, frame.logicalH);
-    gl.viewport(lb.x, H - lb.y - lb.h, lb.w, lb.h);
     gl.enable(gl.SCISSOR_TEST);
     gl.activeTexture(gl.TEXTURE0);
     let curBlend = -1;
+    let curTarget = -1;
+    const bindTarget = (target: number) => {
+      if (target === curTarget) return;
+      curTarget = target;
+      const rt = target ? this.targets.get(target) : undefined;
+      if (rt) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, rt.fbo);
+        gl.viewport(0, 0, rt.w, rt.h);
+        gl.uniform2f(this.uSize, rt.w, rt.h);
+        gl.uniform1f(this.uFlip, -1);
+        this.stats.passes++;
+      } else {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(lb.x, H - lb.y - lb.h, lb.w, lb.h);
+        gl.uniform2f(this.uSize, frame.logicalW, frame.logicalH);
+        gl.uniform1f(this.uFlip, 1);
+      }
+    };
+    bindTarget(0);
 
     for (const it of frame.items) {
       switch (it.kind) {
         case 'texCreate': {
           const old = this.textures.get(it.handle);
           if (old) gl.deleteTexture(old);
-          this.textures.set(it.handle, this.makeTexture(it.width, it.height));
+          this.dropTarget(it.handle);
+          const tex = this.makeTexture(it.width, it.height);
+          this.textures.set(it.handle, tex);
+          if (it.renderTarget) {
+            this.makeTarget(it.handle, tex, it.width, it.height);
+            if (curTarget === it.handle) curTarget = -1;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, curTarget > 0 ? this.targets.get(curTarget)!.fbo : null);
+          }
           break;
         }
         case 'texUpdate': {
@@ -208,12 +254,21 @@ export class WebGL2Renderer implements Renderer {
           const t = this.textures.get(it.handle);
           if (t) gl.deleteTexture(t);
           this.textures.delete(it.handle);
+          this.dropTarget(it.handle);
           break;
         }
         case 'draw': {
-          const r = clipToDevice(it.clip, lb, frame.logicalW, frame.logicalH);
-          if (r.w === 0 || r.h === 0) break;
-          gl.scissor(r.x, H - r.y - r.h, r.w, r.h);
+          if (it.target && !this.targets.has(it.target)) break;
+          bindTarget(it.target);
+          if (it.target) {
+            // render target: logical px == texture px; u_flip makes GL row 0 the top row, so no y flip here
+            if (it.clip.w === 0 || it.clip.h === 0) break;
+            gl.scissor(it.clip.x, it.clip.y, it.clip.w, it.clip.h);
+          } else {
+            const r = clipToDevice(it.clip, lb, frame.logicalW, frame.logicalH);
+            if (r.w === 0 || r.h === 0) break;
+            gl.scissor(r.x, H - r.y - r.h, r.w, r.h);
+          }
           if (it.blend !== curBlend) {
             this.setBlend(it.blend);
             curBlend = it.blend;
@@ -232,6 +287,7 @@ export class WebGL2Renderer implements Renderer {
       if (err !== gl.NO_ERROR && !gl.isContextLost()) for (const cb of this.errorCbs) cb(`WebGL error 0x${err.toString(16)}`);
     }
 
+    bindTarget(0);
     let out: Pixels | null = null;
     if (readback) {
       const w = this.canvas.width;
@@ -256,6 +312,7 @@ export class WebGL2Renderer implements Renderer {
       const t = this.makeTexture(e.width, e.height);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, e.width, e.height, gl.RGBA, gl.UNSIGNED_BYTE, e.shadow);
       this.textures.set(handle, t);
+      if (e.renderTarget) this.makeTarget(handle, t, e.width, e.height); // GPU-drawn contents are lost
     }
   }
 

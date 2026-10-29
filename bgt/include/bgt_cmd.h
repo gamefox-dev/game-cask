@@ -27,6 +27,7 @@ enum {
     BGT_OP_TRANSFORM  = 0x04, /* f32 a, b, c, d, tx, ty   x' = a*x + c*y + tx ; y' = b*x + d*y + ty  */
     BGT_OP_BLEND      = 0x05, /* u32 mode (BGT_BLEND_*)                                                */
     BGT_OP_TEXTURE    = 0x06, /* u32 handle (0 = built-in 1x1 white), u32 filter (BGT_FILTER_*)       */
+    BGT_OP_TARGET     = 0x07, /* v0.2: u32 handle: draw into this render-target texture (0 = screen)   */
     BGT_OP_TEX_CREATE = 0x10, /* u32 handle, w, h, format (BGT_FORMAT_RGBA8)                           */
     BGT_OP_TEX_UPDATE = 0x11, /* u32 handle, x, y, w, h, data_ptr, data_len (== w*h*4, tight rows)    */
     BGT_OP_TEX_DELETE = 0x12, /* u32 handle                                                            */
@@ -38,11 +39,14 @@ enum {
 #define BGT_BLEND_ALPHA         1u /* src*a + dst*(1-a)              */
 #define BGT_BLEND_ADD           2u /* src*a + dst                    */
 #define BGT_BLEND_PREMULTIPLIED 3u /* src + dst*(1-a)                */
+#define BGT_BLEND_INVERT        4u /* v0.2: dst = 1 - dst (src ignored; alpha kept) */
+#define BGT_BLEND_MULTIPLY      5u /* v0.2: dst = src * dst          */
 
 #define BGT_FILTER_NEAREST 0u
 #define BGT_FILTER_LINEAR  1u
 
 #define BGT_FORMAT_RGBA8 0u
+#define BGT_TEX_RENDER_TARGET (1u << 8) /* v0.2: OR into TEX_CREATE format: texture can be a TARGET */
 
 /* v0.1 limits — enforced by the runtime, mirrored here for game-side checks */
 #define BGT_LIMIT_SUBMIT_BYTES     (8u * 1024u * 1024u)
@@ -149,9 +153,22 @@ static inline void bgt_cmd_texture(bgt_cmdbuf_t *b, uint32_t handle, uint32_t fi
     if (p) { bgt__put32(p, handle); bgt__put32(p + 4, filter); }
 }
 
-static inline void bgt_cmd_tex_create(bgt_cmdbuf_t *b, uint32_t handle, uint32_t w, uint32_t h) {
+static inline void bgt_cmd_tex_create_fmt(bgt_cmdbuf_t *b, uint32_t handle, uint32_t w, uint32_t h, uint32_t format) {
     uint8_t *p = bgt_cmd_push(b, BGT_OP_TEX_CREATE, 16);
-    if (p) { bgt__put32(p, handle); bgt__put32(p + 4, w); bgt__put32(p + 8, h); bgt__put32(p + 12, BGT_FORMAT_RGBA8); }
+    if (p) { bgt__put32(p, handle); bgt__put32(p + 4, w); bgt__put32(p + 8, h); bgt__put32(p + 12, format); }
+}
+static inline void bgt_cmd_tex_create(bgt_cmdbuf_t *b, uint32_t handle, uint32_t w, uint32_t h) {
+    bgt_cmd_tex_create_fmt(b, handle, w, h, BGT_FORMAT_RGBA8);
+}
+/* v0.2: render target (persistent across frames; starts transparent black). */
+static inline void bgt_cmd_target_create(bgt_cmdbuf_t *b, uint32_t handle, uint32_t w, uint32_t h) {
+    bgt_cmd_tex_create_fmt(b, handle, w, h, BGT_FORMAT_RGBA8 | BGT_TEX_RENDER_TARGET);
+}
+/* v0.2: subsequent draws go into render target `handle` (0 = screen). Resets viewport/scissor to the
+ * target's size; transform/blend/texture are kept. */
+static inline void bgt_cmd_target(bgt_cmdbuf_t *b, uint32_t handle) {
+    uint8_t *p = bgt_cmd_push(b, BGT_OP_TARGET, 4);
+    if (p) bgt__put32(p, handle);
 }
 
 /* data must stay valid until bgt_submit_commands returns (it is copied then). */

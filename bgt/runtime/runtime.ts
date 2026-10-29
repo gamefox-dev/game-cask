@@ -10,6 +10,7 @@ import {
   CAP_DIRECT_DRAW,
   CAP_GAMEPAD,
   CAP_LINEAR_FILTER,
+  CAP_RENDER_TARGETS,
   CAP_SCISSOR,
   CAP_STORAGE,
   CAP_TOUCH,
@@ -97,6 +98,11 @@ export interface BGTDiagnostics {
   logs: Array<{ level: number; message: string; frame: number }>;
   stateHashAvailable: boolean;
   debugStateAvailable: boolean;
+  /** v0.2: updates that ended suspended in bgt_yield, and whether the game is parked there now */
+  yields: number;
+  suspended: boolean;
+  /** v0.2: the game's own kit metrics (bgt_metrics export), if any */
+  metrics: unknown;
 }
 
 export class RuntimeFailure extends Error {
@@ -325,7 +331,7 @@ export class BGTRuntime {
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
-    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD;
+    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS;
     if (this.storage.persistent) caps |= CAP_STORAGE;
     if (hasTouch) caps |= CAP_TOUCH;
     if (this.opts.directDraw) caps |= CAP_DIRECT_DRAW;
@@ -387,6 +393,7 @@ export class BGTRuntime {
       r.restoreTextures(this.host.textures);
       this.deviceResets++;
       this.input.markEvent('deviceReset');
+      if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
       this.applySize();
     });
     r.onUnrecoverable((reason) => {
@@ -422,6 +429,7 @@ export class BGTRuntime {
     this.lostSince = 0;
     this.measure();
     gl.restoreTextures(this.host.textures);
+    if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
     this.host.setBackend(BACKEND_WEBGL2);
     this.backendNotes.push(`webgpu: device lost and not recoverable (${reason}); switched to webgl2`);
     this.deviceResets++;
@@ -521,6 +529,10 @@ export class BGTRuntime {
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
     host.update();
+    if (host.sizeChanged) {
+      host.sizeChanged = false;
+      this.applySize();
+    }
   }
 
   /** Render the current state; optionally read back pixels. */
@@ -666,6 +678,9 @@ export class BGTRuntime {
       logs: this.logs.slice(-200),
       stateHashAvailable: host?.hasStateHash ?? false,
       debugStateAvailable: host?.hasDebugState ?? false,
+      yields: host?.yields ?? 0,
+      suspended: host?.suspended ?? false,
+      metrics: host?.metrics() ?? null,
     };
   }
 

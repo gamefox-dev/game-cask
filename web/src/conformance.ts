@@ -5,6 +5,8 @@
 import {
   BLEND_ADD,
   BLEND_ALPHA,
+  BLEND_INVERT,
+  BLEND_MULTIPLY,
   BLEND_OPAQUE,
   BLEND_PREMULTIPLIED,
   FILTER_LINEAR,
@@ -88,7 +90,27 @@ export function buildScene(): { bytes: Uint8Array; texData: Uint8Array; probes: 
     .rect(96, 96, 32, 32, rgba(255, 255, 255))
     .texture(2, FILTER_NEAREST)
     .texDelete(2) // deleting the bound texture rebinds built-in white (handle 0)
-    .rect(64, 96, 16, 16, rgba(128, 128, 128));
+    .rect(64, 96, 16, 16, rgba(128, 128, 128))
+    // v0.2 render target: 16x16, red with a blue top-left quadrant, then sampled onto the screen
+    .texCreate(3, 16, 16, true)
+    .target(3)
+    .clear(rgba(255, 0, 0))
+    .blend(BLEND_OPAQUE)
+    .rect(0, 0, 8, 8, rgba(0, 0, 255))
+    .target(0)
+    .texture(3, FILTER_NEAREST)
+    .rect(80, 96, 16, 16, rgba(255, 255, 255))
+    .texture(0, FILTER_NEAREST)
+    // v0.2 invert: white src inverts dst
+    .rect(0, 112, 16, 16, rgba(100, 100, 100))
+    .blend(BLEND_INVERT)
+    .rect(0, 112, 16, 16, rgba(255, 255, 255))
+    // v0.2 multiply
+    .blend(BLEND_OPAQUE)
+    .rect(64, 112, 16, 16, rgba(200, 100, 50))
+    .blend(BLEND_MULTIPLY)
+    .rect(64, 112, 16, 16, rgba(128, 255, 0))
+    .blend(BLEND_ALPHA);
 
   const probes: Probe[] = [
     { name: 'clear', x: 120, y: 40, expect: [20, 20, 20], tol: 2 },
@@ -116,6 +138,10 @@ export function buildScene(): { bytes: Uint8Array; texData: Uint8Array; probes: 
     { name: 'partial update applied later', x: 100, y: 100, expect: [255, 0, 0], tol: 2 },
     { name: 'partial update keeps rest', x: 108, y: 100, expect: [255, 255, 255], tol: 2 },
     { name: 'texture 0 after delete', x: 72, y: 104, expect: [128, 128, 128], tol: 2 },
+    { name: 'render target top-left (orientation)', x: 84, y: 100, expect: [0, 0, 255], tol: 2 },
+    { name: 'render target bottom-right', x: 92, y: 108, expect: [255, 0, 0], tol: 2 },
+    { name: 'invert blend', x: 8, y: 120, expect: [155, 155, 155], tol: 2 },
+    { name: 'multiply blend', x: 72, y: 120, expect: [100, 100, 0], tol: 3 },
   ];
   // The 'viewport clip outside' and 'nearest texel (0,0)' probes overlap by
   // design: the texture rect is drawn after the viewport rect.
@@ -148,7 +174,7 @@ async function main(): Promise<void> {
     mem.set(bytes, texData.length); // texData offsets stay valid; commands at the end
     const frame = new Frame();
     frame.reset(L, L);
-    const ctx: DecodeContext = { state: defaultState(L, L), frame, textures: new TextureTable(), linearFilter: true, triangles: true };
+    const ctx: DecodeContext = { state: defaultState(L, L), frame, textures: new TextureTable(), linearFilter: true, triangles: true, renderTargets: true };
     const res = decodeCommands(mem, texData.length, bytes.length, ctx);
     const lb = computeLetterbox(canvas.width, canvas.height, L, L, true);
     const px = await r.drawFrame(frame, lb, true);
