@@ -1,5 +1,5 @@
 // Browser shell. URL parameters:
-//   ?game=<id>          game under /games/<id>/ (default: sample2d)
+//   ?game=<id>          game under /games/<id>/ (default: VITE_BGT_DEFAULT_GAME or sample2d)
 //   ?backend=auto|webgpu|webgl2|webgpu-fail|none
 //   ?seed=N&arg0=N&arg1=N
 //   ?touch=auto|on|off  on-screen controls
@@ -18,7 +18,7 @@ const num = (k: string, d: number) => {
   const v = Number(q.get(k));
   return Number.isFinite(v) && q.has(k) ? v : d;
 };
-const game = (q.get('game') ?? 'sample2d').replace(/[^a-z0-9-]/g, '');
+const game = (q.get('game') ?? import.meta.env.VITE_BGT_DEFAULT_GAME ?? 'sample2d').replace(/[^a-z0-9-]/g, '');
 const testEnabled = import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1';
 const debug = q.get('debug') === '1';
 const bench = q.get('bench') === '1';

@@ -17,6 +17,7 @@
     "dev": "npm run build:games && vite",
     "build": "npm run build:games && vite build",
     "preview": "vite preview",
+    "bundle": "node tools/build/bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . && node tools/build/build.mjs --all --check",
     "test": "vitest run",

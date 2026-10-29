@@ -9,7 +9,8 @@
 //   - contains a secret (private key, tokens, ...)
 //   - is a binary file > 1 MiB
 //
-//   node tools/report/leakcheck.mjs [--staged] [--root DIR]
+//   node tools/report/leakcheck.mjs [--staged] [--root DIR] [--against DIR ...]
+//     --against: extra reference directories (e.g. extracted installer payloads)
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -53,14 +54,17 @@ function isBinary(buf) {
   return false;
 }
 
-export function leakcheck({ root = KIT_ROOT, staged = false } = {}) {
+export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}) {
   const problems = [];
   const files = candidates(root, staged).filter((p) => existsSync(join(root, p)));
-  const origFiles = walk(join(root, 'original')).filter((p) => p !== '.gitkeep');
+  // Reference material that must never be committed: <root>/original/ plus any
+  // --against directories (e.g. the kit's original/ or files extracted from an installer).
+  const refDirs = [join(root, 'original'), ...against];
+  const origFiles = refDirs.flatMap((d) => walk(d).filter((p) => !p.endsWith('.gitkeep')).map((p) => ({ label: d === refDirs[0] ? p : `${d}/${p}`, full: join(d, p) })));
   const origHashes = new Map();
   const origWindows = [];
-  for (const p of origFiles) {
-    const b = readFileSync(join(root, 'original', p));
+  for (const { label: p, full } of origFiles) {
+    const b = readFileSync(full);
     origHashes.set(createHash('sha256').update(b).digest('hex'), p);
     if (b.length >= 256) for (let k = 0; k < 8; k++) origWindows.push({ p, w: b.subarray(Math.floor(((b.length - 64) * k) / 8), Math.floor(((b.length - 64) * k) / 8) + 64) });
   }
@@ -92,11 +96,11 @@ export function leakcheck({ root = KIT_ROOT, staged = false } = {}) {
     }
     const buf = readFileSync(full);
     const h = createHash('sha256').update(buf).digest('hex');
-    if (origHashes.has(h) && !p.startsWith('original/')) add(`identical to original/${origHashes.get(h)}`);
+    if (origHashes.has(h) && !p.startsWith('original/')) add(`identical to reference file ${origHashes.get(h)}`);
     if (!p.startsWith('original/')) {
       for (const { p: op, w } of origWindows) {
         if (buf.length >= 64 && buf.indexOf(w) >= 0) {
-          add(`embeds bytes from original/${op}`);
+          add(`embeds bytes from reference file ${op}`);
           break;
         }
       }
@@ -115,7 +119,8 @@ export function leakcheck({ root = KIT_ROOT, staged = false } = {}) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   const ri = argv.indexOf('--root');
-  const { checked, problems } = leakcheck({ root: ri >= 0 ? argv[ri + 1] : KIT_ROOT, staged: argv.includes('--staged') });
+  const against = argv.flatMap((a, i) => (a === '--against' && argv[i + 1] ? [argv[i + 1]] : []));
+  const { checked, problems } = leakcheck({ root: ri >= 0 ? argv[ri + 1] : KIT_ROOT, staged: argv.includes('--staged'), against });
   if (problems.length) {
     console.error(`leakcheck: ${problems.length} problem(s) in ${checked} committable file(s):`);
     for (const p of problems) console.error(`  ${p.path}: ${p.why}`);

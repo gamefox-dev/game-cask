@@ -61,12 +61,13 @@ Useful URL flags:
 |---|---|
 | `npm run dev` | build games, start Vite |
 | `npm run build` | build games + production bundle in `dist/` |
+| `npm run bundle -- --game <id>` | static bundle with only that game (default page) in `dist-bundle/`, for hosting |
 | `npm test` | unit tests (ABI layout vs header, decoder, host safety, sample L3 headless, tools) |
 | `npm run test:e2e` | browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) |
 | `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json` |
 | `npm run report` | validate + redact `reports/`, write `reports/summary.md` |
-| `npm run leakcheck` | fail if private game data/secrets could be committed (also a pre-commit hook) |
+| `npm run leakcheck` | fail if private game data/secrets could be committed (also a pre-commit hook); `-- --against DIR` adds extracted payloads as reference |
 | `npm run bench` | batched command buffer vs per-sprite import calls → `reports/bench.md` |
 | `npm run lint` / `typecheck` | ESLint + C `-Werror` compile check / `tsc` |
 

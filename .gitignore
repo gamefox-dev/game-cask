@@ -15,6 +15,7 @@
 # build outputs
 /node_modules/
 /dist/
+/dist-bundle/
 /web/public/games/
 /test-results/
 /playwright-report/

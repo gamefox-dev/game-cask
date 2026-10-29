@@ -103,7 +103,7 @@ describe('redaction and leak check', () => {
     expect(byPath('port/src/main.c')).toMatch(/private by default/);
     expect(byPath('port/README.md')).toBe('');
     expect(byPath('reports/final-report.md')).toMatch(/private by default/);
-    expect(byPath('docs/copy.bin')).toMatch(/identical to original/);
+    expect(byPath('docs/copy.bin')).toMatch(/identical to reference file/);
     expect(byPath('docs/embed.txt')).toMatch(/embeds bytes/);
     expect(byPath('src/fine.ts')).toBe('');
     expect(byPath('config/.env')).toMatch(/\.env/);
