@@ -59,7 +59,8 @@ If the baseline fails, fix or report that first. Never start a port on a red bas
 |---|---|
 | `npm run dev` | build games + Vite dev server (`/?game=<id>&debug=1`) |
 | `npm run build:port` / `build:sample` | compile `port/` or the sample to `web/public/games/<id>/` |
-| `npm test` / `npm run test:e2e` | unit / browser suites (`test:e2e:webgl2`, `test:e2e:webgpu`) |
+| `npm test` / `npm run test:e2e` | unit / browser suites (`test:e2e:webgl2`, `test:e2e:webgpu`) → `reports/e2e-*` |
+| `npm run test:port` | the port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |
 | `npm run inspect` | read-only inventory of `original/` (`-- --strings <file>` prints strings to stdout only) |
 | `npm run report` | validate + redact `reports/`, write `reports/summary.md` |
 | `npm run leakcheck` | block private files/secrets from commits (also a pre-commit hook) |

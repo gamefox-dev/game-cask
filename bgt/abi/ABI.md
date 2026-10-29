@@ -101,7 +101,8 @@ Input snapshot rules:
 - Inputs are sampled once per update. A press shorter than one update is latched: it
   appears as held for one update and in `*_pressed`.
 - Virtual buttons merge keyboard (default map: arrows/WASD, Z/Space=A, X=B, Enter=START,
-  Backspace/RShift=SELECT, Q/E=L/R; overridable via `game.json` `input.keys`), the
+  Backspace/RShift=SELECT, Q/E=L/R; overridable via `game.json` `input.keys`, where `null` removes a
+  default binding), the
   standard-mapping gamepad, the touch overlay and test input.
 - `events`: `RESIZED`, `DEVICE_RESET` (GPU lost and restored; textures were already
   re-uploaded), `AUDIO_UNLOCKED`, `FOCUS_LOST` (keys were released).
@@ -124,7 +125,8 @@ Input snapshot rules:
 
 ### Assets (virtual file system)
 
-`game.json` names an asset directory. The build hashes every file (SHA-256) into
+`game.json` names an asset directory, plus optional `originals` (files copied from the user's `original/`
+at build time into the private build output, hash-checked). The build hashes every file (SHA-256) into
 `manifest.json`, and URLs carry the hash prefix as a cache key. The runtime preloads
 **all** assets asynchronously before `bgt_init`, with bounded concurrency, a progress bar and
 integrity checks. Reads are then **synchronous** from memory. Paths are relative,

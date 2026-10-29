@@ -14,12 +14,17 @@ const webgpuArgs = ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU',
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  outputDir: 'reports/e2e-artifacts',
+  // test:port sets BGT_RESULTS_PREFIX=e2e-port so kit and port runs don't overwrite each other.
+  outputDir: `reports/${process.env.BGT_RESULTS_PREFIX ?? 'e2e'}-artifacts`,
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [['list'], ['json', { outputFile: 'reports/e2e-results.json' }], ['html', { outputFolder: 'reports/e2e-html', open: 'never' }]],
+  reporter: [
+    ['list'],
+    ['json', { outputFile: `reports/${process.env.BGT_RESULTS_PREFIX ?? 'e2e'}-results.json` }],
+    ['html', { outputFolder: `reports/${process.env.BGT_RESULTS_PREFIX ?? 'e2e'}-html`, open: 'never' }],
+  ],
   use: {
     baseURL: `http://127.0.0.1:${PORT}/`,
     trace: 'retain-on-failure',

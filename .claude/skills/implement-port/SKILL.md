@@ -28,7 +28,8 @@ Strategies:
 Copy the shape of `examples/sample2d`:
 ```
 port/game.json      { "id": "<id>", "name": "...", "private": true, "sources": ["src/main.c"], "assets": "assets",
-                      "touch": {...}, "input": {"keys": {...}} }
+                      "originals": [{"from": "GAME.EXE", "to": "game.exe", "sha256": "..."}],   (optional)
+                      "touch": {...}, "input": {"keys": {"KeyW": null, "KeyI": "UP"}} }      (null unbinds a default)
 port/src/main.c     BGT_DEFINE_IO(io); bgt_init / bgt_update / bgt_render / bgt_shutdown
                     + bgt_state_hash and bgt_debug_state (strongly recommended: they make tests possible)
 ```
@@ -56,3 +57,7 @@ and run them with `npm run test:port` (projects `port-webgl2` and `port-webgpu`)
 fixtures with `import { test, expect, openGame, step, input, debugState, readPixels, attachScreenshot } from '../../tests/e2e/fixtures';`
 and load the game with `openGame(page, backendParam, { game: '<id>' })`.
 Minimum set: boot (authentic first screen), input changes state, and one complete gameplay loop.
+Every test should end with the error checks (diagnostics `errors`, `commandErrors`, game-specific fault flags), and the
+L3 test should tie progress to the player's own actions (not idle/AI-driven changes).
+Port results go to `reports/e2e-port-results.json` and `reports/e2e-port-artifacts/` (kit runs use `reports/e2e-*`),
+so the two never overwrite each other.

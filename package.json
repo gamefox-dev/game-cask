@@ -23,7 +23,7 @@
     "test:e2e": "npm run build:games && playwright test",
     "test:e2e:webgl2": "npm run build:games && playwright test --project=chromium-webgl2",
     "test:e2e:webgpu": "npm run build:games && BGT_REQUIRE_WEBGPU=1 playwright test --project=chromium-webgpu",
-    "test:port": "npm run build:port && playwright test --project=port-webgl2 --project=port-webgpu",
+    "test:port": "npm run build:port && BGT_RESULTS_PREFIX=e2e-port playwright test --project=port-webgl2 --project=port-webgpu",
     "inspect": "node tools/inspect/inspect.mjs",
     "report": "node tools/report/report.mjs",
     "leakcheck": "node tools/report/leakcheck.mjs",

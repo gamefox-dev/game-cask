@@ -53,6 +53,7 @@ export function loadGameConfig(gameDir) {
   for (const key of ['id', 'name', 'sources']) {
     if (!cfg[key]) throw new Error(`${relative(ROOT, file)}: missing "${key}"`);
   }
+  if (cfg.originals && !Array.isArray(cfg.originals)) throw new Error(`${relative(ROOT, file)}: "originals" must be an array`);
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(cfg.id)) throw new Error(`${relative(ROOT, file)}: id must match [a-z0-9-]`);
   return cfg;
 }
@@ -101,6 +102,27 @@ export function buildGame(gameDirArg, { check = false, quiet = false } = {}) {
       if (!check) cpSync(file, join(outDir, 'assets', ...rel.split('/')));
       assets.push({ path: rel, size: data.byteLength, sha256: hash, url: `assets/${rel}?h=${hash.slice(0, 16)}` });
     }
+  }
+
+  // Files taken verbatim from the user's original/ at build time (e.g. a code image
+  // for selective emulation). They land only in the git-ignored build output.
+  for (const o of cfg.originals ?? []) {
+    const from = typeof o === 'string' ? o : o.from;
+    const to = (typeof o === 'string' ? o : (o.to ?? o.from)).split(sep).join('/');
+    const src = resolve(ROOT, 'original', from);
+    if (!src.startsWith(resolve(ROOT, 'original') + sep)) throw new Error(`originals: "${from}" escapes original/`);
+    if (!existsSync(src)) throw new Error(`originals: original/${from} not found. Copy your legally obtained game files into original/.`);
+    const data = readFileSync(src);
+    const hash = sha256(data);
+    if (typeof o === 'object' && o.sha256 && o.sha256.toLowerCase() !== hash) {
+      throw new Error(`originals: original/${from} sha256 ${hash} does not match game.json (${o.sha256})`);
+    }
+    if (assets.some((a) => a.path === to)) throw new Error(`originals: asset path "${to}" already exists`);
+    if (!check) {
+      mkdirSync(join(outDir, 'assets', ...to.split('/').slice(0, -1)), { recursive: true });
+      cpSync(src, join(outDir, 'assets', ...to.split('/')));
+    }
+    assets.push({ path: to, size: data.byteLength, sha256: hash, url: `assets/${to}?h=${hash.slice(0, 16)}`, original: true });
   }
 
   const manifest = {

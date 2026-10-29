@@ -76,6 +76,39 @@ slightly faster, so batching is **not** assumed to always be faster. GPU submit 
 | WebGPU on CI (Linux) | not run. The CI WebGPU job is opt-in on a self-hosted GPU runner |
 | GitHub Actions run | workflow written, not executed (no remote) |
 
-## Real-game trial
+## Real-game trial: DOS Defender (`original/DOSDEF.COM`, Unlicense, binary-only)
 
-See the section appended after the porting subagent and independent validator have run.
+| item | result |
+|---|---|
+| test input | `DOSDEF.COM` 1.1.0 release binary (10 448 B, sha256 `f57bb629…a9d`). Upstream source deliberately **excluded** (binary-only policy in `original/PROVENANCE.txt`) |
+| porting agent | separate spawned subagent, given only `CLAUDE.md`, `.claude/agents/game-porter.md`, skills and repo tools. Kit files unmodified (`git diff` empty) |
+| REA | not available in this environment, and **not claimed**. Disassembly used capstone in a scratch venv |
+| strategy | `selective-emulate`: a small real-mode x86 interpreter in C runs the original code image. BGT-backed shims for DOS/BIOS, VGA mode 13h + palette, 70 Hz vsync, PIT/PC speaker and two virtual joysticks |
+| porter's claim | **L3** |
+| independent validator | **confirmed L3 on WebGL 2 and WebGPU**. 40 claims checked: 34 confirmed, 3 partially, 1 rejected, 2 unverifiable. `reports/validation.md` (private) |
+| key evidence | the original code draws the calibration screen (L1). Stick input changes game variables and pixels (L2). Start → player kills raise the score (score stays 0 without firing; each increment matches 1:1 a player kill) → game over → restart with the best score kept (L3). Reproduced on seeds 1–5 with identical numbers on both backends. `game.wasm` contains none of the game's code windows or strings |
+| port tests | `npm run test:port`: 23 passed, 1 skipped (cross-backend test runs only in the WebGPU project) |
+| rejected / partial claims | "every test checks errors" (3 tests don't). Game-rules subsystem marked `verified` though power-ups/boss were never exercised. Kill/game-over heuristics not labelled INFERRED |
+| deviations | 70 Hz → 60 Hz update fitting (7 frames per 6 updates), square pixels (no 4:3), replacement BIOS text font, chosen joystick range |
+| unverifiable | "binary never executed on host" and "binary-only policy obeyed": no contrary evidence found |
+| not done | iPhone Safari, power-ups/boss coverage, listening tests for audio (frequencies were checked numerically) |
+
+### Kit changes made after the trial (from its confirmed feedback)
+
+1. `game.json` `"originals"`: the build copies hash-checked files from `original/` into the private build output,
+   so ports no longer need ad-hoc copy scripts.
+2. `npm run report -- --strict` no longer fails on machine-written Playwright/bench JSON. Those findings are reported as
+   informational; `--fix` before sharing them.
+3. Port and kit browser runs write separate results (`reports/e2e-port-*` vs `reports/e2e-*`).
+4. `input.keys` entries set to `null` unbind default keys.
+5. `inspect` marks LLVM/Apple `objdump` as unable to disassemble raw images.
+6. Bug found while testing (4): pressing a second key bound to an already-held button produced a spurious
+   `buttons_pressed` edge. Presses now latch only on real transitions.
+
+After these changes: `npm test` 37/37, `npm run test:e2e` 65 passed / 2 skipped (kit + port projects),
+`npm run test:port` 23 passed / 1 skipped, `npm run report -- --strict` exit 0, `npm run leakcheck` ok.
+
+Deferred (ABI change, v0.2 candidates):
+- a pixel-aspect flag for 320×200 DOS games
+- per-player gamepad assignment
+- running the game in a Worker so runaway loops can be pre-empted

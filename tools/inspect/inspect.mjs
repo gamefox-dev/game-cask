@@ -126,6 +126,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const f of inv.files) for (const h of f.hints) console.log(`    hint: ${h}`);
   for (const n of inv.notes) console.log(`  note: ${n}`);
   console.log(`  REA: ${inv.tools.rea.available ? 'detected' : 'not detected'} — ${inv.tools.rea.note}`);
-  const avail = Object.entries(inv.tools.local).filter(([, v]) => v.available).map(([k]) => k);
+  const avail = Object.entries(inv.tools.local).filter(([, v]) => v.available).map(([k, v]) => (v.rawBinary === false ? `${k} (object files only, not raw images)` : k));
   console.log(`  local tools: ${avail.join(', ') || 'none'}`);
 }

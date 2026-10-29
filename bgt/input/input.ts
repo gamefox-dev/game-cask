@@ -50,7 +50,8 @@ export interface TouchConfig {
 }
 
 export interface InputConfig {
-  keys?: Record<string, ButtonName>;
+  /** KeyboardEvent.code -> button; `null` removes a default binding (e.g. "KeyW": null). */
+  keys?: Record<string, ButtonName | null>;
 }
 
 const setBit = (arr: Uint32Array, k: number, on: boolean) => {
@@ -82,7 +83,11 @@ export class InputManager {
     private readonly canvas: HTMLCanvasElement,
     cfg: InputConfig = {},
   ) {
-    this.keymap = { ...DEFAULT_KEYMAP, ...(cfg.keys ?? {}) };
+    this.keymap = { ...DEFAULT_KEYMAP };
+    for (const [code, btn] of Object.entries(cfg.keys ?? {})) {
+      if (btn === null) delete this.keymap[code];
+      else this.keymap[code] = btn;
+    }
   }
 
   attach(): void {
@@ -128,6 +133,15 @@ export class InputManager {
     on(this.canvas, 'contextmenu', (e: Event) => e.preventDefault());
   }
 
+  private held(): number {
+    return this.sources.keys | this.sources.overlay | this.sources.test | this.sources.pad;
+  }
+
+  /** Latch a press only on a real up->down transition of the merged button state. */
+  private latch(bits: number, wasHeld: number): void {
+    this.latchedPress |= bits & ~wasHeld;
+  }
+
   /** Returns true when the key is mapped to a virtual button. */
   private key(code: string, down: boolean): boolean {
     const hid = HID[code];
@@ -137,12 +151,13 @@ export class InputManager {
     }
     const btn = this.keymap[code];
     if (btn) {
+      const was = this.held();
       if (down) this.keyButtons.set(code, btn);
       else this.keyButtons.delete(code);
       let m = 0;
       for (const b of this.keyButtons.values()) m |= BUTTONS[b];
       this.sources.keys = m;
-      if (down) this.latchedPress |= BUTTONS[btn];
+      if (down) this.latch(BUTTONS[btn], was);
     }
     return !!btn;
   }
@@ -154,8 +169,8 @@ export class InputManager {
         const bit = BUTTONS[ev.button];
         if (bit === undefined) throw new Error(`unknown button ${ev.button}`);
         if (ev.down) {
+          this.latch(bit, this.held());
           this.sources.test |= bit;
-          this.latchedPress |= bit;
         } else this.sources.test &= ~bit;
       } else if (ev.type === 'pointer') {
         this.pointer.x = Math.floor(ev.x);
@@ -190,7 +205,7 @@ export class InputManager {
       if ((p.axes[1] ?? 0) > dz) this.sources.pad |= BUTTONS.DOWN;
     }
     const newly = this.sources.pad & ~this.prevPad;
-    this.latchedPress |= newly;
+    this.latch(newly, this.sources.keys | this.sources.overlay | this.sources.test | this.prevPad);
     this.prevPad = this.sources.pad;
   }
   private prevPad = 0;
@@ -236,8 +251,8 @@ export class InputManager {
       b.setAttribute('aria-label', btn.toLowerCase());
       const down = (e: Event) => {
         e.preventDefault();
+        this.latch(BUTTONS[btn], this.held());
         this.sources.overlay |= BUTTONS[btn];
-        this.latchedPress |= BUTTONS[btn];
         b.classList.add('active');
       };
       const up = (e: Event) => {

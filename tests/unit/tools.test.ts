@@ -141,3 +141,19 @@ describe('asset transforms', () => {
     expect(out.length).toBe(16 + 16);
   });
 });
+
+describe('input mapping', () => {
+  it('game.json key overrides can add and unbind default keys', async () => {
+    const { InputManager } = await import('../../bgt/input/input');
+    const { emptyInput } = await import('../../bgt/runtime/host');
+    const { BUTTONS } = await import('../../bgt/runtime/abi');
+    const im = new InputManager({} as HTMLCanvasElement, { keys: { KeyW: null, KeyI: 'UP' } });
+    const snap = emptyInput();
+    im.injectTest([{ type: 'key', code: 'KeyW', down: true }]);
+    expect(im.snapshot(snap, false).buttons & BUTTONS.UP).toBe(0);
+    im.injectTest([{ type: 'key', code: 'KeyW', down: false }, { type: 'key', code: 'KeyI', down: true }]);
+    expect(im.snapshot(snap, false).buttons & BUTTONS.UP).toBe(BUTTONS.UP);
+    im.injectTest([{ type: 'key', code: 'ArrowUp', down: true }]);
+    expect(im.snapshot(snap, false).pressed & BUTTONS.UP).toBe(0); // already held via KeyI
+  });
+});

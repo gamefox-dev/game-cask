@@ -27,6 +27,12 @@ Original assets stay private: generated assets go to `port/assets/` (git-ignored
    Note the check in `subsystem-map.json` → `verification_evidence`.
 
 ## Embedding vs. files
-If the port must read the original executable itself (e.g. `selective-emulate` of a code image), place it in
-`port/assets/` via a build step that **copies from `original/` at build time**. Never commit it. `npm run leakcheck`
-will flag any copy that reaches a committable path.
+If the port must read an original file itself (e.g. the code image for `selective-emulate`), list it in
+`port/game.json` instead of copying it:
+```json
+"originals": [{ "from": "GAME.EXE", "to": "game.exe", "sha256": "<from npm run inspect>" }]
+```
+`npm run build:port` copies it from `original/` straight into the git-ignored build output
+(`web/public/games/<id>/assets/`), verifies the hash, and adds it to the manifest. It is then readable with
+`bgt_asset_open("game.exe", ...)`. Never place copies under committable paths; `npm run leakcheck` flags any file
+that equals or embeds bytes from `original/`.

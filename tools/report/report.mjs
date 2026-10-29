@@ -39,11 +39,18 @@ else if (errs) problems.push(...validateErrors(errs));
 
 // redaction scan over every text report
 const sensitive = [];
+const machine = [];
 if (existsSync(R)) {
   for (const f of readdirSync(R)) {
     const p = join(R, f);
     if (!statSync(p).isFile() || !/\.(md|json|txt)$/.test(f)) continue;
     const text = readFileSync(p, 'utf8');
+    // Playwright/bench output is machine-written and private by design (absolute paths,
+    // inline screenshots). Report its findings, but don't fail --strict on them.
+    if (/^(e2e-.*|bench)\.json$/.test(f) && !fix) {
+      for (const h of findSensitive(text)) machine.push(`${f}: ${h.rule}`);
+      continue;
+    }
     const hits = findSensitive(text);
     if (hits.length && fix) {
       writeFileSync(p, redact(text));
@@ -92,10 +99,12 @@ if (e2e) {
   for (const t of e2e.tests) lines.push(`- ${t.status === 'expected' ? 'PASS' : t.status === 'skipped' ? 'SKIP' : 'FAIL'} [${t.project}] ${t.title}`);
   lines.push('');
 }
+if (machine.length) lines.push('## Machine artifacts (informational)', '', `${machine.length} redaction finding(s) in Playwright/bench JSON. These files are private; run \`npm run report -- --fix\` before sharing them.`, '');
 lines.push('## Checks', '', problems.length ? problems.map((p) => `- schema: ${p}`).join('\n') : '- schema: ok', sensitive.length ? sensitive.map((s) => `- redaction: ${s}`).join('\n') : '- redaction: ok', '');
 
 writeFileSync(join(R, 'summary.md'), redact(lines.join('\n')));
 console.log(`report: wrote reports/summary.md (${problems.length} schema problem(s), ${sensitive.length} redaction finding(s))`);
 for (const p of problems) console.log(`  schema: ${p}`);
 for (const s of sensitive) console.log(`  redaction: ${s}`);
+if (machine.length) console.log(`  info: ${machine.length} redaction finding(s) in machine-written e2e/bench JSON (private; --fix before sharing)`);
 if (strict && (problems.length || (sensitive.length && !fix))) process.exit(1);

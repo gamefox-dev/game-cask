@@ -39,9 +39,16 @@ export function detectRea(root) {
 }
 
 export function detectTools() {
+  const od = which('objdump', ['--version']);
+  if (od.available) {
+    const llvm = /llvm/i.test(od.version ?? '');
+    // GNU objdump can disassemble raw images (-b binary -m i8086); LLVM/Apple objdump cannot.
+    od.rawBinary = !llvm;
+    if (llvm) od.note = 'LLVM objdump: object files only (ELF/Mach-O/PE/COFF); cannot disassemble raw .COM/ROM images';
+  }
   return {
     ndisasm: which('ndisasm', ['-v']),
-    objdump: which('objdump', ['--version']),
+    objdump: od,
     'llvm-objdump': which('llvm-objdump', ['--version']),
     r2: which('r2', ['-v']),
     rizin: which('rizin', ['-v']),
