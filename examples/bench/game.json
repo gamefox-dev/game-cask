@@ -1,0 +1,7 @@
+{
+  "id": "bench",
+  "name": "BGT sprite benchmark",
+  "license": "CC0-1.0",
+  "sources": ["src/main.c"],
+  "touch": { "dpad": false, "buttons": [] }
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuse commits that would include user game files, private ports/reports,
+# game binaries or secrets. Installed by `npm install` (core.hooksPath).
+exec node tools/report/leakcheck.mjs --staged

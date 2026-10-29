@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      webgpu:
+        description: Run the WebGPU hardware job (needs a GPU runner)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+      - run: npm ci
+      - name: Private asset leak check
+        run: npm run leakcheck
+      - name: Negative check — leak check must reject a committed original/ file
+        run: |
+          mkdir -p original && echo "fake game" > original/CANARY.EXE
+          git add -f original/CANARY.EXE
+          if node tools/report/leakcheck.mjs --staged; then echo "leakcheck failed to block original/"; exit 1; fi
+          git rm -q --cached original/CANARY.EXE && rm original/CANARY.EXE
+      - run: npm run doctor || true
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Wasm sample build
+        run: npm run build:games
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Browser E2E (WebGL 2 fallback, software rendering)
+        run: npx playwright test --project=chromium-webgl2 --project=chromium-auto
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            reports/e2e-results.json
+            reports/e2e-html/
+          retention-days: 7
+
+  webgpu:
+    # Opt-in hardware gate, reported separately from the functional suite.
+    if: github.event_name == 'workflow_dispatch' && inputs.webgpu
+    runs-on: [self-hosted, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+      - run: npm ci && npx playwright install chromium
+      - run: npm run test:e2e:webgpu

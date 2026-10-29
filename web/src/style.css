@@ -1,0 +1,148 @@
+:root {
+  color-scheme: dark;
+  --bg: #000;
+  --fg: #e8e8f0;
+  --panel: #15172a;
+  --accent: #00dcff;
+  --danger: #ff5a6a;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  overscroll-behavior: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.bgt-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.bgt-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  outline: none;
+  image-rendering: pixelated;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bgt-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.bgt-status progress {
+  width: min(60vw, 320px);
+  accent-color: var(--accent);
+}
+
+.bgt-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(90vw, 560px);
+  background: var(--panel);
+  border: 2px solid var(--danger);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.bgt-error h2 {
+  margin: 0 0 8px;
+  color: var(--danger);
+  font-size: 1.2rem;
+}
+
+.bgt-error a {
+  color: var(--accent);
+}
+
+.bgt-debug {
+  position: fixed;
+  left: 4px;
+  top: 4px;
+  margin: 0;
+  padding: 6px 8px;
+  font: 11px/1.35 ui-monospace, Menlo, monospace;
+  background: rgb(0 0 0 / 70%);
+  color: #9f9;
+  pointer-events: none;
+  white-space: pre;
+  z-index: 10;
+}
+
+/* touch overlay */
+.bgt-touch {
+  position: absolute;
+  inset: auto 0 calc(12px + env(safe-area-inset-bottom)) 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 calc(16px + env(safe-area-inset-left));
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.bgt-touch-btn {
+  pointer-events: auto;
+  touch-action: none;
+  border: 2px solid rgb(255 255 255 / 35%);
+  background: rgb(255 255 255 / 12%);
+  color: #fff;
+  font: 600 16px system-ui, sans-serif;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bgt-touch-btn.active {
+  background: rgb(0 220 255 / 40%);
+}
+
+.bgt-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  gap: 2px;
+}
+
+.bgt-dpad .up { grid-area: 1 / 2; }
+.bgt-dpad .left { grid-area: 2 / 1; }
+.bgt-dpad .right { grid-area: 2 / 3; }
+.bgt-dpad .down { grid-area: 3 / 2; }
+
+.bgt-actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.bgt-actions .act-start,
+.bgt-actions .act-select {
+  border-radius: 14px;
+  width: 72px;
+  height: 36px;
+  font-size: 12px;
+}

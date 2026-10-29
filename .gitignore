@@ -1,0 +1,34 @@
+# --- user game data: NEVER commit -----------------------------------------
+/original/*
+!/original/.gitkeep
+
+# generated ports are private by default (see port/README.md)
+/port/*
+!/port/README.md
+!/port/.gitkeep
+
+# reports may describe private games; commit only reviewed files (reports/.publish)
+/reports/*
+!/reports/.gitkeep
+!/reports/.publish
+
+# build outputs
+/node_modules/
+/dist/
+/web/public/games/
+/test-results/
+/playwright-report/
+*.wasm
+
+# local env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,9 @@
+{
+  "id": "sample2d",
+  "name": "Coin Cave (BGT sample)",
+  "license": "CC0-1.0",
+  "sources": ["src/main.c"],
+  "assets": "assets",
+  "touch": { "dpad": true, "buttons": ["A", "START"], "labels": { "A": "GO" } },
+  "input": {}
+}

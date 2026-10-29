@@ -1,0 +1,69 @@
+# Coin Cave sprite sheet. Original art, CC0-1.0.
+# palette <char> <RRGGBBAA> ; sprite <name> <w> <h> followed by <h> rows.
+palette . 00000000
+palette c 00dcffff
+palette d 0a3a4aff
+palette w ffffffff
+palette r ff3040ff
+palette y ffff80ff
+palette g ffd700ff
+palette o b8860bff
+palette b 3a3f6bff
+palette l 5a60a0ff
+palette s 262a4aff
+
+sprite player 12 12
+....cccc....
+..cccccccc..
+.cccccccccc.
+.ccwwccwwcc.
+cccwdccwdccc
+cccccccccccc
+cccccccccccc
+ccdccccccdcc
+cccddddddccc
+.cccccccccc.
+..cccccccc..
+....cccc....
+
+sprite enemy 12 12
+...rrrrrr...
+.rrrrrrrrrr.
+rrrrrrrrrrrr
+rryyrrrryyrr
+rryyrrrryyrr
+rrrrrrrrrrrr
+rrrrrrrrrrrr
+rrrrrrrrrrrr
+rr.rrrrrr.rr
+rr.rr..rr.rr
+r...r..r...r
+r...r..r...r
+
+sprite coin 8 8
+..gggg..
+.gggggg.
+ggoggggg
+ggoggggg
+ggoggggg
+ggoggggg
+.gggggg.
+..gggg..
+
+sprite wall 16 16
+llllllllslllllll
+bbbbbbbbsbbbbbbb
+bbbbbbbbsbbbbbbb
+bbbbbbbbsbbbbbbb
+bbbbbbbbsbbbbbbb
+bbbbbbbbsbbbbbbb
+bbbbbbbbsbbbbbbb
+ssssssssssssssss
+lllsllllllllllll
+bbbsbbbbbbbbbbbb
+bbbsbbbbbbbbbbbb
+bbbsbbbbbbbbbbbb
+bbbsbbbbbbbbbbbb
+bbbsbbbbbbbbbbbb
+bbbsbbbbbbbbbbbb
+ssssssssssssssss
