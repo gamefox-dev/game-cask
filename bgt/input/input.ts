@@ -41,6 +41,7 @@ const PAD_BUTTONS: Array<[number, ButtonName]> = [
 export type TestInputEvent =
   | { type: 'key'; code: string; down: boolean }
   | { type: 'button'; button: ButtonName; down: boolean }
+  /** buttons: MouseEvent.buttons bitmask (1 primary, 2 secondary, 4 middle); overrides `down`. */
   | { type: 'pointer'; x: number; y: number; down?: boolean; buttons?: number };
 
 export interface TouchConfig {

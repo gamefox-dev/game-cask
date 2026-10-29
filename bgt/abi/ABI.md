@@ -239,8 +239,13 @@ interface BGTTestAPI {
 type BGTTestInputEvent =
   | { type: 'key'; code: string /* KeyboardEvent.code */; down: boolean }
   | { type: 'button'; button: 'UP'|'DOWN'|'LEFT'|'RIGHT'|'A'|'B'|'X'|'Y'|'START'|'SELECT'|'L'|'R'; down: boolean }
-  | { type: 'pointer'; x: number; y: number /* logical px */; down?: boolean };
+  | { type: 'pointer'; x: number; y: number /* logical px */; down?: boolean; buttons?: number };
 ```
+
+`pointer.buttons` uses the DOM `MouseEvent.buttons` bitmask: 1 = primary, 2 = secondary (right), 4 = middle.
+It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is given it overrides `down`
+(`down: true` is shorthand for `buttons: 1`). A press is latched like the virtual buttons, so a right-click is
+`input([{ type: 'pointer', x, y, buttons: 2 }])`, then `step(1)`, then `input([{ type: 'pointer', x, y, buttons: 0 }])`.
 
 - `step(n)` pauses free-running, then for each of n steps: applies input, runs one
   `bgt_update`, renders and draws. It resolves after `onSubmittedWorkDone` (WebGPU) or
