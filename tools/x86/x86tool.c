@@ -482,7 +482,7 @@ static int lifted_has(an_t *a, uint32_t addr) { return vhas(&a->known, addr); }
 static vec_t skip; /* functions provided by port overrides (sorted) */
 
 static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
-    char t1[200], t2[200], t3[240];
+    char t1[200], t2[256], t3[512]; /* sized so the worst-case composition provably fits (gcc -Wformat-truncation) */
     if (vhas(&skip, f->addr)) { fprintf(o, "\n/* function %08x: provided by port/overrides (exception) */\n", f->addr); return; }
     fprintf(o, "\n/* function %08x (%u instructions) */\nvoid F_%08x(void) {\n", f->addr, f->insns.n, f->addr);
     fprintf(o, "    const uint32_t ra = x86_rd32(X.r[ESP]), esp0 = X.r[ESP]; (void)ra; (void)esp0;\n    uint32_t t, u; (void)t; (void)u;\n");
