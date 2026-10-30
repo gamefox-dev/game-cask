@@ -559,8 +559,17 @@ export class GameHost {
     return rc;
   }
 
+  /** Decoded resources and unconsumed GPU work count even before the renderer sees their creation. */
+  get hasGpuWork(): boolean {
+    const gpu = this.gpu;
+    return !!(gpu && (gpu.buffers.size || gpu.textures.size || gpu.samplers.size ||
+      gpu.shaders.size || gpu.pipelines.size || gpu.pass)) || this.frame.items.some((it) => it.kind === 'gpu');
+  }
+
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
   setBackend(backend: number, gpuBackend?: GpuBackend): void {
+    if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
+    this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;

@@ -10,8 +10,8 @@ import { compileC } from '../support/compile';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
 
-it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and virtual event polling', async () => {
-  // Catches dropped audio, wrong channel order/scale, rate conversion and wall-clock-dependent draining.
+it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and threaded events', async () => {
+  // Catches dropped audio, rate conversion, nondeterministic draining and disconnected scheduler event handles.
   const dir = join(ROOT, 'web/public/games/x64-audio');
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
   const vfs = new Vfs();
@@ -28,6 +28,7 @@ it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and
     host.writeInput(emptyInput()); host.update(); host.render(); host.consume();
   }
   expect(logs.some((s) => s.includes('x64-audio PASS')), logs.join('\n')).toBe(true);
+  expect(logs.filter((s) => s.includes('x64-audio worker event PASS'))).toHaveLength(2);
   expect(samples.length).toBe(48000 * 2);
   for (let pass = 0; pass < 2; pass++) {
     const left = samples.slice(pass * 48000, (pass + 1) * 48000).filter((_, i) => !(i & 1));

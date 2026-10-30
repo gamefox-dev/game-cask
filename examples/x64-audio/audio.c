@@ -13,6 +13,23 @@ static void check(HRESULT hr) {
         OutputDebugStringA(text); ExitProcess(1);
     }
 }
+/* Integration regression: audio must wake scheduler-owned events on a different guest thread. */
+static DWORD WINAPI audio_waiter(void *event) {
+    void *missing = (void *)1;
+    if (CoCreateInstance(&CLSID_MMDeviceEnumerator, 0, CLSCTX_INPROC_SERVER,
+        &IID_IMMDeviceEnumerator, &missing) != CO_E_NOTINITIALIZED || missing) return 2;
+    /* Main uses MTA: a fresh worker may independently nest STA initialization. */
+    if (CoInitializeEx(0, COINIT_APARTMENTTHREADED) != S_OK || CoInitialize(0) != S_FALSE ||
+        CoInitializeEx(0, COINIT_MULTITHREADED) != RPC_E_CHANGED_MODE) return 3;
+    SetLastError(0x51a1u);
+    if (WaitForSingleObject((HANDLE)event, 100) != WAIT_OBJECT_0 || GetLastError() != 0x51a1u)
+        return 1;
+    CoUninitialize(); CoUninitialize();
+    missing = (void *)1;
+    if (CoCreateInstance(&CLSID_MMDeviceEnumerator, 0, CLSCTX_INPROC_SERVER,
+        &IID_IMMDeviceEnumerator, &missing) != CO_E_NOTINITIALIZED || missing) return 4;
+    return 0xa11du;
+}
 int main(void) {
     IMMDeviceEnumerator *enumerator;
     IMMDevice *device;
@@ -92,8 +109,16 @@ int main(void) {
                 }
                 check(IAudioRenderClient_ReleaseBuffer(render, n, 0)); written += n;
             }
-            if (!running) { check(IAudioClient_Start(client)); running = 1; }
-            if (WaitForSingleObject(event, 100) != WAIT_OBJECT_0) ExitProcess(5);
+            if (!running) {
+                DWORD code;
+                HANDLE worker = CreateThread(0, 0, audio_waiter, event, 0, 0);
+                if (!worker) ExitProcess(19);
+                check(IAudioClient_Start(client)); running = 1;
+                if (WaitForSingleObject(worker, 100) != WAIT_OBJECT_0 ||
+                    !GetExitCodeThread(worker, &code) || code != 0xa11du) ExitProcess(20);
+                CloseHandle(worker);
+                OutputDebugStringA("x64-audio worker event PASS");
+            } else if (WaitForSingleObject(event, 100) != WAIT_OBJECT_0) ExitProcess(5);
         }
         do {
             check(IAudioClient_GetCurrentPadding(client, &padding));

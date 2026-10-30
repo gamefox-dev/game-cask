@@ -1,5 +1,6 @@
 import { test, expect, openGame, assertBackend, diagnostics, step, stateHash } from './fixtures';
 import { GPU_OP } from '../../bgt/runtime/abi';
+import { CommandEncoder } from '../../bgt/runtime/commands';
 import { resolve } from 'node:path';
 const browserModule = (file: string) => `/@fs${resolve('bgt', file)}`;
 
@@ -44,6 +45,25 @@ test('WebGPU §13 stops rather than silently dropping live resources on unrecove
     await step(page, 3);
     await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
     await expect(page.getByRole('alert')).toContainText('Cannot restore live GPU resources');
+  });
+
+test('WebGPU §13 loss before first GPU draw rejects decoded handles and queued work',
+  async ({ page, backendParam, collector }, info) => {
+    // Catches checking only renderer objects: these commands are decoded but never rendered.
+    collector.allow(/device lost|Cannot restore live GPU resources|recovery disabled/i);
+    test.skip(backendParam !== 'webgpu');
+    for (const deleted of [false, true]) {
+      await openGame(page, backendParam);
+      await assertBackend(page, backendParam, info);
+      const commands = new CommandEncoder().gpu(GPU_OP.BUFFER_CREATE, [1, 1, 16, 0, 0]);
+      if (deleted) commands.gpu(GPU_OP.BUFFER_DELETE, [1]);
+      const bytes = Buffer.from(commands.finish()).toString('base64');
+      const result = await page.evaluate((s) => (window as any).__BGT_TEST__.injectCommands(s), bytes);
+      expect(result.status).toBe(0);
+      await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
+      await expect(page.getByRole('alert')).toContainText('Cannot restore live GPU resources');
+      expect((await diagnostics(page)).backend).toBe('webgpu');
+    }
   });
 
 test('WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers',

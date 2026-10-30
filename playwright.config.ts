@@ -39,10 +39,10 @@ export default defineConfig({
   },
   webServer: {
     command: `npx vite --port ${PORT} --strictPort --host 127.0.0.1`,
-    // A kit-specific URL: an unrelated app on this port answers 404 here, so it is never mistaken for
-    // the kit's server (Playwright then fails to bind the port instead of testing the wrong app).
+    // Always own the test server: unrelated SPA servers may return index.html with HTTP 200 even
+    // for this kit-specific URL. Fail to bind an occupied port rather than testing the wrong app.
     url: `http://127.0.0.1:${PORT}/games/index.json`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
   projects: [

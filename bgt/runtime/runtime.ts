@@ -451,10 +451,13 @@ export class BGTRuntime {
   private switchToWebGL2(reason: string): void {
     const old = this.renderer;
     if (!this.host || this.failed) return;
-    /* LANE-WG/W2: no cross-backend §13 descriptor/language migration; never drop live GPU handles. */
-    if (!old || old.kind === 'webgl2' || old.gpu?.languages ||
-        (old instanceof WebGPURenderer && old.gpu.hasResources)) {
+    /* LANE-WG/W2: no live §13 descriptor/language migration. Legacy 2D can renegotiate below. */
+    if (!old || old.kind === 'webgl2') {
       this.fail('device-lost', `graphics device lost and could not be recovered (${reason})`);
+      return;
+    }
+    if (this.host.hasGpuWork || (old instanceof WebGPURenderer && old.gpu.hasResources)) {
+      this.fail('device-lost', `Cannot restore live GPU resources on WebGL 2 fallback: ${reason}`);
       return;
     }
     console.warn(`[bgt] ${reason}; switching to WebGL 2`);
@@ -472,7 +475,7 @@ export class BGTRuntime {
     this.measure();
     gl.restoreTextures(this.host.textures);
     if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
-    this.host.setBackend(BACKEND_WEBGL2);
+    this.host.setBackend(BACKEND_WEBGL2, gl.gpu);
     this.backendNotes.push(`webgpu: device lost and not recoverable (${reason}); switched to webgl2`);
     this.deviceResets++;
     this.input.markEvent('deviceReset');

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
@@ -16,9 +16,23 @@ import { forkQuestion, formatStatus, parseArgs, snapshotSession } from '../../to
 import { bridgeExtension } from '../../tools/harness/pi/bridge/extension-core.mjs';
 
 const exec = promisify(execFile);
-const temp = () => mkdtempSync(join(tmpdir(), 'bgt-bridge-test-'));
+const dirs: string[] = [];
+const temp = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-bridge-test-'));
+  dirs.push(dir);
+  return dir;
+};
 const close: (() => Promise<void>)[] = [];
-afterEach(async () => { for (const dispose of close.splice(0)) await dispose(); });
+// Fake pi tests workspace extensions, not whichever provider injected the parent agent.
+// Keep every extension assertion intact, and restore the caller's environment after each test.
+beforeEach(() => { vi.stubEnv('PI_PROVIDER_EXTENSION', undefined); });
+afterEach(async () => {
+  try { for (const dispose of close.splice(0)) await dispose(); }
+  finally {
+    vi.unstubAllEnvs();
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  }
+});
 async function serve() {
   const result = startBridge({ dir: temp(), port: 0 });
   await once(result.server, 'listening');

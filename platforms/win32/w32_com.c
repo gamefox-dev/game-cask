@@ -1,6 +1,7 @@
 /* COM identity, owned references, profile class registry. SPDX-License-Identifier: MIT */
 #include "w32_com.h"
 #include "w32_audio.h"
+#include "w32_thread.h" /* LANE-E/C */
 #define E_POINTER 0x80004003u
 #define E_NOINTERFACE 0x80004002u
 const uint32_t w32_iid_enum[4] = {0xa95664d2, 0x4f359614, 0x8dde46a7, 0xe61736b6};
@@ -11,7 +12,11 @@ static const uint32_t iid_unknown[4] = {0, 0, 0x000000c0, 0x46000000};
 static const uint32_t clsid_enum[4] = {0xbcde0395, 0x467ce52f, 0x57c43d8e, 0x2e699192};
 static const uint32_t *const iids[] = {0, w32_iid_enum, w32_iid_device, w32_iid_audio, w32_iid_render};
 static w32_com_object_t objects[64];
-static uint32_t tables[5], apartment, apartment_flags;
+static uint32_t tables[5];
+/* LANE-E/C: CoInitialize nesting and mode belong to the calling guest thread. */
+static struct { uint32_t depth, flags; } apartments[X86_THREADS];
+#define apartment (apartments[x86_current].depth)
+#define apartment_flags (apartments[x86_current].flags)
 int w32_com_guid(uint32_t p, const uint32_t words[4]) {
     if (!p) return 0;
     for (uint32_t i = 0; i < 4; i++) if (x86_rd32(p + i * 4) != words[i]) return 0;
