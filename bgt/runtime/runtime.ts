@@ -7,7 +7,7 @@ import {
   BACKEND_WEBGL2,
   BACKEND_WEBGPU,
   CAP_AUDIO,
-  CAP_GPU, /* LANE-WG: negotiate only an executable GPU backend. */
+  CAP_GPU, /* LANE-WG/W2: negotiate only an executable GPU backend. */
   CAP_DIRECT_DRAW,
   CAP_GAMEPAD,
   CAP_LINEAR_FILTER,
@@ -358,10 +358,10 @@ export class BGTRuntime {
     if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
     let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK | CAP_STREAM_FILES;
+    /* LANE-WG/W2 */ if (this.renderer.gpu?.languages) caps |= CAP_GPU;
     if (this.storage.persistent) caps |= CAP_STORAGE;
     if (hasTouch) caps |= CAP_TOUCH;
     if (this.opts.directDraw) caps |= CAP_DIRECT_DRAW;
-    /* LANE-WG */ if (this.renderer.gpu?.languages) caps |= CAP_GPU;
 
     this.measure();
     try {
@@ -384,7 +384,7 @@ export class BGTRuntime {
         {
           backend: this.renderer.kind === 'webgpu' ? BACKEND_WEBGPU : BACKEND_WEBGL2,
           caps,
-          /* LANE-WG */ gpuBackend: this.renderer.gpu,
+          /* LANE-WG/W2 */ gpuBackend: this.renderer.gpu,
           seed: this.opts.seed ?? 1,
           displayWidth: this.canvas.width,
           displayHeight: this.canvas.height,
@@ -430,9 +430,10 @@ export class BGTRuntime {
       r.restoreTextures(this.host.textures);
       this.deviceResets++;
       this.input.markEvent('deviceReset');
-      /* LANE-WG: GPU attachment contents are lost on restoration too. */
-      if ((this.host.config.caps & CAP_GPU) || [...this.host.textures.entries.values()].some((e) => e.renderTarget))
+      /* LANE-WG/W2: advertised §13 attachment contents are lost on restoration too. */
+      if ((this.host.config.caps & CAP_GPU) || [...this.host.textures.entries.values()].some((e) => e.renderTarget)) {
         this.input.markEvent('targetsLost');
+      }
       this.applySize();
     });
     r.onUnrecoverable((reason) => {
@@ -450,13 +451,10 @@ export class BGTRuntime {
   private switchToWebGL2(reason: string): void {
     const old = this.renderer;
     if (!this.host || this.failed) return;
-    if (!old || old.kind === 'webgl2') {
+    /* LANE-WG/W2: no cross-backend §13 descriptor/language migration; never drop live GPU handles. */
+    if (!old || old.kind === 'webgl2' || old.gpu?.languages ||
+        (old instanceof WebGPURenderer && old.gpu.hasResources)) {
       this.fail('device-lost', `graphics device lost and could not be recovered (${reason})`);
-      return;
-    }
-    /* LANE-WG: do not silently drop live §13 resources/languages on fallback. */
-    if (old instanceof WebGPURenderer && old.gpu.hasResources) {
-      this.fail('device-lost', `Cannot restore live GPU resources on WebGL 2 fallback: ${reason}`);
       return;
     }
     console.warn(`[bgt] ${reason}; switching to WebGL 2`);
