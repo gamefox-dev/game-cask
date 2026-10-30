@@ -1,6 +1,7 @@
 # v0.3 merged implementation status
 
-Integration I1 on `integration/p1` combines the existing Task 1/2a work and lanes **S1, E, G, WG, F, GL, W2, C**.
+Integration I2 on `integration/p1` verifies the combined subsystems from I1, which merged the existing Task 1/2a work
+and lanes **S1, E, G, WG, F, GL, W2, C**.
 This is still **0.3.0-dev.1**, a bounded kit-development delivery, not unrestricted Windows/OpenGL compatibility,
 a release certification, or a new game-playability claim. This merged ledger supersedes the old per-stage missing
 lists. Historical measurements remain in [verification.md](verification.md); lane details are in [handoff/](handoff/).
@@ -8,20 +9,23 @@ lists. Historical measurements remain in [verification.md](verification.md); lan
 ## Merged verification
 
 - Doctor ready; lint (ESLint plus all example check-builds), typecheck and leakcheck pass.
-- Unit: **231 tests / 25 files passed**. Bridge fixtures clear inherited `PI_PROVIDER_EXTENSION` internally and
+- Unit: **235 tests / 28 files passed**. Bridge fixtures clear inherited `PI_PROVIDER_EXTENSION` internally and
   restore the caller's environment; extension assertions are unchanged. Full inherited-environment verification
   is recorded in the integration handoff.
-- Browser: **135 passed / 50 intentional skips / 0 failures**, with WebGPU required: WebGL 2 **70/20 skipped**,
-  WebGPU **60/30 skipped**, auto **5 passed**. Skips are four older backend/tour exclusions plus 28 W2-only cases
-  in the WebGPU project and 18 WG-only cases in WebGL 2. Neither GPU backend was skipped as unavailable.
-- **13 explicit 300-frame oracles = 3,900 compared frame pairs**, identical, both errors null, lifted
-  `interp_insns=0`: all eleven `x64-*` examples, `x86-threads`, and `win32-hello`. Exact IDs and commands:
-  [verification.md](verification.md#integration-i1--merged-tree).
+- Browser: **169 passed / 42 intentional skips / 0 failures**, with WebGPU required: WebGL 2 **83/20 skipped**,
+  WebGPU **81/22 skipped**, auto **5 passed**. Skips are four older backend/tour exclusions plus 20 W2-only cases
+  in the WebGPU project and 18 WG-only cases in WebGL 2; eight common scene tests now run on both. Neither GPU backend
+  was skipped as unavailable.
+- **13 explicit 300-frame oracles plus the 600-frame smoke = 4,500 measured frame pairs**, identical, both errors
+  null, lifted `interp_insns=0`: all prior eleven `x64-*` examples, `x86-threads`, `win32-hello`, and new `x64-smoke`.
+  Smoke additionally compares 20 startup frames (including shader/upload bytes) and completes exactly 600 GL loops.
+  Exact commands and boundaries: [I2 handoff](handoff/integration-i2.md).
 - Browser tests now always own their server; an unrelated SPA's catch-all HTTP 200 cannot be reused as kit readiness.
-  Integration runs use free port **5292**, never the developer's `:5173`.
-- Independent fresh-session review found a pending-GPU fallback hole, repaired with host-state guards and unit/browser
-  regressions. A second fresh recheck found that blocker fixed, no further concrete scoped issue, and independently
-  passed **34 focused tests / 2 files**. Details: [integration handoff](handoff/integration-i1.md).
+  I2 runs use owned port **5293**, never the developer's `:5173`.
+- I1's independent review/fallback repairs remain recorded in its handoff. I2 fresh independent validation found
+  paused-resize and startup-digest gaps; both repaired. Fresh recheck independently passed **36 tests / 5 files**
+  (25 focused + 11 scratch acceptance checks), accepted both repairs. Later ordered-readback preservation is integrator
+  browser evidence, not retroactively attributed to that reviewer. Details: [I2 handoff](handoff/integration-i2.md).
 
 ## Delivered implementation
 
@@ -32,7 +36,7 @@ lists. Historical measurements remain in [verification.md](verification.md); lan
 | S1 GPU ABI §13 | All 25 opcodes 0x40..0x58, C/TS layouts/encoders, resource/pass/budget validation, owned uploads/source, deferred shader results and negotiated limits | Frozen old IO/commands retained; capability and language support are separate |
 | WG WebGPU | All §13 commands; native WGSL plus kit GLSL330/ES300→WGSL frontend; formats, MRT, depth/stencil, indexed/base-vertex/instances, recovery and ordered 2D/GPU screen/readback | Practical frontend, not unrestricted GLSL; explicit errors for unsupported syntax; language mask 7 |
 | W2 WebGL 2 | All §13 commands; GLSL330/ES300 execution, portable IDs/strides, MRT/depth/stencil/mips, interleaving/readback and actual context-loss restoration | WGSL is **WebGPU-only**; mask 6; CAP_GPU requires extensions and portable limits |
-| GL OpenGL profile | WGL and bounded GL 3.3 state→§13 command stream; 360 registered names, 146 implemented / 214 explicit unsupported thunks; seven-scene `x64-gl` | Not all GL 3.3; recorder-based semantic oracle is not a native-driver pixel golden |
+| GL OpenGL profile | WGL/GL 3.3→§13; 360 names, 146 implemented / 214 explicit unsupported; seven-scene `x64-gl` real-backend goldens, colored ordered readback and cross-image comparison | Bounded GL subset; recording semantic oracle remains separate from real raster evidence |
 | E COM/audio/input | Class registry/identity/refcounts/task memory, WASAPI shared stereo float32/int16 + virtual clock, Raw Input, separate four-slot gamepads, XInput and best-effort rumble | No general COM marshaling, capture/exclusive audio, WinMM/DirectSound expansion, full HID or physical rumble verification |
 | C threads | Deterministic cooperative i386/AMD64 workers, waits/events/mutexes/semaphores/CS/SRW/CV/address waits, TLS/FLS/TEBs/last error and instruction quantum | Bounded single process; native callback continuations are LIFO, not general native fibers |
 | F codegen | Register-local AMD64 integer/common SSE emission, conservative flag liveness, guarded flat-memory spans, cold semantic/quantum boundaries | Correctness gates green; literal x64-crt performance acceptance remains **unmet** |
@@ -50,8 +54,9 @@ Details: [GPU ABI](../bgt/abi/ABI.md#13-v03-gpu-layer-additive-interface),
    Compile audio/COM/input/GL/thread/scheduler sources for both guest widths.
 2. Replace E's temporary main-thread event adapter with scheduler-owned events. Native audio signaling validates the
    shared event namespace and wakes waiters without changing guest arguments/last error. COM apartment mode/nesting
-   is per guest thread. The audio fixture now joins a worker woken by WASAPI, checks isolated STA/MTA nesting and
-   last error, and retains its exact sample/amplitude/frequency/duration checks.
+   is per guest thread. I2's audio client is created/rendered/released entirely on a guest audio thread while the
+   primary joins it; nested worker wakeups still check isolated STA/MTA nesting/last error. Exact 48,000 stereo-frame
+   sample/amplitude/frequency/duration assertions remain unchanged.
 3. Keep F's optimized emitter, not C's older generic emitter. Its cold CALL path returns on a pre-execution quantum
    transfer before invoking the unexecuted target. Existing thread spin/continuation and codegen CPU/RAM regressions pass.
 4. Share CAP_GPU/backend negotiation and restoration events. Fail closed on **host logical resources, queued GPU work
@@ -81,9 +86,13 @@ stage. Replaced source/uploads retain arena bytes. Uniform arrays/structs and pr
 non-square matrices, mapping/query/sync APIs, arbitrary framebuffer readback, depth uploads, conversions outside
 float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1, scissored/masked clears, reversed depth ranges
 and constant-alpha combinations are unsupported or visibly rejected. ReadPixels is in-bounds screen RGBA/u8 only.
-See [GL handoff](handoff/gl-profile.md) for the exact exclusions. I1 proves GL semantic stream generation and each
-backend's native §13 scenes separately; full end-to-end GL scene pixel/orientation goldens remain deferred.
-The equivalent native backend scene fixtures remain separate rather than being silently treated as one golden.
+See [GL handoff](handoff/gl-profile.md) for the exact exclusions. I2 now compiles/rasterizes `x64-gl` on both actual
+backends, with per-tile goldens, side-effecting UV evaluation, colored ordered readback and cross-image comparisons.
+One `gpu-scenes` fixture supplies common GLSL/ES scenes to both backends; native WGSL/lifetime extras remain selectable
+within that fixture, not a duplicate executable. [Tolerance and launch details](../examples/gpu-scenes/README.md).
+`x64-smoke` normally links GL 3.3 + worker/file + ten-second WASAPI thread + XInput; 600 GL frames/6,000 draws, exact
+worker checksum/joins and matching per-frame API hashes/pixels across backends. These are synthetic integration
+fixtures, not an engine/game compatibility or performance claim.
 
 ### Threads / COM / audio / input
 
@@ -103,5 +112,5 @@ process-local writable/temp CRT files, not persistent general filesystem writes.
 explicitly. Substitute fonts/icons are not Windows-pixel parity; arbitrary fonts/non-ASCII and broad GDI algebra
 remain limited. DOS/consoles have no systematic profile. Minimum loader-image data, instruction-level coverage,
 lazy wasm code, automatic multi-reload coverage union and long representative real-game stability remain future work.
-Physical iPhone/Safari/Firefox, remote Ubuntu/CI and nested sandbox validation were not performed by I1. No new game
+Physical iPhone/Safari/Firefox, remote Ubuntu/CI and nested sandbox validation were not performed by I1/I2. No new game
 input, dependencies, system installs or engine-specific runtime path; no test weakening or push.
