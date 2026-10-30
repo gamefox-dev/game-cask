@@ -5,7 +5,8 @@
 (allow file-write* (subpath (param "WORK")) (subpath (param "SCRATCH"))
   (subpath (param "AGENT")) (subpath (param "CACHE"))
   (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/dev"))
-(deny file-write* (subpath (param "ORIGINAL")))
+(deny file-write* (subpath (param "ORIGINAL")) (subpath (param "GLOBAL_AGENT")))
+; Keep localhost networking allowed by allow-default: the bridge is a loopback-only service.
 (deny file-read* (subpath (param "SSH")) (subpath (param "GH"))
   (subpath (param "KEYCHAINS")) (literal (param "GITCONFIG"))
   (literal (param "GITCREDENTIALS")) (subpath (param "GITDIR")))

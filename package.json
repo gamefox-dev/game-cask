@@ -8,7 +8,10 @@
   "engines": {
     "node": ">=20.11"
   },
+  "//": "/* LANE-G */ Workspace-only bridge scripts; no dependency changes.",
   "scripts": {
+    "bridge": "node tools/harness/pi/bridge/cli.mjs",
+    "test:bridge-e2e": "node tools/harness/pi/bridge/e2e.mjs",
     "prepare": "node tools/build/install-hooks.mjs",
     "doctor": "node tools/build/check-toolchain.mjs",
     "build:games": "node tools/build/build.mjs --all",
