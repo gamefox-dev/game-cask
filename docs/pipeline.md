@@ -120,8 +120,8 @@ Windows executable is run natively. Fixtures are original CC0 source. `SPEC.md` 
 `x86_simd.c` implement scalar integer/SSE/SSE2 semantics, including arithmetic/comparisons/conversions/logic/shuffles/
 unpacks, MOVD/Q/APS/UPS/SS/SD, CMOV/SET, BT/BSF/BSR, sign/zero extension, multiply forms, REX.W strings and single-thread
 LOCK operations (including CMPXCHG8B/16B). CPUID advertises implemented baseline paths only: no AVX/XSAVE/AES/BMI/CX16
-feature dispatch. RDTSC is a deterministic instruction clock, not wall time. Legacy x87 arithmetic is not implemented;
-the CRT's FNINIT/FNCLEX paths initialize the modeled state.
+feature dispatch. RDTSC is a deterministic instruction clock, not wall time. General x87/80-bit arithmetic is not
+implemented; FNINIT/FNCLEX and the binary32/64 load/store/exchange/FSCALE subset used by MinGW ldexp are supported.
 
 The correctness-first AMD64 lifter emits **predecoded instructions in labelled C basic blocks**, with an entry switch
 for each instruction address (including compiler landing pads). It calls the shared semantic core; that increments
@@ -135,9 +135,10 @@ The four fixtures assert zero interpreted instructions through startup and the 3
 ### Loader and shared Win32 profile
 
 AMD64 guest registers/pointers are u64. Images are **relocated below 4 GiB** (first at 0x01000000) using DIR64; import
-slots are eight bytes, ordinal bits are decoded at bit 63. The current checked flat window reserves **128 MiB**, with
-image slots 16–64 MiB, heap 64–112 MiB and low stack/TEB/PEB/thunk regions. An access above the mapped window is an
-explicit fault, never silent pointer truncation. Mapping is flat guest-offset + host arena base; the existing i386
+slots are eight bytes, ordinal bits are decoded at bit 63. The checked flat window defaults to **1024 MiB** and is
+configurable through **2048 MiB**, with image slots 16–64 MiB, heap starting at 64 MiB, and low stack/TEB/PEB/thunk
+regions. An access above the mapped window is an explicit fault, never silent pointer truncation. Mapping remains
+flat guest-offset + host arena base, but wasm memory grows only through requested mapped ranges. The existing i386
 paged model is retained unchanged. This bounded window is a configuration limit, not an arbitrary 64-bit VA model.
 Mixed i386/AMD64 modules in one process are refused.
 
@@ -215,7 +216,8 @@ Build preparation reads bounded chunks, not entire files. The manifest's `stream
 the runtime only fetches requested ranges and keeps a 16 MiB LRU. Large overlays never enter the eager loader VFS.
 See ABI.md §12 for asset_size64, asset_range_request and request result lifetimes. Tests/oracle await pending I/O
 before advancing virtual time. Win32 support is read-only CreateFile/ReadFile/size/seek/close, including self-open;
-CRT FILE APIs are still a gap. Threads/audio/COM/expanded input/GL are **not implemented by this change**.
+Win64 CRT FILE APIs now share the profile's asynchronous range machinery (Task 2a below). Threads/audio/COM/expanded
+input/GL remain separate gaps.
 
 ## Recording and packaging a vertical slice (v0.3 subset)
 
@@ -247,7 +249,8 @@ not a guarantee against jumping into an unrecorded basic block within a covered 
 
 ## Known execution limits (kit gaps, not port work)
 - **x86:** i386 and baseline AMD64 modes; SSE/SSE2 semantics are currently enabled for AMD64 profile builds. No general
-  x87 arithmetic, AVX or self-modifying code. Flat AMD64 memory currently 128 MiB, images 16–64 MiB.
+  general x87 arithmetic, AVX or self-modifying code. Flat AMD64 memory defaults to 1 GiB, configurable to 2 GiB;
+  images remain 16–64 MiB.
 - **Profiles:** Win32 only; DOS/consoles need new profiles.
 - **GDI:** pixel reads come from CPU replay (exact for every recorded op; a surface drawn before replay was enabled,
   e.g. when `GetPixel` is only found through `GetProcAddress` late, is unknown until overdrawn). Window DC visible
@@ -256,3 +259,63 @@ not a guarantee against jumping into an unrecorded basic block within a covered 
   Bitwise raster ops beyond the mapped set are approximated (counted). No copying within one surface. Drawing into a
   DIB section does not update its guest bits. `GetDIBits` writes 24/32-bpp `BI_RGB` only.
 - **Win32:** no threads, no file writes, no COM, MENUEX templates unsupported.
+
+
+## Task 2a — shared Win64 CRT and demand-grown memory
+
+`platforms/win32/crt.def` is the common runtime registry for **msvcrt.dll, ucrtbase.dll and every supported
+api-ms-win-crt-* API set**. The Win64 dispatcher checks it before legacy profile entries. Aliases select the same
+implementation, not a per-DLL workaround. Integer/pointer arguments, XMM arguments/results, 8-byte Windows va_list
+slots, LLP64 long, UTF-16 and FILE tokens are adapted explicitly. Guest callback comparators/constructors/exit
+handlers execute their lifted guest code. MinGW startup/STL/libc++/exception code is not replaced.
+
+The table currently has **396 function names** (aliases counted), plus ten startup data names: stdio **56**, stdlib
+**53**, string/wide/memory **45**, double/float math **113**, time **25**, locale/ctype/conversion **67**, startup
+**37**. `npm run analyze -- FILE --imports-coverage` emits each full DLL!name with implemented/stub/unknown and group,
+plus totals. Runtime and census use the same CRT table. Other Win32 entries are classified from profile registries;
+unknown DLLs/names are not optimistically counted. Availability is not universal behavioral compatibility.
+
+Numeric formatting/parsing, calendar routines and libm are linked from installed **Zig 0.13.0 WASI musl**, not custom
+transcendental approximations. There are **no WASI browser imports**: only BGT imports are allowed and asserted by tests.
+Host libc allocation stays within the bounded 64 MiB host arena, separate from guest malloc. Build outputs retain
+`CRT-NOTICES.txt`; provenance/boundaries are in `platforms/win32/CRT-PROVENANCE.md`.
+
+Math uses IEEE binary32/binary64 with nearest/default rounding; sqrt/elementary operations use the toolchain's normal
+implementations. Tests compare raw result bits for 35 double/float operation pairs against the same source built with
+host libc, allowing **4 ULP** (not a proof for every input/libm/domain). Group checksums must still match exactly.
+Nondefault rounding/FTZ/traps, 80-bit long double, positional formats, unsupported secure printf/scanf families and
+MSVC-specific C++ personalities remain gaps. Static unknown imports fault with untruncated DLL!symbol; dynamic unknown
+lookup returns NULL.
+
+FILE reads of shipped profile files use the existing range-request/yield machinery and preserve slice boundaries.
+CRT-created writable and temporary files live in process memory only; shipped files remain read-only. Streams support
+read/write/seek/position/pushback/EOF/error and formatted scanning; stdout/stderr log complete lines. The deterministic
+process environment is empty, locale support is **C/ASCII**, and localtime is **UTC**, derived from the virtual clock.
+Other locales fail, not silently select the host locale. These are explicit limits, not Windows locale/file parity.
+
+Normal fixtures use `pipeline.fixture.crt:true`: **-O2**, standard CRT, `main`/`WinMain`, no `-nostdlib` or custom entry;
+`cpp:true` selects C++. `fixture-build.json` and the pipeline report record that mode. `x64-crt` exercises over 60
+actually imported/called CRT names across all groups (including atexit, qsort/bsearch callbacks and shared DLL aliases).
+`x64-cpprt` runs vector/string/sort/map/iostream. Tests compile the **same original CC0 source** natively with cc/c++,
+compare every group checksum, and run independent **300-frame lifted/interpreted oracles**. No Windows PE runs on host.
+
+Configure guest memory in game.json:
+
+```json
+"pipeline": {
+  "platform": "win32",
+  "memory": { "guestWindowMiB": 2048 },
+  "modules": [{ "from": "./program.exe", "main": true }]
+}
+```
+
+The integer range is 128..2048, default 1024; the manifest repeats `memory.guestWindowMiB`, `growth:"on-demand"` and
+`hostArenaMiB:64`. Guest malloc/heap is 16-byte aligned and returns NULL on exhaustion/overflow. Mapping grows wasm
+memory only on demand, not by allocating/zeroing the full window. Gaps are inaccessible even below the high-water mark.
+`heap_bytes` is the guest heap high-water extent; `guest_committed_bytes` is the highest mapped guest end (not resident
+RSS). `x64-memory` writes **all 629145600 bytes**, verifies **153600 pages** and patterns, then maps/writes/reads the
+2 GiB window's upper edge. Host wasm memory can consequently exceed 2 GiB; mobile physical memory limits still apply.
+
+AMD64 execution now cooperatively yields after a deterministic two-million-instruction quantum instead of aborting
+CPU-heavy legitimate programs. Both oracle modes use the same quantum and virtual clock; this is not multithreading.
+Leaf tail-call helpers and callbacks referenced from leaf functions are also discovered without requiring .pdata.

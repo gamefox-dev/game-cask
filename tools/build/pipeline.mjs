@@ -76,9 +76,20 @@ export function buildFixture(gameDir, fx, outDir) {
     writeFileSync(resFile, buildRes(JSON.parse(readFileSync(join(gameDir, fx.resources), 'utf8')), join(gameDir, fx.resources, '..')));
   }
   const target = fx.target ?? 'x86-windows-gnu';
-  if (!['x86-windows-gnu','x86_64-windows-gnu'].includes(target)) throw new Error(`unsupported fixture target ${target}`);
-  const args = [fx.cpp ? 'c++' : 'cc', '-target', target, ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables','-fno-lto','-fno-emulated-tls']), fx.crt ? '-O2' : '-O1', '-fno-stack-protector', ...(fx.crt ? ['-s','-Wl,--gc-sections'] : ['-nostdlib']), '-isystem', zigWinInclude(),
-    ...(fx.crt ? [] : [`-Wl,--entry,${fx.entry ?? 'entry'}`]), '-Wl,--subsystem,windows', ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []), '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
+  if (!['x86-windows-gnu', 'x86_64-windows-gnu'].includes(target)) {
+    throw new Error(`unsupported fixture target ${target}`);
+  }
+  const normal = fx.crt === true;
+  const args = [
+    fx.cpp ? 'c++' : 'cc', '-target', target,
+    ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables', '-fno-lto', '-fno-emulated-tls']),
+    normal ? '-O2' : '-O1', '-fno-stack-protector',
+    ...(normal ? ['-s', '-Wl,--gc-sections'] : ['-nostdlib']), '-isystem', zigWinInclude(),
+    ...(normal ? [] : [`-Wl,--entry,${fx.entry ?? 'entry'}`]), '-Wl,--subsystem,windows',
+    ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []),
+    '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`),
+  ];
+  writeFileSync(join(outDir, 'fixture-build.json'), JSON.stringify({ target, normalCrt: normal, args }, null, 2));
   execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
@@ -156,6 +167,10 @@ function overrides(gameDir) {
  */
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
+  if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
+    throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
+  }
   const recorded=cfg.slice?.coverage ?? p.coverage;
   const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
   const sliceCode=new Set();
@@ -268,9 +283,10 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   /* lifted tables are sorted by address; the profile merges them across modules */
   const platform = [
     'platforms/x86/x86_decode.c', 'platforms/x86/x86_exec.c', 'platforms/x86/x86_rt.c',
-    'platforms/x86/x86_exec64.c','platforms/x86/x86_simd.c','platforms/win32/w32_x64.c',
+    'platforms/x86/x86_exec64.c', 'platforms/x86/x86_simd.c', 'platforms/x86/x86_x87.c',
+    'platforms/win32/w32_x64.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
-    'platforms/win32/w32_replay.c',
+    'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
   ].map((f) => join(ROOT, f));
   const sources = [driver, ...mods.filter((m) => m.lifted).map((m) => m.lifted), ...platform, ...ov.files];
@@ -280,7 +296,10 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
+    memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
     interpretOnly: !!p.interpretOnly,
+    ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
+      optimization: p.fixture.crt === true ? '-O2' : '-O1', language: p.fixture.cpp ? 'C++' : 'C' } } : {}),
     modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
     loc: { generated, handwritten },
@@ -292,7 +311,11 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),ranges:plan.ranges} : null,
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
-    cflags: [...(mode64?['-DX86_FLAT_GUEST=1','-fno-math-errno']:[]),'-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],
+    cflags: [
+      ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
+        '-D_GNU_SOURCE', '-fno-math-errno'] : []),
+      '-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable',
+    ],
     asyncify: true,
     report,
   };

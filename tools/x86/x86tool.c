@@ -60,7 +60,7 @@ static void json_str(FILE *f, const char *s) {
 
 /* ------------------------------------------------------------------ PE image */
 typedef struct { char name[9]; uint32_t va, vsize, raw, rawsize, chars; } sect_t;
-typedef struct { char dll[64]; char name[64]; uint32_t ordinal, iat; uint32_t sites; } import_t;
+typedef struct { char dll[256]; char name[256]; uint32_t ordinal, iat; uint32_t sites; } import_t;
 typedef struct { char name[64]; uint32_t ordinal, addr; } export_t;
 
 typedef struct {
@@ -163,8 +163,8 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
         for (uint32_t de = imp_rva; de + 20 <= pe->size; de += 20) {
             uint32_t ilt = r32(pe->img + de), name = r32(pe->img + de + 12), iat = r32(pe->img + de + 16);
             if (!name && !iat) break;
-            char dll[64];
-            cstr(pe->img + name, 63, dll, sizeof dll);
+            char dll[256];
+            cstr(pe->img + name, 255, dll, sizeof dll);
             vpush(&pe->name_ranges, pe->base + name); vpush(&pe->name_ranges, pe->base + name + (uint32_t)strlen(dll) + 1);
             uint32_t lt = ilt ? ilt : iat;
             uint32_t stride=pe->mode64?8:4;
@@ -179,7 +179,7 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
                 im->iat = pe->base + iat + stride * k;
                 if (ordinal) { im->ordinal = ent & 0xffff; snprintf(im->name, sizeof im->name, "#%u", im->ordinal); }
                 else if (ent + 2 < pe->size) {
-                    cstr(pe->img + ent + 2, 63, im->name, sizeof im->name);
+                    cstr(pe->img + ent + 2, 255, im->name, sizeof im->name);
                     vpush(&pe->name_ranges, pe->base + ent); vpush(&pe->name_ranges, pe->base + ent + 3 + (uint32_t)strlen(im->name));
                 }
             }
@@ -221,6 +221,7 @@ static int decode_at(const pe_t *pe, uint32_t va, x86_insn_t *in) {
 typedef struct { uint32_t at; vec_t targets; int resolved; uint32_t table; } ijump_t;
 typedef struct {
     uint32_t addr, end;
+    int unwind_range;
     vec_t insns;       /* addresses of all instructions in the function (sorted) */
     vec_t labels;      /* branch targets inside the function */
     vec_t calls;       /* direct call targets */
@@ -246,7 +247,8 @@ static int func_index(an_t *a, uint32_t addr) {
 }
 static void add_func(an_t *a, uint32_t addr, int kind) {
     if (!is_code(a->pe, addr) || func_index(a, addr) >= 0 || vhas(&a->blocked, addr)) return;
-    if(a->pe->mode64 && kind>=3)for(uint32_t i=0;i<a->nf;i++)if(addr>a->f[i].addr&&addr<a->f[i].end)return;
+    if (a->pe->mode64 && kind >= 3) for (uint32_t i = 0; i < a->nf; i++)
+        if (a->f[i].unwind_range && addr > a->f[i].addr && addr < a->f[i].end) return;
     if (a->nf == a->capf) { a->capf = a->capf ? a->capf * 2 : 256; a->f = realloc(a->f, a->capf * sizeof(func_t)); if (!a->f) die("oom"); }
     func_t *f = &a->f[a->nf++];
     memset(f, 0, sizeof *f);
@@ -444,18 +446,41 @@ static void analyze64(an_t *a) {
         if(pr+off+12>pe->size)die("bad exception directory");
         uint32_t begin=pe->base+r32(pe->img+pr+off),end=pe->base+r32(pe->img+pr+off+4);
         if(begin>=end || !is_code(pe,begin))continue;
-        add_func(a,begin,0);int fi=func_index(a,begin);if(fi>=0)a->f[fi].end=end;
+        add_func(a, begin, 0);
+        int fi = func_index(a, begin);
+        if (fi >= 0) { a->f[fi].end = end; a->f[fi].unwind_range = 1; }
     }
     add_func(a,pe->entry,0);
     for(uint32_t i=0;i<pe->nexp;i++)add_func(a,pe->exp[i].addr,1);
     for(uint32_t i=0;i<pe->reloc_vas.n;i++){uint32_t slot=pe->reloc_vas.v[i];if(in_image(pe,slot,8)){uint64_t v=(uint64_t)r32(pe->img+slot-pe->base)|((uint64_t)r32(pe->img+slot-pe->base+4)<<32);if(v<=UINT32_MAX&&is_code(pe,(uint32_t)v))add_func(a,(uint32_t)v,3);}}
     for(uint32_t i=0;i<a->nf;i++) {
-        if(!a->f[i].end) {analyze_func(a,i);if(a->f[i].insns.n){x86_insn_t in;uint32_t last=a->f[i].insns.v[a->f[i].insns.n-1];a->f[i].end=last+(decode_at(pe,last,&in)?in.len:1);}continue;}
+        if (!a->f[i].end) {
+            a->known.n = 0;
+            for (uint32_t k = 0; k < a->nf; k++) vpush(&a->known, a->f[k].addr);
+            vsort_uniq(&a->known);
+            analyze_func(a, i);
+            if (a->f[i].insns.n) {
+                x86_insn_t in;
+                uint32_t last = a->f[i].insns.v[a->f[i].insns.n - 1];
+                a->f[i].end = last + (decode_at(pe, last, &in) ? in.len : 1);
+            }
+            /* Leaf functions lack .pdata. Their LEA callbacks must still seed discovery. */
+            for (uint32_t k = 0; k < a->f[i].insns.n; k++) {
+                x86_insn_t in;
+                if (!decode_at(pe, a->f[i].insns.v[k], &in)) continue;
+                if (in.op == XO_LEA && in.o[1].base == X86_NOREG && in.o[1].index == X86_NOREG)
+                    add_func(a, (uint32_t)in.o[1].disp, 4);
+            }
+            continue;
+        }
         for(uint32_t va=a->f[i].addr;va<a->f[i].end;) {
             x86_insn_t in;vpush(&a->f[i].insns,va);
             if(!decode_at(pe,va,&in)){a->f[i].undecodable++;va++;continue;}
             a->census[in.op]++;if(in.op==XO_UNSUPPORTED)a->f[i].unsupported++;
-            if(in.op==XO_CALL){vpush(&a->f[i].calls,in.target);add_func(a,in.target,2);}
+            if (in.op == XO_CALL) { vpush(&a->f[i].calls, in.target); add_func(a, in.target, 2); }
+            /* MinGW tail-calls leaf math helpers that have no unwind entry. */
+            if ((in.op == XO_JMP || in.op == XO_JCC) &&
+                (in.target < a->f[i].addr || in.target >= a->f[i].end)) add_func(a, in.target, 2);
             if(in.op==XO_CALL_IND || in.op==XO_JMP_IND){
                 const x86_opnd_t *o=&in.o[0];const import_t *im=o->kind==XK_MEM&&o->base==X86_NOREG&&o->index==X86_NOREG?import_at_iat(pe,(uint32_t)o->disp):0;
                 if(im){vpush(&a->f[i].imports,(uint32_t)(im-pe->imp));((import_t *)im)->sites++;}

@@ -16,6 +16,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, requireZig } from './toolchain.mjs';
 import { runPipeline, pipelineSummary } from './pipeline.mjs';
 import { streamFile } from './files.mjs';
+import { libcNotices } from './libc-notices.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -100,6 +101,13 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     if (!quiet) console.log(pipelineSummary(pipe.report));
   }
   const wasmPath = join(outDir, 'game.wasm');
+  // Only the AMD64 CRT bridge links toolchain musl. Other BGT builds remain freestanding.
+  const withCrt = pipe?.report.machine === 'x86-64';
+  const compileBase = CFLAGS.map((f) => withCrt && f === '--target=wasm32-freestanding'
+    ? '--target=wasm32-wasi' : f);
+  const linkBase = withCrt
+    ? ['-mexec-model=reactor', ...LDFLAGS.filter((f) => f !== '-nostdlib')] : LDFLAGS;
+  const libcSources = withCrt ? [] : [join(ROOT, 'bgt/sdk/bgt_libc.c')];
   const args = [
     'cc',
     ...CFLAGS,
@@ -116,15 +124,17 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   try {
     if (cfg.pipeline) {
       const cache = join(ROOT, 'node_modules/.cache/bgt/objects'); mkdirSync(cache, { recursive: true });
-      const compileFlags = [...CFLAGS, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
-      const headers = [...new Set([...includes.map((d) => join(ROOT,d)), gameDir].flatMap((d) => walk(d)).filter((f) => /\.(h|inc)$/.test(f)))].sort();
+      const compileFlags = [...compileBase, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
+      const headerDirs = [...includes.map((d) => join(ROOT, d)), gameDir];
+      const headers = [...new Set(headerDirs.flatMap(walk).filter((f) => /\.(h|inc|def)$/.test(f)))].sort();
       const common = Buffer.concat([Buffer.from(JSON.stringify([zig.version, compileFlags])), ...headers.map(readFileSyncBuffer)]);
-      const allSources = [...sources, join(ROOT,'bgt/sdk/bgt_libc.c')];
+      const allSources = [...sources, ...libcSources];
       const objects = allSources.map((file) => {
         const out = join(cache, sha256(Buffer.concat([common,Buffer.from(file),readFileSync(file)]))+'.o');
         return { out, args:[zig.path,'cc',...compileFlags,'-c',file] };
       });
-      const link = [zig.path,'cc',...CFLAGS,...objects.map((o) => o.out),...LDFLAGS,...(cfg.ldflags ?? []),'-o',wasmPath];
+      const link = [zig.path, 'cc', ...compileBase, ...objects.map((o) => o.out),
+        ...linkBase, ...(cfg.ldflags ?? []), '-o', wasmPath];
       compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
     } else execFileSync(zig.path, args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
   } catch {
@@ -148,6 +158,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
     }
   }
+  if (withCrt) writeFileSync(join(outDir, 'CRT-NOTICES.txt'), libcNotices(zig.path));
   const wasm = readFileSync(wasmPath);
 
   const assets = [];
@@ -222,12 +233,13 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     private: cfg.private ?? false,
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
+    ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
     packaging,
     ...(slice ? {slice} : {}),
     ...(streams.length ? {streams} : {}),
     touch: cfg.touch ?? { dpad: true, buttons: ['A', 'B', 'START'] },
     input: cfg.input ?? {},
-    toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
+    toolchain: { zig: zig.version, cflags: [...compileBase, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
   };
   if (pipe) {
     manifest.pipeline = pipe.report;

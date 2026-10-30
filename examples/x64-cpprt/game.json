@@ -1,0 +1,11 @@
+{
+  "id": "x64-cpprt", "name": "CC0 normal Win64 STL runtime conformance",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true, "cpp": true,
+      "out": "cpprt.exe", "sources": ["cpprt.cpp"]
+    },
+    "modules": [{"from": "./build/cpprt.exe", "main": true}]
+  }
+}

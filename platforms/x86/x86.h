@@ -67,14 +67,26 @@ void x86_wr16_slow(uint32_t a, uint32_t v);
 void x86_wr32_slow(uint32_t a, uint32_t v);
 
 #ifdef X86_FLAT_GUEST
-#define X86_FLAT_BYTES (128u << 20)
+#ifndef X86_FLAT_BYTES
+#define X86_FLAT_BYTES (1024ull << 20)
+#endif
+#define X86_HOST_ARENA_BYTES (64u << 20)
 extern uint8_t *x86_flat;
-__attribute__((noreturn)) void x86_fault(const char *,uint32_t);
-static inline uint8_t *x86_flat_at(uint32_t a,uint32_t n) {
-    if((uint64_t)a+n>X86_FLAT_BYTES || !x86_pages[a>>12] || !x86_pages[(a+n-1)>>12])x86_fault("unmapped flat guest memory",a);
-    return x86_flat+a;
+extern uint64_t x86_guest_committed;
+void x86_cooperate(void);
+void x86_set_scheduler(void (*schedule)(void));
+void x86_x87(const x86_insn_t *in);
+__attribute__((noreturn)) void x86_fault(const char *, uint32_t);
+static inline uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
+    if ((uint64_t)a + n > X86_FLAT_BYTES || !x86_pages[a >> 12] ||
+        !x86_pages[((uint64_t)a + n - 1) >> 12]) {
+        x86_fault("unmapped flat guest memory", a);
+    }
+    return x86_flat + a;
 }
-static inline uint8_t *x86_host(uint32_t a) {return a<X86_FLAT_BYTES && x86_pages[a>>12]?x86_flat+a:0;}
+static inline uint8_t *x86_host(uint32_t a) {
+    return a < X86_FLAT_BYTES && x86_pages[a >> 12] ? x86_flat + a : 0;
+}
 static inline uint32_t x86_rd8(uint32_t a) {return *x86_flat_at(a,1);}
 static inline uint32_t x86_rd16(uint32_t a) {uint16_t v;__builtin_memcpy(&v,x86_flat_at(a,2),2);return v;}
 static inline uint32_t x86_rd32(uint32_t a) {uint32_t v;__builtin_memcpy(&v,x86_flat_at(a,4),4);return v;}

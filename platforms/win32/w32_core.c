@@ -20,10 +20,10 @@ static int started;
 uint32_t w32_slen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 void w32_log(const char *s) { bgt_log(BGT_LOG_INFO, s, w32_slen(s)); }
 void w32_logf2(const char *a, const char *b) {
-    char buf[200];
+    char buf[8192];
     uint32_t n = 0;
-    while (*a && n < 120) buf[n++] = *a++;
-    while (*b && n < 199) buf[n++] = *b++;
+    while (*a && n < sizeof buf) buf[n++] = *a++;
+    while (*b && n < sizeof buf) buf[n++] = *b++;
     bgt_log(BGT_LOG_WARN, buf, n);
 }
 int w32_streqi(const char *a, const char *b) {
@@ -81,16 +81,20 @@ void w32_sleep_ms(uint32_t ms) {
 /* ------------------------------------------------------------------ guest heap (first fit, lazily mapped) */
 /* block: [u32 size_with_header | used(bit0)] [u32 requested] payload */
 static uint32_t heap_end = W32_HEAP_LO, heap_mapped = W32_HEAP_LO;
-static void heap_grow_to(uint32_t end) {
-    if (end > W32_HEAP_HI) x86_fault("guest heap exhausted", end);
+static int heap_grow_to(uint32_t end) {
+    if (end > W32_HEAP_HI) return 0;
     if (end > heap_mapped) {
         uint32_t to = (end + 0xffffu) & ~0xffffu;
-        if (!x86_map(heap_mapped, to - heap_mapped)) x86_fault("out of host memory for guest heap", end);
+        if (!x86_map(heap_mapped, to - heap_mapped)) return 0;
         heap_mapped = to;
     }
+    return 1;
 }
 uint32_t w32_heap_alloc(uint32_t n, int zero) {
-    uint32_t need = (n + 8u + 15u) & ~15u;
+    uint32_t header = W32_64 ? 16u : 8u;
+    uint64_t required = ((uint64_t)n + header + 15u) & ~15ull;
+    if (required > W32_HEAP_HI - W32_HEAP_LO) return 0;
+    uint32_t need = (uint32_t)required;
     for (uint32_t p = W32_HEAP_LO; p < heap_end;) {
         uint32_t h = x86_rd32(p), size = h & ~15u;
         if (!size) break;
@@ -100,30 +104,50 @@ uint32_t w32_heap_alloc(uint32_t n, int zero) {
             if (size >= need) {
                 if (size - need >= 32) { x86_wr32(p + need, size - need); x86_wr32(p + need + 4, 0); size = need; }
                 x86_wr32(p, size | 1u); x86_wr32(p + 4, n);
-                if (zero) for (uint32_t i = 8; i < size; i++) x86_wr8(p + i, 0);
-                return p + 8;
+                if (zero) {
+                    uint8_t *hp = x86_host(p + header);
+                    if (W32_64 && hp) __builtin_memset(hp, 0, size - header);
+                    else for (uint32_t i = header; i < size; i++) x86_wr8(p + i, 0);
+                }
+                return p + header;
             }
             x86_wr32(p, size);
         }
         p += size;
     }
     uint32_t p = heap_end;
-    heap_grow_to(p + need);
+    if ((uint64_t)p + need > W32_HEAP_HI || !heap_grow_to(p + need)) return 0;
     heap_end = p + need;
     x86_wr32(p, need | 1u); x86_wr32(p + 4, n);
-    if (zero) for (uint32_t i = 8; i < need; i++) x86_wr8(p + i, 0);
-    return p + 8;
+    if (zero) {
+        uint8_t *hp = x86_host(p + header);
+        if (W32_64 && hp) __builtin_memset(hp, 0, need - header);
+        else for (uint32_t i = header; i < need; i++) x86_wr8(p + i, 0);
+    }
+    return p + header;
 }
 void w32_heap_free(uint32_t a) {
-    if (a >= W32_HEAP_LO + 8 && a < heap_end) x86_wr32(a - 8, x86_rd32(a - 8) & ~15u);
+    uint32_t header = W32_64 ? 16u : 8u;
+    if (a >= W32_HEAP_LO + header && a < heap_end)
+        x86_wr32(a - header, x86_rd32(a - header) & ~15u);
 }
-uint32_t w32_heap_size(uint32_t a) { return (a >= W32_HEAP_LO + 8 && a < heap_end) ? x86_rd32(a - 4) : 0; }
+uint32_t w32_heap_size(uint32_t a) {
+    uint32_t header = W32_64 ? 16u : 8u;
+    return a >= W32_HEAP_LO + header && a < heap_end ? x86_rd32(a - header + 4) : 0;
+}
 uint32_t w32_heap_realloc(uint32_t a, uint32_t n) {
     if (!a) return w32_heap_alloc(n, 0);
     uint32_t old = w32_heap_size(a);
-    if (n <= ((x86_rd32(a - 8) & ~15u) - 8)) { x86_wr32(a - 4, n); return a; }
+    uint32_t header = W32_64 ? 16u : 8u;
+    if (n <= ((x86_rd32(a - header) & ~15u) - header)) {
+        x86_wr32(a - header + 4, n);
+        return a;
+    }
     uint32_t b = w32_heap_alloc(n, 0);
-    for (uint32_t i = 0; i < old && i < n; i++) x86_wr8(b + i, x86_rd8(a + i));
+    if (!b) return 0;
+    uint32_t copy = old < n ? old : n;
+    if (W32_64 && x86_host(b) && x86_host(a)) __builtin_memcpy(x86_host(b), x86_host(a), copy);
+    else for (uint32_t i = 0; i < copy; i++) x86_wr8(b + i, x86_rd8(a + i));
     w32_heap_free(a);
     return b;
 }
@@ -164,13 +188,13 @@ int w32_is_sys_dll(const char *name) {
     return 0;
 }
 #define NSYSDLL 32
-static char sysdlls[NSYSDLL][40];
+static char sysdlls[NSYSDLL][256];
 static uint32_t nsysdll;
 uint32_t w32_sysdll_handle(const char *name, int load) {
     for (uint32_t i = 0; i < nsysdll; i++) if (w32_streqi(sysdlls[i], name)) return W32_SYSDLL_BASE + 0x1000u * i;
     if (!load || !w32_is_sys_dll(name) || nsysdll >= NSYSDLL) return 0;
     uint32_t k = 0;
-    for (; name[k] && k < 39; k++) sysdlls[nsysdll][k] = name[k];
+    for (; name[k] && k < 255; k++) sysdlls[nsysdll][k] = name[k];
     sysdlls[nsysdll][k] = 0;
     return W32_SYSDLL_BASE + 0x1000u * nsysdll++;
 }
@@ -199,7 +223,7 @@ uint32_t w32_export_addr(const w32_module_t *m, const char *name, uint32_t ordin
     if (idx >= nf) return 0;
     uint32_t rva = x86_rd32(af + 4 * idx);
     if (rva >= m->export_rva && rva < m->export_rva + m->export_size) { /* forwarder "DLL.Name" / "DLL.#7" */
-        char fwd[96];
+        char fwd[520];
         w32_gstr(m->base + rva, 0, fwd, sizeof fwd);
         return export_forward(fwd, 0);
     }
@@ -280,7 +304,13 @@ int32_t w32_load_string(uint32_t hmod, uint32_t id, char *dst, uint32_t cap) {
 }
 
 /* ------------------------------------------------------------------ thunks + API dispatch */
-typedef struct { char dll[32]; char name[48]; const w32_api_t *api; uint32_t hits; } slot_t;
+typedef struct {
+    char dll[256];
+    char name[256];
+    const w32_api_t *api;
+    const w32_crt_entry_t *crt;
+    uint32_t hits;
+} slot_t;
 static slot_t *slots;
 static uint32_t nslots;
 
@@ -302,35 +332,43 @@ uint32_t w32_thunk_for(const char *dll, const char *name) {
     for (uint32_t i = 0; i < nslots; i++) {
         const char *a = slots[i].name, *b = name;
         while (*a && *a == *b) { a++; b++; }
-        if (!*a && !*b) return W32_THUNK_LO + 16u * i;
+        if (!*a && !*b && w32_streqi(slots[i].dll, dll)) return W32_THUNK_LO + 16u * i;
     }
     if (nslots >= W32_THUNK_SLOTS) x86_fault("too many imports", 0);
     slot_t *s = &slots[nslots];
     uint32_t i = 0;
-    for (; dll[i] && i < 31; i++) s->dll[i] = dll[i];
+    for (; dll[i] && i + 1 < sizeof s->dll; i++) s->dll[i] = dll[i];
     s->dll[i] = 0;
-    for (i = 0; name[i] && i < 47; i++) s->name[i] = name[i];
+    for (i = 0; name[i] && i + 1 < sizeof s->name; i++) s->name[i] = name[i];
     s->name[i] = 0;
     s->api = find_api(s->name);
+    s->crt = w32_find_crt(s->name);
     return W32_THUNK_LO + 16u * nslots++;
 }
 
 uint32_t w32_data_import(const char *name);
 uint32_t w32_resolve_api(const char *dll, const char *name) {
+    const w32_crt_entry_t *crt = w32_find_crt(name);
+    if (crt && crt->is_data) return w32_data_import(name);
     const w32_api_t *api = w32_find_api(name);
-    if (!api) {int handled=-1;if(X.mode64)w64_api(name,&handled);else handled=0;return handled?w32_thunk_for(dll,name):0;}
+    if (api && api->nargs == 255) return w32_data_import(name);
+    if (!api && !crt) {
+        int handled = -1;
+        if (X.mode64) w64_api(name, &handled); else handled = 0;
+        return handled ? w32_thunk_for(dll, name) : 0;
+    }
     if (w32_is_pixel_read_api(name)) w32_rp_enable(); /* late: surfaces drawn before now have unknown history */
-    return api->nargs == 255 ? w32_data_import(name) : w32_thunk_for(dll, name);
+    return w32_thunk_for(dll, name);
 }
 static uint32_t export_forward(const char *fwd, uint32_t depth) {
-    char dll[64], fn[64];
+    char dll[256], fn[256];
     uint32_t k = 0, dot = 0;
     for (uint32_t i = 0; fwd[i]; i++) if (fwd[i] == '.') dot = i;
     if (!dot || depth > 4) return 0;
-    for (; k < dot && k < 59; k++) dll[k] = fwd[k];
+    for (; k < dot && k < 248; k++) dll[k] = fwd[k];
     dll[k] = 0;
     w32_module_name(dll, dll, sizeof dll);
-    for (k = 0; fwd[dot + 1 + k] && k < 63; k++) fn[k] = fwd[dot + 1 + k];
+    for (k = 0; fwd[dot + 1 + k] && k < 255; k++) fn[k] = fwd[dot + 1 + k];
     fn[k] = 0;
     uint32_t ord = 0;
     if (fn[0] == '#') for (const char *c = fn + 1; *c >= '0' && *c <= '9'; c++) ord = ord * 10 + (uint32_t)(*c - '0');
@@ -348,7 +386,7 @@ static void note_stub(const char *name) {
     }
     if (w32_m.stubs_distinct < 24) {
         uint32_t k = 0;
-        for (; name[k] && k < 39; k++) w32_m.stubs[w32_m.stubs_distinct][k] = name[k];
+        for (; name[k] && k < 599; k++) w32_m.stubs[w32_m.stubs_distinct][k] = name[k];
         w32_m.stubs[w32_m.stubs_distinct][k] = 0;
     }
     w32_m.stubs_distinct++;
@@ -368,34 +406,49 @@ static int thunk_handler(uint32_t addr) {
     w32_m.api_calls++;
     uint32_t transfer=(uint32_t)X.transfer;
     if(X.mode64){static const int reg[4]={ECX,EDX,R8,R9};for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);}
-    int special=0;uint64_t result=X.mode64?w64_api(s->name,&special):0;
-    if (!s->api && !special) {
+    int special = 0;
+    uint64_t result = X.mode64 && !s->crt ? w64_api(s->name, &special) : 0;
+    if (!s->api && !s->crt && !special) {
         /* arg count unknown: continuing would corrupt the stack */
-        char msg[120];
+        char msg[600];
         uint32_t n = 0;
         const char *p = "win32 profile: unimplemented API ";
         while (*p) msg[n++] = *p++;
-        for (const char *q = s->dll; *q && n < 80; q++) msg[n++] = *q;
+        for (const char *q = s->dll; *q && n + 2 < sizeof msg; q++) msg[n++] = *q;
         msg[n++] = '!';
-        for (const char *q = s->name; *q && n < 118; q++) msg[n++] = *q;
+        for (const char *q = s->name; *q && n + 1 < sizeof msg; q++) msg[n++] = *q;
         msg[n] = 0;
         note_stub(s->name[0] == '#' ? msg + 33 : s->name); /* ordinals keep their DLL: "dll!#14" */
         x86_fault(msg, addr);
     }
-    if(X.transfer!=(int)transfer)return 0;
-    if(special)X.r[EAX]=result;
-    else if (s->api->fn == 0) { /* declared stub: known signature, no behaviour */
+    if (X.transfer != (int)transfer) return 0;
+    if (special) {
+        X.r[EAX] = (x86_word_t)result;
+    } else if (s->crt) {
+        if (s->crt->fn == 0) {
+            w32_m.stub_calls++;
+            note_stub(s->name);
+            X.r[EAX] = 0;
+        } else {
+            X.r[EAX] = (x86_word_t)s->crt->fn();
+        }
+    } else if (s->api->fn == 0) { /* declared stub: known signature, no behaviour */
         w32_m.stub_calls++;
         note_stub(s->name);
         X.r[EAX] = 0;
     } else {
         X.r[EAX] = s->api->fn();
     }
-    if(X.transfer!=(int)transfer)return 0;
-    if(X.mode64&&!special&&X.r[EAX]==0xffffffffu && (w32_streqi(s->name,"CreateFileA")||w32_streqi(s->name,"CreateFileW")||w32_streqi(s->name,"GetCurrentProcess")||w32_streqi(s->name,"GetCurrentThread")))X.r[EAX]=(x86_word_t)UINT64_MAX;
-    trace((uint32_t)X.r[EAX]);if(X.mode64)trace((uint32_t)((uint64_t)X.r[EAX]>>32));
+    if (X.transfer != (int)transfer) return 0;
+    if (X.mode64 && !special && !s->crt && X.r[EAX] == 0xffffffffu &&
+        (w32_streqi(s->name, "CreateFileA") || w32_streqi(s->name, "CreateFileW") ||
+         w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread"))) {
+        X.r[EAX] = (x86_word_t)UINT64_MAX;
+    }
+    trace((uint32_t)X.r[EAX]);
+    if (X.mode64) trace((uint32_t)((uint64_t)X.r[EAX] >> 32));
     X.eip = (uint32_t)x86_pop();
-    if (!X.mode64 && !s->api->cdecl) X.r[ESP] += 4u * s->api->nargs;
+    if (!X.mode64 && !s->crt && !s->api->cdecl) X.r[ESP] += 4u * s->api->nargs;
     return 0;
 }
 
@@ -451,7 +504,7 @@ static uint32_t load_image(const w32_module_cfg_t *mc, w32_module_t *m) {
         }
     }
     uint32_t i = 0;
-    for (; mc->name[i] && i < 31; i++) m->name[i] = mc->name[i];
+    for (; mc->name[i] && i < 255; i++) m->name[i] = mc->name[i];
     m->name[i] = 0;
     m->base = base; m->size = size;
     m->entry = R32(opt + 16) ? base + R32(opt + 16) : 0;
@@ -469,7 +522,7 @@ static int bind_imports(w32_module_t *m) {
     uint32_t nt = x86_rd32(m->base + 0x3c), dd = m->base + nt + 24 + (X.mode64?112:96);
     uint32_t imp = x86_rd32(dd + 8);
     if (!imp) return 1;
-    char dll[64], name[64];
+    char dll[256], name[256];
     for (uint32_t de = m->base + imp;; de += 20) {
         uint32_t ilt = x86_rd32(de), nm = x86_rd32(de + 12), iat = x86_rd32(de + 16);
         if (!nm && !iat) break;
@@ -477,12 +530,12 @@ static int bind_imports(w32_module_t *m) {
         w32_module_t *target = 0;
         for (uint32_t k = 0; k < w32_nmods; k++) if (w32_streqi(w32_mods[k].name, dll)) target = &w32_mods[k];
         if (!target && !w32_sysdll_handle(dll, 1)) {
-            char msg[160];
+            char msg[600];
             uint32_t n = 0;
-            for (const char *q = m->name; *q && n < 40; q++) msg[n++] = *q;
+            for (const char *q = m->name; *q && n < 200; q++) msg[n++] = *q;
             for (const char *q = " imports "; *q; q++) msg[n++] = *q;
-            for (const char *q = dll; *q && n < 100; q++) msg[n++] = *q;
-            for (const char *q = ": neither a pipeline module nor a profile DLL"; *q && n < 159; q++) msg[n++] = *q;
+            for (const char *q = dll; *q && n < 480; q++) msg[n++] = *q;
+            for (const char *q = ": neither a pipeline module nor a profile DLL"; *q && n < 599; q++) msg[n++] = *q;
             msg[n] = 0;
             w32_logf2("win32 profile: cannot start: ", msg);
             return 0;
@@ -507,8 +560,11 @@ static int bind_imports(w32_module_t *m) {
                 addr = w32_export_addr(target, ord ? 0 : name, ord);
                 if (!addr) { w32_logf2("win32 profile: missing export ", name); addr = w32_thunk_for(dll, name); }
             } else {
+                const w32_crt_entry_t *crt = w32_find_crt(name);
                 const w32_api_t *api = find_api(name);
-                addr = api && api->nargs == 255 ? w32_data_import(name) : w32_thunk_for(dll, name);
+                addr = ((crt && crt->is_data) || (api && api->nargs == 255))
+                           ? w32_data_import(name)
+                           : w32_thunk_for(dll, name);
             }
             w32_wrptr(m->base + iat + w32_ptr_size() * k, addr);
         }
@@ -540,6 +596,9 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     if(c->mode64)return BGT_E_UNSUPPORTED;
 #endif
     X.mode64=c->mode64;X.mxcsr=0x1f80;
+#ifdef X86_FLAT_GUEST
+    x86_set_scheduler(w32_wait_frame);
+#endif
     w32_io = io;
     slots = (slot_t *)x86_alloc(W32_THUNK_SLOTS * sizeof(slot_t));
     if (!slots || !x86_map(W32_THUNK_LO, W32_THUNK_HI - W32_THUNK_LO) || !x86_map(W32_MISC, W32_MISC_SIZE)) return BGT_E_LIMIT;
@@ -610,7 +669,7 @@ void w32_update(void) {
 void w32_render(void) { w32_gdi_flush_and_present(); }
 
 /* ------------------------------------------------------------------ metrics / debug */
-static char json[4096];
+static char json[131072];
 static uint32_t jn;
 static void jput(const char *s) { while (*s && jn + 1 < sizeof json) json[jn++] = *s++; }
 static void jnum(uint64_t v) {
@@ -650,6 +709,10 @@ const char *w32_metrics_json(void) {
     jkv("peek_yields", w32_m.peek_yields);
     jkv("targets_lost", w32_m.targets_lost);
     jkv("exited", (uint64_t)w32_exited);
+    jkv("heap_bytes", heap_end - W32_HEAP_LO);
+#ifdef X86_FLAT_GUEST
+    jkv("guest_committed_bytes", x86_guest_committed);
+#endif
     jkv("trace_hash", trace_hash);
     jput("\"stubs\":[");
     for (uint32_t i = 0; i < w32_m.stubs_distinct && i < 24; i++) { if (i) jput(","); jput("\""); jput(w32_m.stubs[i]); jput("\""); }

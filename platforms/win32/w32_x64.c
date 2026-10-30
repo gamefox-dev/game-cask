@@ -142,8 +142,6 @@ static uint32_t fls_alloc(void){return nfls<128?nfls++:0xffffffffu;}
 static uint32_t fls_get(void){return ARG(0)<128?(uint32_t)fls[ARG(0)]:0;}
 static uint32_t fls_set(void){if(ARG(0)>=128)return 0;fls[ARG(0)]=ARG64(1);return 1;}
 static uint32_t once_execute(void){uint32_t cell=ARG(0);if(!(x86_rd64(cell)&2)){uint64_t args[3]={cell,ARG64(2),ARG64(3)};uint64_t ok=x86_callback64(ARG(1),3,args);if(!ok)return 0;x86_wr64(cell,2);}return 1;}
-static uint32_t empty_env(void){static uint32_t cell;if(!cell){cell=w32_misc_alloc(16);x86_wr64(cell,cell+8);}return cell;}
-static uint32_t wide_argv(void){static uint32_t cell;if(!cell){cell=w32_misc_alloc(64);x86_wr64(cell,cell+8);x86_wr64(cell+8,cell+24);w32_pstr(cell+24,16,1,"game.exe");}return cell;}
 static uint32_t crt_ok(void){return 0;}
 static uint32_t yes(void){return 1;}
 static uint32_t critical_init(void){for(unsigned i=0;i<40;i++)x86_wr8(ARG(0)+i,0);x86_wr32(ARG(0)+8,0xffffffffu);return 0;}
@@ -151,20 +149,6 @@ static uint32_t critical_enter(void){uint32_t p=ARG(0),n=x86_rd32(p+12);x86_wr32
 static uint32_t critical_leave(void){uint32_t p=ARG(0),n=x86_rd32(p+12);if(n){n--;x86_wr32(p+8,n-1);x86_wr32(p+12,n);if(!n)x86_wr64(p+16,0);}return 0;}
 static uint32_t system_info(void){uint32_t p=ARG(0);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr16(p,9);x86_wr32(p+4,4096);x86_wr64(p+8,0x10000);x86_wr64(p+16,X86_FLAT_BYTES-1);x86_wr64(p+24,1);x86_wr32(p+32,1);x86_wr32(p+36,8664);x86_wr32(p+40,65536);return 0;}
 static uint32_t virtual_query(void){uint32_t p=ARG(1);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr64(p,ARG(0)&~4095u);x86_wr64(p+8,ARG(0)&~4095u);x86_wr32(p+16,4);x86_wr64(p+24,4096);x86_wr32(p+32,0x1000);x86_wr32(p+36,4);x86_wr32(p+40,0x20000);return 48;}
-static uint32_t aligned_malloc(void){uint32_t align=ARG(1);if(!align || (align&(align-1)))return 0;uint32_t p=w32_heap_alloc(ARG(0)+align+8,0),q=(p+8+align-1)&~(align-1);x86_wr64(q-8,p);return q;}
-static uint32_t aligned_free(void){if(ARG(0))w32_heap_free((uint32_t)x86_rd64(ARG(0)-8));return 0;}
-static uint32_t memchr64(void){uint32_t p=ARG(0);for(uint32_t i=0;i<ARG(2);i++)if(x86_rd8(p+i)==(ARG(1)&255))return p+i;return 0;}
-static uint32_t strncmp64(void){for(uint32_t i=0;i<ARG(2);i++){uint32_t a=x86_rd8(ARG(0)+i),b=x86_rd8(ARG(1)+i);if(a!=b)return (uint32_t)((int32_t)a-(int32_t)b);if(!a)return 0;}return 0;}
-static uint32_t abort64(void){x86_fault("guest CRT abort",(uint32_t)x86_rd64((uint32_t)X.r[ESP]));}
-static uint32_t iob(void){static uint32_t base;if(!base)base=w32_misc_alloc(512);return base+ARG(0)*48;}
-static uint32_t fwrite64(void){
-    uint32_t size=ARG(1),count=ARG(2);if(!size||!count)return 0;
-    if((uint64_t)size*count>0x100000u)return 0;
-    char buf[256];uint32_t n=size*count;if(n>255)n=255;w32_gstrn(ARG(0),(int32_t)n,0,buf,sizeof buf);w32_logf2("guest CRT stdout: ",buf);return count;
-}
-static uint32_t fputc64(void){char s[2]={(char)ARG(0),0};w32_logf2("guest CRT stdout: ",s);return ARG(0);}
-static uint32_t signal64(void){return 0;}
-static uint32_t fpreset64(void){X.mxcsr=0x1f80;return 0;}
 typedef struct {const char *name;uint32_t(*fn)(void);} api64_t;
 static const api64_t api[] = {
  {"RtlLookupFunctionEntry",rtl_lookup},{"RtlVirtualUnwind",rtl_virtual},{"RtlCaptureContext",rtl_capture},{"RtlRestoreContext",rtl_restore},{"RtlUnwindEx",rtl_unwind},{"RaiseException",raise_exception},
@@ -173,11 +157,10 @@ static const api64_t api[] = {
  {"FlsAlloc",fls_alloc},{"FlsGetValue",fls_get},{"FlsSetValue",fls_set},{"FlsFree",yes},
  {"InitOnceExecuteOnce",once_execute},{"InitializeCriticalSection",critical_init},{"EnterCriticalSection",critical_enter},{"TryEnterCriticalSection",critical_enter},{"LeaveCriticalSection",critical_leave},{"DeleteCriticalSection",crt_ok},
  {"AcquireSRWLockExclusive",crt_ok},{"ReleaseSRWLockExclusive",crt_ok},{"TryAcquireSRWLockExclusive",yes},
+ /* Notifications have no waiters in the single-thread profile; thread creation stays unsupported. */
+ {"WakeAllConditionVariable",crt_ok},{"WakeConditionVariable",crt_ok},
  {"GetSystemInfo",system_info},{"GetNativeSystemInfo",system_info},
- {"VirtualQuery",virtual_query},{"_aligned_malloc",aligned_malloc},{"_aligned_free",aligned_free},{"memchr",memchr64},{"strncmp",strncmp64},
- {"_configure_narrow_argv",crt_ok},{"_configure_wide_argv",crt_ok},{"_initialize_narrow_environment",crt_ok},{"_initialize_wide_environment",crt_ok},{"_set_app_type",crt_ok},{"_set_new_mode",crt_ok},{"_set_invalid_parameter_handler",crt_ok},{"__setusermatherr",crt_ok},{"_crt_atexit",crt_ok},{"_crt_at_quick_exit",crt_ok},{"_cexit",crt_ok},{"_tzset",crt_ok},
- {"__p__environ",empty_env},{"__p__wenviron",empty_env},{"__p___wargv",wide_argv},
- {"__acrt_iob_func",iob},{"fflush",crt_ok},{"fputc",fputc64},{"fwrite",fwrite64},{"signal",signal64},{"abort",abort64},{"_fpreset",fpreset64},
+ {"VirtualQuery",virtual_query},
 };
 uint64_t w64_api(const char *name,int *handled) {
     int query=*handled<0;*handled=0;

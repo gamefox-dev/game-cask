@@ -1,5 +1,12 @@
 # v0.3 implementation work record
 
+**Task 2a (real-program Win64 CRT + demand-grown memory): COMPLETE at the fixture finish line.**
+Shared table-driven CRT: **396 function names**, normal -O2 C/STL fixtures matching the same source compiled natively,
+**300-frame identical oracles**, zero interpretation/stubs. The 2048 MiB window fixture touches **600 MiB** and checks
+153600 pages plus the upper window edge. Import census and untruncated missing-import regression pass. Evidence and
+explicit compatibility limits: [verification.md](verification.md) and [pipeline.md](pipeline.md#task-2a--shared-win64-crt-and-demand-grown-memory).
+These console conformance fixtures do not make a game-playability or arbitrary Windows-compatibility claim.
+
 **Task 1 (AMD64 execution core): COMPLETE at the fixture finish line.** The overall v0.3 branch is still a development
 build (`0.3.0-dev.1`): general GPU/GL, scheduling and other previously listed tasks were outside this one-task follow-up.
 
@@ -104,7 +111,8 @@ semantics are shared by the interpreter and predecoded labelled-C lifter. LOCK o
 reports only baseline implemented features; no AVX/AES/BMI/XSAVE dispatch. CRT FNINIT is supported; general x87
 arithmetic remains outside Task 1's finish line. The i386 CPU word width and classic tests are retained.
 
-PE32+ images are rebased to a checked **128 MiB flat guest window**, with DIR64 relocations/eight-byte imports and
+PE32+ images are rebased to a checked **1024 MiB default / 2048 MiB configurable flat guest window**, with on-demand
+wasm memory growth, DIR64 relocations/eight-byte imports and
 16–64 MiB image space. GS TEB/PEB, static TLS templates/zero fill/callbacks and pointer-width dynamic TLS work for the
 fixture. Win64 home/register/stack arguments, callbacks and native USER structure/message/window-long-pointer
 layouts share the Win32 GDI/USER APIs. Pointers remain u64; unsupported high virtual addresses fault, not truncate.
@@ -167,7 +175,8 @@ frame, with a headless asynchronous stepping helper. Secure-context SHA-256 is r
 
 Missing: CreateThread and a deterministic cooperative scheduler, WaitFor*/events/mutexes/semaphores/CS/SRW/conditions,
 per-thread TLS, WASAPI/WinMM/DirectSound expansion, COM class registry, Raw Input/XInput/DirectInput, offline sockets
-and CRT FILE streaming. Existing TLS/interlocked/QPC remain the prior single-thread model. Supporting multiple
+and CRT FILE streaming on i386. Task 2a adds Win64 CRT FILE streaming and a deterministic instruction-quantum yield,
+not multiple guest threads. Existing TLS/interlocked/QPC remain the single-thread model. Supporting multiple
 suspended guest stacks safely requires scheduler/CPU/callback work; the single Asyncify stack cannot simply be reused
 as multiple threads. These are unfinished kit subsystems, not game-side override opportunities.
 

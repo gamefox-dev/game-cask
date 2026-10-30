@@ -19,7 +19,7 @@
 #define W32_STACK_LO 0x00800000u
 #define W32_STACK_HI 0x00a00000u
 #define W32_HEAP_LO 0x04000000u
-#define W32_HEAP_HI 0x07000000u
+#define W32_HEAP_HI (X86_FLAT_BYTES - 65536u)
 #define W32_THUNK_LO 0x00b00000u
 #define W32_MISC 0x00c00000u
 #define W32_TEB 0x00a00000u
@@ -105,7 +105,7 @@ uint32_t w32_shell_about(int wide);
 
 /* modules */
 typedef struct {
-    char name[32];
+    char name[256];
     uint32_t base, size, entry;
     int is_dll;
     uint32_t rsrc_rva, export_rva, export_size, pdata_rva, pdata_size, tls_rva;
@@ -130,6 +130,29 @@ int32_t w32_load_string(uint32_t hmod, uint32_t id, char *dst, uint32_t cap);
 uint32_t w32_res_entry(uint32_t hmod, uint32_t type, uint32_t name_or_id, int name_wide);
 uint32_t w32_data_import(const char *name);
 uint32_t w32_format_to_guest(uint32_t dst, uint32_t cap, int wide, uint32_t fmt, uint32_t va);
+
+/* Shared CRT registry (UCRT api-sets + ucrtbase.dll + msvcrt.dll) */
+typedef uint64_t (*w32_crt_fn)(void);
+typedef struct {
+    const char *name;
+    const char *group;
+    w32_crt_fn fn;
+    uint8_t is_data;
+} w32_crt_entry_t;
+extern const w32_crt_entry_t w32_crt_table[];
+extern const uint32_t w32_crt_table_n;
+const w32_crt_entry_t *w32_find_crt(const char *name);
+uint32_t w32_crt_data(const char *name);
+
+/* Profile file access shared with CRT FILE* I/O */
+uint32_t w32_file_open_str(const char *raw, int wide);
+int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got);
+int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_out);
+int w32_file_size_get(uint32_t h, uint64_t *size_out);
+int w32_file_close_h(uint32_t h);
+uint64_t w32_unix_time_secs(void);
+void w32_exit_guest(uint32_t code);
+uint32_t w32_get_cmdline(int wide);
 
 /* API registry */
 typedef uint32_t (*w32_api_fn)(void);

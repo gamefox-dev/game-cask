@@ -92,7 +92,7 @@ uint32_t w32_format_to_guest(uint32_t dst, uint32_t cap, int wide, uint32_t fmt,
 #define ERROR_MOD_NOT_FOUND 126u
 #define ERROR_PROC_NOT_FOUND 127u
 static uint32_t module_handle(const char *raw, int load) {
-    char n[64];
+    char n[256];
     w32_module_name(raw, n, sizeof n);
     for (uint32_t i = 0; i < w32_nmods; i++) if (w32_streqi(w32_mods[i].name, n)) return w32_mods[i].base;
     uint32_t h = w32_sysdll_handle(n, load);
@@ -102,14 +102,14 @@ static uint32_t module_handle(const char *raw, int load) {
 static uint32_t k_GetModuleHandle(int wide) {
     uint32_t p = ARG(0);
     if (!p) return w32_mod_by_handle(0)->base;
-    char n[64];
+    char n[512];
     w32_gstr(p, wide, n, sizeof n);
     return module_handle(n, 0); /* only modules that are loaded (statically imported or LoadLibrary'd) */
 }
 static uint32_t k_GetModuleHandleA(void) { return k_GetModuleHandle(0); }
 static uint32_t k_GetModuleHandleW(void) { return k_GetModuleHandle(1); }
 static uint32_t k_LoadLibrary(int wide) {
-    char n[64];
+    char n[512];
     if (!ARG(0)) { last_error = 87; return 0; } /* ERROR_INVALID_PARAMETER */
     w32_gstr(ARG(0), wide, n, sizeof n);
     return module_handle(n, 1);
@@ -125,7 +125,7 @@ static uint32_t k_FreeLibrary(void) {
 }
 static uint32_t k_GetProcAddress(void) {
     uint32_t h = ARG(0), p = ARG(1), addr = 0;
-    char n[64];
+    char n[256];
     int by_ord = p < 0x10000u;
     if (!by_ord) w32_gstr(p, 0, n, sizeof n);
     w32_module_t *m = 0;
@@ -139,34 +139,35 @@ static uint32_t k_GetProcAddress(void) {
 }
 static uint32_t k_GetModuleFileName(int wide) {
     w32_module_t *m = w32_mod_by_handle(ARG(0));
-    char path[96] = "C:\\GAME\\";
+    char path[272] = "C:\\GAME\\";
     uint32_t k = 8;
-    for (const char *s = m ? m->name : "game.exe"; *s && k < 90; s++) path[k++] = *s;
+    for (const char *s = m ? m->name : "game.exe"; *s && k + 1 < sizeof path; s++) path[k++] = *s;
     path[k] = 0;
     return w32_pstr(ARG(1), ARG(2), wide, path);
 }
 static uint32_t k_GetModuleFileNameA(void) { return k_GetModuleFileName(0); }
 static uint32_t k_GetModuleFileNameW(void) { return k_GetModuleFileName(1); }
-static uint32_t k_ExitProcess(void) {
+void w32_exit_guest(uint32_t code) {
     w32_exited = 1;
-    w32_exit_code = ARG(0);
+    w32_exit_code = code;
     w32_log("win32 profile: ExitProcess");
     for (;;) w32_wait_frame();
-    return 0;
 }
+static uint32_t k_ExitProcess(void) { w32_exit_guest(ARG(0)); return 0; }
 static uint32_t cmdline_a, cmdline_w;
 static void ensure_cmdline(void) {
     if (cmdline_a) return;
     w32_module_t *m = w32_mod_by_handle(0);
     char buf[256];
     uint32_t k = 0;
-    for (const char *s = m ? m->name : "game.exe"; *s && k < 120; s++) buf[k++] = *s;
+    for (const char *s = m ? m->name : "game.exe"; *s && k + 1 < sizeof buf; s++) buf[k++] = *s;
     buf[k] = 0;
     cmdline_a = w32_misc_alloc(256);
     cmdline_w = w32_misc_alloc(512);
     w32_pstr(cmdline_a, 256, 0, buf);
     w32_pstr(cmdline_w, 256, 1, buf);
 }
+uint32_t w32_get_cmdline(int wide) { ensure_cmdline(); return wide ? cmdline_w : cmdline_a; }
 static uint32_t k_GetCommandLineA(void) { ensure_cmdline(); return cmdline_a; }
 static uint32_t k_GetCommandLineW(void) { ensure_cmdline(); return cmdline_w; }
 static uint32_t k_GetStartupInfo(void) { uint32_t p = ARG(0); for (uint32_t i = 0; i < (X.mode64?104u:68u); i++) x86_wr8(p + i, 0); x86_wr32(p, X.mode64?104:68); return 0; }
@@ -184,6 +185,7 @@ static uint64_t filetime_now(void) {
     uint64_t unix = 1003968000ull + (uint64_t)(w32_io ? w32_io->seed : 0) * 86400ull + w32_now_ms() / 1000u;
     return (unix + 11644473600ull) * 10000000ull + (uint64_t)(w32_now_ms() % 1000u) * 10000ull;
 }
+uint64_t w32_unix_time_secs(void) { return filetime_now() / 10000000ull - 11644473600ull; }
 static uint32_t k_GetSystemTimeAsFileTime(void) { uint64_t t = filetime_now(); x86_wr32(ARG(0), (uint32_t)t); x86_wr32(ARG(0) + 4, (uint32_t)(t >> 32)); return 0; }
 static void systemtime(uint32_t p) {
     uint64_t secs = filetime_now() / 10000000ull - 11644473600ull;
@@ -232,6 +234,12 @@ static uint32_t k_Size(void) { return w32_heap_size(ARG(0)); }
 static uint32_t k_VirtualAlloc(void) {
     uint32_t want = ARG(0), size = ARG(1);
     if (want && x86_mapped(want, size)) return want;
+#ifdef X86_FLAT_GUEST
+    if (want) {
+        if ((want & 65535u) || !size || (uint64_t)want + size > X86_FLAT_BYTES) return 0;
+        return x86_map(want, size) ? want : 0;
+    }
+#endif
     return w32_heap_alloc(size, 1); /* contents zeroed as committed pages are */
 }
 static uint32_t k_VirtualFree(void) { return 1; }
@@ -323,18 +331,76 @@ static uint32_t k_WriteFile(void) {
 #define H_FILE 0x00090000u
 static struct { uint32_t asset; uint64_t pos, size; } files[64];
 static uint32_t file_index(uint32_t h) { return h > H_FILE && h < H_FILE + 64 && files[h-H_FILE].asset ? h-H_FILE : 0; }
-static int32_t open_file_asset(int wide) {
-    char raw[512], path[512]; w32_gstr(ARG(0),wide,raw,sizeof raw);
+static int32_t open_asset_path(const char *raw) {
+    char path[512];
     const char *s=raw;
     if ((s[0]=='C'||s[0]=='c') && s[1]==':' && (s[2]=='\\' || s[2]=='/')) { s+=3; if (w32_slen(s)>=5 && (s[0]=='G'||s[0]=='g')&&(s[1]=='A'||s[1]=='a')&&(s[2]=='M'||s[2]=='m')&&(s[3]=='E'||s[3]=='e')&&(s[4]=='\\'||s[4]=='/'))s+=5; }
     uint32_t k=0;while(*s && k+1<sizeof path){char c=*s++;path[k++]=c=='\\'?'/':(c>='A'&&c<='Z'?c+32:c);}path[k]=0;
     int32_t asset=-5;
     for(uint32_t i=0;i<w32_nmods;i++)if(w32_streqi(path,w32_mods[i].name)){
-        char module[64]="modules/";uint32_t j=8;for(const char *c=w32_mods[i].name;*c&&j<63;c++)module[j++]=*c;module[j]=0;
+        char module[272] = "modules/";
+        uint32_t j = 8;
+        for (const char *c = w32_mods[i].name; *c && j + 1 < sizeof module; c++) module[j++] = *c;
+        module[j] = 0;
         asset=bgt_asset_open(module,j);break;
     }
     if(asset<0)asset=bgt_asset_open(path,w32_slen(path));
     return asset;
+}
+static int32_t open_file_asset(int wide) {
+    char raw[512];
+    w32_gstr(ARG(0), wide, raw, sizeof raw);
+    return open_asset_path(raw);
+}
+uint32_t w32_file_open_str(const char *raw, int wide) {
+    (void)wide;
+    int32_t asset = open_asset_path(raw);
+    if (asset < 0) return 0;
+    for (uint32_t i = 1; i < 64; i++) if (!files[i].asset) {
+        uint64_t size = 0;
+        if (bgt_asset_size64((uint32_t)asset, &size) < 0) break;
+        files[i].asset = (uint32_t)asset;
+        files[i].size = size;
+        files[i].pos = 0;
+        return H_FILE + i;
+    }
+    bgt_asset_close((uint32_t)asset);
+    return 0;
+}
+int w32_file_close_h(uint32_t h) {
+    uint32_t i = file_index(h);
+    if (!i) return 0;
+    bgt_asset_close(files[i].asset);
+    files[i].asset = 0;
+    return 1;
+}
+int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
+    uint32_t i = file_index(h);
+    *got = 0;
+    if (!i) return 0;
+    while (*got < want && files[i].pos < files[i].size) {
+        uint32_t n = want - *got;
+        if (n > 65536) n = 65536;
+        if (n > files[i].size - files[i].pos) n = (uint32_t)(files[i].size - files[i].pos);
+        int32_t r = bgt_asset_range_request(files[i].asset, (uint32_t)files[i].pos,
+                                          (uint32_t)(files[i].pos >> 32), n);
+        if (r < 0) return 0;
+        int32_t status;
+        while ((status = bgt_request_status((uint32_t)r)) == 0) w32_wait_frame();
+        int32_t count = status == 1 ? bgt_request_read((uint32_t)r, dst + *got, n) : status;
+        bgt_request_close((uint32_t)r);
+        if (count < 0) return 0;
+        *got += (uint32_t)count;
+        files[i].pos += (uint32_t)count;
+        if (!count) break;
+    }
+    return 1;
+}
+int w32_file_size_get(uint32_t h, uint64_t *size_out) {
+    uint32_t i = file_index(h);
+    if (!i) return 0;
+    *size_out = files[i].size;
+    return 1;
 }
 static uint32_t create_file(int wide) {
     if ((ARG(1) & 0x40000000u) || ARG(4) != 3) { last_error=5; return 0xffffffffu; } /* read-only OPEN_EXISTING */
@@ -373,6 +439,12 @@ static int seek_file(uint32_t i,int64_t delta,uint32_t method){
     uint64_t base=method==0?0:method==1?files[i].pos:files[i].size;
     if(method>2 || (delta<0 && (uint64_t)(-(delta+1))+1>base) || (delta>0 && (uint64_t)delta>0x7fffffffffffffffull-base)){last_error=87;return 0;}
     files[i].pos=base+(uint64_t)delta;last_error=0;return 1;
+}
+int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_out) {
+    uint32_t i = file_index(h);
+    if (!seek_file(i, delta, method)) return 0;
+    if (pos_out) *pos_out = files[i].pos;
+    return 1;
 }
 static uint32_t k_SetFilePointer(void){uint32_t i=file_index(ARG(0));int64_t d=(int32_t)ARG(1);if(ARG(2))d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));if(!seek_file(i,d,ARG(3)))return 0xffffffffu;if(ARG(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;}
 static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0)),out=ARG(W32_64?2:3),method=ARG(W32_64?3:4);int64_t d=W32_64?(int64_t)ARG64(1):(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,method))return 0;if(out){x86_wr32(out,(uint32_t)files[i].pos);x86_wr32(out+4,(uint32_t)(files[i].pos>>32));}return 1;}
@@ -577,6 +649,10 @@ static uint32_t c_XcptFilter(void) { return 0; }  /* EXCEPTION_CONTINUE_SEARCH *
 static uint32_t c_onexit_table(void) { return 0; }
 /* data imports get a zeroed cell; a few have meaningful initial values */
 uint32_t w32_data_import(const char *name) {
+#ifdef X86_FLAT_GUEST
+    uint32_t shared = w32_crt_data(name);
+    if (shared) return shared;
+#endif
     uint32_t c = w32_misc_alloc(16);
     if (w32_streqi(name, "__argc")) x86_wr32(c, 1);
     if (w32_streqi(name, "__argv")) { ensure_args(); x86_wr32(c, argv_cell); }

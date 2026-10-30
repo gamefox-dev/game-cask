@@ -15,6 +15,14 @@ x86_metrics_t x86_metrics;
 int x86_force_interp;
 #ifdef X86_FLAT_GUEST
 uint8_t *x86_flat;
+uint64_t x86_guest_committed;
+static void (*scheduler)(void);
+void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
+void x86_cooperate(void) {
+    if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
+    X.frame_insns = 0;
+    scheduler();
+}
 #endif
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
@@ -24,7 +32,17 @@ static uintptr_t arena_top;
 
 void *x86_alloc(uint32_t size) {
     if (!arena_top) arena_top = ((uintptr_t)&__heap_base + 15u) & ~(uintptr_t)15u;
-    uintptr_t p = arena_top, end = p + ((size + 15u) & ~15u);
+    uintptr_t p = arena_top;
+    uint64_t end64 = (uint64_t)p + (((uint64_t)size + 15u) & ~15ull);
+#ifdef X86_FLAT_GUEST
+    if (!x86_flat) {
+        uintptr_t base = ((uintptr_t)&__heap_base + X86_HOST_ARENA_BYTES + 65535u) & ~65535u;
+        x86_flat = (uint8_t *)base;
+    }
+    if (end64 > (uintptr_t)x86_flat) return 0;
+#endif
+    if (end64 > UINT32_MAX) return 0;
+    uintptr_t end = (uintptr_t)end64;
     uintptr_t have = (uintptr_t)__builtin_wasm_memory_size(0) * 65536u;
     if (end > have) {
         uintptr_t pages = (end - have + 65535u) / 65536u;
@@ -38,10 +56,19 @@ void *x86_alloc(uint32_t size) {
 uint8_t *x86_map(uint32_t addr, uint32_t size) {
     if (!size) return 0;
 #ifdef X86_FLAT_GUEST
-    if((uint64_t)addr+size>X86_FLAT_BYTES)return 0;
-    if(!x86_flat && !(x86_flat=(uint8_t *)x86_alloc(X86_FLAT_BYTES)))return 0;
-    for(uint32_t p=addr>>12;p<=((addr+size-1)>>12);p++)x86_pages[p]=x86_flat+(p<<12);
-    return x86_flat+addr;
+    if ((uint64_t)addr + size > X86_FLAT_BYTES) return 0;
+    if (!x86_flat && !x86_alloc(16)) return 0;
+    uint64_t end = (uint64_t)(uintptr_t)x86_flat + addr + size;
+    uint64_t have = (uint64_t)__builtin_wasm_memory_size(0) * 65536u;
+    if (end > have) {
+        uint32_t pages = (uint32_t)((end - have + 65535u) / 65536u);
+        if (__builtin_wasm_memory_grow(0, pages) == (uintptr_t)-1) return 0;
+    }
+    if (x86_guest_committed < (uint64_t)addr + size) x86_guest_committed = (uint64_t)addr + size;
+    uint32_t flat_last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
+    for (uint32_t p = addr >> 12; p <= flat_last; p++)
+        x86_pages[p] = x86_flat + ((uintptr_t)p << 12);
+    return x86_flat + addr;
 #endif
     uint32_t first = addr >> 12, last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
     uint32_t i = first;
@@ -58,6 +85,7 @@ uint8_t *x86_map(uint32_t addr, uint32_t size) {
 }
 
 int x86_mapped(uint32_t addr, uint32_t size) {
+    if ((uint64_t)addr + size > 0x100000000ull) return 0;
     if (!size) return 1;
     uint32_t last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
     for (uint32_t i = addr >> 12; i <= last; i++) if (!x86_pages[i]) return 0;
@@ -65,14 +93,14 @@ int x86_mapped(uint32_t addr, uint32_t size) {
 }
 
 /* ------------------------------------------------------------------ faults */
-static char fault_buf[160];
+static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
     uint32_t n = 0;
     const char *p = "x86: ";
-    while (*p && n < 100) fault_buf[n++] = *p++;
-    while (*msg && n < 140) fault_buf[n++] = *msg++;
+    while (*p && n + 32 < sizeof fault_buf) fault_buf[n++] = *p++;
+    while (*msg && n + 32 < sizeof fault_buf) fault_buf[n++] = *msg++;
     p = " at 0x";
     while (*p) fault_buf[n++] = *p++;
     for (int i = 7; i >= 0; i--) fault_buf[n++] = HEX[(eip >> (i * 4)) & 15u];
@@ -172,7 +200,12 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
             if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);continue;}
             x86_lifted_fn f=x86_find_lifted(X.eip);
             if(f){uint32_t old=X.eip;x86_metrics.lifted_calls++;f();if(X.eip==old&&!X.transfer)x86_fault("lifted AMD64 entry made no progress",old);}
-            else {const x86_insn_t *in=decode_at(X.eip);x86_metrics.interp_insns++;x86_exec64(in);}
+            else {
+                bgt_coverage_entry(X.eip, 2);
+                const x86_insn_t *in = decode_at(X.eip);
+                x86_metrics.interp_insns++;
+                x86_exec64(in);
+            }
         }
     }
 #endif

@@ -1,0 +1,2 @@
+42 asset 1.25
+second line
