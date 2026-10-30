@@ -25,10 +25,10 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
   expect(m.gl_calls).toBeGreaterThan(100); expect(m.gl_state_changes).toBeGreaterThan(50);
   expect(m.gl_draws).toBeGreaterThan(100);
-  // Triangle/strip + blend states; the second frame has retained blend factors while blend is disabled.
-  expect(m.gl_pipelines).toBe(4);
+  // Triangle/strip + blend + stencil-equality states; retained blend factors stay immutable while disabled.
+  expect(m.gl_pipelines).toBe(5);
   const ops = (op: number) => stream.items.filter((it) => it.op === op);
-  expect(ops(O.PIPELINE_CREATE)).toHaveLength(4);
+  expect(ops(O.PIPELINE_CREATE)).toHaveLength(5);
   expect(ops(O.DRAW).length + ops(O.DRAW_INDEXED).length).toBe(m.gl_draws);
   expect(ops(O.DRAW_INDEXED).length).toBeGreaterThan(ops(O.DRAW).length);
   expect(ops(O.DRAW_INDEXED).some((it) => it.words[1] === 3)).toBe(true);
@@ -54,7 +54,7 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   expect(new Set(ops(O.UNIFORM_BUFFER).map((it) => it.words[0]))).toEqual(new Set([0, 1]));
   expect(ops(O.TEXTURE).every((it) => it.words[0] === 0)).toBe(true);
   expect(ops(O.TEXTURE_UPDATE).some((it) => it.words[1] === 1 && it.data?.length === 4)).toBe(true);
-  expect(stream.readbacks).toBe(1);
+  expect(stream.readbacks).toBe(2);
   const sources = ops(O.SHADER_CREATE).map((it) => it.source);
   expect(sources.every((s) => s?.startsWith('#version 330 core\n'))).toBe(true);
   expect(sources.some((s) => s?.includes('uniform bgt_u1'))).toBe(true);
@@ -64,6 +64,9 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   expect(new Set(ops(O.UNIFORM_BUFFER).filter((it) => it.words[0] === 1).map((it) => it.words[3])))
     .toEqual(new Set([16, 32]));
   expect(sources.some((s) => s?.includes('sampler2D bgt_t0'))).toBe(true);
+  // Real WebGPU rejects the old #define-based lowering. Both backends accept ordinary GLSL.
+  expect(sources.every(s => !s?.includes('#define'))).toBe(true);
+  expect(sources.some(s => s?.includes('texture(bgt_t0,bgt_gl_uv(coords()))'))).toBe(true);
   expect(sources.some((s) => s?.includes('gl_Position.z=(gl_Position.z+gl_Position.w)*0.5'))).toBe(true);
   expect(importStatus('wglCreateContext', 'opengl32.dll').status).toBe('implemented');
   expect(importStatus('glDrawElements', 'opengl32.dll').status).toBe('implemented');

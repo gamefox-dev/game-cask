@@ -1,6 +1,6 @@
 /* Original CC0-1.0 fixture. Real -O2/CRT Win64 program; no BGT imports or overrides.
  * Scenes: indexed triangle, mipmapped alpha quad, FBO texture, depth/stencil, instanced sprites.
- * The lane validates the command stream, not pixels. Browser backends integrate separately. */
+ * Seven separately visible tiles are asserted on both real browser backends. */
 #include <windows.h>
 #include <GL/glcorearb.h>
 #include <stddef.h>
@@ -25,7 +25,9 @@ static GLuint make_program(void) {
         "gl_Position=vec4(position*transform.xy+transform.zw+sprite,0.0,1.0); }";
     const char *fs = "#version 330 core\n"
         "in vec2 tc; layout(location=0) out vec4 color; uniform vec4 tint; uniform sampler2D image;"
-        "void main(){color=texture(image,tc)*tint;}";
+        "float calls=0.0; vec2 coords(){calls+=1.0;return tc;}"
+        "void main(){color=texture(image,coords())*tint;"
+        "if(calls!=1.0) color=vec4(1,0,1,1);}";
     GLuint p = glCreateProgram(), v = shader(GL_VERTEX_SHADER, vs), f = shader(GL_FRAGMENT_SHADER, fs);
     glAttachShader(p, v); glAttachShader(p, f); glLinkProgram(p);
     GLint ok; glGetProgramiv(p, GL_LINK_STATUS, &ok);
@@ -36,6 +38,9 @@ static void expected(GLenum e) {
     check(glGetError() == e, "wrong deliberate GL error"); check(glGetError() == GL_NO_ERROR, "error not cleared");
 }
 int main(void) {
+#ifdef ENGINE_SMOKE
+    smoke_start();
+#endif
     WNDCLASSA cls = {0}; cls.lpfnWndProc = DefWindowProcA; cls.lpszClassName = "GLFixture";
     RegisterClassA(&cls);
     HWND window = CreateWindowExA(0, cls.lpszClassName, "OpenGL", WS_VISIBLE | WS_POPUP,
@@ -137,20 +142,41 @@ int main(void) {
         glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
         glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, 320, 200);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        glViewport(0, 100, 80, 100);
         glDrawElementsBaseVertex(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0, 0);
         glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glViewport(80, 100, 80, 100);
         glUniform4f(tint, 1, 1, 1, 0.5f); glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+        glViewport(160, 100, 80, 100);
         glBindTexture(GL_TEXTURE_2D, render_texture); glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glBindTexture(GL_TEXTURE_2D, texture); glUniform4f(tint, 1, 0.8f, 0.6f, 1);
+        glViewport(240, 100, 80, 100);
         glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0, 3);
+        glViewport(0, 0, 80, 100);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, 3);
+        glViewport(80, 0, 80, 100);
         glDrawElementsInstancedBaseVertex(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0, 3, 0);
+        glViewport(160, 0, 80, 100); glDisable(GL_BLEND);
+        glEnable(GL_SCISSOR_TEST); glScissor(160, 0, 40, 100);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+        glDisable(GL_SCISSOR_TEST); glStencilFunc(GL_EQUAL, 7, 255);
+        glUniform4f(tint, 0, 1, 0, 1); glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+        glDepthRange(0.9, 1); glUniform4f(tint, 1, 0, 0, 1);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0); // farther red must fail depth
+        glDepthRange(0, 1); glStencilFunc(GL_ALWAYS, 7, 255);
+        glUniform4f(tint, 1, 1, 1, 1);
         if (!frame) {
             unsigned char readback[16]; glReadPixels(0, 0, 2, 2, GL_RGBA, GL_UNSIGNED_BYTE, readback);
             char message[100]; snprintf(message, sizeof message, "x64-gl readback=%u,%u", readback[0], readback[8]);
             OutputDebugStringA(message);
+            glReadPixels(180, 49, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, readback);
+            snprintf(message, sizeof message, "x64-gl colored=%u,%u,%u", readback[0], readback[1], readback[2]);
+            OutputDebugStringA(message);
             OutputDebugStringA("x64-gl PASS scenes=7 uniforms=2 block=3 sampler=2 readback=1");
         }
         check(glGetError() == GL_NO_ERROR, "unexpected GL error"); frame++; SwapBuffers(dc);
+#ifdef ENGINE_SMOKE
+        smoke_frame(frame);
+#endif
     }
 }

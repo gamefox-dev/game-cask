@@ -2,8 +2,12 @@
 #include "bgt.h"
 #include "bgt_cmd.h"
 BGT_DEFINE_IO(io)
+int32_t wgsl_init(bgt_io_t *io);
+void wgsl_update(uint32_t dt);
+void wgsl_render(void);
+uint32_t wgsl_state_hash(void);
 #define PTR(p) ((uint32_t)(uintptr_t)(p))
-static uint32_t memory[8192], result[4], scene, phase, frame, read_ok, compile_ok, events;
+static uint32_t memory[8192], result[2048], scene, phase, frame, read_ok, compile_ok, events;
 static int32_t submit_error;
 static bgt_cmdbuf_t cb;
 static bgt_gpu_limits_v3_t limits;
@@ -77,6 +81,7 @@ static void draw(uint32_t n,uint32_t instances_count) {
     bgt_gpu_draw_t d={n,instances_count,0,0};bgt_cmd_gpu_draw(&cb,&d);
 }
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
+    if(io.arg1>=2) return wgsl_init(&io);
     (void)p;io.logical_width=160;io.logical_height=128;scene=io.arg0;
     bgt_cmd_init(&cb,memory,sizeof memory);
     bgt_gpu_limits(&limits.base,sizeof limits);
@@ -107,12 +112,14 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     submit();return 0;
 }
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
+    if(io.arg1>=2) { wgsl_update(dt); return; }
     (void)dt;events|=io.events;if(phase==99)return;
     if(!phase) {
         for(uint32_t i=0;i<12;i++)if(bgt_request_status(100+i)!=1)return;
         for(uint32_t i=0;i<12;i++) {
-            int32_t status=-99;bgt_request_read(100+i,&status,4);bgt_request_close(100+i);
-            if(status)return;compile_ok++;
+            int32_t size=bgt_request_read(100+i,result,sizeof result);bgt_request_close(100+i);
+            int32_t status=(int32_t)result[0];
+            if(status) { if(size>4)bgt_log(1,(const char *)result+4,size-4); return; } compile_ok++;
         }
         pipeline(1,1,2,1,2,1,0,0,0,0,0); /* indexed colored triangle */
         pipeline(2,3,4,0,0,1,0,1,0,0,1); /* textured alpha + mip */
@@ -139,6 +146,11 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     }
 }
 BGT_EXPORT(bgt_render) void bgt_render(void) {
+    if(io.arg1>=2) { wgsl_render(); return; }
+    if(io.arg1==1 && read_ok) { /* Freeze, or replace with 2D-only output on virtual A. */
+        if(io.buttons&BGT_BTN_A) { bgt_cmd_clear(&cb,BGT_RGBA(10,20,30,255)); submit(); }
+        return;
+    }
     bgt_cmd_clear(&cb,BGT_RGBA(0,0,0,255));
     if(phase!=1) {submit();return;}
     if(scene==7) {
@@ -174,7 +186,7 @@ BGT_EXPORT(bgt_render) void bgt_render(void) {
     if(!read_ok && bgt_request_status(200)<0)bgt_cmd_readback(&cb,200,0,80,64,1,1);
     submit();
 }
-BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) {return (compile_ok<<16)|(read_ok<<8)|phase;}
+BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) {return io.arg1>=2?wgsl_state_hash():(compile_ok<<16)|(read_ok<<8)|phase;}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) {
     static char debug[256];char *p=debug;
     const char *keys[]={"phase","frame","pixel","read","error","compiled","events","caps","languages"};

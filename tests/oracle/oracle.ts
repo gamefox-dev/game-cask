@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { loadHeadless, ROOT, Headless } from '../support/headless';
 /* LANE-GL: opt-in fixture recorder; no rendering is claimed by this oracle. */
 import { glStream } from '../support/x64-gl-stream';
-const streamOptions = (id: string) => id.replace(/-interp$/, '') === 'x64-gl' ? glStream() : undefined;
+const streamOptions = (id: string) => ['x64-gl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {
@@ -41,6 +41,14 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{ 
   const byFrame = new Map<number, OracleStep[]>();
   for (const st of script) byFrame.set(st.frame, [...(byFrame.get(st.frame) ?? []), st]);
   try {
+    // The smoke's measured 600-frame loop follows deterministic shader/file startup.
+    // Recorder-only pre-roll is identical in both builds and remains part of the trace hash.
+    const startup: string[] = [];
+    if (id.replace(/-interp$/, '') === 'x64-smoke') for (let f=0;f<20;f++) {
+      await h.stepAsync(1);
+      if (h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
+      startup.push((h.host.stateHash() ?? '') + ':' + stream!.frameHash());
+    }
     for (let f = 0; f < frames; f++) {
       for (const st of byFrame.get(f) ?? []) {
         if (st.pointer) h.pointer(...st.pointer);
@@ -49,7 +57,8 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{ 
       await h.stepAsync(1); // settle external range I/O before advancing deterministic guest time
       /* LANE-GL: compare semantic GPU bytes too, not just the first four integer API arguments. */
       if (stream && h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
-      hashes.push((h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : ''));
+      hashes.push((f === 0 && startup.length ? startup.join('|') + '|' : '') +
+        (h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : ''));
     }
   } catch (e) {
     error = (e as Error).message;

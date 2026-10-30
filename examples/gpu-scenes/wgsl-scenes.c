@@ -4,7 +4,10 @@
 static uint32_t strlen(const char *s) { uint32_t n=0; while(s[n]) n++; return n; }
 static void strcpy(char *d,const char *s) { while((*d++=*s++)) {} }
 static void strcat(char *d,const char *s) { strcpy(d+strlen(d),s); }
-BGT_DEFINE_IO(io)
+/* Additional native-WGSL/lifetime cases share the one fixture and IO block.
+ * arg1=2 selects these cases; arg1=3 selects their GLSLES variant. */
+static bgt_io_t *shared_io;
+#define io (*shared_io)
 static uint8_t async_buf[65536] __attribute__((aligned(16)));
 static uint32_t commands[16384], scene, ready, checks, frames, captured;
 static bgt_cmdbuf_t cb;
@@ -111,8 +114,8 @@ static void draw(void) {
     bgt_gpu_draw_indexed_t a={scene==0?3:6,scene==4?1000:1,0,0,scene==4?1:0};
     bgt_cmd_gpu_draw_indexed(&cb,&a);
 }
-BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
-    (void)p; io.logical_width=64; io.logical_height=64; scene=io.arg0;
+int32_t wgsl_init(bgt_io_t *p) {
+    shared_io=p; io.logical_width=64; io.logical_height=64; scene=io.arg0;
     if (!(io.caps&BGT_CAP_GPU)) return 0;
     bgt_cmd_init(&cb,commands,sizeof commands);
     buffer(1,1,scene==0?vertices:quad,scene==0?sizeof vertices:sizeof quad);
@@ -137,7 +140,7 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     }
     if(scene==3) texture(4,64,1,5,2);
     if(scene==6) {
-        if(io.arg1==1) {
+        if(io.arg1==3) {
             strcpy(source,"#version 300 es\nprecision highp float;\n");
             strcat(source,glsl_vs+18); shader(1,1,2,source); submit();
             strcpy(source,"#version 300 es\nprecision highp float;\n");
@@ -172,7 +175,7 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     bgt_gpu_sampler_delete_t sd={9}; bgt_cmd_gpu_sampler_delete(&cb,&sd);
     submit(); return 0;
 }
-BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
+void wgsl_update(uint32_t dt) {
     (void)dt;
     if(!(io.caps&BGT_CAP_GPU)) { for(;;) bgt_yield(); }
     while(!ready) {
@@ -222,7 +225,7 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
         frames++; bgt_yield();
     }
 }
-BGT_EXPORT(bgt_render) void bgt_render(void) {
+void wgsl_render(void) {
     if(!ready) return;
     bgt_cmd_reset(&cb);
     if(scene==5) {
@@ -253,5 +256,5 @@ BGT_EXPORT(bgt_render) void bgt_render(void) {
     }
     submit();
 }
-BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return checks; }
-BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
+uint32_t wgsl_state_hash(void) { return checks; }
+

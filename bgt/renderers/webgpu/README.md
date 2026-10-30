@@ -7,10 +7,12 @@ ceilings and guest interfaces are unchanged; this implementation adds no ABI fie
 ## Ordering and pixels
 
 `Frame.items` remains the ordering authority. Resource changes, pass boundaries and readback flush 2D passes.
-A frame containing GPU passes uses one RGBA8 **logical-size** surface for both 2D and GPU commands, followed
-by a nearest-sampled letterboxed presentation. GPU screen load, legacy blending and request readback all
-observe that same surface. Frames without GPU passes retain the original physical-pixel 2D raster path,
-including its fractional-scale edge coverage. There is no second canvas or guest texture-namespace alias.
+After the first GPU **screen** pass, one retained RGBA8 **logical-size** surface holds both 2D and GPU commands,
+followed by nearest-sampled letterboxed presentation. GPU screen LOAD, legacy blending and request readback all
+observe that surface, including later 2D-only/resource-only submissions. Guests that never use GPU screen passes
+retain the original physical-pixel 2D raster path, including its fractional-scale edge coverage. A final physical
+snapshot preserves update-driven guests during empty paused captures; resize crops the old letterbox into the
+new one rather than stretching bars or clearing the image. Device loss invalidates these attachment snapshots. There is no second canvas or guest texture-namespace alias.
 
 `gpu.ts` consumes owned decoder snapshots; no browser operation reads guest upload pointers. It implements
 strip-to-list expansion (all-ones indices are not restart), signed base vertex and first instance, and repacks
@@ -28,7 +30,7 @@ build-time shader conversion, shader-name lookup, or engine-specific shader subs
 The practical frontend supports the §13 block/sampler naming convention, std140 scalar/vector/matrix
 members and explicitly padded arrays, named/instance uniform blocks, attributes, name-linked varyings,
 interpolation qualifiers, helper functions, local/global declarations, arithmetic, casts/constructors,
-indexing, swizzles (including writes), conditionals, loops, discard, common math/derivative builtins,
+fixed-size array constructors/indexing, swizzles (including writes), conditionals, loops, discard, common math/derivative builtins,
 texture/explicit-LOD/gradient/fetch/size operations, comparison depth sampling, portable IDs, and top-left
 fragment coordinates. `gl_FragCoord` is accepted as an additional frontend alias of `bgt_frag_coord`, as
 requested by lane WG; clip z remains BGT [0,w], not legacy GL [-w,w]. GLSL mat2 uniform columns receive
@@ -59,7 +61,8 @@ explicit diagnostic if the fallback cannot restore them.
 
 ## Tests
 
-- `examples/gpu-scenes-wgpu/scenes.c`: original CC0 native C fixture, same eight scene categories as WebGL 2;
+- [`examples/gpu-scenes`](../../../examples/gpu-scenes/README.md): one fixture/common GLSL golden for both backends;
+  its `wgsl-scenes.c` retains additional native-WGSL and shader-lifetime cases selected with arg1=2/3;
   exact guest request readback and pixel expectations, indexed triangle, mip alpha, MRT, depth/stencil,
   1,000 sprites with nonzero first instance, animation, GLSL/WGSL, and interleaving.
 - `tests/e2e/gpu-webgpu.spec.ts`: all eight pixel scenes and resource/pipeline restoration.

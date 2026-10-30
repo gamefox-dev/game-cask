@@ -20,6 +20,8 @@ static PFNGLCREATEPROGRAMPROC glCreateProgram;
 static PFNGLCREATESHADERPROC glCreateShader;
 static PFNGLDELETESHADERPROC glDeleteShader;
 static PFNGLDEPTHFUNCPROC glDepthFunc;
+static PFNGLDEPTHRANGEPROC glDepthRange;
+static PFNGLSCISSORPROC glScissor;
 static PFNGLDISABLEPROC glDisable;
 static PFNGLDRAWARRAYSPROC glDrawArrays;
 static PFNGLDRAWARRAYSINSTANCEDPROC glDrawArraysInstanced;
@@ -89,6 +91,8 @@ static void load_gl(void) {
     glCreateShader = (PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader");
     glDeleteShader = (PFNGLDELETESHADERPROC)wglGetProcAddress("glDeleteShader");
     glDepthFunc = (PFNGLDEPTHFUNCPROC)wglGetProcAddress("glDepthFunc");
+    glDepthRange = (PFNGLDEPTHRANGEPROC)wglGetProcAddress("glDepthRange");
+    glScissor = (PFNGLSCISSORPROC)wglGetProcAddress("glScissor");
     glDisable = (PFNGLDISABLEPROC)wglGetProcAddress("glDisable");
     glDrawArrays = (PFNGLDRAWARRAYSPROC)wglGetProcAddress("glDrawArrays");
     glDrawArraysInstanced = (PFNGLDRAWARRAYSINSTANCEDPROC)wglGetProcAddress("glDrawArraysInstanced");

@@ -1,5 +1,0 @@
-{
-  "id": "gpu-scenes-wgpu", "name": "WebGPU scenes (CC0)", "license": "CC0-1.0", "private": false,
-  "sources": ["scenes.c"], "asyncify": true,
-  "touch": { "dpad": false, "buttons": [] }
-}

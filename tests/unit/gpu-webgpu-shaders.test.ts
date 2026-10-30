@@ -16,6 +16,15 @@ void main() {
 }`;
 
 describe('WebGPU engine-independent GLSL frontend and ABI reflection', () => {
+  it('lowers fixed-size vector array constructors with typed elements and rejects wrong lengths', () => {
+    const code=translateGLSL(`#version 330 core
+void main(){ vec2 p[3]=vec2[3](vec2(-1,1),vec2(-1,-1),vec2(1,-1));
+gl_Position=vec4(p[bgt_vertex_index],0.5,1); }`,1,1);
+    expect(code).toContain('var p: array<vec2f, 3> = array<vec2f, 3>');
+    expect(code).toContain('p[bgt_vertex_index]');
+    expect(() => translateGLSL('#version 330 core\nvoid main(){vec2 p[2]=vec2[2](vec2(1));}',1,1))
+      .toThrow('array constructor requires 2 elements');
+  });
   it('translates std140 matrices, instance block names and in/out varyings', () => {
     const code = translateGLSL(vs, 1, 1);
     expect(code).toContain('@vertex fn vs_main');

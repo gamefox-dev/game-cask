@@ -9,19 +9,19 @@ interface State {
   phase: number; frame: number; pixel: number; read: number; error: number; compiled: number; events: number;
   caps: number; languages: number;
 }
-async function boot(page: Page, scene: number): Promise<State> {
-  expect(await openGame(page, 'webgl2', { game: 'gpu-scenes', arg0: String(scene), debug: '1' })).toBe('ready');
+async function boot(page: Page, scene: number, backend = 'webgl2'): Promise<State> {
+  expect(await openGame(page, backend, { game: 'gpu-scenes', arg0: String(scene), debug: '1' })).toBe('ready');
   for (let i = 0; i < 8; i++) {
     await step(page, 1);
     if ((await debugState<State>(page))?.read) break;
   }
   const s = await debugState<State>(page);
   expect(s.phase, 'CAP_GPU and compiled resources must be usable').toBe(1);
-  expect(s.caps & (1 << 12)).toBe(1 << 12); expect(s.languages).toBe(6);
+  expect(s.caps & (1 << 12)).toBe(1 << 12); expect(s.languages).toBe(backend === 'webgpu' ? 7 : 6);
   expect(s.compiled).toBe(12); expect(s.error, JSON.stringify(await diagnostics(page))).toBe(0); expect(s.read).toBe(1);
   expect(await stateHash(page)).toBe('000c0101');
   const d = await diagnostics(page);
-  expect(d.backend).toBe('webgl2'); expect(d.commandErrors.count).toBe(0); expect(d.errors).toEqual([]);
+  expect(d.backend).toBe(backend); expect(d.commandErrors.count).toBe(0); expect(d.errors).toEqual([]);
   return s;
 }
 async function sample(page: Page, x: number, y: number): Promise<number[]> {
@@ -35,9 +35,9 @@ function near(actual: number[], expected: number[], tolerance = 2): void {
 function requestPixel(s: State): number[] { return [s.pixel&255, (s.pixel>>>8)&255, (s.pixel>>>16)&255, s.pixel>>>24]; }
 
 // Catches indexed/base-vertex rebasing, varying interpolation and top-left orientation regressions.
-test('GPU WebGL2: indexed RGB triangle, GLSL330 and ordered ABI readback', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 0);
+test('GPU shared: indexed RGB triangle, GLSL330 and ordered ABI readback', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 0, backendParam);
   near(await sample(page, 80, 64), [63, 65, 127, 255], 4);
   near(requestPixel(s), [63, 65, 127, 255], 4);
   near(await sample(page, 80, 22), [12, 14, 229, 255], 5);
@@ -45,17 +45,17 @@ test('GPU WebGL2: indexed RGB triangle, GLSL330 and ordered ABI readback', async
 });
 
 // Catches ignored mip selection and incorrect separate-alpha blending.
-test('GPU WebGL2: alpha textured quad uses uploaded mip one', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 1);
+test('GPU shared: alpha textured quad uses uploaded mip one', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 1, backendParam);
   near(await sample(page, 80, 64), [128, 0, 128, 255]);
   near(requestPixel(s), [128, 0, 128, 255]);
 });
 
 // Catches dropping a second color output, feedback mistakes and render-target sampling orientation.
-test('GPU WebGL2: two rendered color attachments are sampled together', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 2);
+test('GPU shared: two rendered color attachments are sampled together', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 2, backendParam);
   near(await sample(page, 80, 20), [128, 0, 128, 255]);
   near(await sample(page, 80, 100), [0, 128, 128, 255]);
   near(await sample(page, 80, 64), [0, 128, 128, 255]);
@@ -63,27 +63,27 @@ test('GPU WebGL2: two rendered color attachments are sampled together', async ({
 });
 
 // Catches ignored stencil reference/mask, depth comparison/write, and scissor conversion.
-test('GPU WebGL2: near red wins depth only inside stencil mask', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 3);
+test('GPU shared: near red wins depth only inside stencil mask', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 3, backendParam);
   near(await sample(page, 40, 64), [255, 0, 0, 255]);
   near(await sample(page, 120, 64), [0, 0, 0, 255]);
   near(requestPixel(s), [0, 0, 0, 255]);
 });
 
 // Catches non-instanced fallback draws, broken instance attributes and instance-index builtin semantics.
-test('GPU WebGL2: 1,000 instance-buffer sprites including final instance', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 4);
+test('GPU shared: 1,000 instance-buffer sprites including final instance', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 4, backendParam);
   near(await sample(page, 2, 2), [0, 255, 255, 255]);
   near(await sample(page, 158, 125), [255, 0, 255, 255]);
   near(requestPixel(s), await sample(page, 80, 64));
 });
 
 // Catches missing ordered buffer updates, uniformBlockBinding and stale uniform ranges.
-test('GPU WebGL2: std140 uniform buffer animation changes pixels', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 5), before = await sample(page, 80, 64);
+test('GPU shared: std140 uniform buffer animation changes pixels', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 5, backendParam), before = await sample(page, 80, 64);
   near(requestPixel(s), [Math.round(255/59), Math.round(255*58/59), 0, 255], 5);
   await step(page, 20);
   const after = await sample(page, 80, 64);
@@ -91,18 +91,18 @@ test('GPU WebGL2: std140 uniform buffer animation changes pixels', async ({ page
 });
 
 // Catches ES version handling and native bottom-left fragment coordinate leakage.
-test('GPU WebGL2: GLSLES300 portable fragment positions are top-left', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 6);
+test('GPU shared: GLSLES300 portable fragment positions are top-left', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 6, backendParam);
   near(await sample(page, 80, 20), [255, 255, 0, 255]);
   near(await sample(page, 80, 100), [0, 255, 255, 255]);
   near(requestPixel(s), [0, 255, 255, 255]);
 });
 
 // Catches GPU/2D reordering, state leakage and screen LOAD erasing earlier 2D output.
-test('GPU WebGL2: legacy 2D, GPU load/viewport, then legacy 2D share one screen', async ({ page, backendParam }) => {
-  test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
-  const s = await boot(page, 7);
+test('GPU shared: legacy 2D, GPU load/viewport, then legacy 2D share one screen', async ({ page, backendParam }) => {
+
+  const s = await boot(page, 7, backendParam);
   near(await sample(page, 10, 10), [30, 40, 50, 255]);
   near(await sample(page, 50, 40), [0, 255, 0, 255]);
   near(await sample(page, 80, 60), [255, 0, 0, 255]);

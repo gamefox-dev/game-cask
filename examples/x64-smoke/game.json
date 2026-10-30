@@ -1,0 +1,11 @@
+{
+  "id": "x64-smoke", "name": "GL threaded audio/input/file smoke (CC0)", "private": false, "license": "CC0-1.0",
+  "assets": "assets",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86_64-windows-gnu", "crt": true, "sources": ["smoke.c"], "out": "smoke.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32", "ole32", "uuid", "propsys", "xinput1_4"]},
+    "modules": [{"from": "./build/smoke.exe", "name": "smoke.exe", "main": true}], "width": 320, "height": 200
+  },
+  "touch": {"dpad": false, "buttons": []}
+}

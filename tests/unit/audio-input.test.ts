@@ -29,6 +29,7 @@ it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and
   }
   expect(logs.some((s) => s.includes('x64-audio PASS')), logs.join('\n')).toBe(true);
   expect(logs.filter((s) => s.includes('x64-audio worker event PASS'))).toHaveLength(2);
+  expect(logs.some(s => s.includes('x64-audio audio thread joined PASS'))).toBe(true);
   expect(samples.length).toBe(48000 * 2);
   for (let pass = 0; pass < 2; pass++) {
     const left = samples.slice(pass * 48000, (pass + 1) * 48000).filter((_, i) => !(i & 1));

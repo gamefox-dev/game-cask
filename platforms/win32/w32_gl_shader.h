@@ -76,8 +76,10 @@ static char *translate(Program *p, Shader *shader) {
         text(out, &n, "uniform "); text(out, &n, p->u[i].type); text(out, &n, " bgt_t");
         number(out, &n, p->u[i].sampler - 1); text(out, &n, ";\n");
     }
-    text(out, &n, "#define texture(S,U) texture(S,vec2((U).x,1.0-(U).y))\n");
-    text(out, &n, "#define textureLod(S,U,L) textureLod(S,vec2((U).x,1.0-(U).y),L)\n");
+    /* Lower coordinates as an ordinary function: §13 GLSL need not implement preprocessing.
+     * Unlike the former macros this also evaluates side-effecting UV expressions once. */
+    text(out, &n, "vec2 bgt_gl_uv(vec2 uv){return vec2(uv.x,1.0-uv.y);}\n");
+    uint32_t depth = 0, sampling[128] = {0}, pending_sample = 0;
     while (*s && (uint8_t)*s <= 32) s++;
     if (*s == '#') { while (*s && *s != '\n') s++; }
     while (*s) {
@@ -91,12 +93,27 @@ static char *translate(Program *p, Shader *shader) {
             while (s < end && n < 1048500) out[n++] = *s++;
             continue;
         }
-        if (!ident(*s)) { if (n < 1048500) out[n++] = *s; s++; continue; }
+        if (!ident(*s)) {
+            if (*s == '(') {
+                if (++depth >= 128) return 0;
+                sampling[depth] = pending_sample; pending_sample = 0;
+            } else if (*s == ',' && depth && sampling[depth]) {
+                if (sampling[depth] == 1) {
+                    text(out, &n, ",bgt_gl_uv("); sampling[depth] = 2; s++; continue;
+                }
+                if (sampling[depth] == 2) { text(out, &n, ")"); sampling[depth] = 3; }
+            } else if (*s == ')' && depth) {
+                if (sampling[depth] == 2) text(out, &n, ")");
+                sampling[depth--] = 0;
+            }
+            if (n < 1048500) out[n++] = *s; s++; continue;
+        }
         s = token(s, t, sizeof t); if (!t[0]) break;
         if (eq(t, "uniform")) {
             const char *end = token(s, type, sizeof type); end = token(end, name, sizeof name);
             if (!eq(name, "{")) { while (*end && *end != ';') end++; if (*end) end++; s = end; continue; }
         }
+        if (eq(t, "texture") || eq(t, "textureLod")) pending_sample = 1;
         if (eq(t, "gl_VertexID")) text(out, &n, "int(bgt_vertex_index)");
         else if (eq(t, "gl_InstanceID")) text(out, &n, "int(bgt_instance_index)");
         else if (eq(t, "gl_FragCoord"))

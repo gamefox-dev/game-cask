@@ -9,7 +9,7 @@ for (const [scene, name] of scenes.entries()) test(`WebGPU §13 native: ${name}`
   async ({ page, backendParam, collector }, info) => {
   void collector;
   test.skip(backendParam !== 'webgpu', 'WebGPU lane fixture; WebGL has its own equivalent fixture');
-  await openGame(page, backendParam, { game: 'gpu-scenes-wgpu', arg0: String(scene) });
+  await openGame(page, backendParam, { game: 'gpu-scenes', arg1: '2', arg0: String(scene) });
   await assertBackend(page, backendParam, info);
   for (let i = 0; i < 40 && await stateHash(page) !== '00000003'; i++) {
     await step(page, 1); await page.waitForTimeout(10);
@@ -50,7 +50,7 @@ for (const recoveryScene of [1, 2, 3, 6])
   async ({ page, backendParam, collector }, info) => {
   void collector;
   test.skip(backendParam !== 'webgpu');
-  await openGame(page, backendParam, { game: 'gpu-scenes-wgpu', arg0: String(recoveryScene) });
+  await openGame(page, backendParam, { game: 'gpu-scenes', arg1: '2', arg0: String(recoveryScene) });
   await assertBackend(page, backendParam, info);
   for (let i = 0; i < 30 && await stateHash(page) !== '00000003'; i++) {
     await step(page, 1); await page.waitForTimeout(10);

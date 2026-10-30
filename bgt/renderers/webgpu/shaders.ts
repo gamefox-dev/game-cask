@@ -154,7 +154,7 @@ class GLSL {
         bodies.push(`${signature}${type === 'void' ? '' : ` -> ${type}`} ${body}`);
       } else {
         const suffix = this.array(type); this.variables.set(name, { code: name, type: suffix });
-        const init = this.eat('=') ? this.convert(this.expression(), type).code : undefined; this.need(';');
+        const init = this.eat('=') ? this.convert(this.expression(), suffix).code : undefined; this.need(';');
         if (constant && !init) this.fail('const requires initializer');
         this.declarations.push(`${constant ? 'const' : 'var<private>'} ${name}: ${suffix}${init ? ` = ${init}` : ''};`);
       }
@@ -279,7 +279,7 @@ class GLSL {
     if (types[this.peek()] || ['highp', 'mediump', 'lowp'].includes(this.peek())) {
       const type = this.type(), n = this.name(), array = this.array(type);
       this.variables.set(n, { code: n, type: array });
-      const init = this.eat('=') ? this.convert(this.expression(), type).code : undefined;
+      const init = this.eat('=') ? this.convert(this.expression(), array).code : undefined;
       this.locals.add(n);
       result = `${constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''}`;
       if (this.peek() === ',') this.fail('split multiple variable declarations into separate statements');
@@ -323,6 +323,15 @@ class GLSL {
       if (type === 'i32') code += 'i';
       lhs = { code, type };
     } else if (n === 'true' || n === 'false') lhs = { code: n, type: 'bool' };
+    else if (types[n] && this.peek() === '[') {
+      const type = this.array(types[n]), count = Number(/, (\d+)>$/.exec(type)![1]);
+      this.need('('); const args: Expr[] = [];
+      if (!this.eat(')')) {
+        do { args.push(this.convert(this.expression(), types[n])); } while (this.eat(',')); this.need(')');
+      }
+      if (args.length !== count) this.fail(`array constructor requires ${count} elements`);
+      lhs = { code: `${type}(${args.map(a => a.code).join(', ')})`, type };
+    }
     else if (this.peek() === '(') lhs = this.call(n);
     else {
       const v = this.variables.get(n); if (!v) this.fail(`unknown identifier '${n}'`); lhs = { ...v };

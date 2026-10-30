@@ -18,7 +18,7 @@ static DWORD WINAPI audio_waiter(void *event) {
     void *missing = (void *)1;
     if (CoCreateInstance(&CLSID_MMDeviceEnumerator, 0, CLSCTX_INPROC_SERVER,
         &IID_IMMDeviceEnumerator, &missing) != CO_E_NOTINITIALIZED || missing) return 2;
-    /* Main uses MTA: a fresh worker may independently nest STA initialization. */
+    /* Audio owner uses MTA: a fresh worker may independently nest STA initialization. */
     if (CoInitializeEx(0, COINIT_APARTMENTTHREADED) != S_OK || CoInitialize(0) != S_FALSE ||
         CoInitializeEx(0, COINIT_MULTITHREADED) != RPC_E_CHANGED_MODE) return 3;
     SetLastError(0x51a1u);
@@ -30,7 +30,8 @@ static DWORD WINAPI audio_waiter(void *event) {
         &IID_IMMDeviceEnumerator, &missing) != CO_E_NOTINITIALIZED || missing) return 4;
     return 0xa11du;
 }
-int main(void) {
+DWORD WINAPI audio_main(void *unused) {
+    (void)unused;
     IMMDeviceEnumerator *enumerator;
     IMMDevice *device;
     IAudioClient *client;
@@ -86,6 +87,9 @@ int main(void) {
         if (IAudioRenderClient_GetBuffer(render, capacity + 1, &bad) != AUDCLNT_E_BUFFER_TOO_LARGE || bad)
             ExitProcess(13);
         UINT32 written = 0, target = format->nSamplesPerSec / 2;
+#ifdef AUDIO_LONG_STREAM
+        target = format->nSamplesPerSec * 5; /* Smoke: ten seconds, covering its 600-frame loop. */
+#endif
         int running = 0;
         while (written < target) {
             check(IAudioClient_GetCurrentPadding(client, &padding));
@@ -131,6 +135,24 @@ int main(void) {
     CoTaskMemFree(format);
     IMMDevice_Release(device); IMMDeviceEnumerator_Release(enumerator);
     CloseHandle(event); CoUninitialize(); CoUninitialize();
+#ifdef AUDIO_LONG_STREAM
+    OutputDebugStringA("x64-audio PASS float32=240000 int16=120000 stereo 1000Hz duration=10000ms");
+#else
     OutputDebugStringA("x64-audio PASS float32=24000 int16=12000 stereo 1000Hz duration=1000ms");
+#endif
+    return 0xa0d10u;
+}
+#ifndef AUDIO_LIBRARY
+int main(void) {
+    HANDLE thread = CreateThread(0, 0, audio_main, 0, 0, 0);
+    if (!thread) ExitProcess(21);
+    /* Primary thread does not own a client or poll its event: only the audio thread renders. */
+    check(CoInitializeEx(0, COINIT_APARTMENTTHREADED));
+    if (WaitForSingleObject(thread, 3000) != WAIT_OBJECT_0) ExitProcess(22);
+    DWORD code;
+    if (!GetExitCodeThread(thread, &code) || code != 0xa0d10u) ExitProcess(23);
+    CloseHandle(thread); CoUninitialize();
+    OutputDebugStringA("x64-audio audio thread joined PASS");
     for (;;) Sleep(16);
 }
+#endif

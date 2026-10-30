@@ -51,6 +51,7 @@ export class WebGL2Renderer implements Renderer {
   private targets = new Map<number, { fbo: WebGLFramebuffer; w: number; h: number }>();
   private samplers: WebGLSampler[] = [];
   private white!: WebGLTexture;
+  private snapshot?: { texture: WebGLTexture; fbo: WebGLFramebuffer; w: number; h: number; lb: Letterbox };
   private textures = new Map<number, WebGLTexture>();
   private lostCbs: Array<(r: string) => void> = [];
   private restoredCbs: Array<() => void> = [];
@@ -111,6 +112,7 @@ export class WebGL2Renderer implements Renderer {
 
   private initResources(): void {
     const gl = this.gl;
+    this.snapshot = undefined;
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const p = gl.createProgram()!;
     gl.attachShader(p, this.compile(gl.VERTEX_SHADER, VS));
@@ -252,6 +254,14 @@ export class WebGL2Renderer implements Renderer {
     };
     bindTarget(0);
 
+    if (this.snapshot) {
+      const old = this.snapshot.lb;
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.snapshot.fbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null); gl.disable(gl.SCISSOR_TEST);
+      gl.blitFramebuffer(old.x, this.snapshot.h-old.y-old.h, old.x+old.w, this.snapshot.h-old.y,
+        lb.x, H-lb.y-lb.h, lb.x+lb.w, H-lb.y, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.enable(gl.SCISSOR_TEST);
+    }
     let gpuDirty = false;
     for (const it of frame.items) {
       if (it.kind !== 'gpu' && gpuDirty) {
@@ -344,6 +354,22 @@ export class WebGL2Renderer implements Renderer {
 
     gl.useProgram(this.program);
     bindTarget(0);
+    // Retain the final physical image, including any legacy draws after a GPU pass.
+    // Win32 guests submit in update: repeated paused captures must not erase their screen.
+    if (frame.items.length && (this.snapshot || frame.items.some(it => it.kind === 'gpu'))) {
+      if (this.snapshot?.w !== this.canvas.width || this.snapshot.h !== H) {
+        if (this.snapshot) { gl.deleteTexture(this.snapshot.texture); gl.deleteFramebuffer(this.snapshot.fbo); }
+        const texture = this.makeTexture(this.canvas.width, H), fbo = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        this.snapshot = { texture, fbo, w: this.canvas.width, h: H, lb: { ...lb } };
+      }
+      this.snapshot.lb = { ...lb };
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.snapshot.fbo); gl.disable(gl.SCISSOR_TEST);
+      gl.blitFramebuffer(0, 0, this.canvas.width, H, 0, 0, this.canvas.width, H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     let out: Pixels | null = null;
     if (readback) {
       const w = this.canvas.width;

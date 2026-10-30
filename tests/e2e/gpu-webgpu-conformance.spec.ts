@@ -10,7 +10,7 @@ test('WebGPU §13 all 25 opcodes execute, including deletion and handle reuse',
     test.skip(backendParam !== 'webgpu');
     const seen = new Set<number>();
     for (const scene of [0, 1, 3, 5, 7]) {
-      await openGame(page, backendParam, { game: 'gpu-scenes-wgpu', arg0: String(scene) });
+      await openGame(page, backendParam, { game: 'gpu-scenes', arg1: '2', arg0: String(scene) });
       await assertBackend(page, backendParam, info);
       for (let i = 0; i < 40 && await stateHash(page) !== '00000003'; i++) {
         await step(page, 1); await page.waitForTimeout(10);
@@ -27,7 +27,7 @@ test('WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330',
   async ({ page, backendParam, collector }, info) => {
     void collector;
     test.skip(backendParam !== 'webgpu');
-    await openGame(page, backendParam, { game: 'gpu-scenes-wgpu', arg0: '6', arg1: '1' });
+    await openGame(page, backendParam, { game: 'gpu-scenes', arg1: '3', arg0: '6' });
     await assertBackend(page, backendParam, info);
     for (let i = 0; i < 40 && await stateHash(page) !== '00000003'; i++) {
       await step(page, 1); await page.waitForTimeout(10);
@@ -40,7 +40,7 @@ test('WebGPU §13 stops rather than silently dropping live resources on unrecove
   async ({ page, backendParam, collector }, info) => {
     collector.allow(/device lost|Cannot restore live GPU resources|recovery disabled/i);
     test.skip(backendParam !== 'webgpu');
-    await openGame(page, backendParam, { game: 'gpu-scenes-wgpu', arg0: '1' });
+    await openGame(page, backendParam, { game: 'gpu-scenes', arg1: '2', arg0: '1' });
     await assertBackend(page, backendParam, info);
     await step(page, 3);
     await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
