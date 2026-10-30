@@ -12,6 +12,9 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#define _POSIX_C_SOURCE 200809L
+#include <sys/mman.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,10 +95,12 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
     memset(pe, 0, sizeof *pe);
     if (len < 0x40 || d[0] != 'M' || d[1] != 'Z') die("not an MZ/PE file");
     uint32_t nt = r32(d + 0x3c);
-    if (nt + 248 > len || memcmp(d + nt, "PE\0\0", 4)) die("no PE header");
-    if (r16(d + nt + 4) != 0x14c) die("not an i386 image");
+    if ((uint64_t)nt + 248 > len || memcmp(d + nt, "PE\0\0", 4)) die("no PE header");
+    if (r16(d + nt + 4) == 0x8664) die("PE32+ / Win64 execution is not implemented (use analyze --metadata)");
+    if (r16(d + nt + 4) != 0x14c) die("unsupported PE machine (requires i386)");
     uint32_t opt = nt + 24, optsz = r16(d + nt + 20);
     if (r16(d + opt) != 0x10b) die("not PE32");
+    if (optsz < 224 || (uint64_t)opt + optsz > len) die("truncated PE32 optional header");
     pe->is_dll = (r16(d + nt + 22) & 0x2000) != 0;
     pe->pref_base = r32(d + opt + 28);
     pe->size = r32(d + opt + 56);
@@ -106,6 +111,7 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
     pe->img = xcalloc(pe->size, 1);
     memcpy(pe->img, d, hdrsz < len ? (hdrsz < pe->size ? hdrsz : pe->size) : len);
     uint32_t so = opt + optsz;
+    if ((uint64_t)so + pe->nsec * 40u > len) die("truncated PE section table");
     for (uint32_t i = 0; i < pe->nsec; i++) {
         const uint8_t *s = d + so + 40 * i;
         sect_t *t = &pe->sec[i];
@@ -114,7 +120,7 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
         uint32_t n = t->rawsize < t->vsize || !t->vsize ? t->rawsize : t->vsize;
         if (t->raw + n > len) n = t->raw < len ? len - t->raw : 0;
         if (t->va + n > pe->size) n = t->va < pe->size ? pe->size - t->va : 0;
-        memcpy(pe->img + t->va, d + t->raw, n);
+        if (n) memcpy(pe->img + t->va, d + t->raw, n);
     }
     pe->base = want_base ? want_base : pe->pref_base;
     pe->entry = r32(d + opt + 16) ? pe->base + r32(d + opt + 16) : 0;
@@ -556,11 +562,27 @@ static void emit_insn_struct(FILE *o, const x86_insn_t *in) {
     fprintf(o, "}}");
 }
 
-typedef struct { uint32_t specialized, generic, calls_direct, calls_indirect, jt_switch, unresolved; } lift_stats_t;
+typedef struct { uint32_t specialized, generic, calls_direct, calls_indirect, jt_switch, unresolved, flags_elided; } lift_stats_t;
 
 static int lifted_has(an_t *a, uint32_t addr) { return vhas(&a->known, addr); }
 static vec_t skip; /* functions provided by port overrides (sorted) */
 
+/* Conservative local flag liveness: only elide flag writes when every intervening instruction is
+ * known flag-neutral and the next flag user overwrites ALL arithmetic flags before reading any.
+ * Calls, branches, partial writers and generic semantics are barriers, including at function exit. */
+static int flag_liveness; /* opt-in until a workload proves a size/speed benefit */
+static int flags_dead(an_t *a, func_t *f, uint32_t k) {
+    if (!flag_liveness) return 0;
+    for (uint32_t i = k + 1; i < f->insns.n; i++) {
+        x86_insn_t in;
+        if (!decode_at(a->pe, f->insns.v[i - 1], &in) || in.addr + in.len != f->insns.v[i]) return 0;
+        if (!decode_at(a->pe, f->insns.v[i], &in) || vhas(&f->labels, in.addr)) return 0;
+        if (in.op <= XO_CMP && in.op != XO_ADC && in.op != XO_SBB) return 1;
+        if (in.op == XO_TEST) return 1;
+        if (in.op != XO_MOV && in.op != XO_MOVZX && in.op != XO_MOVSX && in.op != XO_LEA && in.op != XO_NOP) return 0;
+    }
+    return 0;
+}
 static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     char t1[200], t2[256], t3[512]; /* sized so the worst-case composition provably fits (gcc -Wformat-truncation) */
     if (vhas(&skip, f->addr)) { fprintf(o, "\n/* function %08x: provided by port/overrides (exception) */\n", f->addr); return; }
@@ -586,7 +608,11 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
         case XO_LEA: ea(t1, sizeof t1, B); wr(t3, sizeof t3, A, t1); fprintf(o, "%s", t3); break;
         case XO_ADD: case XO_OR: case XO_ADC: case XO_SBB: case XO_AND: case XO_SUB: case XO_XOR:
             rd(t1, sizeof t1, A); rd(t2, sizeof t2, B);
-            fprintf(o, "t = xs_alu(%u, %s, %s, %d); ", in.op, t1, t2, sz); wr(t3, sizeof t3, A, "t"); fprintf(o, "%s", t3); break;
+            if (in.op != XO_ADC && in.op != XO_SBB && flags_dead(a, f, k)) {
+                const char *op = in.op == XO_ADD ? "+" : in.op == XO_SUB ? "-" : in.op == XO_AND ? "&" : in.op == XO_OR ? "|" : "^";
+                fprintf(o, "t = (%s %s %s); ", t1, op, t2); st->flags_elided++;
+            } else fprintf(o, "t = xs_alu(%u, %s, %s, %d); ", in.op, t1, t2, sz);
+            wr(t3, sizeof t3, A, "t"); fprintf(o, "%s", t3); break;
         case XO_CMP: case XO_TEST: rd(t1, sizeof t1, A); rd(t2, sizeof t2, B);
             fprintf(o, "xs_alu(%u, %s, %s, %d);", in.op == XO_CMP ? XO_CMP : XO_AND, t1, t2, sz); break;
         case XO_INC: case XO_DEC: rd(t1, sizeof t1, A);
@@ -723,6 +749,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--name")) name = argv[i + 1];
         else if (!strcmp(argv[i], "--func")) func = (uint32_t)strtoul(argv[i + 1], 0, 16);
         else if (!strcmp(argv[i], "--out")) out = argv[i + 1];
+        else if (!strcmp(argv[i], "--flag-liveness")) flag_liveness = strcmp(argv[i + 1], "off") != 0;
         else if (!strcmp(argv[i], "--skip")) {
             for (char *s = argv[i + 1]; *s;) { vpush(&skip, (uint32_t)strtoul(s, &s, 16)); while (*s == ',') s++; }
             vsort_uniq(&skip);
@@ -737,11 +764,14 @@ int main(int argc, char **argv) {
     fseek(f, 0, SEEK_SET);
     if (len <= 0) die("empty input or unable to determine input size");
     if ((uint64_t)len > UINT32_MAX) die("input exceeds PE file-offset range (4 GiB)");
-    uint8_t *d = xcalloc((size_t)len, 1);
-    if (fread(d, 1, (size_t)len, f) != (size_t)len) die("short read");
-    fclose(f);
+    /* File-backed mapping faults in only headers and the virtual image's backed ranges.
+     * A huge raw overlay is never copied wholesale into the analyzer heap. POSIX host tool (macOS/Linux). */
+    const uint8_t *d = mmap(0, (size_t)len, PROT_READ, MAP_PRIVATE, fileno(f), 0);
+    if (d == MAP_FAILED) die("cannot map input file read-only");
     pe_t pe;
     pe_load(&pe, d, (uint32_t)len, base);
+    munmap((void *)d, (size_t)len);
+    fclose(f);
     an_t a;
     memset(&a, 0, sizeof a);
     a.pe = &pe;
@@ -763,8 +793,8 @@ int main(int argc, char **argv) {
                 name, a.nf, skip.n, a.nds, st.specialized, st.generic, st.jt_switch, st.unresolved);
         FILE *sf = fopen(strcat(strcpy(xcalloc(strlen(out) + 16, 1), out), ".stats.json"), "wb");
         if (sf) {
-            fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, \"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u}\n",
-                    a.nf, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved);
+            fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, \"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u, \"flagsElided\": %u}\n",
+                    a.nf, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved, st.flags_elided);
             fclose(sf);
         }
         return 0;

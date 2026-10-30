@@ -38,6 +38,7 @@ export const WASM_OPT_FEATURES = ['--enable-bulk-memory', '--enable-bulk-memory-
 
 export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=1048576', '-Wl,--strip-debug'];
 
+const readFileSyncBuffer = (file) => readFileSync(file);
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
 function walk(dir) {
@@ -64,6 +65,7 @@ export function loadGameConfig(gameDir) {
 }
 
 export function buildGame(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT } = {}) {
+  const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
   if (interpretOnly) {
@@ -106,8 +108,21 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     '-o',
     wasmPath,
   ];
+  let compileMetrics;
   try {
-    execFileSync(zig.path, args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+    if (cfg.pipeline) {
+      const cache = join(ROOT, 'node_modules/.cache/bgt/objects'); mkdirSync(cache, { recursive: true });
+      const compileFlags = [...CFLAGS, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
+      const headers = [...new Set([...includes.map((d) => join(ROOT,d)), gameDir].flatMap((d) => walk(d)).filter((f) => /\.(h|inc)$/.test(f)))].sort();
+      const common = Buffer.concat([Buffer.from(JSON.stringify([zig.version, compileFlags])), ...headers.map(readFileSyncBuffer)]);
+      const allSources = [...sources, join(ROOT,'bgt/sdk/bgt_libc.c')];
+      const objects = allSources.map((file) => {
+        const out = join(cache, sha256(Buffer.concat([common,Buffer.from(file),readFileSync(file)]))+'.o');
+        return { out, args:[zig.path,'cc',...compileFlags,'-c',file] };
+      });
+      const link = [zig.path,'cc',...CFLAGS,...objects.map((o) => o.out),...LDFLAGS,...(cfg.ldflags ?? []),'-o',wasmPath];
+      compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+    } else execFileSync(zig.path, args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
   } catch {
     throw new Error(`compile failed for ${cfg.id} (zig ${zig.version})`);
   }
@@ -178,7 +193,14 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     input: cfg.input ?? {},
     toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
   };
-  if (pipe) manifest.pipeline = pipe.report;
+  if (pipe) {
+    manifest.pipeline = pipe.report;
+    const instructions = pipe.report.modules.reduce((n,m) => n+(m.lift ? m.lift.specialized+m.lift.generic : 0),0);
+    manifest.pipeline.metrics = { ...compileMetrics, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+      wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
+      wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
+    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B`);
+  }
   if (check) {
     rmSync(outDir, { recursive: true, force: true });
   } else {

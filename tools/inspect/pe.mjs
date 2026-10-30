@@ -61,5 +61,8 @@ export function peMetadata(readAt, fileSize) {
   const timestamp = coff.readUInt32LE(8), subsystem = opt.readUInt16LE(68);
   return { machine: MACH[coff.readUInt16LE(4)] ?? `0x${coff.readUInt16LE(4).toString(16)}`, pe32plus: plus,
     subsystem: SUB[subsystem] ?? subsystem, dll: !!(coff.readUInt16LE(22) & 0x2000), timestamp: timestamp ? new Date(timestamp * 1000).toISOString() : null,
-    sections: sections.map((s) => s.name), sectionTable: sections, imports, importErrors, facts, clr: directory(14)[0] > 0 };
+    sections: sections.map((s) => s.name), sectionTable: sections, imports, importErrors, facts, clr: directory(14)[0] > 0,
+    imageBase: `0x${(plus ? opt.readBigUInt64LE(24) : BigInt(opt.readUInt32LE(28))).toString(16)}`,
+    entryRva: opt.readUInt32LE(16), imageBytes: opt.readUInt32LE(56), headerBytes: opt.readUInt32LE(60),
+    directories: Array.from({ length: 16 }, (_, i) => directory(i)), rvaToOffset: off };
 }

@@ -22,6 +22,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, wri
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
+import { peMetadata } from '../inspect/pe.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -72,8 +73,10 @@ export function buildFixture(gameDir, fx, outDir) {
     resFile = join(outDir, basename(fx.out) + '.res');
     writeFileSync(resFile, buildRes(JSON.parse(readFileSync(join(gameDir, fx.resources), 'utf8')), join(gameDir, fx.resources, '..')));
   }
-  const args = ['cc', '-target', 'x86-windows-gnu', '-mcpu=i686', '-O1', '-fno-stack-protector', '-nostdlib', '-isystem', zigWinInclude(),
-    `-Wl,--entry,${fx.entry ?? 'entry'}`, '-Wl,--subsystem,windows', '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
+  const target = fx.target ?? 'x86-windows-gnu';
+  if (!['x86-windows-gnu','x86_64-windows-gnu'].includes(target)) throw new Error(`unsupported fixture target ${target}`);
+  const args = [fx.cpp ? 'c++' : 'cc', '-target', target, ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables','-fno-lto']), '-O1', '-fno-stack-protector', '-nostdlib', '-isystem', zigWinInclude(),
+    `-Wl,--entry,${fx.entry ?? 'entry'}`, '-Wl,--subsystem,windows', ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []), '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
   execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
@@ -110,33 +113,16 @@ function resolveModule(gameDir, spec, fixtureFiles) {
 function peInfo(file) {
   const b = readFileSync(file);
   const nt = b.readUInt32LE(0x3c), opt = nt + 24;
+  if (b.readUInt16LE(nt + 4) === 0x8664 || b.readUInt16LE(opt) === 0x20b)
+    throw new Error('pipeline: kit gap: PE32+ / Win64 execution is not implemented; analyze --metadata is static only (never truncate 64-bit pointers into the i386 profile)');
   return { base: b.readUInt32LE(opt + 28), size: b.readUInt32LE(opt + 56), relocs: b.readUInt32LE(opt + 96 + 5 * 8) !== 0, importDlls: peImportDlls(b) };
 }
 
 /** Names of the DLLs a PE32 image imports statically (import directory), in file order. */
 export function peImportDlls(b) {
-  const nt = b.readUInt32LE(0x3c), opt = nt + 24, nsec = b.readUInt16LE(nt + 6), optsz = b.readUInt16LE(nt + 20);
-  const secs = [];
-  for (let i = 0; i < nsec; i++) {
-    const o = opt + optsz + 40 * i;
-    secs.push({ va: b.readUInt32LE(o + 12), vsize: b.readUInt32LE(o + 8), raw: b.readUInt32LE(o + 20), rawsize: b.readUInt32LE(o + 16) });
-  }
-  const off = (rva) => {
-    for (const s of secs) if (rva >= s.va && rva < s.va + Math.max(s.vsize, s.rawsize)) return s.raw + (rva - s.va);
-    return rva < b.length ? rva : -1;
-  };
-  const imp = b.readUInt32LE(opt + 96 + 8), out = [];
-  if (!imp) return out;
-  for (let de = off(imp); de >= 0 && de + 20 <= b.length; de += 20) {
-    const name = b.readUInt32LE(de + 12), iat = b.readUInt32LE(de + 16);
-    if (!name && !iat) break;
-    const p = off(name);
-    if (p < 0) continue;
-    let e = p;
-    while (e < b.length && b[e]) e++;
-    out.push(b.toString('latin1', p, e));
-  }
-  return out;
+  const p = peMetadata((off,n) => b.subarray(off,off+n), b.length);
+  if (p.importErrors.length) throw new Error(`PE imports: ${p.importErrors.join('; ')}`);
+  return p.imports;
 }
 
 /** System DLLs the Win32 profile implements (platforms/win32/dlls.json); '*' entries are prefixes. */
@@ -199,6 +185,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     if (tool) {
       lifted = join(work, `lifted_${id}.c`);
       const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
+      if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
       writeFileSync(join(work, `analysis_${id}.json`), analysis);

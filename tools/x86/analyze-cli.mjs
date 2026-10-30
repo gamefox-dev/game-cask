@@ -1,10 +1,22 @@
 #!/usr/bin/env node
-// npm run analyze -- FILE [--base HEX] [--disasm [--func HEX]]   (read-only; prints JSON or a listing)
-import { execFileSync } from 'node:child_process';
+// Read-only streaming analysis CLI. --metadata supports both PE32 and PE32+; execution remains i386.
+import { spawnSync } from 'node:child_process';
 import { x86tool } from '../build/pipeline.mjs';
+import { analyzePeMetadata } from './pe-metadata.mjs';
 
-const args = process.argv.slice(2);
-const dis = args.indexOf('--disasm');
-if (dis >= 0) args.splice(dis, 1);
-if (!args[0]) { console.error('usage: npm run analyze -- FILE [--base HEX] [--disasm [--func HEX]]'); process.exit(1); }
-process.stdout.write(execFileSync(x86tool(), [dis >= 0 ? 'disasm' : 'analyze', ...args], { maxBuffer: 256 << 20 }));
+try {
+  const args = process.argv.slice(2);
+  if (!args[0]) throw new Error('usage: analyze -- FILE [--metadata | --disasm [--func HEX]]');
+  const mi = args.indexOf('--metadata');
+  if (mi >= 0) {
+    process.stdout.write(JSON.stringify(analyzePeMetadata(args[0]), null, 2)+'\n');
+  } else {
+    const meta = analyzePeMetadata(args[0]);
+    if (meta.pe32plus) throw new Error('PE32+ / Win64 execution is not implemented. Use --metadata for imports and .pdata/.xdata records (not disassembly or lifting).');
+    const dis = args.indexOf('--disasm');
+    if (dis >= 0) args.splice(dis,1);
+    const r = spawnSync(x86tool(),[dis>=0?'disasm':'analyze',...args],{stdio:'inherit'});
+    if (r.error) throw r.error;
+    process.exitCode = r.status ?? 1;
+  }
+} catch (e) { console.error(`analyze: ${e.message}`); process.exitCode=1; }

@@ -105,7 +105,28 @@ X86_OVERRIDE(0040123a) {
 ```
 The lifter skips these addresses. The build counts them, along with their lines of code.
 
-## Known v0.2 limits (kit gaps, not port work)
+## v0.3 development: scale and x64 metadata (not execution)
+
+`npm run analyze -- FILE --metadata` is a bounded-read PE32/PE32+ metadata path (full-width image base, import DLLs,
+RUNTIME_FUNCTION records and UNWIND_INFO headers/codes). It does **not** decode instructions or implement unwinding.
+Normal `analyze`/`build:port` reject Win64 explicitly. x64 conversion is still a kit gap; do not substitute an engine
+runtime or truncate 64-bit pointers. Fixtures can use `pipeline.fixture.target: "x86_64-windows-gnu"` for static tests.
+
+Pipeline compilation is parallel and incremental per translation unit (including lifted modules), with a content
+cache under `node_modules/.cache/bgt/objects`. `BGT_BUILD_JOBS` defaults to 2, capped at 8. Sources, headers, compiler
+version/flags and paths invalidate the cache. Linking/asyncify still run each build. Conservative flag-liveness is
+experimental opt-in: `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. No register-local
+or flat-memory optimization is claimed yet. `node tools/bench/lift-scale.mjs 1024` writes `reports/scale.json` from an
+original generated CC0 fixture. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
+regression) and outstanding x64/GL/threading work.
+
+Build `manifest.pipeline.metrics`: `wasm_bytes_per_insn` = **whole wasm size** / lifted instructions, not marginal
+cost; interpret-only = null. For marginal cost subtract an otherwise identical interpreter-only build first.
+`build_ms` includes fixture build/lifting/compiler/asyncify/assets; `duration_ms` is compile/link wall time;
+`peak_child_rss_bytes` is the largest compiler/linker child (NOT total parallel memory or wasm-opt), plus cache counts
+and job count. The current pipeline does not load code chunks lazily.
+
+## Known execution limits (kit gaps, not port work)
 - **x86:** 32-bit flat mode only. No x87/SSE (FPU instructions fault). No self-modifying code (the decoder caches).
 - **Profiles:** Win32 only; DOS/consoles need new profiles.
 - **GDI:** pixel reads come from CPU replay (exact for every recorded op; a surface drawn before replay was enabled,

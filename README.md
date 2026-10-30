@@ -32,7 +32,15 @@ isolated trial setup (`npm run trial:setup -- --kit COMMIT --game FILE --dir NEW
 and pi drivers, sandbox limits, and recording. `.agents/skills` exposes the same skills as `.claude/skills`.
 No new npm dependencies are required for these tools; optional pi/Python PTY drivers use an already installed CLI.
 
-## How porting works (kit v0.2)
+## Development status
+
+This branch is a **partial v0.3 implementation**, not Win64/GL readiness. See [docs/v03-status.md](docs/v03-status.md)
+for stage-by-stage evidence and missing work. Executing x64 is still rejected explicitly. PE32+ imports/unwind-table
+metadata can be inspected with `npm run analyze -- FILE --metadata`. Pipeline builds now cache objects and compile in
+parallel (`BGT_BUILD_JOBS=2` by default); `node tools/bench/lift-scale.mjs 1024` reproduces scale measurements.
+No new npm dependencies. Python 3 stdlib measures compiler/linker RSS (largest child, not aggregate memory).
+
+## How porting works
 
 Ports go through a **systematic, reproducible pipeline** rather than per-game rewrites
 ([docs/pipeline.md](docs/pipeline.md)):
