@@ -4,6 +4,14 @@ import { join } from 'node:path';
 import { ROOT,loadHeadless } from './headless';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
+export function preparedBrowserSlice(example = 'win32-hello'): { id: string } {
+  const index = process.env.BGT_E2E_SLICE_INDEX;
+  if (!index) throw new Error('browser slice fixtures must be prepared by Playwright global setup');
+  const fixture = JSON.parse(readFileSync(index, 'utf8'))[example];
+  if (!fixture?.id) throw new Error(`no prepared browser slice for ${example}`);
+  return fixture;
+}
+
 export async function prepareSlice(example='win32-hello') {
  const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/slice-'));
  cpSync(join(ROOT,'examples',example,'src'),join(dir,'src'),{recursive:true});

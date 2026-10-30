@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import type {Page} from '@playwright/test';
 import {ROOT} from '../support/headless';
-import {prepareSlice} from '../support/slice-fixture';
+import {preparedBrowserSlice} from '../support/slice-fixture';
 
 async function serveGenerated(page:Page,id:string){
  // Vite snapshots public paths at startup; these fixtures are built after that. Serve exact package bytes,
@@ -17,7 +17,7 @@ async function serveGenerated(page:Page,id:string){
 
 test('recorded boot slice loads, then pauses visibly without a trap on an uncovered callback',async({page,backendParam,collector},info)=>{
  test.setTimeout(120_000);
- collector.allow(/guest:/);const f=await prepareSlice();await serveGenerated(page,f.id);
+ collector.allow(/guest:/);const f=preparedBrowserSlice();await serveGenerated(page,f.id);
  expect(await openGame(page,backendParam,{game:f.id})).toBe('ready');await assertBackend(page,backendParam,info);await step(page,10);
  expect((await diagnostics(page)).outsideSlice).toBeNull();
  await step(page,2000);
@@ -35,7 +35,8 @@ test('recorded boot slice loads, then pauses visibly without a trap on an uncove
 });
 
 test('an omitted streamed executable range pauses as outside-slice before any 404 or full-file fallback',async({page,backendParam,collector},info)=>{
- collector.allow(/guest:|asset range failed/);const f=await prepareSlice('win32-conformance');await serveGenerated(page,f.id);
+ collector.allow(/guest:|asset range failed/);
+ const f=preparedBrowserSlice('win32-conformance');await serveGenerated(page,f.id);
  expect(await openGame(page,backendParam,{game:f.id})).toBe('ready');await assertBackend(page,backendParam,info);await step(page,20);
  await input(page,[{type:'key',code:'KeyF',down:true}]);await step(page,1);await input(page,[{type:'key',code:'KeyF',down:false}]);await step(page,3);
  const d=await diagnostics(page);expect(d.outsideSlice?.kind).toBe(2);expect(d.outsideSlice?.message).toContain('modules/conformance.exe');expect(d.failed).toBe(false);expect(d.errors).toEqual([]);

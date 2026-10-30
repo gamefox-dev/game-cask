@@ -42,6 +42,21 @@ asserted. Its record is private scratch/task2a-review-independent; this is not i
 The large STL module uses correctness-first semantic lifting, not a large-game performance claim. Actual Ubuntu CI,
 physical iPhone and desktop Safari/Firefox are not claimed. Existing suite assertions/skips are unchanged.
 
+## Linux CI slice timeout — reproduced and corrected locally
+
+A cold-cache run with **BGT_BUILD_JOBS=1**, forced **ANGLE SwiftShader WebGL 2**, unchanged 60-second test timeout
+and unchanged 30-second ready wait reproduced the failure at `fixtures.ts:76`. Trace evidence: synchronous
+`prepareSlice` compile/Asyncify occupied the worker past the test deadline; navigation started after timeout/teardown,
+so pending package requests and the ready wait were consequences, not the cause. No missing-file/renderer workaround.
+
+Slice recording/building now runs once in Playwright **global setup**, before any timed browser test/context exists;
+workers consume an explicit prepared index and fail if setup was omitted. Assertions, skipped cases and all timeout
+values are unchanged. With caches cold again, setup took **81.3 seconds** for conformance, then the exact failing test
+passed **three times** at **1.0 / 0.7 / 0.7 seconds** under forced SwiftShader. Before/after trace artifacts are private
+`reports/ci-slice-{before,after}-artifacts`; this is local reproduction, **not a claim of running Ubuntu CI**.
+Final CI-fix gates: doctor/lint/typecheck green; **96 unit tests / 17 files**, **81 browser passes / four unchanged
+skips**, identical 600-frame i386 oracle and earlier x64 oracles; leakcheck **221 committable files clean**.
+
 ---
 
 ## Task 1 — AMD64 execution core (complete at the specified finish line)
