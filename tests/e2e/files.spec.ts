@@ -12,7 +12,7 @@ test('streamed executable self-open and large sparse ranges seek/read/EOF withou
  await input(page,[{type:'key',code:'KeyF',down:true}]);await step(page,1);
  await input(page,[{type:'key',code:'KeyF',down:false}]);
  for(let i=0;i<40 && !logs.some((s)=>s.includes('files checks='));i++)await step(page,1);
- expect(logs.find((s)=>s.includes('files checks='))).toContain('0000003f');
+ expect(logs.find((s)=>s.includes('files checks='))).toContain('0000007f');
  expect(chunks.length).toBeGreaterThan(0);expect(chunks.length).toBeLessThan(8);
  expect((await diagnostics(page)).errors).toEqual([]);
 });

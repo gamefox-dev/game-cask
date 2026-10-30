@@ -799,7 +799,7 @@ static int32_t menu_title_x(menu_t *m, int idx, int32_t *w) {
     int32_t x = 4;
     for (int i = 0; i < m->n; i++) {
         char t[48]; uint32_t k = 0;
-        for (const char *c = m->it[i].text; *c && k < 47; c++) if (*c != '&') t[k++] = *c;
+        for (const char *c = m->it[i].text; *c && k < 47; c++) { if (*c == '&') { if(c[1]=='&'){t[k++]='&';c++;} } else t[k++]=*c; }
         t[k] = 0;
         int32_t tw = g_text_w((int32_t)k, 1) + 12;
         if (i == idx) { *w = tw; return x; }
@@ -825,7 +825,7 @@ static void chrome_label(int32_t x, int32_t y, const char *raw, uint32_t color, 
     w32_chrome_text(x, y, text, color);
     int32_t col = 0;
     for (const char *s = raw; *s && *s != '\t'; s++) {
-        if (*s == '&') { if (s[1] == '&') { col++; s++; } else if (s[1]) w32_chrome_fill(x + col * 6, y + 9, 5, 1, color); }
+        if (*s == '&') { if (s[1] == '&') { col++; s++; } else if (s[1]) w32_chrome_fill(x + g_text_w(col,1), y + 9, g_text_w(1,1)-1, 1, color); }
         else col++;
     }
 }

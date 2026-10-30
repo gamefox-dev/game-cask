@@ -4,6 +4,7 @@ static unsigned char bytes[48];
 void file_checks(void) {
     unsigned checks=0;DWORD got=0;
     WCHAR path[256];GetModuleFileNameW(0,path,256);
+    if(GetFileAttributesW(path)!=INVALID_FILE_ATTRIBUTES && GetFileAttributesA("missing-fixture.dat")==INVALID_FILE_ATTRIBUTES)checks|=64;
     HANDLE h=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
     if(h!=INVALID_HANDLE_VALUE) {
         if(ReadFile(h,bytes,2,&got,0)&&got==2&&bytes[0]=='M'&&bytes[1]=='Z')checks|=1;

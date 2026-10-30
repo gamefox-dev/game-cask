@@ -18,6 +18,7 @@
 #   PI_EXTRA_ARGS   extra pi args, e.g. "--no-skills"
 #   PI_TUI_SELECT=1 (tui) pick model+thinking via /model and /thinking in the TUI instead of CLI flags
 set -u
+umask 077
 [ $# -eq 3 ] || { sed -n 2,3p "$0"; exit 2; }
 WORKDIR=$(cd "$1" && pwd) || exit 2
 PROMPT=$(cd "$(dirname "$2")" && pwd)/$(basename "$2"); [ -s "$PROMPT" ] || { echo "empty/missing prompt file" >&2; exit 2; }
@@ -49,12 +50,18 @@ finish() { # $1 = exit code
 if [ "$MODE" = print ]; then
   cd "$WORKDIR" || exit 2
   # prompt via stdin: no quoting/length issues; pi -p exits when the agent loop ends
-  if command -v gtimeout >/dev/null; then T="gtimeout $TMO"; else T=""; fi
-  $T "$PI_BIN" -p "${ARGS[@]}" < "$PROMPT" > "$RUND/stdout.txt" 2> "$RUND/stderr.txt" &
-  PID=$!
-  { sleep "$TMO"; kill "$PID" 2>/dev/null; } 2>/dev/null & KILLER=$!; disown "$KILLER" 2>/dev/null
-  wait "$PID"; RC=$?; kill "$KILLER" 2>/dev/null
-  [ "$RC" = 143 ] && finish 4
+  python3 -c '
+import os,signal,subprocess,sys
+p=subprocess.Popen(sys.argv[2:],start_new_session=True)
+try: sys.exit(p.wait(timeout=float(sys.argv[1])))
+except subprocess.TimeoutExpired:
+    os.killpg(p.pid,signal.SIGTERM)
+    try: p.wait(timeout=5)
+    except subprocess.TimeoutExpired: os.killpg(p.pid,signal.SIGKILL);p.wait()
+    sys.exit(124)
+' "$TMO" "$PI_BIN" -p "${ARGS[@]}" < "$PROMPT" > "$RUND/stdout.txt" 2> "$RUND/stderr.txt"
+  RC=$?
+  [ "$RC" = 124 ] && finish 4
   [ "$RC" = 0 ] && finish 0 || finish 5
 fi
 

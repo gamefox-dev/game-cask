@@ -156,6 +156,7 @@ static void g_blit(uint32_t dtex, int32_t cl, int32_t ct, int32_t cr, int32_t cb
 }
 
 w32_font_t w32_font_metrics(int32_t height, int32_t weight) {
+    height = imax(-254, imin(height, 256));
     if (height < 0) height = -height + 2; /* negative = character height, plus internal leading */
     if (height == 0) height = 13;
     height = imax(5, imin(height, 256));
@@ -227,7 +228,9 @@ void w32_gdi_screen(int32_t w, int32_t h) {
     scr_w = w; scr_h = h; screen_ready = 1;
     w32_io->logical_width = (uint32_t)w;
     w32_io->logical_height = (uint32_t)h;
-    g_fill(TEX_SCREEN, 0, 0, w, h, 0, 0, w, h, w32_sys_color(1), BGT_BLEND_OPAQUE); /* desktop colour */
+    w32_gdi_chrome_begin();
+    g_fill(TEX_SCREEN, 0, 0, w, h, 0, 0, w, h, w32_sys_color(1), BGT_BLEND_OPAQUE); /* profile desktop colour */
+    w32_gdi_chrome_end();
 }
 int32_t w32_gdi_screen_w(void) { return scr_w; }
 int32_t w32_gdi_screen_h(void) { return scr_h; }
@@ -259,7 +262,7 @@ void w32_gdi_targets_lost(void) {
         gobj_t *b = &obj[i];
         if (b->type == OB_BITMAP && b->tex && b->cpu && b->cpu_valid) upload(b->tex, 0, 0, b->w, b->h, b->cpu);
     }
-    if (screen_ready) g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, 0, 0, scr_w, scr_h, w32_sys_color(1), BGT_BLEND_OPAQUE);
+    if (screen_ready) { w32_gdi_chrome_begin();g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, 0, 0, scr_w, scr_h, w32_sys_color(1), BGT_BLEND_OPAQUE);w32_gdi_chrome_end(); }
 }
 
 void w32_chrome_fill(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb) { w32_gdi_chrome_begin(); g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, x, y, w, h, rgb, BGT_BLEND_OPAQUE); w32_gdi_chrome_end(); }

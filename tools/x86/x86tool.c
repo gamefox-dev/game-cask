@@ -80,7 +80,7 @@ static const uint8_t *at(const pe_t *pe, uint32_t va) { return in_image(pe, va, 
 static int is_code(const pe_t *pe, uint32_t va) {
     for (uint32_t i = 0; i < pe->nsec; i++) {
         const sect_t *s = &pe->sec[i];
-        if ((s->chars & 0x20000020u) && va >= pe->base + s->va && va < pe->base + s->va + (s->vsize > s->rawsize ? s->vsize : s->rawsize)) return 1;
+        if ((s->chars & 0x20000020u) && va >= pe->base + s->va && va < pe->base + s->va + (s->vsize ? s->vsize : s->rawsize)) return 1;
     }
     return 0;
 }
@@ -118,8 +118,8 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
         memcpy(t->name, s, 8); t->name[8] = 0;
         t->vsize = r32(s + 8); t->va = r32(s + 12); t->rawsize = r32(s + 16); t->raw = r32(s + 20); t->chars = r32(s + 36);
         uint32_t n = t->rawsize < t->vsize || !t->vsize ? t->rawsize : t->vsize;
-        if (t->raw + n > len) n = t->raw < len ? len - t->raw : 0;
-        if (t->va + n > pe->size) n = t->va < pe->size ? pe->size - t->va : 0;
+        if ((uint64_t)t->raw + n > len) n = t->raw < len ? len - t->raw : 0;
+        if ((uint64_t)t->va + n > pe->size) n = t->va < pe->size ? pe->size - t->va : 0;
         if (n) memcpy(pe->img + t->va, d + t->raw, n);
     }
     pe->base = want_base ? want_base : pe->pref_base;

@@ -309,6 +309,7 @@ static uint32_t k_LockResource(void) { return ARG(0); }
 static uint32_t k_SizeofResource(void) { return ARG(1) ? x86_rd32(ARG(1) + 4) : 0; }
 static uint32_t k_GetStdHandle(void) { return 0x100u + (ARG(0) & 0xff); }
 static uint32_t k_WriteFile(void) {
+    if (ARG(0) != 0x1f5u && ARG(0) != 0x1f4u) { if(ARG(3))x86_wr32(ARG(3),0);last_error=ARG(0)>0x90000u&&ARG(0)<0x90040u?5:6;return 0; }
     char b[256];
     uint32_t n = ARG(2) < 255 ? ARG(2) : 255;
     w32_gstrn(ARG(1), (int32_t)n, 0, b, sizeof b);
@@ -316,8 +317,65 @@ static uint32_t k_WriteFile(void) {
     if (ARG(3)) x86_wr32(ARG(3), ARG(2));
     return 1;
 }
-static uint32_t k_CreateFile(void) { last_error = 2; return 0xffffffffu; } /* no host file system in v0.2 */
-static uint32_t k_GetFileAttributes(void) { last_error = 2; return 0xffffffffu; }
+#define H_FILE 0x00090000u
+static struct { uint32_t asset; uint64_t pos, size; } files[64];
+static uint32_t file_index(uint32_t h) { return h > H_FILE && h < H_FILE + 64 && files[h-H_FILE].asset ? h-H_FILE : 0; }
+static int32_t open_file_asset(int wide) {
+    char raw[512], path[512]; w32_gstr(ARG(0),wide,raw,sizeof raw);
+    const char *s=raw;
+    if ((s[0]=='C'||s[0]=='c') && s[1]==':' && (s[2]=='\\' || s[2]=='/')) { s+=3; if (w32_slen(s)>=5 && (s[0]=='G'||s[0]=='g')&&(s[1]=='A'||s[1]=='a')&&(s[2]=='M'||s[2]=='m')&&(s[3]=='E'||s[3]=='e')&&(s[4]=='\\'||s[4]=='/'))s+=5; }
+    uint32_t k=0;while(*s && k+1<sizeof path){char c=*s++;path[k++]=c=='\\'?'/':(c>='A'&&c<='Z'?c+32:c);}path[k]=0;
+    int32_t asset=-5;
+    for(uint32_t i=0;i<w32_nmods;i++)if(w32_streqi(path,w32_mods[i].name)){
+        char module[64]="modules/";uint32_t j=8;for(const char *c=w32_mods[i].name;*c&&j<63;c++)module[j++]=*c;module[j]=0;
+        asset=bgt_asset_open(module,j);break;
+    }
+    if(asset<0)asset=bgt_asset_open(path,w32_slen(path));
+    return asset;
+}
+static uint32_t create_file(int wide) {
+    if ((ARG(1) & 0x40000000u) || ARG(4) != 3) { last_error=5; return 0xffffffffu; } /* read-only OPEN_EXISTING */
+    int32_t asset=open_file_asset(wide);
+    if(asset<0){last_error=2;return 0xffffffffu;}
+    for(uint32_t i=1;i<64;i++)if(!files[i].asset){uint64_t size=0;if(bgt_asset_size64((uint32_t)asset,&size)<0)break;files[i].asset=(uint32_t)asset;files[i].size=size;files[i].pos=0;last_error=0;return H_FILE+i;}
+    bgt_asset_close((uint32_t)asset);last_error=4;return 0xffffffffu;
+}
+static uint32_t k_CreateFileA(void){return create_file(0);}
+static uint32_t k_CreateFileW(void){return create_file(1);}
+static uint32_t k_CloseHandle(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0;}bgt_asset_close(files[i].asset);files[i].asset=0;return 1;}
+static uint32_t k_ReadFile(void){
+    uint32_t i=file_index(ARG(0)),dst=ARG(1),want=ARG(2),got=0,out=ARG(3);
+    if(out)x86_wr32(out,0);
+    if(!i||ARG(4)){last_error=i?87:6;return 0;}
+    if((uint64_t)dst+want>0x100000000ull || !x86_mapped(dst,want)){last_error=998;return 0;}
+    static uint8_t buffer[65536];
+    while(got<want && files[i].pos<files[i].size){
+        uint32_t n=want-got;if(n>sizeof buffer)n=sizeof buffer;
+        if(n>files[i].size-files[i].pos)n=(uint32_t)(files[i].size-files[i].pos);
+        int32_t request=bgt_asset_range_request(files[i].asset,(uint32_t)files[i].pos,(uint32_t)(files[i].pos>>32),n);
+        if(request<0){last_error=30;return 0;}
+        int32_t status;while((status=bgt_request_status((uint32_t)request))==0)w32_wait_frame();
+        int32_t count=status==1?bgt_request_read((uint32_t)request,buffer,sizeof buffer):status;
+        bgt_request_close((uint32_t)request);
+        if(count<0){last_error=30;return 0;}
+        for(int32_t j=0;j<count;j++)x86_wr8(dst+got+(uint32_t)j,buffer[j]);
+        got+=(uint32_t)count;files[i].pos+=(uint32_t)count;if(!count)break;
+    }
+    if(out)x86_wr32(out,got);return 1;
+}
+static uint32_t k_GetFileSize(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0xffffffffu;}if(ARG(1))x86_wr32(ARG(1),(uint32_t)(files[i].size>>32));return (uint32_t)files[i].size;}
+static uint32_t k_GetFileSizeEx(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0;}x86_wr32(ARG(1),(uint32_t)files[i].size);x86_wr32(ARG(1)+4,(uint32_t)(files[i].size>>32));return 1;}
+static int seek_file(uint32_t i,int64_t delta,uint32_t method){
+    if(!i){last_error=6;return 0;}
+    uint64_t base=method==0?0:method==1?files[i].pos:files[i].size;
+    if(method>2 || (delta<0 && (uint64_t)(-(delta+1))+1>base) || (delta>0 && (uint64_t)delta>0x7fffffffffffffffull-base)){last_error=87;return 0;}
+    files[i].pos=base+(uint64_t)delta;last_error=0;return 1;
+}
+static uint32_t k_SetFilePointer(void){uint32_t i=file_index(ARG(0));int64_t d=(int32_t)ARG(1);if(ARG(2))d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));if(!seek_file(i,d,ARG(3)))return 0xffffffffu;if(ARG(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;}
+static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0));int64_t d=(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,ARG(4)))return 0;if(ARG(3)){x86_wr32(ARG(3),(uint32_t)files[i].pos);x86_wr32(ARG(3)+4,(uint32_t)(files[i].pos>>32));}return 1;}
+static uint32_t get_file_attributes(int wide) { int32_t asset=open_file_asset(wide);if(asset<0){last_error=2;return 0xffffffffu;}bgt_asset_close((uint32_t)asset);return 0x21u; /* READONLY|ARCHIVE */ }
+static uint32_t k_GetFileAttributesA(void) { return get_file_attributes(0); }
+static uint32_t k_GetFileAttributesW(void) { return get_file_attributes(1); }
 static uint32_t k_GetWindowsDirectory(int wide) { return w32_pstr(ARG(0), ARG(1), wide, "C:\\WINDOWS"); }
 static uint32_t k_GetWindowsDirectoryA(void) { return k_GetWindowsDirectory(0); }
 static uint32_t k_GetWindowsDirectoryW(void) { return k_GetWindowsDirectory(1); }
@@ -575,9 +633,11 @@ const w32_api_t w32_api_kernel[] = {
     API("GetSystemInfo", 1, k_GetSystemInfo), STUB("FlushInstructionCache", 3),
     API("FindResourceA", 3, k_FindResourceA), API("FindResourceW", 3, k_FindResourceW),
     API("LoadResource", 2, k_LoadResource), API("LockResource", 1, k_LockResource), API("SizeofResource", 2, k_SizeofResource), API("FreeResource", 1, k_one),
-    API("GetStdHandle", 1, k_GetStdHandle), API("WriteFile", 5, k_WriteFile), API("CloseHandle", 1, k_one),
-    API("CreateFileA", 7, k_CreateFile), API("CreateFileW", 7, k_CreateFile),
-    API("GetFileAttributesA", 1, k_GetFileAttributes), API("GetFileAttributesW", 1, k_GetFileAttributes),
+    API("GetStdHandle", 1, k_GetStdHandle), API("WriteFile", 5, k_WriteFile), API("CloseHandle", 1, k_CloseHandle),
+    API("ReadFile",5,k_ReadFile), API("GetFileSize",2,k_GetFileSize), API("GetFileSizeEx",2,k_GetFileSizeEx),
+    API("SetFilePointer",4,k_SetFilePointer), API("SetFilePointerEx",5,k_SetFilePointerEx),
+    API("CreateFileA", 7, k_CreateFileA), API("CreateFileW", 7, k_CreateFileW),
+    API("GetFileAttributesA", 1, k_GetFileAttributesA), API("GetFileAttributesW", 1, k_GetFileAttributesW),
     API("GetWindowsDirectoryA", 2, k_GetWindowsDirectoryA), API("GetWindowsDirectoryW", 2, k_GetWindowsDirectoryW),
     API("GetPrivateProfileIntA", 4, k_GetPrivateProfileIntA), API("GetPrivateProfileIntW", 4, k_GetPrivateProfileIntW),
     API("GetPrivateProfileStringA", 6, k_GetPrivateProfileStringA), API("GetPrivateProfileStringW", 6, k_GetPrivateProfileStringW),

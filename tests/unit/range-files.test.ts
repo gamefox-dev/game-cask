@@ -49,5 +49,5 @@ it('streamed ReadFile stays differential-oracle identical with asynchronous requ
 it('headless streamed Win32 file contract uses asynchronous frame settling',async()=>{
  const h=await loadHeadless('win32-conformance');h.step(20);h.key('KeyF',true);await h.stepAsync(1);h.key('KeyF',false);
  for(let i=0;i<40 && !h.logs.some((s)=>s.includes('files checks='));i++)await h.stepAsync(1);
- expect(h.logs.find((s)=>s.includes('files checks='))).toContain('0000003f');
+ expect(h.logs.find((s)=>s.includes('files checks='))).toContain('0000007f');
 });

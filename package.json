@@ -1,6 +1,6 @@
 {
   "name": "game-cask",
-  "version": "0.1.0",
+  "version": "0.3.0-dev.1",
   "private": true,
   "description": "Agent-first starter kit for restoring legally obtained legacy games as browser experiences via the Game Cask Browser Target (BGT).",
   "license": "MIT",

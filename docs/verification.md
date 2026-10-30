@@ -33,6 +33,23 @@ pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window
 
 ---
 
+## Final v0.3 development-branch run
+
+- doctor ready; lint/typecheck clean.
+- Unit **78/78**, 14 files.
+- E2E **67 passed / 4 pre-existing skips**: WebGL 2 31 pass/2 skip, WebGPU 31 pass/2 skip, auto 5 pass.
+- `oracle -- examples/win32-hello`: identical over 600 frames, no errors, lifted interpreter instructions 0.
+- leakcheck **178 files**, clean. No new dependencies; SPEC.md unchanged.
+- Scale and 2010-step fixture stability/packaging measurements: [v03-status.md](v03-status.md).
+
+**Commit caveat:** Stage 4/5 gates ran with an unstaged Win32 file implementation which was accidentally omitted
+from those commits. The finishing follow-up includes it. Historical Stage 4/5 commits alone are not self-contained;
+this deviates from the requested per-commit gate discipline. History was not rewritten. Final HEAD is tested.
+
+The broad v0.3 brief is **not complete**: no Win64 execution, general shader/buffer/pipeline/GL layer, cooperative
+threads, WASAPI/COM/device expansion or minimum-image slicing. The package is labelled 0.3.0-dev.1, not a finished
+v0.3 release. See the explicit per-stage missing-work ledger before starting another trial.
+
 # Historical v0.1 verification
 
 This file is the evidence record for what has been **observed**. Anything not listed here is

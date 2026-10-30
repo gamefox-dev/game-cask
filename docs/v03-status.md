@@ -1,8 +1,46 @@
 # v0.3 implementation work record
 
+**Release status: partial development build (`0.3.0-dev.1`), not the complete requested v0.3 kit.**
+
+## Commit/gate caveat
+
+The Stage 4 and Stage 5 gate commands passed against a working tree containing the new Win32 file API implementation,
+but `platforms/win32/w32_kernel.c` was inadvertently omitted from those commits. Those historical commits are **not**
+independently green/self-contained; the finishing follow-up includes that implementation and reruns every gate.
+History was not rewritten. Review the final HEAD, not Stage 4/5 in isolation. This is a deviation from the requested
+per-stage-commit gate discipline, not an external/environmental block.
+
+The finished branch remains incomplete: x64 execution, the general GPU/GL layer, scheduler/COM/audio/input profile
+growth and minimum-image packaging were not delivered. They are recorded as missing below, not claimed blocked by
+unavailable game files or a missing dependency. No per-engine workaround was introduced.
+
 This is a kit-development record, not a game-port claim. No game inputs were accessed or fetched. All executable
 fixtures are original CC0 C compiled by the installed Zig; nothing was executed as a native Windows executable.
 The supplied queue/feasibility JSON was read as evidence only. Product/engine information does not select code paths.
+
+## Final HEAD verification (macOS Apple M4, Chromium WebGPU/Metal and WebGL 2 software)
+
+Required final run: doctor ready; lint 0 errors; typecheck 0 errors; **78 unit tests / 14 files passed**;
+**67 browser tests passed, 4 existing skips** (WebGL2 31+2 skips; WebGPU 31+2 skips; auto 5);
+600-frame hello oracle identical, no errors; leakcheck 178 committable files. No remote/Ubuntu run was possible here;
+CI remains POSIX host compiler/Python/Chromium, with WebGPU optional and no macOS harness dependency. Physical iPhone,
+Safari/Firefox and independent-agent validation were not performed.
+
+Largest generated scale fixture: 1024 generated functions + entry, 34,841 instructions, 529,243 B source. Final
+same-toolchain flag-liveness off→on: wasm 795,401→803,613 B; interpreter 249,442 B; **marginal 15.6700→15.9057 B/insn**
+(a regression, so optimization is opt-in). Warm times 5.640→5.133 s, repeat 5.173 s; 0 compiled/12 cached objects.
+Earlier cold-ish Stage 2 measurement compiled two objects in 28.837 s, largest child RSS 303,136,768 B; not the same
+cache state or final runtime, so do not call the time difference a codegen speedup. Peak child != aggregate/wasm-opt.
+The small hello reference's marginal 66.36→65.86 B/insn is not evidence of 7.2M-instruction feasibility.
+
+Final sliced hello package: 327,687 raw / 84,925 per-file-gzip payload B; wasm 294,963 B; no original file chunks;
+two covered functions. Its **2,010-step idle fixture run**, before intentionally opening an omitted dialog, has zero
+errors/outside events. WebGL2 load→first frame 31.115 ms, render avg/p95 0.04686/0.060 ms; WebGPU 39.445 ms,
+0.05115/0.140 ms (2012 render samples each, including extra renders). These are render-completion wall times, not
+GPU timestamps or vsync intervals, and are not a real-game L3 or device performance claim.
+
+No new dependencies. Existing boot assertion changed only the exact ABI string 0.2→0.3; ABI-layout assertions were
+extended, never weakened. The implementation is not release-complete; use this file's missing-work list first.
 
 ## Stage 1 — harness and Phase 0
 
@@ -104,6 +142,7 @@ render completion avg/p95, frames and errors/outside events. trial:record includ
 reports/slice-runtime.json is supplied; absent runtime evidence remains null. Docs/skills state the exact workflow.
 
 Not done: truly minimum loader-image data (virtual sections retained conservatively), basic-block/instruction
-coverage, lazy wasm code chunks, performance at 7.2M insns, a long representative real-game stability run, hardware
+coverage, automatic union of multiple page reloads within one tour/probe (save/merge each instance's snapshot),
+lazy wasm code chunks, performance at 7.2M insns, a long representative real-game stability run, hardware
 mobile verification. A strict boundary requires reload with a broader build; guest stack is not resumed after the
 missing-entry exception. Snapshot collection caps at 65,536 code addresses. No claim of a complete v0.3 slice system.

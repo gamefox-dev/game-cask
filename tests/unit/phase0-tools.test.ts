@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, writeFileSync, copyFileSync, chmodSync } from 'node:fs';
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, writeFileSync, copyFileSync, chmodSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../support/headless';
 // @ts-expect-error plain ESM
@@ -22,11 +22,12 @@ const temp = () => mkdtempSync(join(ROOT, 'node_modules/.cache/bgt/phase0-'));
 describe('Phase 0 tooling regressions', () => {
   it('hashes ALL of a file above 256 MiB using bounded streaming; counts a printable run across chunks', () => {
     const dir = temp(), path = join(dir, 'large.dat');
-    const fd = openSync(path, 'w'); ftruncateSync(fd, 257 * 1024 * 1024); closeSync(fd);
+    const fd = openSync(path, 'w'); ftruncateSync(fd, 257 * 1024 * 1024);
+    writeSync(fd,Buffer.from('abcDEFghi'),0,9,1024*1024-4);closeSync(fd);
     // Hash reference via a separate streaming implementation, not inventory.
     const expected = execFileSync(process.execPath, ['--input-type=module', '-e', `import {createReadStream} from 'node:fs'; import {createHash} from 'node:crypto'; const h=createHash('sha256'); for await (const b of createReadStream(process.argv[1])) h.update(b); console.log(h.digest('hex'));`, path], { encoding: 'utf8' }).trim();
     const inv = inventory(dir).files[0];
-    expect(inv.sha256).toBe(expected); expect(inv.truncated).toBe(false); expect(inv.sampleBytes).toBe(1024 * 1024);
+    expect(inv.sha256).toBe(expected); expect(inv.truncated).toBe(false); expect(inv.sampleBytes).toBe(1024 * 1024);expect(inv.printableRuns).toBe(1);
   });
 
   it('PE32+ imports are mapped past a section with oversized raw data, bounded by the directory', () => {
@@ -94,6 +95,12 @@ describe('Phase 0 tooling regressions', () => {
     execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'5'},stdio:'pipe'});
     expect(readFileSync(join(dir,'result'),'utf8').trim()).toBe('fixture final');
     expect(JSON.parse(readFileSync(join(dir,'result.d/run.json'),'utf8')).exit).toBe(0);
+  });
+
+  it('pi driver timeout is reported distinctly and does not silently succeed',()=>{
+    const dir=temp(),cli=join(dir,'sleep-pi');writeFileSync(cli,'#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n');chmodSync(cli,0o755);writeFileSync(join(dir,'prompt'),'fixture');
+    let code=0;try{execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'1'},stdio:'pipe'});}catch(e){code=(e as {status:number}).status;}
+    expect(code).toBe(4);expect(JSON.parse(readFileSync(join(dir,'result.d/run.json'),'utf8')).exit).toBe(4);
   });
 
   it('launcher-selected slice becomes the explicit L3 and packaging contract', () => {

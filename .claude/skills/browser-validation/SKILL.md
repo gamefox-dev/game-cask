@@ -95,7 +95,7 @@ Also available: `p.page` (Playwright page), `p.input(events)`, `p.diagnostics()`
 `p.readPixels()`.
 
 ## Visual review checklist
-Look at every screenshot you cite (Read tool on the PNG), and at zoomed crops for details. Check:
+Look at every screenshot you cite (your harness's image viewer on the PNG), and at zoomed crops for details. Check:
 1. **Text fits its box**: no label clipped or wrapped by a control, menu, caption or status bar; no literal `&`.
 2. **Clipping and z-order**: child windows (status bars, toolbars, controls) are not overdrawn by the parent's
    drawing; popups, dialogs and message boxes are above the game; nothing draws outside its window.
