@@ -5,9 +5,11 @@
   "private": false,
   "pipeline": {
     "platform": "win32",
-    "fixture": { "sources": ["src/conformance.c"], "out": "conformance.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32"] },
+    "streamModules": true,
+    "fixture": { "sources": ["src/conformance.c", "src/phase0.c", "src/files.c"], "out": "conformance.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32", "shell32"], "patternFiles": [{ "name": "range-fixture.dat", "bytes": 8388608, "multiplier": 17, "increment": 3, "xorShift": 16 }] },
     "modules": [{ "from": "./build/conformance.exe", "name": "conformance.exe", "main": true }],
     "width": 320, "height": 200
   },
+  "streams": [{ "from": "./build/range-fixture.dat", "path": "range-fixture.dat", "chunkSize": 65536 }],
   "touch": { "dpad": false, "buttons": [] }
 }

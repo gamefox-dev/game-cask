@@ -1,0 +1,11 @@
+{
+  "id": "x64-memory", "name": "CC0 600 MiB demand-grown Win64 heap",
+  "pipeline": {
+    "platform": "win32", "memory": {"guestWindowMiB": 2048},
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true,
+      "out": "memory.exe", "sources": ["memory.c"]
+    },
+    "modules": [{"from": "./build/memory.exe", "main": true}]
+  }
+}

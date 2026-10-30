@@ -2,7 +2,7 @@
 
 import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
-import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice } from '../types';
+import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const SHADER = /* wgsl */ `
 struct U { size: vec2f, pad: vec2f };
@@ -231,7 +231,7 @@ export class WebGPURenderer implements Renderer {
     const t = this.o.device.createTexture({
       size: [w, h],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (renderTarget ? GPUTextureUsage.RENDER_ATTACHMENT : 0),
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (renderTarget ? GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC : 0),
     });
     this.textures.set(handle, t);
     this.dropBindGroups(handle);
@@ -250,7 +250,7 @@ export class WebGPURenderer implements Renderer {
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Promise<Pixels | null> | null {
-    if (this.lost) return null;
+    if (this.lost) { for(const it of frame.items)if(it.kind==='readback')it.complete();return null; }
     const t0 = performance.now();
     const { device } = this.o;
     const q = device.queue;
@@ -306,8 +306,19 @@ export class WebGPURenderer implements Renderer {
       encoder = null;
     };
 
+    const readbacks: Promise<void>[] = [];
     for (const it of frame.items) {
       switch (it.kind) {
+        case 'readback': {
+          close();
+          if (!it.target && first) { open(0); close(); }
+          const tex = it.target ? this.textures.get(it.target) : target;
+          if (!tex) { it.complete(); break; }
+          readbacks.push((it.target ? this.readback(tex,false,it.x,it.y,it.w,it.h) : this.readback(tex,this.format === 'bgra8unorm')).then((px) => {
+            it.complete(it.target ? px.data : readbackRect(px,it,frame.logicalW,frame.logicalH,lb));
+          }).catch(() => { it.complete(); }));
+          break;
+        }
         case 'texCreate':
           close();
           this.createTex(it.handle, it.width, it.height, it.renderTarget);
@@ -360,30 +371,29 @@ export class WebGPURenderer implements Renderer {
     close();
 
     let pending: Promise<Pixels> | null = null;
-    if (readback) pending = this.readback(target);
+    if (readback) pending = this.readback(target,this.format === 'bgra8unorm');
     this.stats.submitMs = performance.now() - t0;
+    if (readbacks.length) return Promise.all(readbacks).then(() => pending);
     return pending;
   }
 
-  private async readback(tex: GPUTexture): Promise<Pixels> {
+  private async readback(tex: GPUTexture, bgra = false, x = 0, y = 0, w = tex.width, h = tex.height): Promise<Pixels> {
     const { device } = this.o;
-    const w = tex.width, h = tex.height;
     const bpr = Math.ceil((w * 4) / 256) * 256;
     const buf = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     const enc = device.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: tex }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
+    enc.copyTextureToBuffer({ texture: tex, origin: {x,y} }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
     device.queue.submit([enc.finish()]);
     await buf.mapAsync(GPUMapMode.READ);
     const src = new Uint8Array(buf.getMappedRange());
     const data = new Uint8Array(w * h * 4);
-    const bgra = this.format === 'bgra8unorm';
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const s = y * bpr + x * 4, d = (y * w + x) * 4;
         data[d] = src[s + (bgra ? 2 : 0)];
         data[d + 1] = src[s + 1];
         data[d + 2] = src[s + (bgra ? 0 : 2)];
-        data[d + 3] = 255;
+        data[d + 3] = src[s + 3];
       }
     }
     buf.unmap();

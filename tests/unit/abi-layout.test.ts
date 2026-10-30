@@ -40,6 +40,7 @@ describe('ABI layout', () => {
       A.LIMITS.textures, A.LIMITS.textureDim, A.LIMITS.textureBytes, A.LIMITS.logicalDim,
       A.BUTTONS.UP, A.BUTTONS.START, A.BUTTONS.R, A.CAP_DIRECT_DRAW, A.EVENT_FOCUS_LOST, A.FLAG_INTEGER_SCALE,
       4, 29, 40, 44, 79, 82, 225, A.DT_US,
+      A.OP.READBACK, A.CAP_READBACK, A.CAP_STREAM_FILES, 16, 12,
     ];
     expect([...t].map((v, i) => (expected[i] < 0 ? signed(v) : v))).toEqual(expected);
   });
@@ -72,6 +73,11 @@ describe('ABI layout', () => {
     const res = decodeCommands(mem, 0, c.length, { state: defaultState(320, 240), frame, textures: new TextureTable(), linearFilter: true, triangles: true });
     expect(res.errors).toEqual([]);
     expect(res.executed).toBe(11); // the two sprites were coalesced into one SPRITES command
+  });
+
+  it('C/TS v0.3 readback encoders agree without changing the v0.2 stream layout',()=>{
+    expect(ex.probe_readback()).toBe(0);
+    expect(Buffer.from(submitted!)).toEqual(Buffer.from(new CommandEncoder().readback(77,9,1,2,3,4).finish()));
   });
 
   it('C encoder reports overflow instead of writing past its buffer', () => {

@@ -9,11 +9,15 @@ import {
   CAP_LINEAR_FILTER,
   CAP_RENDER_TARGETS,
   CAP_YIELD,
+  CAP_READBACK,
   CAP_TRIANGLES,
   DT_US,
   E_BOUNDS,
   E_INVALID,
   E_LIMIT,
+  E_NOT_FOUND,
+  E_IO,
+  E_STATE,
   IO,
   LIMITS,
   MAX_TOUCHES,
@@ -32,6 +36,7 @@ import {
   emitSprite,
 } from './commands';
 import { Vfs } from './vfs';
+import { Requests } from './requests';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -51,6 +56,7 @@ export interface HostServices {
   audio?: AudioSink;
   storage?: StorageSink;
   now(): number;
+  rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export interface HostConfig {
@@ -61,6 +67,8 @@ export interface HostConfig {
   displayHeight: number;
   arg0: number;
   arg1: number;
+  maxTextureDimension?: number;
+  sliceCode?: number[];
 }
 
 export interface InputSnapshot {
@@ -103,6 +111,10 @@ export class GameAbort extends Error {
     super(`game aborted (${errorName(code)}): ${message}`);
     this.name = 'GameAbort';
   }
+}
+
+export class OutsideSlice extends Error {
+  constructor(readonly kind: number,readonly address: number) { super(`outside this slice: ${kind===1?'code':'data'} at 0x${address.toString(16)}`);this.name='OutsideSlice'; }
 }
 
 export class HostError extends Error {
@@ -153,6 +165,13 @@ const utf8 = new TextDecoder('utf-8', { fatal: false });
 export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
+  readonly requests = new Requests();
+  readonly codeCoverage = new Map<number, number>();
+  codeCoverageDropped = 0;
+  private allowedCode: Set<number> | null = null;
+  private ioWork = new Set<Promise<void>>();
+  get ioPending(): boolean { return this.ioWork.size > 0; }
+  async settleRequests(): Promise<void> { await Promise.all([...this.ioWork]); }
   state: DrawState = defaultState(1, 1);
   logicalWidth = 0;
   logicalHeight = 0;
@@ -179,7 +198,7 @@ export class GameHost {
   private constructor(
     private readonly services: HostServices,
     readonly config: HostConfig,
-  ) {}
+  ) { if(config.sliceCode)this.allowedCode=new Set(config.sliceCode); }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
     const host = new GameHost(services, config);
@@ -199,6 +218,7 @@ export class GameHost {
     const instance = await WebAssembly.instantiate(module, imports);
     host.exports = instance.exports as unknown as GameExports;
     const v = host.exports.bgt_abi_version() >>> 0;
+    if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
     }
@@ -262,6 +282,11 @@ export class GameHost {
       triangles: (this.config.caps & CAP_TRIANGLES) !== 0,
       renderTargets: (this.config.caps & CAP_RENDER_TARGETS) !== 0,
       opCounts: this.opCounts,
+      maxTextureDimension: this.config.maxTextureDimension,
+      readback: (this.config.caps & CAP_READBACK) ? (id) => {
+        const token = this.requests.reserve(id);
+        return typeof token === 'number' ? token : (data, error) => this.requests.complete(token, data, error);
+      } : undefined,
     };
   }
 
@@ -307,11 +332,53 @@ export class GameHost {
           this.recordDecode(res);
           return res.status;
         },
+        slice_missing: (kind: number,addr: number) => { throw new OutsideSlice(kind >>> 0,addr >>> 0); },
+        coverage_entry: (addr: number, kind: number) => {
+          addr >>>= 0; kind >>>= 0;
+          if (kind === 1 || kind === 2) {
+            if(this.codeCoverage.has(addr) || this.codeCoverage.size < 65536)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0) | kind);
+            else this.codeCoverageDropped++;
+          }
+          if(this.allowedCode && !this.allowedCode.has(addr))throw new OutsideSlice(1,addr);
+        },
+        gpu_limits: (dst: number, cap: number) => {
+          if ((cap >>> 0) < 16) return E_LIMIT;
+          if ((dst & 3) || !this.inRange(dst,16)) return E_BOUNDS;
+          const dv = this.dv();
+          [16,this.config.maxTextureDimension ?? LIMITS.textureDim,LIMITS.textures-1,LIMITS.textureBytes].forEach((v,i) => dv.setUint32(dst+i*4,v,true));
+          return 0;
+        },
+        request_status: (id: number) => this.requests.status(id >>> 0),
+        request_read: (id: number, dst: number, cap: number) => {
+          if (!this.inRange(dst,cap)) return E_BOUNDS;
+          return this.requests.read(id >>> 0,this.mem().subarray(dst >>> 0,(dst >>> 0)+(cap >>> 0)));
+        },
+        request_close: (id: number) => this.requests.close(id >>> 0),
         asset_open: (ptr: number, len: number) => {
           const p = this.str(ptr, len, 512);
           return p === null ? E_INVALID : s.vfs.openFile(p);
         },
         asset_size: (h: number) => s.vfs.size(h),
+        asset_size64: (h: number,dst: number) => {
+          if (!this.inRange(dst,8)) return E_BOUNDS;
+          const size=s.vfs.size(h);if(size<0)return size;
+          this.dv().setBigUint64(dst >>> 0,BigInt(size),true);return 0;
+        },
+        asset_range_request: (h: number,lo: number,hi: number,len: number) => {
+          const path=s.vfs.pathFor(h);if(!path)return E_NOT_FOUND;
+          const off=(lo >>> 0)+(hi >>> 0)*0x100000000, length=len >>> 0;
+          if(!Number.isSafeInteger(off))return E_INVALID;
+          if(length>8*1024*1024)return E_LIMIT;
+          const immediate=s.vfs.range(h,off,length);
+          if(!immediate && !s.rangeRead)return E_STATE;
+          const token=this.requests.reserve();if(typeof token==='number')return token;
+          if(immediate)this.requests.complete(token,immediate);
+          else {
+            const work=Promise.resolve().then(()=>s.rangeRead!(path,off,length)).then((data)=>{this.requests.complete(token,data);},(error)=>{s.log(2,`asset range failed: ${path} at ${off}+${length}: ${String(error)}`);this.requests.complete(token,undefined,E_IO);});
+            this.ioWork.add(work);void work.finally(()=>this.ioWork.delete(work));
+          }
+          return token.id;
+        },
         asset_read: (h: number, dst: number, size: number) => {
           if (!this.inRange(dst, size)) return E_BOUNDS;
           return s.vfs.read(h, this.mem().subarray(dst >>> 0, (dst >>> 0) + (size >>> 0)));
@@ -475,6 +542,7 @@ export class GameHost {
   update(): void {
     if (!this.initialized) throw new HostError('update before init');
     const t0 = this.services.now();
+    this.requests.advance();
     const ex = this.exports;
     if (this.asyncState === AsyncState.Suspended) {
       // resume inside bgt_yield where the previous update stopped

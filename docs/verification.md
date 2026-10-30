@@ -1,4 +1,168 @@
-# Verification record — Game Cask v0.1
+# Verification record — Game Cask
+
+## Task 2a — normal Win64 CRT programs and 2 GiB address window
+
+Original CC0 normal **Zig 0.13.0 -O2 / standard MinGW CRT** fixtures pass fully lifted through startup and exit:
+`x64-crt` (seven exact native-reference group checksums, **180 distinct shared-CRT names actually hit**), `x64-cpprt`
+(vector/string/sort/map/iostream, four exact native checksums) and `x64-memory`. Native references compile/run the same
+source with host cc/c++, not Windows executables. `fixture-build.json` assertions reject -nostdlib/custom entry builds.
+
+`tests/unit/crt.test.ts` runs each for **300 frames**, then independently builds the interpreter-only version and checks
+**identical 300-frame oracles**, zero lifted interpretation/stubs, no errors, and completed exit in both modes. The
+math fixture resolves all 35 unary/binary double+float pairs through the shared DLL registry; raw bits must be within
+**4 ULP** of host libm (group checksums still exact). Additional cases test import census implemented/stub/unknown and
+an actually missing static import's full `api-ms-win-crt-utility-l1-1-0.dll!zzzzz` fault. `tests/e2e/crt.spec.ts` repeats
+native comparisons on **WebGL 2 and WebGPU**; this is runtime conformance, not a new game/L1–L3 claim.
+
+Shared registry counts (aliases counted, ten data names additional): **396 functions** — stdlib 53, stdio 56,
+string/wide/memory 45, math 113, time 25, locale/ctype 67, startup 37. The census and runtime use `crt.def`; no
+per-DLL qsort/llround patches. Host math/calendar/parsing/formatting reuse toolchain WASI musl, with **only BGT imports**
+in the resulting wasm and backend notices retained in each package. No npm dependency or system install was added.
+
+Memory proof: **629145600 bytes written**, **153600 pages verified**, checksum **70272000**, 16-byte-aligned guest
+malloc; guest heap extent **629145680 B**. Default guest window **1024 MiB**, fixture configured **2048 MiB**; an explicit
+upper-edge VirtualAlloc checks addresses through **2147418111**. Initial wasm **90898432 B**, final **2221473792 B**
+at the measured checkpoint (host/static layout may shift slightly after build changes). The guest high-water mapped
+end is **2147418112 B**; this is not a resident-RSS measurement. Memory grows on demand, not eagerly to the window size.
+CPU-heavy guest loops yield deterministically instead of failing the old two-million-instruction watchdog.
+
+Latest required gates: doctor ready; lint/typecheck clean; **95 unit tests / 17 files**, **81 browser passes / four
+unchanged skips** (WebGL2 38/2, WebGPU 38/2, auto 5); 600-frame i386 hello oracle and all four earlier 300-frame x64
+fixture oracles identical; leakcheck **220 committable files clean**. No assertion/skip/time limit was relaxed.
+
+Review limits: tests sample libm, not all inputs/rounding modes; C/ASCII locale, UTC localtime, empty environment,
+read-only shipped files plus process-local writable/temp files; no persistent CRT writes, full secure/positional/
+long-double formatting, general x87, AVX, multithreading or MSVC exception personalities. Image area remains 16–64 MiB.
+A fresh independent read-only session reviewed CRT/memory and reproduced seven defects with a separate CC0 fixture.
+All seven were fixed and added to the conformance source: reserved-VA/heap separation, __sys_nerr pointer, bounded
+scan, reusable FILE streams with shared file nodes, append-at-every-write, legacy snprintf and large character fields.
+The independent probe was rerun locally after the fixes; UTF-16 output and pointer scanning were also corrected and
+asserted. Its record is private scratch/task2a-review-independent; this is not independent whole-kit certification.
+
+The large STL module uses correctness-first semantic lifting, not a large-game performance claim. Actual Ubuntu CI,
+physical iPhone and desktop Safari/Firefox are not claimed. Existing suite assertions/skips are unchanged.
+
+## Linux CI slice timeout — reproduced and corrected locally
+
+A cold-cache run with **BGT_BUILD_JOBS=1**, forced **ANGLE SwiftShader WebGL 2**, unchanged 60-second test timeout
+and unchanged 30-second ready wait reproduced the failure at `fixtures.ts:76`. Trace evidence: synchronous
+`prepareSlice` compile/Asyncify occupied the worker past the test deadline; navigation started after timeout/teardown,
+so pending package requests and the ready wait were consequences, not the cause. No missing-file/renderer workaround.
+
+Slice recording/building now runs once in Playwright **global setup**, before any timed browser test/context exists;
+workers consume an explicit prepared index and fail if setup was omitted. Assertions, skipped cases and all timeout
+values are unchanged. With caches cold again, setup took **81.3 seconds** for conformance, then the exact failing test
+passed **three times** at **1.0 / 0.7 / 0.7 seconds** under forced SwiftShader. Before/after trace artifacts are private
+`reports/ci-slice-{before,after}-artifacts`; this is local reproduction, **not a claim of running Ubuntu CI**.
+Final CI-fix gates: doctor/lint/typecheck green; **96 unit tests / 17 files**, **81 browser passes / four unchanged
+skips**, identical 600-frame i386 oracle and earlier x64 oracles; leakcheck **221 committable files clean**.
+
+---
+
+## Task 1 — AMD64 execution core (complete at the specified finish line)
+
+Source fixtures built with the kit's installed **Zig 0.13.0, x86_64-windows-gnu**, then lifted to wasm; no Windows
+executable was run on the host. No engine/game input, network search, system install or new npm dependency.
+
+| fixture | independently asserted result | lifted / interpreted oracle |
+|---|---|---|
+| `x64-basics` | integer result, SSE scalar/packed math, function pointer, RIP-relative jump table, Win64 varargs and LOCK result PASS | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-cpp` | C++ vtable/static constructor; caught **38**, destructors **3**, order **321**; rethrow caught **6**, destructors **3**, order **345** | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-tls` | `.tls` initialized/zero data + callback **1**, full-width dynamic TLS, setjmp/longjmp **23**, hand-checked unwind records | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-gui` | window, GDI pixels/text, pointer/key input moves green square; full-width message/userdata sentinels | **300 frames identical**, no errors, lifted interp_insns **0** |
+
+Evidence tests: `tests/unit/x64.test.ts` (all four oracle comparisons), `tests/unit/x64-semantics.test.ts` (8 independent
+encoding/result cases), `tests/e2e/x64.spec.ts` (4 fixtures × WebGL2/WebGPU). Oracles use the interpreter-only build,
+not a second copy of lifted code. A shared-semantics oracle cannot validate semantic correctness alone: known results,
+synthetic unwind records and independent opcode assertions cover that. C++ uses compiled `__gxx_personality_seh0` and
+linked compiler exception runtime, **not** a throw/catch replacement or function-name override. All generated pipeline
+builds report zero overrides/hand-written replacement LOC. Startup is included in zero-interpretation assertions.
+
+Final required gate run: doctor ready; lint/typecheck **0 errors**; unit **90/90** (16 files); browser **75 pass / 4
+existing skips** (WebGL2 35/2, WebGPU 35/2, auto 5); i386 hello **600-frame oracle identical/no errors**; leakcheck
+**198 files clean**. Four explicit CLI x64 oracles also passed at 300 frames each. No existing test timeouts/skips or
+assertions were relaxed. The old test expecting Win64 rejection is changed to require a successful relocated/lifted
+build and zero overrides; a forced DIR64 fixture pointer ensures that high-base rebasing is actually exercised.
+
+Task 1 metric snapshot (`node tools/bench/x64-metrics.mjs` → private reports/x64-fixtures.json):
+
+| fixture | functions | instructions | wasm bytes | total B/insn | build ms (warm) |
+|---|---:|---:|---:|---:|---:|
+| basics | 7 | 164 | 301573 | 1838.86 | 216.018 |
+| cpp | 615 | 31488 | 3119752 | 99.08 | 409.557 |
+| tls | 81 | 1933 | 462671 | 239.35 | 247.383 |
+| gui | 77 | 1667 | 438472 | 263.03 | 244.854 |
+
+Times explicitly use 15 object-cache hits and an Asyncify cache hit, not cold builds. Byte/insn includes profile and
+Asyncify fixed overhead. No multi-million-instruction performance/size claim. Asyncify is now content-cached with
+atomic publication, avoiding repeated identical expensive postprocessing in existing slice tests.
+
+Visual review: fixture x64-gui-input.png read with the image viewer; title readable, green square moved, background
+restored at its old position. All x64 browser cases pass on WebGL2/software and WebGPU/Metal on Apple M4. Actual Linux
+CI, Safari/Firefox, physical iPhone and an independent agent validation were **not run**. CI remains Linux-compatible;
+no macOS tool is required by these changes. No BGT ABI changes for this task.
+
+Risks/limits: 128 MiB checked flat address window (images 16–64 MiB), correctness-first generic semantic lifting,
+nonlocal transfer propagation/SEH and Win64 structure widths are the main review areas. AVX, general x87 arithmetic,
+MSVC C++ personality formats, dynamic unwind registration, multithreading, complete CRT/API coverage and precise
+nondefault floating-point environment behavior are not claimed. Exact details: docs/pipeline.md → AMD64 execution.
+
+---
+
+## Previous iteration evidence (historical; superseded for AMD64 by Task 1)
+
+## Kit v0.3 changes (in progress)
+
+The implementation/limitations ledger is [v03-status.md](v03-status.md). This is not a claim that the entire v0.3
+brief is complete. Stage 1 fixture evidence covers the UI, timing and tooling fixes listed there, on WebGL 2 and
+WebGPU. No private game was available or used. No dependencies were added; no existing assertions were weakened.
+
+Metric change: `gdi_ops` now excludes profile-drawn chrome; new `chrome_ops` counts that drawing separately and may
+vary with extra renders. Compare guest traces and `gdi_ops`, not `chrome_ops`, for deterministic runs.
+
+New build metrics: `pipeline.metrics.wasm_bytes_per_insn` (TOTAL module / lifted instructions; null for interpreter),
+`build_ms`, compile/link `duration_ms`, `peak_child_rss_bytes` (largest child, not total), `objects_compiled/cached`,
+`jobs`, `lifted_insns`, `flagsElided` per lifted module (experimental opt-in). `packaging` measures raw and per-file
+gzip bytes, wasm and unique emitted chunks; excludes manifest. `coverage().metrics` adds frame count, errors,
+outside-slice events, bytes fetched, entries dropped, load→first-frame and render-completion avg/p95 (not GPU timestamps
+or vsync frame times). Strict slices reject incomplete overflowed coverage. trial.json stores build/package metrics,
+plus runtime evidence only if reports/slice-runtime.json exists and matches game/schema.
+
+ABI v0.3 subset: requests/readback/limits/stream ranges/coverage/slice boundary. Frozen v0.2 module fixture still loads.
+Both backend tests check ordered GPU readback, streamed sparse reads and strict missing code/data pauses. A sliced
+Win32 fixture runs 2000 extra steps before its omitted-dialog check; that is fixture stability, not target-game scale.
+Exact outstanding features, negative scale measurement and all qualifications are in v03-status.md.
+
+Stage 1 gate run: doctor ready, lint/typecheck clean, unit 63/63, e2e 59 passed/4 pre-existing skips,
+oracle identical/no errors (600 frames), leakcheck 158 files. A subsequent unit regression explicitly renders three
+extra frames and asserts gdi_ops/trace unchanged and chrome_ops increases. Fresh counts appear in the final record.
+
+Visual review of fixture screenshots: `phase0-controls.png` shows round selected radio, tick, stripped/escaped
+prefix labels, literal SS_NOPREFIX label; `caption-style.png` shows close/help caption buttons and legible descenders;
+`phase0-icon.png` shows the warning glyph and marked No default. All are substitute profile artwork, not Windows
+pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window caption/frame fidelity remain limits.
+
+---
+
+## Previous v0.3 development-branch run (before Task 1)
+
+- doctor ready; lint/typecheck clean.
+- Unit **78/78**, 14 files.
+- E2E **67 passed / 4 pre-existing skips**: WebGL 2 31 pass/2 skip, WebGPU 31 pass/2 skip, auto 5 pass.
+- `oracle -- examples/win32-hello`: identical over 600 frames, no errors, lifted interpreter instructions 0.
+- leakcheck **178 files**, clean. No new dependencies; SPEC.md unchanged.
+- Scale and 2010-step fixture stability/packaging measurements: [v03-status.md](v03-status.md).
+
+**Commit caveat:** Stage 4/5 gates ran with an unstaged Win32 file implementation which was accidentally omitted
+from those commits. The finishing follow-up includes it. Historical Stage 4/5 commits alone are not self-contained;
+this deviates from the requested per-commit gate discipline. History was not rewritten. Final HEAD is tested.
+
+At this earlier checkpoint the broad v0.3 brief was **not complete**: no Win64 execution, general shader/buffer/pipeline/GL
+layer, cooperative threads, WASAPI/COM/device expansion or minimum-image slicing. Task 1 above now supplies AMD64 core
+execution at its fixture finish line; unrelated remaining tasks are not claimed complete. The package is labelled 0.3.0-dev.1, not a finished
+v0.3 release. See the explicit per-stage missing-work ledger before starting another trial.
+
+# Historical v0.1 verification
 
 This file is the evidence record for what has been **observed**. Anything not listed here is
 unverified.

@@ -18,10 +18,13 @@
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
+import { peMetadata } from '../inspect/pe.mjs';
+import { coveragePlan, staticClosure } from './coverage.mjs';
+import { streamFile, compactPe, hashFile } from './files.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -39,7 +42,7 @@ function hostCC() {
 
 /** Build (or reuse) the native x86tool. */
 export function x86tool() {
-  const srcs = [join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c'), join(ROOT, 'platforms/x86/x86_decode.h')];
+  const srcs = [join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c'), join(ROOT, 'platforms/x86/x86_decode.h'),join(ROOT,'tools/x86/lift64.h')];
   const h = sha256(Buffer.concat(srcs.map((s) => readFileSync(s)))).slice(0, 16);
   const out = join(CACHE, `x86tool-${h}`);
   if (!existsSync(out)) {
@@ -72,8 +75,21 @@ export function buildFixture(gameDir, fx, outDir) {
     resFile = join(outDir, basename(fx.out) + '.res');
     writeFileSync(resFile, buildRes(JSON.parse(readFileSync(join(gameDir, fx.resources), 'utf8')), join(gameDir, fx.resources, '..')));
   }
-  const args = ['cc', '-target', 'x86-windows-gnu', '-mcpu=i686', '-O1', '-fno-stack-protector', '-nostdlib', '-isystem', zigWinInclude(),
-    `-Wl,--entry,${fx.entry ?? 'entry'}`, '-Wl,--subsystem,windows', '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
+  const target = fx.target ?? 'x86-windows-gnu';
+  if (!['x86-windows-gnu', 'x86_64-windows-gnu'].includes(target)) {
+    throw new Error(`unsupported fixture target ${target}`);
+  }
+  const normal = fx.crt === true;
+  const args = [
+    fx.cpp ? 'c++' : 'cc', '-target', target,
+    ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables', '-fno-lto', '-fno-emulated-tls']),
+    normal ? '-O2' : '-O1', '-fno-stack-protector',
+    ...(normal ? ['-s', '-Wl,--gc-sections'] : ['-nostdlib']), '-isystem', zigWinInclude(),
+    ...(normal ? [] : [`-Wl,--entry,${fx.entry ?? 'entry'}`]), '-Wl,--subsystem,windows',
+    ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []),
+    '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`),
+  ];
+  writeFileSync(join(outDir, 'fixture-build.json'), JSON.stringify({ target, normalCrt: normal, args }, null, 2));
   execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
@@ -108,35 +124,19 @@ function resolveModule(gameDir, spec, fixtureFiles) {
 }
 
 function peInfo(file) {
-  const b = readFileSync(file);
-  const nt = b.readUInt32LE(0x3c), opt = nt + 24;
-  return { base: b.readUInt32LE(opt + 28), size: b.readUInt32LE(opt + 56), relocs: b.readUInt32LE(opt + 96 + 5 * 8) !== 0, importDlls: peImportDlls(b) };
+  const fd=openSync(file,'r');try {
+    const p=peMetadata((o,n)=>{const b=Buffer.alloc(n);return b.subarray(0,readSync(fd,b,0,n,o));},fstatSync(fd).size);
+    if(p.pe32plus && p.machine!=='x86-64')throw new Error('unsupported PE32+ machine');
+    if(p.importErrors.length)throw new Error(p.importErrors.join('; '));
+    return {mode64:p.pe32plus,base:p.pe32plus?0x01000000:Number(BigInt(p.imageBase)),size:p.imageBytes,relocs:p.directories[5][0]!==0,importDlls:p.imports};
+  }finally{closeSync(fd);}
 }
 
 /** Names of the DLLs a PE32 image imports statically (import directory), in file order. */
 export function peImportDlls(b) {
-  const nt = b.readUInt32LE(0x3c), opt = nt + 24, nsec = b.readUInt16LE(nt + 6), optsz = b.readUInt16LE(nt + 20);
-  const secs = [];
-  for (let i = 0; i < nsec; i++) {
-    const o = opt + optsz + 40 * i;
-    secs.push({ va: b.readUInt32LE(o + 12), vsize: b.readUInt32LE(o + 8), raw: b.readUInt32LE(o + 20), rawsize: b.readUInt32LE(o + 16) });
-  }
-  const off = (rva) => {
-    for (const s of secs) if (rva >= s.va && rva < s.va + Math.max(s.vsize, s.rawsize)) return s.raw + (rva - s.va);
-    return rva < b.length ? rva : -1;
-  };
-  const imp = b.readUInt32LE(opt + 96 + 8), out = [];
-  if (!imp) return out;
-  for (let de = off(imp); de >= 0 && de + 20 <= b.length; de += 20) {
-    const name = b.readUInt32LE(de + 12), iat = b.readUInt32LE(de + 16);
-    if (!name && !iat) break;
-    const p = off(name);
-    if (p < 0) continue;
-    let e = p;
-    while (e < b.length && b[e]) e++;
-    out.push(b.toString('latin1', p, e));
-  }
-  return out;
+  const p = peMetadata((off,n) => b.subarray(off,off+n), b.length);
+  if (p.importErrors.length) throw new Error(`PE imports: ${p.importErrors.join('; ')}`);
+  return p.imports;
 }
 
 /** System DLLs the Win32 profile implements (platforms/win32/dlls.json); '*' entries are prefixes. */
@@ -167,23 +167,40 @@ function overrides(gameDir) {
  */
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
+  if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
+    throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
+  }
+  const recorded=cfg.slice?.coverage ?? p.coverage;
+  const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
+  const sliceCode=new Set();
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
   mkdirSync(work, { recursive: true });
   const fixtureFiles = {};
   if (p.fixture) {
+    for (const data of p.fixture.patternFiles ?? []) {
+      if (!/^[a-z0-9-]+\.[a-z0-9]+$/.test(data.name) || !Number.isInteger(data.bytes) || data.bytes < 0 || data.bytes > 512*1024*1024) throw new Error('invalid CC0 pattern fixture');
+      const dir=join(work,'fixture');mkdirSync(dir,{recursive:true});
+      const fd=openSync(join(dir,data.name),'w');
+      try {const b=Buffer.alloc(65536);for(let off=0;off<data.bytes;off+=b.length){const n=Math.min(b.length,data.bytes-off);for(let i=0;i<n;i++)b[i]=(((off+i)*(data.multiplier ?? 1)+(data.increment ?? 0))^(data.xorShift ? (off+i)>>>data.xorShift : 0))&255;writeSync(fd,b,0,n);}}finally{closeSync(fd);}
+    }
     const f = buildFixture(gameDir, p.fixture, join(work, 'fixture'));
     fixtureFiles[`./build/${p.fixture.out}`] = f;
   }
-  const tool = p.interpretOnly ? null : x86tool();
+  const tool = x86tool();
   const ov = overrides(gameDir);
-  const mods = [];
+  const mods = [], streams = [];
+  let mode64=false;
   let next = 0x10000000;
   for (const m of p.modules) {
     const { file, provenance } = resolveModule(gameDir, m.from, fixtureFiles);
     const name = m.name ?? basename(m.from.split('#').pop()).toLowerCase();
     const info = peInfo(file);
+    if(mods.length && info.mode64!==mode64)throw new Error('cannot mix i386 and AMD64 modules in one process');mode64=info.mode64;
+    if(mode64 && p.streamModules!==false)p.streamModules=true;
     let base = info.base;
+    if(mode64 && !mods.length)next=0x01000000;
     /* keep preferred bases unless they overlap an earlier module (then relocate deterministically) */
     const overlaps = (b) => mods.some((o) => b < o.base + o.size && o.base < b + info.size);
     if (overlaps(base)) {
@@ -191,22 +208,41 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       while (overlaps(next)) next += 0x100000;
       base = next;
     }
-    const asset = `modules/${name}`;
-    mkdirSync(join(outAssetsDir, 'modules'), { recursive: true });
-    cpSync(file, join(outAssetsDir, asset));
+    if(mode64 && base+info.size>0x04000000)throw new Error('AMD64 images exceed the configured low flat image window (16..64 MiB)');
+    const asset = `${p.streamModules ? 'loader' : 'modules'}/${name}`;
+    mkdirSync(join(outAssetsDir, p.streamModules ? 'loader' : 'modules'), { recursive: true });
+    if (p.streamModules) {
+      compactPe(file,join(outAssetsDir,asset));
+      streams.push(streamFile(file,`modules/${name}`,join(outAssetsDir,'..'),p.chunkSize));
+    } else cpSync(file, join(outAssetsDir, asset));
     const id = cIdent(name);
     let lifted = null, stats = null, analysis = null;
-    if (tool) {
+    if(plan && p.interpretOnly) {
+      const identity=plan.modules.find((m)=>m.name===name);
+      if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
+      const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+      for(const a of staticClosure(an,plan.code))sliceCode.add(a);
+    }
+    if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
       const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
+      if (p.flagLiveness === true) args.push('--flag-liveness','on');
+      if(plan) {
+        const identity=plan.modules.find((m)=>m.name===name);
+        if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
+        const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+        const selected=staticClosure(an,plan.code);
+        for(const a of selected)sliceCode.add(a);
+        const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);
+      }
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
       writeFileSync(join(work, `analysis_${id}.json`), analysis);
       stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
     }
     const totals = analysis ? JSON.parse(analysis).totals : null;
-    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: sha256(readFileSync(file)),
-      functions: totals ? totals.functions : 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
+    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: hashFile(file),
+      functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
   if (!mods.some((m) => m.main)) mods[0].main = true;
   /* static imports must resolve to a shipped module or a DLL the profile implements (Win32 would refuse to start
@@ -231,7 +267,7 @@ static const w32_module_cfg_t modules[] = {
 ${rows}
 };
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
-static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}};
+static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
@@ -247,8 +283,10 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   /* lifted tables are sorted by address; the profile merges them across modules */
   const platform = [
     'platforms/x86/x86_decode.c', 'platforms/x86/x86_exec.c', 'platforms/x86/x86_rt.c',
+    'platforms/x86/x86_exec64.c', 'platforms/x86/x86_simd.c', 'platforms/x86/x86_x87.c',
+    'platforms/win32/w32_x64.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
-    'platforms/win32/w32_replay.c',
+    'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
   ].map((f) => join(ROOT, f));
   const sources = [driver, ...mods.filter((m) => m.lifted).map((m) => m.lifted), ...platform, ...ov.files];
@@ -257,7 +295,11 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   const report = {
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
+    machine: mode64?'x86-64':'i386',
+    memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
     interpretOnly: !!p.interpretOnly,
+    ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
+      optimization: p.fixture.crt === true ? '-O2' : '-O1', language: p.fixture.cpp ? 'C++' : 'C' } } : {}),
     modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
     loc: { generated, handwritten },
@@ -265,8 +307,15 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   writeFileSync(join(work, 'pipeline.json'), JSON.stringify(report, null, 2) + '\n');
   return {
     sources,
+    streams,
+    slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),ranges:plan.ranges} : null,
+    fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
-    cflags: ['-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],
+    cflags: [
+      ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
+        '-D_GNU_SOURCE', '-fno-math-errno'] : []),
+      '-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable',
+    ],
     asyncify: true,
     report,
   };

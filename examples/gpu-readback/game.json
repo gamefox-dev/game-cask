@@ -1,0 +1,5 @@
+{
+  "id": "gpu-readback", "name": "GPU readback conformance (CC0)", "license": "CC0-1.0", "private": false,
+  "sources": ["readback.c"], "asyncify": true,
+  "touch": { "dpad": false, "buttons": [] }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "x64-crt",
+  "name": "CC0 normal Win64 C runtime conformance",
+  "assets": "assets",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true,
+      "out": "crt.exe", "sources": ["crt.c"]
+    },
+    "modules": [{"from": "./build/crt.exe", "main": true}]
+  }
+}

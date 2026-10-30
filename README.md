@@ -1,7 +1,7 @@
 # Game Cask
 
 An agent-first starter kit for restoring **legally obtained** legacy games as playable browser
-games. You bring the game files; Claude Code analyses them with reverse-engineering tools and
+games. You bring the game files; your coding agent analyses them with reverse-engineering tools and
 rebuilds the game in C. It runs in the browser through a small, stable ABI called the
 **Game Cask Browser Target (BGT)**: WebGPU first, WebGL 2 fallback, phone-friendly input.
 
@@ -14,7 +14,7 @@ claude                                      # open Claude Code in this directory
 > Port this game
 ```
 
-Claude follows [`CLAUDE.md`](CLAUDE.md):
+Any harness follows [`AGENTS.md`](AGENTS.md) → [`CLAUDE.md`](CLAUDE.md) (single source of rules):
 1. Establish a green baseline.
 2. Inventory `original/`, then analyse the binary (with REA when available).
 3. Choose a strategy per subsystem (preserve / reconstruct / replace / selective-emulate).
@@ -27,9 +27,28 @@ Claude follows [`CLAUDE.md`](CLAUDE.md):
 For a reproducible trial, write a brief first: `npm run trial:brief -- --game <file-in-original> --slug <slug>`
 (`--resume` to continue an existing port after a kit change) and give the printed text to the porting agent.
 
-Ports, reports and screenshots stay private and local by default.
+Ports, reports and screenshots stay private and local by default. [docs/trials.md](docs/trials.md) documents
+isolated trial setup (`npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]`), Claude Code
+and pi drivers, sandbox limits, and recording. `.agents/skills` exposes the same skills as `.claude/skills`.
+No new npm dependencies are required for these tools; optional pi/Python PTY drivers use an already installed CLI.
 
-## How porting works (kit v0.2)
+## Development status
+
+This branch is a **partial v0.3 implementation**, not Win64/GL readiness. See [docs/v03-status.md](docs/v03-status.md)
+for stage-by-stage evidence and missing work. **AMD64 execution now passes the four source-built Task 1 fixtures**:
+integer/SSE/varargs, compiled C++ exceptions/destructors, TLS/setjmp and GDI/input. Each is fully lifted and oracle-identical
+for 300 frames. This is not arbitrary Win64 compatibility; see [docs/pipeline.md](docs/pipeline.md#amd64-execution-task-1)
+for the flat-address window, supported semantics and real-world limits. `analyze -- FILE --metadata` remains available.
+Pipeline builds cache objects and Asyncify output and compile in
+parallel (`BGT_BUILD_JOBS=2` by default); `node tools/bench/lift-scale.mjs 1024` reproduces scale measurements.
+ABI v0.3 is additive (`0x000300`): bounded async requests, command-ordered GPU readback, backend texture limits,
+streamed asset ranges, profile entry coverage and explicit slice boundaries. This is **not** the requested general
+GPU/shader/OpenGL layer. `pipeline.streamModules:true` provides chunked executable self-open without preloading large
+overlays; `streams` describes shipped large files. Probes/tests record code/file coverage; `build:port -- --slice FILE`
+builds a strict partial package and pauses outside it. [docs/pipeline.md](docs/pipeline.md) gives the verified workflow.
+No new npm dependencies. Python 3 stdlib measures compiler/linker RSS (largest child, not aggregate memory).
+
+## How porting works
 
 Ports go through a **systematic, reproducible pipeline** rather than per-game rewrites
 ([docs/pipeline.md](docs/pipeline.md)):
@@ -86,9 +105,11 @@ Useful URL flags:
 | `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |
 | `npm run probe -- --game <id> --script <f.mjs>` | scripted exploration in headless Chromium on its own server (screenshots, zoomed crops, metrics, read-only `peek`, resource tour) → `reports/probe/` |
-| `npm run trial:brief -- --game <file> --slug <slug> [--resume]` | trial brief for a porting agent → `reports/brief.md` |
+| `npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]` | operator: isolated, remote-free clone at commit, npm ci, copy input, write brief |
+| `npm run trial:brief -- --game <file> --slug <slug> [--resume] [--slice TEXT]` | trial brief for a porting agent → `reports/brief.md` |
 | `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json`; `-- --strings FILE` prints ASCII/UTF-16 strings and PE resource text (stdout only) |
-| `npm run extract -- IN OUT` / `npm run analyze -- FILE` | static unpacking / x86 analysis + disassembly |
+| `npm run build:port -- --slice COVERAGE.json` | partial code/data slice; file paths from repo root; outside dependencies pause clearly |
+| `npm run extract -- IN OUT` / `npm run analyze -- FILE [--metadata]` | static unpacking / x86 analysis + disassembly |
 | `npm run oracle -- <gameDir>` | differential oracle: lifted vs interpreted builds |
 | `npm run trial:record -- <gameDir> <slug>` | trial record (`trial.json` + port note) for the trials repo |
 | `npm run report` | validate + redact `reports/`, write `reports/summary.md` |

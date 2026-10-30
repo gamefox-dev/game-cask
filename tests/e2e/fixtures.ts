@@ -1,6 +1,8 @@
 // Shared e2e fixtures: backend selection per project, collection of JS
 // exceptions / console errors / failed requests / wasm traps / GPU errors,
 // and pixel helpers.
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test as base, expect, Page, TestInfo } from '@playwright/test';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 
@@ -41,6 +43,14 @@ export const test = base.extend<Fixtures>({
       if (r.status() >= 400) c.failedRequests.push(`${r.status()} ${r.url()}`);
     });
     await use(c);
+    try {
+      const coverage=await page.evaluate(()=>(window as any).__BGT_TEST__?.coverage?.());
+      if(coverage){
+        const dir=join('reports','coverage',testInfo.project.name);mkdirSync(dir,{recursive:true});
+        writeFileSync(join(dir,testInfo.testId.replace(/[^a-z0-9-]/gi,'_')+'.json'),JSON.stringify(coverage,null,2)+'\n');
+        await testInfo.attach('coverage.json',{body:JSON.stringify(coverage),contentType:'application/json'});
+      }
+    } catch { /* deliberate unavailable-runtime tests may have no API */ }
     const unexpected = (xs: string[]) => xs.filter((x) => !allowed.some((p) => p.test(x)));
     const problems = {
       pageErrors: unexpected(c.pageErrors),

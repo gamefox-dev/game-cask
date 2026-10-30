@@ -14,8 +14,8 @@
 //     them (the extractor's extract.json, any JSON with a "game-cask/..." schema) is not reference material.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { existsSync, readFileSync, readdirSync, lstatSync, readlinkSync } from 'node:fs';
+import { join, relative, sep, resolve, isAbsolute } from 'node:path';
 import { ROOT as KIT_ROOT } from '../build/toolchain.mjs';
 import { SECRET_PATTERNS } from './redact.mjs';
 
@@ -27,7 +27,7 @@ function walk(dir, base = dir) {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    const st = statSync(p, { throwIfNoEntry: false });
+    const st = lstatSync(p, { throwIfNoEntry: false });
     if (!st) continue;
     if (st.isDirectory()) out.push(...walk(p, base));
     else if (st.isFile()) out.push(relative(base, p).split(sep).join('/'));
@@ -83,7 +83,11 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
   for (const { label: p, full } of origFiles) {
     const b = readFileSync(full);
     origHashes.set(createHash('sha256').update(b).digest('hex'), p);
-    if (b.length >= 256) for (let k = 0; k < 8; k++) origWindows.push({ p, w: b.subarray(Math.floor(((b.length - 64) * k) / 8), Math.floor(((b.length - 64) * k) / 8) + 64) });
+    if (b.length >= 256) for (let k = 0; k < 8; k++) {
+      const w = b.subarray(Math.floor(((b.length - 64) * k) / 8), Math.floor(((b.length - 64) * k) / 8) + 64);
+      // Padding cannot identify a payload. Full-file equality is ALWAYS checked above, even for padding-only files.
+      if (new Set(w).size >= 8) origWindows.push({ p, w });
+    }
   }
   let portPublic = false;
   try {
@@ -106,7 +110,13 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
     }
     if (BINARY_EXT.test(p) && !p.startsWith('tests/fixtures/synthetic/')) add('game binary / disc image / save extension');
     const full = join(root, p);
-    const st = statSync(full);
+    const st = lstatSync(full);
+    if (st.isSymbolicLink()) {
+      const target = readlinkSync(full), rel = relative(root, resolve(full, '..', target)).split(sep).join('/');
+      if (isAbsolute(target) || rel.startsWith('../') || /^(original|port|reports)(\/|$)/.test(rel)) add('symlink to private or external path');
+      continue; // linked kit files are checked through their own tracked paths; never traverse symlink directories
+    }
+    if (!st.isFile()) continue;
     if (st.size > 64 * 1024 * 1024) {
       add('file larger than 64 MiB');
       continue;

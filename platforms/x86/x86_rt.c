@@ -13,6 +13,18 @@ x86_cpu_t X;
 uint8_t *x86_pages[1u << 20];
 x86_metrics_t x86_metrics;
 int x86_force_interp;
+#ifdef X86_FLAT_GUEST
+uint8_t *x86_flat;
+uint64_t x86_guest_committed;
+static void (*scheduler)(void);
+void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
+void x86_cooperate(void) {
+    if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
+    X.frame_insns = 0;
+    scheduler();
+}
+#endif
+uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
 /* ------------------------------------------------------------------ host arena */
 extern unsigned char __heap_base;
@@ -20,7 +32,17 @@ static uintptr_t arena_top;
 
 void *x86_alloc(uint32_t size) {
     if (!arena_top) arena_top = ((uintptr_t)&__heap_base + 15u) & ~(uintptr_t)15u;
-    uintptr_t p = arena_top, end = p + ((size + 15u) & ~15u);
+    uintptr_t p = arena_top;
+    uint64_t end64 = (uint64_t)p + (((uint64_t)size + 15u) & ~15ull);
+#ifdef X86_FLAT_GUEST
+    if (!x86_flat) {
+        uintptr_t base = ((uintptr_t)&__heap_base + X86_HOST_ARENA_BYTES + 65535u) & ~65535u;
+        x86_flat = (uint8_t *)base;
+    }
+    if (end64 > (uintptr_t)x86_flat) return 0;
+#endif
+    if (end64 > UINT32_MAX) return 0;
+    uintptr_t end = (uintptr_t)end64;
     uintptr_t have = (uintptr_t)__builtin_wasm_memory_size(0) * 65536u;
     if (end > have) {
         uintptr_t pages = (end - have + 65535u) / 65536u;
@@ -33,6 +55,21 @@ void *x86_alloc(uint32_t size) {
 
 uint8_t *x86_map(uint32_t addr, uint32_t size) {
     if (!size) return 0;
+#ifdef X86_FLAT_GUEST
+    if ((uint64_t)addr + size > X86_FLAT_BYTES) return 0;
+    if (!x86_flat && !x86_alloc(16)) return 0;
+    uint64_t end = (uint64_t)(uintptr_t)x86_flat + addr + size;
+    uint64_t have = (uint64_t)__builtin_wasm_memory_size(0) * 65536u;
+    if (end > have) {
+        uint32_t pages = (uint32_t)((end - have + 65535u) / 65536u);
+        if (__builtin_wasm_memory_grow(0, pages) == (uintptr_t)-1) return 0;
+    }
+    if (x86_guest_committed < (uint64_t)addr + size) x86_guest_committed = (uint64_t)addr + size;
+    uint32_t flat_last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
+    for (uint32_t p = addr >> 12; p <= flat_last; p++)
+        x86_pages[p] = x86_flat + ((uintptr_t)p << 12);
+    return x86_flat + addr;
+#endif
     uint32_t first = addr >> 12, last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
     uint32_t i = first;
     while (i <= last) {
@@ -48,6 +85,7 @@ uint8_t *x86_map(uint32_t addr, uint32_t size) {
 }
 
 int x86_mapped(uint32_t addr, uint32_t size) {
+    if ((uint64_t)addr + size > 0x100000000ull) return 0;
     if (!size) return 1;
     uint32_t last = (uint32_t)(((uint64_t)addr + size - 1) >> 12);
     for (uint32_t i = addr >> 12; i <= last; i++) if (!x86_pages[i]) return 0;
@@ -55,14 +93,14 @@ int x86_mapped(uint32_t addr, uint32_t size) {
 }
 
 /* ------------------------------------------------------------------ faults */
-static char fault_buf[160];
+static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
     uint32_t n = 0;
     const char *p = "x86: ";
-    while (*p && n < 100) fault_buf[n++] = *p++;
-    while (*msg && n < 140) fault_buf[n++] = *msg++;
+    while (*p && n + 32 < sizeof fault_buf) fault_buf[n++] = *p++;
+    while (*msg && n + 32 < sizeof fault_buf) fault_buf[n++] = *msg++;
     p = " at 0x";
     while (*p) fault_buf[n++] = *p++;
     for (int i = 7; i >= 0; i--) fault_buf[n++] = HEX[(eip >> (i * 4)) & 15u];
@@ -101,6 +139,9 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if (x86_force_interp) return 0;
+#ifdef X86_FLAT_GUEST
+    {uint32_t lo=0,hi=nlifted;while(lo<hi){uint32_t m=(lo+hi)/2;if(lifted[m].addr<=addr)lo=m+1;else hi=m;}if(lo){const x86_lifted_entry_t *e=&lifted[lo-1];if(addr==e->addr||addr<e->end)return e->fn;}return 0;}
+#endif
     uint32_t lo = 0, hi = nlifted;
     while (lo < hi) {
         uint32_t mid = (lo + hi) / 2;
@@ -138,13 +179,36 @@ static const x86_insn_t *decode_at(uint32_t eip) {
         buf[avail] = *p;
     }
     if (!avail) x86_fault("execute from unmapped memory", eip);
-    if (!x86_decode(buf, avail, eip, &e->in)) x86_fault("undecodable instruction", eip);
+    if (!x86_decode_mode(buf, avail, eip,
+#ifdef X86_FLAT_GUEST
+        1,
+#else
+        0,
+#endif
+        &e->in)) x86_fault("undecodable instruction", eip);
     e->addr = eip;
     return &e->in;
 }
 
 /* run until EIP == ret_addr with ESP > esp_floor */
 static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
+#ifdef X86_FLAT_GUEST
+    {
+        for(;;) {
+            if(X.transfer)return;
+            if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
+            if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);continue;}
+            x86_lifted_fn f=x86_find_lifted(X.eip);
+            if(f){uint32_t old=X.eip;x86_metrics.lifted_calls++;f();if(X.eip==old&&!X.transfer)x86_fault("lifted AMD64 entry made no progress",old);}
+            else {
+                bgt_coverage_entry(X.eip, 2);
+                const x86_insn_t *in = decode_at(X.eip);
+                x86_metrics.interp_insns++;
+                x86_exec64(in);
+            }
+        }
+    }
+#endif
     int counted = 0;
     for (;;) {
         uint32_t eip = X.eip;
@@ -169,19 +233,28 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 continue;
             }
         }
+        if (in->op == XO_CALL || in->op == XO_CALL_IND) {
+            uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
+            if (!x86_is_thunk(t)) bgt_coverage_entry(t,2);
+        }
         x86_exec_insn(in);
     }
 }
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
-    uint32_t esp_floor = X.r[ESP]; /* return address is at [esp_floor] */
+    uint32_t esp_floor = (uint32_t)X.r[ESP]; /* return address is at [esp_floor] */
+#ifdef X86_FLAT_GUEST
+    X.eip=target;interp_until(ret_addr,esp_floor);return;
+#endif
     x86_lifted_fn fn = x86_find_lifted(target);
     if (fn) {
+        bgt_coverage_entry(target,1);
         x86_metrics.lifted_calls++;
         fn();
         return;
     }
     X.eip = target;
+    if (!x86_is_thunk(target)) bgt_coverage_entry(target,2);
     interp_until(ret_addr, esp_floor);
 }
 
@@ -198,7 +271,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
         if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
     }
     /* a tail jump to an import thunk is an API call, not interpretation */
-    if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
+    if (!x86_is_thunk(X.eip)) { x86_metrics.continues_interpreted++; bgt_coverage_entry(X.eip,2); }
     interp_until(ra, esp0);
 }
 
@@ -221,7 +294,26 @@ const uint8_t *x86_debug_peek(uint32_t addr, uint32_t len) {
 }
 
 #define X86_CALLBACK_SENTINEL 0xfffffff0u
+uint64_t x86_callback64(uint32_t fn,uint32_t nargs,const uint64_t *args) {
+#if !defined(X86_FLAT_GUEST) && !defined(X86_WIDE_CPU)
+    (void)nargs;(void)args;x86_fault("Win64 callback in i386 process",fn);
+#else
+    uint64_t saved[16];__builtin_memcpy(saved,X.r,sizeof saved);
+    x86_vec_t xmm[16];__builtin_memcpy(xmm,X.xmm,sizeof xmm);
+    uint32_t ip=X.eip;uint64_t sp=(X.r[ESP]-32u-8u*(nargs>4?nargs-4:0))&~15ull;
+    X.r[ESP]=sp;
+    static const int regs[4]={ECX,EDX,R8,R9};
+    for(uint32_t i=0;i<nargs;i++) {if(i<4)X.r[regs[i]]=args[i];else x86_wr64((uint32_t)sp+32+8*(i-4),args[i]);}
+    x86_push(X86_CALLBACK_SENTINEL);x86_invoke(fn,X86_CALLBACK_SENTINEL);
+    uint64_t result=X.r[EAX];
+    if(!X.transfer){__builtin_memcpy(X.r,saved,sizeof saved);__builtin_memcpy(X.xmm,xmm,sizeof xmm);X.eip=ip;}
+    return result;
+#endif
+}
 uint32_t x86_callback(uint32_t fn, uint32_t nargs, const uint32_t *args) {
+#ifdef X86_FLAT_GUEST
+    {uint64_t a[16];if(nargs>16)x86_fault("callback too many arguments",fn);for(uint32_t i=0;i<nargs;i++)a[i]=args[i];return (uint32_t)x86_callback64(fn,nargs,a);}
+#endif
     uint32_t saved_esp = X.r[ESP], saved_eip = X.eip;
     for (uint32_t i = nargs; i > 0; i--) x86_push(args[i - 1]);
     x86_push(X86_CALLBACK_SENTINEL);

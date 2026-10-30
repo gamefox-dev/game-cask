@@ -2,7 +2,7 @@
 // Frame (bgt/runtime/commands.ts), so semantics live in one place and the
 // backends only translate draws, clips and texture ops.
 
-import type { Frame, Rect, TextureTable } from '../runtime/commands';
+import type { Frame, Rect, TextureTable, ReadbackItem } from '../runtime/commands';
 
 export type BackendKind = 'webgpu' | 'webgl2';
 
@@ -70,6 +70,17 @@ export function clipToDevice(clip: Rect, lb: Letterbox, logicalW: number, logica
   const x1 = Math.round(lb.x + (clip.x + clip.w) * sx);
   const y1 = Math.round(lb.y + (clip.y + clip.h) * sy);
   return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+}
+
+/** Crop a backend readback to the ABI's tightly packed, logical, top-down RGBA8 rectangle. */
+export function readbackRect(px: Pixels, it: ReadbackItem, lw: number, lh: number, lb: Letterbox): Uint8Array<ArrayBuffer> {
+  const data = new Uint8Array(it.w * it.h * 4);
+  for (let y=0;y<it.h;y++) for (let x=0;x<it.w;x++) {
+    const sx = it.target ? it.x+x : Math.min(px.width-1,Math.max(0,Math.floor(lb.x+(it.x+x+0.5)*lb.w/lw)));
+    const sy = it.target ? it.y+y : Math.min(px.height-1,Math.max(0,Math.floor(lb.y+(it.y+y+0.5)*lb.h/lh)));
+    const o=(sy*px.width+sx)*4; data.set(px.data.subarray(o,o+4),(y*it.w+x)*4);
+  }
+  return data;
 }
 
 export const WHITE_PIXEL = new Uint8Array([255, 255, 255, 255]);

@@ -21,8 +21,8 @@ extern "C" {
 /* ---------------------------------------------------------------- version */
 
 #define BGT_ABI_VERSION_MAJOR 0
-#define BGT_ABI_VERSION_MINOR 2
-/* Packed as (major << 16) | (minor << 8) | patch. v0.2.0 == 0x000200 (v0.1 games still load). */
+#define BGT_ABI_VERSION_MINOR 3
+/* Packed as (major << 16) | (minor << 8) | patch. v0.3.0 == 0x000300 (v0.1/v0.2 games still load). */
 #define BGT_ABI_VERSION ((BGT_ABI_VERSION_MAJOR << 16) | (BGT_ABI_VERSION_MINOR << 8))
 
 #if defined(__wasm__)
@@ -56,6 +56,8 @@ extern "C" {
 #define BGT_CAP_DIRECT_DRAW    (1u << 7)  /* debug/bench reference path    */
 #define BGT_CAP_RENDER_TARGETS (1u << 8)  /* v0.2: TEX_CREATE with BGT_TEX_RENDER_TARGET + TARGET op */
 #define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
+#define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
+#define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
 
 #define BGT_BACKEND_NONE     0
 #define BGT_BACKEND_WEBGPU   1
@@ -207,6 +209,26 @@ static inline int bgt_key_pressed(const bgt_io_t *io, uint32_t key) {
 
 /* Logging. Text is UTF-8, explicit length, no terminator required. */
 BGT_IMPORT(log)   void bgt_log(uint32_t level, const char *ptr, uint32_t len);
+/* v0.3 profile instrumentation; not game logic. kind 1 lifted / 2 interpreted function entry. */
+BGT_IMPORT(coverage_entry) void bgt_coverage_entry(uint32_t address, uint32_t kind);
+/* Stop at an unprovided slice dependency (kind 1 code, 2 data). Runtime pauses; reload a broader package. */
+BGT_IMPORT(slice_missing) void bgt_slice_missing(uint32_t kind, uint32_t address);
+
+/* v0.3 ranges work for preloaded AND streamed handles. u64 file offsets are split into lo/hi.
+ * asset_size64 writes a little-endian u64; range returns a request ID (or error), not byte data. */
+BGT_IMPORT(asset_size64) int32_t bgt_asset_size64(uint32_t handle, uint64_t *size);
+BGT_IMPORT(asset_range_request) int32_t bgt_asset_range_request(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
+
+typedef struct bgt_gpu_limits {
+    uint32_t byte_size, max_texture_dimension, max_texture_handles, texture_budget_bytes;
+} bgt_gpu_limits_t; /* 16 bytes */
+BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
+
+/* v0.3 asynchronous request results. status: 0 pending, 1 ready, or error. Reads do not consume.
+ * Completion becomes visible only on a later bgt_update (normally after bgt_yield). */
+BGT_IMPORT(request_status) int32_t bgt_request_status(uint32_t request);
+BGT_IMPORT(request_read) int32_t bgt_request_read(uint32_t request, void *dst, uint32_t cap);
+BGT_IMPORT(request_close) int32_t bgt_request_close(uint32_t request);
 /* Fatal error. Never returns: the runtime stops the game loop and shows an error. */
 BGT_IMPORT(abort) void bgt_abort(int32_t code, const char *ptr, uint32_t len);
 

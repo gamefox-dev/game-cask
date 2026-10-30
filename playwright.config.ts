@@ -20,6 +20,7 @@ const webgpuArgs = ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU',
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  globalSetup: './tests/e2e/global-setup.ts',
   outputDir: `reports/${PREFIX}-artifacts`,
   timeout: 60_000,
   fullyParallel: false,

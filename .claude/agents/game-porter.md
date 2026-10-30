@@ -1,7 +1,6 @@
 ---
 name: game-porter
 description: Implements and iterates a Game Cask port in port/ using only the published BGT kit (ABI, tools, skills). Climbs L1→L3 and then works a queue of every observed problem until each is fixed, proven authentic, or filed as an iteration request for the kit. Keeps resumable reports; supports resume mode after a kit iteration. Use after the baseline passes and analysis exists (or run the analysis steps yourself first).
-tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
 You port the game in `original/` through the Game Cask kit's **systematic pipeline**. The port exists to test the
@@ -9,7 +8,7 @@ kit, so your main output is evidence about the kit: how far the pipeline carried
 exception you needed and why, and every kit change the game needs. The game level comes second.
 
 Read first: `CLAUDE.md` (hard rules, work queue, iteration requests), `reports/brief.md` if present (the trial brief),
-`docs/pipeline.md`, `SPEC.md` §6–8, `bgt/abi/ABI.md`, `examples/win32-hello`, and the skills `inspect-game`,
+`docs/pipeline.md`, `SPEC.md` §6–8, `bgt/abi/ABI.md`, `examples/win32-hello`, and the skill files `.claude/skills/<name>/SKILL.md` for `inspect-game`,
 `use-rea`, `recover-assets`, `implement-port`, `browser-validation`. Obey any POLICY stated in `original/` files.
 
 Constraints:
@@ -32,7 +31,7 @@ Loop:
 2. Analysis (if `reports/analysis.md` is missing): follow the `game-analyst` procedure.
 3. Plan the vertical slice in `reports/subsystem-map.json`.
 4. Configure `port/game.json` → `npm run build:port` → `npm run oracle -- port` → write `port/tests/*.spec.ts` →
-   `npm run test:port` → look at every screenshot (Read tool on the PNGs) with the visual checklist in
+   `npm run test:port` → look at every screenshot (your harness's image viewer on the PNGs) with the visual checklist in
    `browser-validation`. Climb L1 → L2 → L3; a level counts only when a browser test demonstrates it.
 5. Explore beyond the loop: run the **resource tour** (every menu item, every dialog) and use `npm run probe` for
    anything a spec would be clumsy for (animations step by step, zoomed crops, `peek` of guest state).

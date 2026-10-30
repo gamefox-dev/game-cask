@@ -17,8 +17,8 @@ export function section(text, name) {
 }
 
 /** Fill the template. Pure: no file system access (tests use it directly). */
-export function fillBrief(template, { game, slug, sha256, kit, date, scratch, resume }) {
-  const vars = { GAME: game, SLUG: slug, SHA256: sha256, KIT: kit, DATE: date, SCRATCH: scratch, RESUME: resume ? '\n' + section(template, 'RESUME') : '' };
+export function fillBrief(template, { game, slug, sha256, kit, date, scratch, resume, slice }) {
+  const vars = { GAME: game, SLUG: slug, SHA256: sha256, KIT: kit, DATE: date, SCRATCH: scratch, SLICE: slice ? `## Selected slice\n${slice}\n\nThis is the launcher's L3 definition and packaging scope. Do not silently broaden or lower it.` : '## Selected slice\nNo launcher-selected slice. Use SPEC.md §8: one complete representative authentic gameplay loop.', RESUME: resume ? '\n' + section(template, 'RESUME') : '' };
   const out = section(template, 'BRIEF').replace(/\{\{([A-Z0-9]+)\}\}/g, (all, k) => {
     if (!(k in vars)) throw new Error(`docs/trial-brief.md: unknown placeholder ${all}`);
     return vars[k];
@@ -32,6 +32,7 @@ function parseArgs(argv) {
     if (argv[i] === '--game') a.game = argv[++i];
     else if (argv[i] === '--slug') a.slug = argv[++i];
     else if (argv[i] === '--scratch') a.scratch = argv[++i];
+    else if (argv[i] === '--slice') a.slice = argv[++i];
     else if (argv[i] === '--resume') a.resume = true;
     else throw new Error(`unknown argument ${argv[i]}`);
   }
@@ -67,6 +68,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       date: new Date().toISOString().slice(0, 10),
       scratch,
       resume: a.resume,
+      slice: a.slice,
     });
     mkdirSync(join(ROOT, 'reports'), { recursive: true });
     writeFileSync(join(ROOT, 'reports', 'brief.md'), brief);

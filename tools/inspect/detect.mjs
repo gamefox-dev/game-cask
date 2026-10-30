@@ -1,6 +1,8 @@
 // Deterministic, read-only file format detection. Pure functions over a
 // Buffer; no execution of inputs, no decompression.
 
+import { peMetadata } from './pe.mjs';
+
 const u16 = (b, o) => (o + 2 <= b.length ? b.readUInt16LE(o) : -1);
 const u32 = (b, o) => (o + 4 <= b.length ? b.readUInt32LE(o) : -1);
 const ascii = (b, o, n) => (o + n <= b.length ? b.toString('latin1', o, o + n) : '');
@@ -111,64 +113,6 @@ export function interpretCensus(c) {
   return hints;
 }
 
-function parsePE(b, peOff) {
-  const machine = u16(b, peOff + 4);
-  const nsect = u16(b, peOff + 6);
-  const timestamp = u32(b, peOff + 8);
-  const optSize = u16(b, peOff + 20);
-  const chars = u16(b, peOff + 22);
-  const opt = peOff + 24;
-  const magic = u16(b, opt);
-  const pe32plus = magic === 0x20b;
-  const subsystem = u16(b, opt + 68);
-  const ddOff = opt + (pe32plus ? 112 : 96);
-  const sectOff = opt + optSize;
-  const sections = [];
-  for (let i = 0; i < nsect && i < 96; i++) {
-    const s = sectOff + i * 40;
-    sections.push({
-      name: ascii(b, s, 8).replace(/\0+$/, ''),
-      vsize: u32(b, s + 8),
-      rva: u32(b, s + 12),
-      rawSize: u32(b, s + 16),
-      rawPtr: u32(b, s + 20),
-    });
-  }
-  const rvaToOff = (rva) => {
-    for (const s of sections) if (rva >= s.rva && rva < s.rva + Math.max(s.vsize, s.rawSize)) return rva - s.rva + s.rawPtr;
-    return -1;
-  };
-  const imports = [];
-  const impRva = u32(b, ddOff + 8);
-  if (impRva > 0) {
-    let d = rvaToOff(impRva);
-    for (let i = 0; d >= 0 && i < 256; i++, d += 20) {
-      const nameRva = u32(b, d + 12);
-      if (!nameRva || nameRva === -1) break;
-      const no = rvaToOff(nameRva);
-      if (no < 0) break;
-      const end = b.indexOf(0, no);
-      imports.push(b.toString('latin1', no, Math.min(end < 0 ? no + 64 : end, no + 64)));
-    }
-  }
-  const clr = u32(b, ddOff + 14 * 8);
-  const MACHINES = { 0x14c: 'i386', 0x8664: 'x86-64', 0x1c0: 'arm', 0xaa64: 'arm64', 0x200: 'ia64' };
-  const SUBSYS = { 1: 'native', 2: 'windows-gui', 3: 'windows-console', 9: 'windows-ce' };
-  return {
-    format: clr > 0 ? 'pe-dotnet' : 'pe',
-    platform: 'windows',
-    details: {
-      machine: MACHINES[machine] ?? `0x${machine.toString(16)}`,
-      pe32plus,
-      subsystem: SUBSYS[subsystem] ?? subsystem,
-      dll: !!(chars & 0x2000),
-      timestamp: timestamp > 0 ? new Date(timestamp * 1000).toISOString() : null,
-      sections: sections.map((s) => s.name),
-      imports,
-    },
-  };
-}
-
 function nintendoLogoAt(b, off) {
   // First bytes of the GBA/GB boot logo; used only as a format signature.
   const gba = [0x24, 0xff, 0xae, 0x51, 0x69, 0x9a, 0xa2, 0x21];
@@ -182,7 +126,7 @@ function nintendoLogoAt(b, off) {
  * @param {string} name file name (for extension hints)
  * @returns {{format: string, platform: string|null, confidence: 'high'|'medium'|'low', details: object, hints?: string[]}}
  */
-export function detect(b, name) {
+export function detect(b, name, file = null) {
   const ext = (name.match(/\.([^.]+)$/)?.[1] ?? '').toLowerCase();
   const head = ascii(b, 0, 4);
   if (b.length === 0) return { format: 'empty', platform: null, confidence: 'high', details: {} };
@@ -191,7 +135,14 @@ export function detect(b, name) {
     const lfanew = u32(b, 0x3c);
     if (lfanew > 0 && lfanew < b.length - 4) {
       const sig = ascii(b, lfanew, 4);
-      if (sig === 'PE\0\0') return { ...parsePE(b, lfanew), confidence: 'high' };
+      if (sig === 'PE\0\0') {
+        try {
+          const details = peMetadata(file?.readAt ?? ((o, n) => b.subarray(o, o + n)), file?.size ?? b.length);
+          return { format: details.clr ? 'pe-dotnet' : 'pe', platform: 'windows', details, confidence: 'high' };
+        } catch (e) {
+          return { format: 'pe', platform: 'windows', details: { parseError: e.message }, confidence: 'low' };
+        }
+      }
       if (sig.startsWith('NE')) return { format: 'ne', platform: 'windows-16bit', confidence: 'high', details: { note: 'Win16/OS2 New Executable' } };
       if (sig.startsWith('LE') || sig.startsWith('LX')) {
         return { format: sig.slice(0, 2).toLowerCase(), platform: 'dos-extended', confidence: 'high', details: { note: 'linear executable (DOS extender, e.g. DOS/4GW)' } };

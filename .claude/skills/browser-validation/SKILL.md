@@ -31,7 +31,7 @@ deterministic clicks and keys and compares the API-call trace hash every frame (
   (lifted frames that had to continue in the interpreter), `generic_insn_execs` (instructions executed through the
   shared semantic core inside lifted code)
 - platform: `api_calls`, `apis_hit`, `stubs` (declared no-ops that were called; ordinals as `#N`)
-- GDI: `gdi_ops`, `gdi_approx_rop`, `gdi_unsupported`, `gdi_pixel_reads`, `gdi_cpu_replays` (reads answered by CPU
+- GDI: `gdi_ops` (program drawing only), `chrome_ops` (profile UI; may change on extra renders), `gdi_approx_rop`, `gdi_unsupported`, `gdi_pixel_reads`, `gdi_cpu_replays` (reads answered by CPU
   replay of the recorded ops), `gdi_getpixel_noread` (reads that were impossible: no history for that surface)
 - frames: `yields`, `peek_yields`, `trace_hash`
 
@@ -95,11 +95,12 @@ Also available: `p.page` (Playwright page), `p.input(events)`, `p.diagnostics()`
 `p.readPixels()`.
 
 ## Visual review checklist
-Look at every screenshot you cite (Read tool on the PNG), and at zoomed crops for details. Check:
+Look at every screenshot you cite (your harness's image viewer on the PNG), and at zoomed crops for details. Check:
 1. **Text fits its box**: no label clipped or wrapped by a control, menu, caption or status bar; no literal `&`.
 2. **Clipping and z-order**: child windows (status bars, toolbars, controls) are not overdrawn by the parent's
    drawing; popups, dialogs and message boxes are above the game; nothing draws outside its window.
-3. **Control appearance matches its style bits**: radio buttons vs check boxes, default push button, group boxes,
+3. **Control appearance matches its style bits**: compare each class, `style`, `exstyle`, `rect` and `client` in
+   `debugState().ui.windows` (also in the tour index and `p.debugState()` in the probe); radio buttons vs check boxes, default push button, group boxes,
    separators in menus, disabled (grey) items, checked menu items.
 4. **Animations frame by frame**: step 1 frame at a time through transitions (`p.step(1)` + `p.screenshot`) and look
    for stale pixels, black wedges, tearing, or uncleared areas.
@@ -124,6 +125,17 @@ Write a one-line verdict per reviewed screenshot into the queue item or `reports
   in the browser via scripted input, on at least one backend, with no errors.
 - Anything less is reported as the lower level. "Renders something" is not L1.
 - A level is a milestone, not the end: the port is done when the work queue is resolved (see `CLAUDE.md`).
+
+## Slice validation
+
+Use the launcher's slice in reports/brief.md as the L3 definition. Probe and shared-fixture test runs save coverage
+snapshots (see docs/pipeline.md). Keep module identity evidence; build selection rejects different hashes/bases.
+After `build:port -- --slice reports/...json`, rerun the **same complete loop**. Assert
+`diagnostics().outsideSlice === null`, no errors, the expected changed state/pixels and the authentic completion.
+Exercise at least one omitted callback/range and assert a visible outside-slice pause (not `failed()`, trap or 404).
+A broad freeze-at-missing-dependency is not a completed loop. Reload a broader package rather than resuming that stack.
+Run a long, labelled scripted workload and save `coverage()` to reports/slice-runtime.json for trial:record; report
+its frame count and error/outside-slice events. Render-completion avg/p95 is not GPU timestamp/vsync frame time.
 
 ## GPU notes
 - `chromium-webgl2` typically renders with SwiftShader (software). `chromium-webgpu` needs a real adapter

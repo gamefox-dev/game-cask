@@ -42,7 +42,7 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{ 
         if (st.pointer) h.pointer(...st.pointer);
         if (st.key) h.key(...st.key);
       }
-      h.step(1);
+      await h.stepAsync(1); // settle external range I/O before advancing deterministic guest time
       hashes.push(h.host.stateHash() ?? '');
     }
   } catch (e) {
@@ -53,7 +53,7 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{ 
 
 export async function oracle(id: string, frames = 300, script?: OracleStep[]): Promise<OracleReport> {
   const probe = await loadHeadless(id);
-  probe.step(1);
+  await probe.stepAsync(1);
   const sc = script ?? defaultScript(frames, probe.host.logicalWidth, probe.host.logicalHeight);
   const a = await run(id, frames, sc);
   const b = await run(`${id}-interp`, frames, sc);

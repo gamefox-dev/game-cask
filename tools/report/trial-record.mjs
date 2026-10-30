@@ -24,6 +24,8 @@ const overrides = manifest?.pipeline?.exceptions ?? null;
 const briefPath = join(ROOT, 'reports', 'brief.md');
 const brief = existsSync(briefPath) ? readFileSync(briefPath, 'utf8') : null;
 const queue = Array.isArray(progress?.queue) ? progress.queue : null;
+const runtimeEvidence = readJ(join(ROOT,'reports','slice-runtime.json'));
+if(runtimeEvidence && (runtimeEvidence.schema!=='game-cask/coverage/1'||runtimeEvidence.game!==cfg.id))throw new Error('slice-runtime.json must be this game\'s coverage snapshot');
 const byStatus = (q) => q.reduce((m, i) => ((m[i.status] = (m[i.status] ?? 0) + 1), m), {});
 
 const trial = {
@@ -36,9 +38,13 @@ const trial = {
   brief: brief ? { sha256: createHash('sha256').update(brief).digest('hex'), text: brief } : null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
+    metrics: manifest.pipeline.metrics ?? null,
     modules: manifest.pipeline.modules.map((m) => ({ name: m.name, functions: m.functions, lift: m.lift })),
     exceptions: overrides,
   } : null,
+  packaging: manifest?.packaging ?? null,
+  slice: manifest?.slice ?? null,
+  sliceRuntime: runtimeEvidence ? {metrics:runtimeEvidence.metrics,timing:runtimeEvidence.timing} : null,
   oracle: oracle ? { frames: oracle.frames, identical: oracle.identical, firstDivergence: oracle.firstDivergence, errors: oracle.errors, metrics: oracle.metrics?.lifted } : null,
   e2e: e2e?.stats ? { expected: e2e.stats.expected, unexpected: e2e.stats.unexpected, skipped: e2e.stats.skipped, flaky: e2e.stats.flaky } : null,
   levels: { claimed: progress?.achieved_level ?? null, validated: null },

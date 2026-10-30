@@ -78,6 +78,10 @@ static uint32_t stage_used;
 static uint8_t tex_used[TEX_LIMIT + 1];
 static int32_t scr_w, scr_h;
 static int screen_ready;
+static int chrome_depth;
+void w32_gdi_chrome_begin(void) { chrome_depth++; }
+void w32_gdi_chrome_end(void) { if (chrome_depth) chrome_depth--; }
+static void count_op(void) { if (chrome_depth) w32_m.chrome_ops++; else w32_m.gdi_ops++; }
 
 static bgt_cmdbuf_t *rb(uint32_t need) {
     rec_t *r = &rec[nrec_used ? nrec_used - 1 : 0];
@@ -129,7 +133,7 @@ void g_fill(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_
     if (w < 0) { x += w; w = -w; }
     if (h < 0) { y += h; h = -h; }
     if (!clip_rect(&x, &y, &w, &h, cl, ct, cr, cb)) return;
-    w32_m.gdi_ops++;
+    count_op();
     st_target(tex); st_blend(blend); st_tex(0);
     bgt_cmd_rect(rb(64), (float)x, (float)y, (float)w, (float)h, rgba_of(rgb));
     w32_rp_fill(tex, x, y, w, h, rgba_of(rgb), blend);
@@ -145,20 +149,40 @@ static void g_blit(uint32_t dtex, int32_t cl, int32_t ct, int32_t cr, int32_t cb
     float fx1 = (float)(x + w - dx) / (float)dw, fy1 = (float)(y + h - dy) / (float)dh;
     float u0 = ((float)sx + fx0 * (float)sw) / (float)sw_tex, v0 = ((float)sy + fy0 * (float)sh) / (float)sh_tex;
     float u1 = ((float)sx + fx1 * (float)sw) / (float)sw_tex, v1 = ((float)sy + fy1 * (float)sh) / (float)sh_tex;
-    w32_m.gdi_ops++;
+    count_op();
     st_target(dtex); st_blend(blend); st_tex(stex);
     bgt_cmd_sprite(rb(64), (float)x, (float)y, (float)w, (float)h, u0, v0, u1, v1, tint);
     w32_rp_blit(dtex, x, y, w, h, stex, u0, v0, u1, v1, blend, tint);
 }
 
-int32_t g_text_w(int32_t n, int32_t scale) { return n * 6 * scale; }
-void g_text(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, const char *s, int32_t n, uint32_t rgb, int32_t scale) {
-    if (scale < 1) scale = 1;
+w32_font_t w32_font_metrics(int32_t height, int32_t weight) {
+    height = imax(-254, imin(height, 256));
+    if (height < 0) height = -height + 2; /* negative = character height, plus internal leading */
+    if (height == 0) height = 13;
+    height = imax(5, imin(height, 256));
+    int32_t descent = imax(1, height * 3 / 13);
+    return (w32_font_t){height, height - descent, descent, imax(1, height * 6 / 13) + (weight >= 700), weight >= 700 ? 700 : 400};
+}
+static void font_text(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, const char *s, int32_t n, uint32_t rgb, w32_font_t f) {
     for (int32_t i = 0; i < n; i++) {
         int k = (unsigned char)s[i] - 32;
         if (k <= 0 || k >= 95) continue;
-        g_blit(tex, cl, ct, cr, cb, x + i * 6 * scale, y, 5 * scale, 7 * scale, TEX_FONT, 95 * 6, 8, k * 6, 0, 5, 7, BGT_BLEND_ALPHA, rgba_of(rgb));
+        int32_t width = f.advance - (f.weight >= 700);
+        g_blit(tex, cl, ct, cr, cb, x + i * f.advance, y, width, f.height, TEX_FONT, 95 * 6, 13, k * 6, 0, 6, 13, BGT_BLEND_ALPHA, rgba_of(rgb));
+        if (f.weight >= 700) g_blit(tex, cl, ct, cr, cb, x + i * f.advance + 1, y, width, f.height, TEX_FONT, 95 * 6, 13, k * 6, 0, 6, 13, BGT_BLEND_ALPHA, rgba_of(rgb));
     }
+}
+static uint32_t chrome_font;
+void w32_chrome_select_font(uint32_t font) { chrome_font = font; }
+static w32_font_t chrome_metrics(void) {
+    gobj_t *f = getobj(chrome_font);
+    return w32_font_metrics(f ? f->fh : 13, f ? f->weight : 400);
+}
+int32_t g_text_w(int32_t n, int32_t scale) { return n * chrome_metrics().advance * scale; }
+void g_text(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, const char *s, int32_t n, uint32_t rgb, int32_t scale) {
+    if (scale < 1) scale = 1;
+    w32_font_t f = chrome_metrics(); f.height *= scale; f.advance *= scale;
+    font_text(tex, cl, ct, cr, cb, x, y - 3 * scale, s, n, rgb, f);
 }
 
 void w32_gdi_init(void) {
@@ -167,14 +191,21 @@ void w32_gdi_init(void) {
     if (!obj || !stage) x86_fault("out of memory (GDI)", 0);
     tex_used[TEX_SCREEN] = tex_used[TEX_FONT] = 1;
     /* glyph atlas: 95 glyphs, 6 px cells, white with alpha */
-    static uint32_t font_px[95 * 6 * 8];
-    for (int g = 0; g < 95; g++)
-        for (int r = 0; r < 7; r++)
-            for (int c = 0; c < 5; c++)
-                if ((BGT_FONT5X7[g][r] >> (4 - c)) & 1) font_px[r * 95 * 6 + g * 6 + c] = 0xffffffffu;
-    bgt_cmd_tex_create(rb(64), TEX_FONT, 95 * 6, 8);
-    w32_rp_create(TEX_FONT, 95 * 6, 8, 0);
-    upload(TEX_FONT, 0, 0, 95 * 6, 8, font_px);
+    static uint32_t font_px[95 * 6 * 13];
+    /* Original CC0 artwork with dedicated descenders; baseline is row 9, descent rows 10..12. */
+    static const uint8_t desc[5][9] = {
+        {0,0,15,17,17,15,1,1,14}, {2,0,6,2,2,2,2,18,12},
+        {0,0,30,17,17,30,16,16,16}, {0,0,13,19,17,15,1,1,1}, {0,0,17,17,17,15,1,1,14}
+    };
+    const char *letters = "gjpqy";
+    for (int g = 0; g < 95; g++) for (int r = 0; r < 10; r++) {
+        uint8_t row = r < 7 ? BGT_FONT5X7[g][r] : 0;
+        for (int k = 0; k < 5; k++) if (g + 32 == letters[k]) row = r < 9 ? desc[k][r] : 0;
+        for (int c = 0; c < 5; c++) if ((row >> (4 - c)) & 1) font_px[(r + 3) * 95 * 6 + g * 6 + c] = 0xffffffffu;
+    }
+    bgt_cmd_tex_create(rb(64), TEX_FONT, 95 * 6, 13);
+    w32_rp_create(TEX_FONT, 95 * 6, 13, 0);
+    upload(TEX_FONT, 0, 0, 95 * 6, 13, font_px);
     /* stock objects */
     static const uint32_t brushes[5] = {0xffffff, 0xc0c0c0, 0x808080, 0x404040, 0x000000};
     for (int i = 0; i < 5; i++) { stock[i] = newobj(OB_BRUSH); getobj(stock[i])->color = brushes[i]; getobj(stock[i])->stock = 1; }
@@ -197,7 +228,9 @@ void w32_gdi_screen(int32_t w, int32_t h) {
     scr_w = w; scr_h = h; screen_ready = 1;
     w32_io->logical_width = (uint32_t)w;
     w32_io->logical_height = (uint32_t)h;
-    g_fill(TEX_SCREEN, 0, 0, w, h, 0, 0, w, h, w32_sys_color(1), BGT_BLEND_OPAQUE); /* desktop colour */
+    w32_gdi_chrome_begin();
+    g_fill(TEX_SCREEN, 0, 0, w, h, 0, 0, w, h, w32_sys_color(1), BGT_BLEND_OPAQUE); /* profile desktop colour */
+    w32_gdi_chrome_end();
 }
 int32_t w32_gdi_screen_w(void) { return scr_w; }
 int32_t w32_gdi_screen_h(void) { return scr_h; }
@@ -229,15 +262,15 @@ void w32_gdi_targets_lost(void) {
         gobj_t *b = &obj[i];
         if (b->type == OB_BITMAP && b->tex && b->cpu && b->cpu_valid) upload(b->tex, 0, 0, b->w, b->h, b->cpu);
     }
-    if (screen_ready) g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, 0, 0, scr_w, scr_h, w32_sys_color(1), BGT_BLEND_OPAQUE);
+    if (screen_ready) { w32_gdi_chrome_begin();g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, 0, 0, scr_w, scr_h, w32_sys_color(1), BGT_BLEND_OPAQUE);w32_gdi_chrome_end(); }
 }
 
-void w32_chrome_fill(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb) { g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, x, y, w, h, rgb, BGT_BLEND_OPAQUE); }
+void w32_chrome_fill(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb) { w32_gdi_chrome_begin(); g_fill(TEX_SCREEN, 0, 0, scr_w, scr_h, x, y, w, h, rgb, BGT_BLEND_OPAQUE); w32_gdi_chrome_end(); }
 void w32_chrome_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb) {
     w32_chrome_fill(x, y, w, 1, rgb); w32_chrome_fill(x, y + h - 1, w, 1, rgb);
     w32_chrome_fill(x, y, 1, h, rgb); w32_chrome_fill(x + w - 1, y, 1, h, rgb);
 }
-void w32_chrome_text(int32_t x, int32_t y, const char *s, uint32_t rgb) { g_text(TEX_SCREEN, 0, 0, scr_w, scr_h, x, y, s, (int32_t)w32_slen(s), rgb, 1); }
+void w32_chrome_text(int32_t x, int32_t y, const char *s, uint32_t rgb) { w32_gdi_chrome_begin(); g_text(TEX_SCREEN, 0, 0, scr_w, scr_h, x, y, s, (int32_t)w32_slen(s), rgb, 1); w32_gdi_chrome_end(); }
 
 /* ------------------------------------------------------------------ bitmaps */
 static void ensure_tex(gobj_t *b) {
@@ -343,10 +376,22 @@ uint32_t w32_load_bitmap(uint32_t hmod, uint32_t name, int wide) {
 }
 
 /* ------------------------------------------------------------------ DC resolution */
-typedef struct { uint32_t tex; int32_t ox, oy, cl, ct, cr, cb; } surf_t;
+typedef struct { uint32_t tex, hwnd; int32_t ox, oy, cl, ct, cr, cb; } surf_t;
+#include "w32_region.h"
+static void s_fill(const surf_t *s, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color, uint32_t blend) {
+    int32_t rects[W32_REGION_MAX][4];
+    uint32_t n = visible_region(s->hwnd, s->cl, s->ct, s->cr, s->cb, rects);
+    for (uint32_t i = 0; i < n; i++) g_fill(s->tex, rects[i][0], rects[i][1], rects[i][2], rects[i][3], x, y, w, h, color, blend);
+}
+static void s_blit(const surf_t *s, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t tex, int32_t tw, int32_t th, int32_t sx, int32_t sy, int32_t sw, int32_t sh, uint32_t blend, uint32_t tint) {
+    int32_t rects[W32_REGION_MAX][4];
+    uint32_t n = visible_region(s->hwnd, s->cl, s->ct, s->cr, s->cb, rects);
+    for (uint32_t i = 0; i < n; i++) g_blit(s->tex, rects[i][0], rects[i][1], rects[i][2], rects[i][3], x, y, w, h, tex, tw, th, sx, sy, sw, sh, blend, tint);
+}
 /* resolve a DC to its surface, origin and clip; `for_read` = no side effects (no texture creation, the bitmap's
  * CPU pixels stay valid; tex is 0 if the bitmap was never drawn on the GPU) */
 static int dc_surf_mode(dc_t *d, surf_t *s, int for_read) {
+    s->hwnd = d->kind == 1 ? d->hwnd : 0;
     if (d->kind == 2) {
         gobj_t *b = getobj(d->bmp);
         if (!b || b->stock) return 0;
@@ -392,13 +437,13 @@ static void fill_brush(dc_t *d, int32_t x, int32_t y, int32_t w, int32_t h, uint
         int32_t cl = imax(s.cl, ax), ct = imax(s.ct, ay), cr = imin(s.cr, ax + w), cbm = imin(s.cb, ay + h);
         for (int32_t ty = sy0; ty < ay + h; ty += p->h)
             for (int32_t tx = sx0; tx < ax + w; tx += p->w)
-                g_blit(s.tex, cl, ct, cr, cbm, tx, ty, p->w, p->h, p->tex, p->w, p->h, 0, 0, p->w, p->h, blend, 0xffffffffu);
+                { surf_t tile = s; tile.cl = cl; tile.ct = ct; tile.cr = cr; tile.cb = cbm; s_blit(&tile, tx, ty, p->w, p->h, p->tex, p->w, p->h, 0, 0, p->w, p->h, blend, 0xffffffffu); }
         return;
     }
     int null;
     uint32_t c = brush_color(hbr, &null);
     if (null) return;
-    g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + x, s.oy + y, w, h, c, blend);
+    s_fill(&s, s.ox + x, s.oy + y, w, h, c, blend);
 }
 
 /* ternary raster op dispatch for BitBlt/StretchBlt/PatBlt */
@@ -407,9 +452,9 @@ static void do_rop(dc_t *dd, int32_t x, int32_t y, int32_t w, int32_t h, dc_t *s
     if (!dc_surf(dd, &ds)) return;
     uint32_t code = (rop >> 16) & 0xffu;
     switch (code) {
-    case 0x00: g_fill(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ds.ox + x, ds.oy + y, w, h, 0, BGT_BLEND_OPAQUE); return;          /* BLACKNESS */
-    case 0xff: g_fill(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ds.ox + x, ds.oy + y, w, h, 0xffffff, BGT_BLEND_OPAQUE); return;   /* WHITENESS */
-    case 0x55: g_fill(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ds.ox + x, ds.oy + y, w, h, 0xffffff, BGT_BLEND_INVERT); return;   /* DSTINVERT */
+    case 0x00: s_fill(&ds, ds.ox + x, ds.oy + y, w, h, 0, BGT_BLEND_OPAQUE); return;          /* BLACKNESS */
+    case 0xff: s_fill(&ds, ds.ox + x, ds.oy + y, w, h, 0xffffff, BGT_BLEND_OPAQUE); return;   /* WHITENESS */
+    case 0x55: s_fill(&ds, ds.ox + x, ds.oy + y, w, h, 0xffffff, BGT_BLEND_INVERT); return;   /* DSTINVERT */
     case 0xaa: return;                                                                                                     /* NOP (D) */
     case 0xf0: fill_brush(dd, x, y, w, h, dd->brush, BGT_BLEND_OPAQUE); return;                                             /* PATCOPY */
     case 0x5a: fill_brush(dd, x, y, w, h, dd->brush, BGT_BLEND_INVERT); return;                                             /* PATINVERT */
@@ -443,22 +488,22 @@ static void do_rop(dc_t *dd, int32_t x, int32_t y, int32_t w, int32_t h, dc_t *s
     }
     int32_t ax = ds.ox + x, ay = ds.oy + y, bsx = sox + sx, bsy = soy + sy;
     switch (code) {
-    case 0xcc: g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint); return; /* SRCCOPY */
+    case 0xcc: s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint); return; /* SRCCOPY */
     case 0x88: /* SRCAND: exact as multiply for 0/255 masks */
         if (!mono_src) w32_m.gdi_approx_rop++;
-        g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_MULTIPLY, tint); return;
+        s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_MULTIPLY, tint); return;
     case 0xee: /* SRCPAINT: OR == ADD when bits do not overlap (sprite-after-mask idiom) */
         w32_m.gdi_approx_rop += !mono_src;
-        g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_ADD, tint); return;
+        s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_ADD, tint); return;
     case 0x66: /* SRCINVERT: XOR, exact for black/white */
         if (!mono_src) w32_m.gdi_approx_rop++;
-        g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_INVERT, tint); return;
+        s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_INVERT, tint); return;
     case 0x33: /* NOTSRCCOPY: copy, then invert */
-        g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint);
-        g_fill(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, 0xffffff, BGT_BLEND_INVERT); return;
+        s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint);
+        s_fill(&ds, ax, ay, w, h, 0xffffff, BGT_BLEND_INVERT); return;
     default:
         w32_m.gdi_approx_rop++;
-        g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint); return;
+        s_blit(&ds, ax, ay, w, h, stex, stw, sth, bsx, bsy, sw, sh, BGT_BLEND_OPAQUE, tint); return;
     }
 }
 
@@ -478,6 +523,7 @@ static uint32_t new_dc(int kind, uint32_t hwnd) {
 uint32_t w32_gdi_window_dc(uint32_t hwnd, int paint, int32_t l, int32_t t, int32_t r, int32_t b) {
     uint32_t h = new_dc(hwnd ? 1 : 3, hwnd);
     dc_t *d = getdc(h);
+    uint32_t font = w32_user_font(hwnd); if (font) d->font = font;
     if (paint) { d->has_paint = 1; d->pl = l; d->pt = t; d->pr = r; d->pb = b; }
     return h;
 }
@@ -651,8 +697,9 @@ static uint32_t g_CreatePen(void) {
     o->style = (int)ARG(0); o->width = imax(1, (int32_t)ARG(1)); o->color = ARG(2) & 0xffffffu;
     return h;
 }
-static uint32_t font_h(int32_t lh) { if (lh < 0) lh = -lh; return lh < 1 ? 13u : (uint32_t)lh; }
-static uint32_t g_CreateFont(void) { uint32_t h = newobj(OB_FONT); getobj(h)->fh = (int32_t)font_h((int32_t)ARG(0)); getobj(h)->weight = (int32_t)ARG(4); return h; }
+static uint32_t font_h(int32_t lh) { return (uint32_t)w32_font_metrics(lh, 400).height; }
+uint32_t w32_gdi_make_font(int32_t height, int32_t weight) { uint32_t h = newobj(OB_FONT); getobj(h)->fh = (int32_t)font_h(height); getobj(h)->weight = weight; return h; }
+static uint32_t g_CreateFont(void) { return w32_gdi_make_font((int32_t)ARG(0), (int32_t)ARG(4)); }
 static uint32_t g_CreateFontIndirect(void) { uint32_t h = newobj(OB_FONT); getobj(h)->fh = (int32_t)font_h((int32_t)x86_rd32(ARG(0))); getobj(h)->weight = (int32_t)x86_rd32(ARG(0) + 16); return h; }
 static uint32_t g_CreateCompatibleBitmap(void) { return new_bitmap((int32_t)ARG(1), (int32_t)ARG(2), 0); }
 static uint32_t g_CreateBitmap(void) {
@@ -758,7 +805,7 @@ static void dib_draw(dc_t *d, int32_t dx, int32_t dy, int32_t dw, int32_t dh, in
     surf_t ds;
     if (!dc_surf(d, &ds)) return;
     if (((rop >> 16) & 0xff) != 0xcc) w32_m.gdi_approx_rop++;
-    g_blit(ds.tex, ds.cl, ds.ct, ds.cr, ds.cb, ds.ox + dx, ds.oy + dy, dw, dh, dib_tmp_tex, w, h, sx, sy, sw, sh, BGT_BLEND_OPAQUE, 0xffffffffu);
+    s_blit(&ds, ds.ox + dx, ds.oy + dy, dw, dh, dib_tmp_tex, w, h, sx, sy, sw, sh, BGT_BLEND_OPAQUE, 0xffffffffu);
 }
 static uint32_t g_StretchDIBits(void) {
     dc_t *d = getdc(ARG(0));
@@ -845,7 +892,7 @@ static uint32_t g_InvertRect(void) {
     uint32_t r = ARG(1);
     if (d && dc_surf(d, &s)) {
         int32_t l = (int32_t)x86_rd32(r), t = (int32_t)x86_rd32(r + 4);
-        g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + l, s.oy + t, (int32_t)x86_rd32(r + 8) - l, (int32_t)x86_rd32(r + 12) - t, 0xffffff, BGT_BLEND_INVERT);
+        s_fill(&s, s.ox + l, s.oy + t, (int32_t)x86_rd32(r + 8) - l, (int32_t)x86_rd32(r + 12) - t, 0xffffff, BGT_BLEND_INVERT);
     }
     return 1;
 }
@@ -859,12 +906,12 @@ static void pen_line(dc_t *d, int32_t x0, int32_t y0, int32_t x1, int32_t y1, in
     if (d->rop2 == 6 || d->rop2 == 7) { blend = BGT_BLEND_INVERT; c = d->rop2 == 6 ? 0xffffff : c; } /* R2_NOT / R2_XORPEN */
     else if (d->rop2 != 13) w32_m.gdi_approx_rop++;
     int32_t wdt = p->width;
-    if (y0 == y1) { int32_t a = imin(x0, x1), b = imax(x0, x1) + (last ? 1 : 0); g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + a, s.oy + y0 - wdt / 2, b - a, wdt, c, blend); return; }
-    if (x0 == x1) { int32_t a = imin(y0, y1), b = imax(y0, y1) + (last ? 1 : 0); g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + x0 - wdt / 2, s.oy + a, wdt, b - a, c, blend); return; }
+    if (y0 == y1) { int32_t a = imin(x0, x1), b = imax(x0, x1) + (last ? 1 : 0); s_fill(&s, s.ox + a, s.oy + y0 - wdt / 2, b - a, wdt, c, blend); return; }
+    if (x0 == x1) { int32_t a = imin(y0, y1), b = imax(y0, y1) + (last ? 1 : 0); s_fill(&s, s.ox + x0 - wdt / 2, s.oy + a, wdt, b - a, c, blend); return; }
     int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1, dy = y1 > y0 ? y0 - y1 : y1 - y0, sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
     for (int32_t n = 0; n < 8192; n++) {
         if (x0 == x1 && y0 == y1 && !last) break;
-        g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + x0, s.oy + y0, wdt, wdt, c, blend);
+        s_fill(&s, s.ox + x0, s.oy + y0, wdt, wdt, c, blend);
         if (x0 == x1 && y0 == y1) break;
         int32_t e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }
@@ -907,7 +954,7 @@ static uint32_t g_RoundRect(void) { w32_m.gdi_approx_rop++; return g_Rectangle()
 static uint32_t g_SetPixel(void) {
     dc_t *d = getdc(ARG(0));
     surf_t s;
-    if (d && dc_surf(d, &s)) g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + (int32_t)ARG(1), s.oy + (int32_t)ARG(2), 1, 1, ARG(3), BGT_BLEND_OPAQUE);
+    if (d && dc_surf(d, &s)) s_fill(&s, s.ox + (int32_t)ARG(1), s.oy + (int32_t)ARG(2), 1, 1, ARG(3), BGT_BLEND_OPAQUE);
     return ARG(3);
 }
 int w32_is_pixel_read_api(const char *name) {
@@ -932,6 +979,8 @@ static uint32_t g_GetPixel(void) {
     int32_t x = s.ox + (int32_t)ARG(1), y = s.oy + (int32_t)ARG(2);
     /* outside the clipping region: CLR_INVALID (Win32 contract, not a failure) */
     if (x < s.cl || y < s.ct || x >= s.cr || y >= s.cb) return 0xffffffffu;
+    int32_t cuts[NWND][4]; uint32_t nc = w32_user_exclusions(s.hwnd, cuts);
+    for (uint32_t i = 0; i < nc; i++) if (x >= cuts[i][0] && x < cuts[i][2] && y >= cuts[i][1] && y < cuts[i][3]) return 0xffffffffu;
     gobj_t *b = d->kind == 2 ? getobj(d->bmp) : 0;
     uint32_t v;
     if (!read_px(b, s.tex, x, y, &v)) { w32_m.gdi_getpixel_noread++; return 0xffffffffu; }
@@ -939,21 +988,22 @@ static uint32_t g_GetPixel(void) {
 }
 
 /* ------------------------------------------------------------------ text */
-static int32_t dc_scale(dc_t *d, int32_t *cell_h) {
-    gobj_t *f = getobj(d->font);
-    int32_t fh = f ? f->fh : 13;
-    int32_t sc = fh >= 22 ? fh / 11 : 1;
-    if (cell_h) *cell_h = fh < 9 ? 9 : fh;
-    return sc;
+static w32_font_t dc_font(dc_t *d) {
+    gobj_t *f = d ? getobj(d->font) : 0;
+    return w32_font_metrics(f ? f->fh : 13, f ? f->weight : 400);
 }
 static void text_out(dc_t *d, int32_t x, int32_t y, const char *s, int32_t n) {
     surf_t sf;
     if (!dc_surf(d, &sf)) return;
-    int32_t ch, sc = dc_scale(d, &ch), w = g_text_w(n, sc);
+    w32_font_t f = dc_font(d);
+    int32_t ch = f.height, w = n * f.advance;
     if (d->align & 6u) x -= (d->align & 6u) == 6 ? w / 2 : w; /* TA_CENTER / TA_RIGHT */
-    if (d->align & 8u) y -= ch;                                /* TA_BOTTOM */
-    if (d->bkmode == 2) g_fill(sf.tex, sf.cl, sf.ct, sf.cr, sf.cb, sf.ox + x, sf.oy + y, w, ch, d->bk, BGT_BLEND_OPAQUE);
-    g_text(sf.tex, sf.cl, sf.ct, sf.cr, sf.cb, sf.ox + x, sf.oy + y + (ch - 7 * sc) / 2, s, n, d->text, sc);
+    if ((d->align & 24u) == 24u) y -= f.ascent; /* TA_BASELINE */
+    else if (d->align & 8u) y -= ch; /* TA_BOTTOM */
+    if (d->bkmode == 2) s_fill(&sf, sf.ox + x, sf.oy + y, w, ch, d->bk, BGT_BLEND_OPAQUE);
+    int32_t rects[W32_REGION_MAX][4];
+    uint32_t nr = visible_region(sf.hwnd, sf.cl, sf.ct, sf.cr, sf.cb, rects);
+    for (uint32_t i = 0; i < nr; i++) font_text(sf.tex, rects[i][0], rects[i][1], rects[i][2], rects[i][3], sf.ox + x, sf.oy + y, s, n, d->text, f);
 }
 static uint32_t g_TextOut(int wide) {
     dc_t *d = getdc(ARG(0));
@@ -972,7 +1022,7 @@ static uint32_t g_ExtTextOut(int wide) {
         surf_t s;
         if (dc_surf(d, &s)) {
             int32_t l = (int32_t)x86_rd32(r), t = (int32_t)x86_rd32(r + 4);
-            g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + l, s.oy + t, (int32_t)x86_rd32(r + 8) - l, (int32_t)x86_rd32(r + 12) - t, d->bk, BGT_BLEND_OPAQUE);
+            s_fill(&s, s.ox + l, s.oy + t, (int32_t)x86_rd32(r + 8) - l, (int32_t)x86_rd32(r + 12) - t, d->bk, BGT_BLEND_OPAQUE);
         }
     }
     char s[512];
@@ -989,19 +1039,19 @@ static uint32_t g_GetTextExtent(int wide) {
     dc_t *d = getdc(ARG(0));
     char s[512];
     uint32_t n = w32_gstrn(ARG(1), (int32_t)ARG(2), wide, s, sizeof s);
-    int32_t ch = 13, sc = d ? dc_scale(d, &ch) : 1;
-    x86_wr32(ARG(3), (uint32_t)g_text_w((int32_t)n, sc)); x86_wr32(ARG(3) + 4, (uint32_t)ch);
+    w32_font_t f = dc_font(d);
+    x86_wr32(ARG(3), n * (uint32_t)f.advance); x86_wr32(ARG(3) + 4, (uint32_t)f.height);
     return 1;
 }
 static uint32_t g_GetTextExtentA(void) { return g_GetTextExtent(0); }
 static uint32_t g_GetTextExtentW(void) { return g_GetTextExtent(1); }
 static uint32_t g_GetTextMetrics(int wide) {
     dc_t *d = getdc(ARG(0));
-    int32_t ch = 13, sc = d ? dc_scale(d, &ch) : 1;
+    w32_font_t f = dc_font(d);
     uint32_t p = ARG(1), size = wide ? 60 : 56;
     for (uint32_t i = 0; i < size; i++) x86_wr8(p + i, 0);
-    x86_wr32(p, (uint32_t)ch); x86_wr32(p + 4, (uint32_t)(ch - 2 * sc)); x86_wr32(p + 8, (uint32_t)(2 * sc));
-    x86_wr32(p + 20, (uint32_t)(6 * sc)); x86_wr32(p + 24, (uint32_t)(6 * sc)); x86_wr32(p + 28, 400);
+    x86_wr32(p, (uint32_t)f.height); x86_wr32(p + 4, (uint32_t)f.ascent); x86_wr32(p + 8, (uint32_t)f.descent);
+    x86_wr32(p + 20, (uint32_t)f.advance); x86_wr32(p + 24, (uint32_t)f.advance); x86_wr32(p + 28, (uint32_t)f.weight);
     return 1;
 }
 static uint32_t g_GetTextMetricsA(void) { return g_GetTextMetrics(0); }
@@ -1012,12 +1062,20 @@ uint32_t w32_draw_text(uint32_t hdc, const char *s, int32_t n, uint32_t rect, ui
     dc_t *d = getdc(hdc);
     if (!d) return 0;
     char clean[512];
-    int32_t k = 0;
-    for (int32_t i = 0; i < n && k < 511; i++) { if (s[i] == '&' && !(fmt & 0x800u)) { if (i + 1 < n && s[i + 1] == '&') clean[k++] = '&', i++; continue; } clean[k++] = s[i]; }
+    int32_t k = 0, marks[512], nm = 0;
+    for (int32_t i = 0; i < n && k < 511; i++) {
+        if (s[i] == '&' && !(fmt & 0x800u)) {
+            if (i + 1 < n && s[i + 1] == '&') { clean[k++] = '&'; i++; }
+            else if (i + 1 < n && !(fmt & 0x100000u)) marks[nm++] = k;
+            continue;
+        }
+        clean[k++] = s[i];
+    }
     clean[k] = 0;
-    int32_t ch, sc = dc_scale(d, &ch);
+    w32_font_t f = dc_font(d);
+    int32_t ch = f.height;
     int32_t l = (int32_t)x86_rd32(rect), t = (int32_t)x86_rd32(rect + 4), r = (int32_t)x86_rd32(rect + 8), b = (int32_t)x86_rd32(rect + 12);
-    int32_t w = g_text_w(k, sc);
+    int32_t w = k * f.advance;
     if (fmt & 0x400u) { x86_wr32(rect + 8, (uint32_t)(l + w)); x86_wr32(rect + 12, (uint32_t)(t + ch)); return (uint32_t)ch; } /* DT_CALCRECT */
     int32_t x = l, y = t;
     if (fmt & 1u) x = l + (r - l - w) / 2;      /* DT_CENTER */
@@ -1026,6 +1084,9 @@ uint32_t w32_draw_text(uint32_t hdc, const char *s, int32_t n, uint32_t rect, ui
     else if ((fmt & 0x20u) && (fmt & 8u)) y = b - ch;          /* DT_BOTTOM */
     int bm = d->bkmode;
     text_out(d, x, y, clean, k);
+    surf_t sf;
+    if (nm && dc_surf(d, &sf)) for (int32_t i = 0; i < nm; i++)
+        s_fill(&sf, sf.ox + x + marks[i] * f.advance, sf.oy + y + f.ascent + 1, f.advance - 1, 1, d->text, BGT_BLEND_OPAQUE);
     d->bkmode = bm;
     return (uint32_t)ch;
 }

@@ -29,6 +29,7 @@ export interface BGTTestAPI {
   failed(): boolean;
   readPixels(): Promise<BGTPixels | null>;
   debugState(): unknown;
+  coverage(): ReturnType<BGTRuntime['coverageSnapshot']>;
   injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(opts?: { unrecoverable?: boolean }): Promise<void>;
   /**
@@ -81,6 +82,7 @@ export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
       return px ? { width: px.width, height: px.height, base64: b64(px.data) } : null;
     },
     debugState: () => rt.host?.debugState() ?? null,
+    coverage: () => rt.coverageSnapshot(),
     injectCommands: (base64) => rt.injectCommands(unb64(base64)),
     simulateDeviceLoss: (opts) => rt.simulateDeviceLoss(opts),
     peek: (addr, len) => rt.host?.peek(addr, len) ?? null,

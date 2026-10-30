@@ -1,6 +1,7 @@
-# Game Cask Browser Target (BGT) — ABI v0.2
+# Game Cask Browser Target (BGT) — ABI v0.3 (partial GPU extension)
 
-Status: **v0.2** (adds §11 to the frozen v0.1; every v0.1 game still loads unchanged). The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
+Status: **v0.3** (`0x000300`, additive; §12 adds requests/readback to the frozen v0.1/v0.2 interfaces).
+This branch does **not** yet provide the full v0.3 GPU-layer brief (buffers/shaders/pipelines/OpenGL). The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
 [`bgt_cmd.h`](../include/bgt_cmd.h). The TypeScript mirror is
 [`bgt/runtime/abi.ts`](../runtime/abi.ts). `tests/unit/abi-layout.test.ts` compiles a C
 probe against the headers and fails if the mirror drifts.
@@ -33,7 +34,7 @@ sees a JS, DOM or WebGPU object.
   | -6 | `BGT_E_IO` | storage backend failure |
   | -7 | `BGT_E_STATE` | call not valid in the current lifecycle state |
 
-- Versioning: `BGT_ABI_VERSION = (major << 16) | (minor << 8) | patch`, currently `0x000200` (v0.2).
+- Versioning: `BGT_ABI_VERSION = (major << 16) | (minor << 8) | patch`, currently `0x000300` (v0.3).
   The runtime refuses a module whose major differs, or whose minor is newer than the runtime's.
   Minor versions only add functionality.
 
@@ -328,3 +329,99 @@ Useful when a platform only learns its window size after start-up.
 Optional `uint32_t bgt_metrics(void)` returns NUL-terminated JSON with kit metrics the game or platform layer counts
 (e.g. lifted vs. interpreted instructions, stubbed APIs hit, GPU vs. CPU drawing operations). It appears in
 `diagnostics().metrics` and in trial reports.
+
+## 12. v0.3 additions (implemented subset)
+
+Version is `0x000300`. Lifecycle, `bgt_io_t` (224 B), command header v1 and every v0.2 opcode/layout are unchanged.
+Old modules exporting `0x000200` are tested against the v0.3 host. New functionality is additive and capability-gated.
+The full shader/buffer/pipeline/OpenGL layer is **not implemented**; no shader-language support is advertised.
+
+### GPU limits
+
+`gpu_limits(dst, cap)` / `bgt_gpu_limits` writes four u32s (16 bytes, alignment 4): `byte_size=16`,
+`max_texture_dimension`, `max_texture_handles=1023`, `texture_budget_bytes=268435456`. cap<16 → E_LIMIT;
+misaligned/out-of-range pointer → E_BOUNDS. v0.3 TEX_CREATE accepts dimensions up to the selected backend's limit,
+within the unchanged byte/handle budgets. v0.2 modules retain their frozen 4096 dimension limit. Logical surface
+size remains 4096. The runtime may have to fail recovery if a replacement device cannot recreate an existing texture.
+Only RGBA8 and the v0.2 render-target format bit are currently supported.
+
+### Asynchronous request results
+
+Imports (all i32 returns): `request_status(u32 id)`, `request_read(u32 id,u32 dst,u32 cap)`,
+`request_close(u32 id)` (C: `bgt_request_*`). IDs 1..0x7fffffff, at most 32 outstanding requests. At most 8 MiB of
+completed results live at once; each result is at most 8 MiB. Handles are reusable only after close. A late completion
+of a closed handle cannot overwrite a new request reusing that ID.
+- status: 0 pending, 1 ready, or negative error; unknown/closed ID → E_NOT_FOUND.
+- read: copies the **whole** ready result, returns byte count. Pending → E_STATE; insufficient cap → E_LIMIT;
+  invalid memory → E_BOUNDS; no partial copy. Does not consume the result; close releases it or cancels a pending one.
+- Completion never becomes visible during the update/render that issued it: it is exposed only on a subsequent
+  `bgt_update` boundary. A blocking caller issues, `bgt_yield`s, then polls. Actual asynchronous I/O/GPU latency may
+  require more yields. No callbacks or memory writes occur from promise callbacks into guest memory.
+
+### Batched GPU readback (`BGT_CAP_READBACK`, bit 10)
+
+Command `READBACK` opcode 0x30, payload 24 B: `u32 request_id,target,x,y,width,height`.
+Target 0 = screen, otherwise an RGBA8 render target. Captures in stream order (later draws do not affect the result).
+The request ID is caller-chosen; duplicate → E_STATE, zero/out-of-range ID → E_INVALID. Invalid target → E_NOT_FOUND
+(or E_INVALID for a non-render-target texture), rectangle outside target → E_BOUNDS, zero size → E_INVALID,
+result >8 MiB → E_LIMIT. Unsupported capability → E_UNSUPPORTED. Framing validation precedes request allocation.
+
+Result is tightly packed top-down RGBA8, preserving target alpha; screen reads sample logical pixel centres from
+the letterboxed framebuffer. On downscaled canvases this is a resampled display read, not an independent logical
+resolution render. WebGPU copies at the command point and asynchronously maps a staging buffer. WebGL 2 currently
+uses synchronous glReadPixels internally, but **ABI completion is still deferred** to an update boundary. GPU errors
+complete with E_IO. No query-result readback is implemented yet.
+
+Conformance: `examples/gpu-readback` draws two colours, captures, overwrites the target, yields and checks all bytes;
+a separate screen request checks orientation/colour. Browser tests run on both backends. `requests.test.ts` tests
+lifetime, cancellation, bounds/caps and the old-version host contract.
+
+### Streamed immutable files (`BGT_CAP_STREAM_FILES`, bit 11)
+
+`asset_open` names either an eager asset or a streamed file. Eager v0.2 asset_read/seek semantics are unchanged.
+New `asset_size64(handle,dst)` writes an LE u64 file size (8 writable bytes required); unknown handle → E_NOT_FOUND.
+`asset_range_request(handle,offset_lo,offset_hi,bytes)` returns a positive request ID for an immutable read of up to
+8 MiB, or an error. Offset is unsigned u64, restricted to JS-exact integers (≤2^53−1); unsafe offset → E_INVALID.
+The result is truncated at EOF (including zero bytes). Reads never move the legacy handle position. Eager files
+can use this API too. Poll/read/close with §12 request functions after yielding. No delayed writes into guest memory.
+Legacy asset_read on a streamed handle returns E_STATE: it never loads the whole file implicitly. Legacy asset_size
+is i32, so use size64 for large files.
+
+Manifest `streams` entries: `{path,size,chunkSize,chunks:[{offset,size,url,sha256}]}`. Paths use the existing safe VFS
+rules; chunks must exactly cover the file in order (zero-size file has no chunks), each 4 KiB–1 MiB maximum configured
+chunk size, final chunk may be short. Fetches are **chunked ranges**, not HTTP Range headers. The runtime fetches only
+chunks touched by requests, validates response lengths and SHA-256 in a secure context, coalesces in-flight chunk
+fetches and keeps a 16 MiB LRU. No whole-file preload. Network/integrity failure → request E_IO + a diagnostic log.
+
+`game.json` `streams:[{from:"./file",path:"data/file",chunkSize:262144}]` writes chunks at build time using bounded
+reads. `from` must be game-local or within original/. Pipeline `streamModules:true` packages each original executable
+as a streamed `modules/<name>` file and makes a separate compact loader image containing headers and only the
+virtually mapped bytes. This keeps overlays out of the eager loader asset; original file offsets are retained by
+the streamed self-open view. `GetModuleFileNameW` → `CreateFileW` resolves that original view, not the compact image.
+The Win32 profile implements read-only OPEN_EXISTING, ReadFile, GetFileSize(Ex), SetFilePointer(Ex), CloseHandle,
+EOF, negative-seek errors and missing files. Overlapped reads, writes and CRT FILE APIs are not implemented yet.
+
+While a range promise is outstanding, browser simulation updates are held; rendering/input delivery resume when
+settled. Deterministic test stepping awaits pending I/O before advancing a frame, as does the oracle. Wall-clock
+network latency is not virtual guest time. This is not a cooperative thread scheduler; a future worker must avoid
+blocking all guest threads on an unrelated read.
+
+### Coverage and slice boundaries
+
+`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`
+lifted, `2` interpreted). This is profile instrumentation, never a game-dependent branch. Host stores up to 65,536
+unique entries with ORed kind bits. Function entry coverage does not claim instruction/block coverage.
+`slice_missing(u32 kind,u32 address)` / `bgt_slice_missing` stops at an explicitly missing dependency (1 code, 2 data).
+The runtime pauses and reports `outsideSlice` rather than a wasm trap; resumption requires a broader package/reload.
+No IO layout changes. These functions are present only for v0.3 modules; older modules do not import them.
+
+Debug/test API `coverage()` returns schema `game-cask/coverage/1`: game id, module names/bases/SHA-256, executed entries,
+file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. The probe and
+browser fixture save snapshots. Strict slice manifests carry `slice.code` (allowed entries) and per-chunk `missing`
+flags. An executed entry outside the set or a read of a missing chunk pauses visibly and records the dependency,
+without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
+
+Coverage-guided nonslice builds keep all data and interpret unselected functions, recording kind=2 for the next build.
+The current loader image retains conservative virtual section bytes (including unlifted machine code/data), so this
+is **not** yet a minimum-image slice. Unknown indirect entry targets, self-modifying code and fine-grained basic block
+coverage remain unsupported; see docs/v03-status.md.

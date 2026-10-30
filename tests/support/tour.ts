@@ -31,7 +31,7 @@ export interface TourOptions {
 
 type Rect = [number, number, number, number];
 interface UiItem { pos: number; text: string; id: number; flags: number; separator: boolean; disabled: boolean; checked: boolean; popup: boolean; rect: Rect }
-interface UiWindow { hwnd: number; parent: number; class: string; text: string; id: number; style: number; dialog: boolean; enabled: boolean; checked: number; rect: Rect; client: Rect }
+interface UiWindow { hwnd: number; parent: number; class: string; text: string; id: number; style: number; exstyle: number; dialog: boolean; enabled: boolean; checked: number; rect: Rect; client: Rect }
 interface Ui {
   main: number; modal: number;
   menubar: { rect: Rect; open: number; items: UiItem[] } | null;
@@ -48,7 +48,7 @@ export interface TourItem {
   id: number;
   skipped?: string;
   screenshot?: string;
-  opened?: { kind: 'messagebox' | 'dialog'; title: string; text?: string; controls?: { class: string; text: string; id: number; style: number; rect: Rect }[]; buttons?: string[] };
+  opened?: { kind: 'messagebox' | 'dialog'; title: string; text?: string; controls?: { class: string; text: string; id: number; style: number; exstyle: number; rect: Rect }[]; buttons?: string[] };
   dismissed?: boolean;
   dismissScreenshot?: string;
   errors: { kind: string; message: string }[];
@@ -57,6 +57,7 @@ export interface TourItem {
   newStubs: string[];
   newApis: string[];
   metricsDelta: Record<string, number>;
+  windows?: UiWindow[];
 }
 export interface TourIndex {
   schema: 'game-cask/tour/1';
@@ -152,13 +153,14 @@ export async function runTour(page: Page, opts: TourOptions): Promise<TourIndex>
       const tag = `item-${top.pos}-${it.pos}`;
       entry.screenshot = await shot(`${tag}.png`);
       let u = await ui();
+      entry.windows = u?.windows;
       const dlg = u?.windows.find((w) => w.dialog);
       if (u?.messagebox) {
         entry.opened = { kind: 'messagebox', title: u.messagebox.caption, text: u.messagebox.text, buttons: u.messagebox.buttons.map((b) => b.text) };
       } else if (dlg) {
         entry.opened = {
           kind: 'dialog', title: dlg.text,
-          controls: u!.windows.filter((w) => w.parent === dlg.hwnd).map((w) => ({ class: w.class, text: w.text, id: w.id, style: w.style, rect: w.rect })),
+          controls: u!.windows.filter((w) => w.parent === dlg.hwnd).map((w) => ({ class: w.class, text: w.text, id: w.id, style: w.style, exstyle: w.exstyle, rect: w.rect })),
         };
       }
       if (entry.opened) {

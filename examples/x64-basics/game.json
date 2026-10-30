@@ -1,0 +1,5 @@
+{
+ "id":"x64-basics","name":"AMD64 integer/SSE conformance (CC0)","private":false,"license":"CC0-1.0",
+ "pipeline":{"platform":"win32","fixture":{"target":"x86_64-windows-gnu","sources":["basics.c","table.S"],"out":"basics.exe","entry":"entry","libs":["kernel32","user32"]},"modules":[{"from":"./build/basics.exe","name":"basics.exe","main":true}],"width":320,"height":200},
+ "touch":{"dpad":false,"buttons":[]}
+}

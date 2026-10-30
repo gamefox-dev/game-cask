@@ -1,6 +1,7 @@
 /*
- * x86-32 instruction decoder shared by the interpreter (oracle / fallback, wasm), the analyzer
- * and the lifter (native host tool). Flat 32-bit protected mode; no 16-bit addressing.
+ * IA-32 / AMD64 instruction decoder shared by interpreter, analyzer and lifter.
+ * x86_decode preserves the IA-32 interface; x86_decode_mode additionally selects long mode.
+ * RIP-relative addresses are resolved against the relocated low guest PC. No 16-bit addressing.
  * Pure function over bytes: no guest memory access, no globals.
  *
  * SPDX-License-Identifier: MIT
@@ -23,6 +24,7 @@ enum {
     XO_CLC, XO_STC, XO_CMC, XO_CLD, XO_STD, XO_LEAVE, XO_ENTER, XO_NOP,
     XO_JCC, XO_JMP, XO_JMP_IND, XO_CALL, XO_CALL_IND, XO_RET, XO_LOOP, XO_LOOPE, XO_LOOPNE, XO_JECXZ,
     XO_INT, XO_INT3, XO_HLT,
+    XO_CPUID, XO_RDTSC, XO_SIMD, XO_CMPXCHG_PAIR,
     XO_FPU,     /* x87 escape (D8-DF): length decoded for analysis, not executed in v0.2 */
     XO_UNSUPPORTED, /* valid encoding outside the supported set (segments, BCD, system, SIMD, ...) */
     XO_COUNT
@@ -30,20 +32,22 @@ enum {
 
 extern const char *const x86_op_names[XO_COUNT];
 
-enum { XK_NONE, XK_REG, XK_MEM, XK_IMM };
+enum { XK_NONE, XK_REG, XK_MEM, XK_IMM, XK_XMM };
+#define X86_RIPREG 16
+/* Byte GPRs 16..19 encode AH..BH; with a REX prefix 4..7 are SPL..DIL. */
 #define X86_NOREG 0xff
 
 typedef struct {
     uint8_t kind;   /* XK_* */
-    uint8_t size;   /* bytes: 1, 2, 4 */
-    uint8_t reg;    /* XK_REG: 0-7 (size 1: 0-3 low bytes AL..BL, 4-7 high bytes AH..BH) */
+    uint8_t size;   /* bytes: 1, 2, 4, 8 or 16 (SIMD/pair operations) */
+    uint8_t reg;    /* XK_REG: 0..15; byte high registers 16..19 in long mode, legacy 4..7 in IA-32 */
     uint8_t base;   /* XK_MEM: base register or X86_NOREG */
     uint8_t index;  /* XK_MEM: index register or X86_NOREG */
     uint8_t scale;  /* XK_MEM: shift 0-3 */
-    uint8_t seg_fs; /* XK_MEM: FS segment override */
-    uint8_t pad;
+    uint8_t seg_fs; /* XK_MEM: 0 none, 1 FS, 2 GS */
+    uint8_t pad;    /* address flags: bit0 address32, bit1 resolved RIP, bit2 absolute imm64 */
     int32_t disp;   /* XK_MEM displacement / absolute address */
-    uint32_t imm;   /* XK_IMM value (sign-extended to 32 bits where the encoding says so) */
+    uint64_t imm;   /* immediate (sign-extended where specified); also the absolute moffs64 address */
 } x86_opnd_t;
 
 #define X86_F_BRANCH     0x01u /* conditional/unconditional direct jump (target valid) */
@@ -58,17 +62,19 @@ typedef struct {
     uint32_t target;   /* direct branch / call target */
     uint16_t op;       /* XO_* */
     uint8_t len;
-    uint8_t osz;       /* operand size: 2 or 4 */
+    uint8_t osz;       /* default operand size: 2, 4 or 8 */
     uint8_t rep;       /* 0, 0xF2 (REPNE), 0xF3 (REP/REPE) */
     uint8_t cc;        /* condition code 0-15 for JCC/SETCC/CMOVCC */
     uint8_t flags;     /* X86_F_* */
     uint8_t nops;      /* number of operands used */
     x86_opnd_t o[3];   /* o[0] destination (or sole operand), o[1] source, o[2] third (imul imm, shld count) */
+    uint8_t mode64, rex, asz, simd_op, simd_prefix, simd_imm, lock;
 } x86_insn_t;
 
 /* Decode one instruction at `bytes` (at most `avail` readable bytes), located at guest `addr`.
  * Returns the length (1-15), or 0 if the bytes are not a valid/complete encoding. */
 int x86_decode(const uint8_t *bytes, uint32_t avail, uint32_t addr, x86_insn_t *out);
+int x86_decode_mode(const uint8_t *bytes, uint32_t avail, uint32_t addr, int mode64, x86_insn_t *out);
 
 /* Format as Intel-syntax text (for disassembly listings and lifted-code comments). */
 int x86_format(const x86_insn_t *in, char *dst, uint32_t cap);

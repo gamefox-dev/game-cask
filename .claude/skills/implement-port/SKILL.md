@@ -97,7 +97,28 @@ When the fix belongs in `bgt/`, `platforms/`, `tools/` or `tests/`:
 3. Continue with every other item. Do not stop at the first gap and do not change the kit yourself.
 4. Your final reply leads with the iteration requests (see `game-porter`).
 
-## 6. Status and evidence
+## 6. Record and verify a launcher-selected slice
+
+The trial brief's selected loop is your L3 and packaging scope. First get that loop through the pipeline/oracle;
+never turn a slice into a game-logic rewrite. Probe runs save `reports/probe/coverage.json`; port tests using the shared
+fixture save `reports/coverage/<project>/*.json` (module identities + lifted/interpreted entries + file chunks).
+Record the complete loop including its exit/restart state, not just title-screen code. Repeat for all inputs/seeds
+claimed. Use `pipeline.coverage:["../reports/...json"]` for coverage-guided lifting with interpreter fallback.
+
+For a strict package: `npm run build:port -- --slice reports/probe/coverage.json`, or
+`"slice":{"coverage":["../reports/...json"]}` in game.json (config paths resolve from port/; CLI paths from the repository root). This selects recorded functions
+plus static callees and emits covered file chunks. Modules use `streamModules:true` automatically. Shipped large files
+can be `streams:[{from:"assets/data",path:"data",chunkSize:262144}]`. Do not eager-preload large files to work around a
+gap. The compact PE loader still retains conservative virtual bytes; minimum-image packaging is unfinished.
+
+Run the same complete loop on both backends. `diagnostics().outsideSlice` must remain null during the selected loop;
+outside-slice pauses are detectable, not successes or wasm traps. Reload a broader build if needed; do not try to
+resume an interrupted guest stack. Add an explicit outside-slice test for an omitted action, and a long stability
+script. Save the final `coverage()` snapshot to `reports/slice-runtime.json` before trial:record. Report raw/gzip
+payload bytes, wasm/chunk bytes, load-to-first-frame/render avg/p95, errors and outside-slice events, with backend,
+workload length and missing measurements labelled. See docs/pipeline.md for metric definitions/limits.
+
+## 7. Status and evidence
 `reports/subsystem-map.json` describes **pipeline coverage**. Per subsystem (game logic, rendering, input,
 timing, audio, storage, UI/dialogs) record:
 - `implementation_strategy`: `lifted` (pipeline), `profile` (platform layer), `override` (exception)

@@ -12,18 +12,18 @@ import { createHash } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT } from '../build/toolchain.mjs';
-import { detect, entropy, printableRuns, strings, utf16Strings } from './detect.mjs';
+import { detect, entropy, strings, utf16Strings } from './detect.mjs';
 import { menuLines, peResources } from './pe-resources.mjs';
 import { detectRea, detectTools } from './detect-rea.mjs';
 
 const MAX_FILES = 20000;
-const MAX_READ = 256 * 1024 * 1024;
+const SAMPLE_BYTES = 1024 * 1024;
 
 function readOnly(path) {
   const fd = openSync(path, 'r');
   try {
     const size = fstatSync(fd).size;
-    const n = Math.min(size, MAX_READ);
+    const n = size;
     const buf = Buffer.alloc(n);
     let off = 0;
     while (off < n) {
@@ -73,18 +73,43 @@ export function inventory(dirArg = 'original') {
         continue;
       }
       if (name === '.gitkeep' || name === '.DS_Store') continue;
-      const { buf, size, truncated } = readOnly(p);
-      const det = detect(buf, name);
+      const fd = openSync(p, 'r');
+      let det, sha256, sample, runs = 0;
+      try {
+        const hash = createHash('sha256'), chunk = Buffer.alloc(SAMPLE_BYTES);
+        let run = 0;
+        for (let off = 0; off < st.size;) {
+          const n = readSync(fd, chunk, 0, Math.min(chunk.length, st.size - off), off);
+          if (!n) throw new Error(`short inventory read: ${rel}`);
+          hash.update(chunk.subarray(0, n));
+          if (!off) sample = Buffer.from(chunk.subarray(0, n));
+          for (let i = 0; i < n; i++) {
+            const c = chunk[i];
+            if (c >= 32 && c < 127) run++;
+            else { if (run >= 6) runs++; run = 0; }
+          }
+          off += n;
+        }
+        if (run >= 6) runs++;
+        sha256 = hash.digest('hex');
+        sample ??= Buffer.alloc(0);
+        det = detect(sample, name, { size: st.size, readAt: (off, n) => {
+          const out = Buffer.alloc(n);
+          return out.subarray(0, readSync(fd, out, 0, n, off));
+        } });
+      } finally { closeSync(fd); }
       result.files.push({
         path: rel,
-        size,
-        sha256: createHash('sha256').update(buf).digest('hex'),
-        truncated,
+        size: st.size,
+        sha256,
+        truncated: false,
+        sampleBytes: sample.length,
         format: det.format,
         platform: det.platform,
         confidence: det.confidence,
-        entropy: entropy(buf.subarray(0, 1 << 20)),
-        printableRuns: printableRuns(buf),
+        entropy: entropy(sample),
+        entropyScope: 'first sampleBytes bytes',
+        printableRuns: runs,
         details: det.details,
         hints: det.hints ?? [],
       });
