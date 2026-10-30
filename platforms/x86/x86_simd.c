@@ -2,10 +2,28 @@
 #include "x86_sem64.h"
 #if defined(X86_FLAT_GUEST) || defined(X86_WIDE_CPU)
 static x86_vec_t loadv(const x86_opnd_t *o,int bytes) {
-    x86_vec_t v={0};if(o->kind==XK_XMM)return X.xmm[o->reg];uint32_t p=x64_ea(o);for(int i=0;i<bytes;i++)v.u8[i]=(uint8_t)x86_rd8(p+(uint32_t)i);return v;
+    x86_vec_t v = {0};
+    if (o->kind == XK_XMM) return X.xmm[o->reg];
+    uint32_t p = x64_ea(o);
+#ifdef X86_FLAT_GUEST
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+        __builtin_memcpy(&v, x86_flat + p, (unsigned)bytes);
+        return v;
+    }
+#endif
+    for (int i = 0; i < bytes; i++) v.u8[i] = (uint8_t)x86_rd8(p + (uint32_t)i);
+    return v;
 }
 static void storev(const x86_opnd_t *o,x86_vec_t v,int bytes) {
-    if(o->kind==XK_XMM){X.xmm[o->reg]=v;return;}uint32_t p=x64_ea(o);for(int i=0;i<bytes;i++)x86_wr8(p+(uint32_t)i,v.u8[i]);
+    if (o->kind == XK_XMM) { X.xmm[o->reg] = v; return; }
+    uint32_t p = x64_ea(o);
+#ifdef X86_FLAT_GUEST
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+        __builtin_memcpy(x86_flat + p, &v, (unsigned)bytes);
+        return;
+    }
+#endif
+    for (int i = 0; i < bytes; i++) x86_wr8(p + (uint32_t)i, v.u8[i]);
 }
 static double nearest_even(double x){if(!(x<4503599627370496.0&&x>-4503599627370496.0))return x;double lo=__builtin_floor(x),delta=x-lo;if(delta<0.5)return lo;if(delta>0.5)return lo+1;return ((int64_t)lo&1)?lo+1:lo;}
 static int64_t convert_int(double x,int bits,int trunc) {
