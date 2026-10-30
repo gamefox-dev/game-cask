@@ -15,7 +15,8 @@ static void lift64(FILE *o,an_t *a,const char *name,lift_stats_t *st) {
             uint32_t va=f->insns.v[k];x86_insn_t in;
             fprintf(o,"L_%08x:;\n",va);
             if(!decode_at(a->pe,va,&in)){fprintf(o,"x86_fault(\"undecodable AMD64 instruction\",0x%08xu);\n",va);continue;}
-            fprintf(o,"{ static const x86_insn_t I = ");emit_insn_struct(o,&in);fprintf(o,"; x86_exec_one(&I); }\n");st->generic++;
+            fprintf(o,"{ static const x86_insn_t I = ");emit_insn_struct(o,&in);
+            fprintf(o,"; x86_exec_one(&I); if(X.transfer)return; }\n");st->generic++; /* LANE-C */
             if(in.op==XO_RET){fprintf(o,"return;\n");continue;}
             if(in.op==XO_CALL||in.op==XO_CALL_IND){fprintf(o,"x86_invoke(X.eip,0x%08xu); if(X.transfer)return;\n",va+in.len);}
             if(in.flags&(X86_F_BRANCH|X86_F_INDIRECT)){fprintf(o,"goto dispatch;\n");continue;}

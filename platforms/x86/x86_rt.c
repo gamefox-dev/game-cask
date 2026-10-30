@@ -6,6 +6,7 @@
  */
 #include "x86_sem.h"
 #include "bgt.h"
+#include "x86_sched.h" /* LANE-C */
 
 void x86_exec_insn(const x86_insn_t *in);
 
@@ -16,6 +17,8 @@ int x86_force_interp;
 #ifdef X86_FLAT_GUEST
 uint8_t *x86_flat;
 uint64_t x86_guest_committed;
+#endif
+/* LANE-C: architecture-independent cooperative hook. */
 static void (*scheduler)(void);
 void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
 void x86_cooperate(void) {
@@ -23,7 +26,6 @@ void x86_cooperate(void) {
     X.frame_insns = 0;
     scheduler();
 }
-#endif
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
 /* ------------------------------------------------------------------ host arena */
@@ -134,19 +136,23 @@ static uint32_t nlifted;
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
-    x86_metrics.lifted_functions = n;
+    /* LANE-C: i386 continuation entries are not additional functions. */
+    x86_metrics.lifted_functions = 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (table[i].end) x86_metrics.lifted_functions++;
 }
 
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if (x86_force_interp) return 0;
-#ifdef X86_FLAT_GUEST
-    {uint32_t lo=0,hi=nlifted;while(lo<hi){uint32_t m=(lo+hi)/2;if(lifted[m].addr<=addr)lo=m+1;else hi=m;}if(lo){const x86_lifted_entry_t *e=&lifted[lo-1];if(addr==e->addr||addr<e->end)return e->fn;}return 0;}
-#endif
+    /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
     uint32_t lo = 0, hi = nlifted;
     while (lo < hi) {
         uint32_t mid = (lo + hi) / 2;
-        if (lifted[mid].addr == addr) return lifted[mid].fn;
-        if (lifted[mid].addr < addr) lo = mid + 1; else hi = mid;
+        if (lifted[mid].addr <= addr) lo = mid + 1; else hi = mid;
+    }
+    if (lo) {
+        const x86_lifted_entry_t *e = &lifted[lo - 1];
+        if (addr == e->addr || addr < e->end) return e->fn;
     }
     return 0;
 }
@@ -195,6 +201,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
 #ifdef X86_FLAT_GUEST
     {
         for(;;) {
+            if (X.eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
             if(X.transfer)return;
             if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
             if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);continue;}
@@ -212,12 +219,19 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
     int counted = 0;
     for (;;) {
         uint32_t eip = X.eip;
+        if (eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
+        if (X.transfer) return;
         if (eip == ret_addr && X.r[ESP] > esp_floor) return;
         if (x86_is_thunk(eip)) {
             x86_metrics.thunk_dispatches++;
             if (thunk_fn(eip)) return;
             continue;
         }
+        /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
+        x86_lifted_fn resume = x86_find_lifted(eip);
+        if (resume) { x86_metrics.lifted_calls++; resume(); continue; }
+        /* LANE-C: mirror the lifted i386 instruction quantum. */
+        if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
         const x86_insn_t *in = decode_at(eip);
         if (!counted) { counted = 1; x86_metrics.interp_code_entries++; }
         x86_metrics.interp_insns++;
@@ -229,6 +243,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 x86_push(next);
                 x86_metrics.lifted_calls++;
                 fn();
+                if (X.transfer) return; /* LANE-C */
                 if (X.eip != next) x86_fault("lifted callee returned to an unexpected address", in->addr);
                 continue;
             }
@@ -242,6 +257,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
 }
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
+    X.eip = target; /* LANE-C: every lifted entry has a continuation dispatcher. */
     uint32_t esp_floor = (uint32_t)X.r[ESP]; /* return address is at [esp_floor] */
 #ifdef X86_FLAT_GUEST
     X.eip=target;interp_until(ret_addr,esp_floor);return;
@@ -261,6 +277,7 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
 void x86_call(uint32_t target, uint32_t next) {
     x86_push(next);
     x86_invoke(target, next);
+    if (X.transfer) return; /* LANE-C */
     if (X.eip != next) x86_fault("callee returned to an unexpected address", target);
 }
 
@@ -304,7 +321,9 @@ uint64_t x86_callback64(uint32_t fn,uint32_t nargs,const uint64_t *args) {
     X.r[ESP]=sp;
     static const int regs[4]={ECX,EDX,R8,R9};
     for(uint32_t i=0;i<nargs;i++) {if(i<4)X.r[regs[i]]=args[i];else x86_wr64((uint32_t)sp+32+8*(i-4),args[i]);}
+    X.callback_depth++; /* LANE-C */
     x86_push(X86_CALLBACK_SENTINEL);x86_invoke(fn,X86_CALLBACK_SENTINEL);
+    X.callback_depth--;
     uint64_t result=X.r[EAX];
     if(!X.transfer){__builtin_memcpy(X.r,saved,sizeof saved);__builtin_memcpy(X.xmm,xmm,sizeof xmm);X.eip=ip;}
     return result;
@@ -316,8 +335,10 @@ uint32_t x86_callback(uint32_t fn, uint32_t nargs, const uint32_t *args) {
 #endif
     uint32_t saved_esp = X.r[ESP], saved_eip = X.eip;
     for (uint32_t i = nargs; i > 0; i--) x86_push(args[i - 1]);
+    X.callback_depth++; /* LANE-C */
     x86_push(X86_CALLBACK_SENTINEL);
     x86_invoke(fn, X86_CALLBACK_SENTINEL);
+    X.callback_depth--;
     if (X.eip != X86_CALLBACK_SENTINEL) x86_fault("callback did not return", fn);
     X.r[ESP] = saved_esp;
     X.eip = saved_eip;

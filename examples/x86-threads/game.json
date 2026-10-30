@@ -1,0 +1,9 @@
+{
+  "id": "x86-threads",
+  "name": "CC0 i386 cooperative thread continuation conformance",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"out": "threads.exe", "sources": ["threads.c"], "libs": ["kernel32"]},
+    "modules": [{"from": "./build/threads.exe", "main": true}]
+  }
+}

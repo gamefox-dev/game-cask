@@ -116,7 +116,8 @@ static void unwind_exception(uint32_t record,uint32_t target_frame,uint32_t targ
     scratch_phase[d]=phase2;for(uint32_t i=0;i<CTX_BYTES;i++)x86_wr8(scratch_origin[d]+i,x86_rd8(c+i));
     for(unsigned step=0;step<512;step++){
         uint32_t pc=ptr(x86_rd64(c+CTX_IP)),sp=ptr(x86_rd64(cr(c,ESP))),base=0;
-        if(sp<W32_STACK_LO||sp>=W32_STACK_HI||!pc)break;
+        /* LANE-C: unwind the current thread's stack, not only the primary stack. */
+        if (sp < x86_rd64(X.gs_base + 16) || sp >= x86_rd64(X.gs_base + 8) || !pc) break;
         uint32_t fn=w64_lookup(pc,&base);
         for(uint32_t i=0;i<CTX_BYTES;i++)x86_wr8(next+i,x86_rd8(c+i));
         uint32_t handler=w64_virtual_unwind(phase2?2:1,base,pc,fn,next,data,frame),est=ptr(x86_rd64(frame));
@@ -137,16 +138,7 @@ static uint32_t rtl_unwind(void){uint32_t record=ARG(2),target=ARG(0),pc=ARG(1);
 static uint32_t raise_exception(void){uint32_t r=w32_misc_alloc(152);x86_wr32(r,ARG(0));x86_wr32(r+4,ARG(1));x86_wr64(r+16,x86_rd64((uint32_t)X.r[ESP]));uint32_t count=ARG(2)>15?15:ARG(2);x86_wr32(r+24,count);for(uint32_t i=0;i<count;i++)x86_wr64(r+32+8*i,x86_rd64(ARG(3)+8*i));unwind_exception(r,0,0,0,0,0);return 0;}
 static uint32_t setjmp64(void){uint32_t p=ARG(0);static const unsigned regs[10]={EBX,ESP,EBP,ESI,EDI,R12,R13,R14,R15,0};x86_wr64(p,X.r[EDX]);for(unsigned i=0;i<9;i++)x86_wr64(p+8+8*i,X.r[regs[i]]+(regs[i]==ESP?8:0));x86_wr64(p+80,x86_rd64((uint32_t)X.r[ESP]));x86_wr32(p+88,X.mxcsr);x86_wr16(p+92,0x37f);for(unsigned i=0;i<10;i++)for(unsigned j=0;j<16;j++)x86_wr8(p+96+i*16+j,X.xmm[i+6].u8[j]);return 0;}
 static uint32_t longjmp64(void){uint32_t p=ARG(0),value=ARG(1);static const unsigned regs[9]={EBX,ESP,EBP,ESI,EDI,R12,R13,R14,R15};for(unsigned i=0;i<9;i++)X.r[regs[i]]=x86_rd64(p+8+8*i);X.eip=ptr(x86_rd64(p+80));X.r[EAX]=value?value:1;X.mxcsr=x86_rd32(p+88);for(unsigned i=0;i<10;i++)for(unsigned j=0;j<16;j++)X.xmm[i+6].u8[j]=(uint8_t)x86_rd8(p+96+i*16+j);X.transfer=1;return (uint32_t)X.r[EAX];}
-static uint64_t fls[128],dynamic_tls[64],tls_mask;static uint32_t nfls;
-static uint32_t fls_alloc(void){return nfls<128?nfls++:0xffffffffu;}
-static uint32_t fls_get(void){return ARG(0)<128?(uint32_t)fls[ARG(0)]:0;}
-static uint32_t fls_set(void){if(ARG(0)>=128)return 0;fls[ARG(0)]=ARG64(1);return 1;}
 static uint32_t once_execute(void){uint32_t cell=ARG(0);if(!(x86_rd64(cell)&2)){uint64_t args[3]={cell,ARG64(2),ARG64(3)};uint64_t ok=x86_callback64(ARG(1),3,args);if(!ok)return 0;x86_wr64(cell,2);}return 1;}
-static uint32_t crt_ok(void){return 0;}
-static uint32_t yes(void){return 1;}
-static uint32_t critical_init(void){for(unsigned i=0;i<40;i++)x86_wr8(ARG(0)+i,0);x86_wr32(ARG(0)+8,0xffffffffu);return 0;}
-static uint32_t critical_enter(void){uint32_t p=ARG(0),n=x86_rd32(p+12);x86_wr32(p+8,n);x86_wr32(p+12,n+1);x86_wr64(p+16,1);return 1;}
-static uint32_t critical_leave(void){uint32_t p=ARG(0),n=x86_rd32(p+12);if(n){n--;x86_wr32(p+8,n-1);x86_wr32(p+12,n);if(!n)x86_wr64(p+16,0);}return 0;}
 static uint32_t system_info(void){uint32_t p=ARG(0);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr16(p,9);x86_wr32(p+4,4096);x86_wr64(p+8,0x10000);x86_wr64(p+16,X86_FLAT_BYTES-1);x86_wr64(p+24,1);x86_wr32(p+32,1);x86_wr32(p+36,8664);x86_wr32(p+40,65536);return 0;}
 static uint32_t virtual_query(void){uint32_t p=ARG(1);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr64(p,ARG(0)&~4095u);x86_wr64(p+8,ARG(0)&~4095u);x86_wr32(p+16,4);x86_wr64(p+24,4096);x86_wr32(p+32,0x1000);x86_wr32(p+36,4);x86_wr32(p+40,0x20000);return 48;}
 typedef struct {const char *name;uint32_t(*fn)(void);} api64_t;
@@ -154,11 +146,7 @@ static const api64_t api[] = {
  {"RtlLookupFunctionEntry",rtl_lookup},{"RtlVirtualUnwind",rtl_virtual},{"RtlCaptureContext",rtl_capture},{"RtlRestoreContext",rtl_restore},{"RtlUnwindEx",rtl_unwind},{"RaiseException",raise_exception},
  {"__intrinsic_setjmpex",setjmp64},{"_setjmpex",setjmp64},
  {"_setjmp",setjmp64},{"setjmp",setjmp64},{"longjmp",longjmp64},{"_longjmp",longjmp64},
- {"FlsAlloc",fls_alloc},{"FlsGetValue",fls_get},{"FlsSetValue",fls_set},{"FlsFree",yes},
- {"InitOnceExecuteOnce",once_execute},{"InitializeCriticalSection",critical_init},{"EnterCriticalSection",critical_enter},{"TryEnterCriticalSection",critical_enter},{"LeaveCriticalSection",critical_leave},{"DeleteCriticalSection",crt_ok},
- {"AcquireSRWLockExclusive",crt_ok},{"ReleaseSRWLockExclusive",crt_ok},{"TryAcquireSRWLockExclusive",yes},
- /* Notifications have no waiters in the single-thread profile; thread creation stays unsupported. */
- {"WakeAllConditionVariable",crt_ok},{"WakeConditionVariable",crt_ok},
+ {"InitOnceExecuteOnce",once_execute},
  {"GetSystemInfo",system_info},{"GetNativeSystemInfo",system_info},
  {"VirtualQuery",virtual_query},
 };
@@ -166,11 +154,6 @@ uint64_t w64_api(const char *name,int *handled) {
     int query=*handled<0;*handled=0;
     if(w32_streqi(name,"GetCurrentProcess")){*handled=1;return query?0:UINT64_MAX;}
     if(w32_streqi(name,"GetCurrentThread")){*handled=1;return query?0:UINT64_MAX-1;}
-    if(w32_streqi(name,"TlsAlloc")){*handled=1;if(query)return 0;for(unsigned i=0;i<64;i++)if(!(tls_mask&(1ull<<i))){tls_mask|=1ull<<i;dynamic_tls[i]=0;return i;}return 0xffffffffu;}
-    if(w32_streqi(name,"TlsFree")){*handled=1;if(query)return 0;if(ARG(0)>=64)return 0;tls_mask&=~(1ull<<ARG(0));dynamic_tls[ARG(0)]=0;return 1;}
-    if(w32_streqi(name,"TlsSetValue")){*handled=1;if(query)return 0;if(ARG(0)>=64)return 0;dynamic_tls[ARG(0)]=ARG64(1);return 1;}
-    if(w32_streqi(name,"TlsGetValue")){*handled=1;return query?0:ARG(0)<64?dynamic_tls[ARG(0)]:0;}
-    if(w32_streqi(name,"FlsGetValue")){*handled=1;return query?0:ARG(0)<128?fls[ARG(0)]:0;}
     if(w32_streqi(name,"GetWindowLongPtrW")||w32_streqi(name,"GetWindowLongPtrA")){*handled=1;return query?0:w32_longptr64(ARG(0),(int32_t)ARG(1),0,0);}
     if(w32_streqi(name,"SetWindowLongPtrW")||w32_streqi(name,"SetWindowLongPtrA")){*handled=1;return query?0:w32_longptr64(ARG(0),(int32_t)ARG(1),ARG64(2),1);}
     if(w32_streqi(name,"SendMessageW")||w32_streqi(name,"SendMessageA")){*handled=1;return query?0:w32_send64(ARG(0),ARG(1),ARG64(2),ARG64(3));}

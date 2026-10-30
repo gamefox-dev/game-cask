@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: MIT
  */
 #include "w32_int.h"
+/* LANE-C: guest scheduling crosses the profile dispatcher only at completed thunks. */
+#include "w32_thread.h"
 
 bgt_io_t *w32_io;
 w32_metrics_t w32_m;
@@ -386,6 +388,9 @@ static uint32_t nslots;
 const w32_api_t *w32_find_api(const char *name);
 static const w32_api_t *find_api(const char *name) { return w32_find_api(name); }
 const w32_api_t *w32_find_api(const char *name) {
+    /* LANE-C */
+    const w32_api_t *thread = w32_thread_find(name);
+    if (thread) return thread;
     const w32_api_t *tabs[3] = {w32_api_kernel, w32_api_user, w32_api_gdi};
     const uint32_t ns[3] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n};
     for (int t = 0; t < 3; t++)
@@ -465,6 +470,11 @@ static void note_stub(const char *name) {
  * lifted and interpreted runs of the same input through this */
 static uint32_t trace_hash = 2166136261u;
 static void trace(uint32_t v) { trace_hash = (trace_hash ^ v) * 16777619u; }
+/* LANE-C: blocking APIs contribute their actual wake/timeout result, not a placeholder. */
+void w32_trace_result(uint64_t result) {
+    trace((uint32_t)result);
+    if (X.mode64) trace((uint32_t)(result >> 32));
+}
 
 static int thunk_handler(uint32_t addr) {
     uint32_t i = (addr - W32_THUNK_LO) / 16u;
@@ -476,7 +486,11 @@ static int thunk_handler(uint32_t addr) {
     uint32_t transfer=(uint32_t)X.transfer;
     if(X.mode64){static const int reg[4]={ECX,EDX,R8,R9};for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);}
     int special = 0;
-    uint64_t result = X.mode64 && !s->crt ? w64_api(s->name, &special) : 0;
+    /* LANE-C: shared thread APIs take precedence over old single-thread CRT bridges. */
+    const w32_api_t *thread = w32_thread_find(s->name);
+    uint64_t result = 0;
+    if (thread) { special = 1; result = w32_thread_api(s->name); }
+    else if (X.mode64 && !s->crt) result = w64_api(s->name, &special);
     if (!s->api && !s->crt && !special) {
         /* arg count unknown: continuing would corrupt the stack */
         char msg[600];
@@ -493,6 +507,7 @@ static int thunk_handler(uint32_t addr) {
     if (X.transfer != (int)transfer) return 0;
     if (special) {
         X.r[EAX] = (x86_word_t)result;
+        if (thread && !X.mode64) X.r[EDX] = (uint32_t)(result >> 32); /* LANE-C: i386 int64 returns. */
     } else if (s->crt) {
         if (s->crt->fn == 0) {
             w32_m.stub_calls++;
@@ -514,10 +529,11 @@ static int thunk_handler(uint32_t addr) {
          w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread"))) {
         X.r[EAX] = (x86_word_t)UINT64_MAX;
     }
-    trace((uint32_t)X.r[EAX]);
-    if (X.mode64) trace((uint32_t)((uint64_t)X.r[EAX] >> 32));
+    if (!w32_thread_deferred_result()) w32_trace_result(X.r[EAX]); /* LANE-C */
     X.eip = (uint32_t)x86_pop();
     if (!X.mode64 && !s->crt && !s->api->cdecl) X.r[ESP] += 4u * s->api->nargs;
+    /* LANE-C: the saved context resumes after this API, never inside its native C frame. */
+    if (w32_thread_pending()) X.transfer = X86_SCHEDULE;
     return 0;
 }
 
@@ -643,7 +659,8 @@ static int bind_imports(w32_module_t *m) {
 
 static void setup_teb(void) {
     if(X.mode64) {
-        x86_map(W32_TEB,0x10000);x86_wr64(W32_TEB+8,W32_STACK_HI);x86_wr64(W32_TEB+16,W32_STACK_LO);
+        x86_map(W32_TEB,0x11000); /* LANE-C: TEB plus separate PEB page. */
+        x86_wr64(W32_TEB+8,W32_STACK_HI);x86_wr64(W32_TEB+16,W32_STACK_LO);
         x86_wr64(W32_TEB+0x30,W32_TEB);x86_wr64(W32_TEB+0x40,1);x86_wr64(W32_TEB+0x48,1);x86_wr64(W32_TEB+0x60,W32_PEB);
         x86_wr64(W32_PEB+0x10,w32_mod_by_handle(0)->base);X.gs_base=W32_TEB;return;
     }
@@ -665,9 +682,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     if(c->mode64)return BGT_E_UNSUPPORTED;
 #endif
     X.mode64=c->mode64;X.mxcsr=0x1f80;
-#ifdef X86_FLAT_GUEST
-    x86_set_scheduler(w32_wait_frame);
-#endif
+    x86_set_scheduler(w32_thread_quantum); /* LANE-C */
     w32_io = io;
     slots = (slot_t *)x86_alloc(W32_THUNK_SLOTS * sizeof(slot_t));
     if (!slots || !x86_map(W32_THUNK_LO, W32_THUNK_HI - W32_THUNK_LO) || !x86_map(W32_MISC, W32_MISC_SIZE)) return BGT_E_LIMIT;
@@ -707,6 +722,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 void w32_wait_frame(void) {
     w32_m.yields++;
     X.frame_insns=0;
+    w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
     bgt_yield();
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
     w32_user_pump_input();
@@ -717,6 +733,7 @@ void w32_wait_frame(void) {
 void w32_update(void) {
     if (started) return; /* the guest lives inside bgt_yield from here on */
     started = 1;
+    w32_thread_init(); /* LANE-C: thread identity exists before process TLS callbacks. */
     if(X.mode64)w64_tls_init();
     /* DLL entry points first (DLL_PROCESS_ATTACH), then the program */
     for (uint32_t i = 0; i < w32_nmods; i++) {
@@ -728,7 +745,13 @@ void w32_update(void) {
     if (!mainm || !mainm->entry) x86_fault("no program entry point", 0);
     x86_push(RET_SENTINEL);
     x86_invoke(mainm->entry, RET_SENTINEL);
-    while(X.transfer){X.transfer=0;x86_invoke(X.eip,RET_SENTINEL);}
+    /* LANE-C: unwind native lifted frames before selecting a different guest context. */
+    while (X.transfer || X.eip != RET_SENTINEL) {
+        if (X.eip == X86_THREAD_RETURN) w32_thread_return((uint32_t)X.r[EAX]);
+        if (X.transfer == X86_SCHEDULE) w32_thread_schedule();
+        else X.transfer = 0;
+        x86_invoke(X.eip, RET_SENTINEL);
+    }
     /* the program returned from its entry point */
     w32_exited = 1;
     w32_log("win32 profile: program returned from its entry point");
