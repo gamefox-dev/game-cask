@@ -25,9 +25,10 @@ export function importStatus(name, dll, machine = 'x86-64') {
       ...wide.matchAll(/w32_streqi\(name,"([^"]+)"\)/g)];
     if (names.some((m) => m[1] === name)) return { status: 'implemented', group: 'win64' };
   }
-  for (const file of ['w32_kernel.c', 'w32_user.c', 'w32_gdi.c']) {
+  /* LANE-GL: same explicit API registry as runtime dispatch. */
+  for (const file of ['w32_kernel.c', 'w32_user.c', 'w32_gdi.c', 'w32_gl_api.h']) {
     const source = readFileSync(join(ROOT, 'platforms/win32', file), 'utf8');
-    for (const m of source.matchAll(/\b(API|CAPI|DATAI|STUB|CSTUB)\("([^"]+)"/g)) {
+    for (const m of source.matchAll(/\b(API|CAPI|DATAI|STUB|CSTUB|GLSTUB)\("([^"]+)"/g)) {
       if (m[2] === name) return { status: m[1].includes('STUB') ? 'stub' : 'implemented', group: 'win32' };
     }
   }

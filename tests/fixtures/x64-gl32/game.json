@@ -1,0 +1,8 @@
+{
+  "id": "x64-gl32", "name": "GL i386 thunk regression (CC0)", "private": false, "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32", "fixture": {"sources": ["gl32.c"], "out": "gl32.exe",
+      "libs": ["kernel32", "opengl32", "gdi32"]},
+    "modules": [{"from": "./build/gl32.exe", "main": true}], "width": 64, "height": 64
+  }
+}

@@ -8,6 +8,8 @@
 /* LANE-E: additive profile registries and virtual-clock pumps. */
 #include "w32_audio.h"
 #include "w32_input.h"
+/* LANE-GL: registry, screen ownership and metrics. */
+#include "w32_gl.h"
 
 bgt_io_t *w32_io;
 w32_metrics_t w32_m;
@@ -389,12 +391,12 @@ static uint32_t nslots;
 const w32_api_t *w32_find_api(const char *name);
 static const w32_api_t *find_api(const char *name) { return w32_find_api(name); }
 const w32_api_t *w32_find_api(const char *name) {
-    /* LANE-E */
-    const w32_api_t *tabs[6] = {w32_api_kernel, w32_api_user, w32_api_gdi,
-        w32_api_com, w32_api_audio, w32_api_input};
-    const uint32_t ns[6] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n,
-        w32_api_com_n, w32_api_audio_n, w32_api_input_n};
-    for (int t = 0; t < 6; t++)
+    /* LANE-E; LANE-GL: additive GL registry. */
+    const w32_api_t *tabs[7] = {w32_api_kernel, w32_api_user, w32_api_gdi,
+        w32_api_com, w32_api_audio, w32_api_input, w32_api_gl};
+    const uint32_t ns[7] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n,
+        w32_api_com_n, w32_api_audio_n, w32_api_input_n, w32_api_gl_n};
+    for (int t = 0; t < 7; t++)
         for (uint32_t i = 0; i < ns[t]; i++) {
             const char *a = tabs[t][i].name, *b = name;
             while (*a && *a == *b) { a++; b++; }
@@ -744,7 +746,8 @@ void w32_update(void) {
     for (;;) w32_wait_frame();
 }
 
-void w32_render(void) { w32_gdi_flush_and_present(); }
+/* LANE-GL: GL owns the shared screen while its context is current. */
+void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
 /* ------------------------------------------------------------------ metrics / debug */
 static char json[131072];
@@ -770,6 +773,13 @@ const char *w32_metrics_json(void) {
     jkv("api_calls", w32_m.api_calls);
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
+    /* LANE-GL */
+    jkv("gl_calls", w32_gl_calls);
+    jkv("gl_draws", w32_gl_draws);
+    jkv("gl_state_changes", w32_gl_state_changes);
+    jkv("gl_pipelines", w32_gl_pipelines);
+    jkv("gl_unimplemented", w32_gl_unimplemented);
+    jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gdi_ops", w32_m.gdi_ops);
     jkv("chrome_ops", w32_m.chrome_ops);
     jkv("gdi_approx_rop", w32_m.gdi_approx_rop);
