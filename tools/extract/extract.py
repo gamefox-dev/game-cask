@@ -42,11 +42,11 @@ class PE:
         for i in range(self.nsec):
             s = self.opt + optsz + 40 * i
             vsize, va, rawsz, rawptr = struct.unpack_from("<IIII", data, s + 8)
-            self.secs.append((va, max(vsize, rawsz), rawptr, rawsz))
+            self.secs.append((va, vsize or rawsz, rawptr, rawsz))
 
     def off(self, rva):
         for va, sz, raw, rawsz in self.secs:
-            if va <= rva < va + sz and rva - va < rawsz:
+            if va <= rva < va + sz and rva - va < rawsz and raw + rva - va < len(self.d):
                 return rva - va + raw
         raise ValueError("rva %x not in file" % rva)
 
@@ -286,9 +286,14 @@ def main():
                                   "chain": r["chain"], "pe": is_pe(r["data"]), "note": r.get("note")})
     with open(os.path.join(outdir, "extract.json"), "w") as f:
         json.dump(manifest, f, indent=2)
+    if not manifest["files"]:
+        print("unsupported container or no extractable payload (supported: ZIP, RCDATA PE, Inno Setup 5.x)", file=sys.stderr)
     for e in manifest["files"]:
         print("%-24s %9d  %s%s" % (e["name"], e["size"], " > ".join(e["chain"]), ("  (" + e["note"] + ")") if e["note"] else ""))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, struct.error, OSError, lzma.LZMAError, zipfile.BadZipFile) as e:
+        sys.exit("extract: unsupported or malformed input: %s" % e)

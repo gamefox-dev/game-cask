@@ -195,9 +195,7 @@ static void systemtime(uint32_t p) {
 }
 static uint32_t k_GetSystemTime(void) { systemtime(ARG(0)); return 0; }
 static uint32_t k_Sleep(void) {
-    uint32_t ms = ARG(0), frames = (ms + 16u) / 17u;
-    if (!frames) frames = 1;
-    for (uint32_t i = 0; i < frames; i++) w32_wait_frame();
+    w32_sleep_ms(ARG(0));
     return 0;
 }
 static uint32_t k_GetLastError(void) { return last_error; }
@@ -529,7 +527,8 @@ uint32_t w32_data_import(const char *name) {
 }
 
 /* ------------------------------------------------------------------ SHELL32 / COMCTL32 */
-static uint32_t s_ShellAbout(void) { return 1; } /* INFERRED-equivalent: the About box is not modelled */
+static uint32_t s_ShellAboutA(void) { return w32_shell_about(0); }
+static uint32_t s_ShellAboutW(void) { return w32_shell_about(1); }
 
 #define API(n, a, f) {n, a, 0, f}
 #define CAPI(n, f) {n, 0, 1, f}
@@ -592,7 +591,7 @@ const w32_api_t w32_api_kernel[] = {
     API("RegSetValueExA", 6, r_RegSetValueExA), API("RegSetValueExW", 6, r_RegSetValueExW),
     API("RegDeleteValueA", 2, r_RegDeleteValue), API("RegDeleteValueW", 2, r_RegDeleteValue),
     /* SHELL32 / COMCTL32 */
-    API("ShellAboutA", 4, s_ShellAbout), API("ShellAboutW", 4, s_ShellAbout),
+    API("ShellAboutA", 4, s_ShellAboutA), API("ShellAboutW", 4, s_ShellAboutW),
     STUB("InitCommonControls", 0), API("InitCommonControlsEx", 1, k_one),
     /* MSVC runtime: msvcrt.dll and the ucrt api-sets share names */
     CAPI("malloc", c_malloc), CAPI("calloc", c_calloc), CAPI("realloc", c_realloc), CAPI("free", c_free), CAPI("_msize", c_msize),

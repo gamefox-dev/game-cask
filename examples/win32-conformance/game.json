@@ -5,7 +5,7 @@
   "private": false,
   "pipeline": {
     "platform": "win32",
-    "fixture": { "sources": ["src/conformance.c"], "out": "conformance.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32"] },
+    "fixture": { "sources": ["src/conformance.c", "src/phase0.c"], "out": "conformance.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32", "shell32"] },
     "modules": [{ "from": "./build/conformance.exe", "name": "conformance.exe", "main": true }],
     "width": 320, "height": 200
   },

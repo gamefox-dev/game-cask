@@ -34,7 +34,7 @@ typedef struct {
 typedef struct {
     uint32_t api_calls, stub_calls, stubs_distinct;
     char stubs[24][40];
-    uint32_t gdi_ops, gdi_approx_rop, gdi_unsupported, gdi_getpixel_noread, mono_color_blits;
+    uint32_t gdi_ops, chrome_ops, gdi_approx_rop, gdi_unsupported, gdi_getpixel_noread, mono_color_blits;
     uint32_t gdi_pixel_reads, gdi_cpu_replays, gdi_replay_compactions;
     uint32_t messages, paints, timers_fired, yields, peek_yields;
     uint32_t targets_lost;

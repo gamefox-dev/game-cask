@@ -31,7 +31,7 @@ deterministic clicks and keys and compares the API-call trace hash every frame (
   (lifted frames that had to continue in the interpreter), `generic_insn_execs` (instructions executed through the
   shared semantic core inside lifted code)
 - platform: `api_calls`, `apis_hit`, `stubs` (declared no-ops that were called; ordinals as `#N`)
-- GDI: `gdi_ops`, `gdi_approx_rop`, `gdi_unsupported`, `gdi_pixel_reads`, `gdi_cpu_replays` (reads answered by CPU
+- GDI: `gdi_ops` (program drawing only), `chrome_ops` (profile UI; may change on extra renders), `gdi_approx_rop`, `gdi_unsupported`, `gdi_pixel_reads`, `gdi_cpu_replays` (reads answered by CPU
   replay of the recorded ops), `gdi_getpixel_noread` (reads that were impossible: no history for that surface)
 - frames: `yields`, `peek_yields`, `trace_hash`
 
@@ -99,7 +99,8 @@ Look at every screenshot you cite (Read tool on the PNG), and at zoomed crops fo
 1. **Text fits its box**: no label clipped or wrapped by a control, menu, caption or status bar; no literal `&`.
 2. **Clipping and z-order**: child windows (status bars, toolbars, controls) are not overdrawn by the parent's
    drawing; popups, dialogs and message boxes are above the game; nothing draws outside its window.
-3. **Control appearance matches its style bits**: radio buttons vs check boxes, default push button, group boxes,
+3. **Control appearance matches its style bits**: compare each class, `style`, `exstyle`, `rect` and `client` in
+   `debugState().ui.windows` (also in the tour index and `p.debugState()` in the probe); radio buttons vs check boxes, default push button, group boxes,
    separators in menus, disabled (grey) items, checked menu items.
 4. **Animations frame by frame**: step 1 frame at a time through transitions (`p.step(1)` + `p.screenshot`) and look
    for stale pixels, black wedges, tearing, or uncleared areas.

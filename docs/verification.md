@@ -1,4 +1,26 @@
-# Verification record — Game Cask v0.1
+# Verification record — Game Cask
+
+## Kit v0.3 changes (in progress)
+
+The implementation/limitations ledger is [v03-status.md](v03-status.md). This is not a claim that the entire v0.3
+brief is complete. Stage 1 fixture evidence covers the UI, timing and tooling fixes listed there, on WebGL 2 and
+WebGPU. No private game was available or used. No dependencies were added; no existing assertions were weakened.
+
+Metric change: `gdi_ops` now excludes profile-drawn chrome; new `chrome_ops` counts that drawing separately and may
+vary with extra renders. Compare guest traces and `gdi_ops`, not `chrome_ops`, for deterministic runs.
+
+Stage 1 gate run: doctor ready, lint/typecheck clean, unit 63/63, e2e 59 passed/4 pre-existing skips,
+oracle identical/no errors (600 frames), leakcheck 158 files. A subsequent unit regression explicitly renders three
+extra frames and asserts gdi_ops/trace unchanged and chrome_ops increases. Fresh counts appear in the final record.
+
+Visual review of fixture screenshots: `phase0-controls.png` shows round selected radio, tick, stripped/escaped
+prefix labels, literal SS_NOPREFIX label; `caption-style.png` shows close/help caption buttons and legible descenders;
+`phase0-icon.png` shows the warning glyph and marked No default. All are substitute profile artwork, not Windows
+pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window caption/frame fidelity remain limits.
+
+---
+
+# Historical v0.1 verification
 
 This file is the evidence record for what has been **observed**. Anything not listed here is
 unverified.

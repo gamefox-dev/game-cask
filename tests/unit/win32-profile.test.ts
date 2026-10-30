@@ -78,6 +78,18 @@ describe('Win32 profile: pixel reads by CPU replay', () => {
   });
 });
 
+describe('Win32 profile: program metrics exclude presentation chrome', () => {
+  it('extra bgt_render calls cannot increase gdi_ops or change the guest trace', async () => {
+    const h = await loadHeadless('win32-hello'); h.step(5);
+    const before = h.host.metrics() as Record<string, number>;
+    for (let i = 0; i < 3; i++) { h.host.render(); h.host.consume(); }
+    const after = h.host.metrics() as Record<string, number>;
+    expect(after.gdi_ops).toBe(before.gdi_ops);
+    expect(after.trace_hash).toBe(before.trace_hash);
+    expect(after.chrome_ops).toBeGreaterThan(before.chrome_ops);
+  });
+});
+
 describe('Win32 profile: read-only UI layout in debugState', () => {
   it('exposes the menu bar, the open popup and dialog controls so tests can click them through real input', async () => {
     const h = await loadHeadless('win32-hello');

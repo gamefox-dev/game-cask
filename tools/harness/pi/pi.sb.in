@@ -1,0 +1,13 @@
+(version 1)
+(allow default)
+; This is write isolation + credential protection, NOT a read allowlist or network sandbox.
+(deny file-write*)
+(allow file-write* (subpath (param "WORK")) (subpath (param "SCRATCH"))
+  (subpath (param "AGENT")) (subpath (param "CACHE"))
+  (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/dev"))
+(deny file-write* (subpath (param "ORIGINAL")))
+(deny file-read* (subpath (param "SSH")) (subpath (param "GH"))
+  (subpath (param "KEYCHAINS")) (literal (param "GITCONFIG"))
+  (literal (param "GITCREDENTIALS")) (subpath (param "GITDIR")))
+(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))
+(deny process-exec (regex #"/git-credential-[^/]*$") (regex #"/gh$"))

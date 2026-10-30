@@ -26,7 +26,7 @@ export function peResources(b) {
   const pe = sections(b);
   if (!pe || !pe.rsrcRva) return null;
   const off = (rva) => {
-    for (const s of pe.secs) if (rva >= s.va && rva < s.va + Math.max(s.vsize, s.rawsize)) return s.raw + (rva - s.va);
+    for (const s of pe.secs) if (rva >= s.va && rva < s.va + (s.vsize || s.rawsize) && rva - s.va < s.rawsize) return s.raw + (rva - s.va);
     return -1;
   };
   const root = off(pe.rsrcRva);

@@ -76,7 +76,7 @@ still runs (interpreted, visible as `interp_insns`).
     known functions)
   - `generic_insn_execs`: instruction executions through the shared semantic core inside lifted code
   - `lifted_calls`, `api_calls`, `apis_hit`, `stubs` (declared no-ops that were called)
-  - `gdi_ops`, `gdi_approx_rop` (raster ops approximated on the GPU), `gdi_unsupported`
+  - `gdi_ops` (program drawing only), `chrome_ops` (profile UI, including extra presentations), `gdi_approx_rop` (raster ops approximated on the GPU), `gdi_unsupported`
   - `gdi_pixel_reads` (GetPixel/GetDIBits calls), `gdi_cpu_replays` (answered by CPU replay), `gdi_replay_compactions`,
     `gdi_getpixel_noread` (impossible reads: the surface's history is unknown), `pixel_replay` (1 = enabled)
   - `mono_color_blits`, `peek_yields`, `targets_lost`, `trace_hash`
@@ -109,7 +109,9 @@ The lifter skips these addresses. The build counts them, along with their lines 
 - **x86:** 32-bit flat mode only. No x87/SSE (FPU instructions fault). No self-modifying code (the decoder caches).
 - **Profiles:** Win32 only; DOS/consoles need new profiles.
 - **GDI:** pixel reads come from CPU replay (exact for every recorded op; a surface drawn before replay was enabled,
-  e.g. when `GetPixel` is only found through `GetProcAddress` late, is unknown until overdrawn). Rect-only clipping.
+  e.g. when `GetPixel` is only found through `GetProcAddress` late, is unknown until overdrawn). Window DC visible
+  regions subtract visible children for WS_CLIPCHILDREN and higher siblings for WS_CLIPSIBLINGS (disjoint rectangles,
+  up to 1024); explicit GDI region objects remain rect-only.
   Bitwise raster ops beyond the mapped set are approximated (counted). No copying within one surface. Drawing into a
   DIB section does not update its guest bits. `GetDIBits` writes 24/32-bpp `BI_RGB` only.
 - **Win32:** no threads, no file writes, no COM, MENUEX templates unsupported.

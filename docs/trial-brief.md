@@ -27,6 +27,8 @@ You are the porting agent for a Game Cask trial. Port `original/{{GAME}}` (sha25
 - No system installs. No git changes (no commits, branches, stashes or resets).
 - The port stays private (`port/game.json` `"private": true`); `npm run leakcheck` must pass.
 
+{{SLICE}}
+
 ## How to work
 - The trial tests the kit. Report kit metrics first (pipeline summary, runtime metrics, oracle), then exceptions,
   then the work queue, then the game level.
@@ -34,7 +36,7 @@ You are the porting agent for a Game Cask trial. Port `original/{{GAME}}` (sha25
   localized to a layer. You are done only when every item is `fixed` (with proof), `authentic` (with binary evidence)
   or an `iteration-request` (a kit change you need; do not make it yourself, keep working on the rest). See
   `CLAUDE.md` → "Done means".
-- Explore beyond your tests: the resource tour, `npm run probe`, and the visual checklist in `browser-validation`.
+- Explore beyond your tests: the resource tour, `npm run probe`, and the visual checklist in `.claude/skills/browser-validation/SKILL.md`.
 - Leave the developer's dev server on `:5173` alone. Tests and probes start their own servers.
 {{RESUME}}
 ## Final reply

@@ -78,6 +78,8 @@ uint32_t w32_heap_realloc(uint32_t a, uint32_t n);
 
 /* time */
 uint32_t w32_now_ms(void);
+void w32_sleep_ms(uint32_t ms);
+uint32_t w32_shell_about(int wide);
 
 /* modules */
 typedef struct {
@@ -132,6 +134,13 @@ int32_t w32_user_menu_h(uint32_t hwnd);
 void w32_user_window_rect(uint32_t hwnd, int32_t *x, int32_t *y, int32_t *w, int32_t *h);
 int w32_user_client(uint32_t hwnd, int32_t *x, int32_t *y, int32_t *w, int32_t *h);
 uint32_t w32_sys_color(uint32_t idx);
+/* Visible-region exclusions in desktop coordinates, shared by all window DC primitives. */
+uint32_t w32_user_exclusions(uint32_t hwnd, int32_t rects[NWND][4]);
+void w32_gdi_chrome_begin(void);
+void w32_gdi_chrome_end(void);
+uint32_t w32_user_font(uint32_t hwnd);
+uint32_t w32_gdi_make_font(int32_t height, int32_t weight);
+void w32_chrome_select_font(uint32_t font);
 
 /* ------------------------------------------------------------------ GDI recorder (deferred BGT commands) */
 void w32_gdi_init(void);
@@ -143,6 +152,8 @@ int32_t w32_gdi_screen_h(void);
 void g_fill(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb, uint32_t blend);
 void g_text(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, const char *s, int32_t n, uint32_t rgb, int32_t scale);
 int32_t g_text_w(int32_t n, int32_t scale);
+typedef struct { int32_t height, ascent, descent, advance, weight; } w32_font_t;
+w32_font_t w32_font_metrics(int32_t height, int32_t weight);
 void w32_gdi_flush_and_present(void);
 /* CPU replay of recorded GDI ops (w32_replay.c): exact pixel reads on GPU surfaces, enabled on demand */
 void w32_rp_enable(void);

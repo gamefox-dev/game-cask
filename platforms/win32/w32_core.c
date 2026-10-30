@@ -61,7 +61,22 @@ uint32_t w32_misc_alloc(uint32_t n) {
     misc_top = a + n;
     return a;
 }
-uint32_t w32_now_ms(void) { return w32_io ? w32_io->frame * 1000u / 60u : 0; }
+static uint64_t virtual_us;
+uint32_t w32_now_ms(void) {
+    uint64_t frame_us = w32_io ? (uint64_t)w32_io->frame * BGT_DT_US : 0;
+    if (virtual_us < frame_us) virtual_us = frame_us;
+    return (uint32_t)(virtual_us / 1000u);
+}
+void w32_sleep_ms(uint32_t ms) {
+    if (!ms) { w32_wait_frame(); return; }
+    uint64_t deadline = virtual_us + (uint64_t)ms * 1000u;
+    while (virtual_us < deadline) {
+        uint64_t boundary = ((uint64_t)w32_io->frame + 1u) * BGT_DT_US;
+        if (deadline < boundary) { virtual_us = deadline; break; }
+        virtual_us = boundary;
+        w32_wait_frame();
+    }
+}
 
 /* ------------------------------------------------------------------ guest heap (first fit, lazily mapped) */
 /* block: [u32 size_with_header | used(bit0)] [u32 requested] payload */
@@ -592,6 +607,7 @@ const char *w32_metrics_json(void) {
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
     jkv("gdi_ops", w32_m.gdi_ops);
+    jkv("chrome_ops", w32_m.chrome_ops);
     jkv("gdi_approx_rop", w32_m.gdi_approx_rop);
     jkv("gdi_unsupported", w32_m.gdi_unsupported);
     jkv("gdi_pixel_reads", w32_m.gdi_pixel_reads);

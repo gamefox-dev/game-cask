@@ -1,7 +1,7 @@
 # Game Cask
 
 An agent-first starter kit for restoring **legally obtained** legacy games as playable browser
-games. You bring the game files; Claude Code analyses them with reverse-engineering tools and
+games. You bring the game files; your coding agent analyses them with reverse-engineering tools and
 rebuilds the game in C. It runs in the browser through a small, stable ABI called the
 **Game Cask Browser Target (BGT)**: WebGPU first, WebGL 2 fallback, phone-friendly input.
 
@@ -14,7 +14,7 @@ claude                                      # open Claude Code in this directory
 > Port this game
 ```
 
-Claude follows [`CLAUDE.md`](CLAUDE.md):
+Any harness follows [`AGENTS.md`](AGENTS.md) → [`CLAUDE.md`](CLAUDE.md) (single source of rules):
 1. Establish a green baseline.
 2. Inventory `original/`, then analyse the binary (with REA when available).
 3. Choose a strategy per subsystem (preserve / reconstruct / replace / selective-emulate).
@@ -27,7 +27,10 @@ Claude follows [`CLAUDE.md`](CLAUDE.md):
 For a reproducible trial, write a brief first: `npm run trial:brief -- --game <file-in-original> --slug <slug>`
 (`--resume` to continue an existing port after a kit change) and give the printed text to the porting agent.
 
-Ports, reports and screenshots stay private and local by default.
+Ports, reports and screenshots stay private and local by default. [docs/trials.md](docs/trials.md) documents
+isolated trial setup (`npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]`), Claude Code
+and pi drivers, sandbox limits, and recording. `.agents/skills` exposes the same skills as `.claude/skills`.
+No new npm dependencies are required for these tools; optional pi/Python PTY drivers use an already installed CLI.
 
 ## How porting works (kit v0.2)
 
@@ -86,7 +89,8 @@ Useful URL flags:
 | `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |
 | `npm run probe -- --game <id> --script <f.mjs>` | scripted exploration in headless Chromium on its own server (screenshots, zoomed crops, metrics, read-only `peek`, resource tour) → `reports/probe/` |
-| `npm run trial:brief -- --game <file> --slug <slug> [--resume]` | trial brief for a porting agent → `reports/brief.md` |
+| `npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]` | operator: isolated, remote-free clone at commit, npm ci, copy input, write brief |
+| `npm run trial:brief -- --game <file> --slug <slug> [--resume] [--slice TEXT]` | trial brief for a porting agent → `reports/brief.md` |
 | `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json`; `-- --strings FILE` prints ASCII/UTF-16 strings and PE resource text (stdout only) |
 | `npm run extract -- IN OUT` / `npm run analyze -- FILE` | static unpacking / x86 analysis + disassembly |
 | `npm run oracle -- <gameDir>` | differential oracle: lifted vs interpreted builds |

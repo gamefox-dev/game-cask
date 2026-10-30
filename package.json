@@ -33,6 +33,7 @@
     "bench": "npm run build:examples && node tools/bench/bench.mjs",
     "oracle": "node tools/build/oracle-cli.mjs",
     "trial:brief": "node tools/report/trial-brief.mjs",
+    "trial:setup": "node tools/report/trial-setup.mjs",
     "trial:record": "node tools/report/trial-record.mjs",
     "extract": "python3 -I tools/extract/extract.py",
     "analyze": "node tools/x86/analyze-cli.mjs"

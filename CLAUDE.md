@@ -1,4 +1,11 @@
-# Game Cask — operating rules for Claude Code
+# Game Cask — operating rules for every agent harness
+
+`AGENTS.md` points here; this is the single source of rules. Role briefs are ordinary files in
+`.claude/agents/`. Read skills by path: `.claude/skills/<name>/SKILL.md` (also exposed through
+`.agents/skills`). No particular tool name or subagent API is required: use your harness's file, shell and image
+viewing tools. Independent validation requires a separate fresh agent/session; if unavailable, report that gate.
+These port restrictions apply to **porting**, not an explicitly requested kit-development task.
+See `docs/trials.md` for isolated trial setup with Claude Code or pi.
 
 Game Cask restores legally obtained legacy games as browser games. Games run as C compiled to
 wasm32 against the **Game Cask Browser Target (BGT) ABI**. The runtime provides WebGPU/WebGL 2,
@@ -9,7 +16,8 @@ how far the kit's **systematic pipeline** carries a real game, and exactly where
 kit metrics, exceptions and iteration requests first, and the game level second.
 
 **When the user says "Port this game"**, follow the workflow below from step 1. If a trial brief exists
-(`reports/brief.md`, made by `npm run trial:brief`), it adds the trial's rules; obey it.
+(`reports/brief.md`, made by `npm run trial:brief`), it adds the trial's rules; obey it. A launcher-selected
+slice is the L3 definition and packaging scope; never silently lower it.
 
 ## Read first
 1. `SPEC.md`: the brief and its success levels (L0–L5, §8).
@@ -67,6 +75,8 @@ npm run doctor && npm test && npm run test:e2e
 Never start on a red baseline. (Kit suites never build or run `port/`.)
 
 ## Workflow ("Port this game")
+The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` before that step.
+
 | step | do | skill |
 |---|---|---|
 | 1 | `npm run inspect`: inventory, formats, platform, tools | `inspect-game` |
@@ -109,7 +119,8 @@ together with what such a profile would need. Do not substitute a one-off emulat
 | `npm run test:port` | the port's browser tests → `reports/e2e-port-*` |
 | `npm run probe -- --game ID --script FILE.mjs` | scripted exploration in headless Chromium (no spec) → `reports/probe/` |
 | `npm test` / `npm run test:e2e` | kit suites (never touch `port/`) |
-| `npm run trial:brief -- --game FILE --slug SLUG` | write the trial brief → `reports/brief.md` |
+| `npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]` | operator: isolated clone, npm ci, copy input, write brief |
+| `npm run trial:brief -- --game FILE --slug SLUG [--slice TEXT]` | write the trial brief → `reports/brief.md` |
 | `npm run trial:record -- port SLUG` | trial record for the trials repo |
 | `npm run report` / `npm run leakcheck` | validate + redact reports / block private data |
 | `npm run dev` | `http://localhost:5173/?game=<id>&debug=1` |

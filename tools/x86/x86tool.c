@@ -735,7 +735,8 @@ int main(int argc, char **argv) {
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (len <= 0 || len > (64L << 20)) die("bad input size");
+    if (len <= 0) die("empty input or unable to determine input size");
+    if ((uint64_t)len > UINT32_MAX) die("input exceeds PE file-offset range (4 GiB)");
     uint8_t *d = xcalloc((size_t)len, 1);
     if (fread(d, 1, (size_t)len, f) != (size_t)len) die("short read");
     fclose(f);
