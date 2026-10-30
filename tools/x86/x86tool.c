@@ -68,6 +68,8 @@ typedef struct {
     import_t *imp; uint32_t nimp;
     export_t *exp; uint32_t nexp;
     vec_t reloc_vas;   /* VAs of relocated 32-bit slots */
+    uint32_t dd_rva[16], dd_size[16]; /* data directories (imports, IAT, resources, ...) */
+    vec_t name_ranges; /* [start, end) VA pairs of import DLL names and hint/name entries */
 } pe_t;
 
 static int in_image(const pe_t *pe, uint32_t va, uint32_t n) { return va >= pe->base && (uint64_t)va - pe->base + n <= pe->size; }
@@ -117,6 +119,7 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
     pe->base = want_base ? want_base : pe->pref_base;
     pe->entry = r32(d + opt + 16) ? pe->base + r32(d + opt + 16) : 0;
     const uint8_t *dd = d + opt + 96;
+    for (uint32_t k = 0; k < 16 && 96 + 8 * k + 8 <= optsz; k++) { pe->dd_rva[k] = r32(dd + 8 * k); pe->dd_size[k] = r32(dd + 8 * k + 4); }
     /* relocations */
     uint32_t rel_rva = r32(dd + 5 * 8), rel_sz = r32(dd + 5 * 8 + 4);
     pe->has_relocs = rel_rva && rel_sz;
@@ -150,6 +153,7 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
             if (!name && !iat) break;
             char dll[64];
             cstr(pe->img + name, 63, dll, sizeof dll);
+            vpush(&pe->name_ranges, pe->base + name); vpush(&pe->name_ranges, pe->base + name + (uint32_t)strlen(dll) + 1);
             uint32_t lt = ilt ? ilt : iat;
             for (uint32_t k = 0; lt + 4 * k + 4 <= pe->size; k++) {
                 uint32_t ent = r32(pe->img + lt + 4 * k);
@@ -160,7 +164,10 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
                 snprintf(im->dll, sizeof im->dll, "%s", dll);
                 im->iat = pe->base + iat + 4 * k;
                 if (ent & 0x80000000u) { im->ordinal = ent & 0xffff; snprintf(im->name, sizeof im->name, "#%u", im->ordinal); }
-                else if (ent + 2 < pe->size) cstr(pe->img + ent + 2, 63, im->name, sizeof im->name);
+                else if (ent + 2 < pe->size) {
+                    cstr(pe->img + ent + 2, 63, im->name, sizeof im->name);
+                    vpush(&pe->name_ranges, pe->base + ent); vpush(&pe->name_ranges, pe->base + ent + 3 + (uint32_t)strlen(im->name));
+                }
             }
         }
     }
@@ -209,11 +216,14 @@ typedef struct {
     int seed_kind;     /* 0 entry, 1 export, 2 call target, 3 relocated pointer, 4 immediate pointer */
 } func_t;
 
+typedef struct { uint32_t addr; int seed_kind; const char *reason; } dseed_t;
 typedef struct {
     pe_t *pe;
     func_t *f; uint32_t nf, capf;
     vec_t known;           /* sorted function entries (rebuilt as discovered) */
     uint32_t census[XO_COUNT];
+    vec_t blocked;         /* sorted: pointer seeds classified as data (never functions) */
+    dseed_t *ds; uint32_t nds;
 } an_t;
 
 static int func_index(an_t *a, uint32_t addr) {
@@ -221,7 +231,7 @@ static int func_index(an_t *a, uint32_t addr) {
     return -1;
 }
 static void add_func(an_t *a, uint32_t addr, int kind) {
-    if (!is_code(a->pe, addr) || func_index(a, addr) >= 0) return;
+    if (!is_code(a->pe, addr) || func_index(a, addr) >= 0 || vhas(&a->blocked, addr)) return;
     if (a->nf == a->capf) { a->capf = a->capf ? a->capf * 2 : 256; a->f = realloc(a->f, a->capf * sizeof(func_t)); if (!a->f) die("oom"); }
     func_t *f = &a->f[a->nf++];
     memset(f, 0, sizeof *f);
@@ -365,6 +375,73 @@ static void prune(an_t *a) {
     a->nf = k;
 }
 
+/* ------------------------------------------------------------------ data seeds
+ * Pointer seeds (relocated or immediate pointers into a code section) can point at data that shares the section
+ * with code (merged .text: IAT, strings, GUIDs, tables). Such a seed is data, not a function, when:
+ *   - it lies inside a PE data directory (import/IAT/export/resource/...) or an import name string;
+ *   - its bytes are a NUL-terminated string (ASCII >= 8 printable, or UTF-16LE >= 5 printable, >= 2 distinct);
+ *   - it starts with zero bytes (`add [eax], al`), which no compiler emits as a function's first instruction;
+ *   - its decoded instructions include undecodable or unsupported ones.
+ * Entry points, exports and direct call targets are never reclassified. A misclassified real function would still
+ * run (interpreted, visible in interp_insns); a data seed lifted as code inflates every total and can fault. */
+static int is_string_at(const pe_t *pe, uint32_t va) {
+    const uint8_t *p = at(pe, va);
+    if (!p) return 0;
+    uint32_t avail = pe->base + pe->size - va, n = 0;
+    while (n < avail && n < 4096 && p[n] >= 0x20 && p[n] < 0x7f) n++;
+    if (n >= 8 && n < avail && p[n] == 0) return 1;
+    uint32_t k = 0, distinct = 0;
+    uint8_t first = 0;
+    while (2 * k + 1 < avail && k < 2048 && p[2 * k] >= 0x20 && p[2 * k] < 0x7f && p[2 * k + 1] == 0) {
+        if (!k) first = p[0]; else if (p[2 * k] != first) distinct = 1;
+        k++;
+    }
+    return k >= 5 && distinct && 2 * k + 1 < avail && p[2 * k] == 0 && p[2 * k + 1] == 0;
+}
+static const char *data_reason(const an_t *a, const func_t *f) {
+    const pe_t *pe = a->pe;
+    if (f->seed_kind < 3) return 0;
+    uint32_t va = f->addr;
+    for (uint32_t k = 0; k < 16; k++) {
+        if (k == 4) continue; /* the security directory holds a file offset, not an RVA */
+        if (pe->dd_rva[k] && pe->dd_size[k] && va >= pe->base + pe->dd_rva[k] && va - (pe->base + pe->dd_rva[k]) < pe->dd_size[k]) return "data-directory";
+    }
+    for (uint32_t i = 0; i + 1 < pe->name_ranges.n; i += 2) if (va >= pe->name_ranges.v[i] && va < pe->name_ranges.v[i + 1]) return "import-name";
+    const uint8_t *p = at(pe, va);
+    if (p && va + 1 < pe->base + pe->size && p[0] == 0 && p[1] == 0) return "zero-bytes";
+    if (is_string_at(pe, va)) return "string";
+    if (f->undecodable || f->unsupported) return "undecodable-or-unsupported";
+    return 0;
+}
+static void reset_analysis(an_t *a) {
+    for (uint32_t i = 0; i < a->nf; i++) { free(a->f[i].insns.v); free(a->f[i].labels.v); free(a->f[i].calls.v); free(a->f[i].imports.v); free(a->f[i].ij); }
+    a->nf = 0;
+    a->known.n = 0;
+    memset(a->census, 0, sizeof a->census);
+}
+static void analyze(an_t *a);
+static void prune(an_t *a);
+/* analyse, classify data seeds, and re-analyse without them until stable (their bogus "calls" vanish too) */
+static void analyze_all(an_t *a) {
+    for (int iter = 0; iter < 8; iter++) {
+        if (iter) reset_analysis(a);
+        analyze(a);
+        prune(a);
+        uint32_t added = 0;
+        for (uint32_t i = 0; i < a->nf; i++) {
+            const char *r = data_reason(a, &a->f[i]);
+            if (!r) continue;
+            a->ds = realloc(a->ds, (a->nds + 1) * sizeof(dseed_t));
+            if (!a->ds) die("oom");
+            a->ds[a->nds++] = (dseed_t){a->f[i].addr, a->f[i].seed_kind, r};
+            vpush(&a->blocked, a->f[i].addr);
+            added++;
+        }
+        if (!added) break;
+        vsort_uniq(&a->blocked);
+    }
+}
+
 static void emit_analysis(FILE *o, an_t *a, const char *name) {
     pe_t *pe = a->pe;
     fprintf(o, "{\n  \"schema\": \"game-cask/x86-analysis/1\",\n  \"module\": "); json_str(o, name);
@@ -401,7 +478,10 @@ static void emit_analysis(FILE *o, an_t *a, const char *name) {
         fprintf(o, "], \"indirectCalls\": %u, \"indirectJumps\": %u, \"unresolvedJumps\": %u, \"unsupported\": %u, \"fpu\": %u, \"undecodable\": %u}%s\n",
                 f->indirect_calls, f->nij, fu, f->unsupported, f->fpu, f->undecodable, i + 1 < a->nf ? "," : "");
     }
-    fprintf(o, "  ],\n  \"census\": {");
+    fprintf(o, "  ],\n  \"dataSeeds\": [");
+    for (uint32_t i = 0; i < a->nds; i++)
+        fprintf(o, "%s{\"addr\": %u, \"seed\": \"%s\", \"reason\": \"%s\"}", i ? ", " : "", a->ds[i].addr, SEED[a->ds[i].seed_kind], a->ds[i].reason);
+    fprintf(o, "],\n  \"census\": {");
     int first = 1;
     for (int op = 0; op < XO_COUNT; op++) {
         if (!a->census[op]) continue;
@@ -409,8 +489,8 @@ static void emit_analysis(FILE *o, an_t *a, const char *name) {
                 op == XO_IMUL1 ? "1" : op == XO_JMP_IND || op == XO_CALL_IND ? "_ind" : op == XO_SAL ? "_sal" : "", a->census[op]);
         first = 0;
     }
-    fprintf(o, "},\n  \"totals\": {\"functions\": %u, \"instructions\": %u, \"indirectCalls\": %u, \"unresolvedIndirectJumps\": %u, \"unsupported\": %u, \"fpu\": %u, \"undecodable\": %u}\n}\n",
-            a->nf, insns, icalls, unres, unsup, fpu, undec);
+    fprintf(o, "},\n  \"totals\": {\"functions\": %u, \"dataSeeds\": %u, \"instructions\": %u, \"indirectCalls\": %u, \"unresolvedIndirectJumps\": %u, \"unsupported\": %u, \"fpu\": %u, \"undecodable\": %u}\n}\n",
+            a->nf, a->nds, insns, icalls, unres, unsup, fpu, undec);
 }
 
 /* ------------------------------------------------------------------ disassembly */
@@ -664,8 +744,7 @@ int main(int argc, char **argv) {
     an_t a;
     memset(&a, 0, sizeof a);
     a.pe = &pe;
-    analyze(&a);
-    prune(&a);
+    analyze_all(&a);
     a.known.n = 0;
     for (uint32_t i = 0; i < a.nf; i++) vpush(&a.known, a.f[i].addr);
     vsort_uniq(&a.known);
@@ -679,12 +758,12 @@ int main(int argc, char **argv) {
         lift(o, &a, name, &st);
         fclose(o);
         emit_analysis(stdout, &a, name);
-        fprintf(stderr, "lifted %s: %u functions (%u overridden), %u specialized + %u generic instructions, %u jump-table switches, %u unresolved indirect jumps\n",
-                name, a.nf, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved);
+        fprintf(stderr, "lifted %s: %u functions (%u overridden, %u data seeds rejected), %u specialized + %u generic instructions, %u jump-table switches, %u unresolved indirect jumps\n",
+                name, a.nf, skip.n, a.nds, st.specialized, st.generic, st.jt_switch, st.unresolved);
         FILE *sf = fopen(strcat(strcpy(xcalloc(strlen(out) + 16, 1), out), ".stats.json"), "wb");
         if (sf) {
-            fprintf(sf, "{\"functions\": %u, \"overridden\": %u, \"specialized\": %u, \"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u}\n",
-                    a.nf, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved);
+            fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, \"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u}\n",
+                    a.nf, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved);
             fclose(sf);
         }
         return 0;

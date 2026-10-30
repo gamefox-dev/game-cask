@@ -1,10 +1,138 @@
 {
-  "bitmaps": { "101": "tiles.bmp" },
+  "bitmaps": {
+    "101": "tiles.bmp"
+  },
   "menus": {
     "102": [
-      { "popup": "&Game", "items": [ { "text": "&New\tF2", "id": 201 }, { "separator": true }, { "text": "E&xit", "id": 203 } ] },
-      { "popup": "&Help", "items": [ { "text": "&About", "id": 202 } ] }
+      {
+        "popup": "&Game",
+        "items": [
+          {
+            "text": "&New\tF2",
+            "id": 201
+          },
+          {
+            "text": "&Options...",
+            "id": 204
+          },
+          {
+            "separator": true
+          },
+          {
+            "text": "E&xit",
+            "id": 203
+          }
+        ]
+      },
+      {
+        "popup": "&Help",
+        "items": [
+          {
+            "text": "&About",
+            "id": 202
+          }
+        ]
+      }
     ]
   },
-  "accelerators": { "103": [ { "key": 113, "id": 201, "virt": true } ] }
+  "accelerators": {
+    "103": [
+      {
+        "key": 113,
+        "id": 201,
+        "virt": true
+      }
+    ]
+  },
+  "dialogs": {
+    "104": {
+      "title": "Options",
+      "x": 0,
+      "y": 0,
+      "w": 160,
+      "h": 96,
+      "style": 2160593024,
+      "font": {
+        "size": 8,
+        "face": "MS Shell Dlg"
+      },
+      "controls": [
+        {
+          "class": "button",
+          "text": "Board",
+          "id": 300,
+          "x": 7,
+          "y": 7,
+          "w": 90,
+          "h": 44,
+          "style": 1342177287
+        },
+        {
+          "class": "button",
+          "text": "&Small tiles",
+          "id": 301,
+          "x": 14,
+          "y": 18,
+          "w": 76,
+          "h": 10,
+          "style": 1342373897
+        },
+        {
+          "class": "button",
+          "text": "&Large tiles",
+          "id": 302,
+          "x": 14,
+          "y": 32,
+          "w": 76,
+          "h": 10,
+          "style": 1342177289
+        },
+        {
+          "class": "button",
+          "text": "&Sound",
+          "id": 303,
+          "x": 105,
+          "y": 18,
+          "w": 50,
+          "h": 10,
+          "style": 1342242819
+        },
+        {
+          "class": "static",
+          "text": "Changes apply to new boards.",
+          "id": 304,
+          "x": 7,
+          "y": 56,
+          "w": 146,
+          "h": 10,
+          "style": 1342177280
+        },
+        {
+          "class": "button",
+          "text": "OK",
+          "id": 1,
+          "x": 50,
+          "y": 74,
+          "w": 50,
+          "h": 14,
+          "style": 1342242817
+        },
+        {
+          "class": "button",
+          "text": "Cancel",
+          "id": 2,
+          "x": 103,
+          "y": 74,
+          "w": 50,
+          "h": 14,
+          "style": 1342242816
+        }
+      ]
+    }
+  },
+  "strings": {
+    "1": "clicks %d  ticks %d  sel %s%s",
+    "2": "  [sound]",
+    "3": "Game Cask pipeline example"
+  }
 }

@@ -149,6 +149,7 @@ export const LIMITS = {
   storageValueBytes: 65536,
   logBytes: 4096,
   debugStateBytes: 1 << 20,
+  peekBytes: 65536,
   maxCatchUpUpdates: 4,
 } as const;
 

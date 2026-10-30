@@ -42,6 +42,30 @@ export function strings(buf, min = 6, limit = 200) {
   return out;
 }
 
+/** UTF-16LE strings (Latin text, at even and odd alignment), e.g. Win32 Unicode resources. Non-Latin scripts are
+ *  not scanned for here (binary data reads as random CJK); `--strings` decodes resource text separately. */
+export function utf16Strings(buf, min = 6, limit = 200) {
+  const out = [];
+  const ok = (c) => c === 9 || (c >= 0x20 && c < 0x7f) || (c >= 0xa0 && c < 0x250) || (c >= 0x2010 && c < 0x2070);
+  for (const align of [0, 1]) {
+    let start = -1, text = '';
+    for (let i = align; i + 1 < buf.length + 2; i += 2) {
+      const c = i + 1 < buf.length ? buf.readUInt16LE(i) : 0;
+      // require mostly-ASCII content so binary data does not read as CJK text
+      if (i + 1 < buf.length && ok(c) && (c < 0x7f || text.length > 0)) {
+        if (start < 0) start = i;
+        text += String.fromCharCode(c);
+        continue;
+      }
+      if (start >= 0 && text.length >= min && /[A-Za-z]{2}/.test(text)) out.push({ offset: start, text });
+      start = -1;
+      text = '';
+      if (out.length >= limit) break;
+    }
+  }
+  return out.sort((a, b) => a.offset - b.offset).slice(0, limit);
+}
+
 /** Byte-pattern census for 16-bit x86 code. Heuristic: data bytes can match too. */
 export function x86Census(buf) {
   const ints = {};

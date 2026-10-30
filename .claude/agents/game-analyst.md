@@ -13,8 +13,9 @@ no third-party descriptions of the game's internals).
 Procedure:
 1. `npm run inspect`. Read `reports/inventory.json`.
 2. Detect REA per the `use-rea` skill. State plainly whether it was available and used.
-3. Unpack with `npm run extract` if needed. Analyse with `npm run analyze -- FILE` (and `--disasm`): imports,
-   functions, call graph, jump tables, unsupported/FPU instructions. Write any helper scripts to the session
+3. Unpack with `npm run extract` if needed. Analyse with `npm run analyze -- FILE` (and `--disasm`): imports (and the
+   DLLs they come from), functions, data seeds, call graph, jump tables, unsupported/FPU instructions; resource text
+   with `npm run inspect -- --strings FILE`. Write any helper scripts to the session
    scratchpad, not into `original/`.
 4. Recover, with evidence (offsets, instruction excerpts ≤ 10 lines, table locations):
    - program structure: entry, init, main loop, exit

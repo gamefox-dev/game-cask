@@ -146,3 +146,8 @@ export function diffFraction(a: Pixels, b: Pixels, tol = 8): number {
 export const PLAYER_CYAN: [number, number, number] = [0, 220, 255];
 export const WALL_BLUE: [number, number, number] = [58, 63, 107];
 export const WIN_GOLD: [number, number, number] = [255, 215, 0];
+
+// Test evidence helpers (port tests import them from here): state the breakage a test catches, assert changes,
+// read guest memory read-only. See tests/support/evidence.ts and the browser-validation skill.
+export { catches, expectChange, captureRegion, regionDiff, peekBytes } from '../support/evidence';
+export type { Rect, Region } from '../support/evidence';

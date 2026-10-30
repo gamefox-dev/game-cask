@@ -19,11 +19,13 @@ Claude follows [`CLAUDE.md`](CLAUDE.md):
 2. Inventory `original/`, then analyse the binary (with REA when available).
 3. Choose a strategy per subsystem (preserve / reconstruct / replace / selective-emulate).
 4. Build the port in `port/`.
-5. Test it in real browsers.
-6. Report honestly what level it reached:
-   - L1 boots
-   - L2 interactive
-   - L3 playable
+5. Test it in real browsers, tour every menu and dialog, review the screenshots.
+6. Report honestly what level it reached (L1 boots, L2 interactive, L3 playable), and keep working a queue of
+   every problem it observed until each one is fixed, proven authentic, or filed as an **iteration request** for the
+   kit (a kit change the game needs). The porter's final reply leads with those requests.
+
+For a reproducible trial, write a brief first: `npm run trial:brief -- --game <file-in-original> --slug <slug>`
+(`--resume` to continue an existing port after a kit change) and give the printed text to the porting agent.
 
 Ports, reports and screenshots stay private and local by default.
 
@@ -39,8 +41,10 @@ extract installer/archive → analyze x86 (imports, call graph, jump tables) →
 ```
 
 A port is a `game.json` with a `"pipeline"` section, plus a few hand-written, justified per-function
-**exceptions** at most. `examples/win32-hello` is a complete pipeline game built from our own source:
-it is lifted with zero hand-written code, and the oracle shows its lifted and interpreted runs agree frame by frame.
+**exceptions** at most. `examples/win32-hello` is a complete pipeline game built from our own source (menu, modal
+dialog, message box, string table): it is lifted with zero hand-written code, and the oracle shows its lifted and
+interpreted runs agree frame by frame. `examples/win32-conformance` checks the Win32 profile against the API
+contract (module loading, pixel reads) on both GPU backends.
 
 ## Try the sample (no game files needed)
 
@@ -78,10 +82,12 @@ Useful URL flags:
 | `npm run dev` | build games, start Vite |
 | `npm run build` | build games + production bundle in `dist/` |
 | `npm run bundle -- --game <id>` | static bundle with only that game (default page) in `dist-bundle/`, for hosting |
-| `npm test` | unit tests (ABI layout vs header, decoder, host safety, sample L3 headless, tools) |
-| `npm run test:e2e` | browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness |
-| `npm run test:port` | your port's private browser tests (`port/tests/`) |
-| `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json` |
+| `npm test` | unit tests (ABI layout vs header, decoder, analyzer, Win32 profile conformance, host safety, sample L3 headless, tools) |
+| `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
+| `npm run test:port` | your port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |
+| `npm run probe -- --game <id> --script <f.mjs>` | scripted exploration in headless Chromium on its own server (screenshots, zoomed crops, metrics, read-only `peek`, resource tour) → `reports/probe/` |
+| `npm run trial:brief -- --game <file> --slug <slug> [--resume]` | trial brief for a porting agent → `reports/brief.md` |
+| `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json`; `-- --strings FILE` prints ASCII/UTF-16 strings and PE resource text (stdout only) |
 | `npm run extract -- IN OUT` / `npm run analyze -- FILE` | static unpacking / x86 analysis + disassembly |
 | `npm run oracle -- <gameDir>` | differential oracle: lifted vs interpreted builds |
 | `npm run trial:record -- <gameDir> <slug>` | trial record (`trial.json` + port note) for the trials repo |
@@ -94,11 +100,11 @@ Useful URL flags:
 
 ```
 bgt/            ABI (include/bgt.h, abi/ABI.md) + TypeScript runtime, renderers, input, audio, storage
-examples/       sample2d (reference game), bench
+examples/       sample2d (reference game), bench, win32-hello, win32-conformance
 port/           your port (private, git-ignored)
 original/       your game files (private, git-ignored, read-only to tools)
 tools/          inspect, build, assets, report, bench
-tests/          unit (Vitest), e2e (Playwright)
+tests/          unit (Vitest), e2e (Playwright), support/ (tour + evidence helpers for port tests)
 .claude/        skills + agents used by "Port this game"
 reports/        porting state and evidence (private by default)
 ```

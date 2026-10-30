@@ -3,7 +3,8 @@
 //
 //   npm run inspect                         -> reports/inventory.json + summary on stdout
 //   node tools/inspect/inspect.mjs DIR --out FILE
-//   node tools/inspect/inspect.mjs --strings original/GAME.EXE   (stdout only, never written to reports)
+//   node tools/inspect/inspect.mjs --strings original/GAME.EXE [min]   (stdout only, never written to reports):
+//     ASCII and UTF-16LE strings, plus the decoded text of PE STRINGTABLE / MENU / DIALOG resources
 //
 // Never writes inside the inspected directory, never follows symlinks, never
 // executes or decompresses inputs. Tolerates an empty or missing directory.
@@ -11,7 +12,8 @@ import { createHash } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT } from '../build/toolchain.mjs';
-import { detect, entropy, printableRuns, strings } from './detect.mjs';
+import { detect, entropy, printableRuns, strings, utf16Strings } from './detect.mjs';
+import { menuLines, peResources } from './pe-resources.mjs';
 import { detectRea, detectTools } from './detect-rea.mjs';
 
 const MAX_FILES = 20000;
@@ -107,7 +109,24 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (argv[0] === '--strings') {
     const file = resolve(ROOT, argv[1] ?? '');
     const { buf } = readOnly(file);
-    for (const s of strings(buf, Number(argv[2] ?? 6), 2000)) console.log(`${s.offset.toString(16).padStart(6, '0')}  ${s.text}`);
+    const min = Number(argv[2] ?? 6);
+    console.log('# ASCII strings (offset  text)');
+    for (const s of strings(buf, min, 2000)) console.log(`${s.offset.toString(16).padStart(6, '0')}  ${s.text}`);
+    console.log('# UTF-16LE strings (offset  text)');
+    for (const s of utf16Strings(buf, min, 2000)) console.log(`${s.offset.toString(16).padStart(6, '0')}  u16 ${s.text}`);
+    const res = peResources(buf);
+    if (res) {
+      console.log(`# PE resources: ${res.strings.length} string(s), ${res.menus.length} menu(s), ${res.dialogs.length} dialog(s)`);
+      for (const s of res.strings) console.log(`STRING ${s.id}: ${JSON.stringify(s.text)}`);
+      for (const m of res.menus) {
+        console.log(`MENU ${m.id}${m.ex ? ' (MENUEX)' : ''}`);
+        for (const l of menuLines(m.items)) console.log(`  ${l}`);
+      }
+      for (const d of res.dialogs) {
+        console.log(`DIALOG ${d.id}: ${JSON.stringify(d.title)}${d.font ? ` font ${d.font.size}pt ${JSON.stringify(d.font.face)}` : ''} style 0x${(d.style >>> 0).toString(16)}`);
+        for (const c of d.controls) console.log(`  ${c.class} id ${c.id} ${JSON.stringify(c.text)} style 0x${(c.style >>> 0).toString(16)}`);
+      }
+    }
     process.exit(0);
   }
   const outIdx = argv.indexOf('--out');

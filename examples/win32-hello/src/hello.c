@@ -2,8 +2,10 @@
  * A tiny Win32 GUI program compiled to an i386 .exe at build time, then analysed, lifted to C and
  * run in the browser by the Win32 platform profile. It exercises the APIs a small Windows game
  * uses: window class + menu + accelerators from resources, bitmap resource drawn through a memory
- * DC (BitBlt), InvertRect selection, TextOut, a timer, MessageBox, the registry and a dense switch.
- * Click a tile to select it; arrow keys move the selection; F2 / Game>New reshuffles. */
+ * DC (BitBlt), InvertRect selection, TextOut, a timer, MessageBox, a modal dialog from a DIALOG resource
+ * (radio buttons, check box, group box), strings from a STRINGTABLE, the registry and a dense switch.
+ * Click a tile to select it; arrow keys move the selection; F2 / Game>New reshuffles; Game>Options... opens a
+ * dialog whose choices apply to the next board. */
 #include <windows.h>
 #include "ids.h"
 
@@ -15,7 +17,8 @@ static HINSTANCE inst;
 static HBITMAP tiles;
 static int board[ROWS][COLS];
 static int sel = -1, clicks, ticks, seed = 1;
-static char status[64];
+static int opt_large, opt_sound; /* Options dialog state */
+static char status[96], fmt[64], sound_tag[16];
 
 static int rnd(void) { seed = seed * 1103515245 + 12345; return (seed >> 16) & 0x7fff; }
 static void shuffle(void) { for (int r = 0; r < ROWS; r++) for (int c = 0; c < COLS; c++) board[r][c] = rnd() % 4; sel = -1; }
@@ -61,8 +64,28 @@ static void paint(HWND h, HDC dc) {
     DeleteDC(mem);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, RGB(255, 255, 255));
-    wsprintfA(status, "clicks %d  ticks %d  sel %s", clicks, ticks, sel >= 0 ? kind_name(board[sel / COLS][sel % COLS]) : "-");
+    wsprintfA(status, fmt, clicks, ticks, sel >= 0 ? kind_name(board[sel / COLS][sel % COLS]) : "-", opt_sound ? sound_tag : "");
     TextOutA(dc, 8, 8, status, lstrlenA(status));
+}
+
+static INT_PTR CALLBACK options_proc(HWND d, UINT m, WPARAM w, LPARAM l) {
+    (void)l;
+    switch (m) {
+    case WM_INITDIALOG:
+        CheckRadioButton(d, IDC_SMALL, IDC_LARGE, opt_large ? IDC_LARGE : IDC_SMALL);
+        CheckDlgButton(d, IDC_SOUND, opt_sound ? BST_CHECKED : BST_UNCHECKED);
+        return TRUE;
+    case WM_COMMAND:
+        if (LOWORD(w) == IDOK) {
+            opt_large = IsDlgButtonChecked(d, IDC_LARGE) == BST_CHECKED;
+            opt_sound = IsDlgButtonChecked(d, IDC_SOUND) == BST_CHECKED;
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        if (LOWORD(w) == IDCANCEL) { EndDialog(d, IDCANCEL); return TRUE; }
+        break;
+    }
+    return FALSE;
 }
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
@@ -85,7 +108,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_COMMAND:
         switch (LOWORD(w)) {
         case IDM_NEW: shuffle(); InvalidateRect(h, 0, TRUE); return 0;
-        case IDM_ABOUT: MessageBoxA(h, "Game Cask pipeline example", "About", MB_OK); return 0;
+        case IDM_ABOUT: { char about[64]; LoadStringA(inst, IDS_ABOUT, about, sizeof about); MessageBoxA(h, about, "About", MB_OK); return 0; }
+        case IDM_OPTIONS:
+            if (DialogBoxParamA(inst, MAKEINTRESOURCEA(IDD_OPTIONS), h, options_proc, 0) == IDOK) InvalidateRect(h, 0, TRUE);
+            return 0;
         case IDM_EXIT: DestroyWindow(h); return 0;
         }
         break;
@@ -99,6 +125,8 @@ int _tls_index = 0;
 void entry(void) {
     inst = GetModuleHandleA(0);
     tiles = LoadBitmapA(inst, MAKEINTRESOURCEA(IDB_TILES));
+    LoadStringA(inst, IDS_STATUS, fmt, sizeof fmt);
+    LoadStringA(inst, IDS_SOUND, sound_tag, sizeof sound_tag);
     load_clicks();
     shuffle();
     WNDCLASSEXA wc = {0};

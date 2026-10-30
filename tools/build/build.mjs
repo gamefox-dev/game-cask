@@ -3,7 +3,8 @@
 //
 //   node tools/build/build.mjs examples/sample2d      build one game
 //   node tools/build/build.mjs --all                 every examples/* plus port/ (if it has game.json)
-//   node tools/build/build.mjs --all --check         compile to a temp dir only (lint gate)
+//   node tools/build/build.mjs --examples            every examples/* only (kit suites: never touch port/)
+//   node tools/build/build.mjs --examples --check    compile to a temp dir only (lint gate)
 //
 // Output: web/public/games/<id>/{game.wasm, manifest.json, assets/...}
 import { execFileSync } from 'node:child_process';
@@ -192,13 +193,13 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   return manifest;
 }
 
-export function allGameDirs() {
+export function allGameDirs({ includePort = true } = {}) {
   const dirs = [];
   const ex = join(ROOT, 'examples');
   if (existsSync(ex)) {
     for (const name of readdirSync(ex).sort()) if (existsSync(join(ex, name, 'game.json'))) dirs.push(join('examples', name));
   }
-  if (existsSync(join(ROOT, 'port', 'game.json'))) dirs.push('port');
+  if (includePort && existsSync(join(ROOT, 'port', 'game.json'))) dirs.push('port');
   return dirs;
 }
 
@@ -219,10 +220,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   const check = argv.includes('--check');
   const all = argv.includes('--all');
+  const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
-  const targets = all ? allGameDirs() : argv.filter((a) => !a.startsWith('--'));
+  const targets = all || examples ? allGameDirs({ includePort: all }) : argv.filter((a) => !a.startsWith('--'));
   if (!targets.length) {
-    console.error('usage: build.mjs <gameDir...> | --all [--check]');
+    console.error('usage: build.mjs <gameDir...> | --all | --examples [--check]');
     process.exit(1);
   }
   let failed = false;

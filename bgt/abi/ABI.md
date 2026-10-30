@@ -59,6 +59,7 @@ loop:        ─► runtime fills io (input) ─► bgt_update(16667)   × N (fi
 | `bgt_shutdown` | `void (void)` | flush saves |
 | `bgt_state_hash` *(optional)* | `uint32_t (void)` | stable hash of deterministic simulation state; enables `stateHash()` in tests |
 | `bgt_debug_state` *(optional)* | `uint32_t (void)` | address of a game-owned NUL-terminated UTF-8 JSON string describing observable state. Debug/test only |
+| `bgt_debug_peek` *(optional, v0.2.1)* | `uint32_t (uint32_t addr, uint32_t len)` | **debug/test only, read-only**: copy `len` (1..65536) bytes of the game's *guest* memory at `addr` (e.g. the emulated address space of a pipeline game) into a game-owned buffer and return its address, or 0 if any byte is unmapped. Must not change game state. Reached only through the test API's `peek` |
 
 Timing: the runtime accumulates real time and runs up to 4 updates per displayed frame
 (`LIMITS.maxCatchUpUpdates`), then drops any backlog. Under the test API, updates run only
@@ -242,6 +243,7 @@ interface BGTTestAPI {
   resume(): void; failed(): boolean; readPixels(): Promise<{width,height,base64}|null>;
   debugState(): unknown; injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(): Promise<void>;
+  peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
 }
 type BGTTestInputEvent =
   | { type: 'key'; code: string /* KeyboardEvent.code */; down: boolean }
@@ -258,6 +260,10 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
   `bgt_update`, renders and draws. It resolves after `onSubmittedWorkDone` (WebGPU) or
   `gl.finish` (WebGL), so a following `readPixels`/`screenshot` sees the result.
 - `?paused=1` starts paused at frame 0, so a test owns every simulation step.
+- `peek(addr, len)` (v0.2.1) returns a copy of `len` (1..65536) bytes of guest memory through the optional
+  `bgt_debug_peek` export, or `null` (no export, unmapped, bad length). It exists only where the test API exists
+  (dev / `VITE_BGT_TEST=1` builds) and has deliberately **no write counterpart**: tests may observe game state, never
+  change it. Calling it does not alter `stateHash()`.
 - **Determinism:** simulation state is deterministic for identical input/seed (the e2e
   suite checks the browser against the Node host). GPU output is not bit-exact across GPU
   stacks: linear filtering, rasterization edges and blending rounding may differ by a few

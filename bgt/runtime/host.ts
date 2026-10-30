@@ -122,6 +122,7 @@ interface GameExports {
   bgt_shutdown(): void;
   bgt_state_hash?(): number;
   bgt_debug_state?(): number;
+  bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
   bgt_async_buffer?(): number;
   bgt_async_buffer_size?(): number;
@@ -574,6 +575,25 @@ export class GameHost {
     } catch {
       return { unparsed: text };
     }
+  }
+
+  /**
+   * Test/debug only, read-only: `len` bytes (1..65536) of the game's guest memory at `addr` through the optional
+   * `bgt_debug_peek` export (pipeline games: the emulated address space), or null if the game has no such export or
+   * any byte is unmapped. Never writes game state.
+   */
+  peek(addr: number, len: number): Uint8Array | null {
+    const fn = this.exports.bgt_debug_peek;
+    addr >>>= 0;
+    len >>>= 0;
+    if (!fn || len === 0 || len > LIMITS.peekBytes) return null;
+    const ptr = fn(addr, len) >>> 0;
+    if (!ptr || !this.inRange(ptr, len)) return null;
+    return this.mem().slice(ptr, ptr + len);
+  }
+
+  get hasPeek(): boolean {
+    return typeof this.exports.bgt_debug_peek === 'function';
   }
 
   shutdown(): void {

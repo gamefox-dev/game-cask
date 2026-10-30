@@ -105,6 +105,16 @@ typedef struct { const char *name; uint8_t nargs; uint8_t cdecl; w32_api_fn fn; 
 extern const w32_api_t w32_api_kernel[], w32_api_user[], w32_api_gdi[];
 extern const uint32_t w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n;
 uint32_t w32_thunk_for(const char *dll, const char *name);
+const w32_api_t *w32_find_api(const char *name);
+/* thunk (or data cell) for an API the profile implements, 0 if it does not implement `name` */
+uint32_t w32_resolve_api(const char *dll, const char *name);
+/* "C:\\X\\Foo" -> "Foo.dll" (LoadLibrary rules: path stripped, ".dll" appended when there is no extension) */
+void w32_module_name(const char *raw, char *out, uint32_t cap);
+/* is `name` a system DLL the profile implements (game.json-independent, from platforms/win32/dlls.json)? */
+int w32_is_sys_dll(const char *name);
+/* pseudo module handle of a profile DLL: registered when `load` (LoadLibrary, static import), else only if loaded */
+uint32_t w32_sysdll_handle(const char *name, int load);
+const char *w32_sysdll_name(uint32_t h);
 /* set by an API to stop the guest (ExitProcess) */
 extern int w32_exited;
 extern uint32_t w32_exit_code;
@@ -134,6 +144,18 @@ void g_fill(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_
 void g_text(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t x, int32_t y, const char *s, int32_t n, uint32_t rgb, int32_t scale);
 int32_t g_text_w(int32_t n, int32_t scale);
 void w32_gdi_flush_and_present(void);
+/* CPU replay of recorded GDI ops (w32_replay.c): exact pixel reads on GPU surfaces, enabled on demand */
+void w32_rp_enable(void);
+int w32_rp_enabled(void);
+void w32_rp_create(uint32_t tex, int32_t w, int32_t h, const uint32_t *px);
+void w32_rp_delete(uint32_t tex);
+void w32_rp_fill(uint32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgba, uint32_t blend);
+void w32_rp_blit(uint32_t dtex, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t stex, float u0, float v0, float u1, float v1, uint32_t blend, uint32_t tint);
+void w32_rp_upload(uint32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, const uint32_t *px);
+int w32_rp_pixel(uint32_t tex, int32_t x, int32_t y, uint32_t *rgba);
+int w32_rp_read(uint32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t *out);
+/* names of APIs that read pixels back (their import or GetProcAddress enables the replay) */
+int w32_is_pixel_read_api(const char *name);
 void w32_gdi_targets_lost(void);
 /* simple helpers for platform-drawn chrome (menus, message boxes) on the screen target */
 void w32_chrome_fill(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb);
@@ -141,6 +163,15 @@ void w32_chrome_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb);
 void w32_chrome_text(int32_t x, int32_t y, const char *s, uint32_t rgb);
 /* invalidate everything drawn by the guest (after modal chrome closes or targets are lost) */
 void w32_user_invalidate_all(void);
+
+/* ------------------------------------------------------------------ debug JSON (read-only views for tests) */
+typedef struct { char *b; uint32_t n, cap; } w32_json_t;
+void wj_raw(w32_json_t *j, const char *s);
+void wj_str(w32_json_t *j, const char *s);   /* quoted + escaped */
+void wj_int(w32_json_t *j, int64_t v);
+void wj_rect(w32_json_t *j, int32_t x, int32_t y, int32_t w, int32_t h); /* [x,y,w,h] */
+/* the profile's UI layout (menu bar, open popup, message box, windows/dialogs/controls), logical px */
+void w32_user_debug_ui(w32_json_t *j);
 
 #define RGB24(r, g, b) ((uint32_t)(r) | ((uint32_t)(g) << 8) | ((uint32_t)(b) << 16))
 

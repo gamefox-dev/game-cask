@@ -82,41 +82,57 @@ uint32_t w32_format_to_guest(uint32_t dst, uint32_t cap, int wide, uint32_t fmt,
 }
 
 /* ------------------------------------------------------------------ KERNEL32 */
+/* Module resolution (Win32 semantics): a name is a shipped pipeline module (game.json) first, then a system DLL the
+ * profile implements (platforms/win32/dlls.json). Anything else does not exist: LoadLibrary returns NULL with
+ * ERROR_MOD_NOT_FOUND, so programs take their own error path instead of calling a thunk that aborts. */
+#define ERROR_INVALID_HANDLE 6u
+#define ERROR_MOD_NOT_FOUND 126u
+#define ERROR_PROC_NOT_FOUND 127u
+static uint32_t module_handle(const char *raw, int load) {
+    char n[64];
+    w32_module_name(raw, n, sizeof n);
+    for (uint32_t i = 0; i < w32_nmods; i++) if (w32_streqi(w32_mods[i].name, n)) return w32_mods[i].base;
+    uint32_t h = w32_sysdll_handle(n, load);
+    if (!h) last_error = ERROR_MOD_NOT_FOUND;
+    return h;
+}
 static uint32_t k_GetModuleHandle(int wide) {
     uint32_t p = ARG(0);
     if (!p) return w32_mod_by_handle(0)->base;
     char n[64];
     w32_gstr(p, wide, n, sizeof n);
-    for (uint32_t i = 0; i < w32_nmods; i++) if (w32_streqi(w32_mods[i].name, n)) return w32_mods[i].base;
-    return 0;
+    return module_handle(n, 0); /* only modules that are loaded (statically imported or LoadLibrary'd) */
 }
 static uint32_t k_GetModuleHandleA(void) { return k_GetModuleHandle(0); }
 static uint32_t k_GetModuleHandleW(void) { return k_GetModuleHandle(1); }
-static char sysdlls[16][32];
-static uint32_t nsysdll;
 static uint32_t k_LoadLibrary(int wide) {
     char n[64];
+    if (!ARG(0)) { last_error = 87; return 0; } /* ERROR_INVALID_PARAMETER */
     w32_gstr(ARG(0), wide, n, sizeof n);
-    for (uint32_t i = 0; i < w32_nmods; i++) if (w32_streqi(w32_mods[i].name, n)) return w32_mods[i].base;
-    for (uint32_t i = 0; i < nsysdll; i++) if (w32_streqi(sysdlls[i], n)) return W32_SYSDLL_BASE + 0x1000u * i;
-    if (nsysdll >= 16) return 0;
-    uint32_t k = 0;
-    for (; n[k] && k < 31; k++) sysdlls[nsysdll][k] = n[k];
-    sysdlls[nsysdll][k] = 0;
-    return W32_SYSDLL_BASE + 0x1000u * nsysdll++;
+    return module_handle(n, 1);
 }
 static uint32_t k_LoadLibraryA(void) { return k_LoadLibrary(0); }
 static uint32_t k_LoadLibraryW(void) { return k_LoadLibrary(1); }
+static uint32_t k_FreeLibrary(void) {
+    uint32_t h = ARG(0);
+    if (w32_mod_by_handle(h) && h) return 1;
+    if (w32_sysdll_name(h)) return 1;
+    last_error = ERROR_INVALID_HANDLE;
+    return 0;
+}
 static uint32_t k_GetProcAddress(void) {
-    uint32_t h = ARG(0), p = ARG(1);
+    uint32_t h = ARG(0), p = ARG(1), addr = 0;
     char n[64];
-    if (p < 0x10000u) { n[0] = '#'; n[1] = 0; } else w32_gstr(p, 0, n, sizeof n);
+    int by_ord = p < 0x10000u;
+    if (!by_ord) w32_gstr(p, 0, n, sizeof n);
     w32_module_t *m = 0;
     for (uint32_t i = 0; i < w32_nmods; i++) if (w32_mods[i].base == h) m = &w32_mods[i];
-    if (m) return w32_export_addr(m, p < 0x10000u ? 0 : n, p);
-    uint32_t idx = (h - W32_SYSDLL_BASE) / 0x1000u;
-    const char *dll = (h >= W32_SYSDLL_BASE && idx < nsysdll) ? sysdlls[idx] : "?";
-    return w32_thunk_for(dll, n); /* resolves to an implemented API or faults by name when called */
+    const char *dll = w32_sysdll_name(h);
+    if (m) addr = w32_export_addr(m, by_ord ? 0 : n, p);
+    else if (dll) addr = by_ord ? 0 : w32_resolve_api(dll, n); /* the profile implements names, not ordinals */
+    else { last_error = ERROR_MOD_NOT_FOUND; return 0; }       /* INFERRED: error code for an invalid module handle */
+    if (!addr) last_error = ERROR_PROC_NOT_FOUND;
+    return addr;
 }
 static uint32_t k_GetModuleFileName(int wide) {
     w32_module_t *m = w32_mod_by_handle(ARG(0));
@@ -523,7 +539,7 @@ static uint32_t s_ShellAbout(void) { return 1; } /* INFERRED-equivalent: the Abo
 const w32_api_t w32_api_kernel[] = {
     API("GetModuleHandleA", 1, k_GetModuleHandleA), API("GetModuleHandleW", 1, k_GetModuleHandleW),
     API("LoadLibraryA", 1, k_LoadLibraryA), API("LoadLibraryW", 1, k_LoadLibraryW),
-    API("LoadLibraryExA", 3, k_LoadLibraryA), API("LoadLibraryExW", 3, k_LoadLibraryW), API("FreeLibrary", 1, k_one),
+    API("LoadLibraryExA", 3, k_LoadLibraryA), API("LoadLibraryExW", 3, k_LoadLibraryW), API("FreeLibrary", 1, k_FreeLibrary),
     API("GetProcAddress", 2, k_GetProcAddress),
     API("GetModuleFileNameA", 3, k_GetModuleFileNameA), API("GetModuleFileNameW", 3, k_GetModuleFileNameW),
     API("ExitProcess", 1, k_ExitProcess), API("TerminateProcess", 2, k_ExitProcess),

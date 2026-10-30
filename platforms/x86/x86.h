@@ -127,18 +127,26 @@ void x86_exec_one(const x86_insn_t *in);
 uint32_t x86_callback(uint32_t fn, uint32_t nargs, const uint32_t *args);
 
 /* ------------------------------------------------------------------ metrics */
+/* Names say what they count (kit v0.2.1; v0.2 had `interp_entries`, `exec_one`, `continues`). */
 typedef struct {
-    uint64_t interp_insns;      /* instructions executed by the interpreter */
-    uint64_t lifted_calls;      /* entries into lifted functions */
-    uint64_t interp_entries;    /* times the interpreter was entered for a non-lifted target */
-    uint64_t exec_one;          /* per-instruction fallbacks inside lifted code */
-    uint64_t continues;         /* lifted frames continued in the interpreter (unresolved jumps) */
-    uint64_t thunk_calls;       /* platform API calls */
-    uint32_t lifted_functions;  /* registered lifted functions */
+    uint64_t interp_insns;          /* guest instructions executed by the interpreter (0 = fully lifted) */
+    uint64_t lifted_calls;          /* entries into lifted functions */
+    uint64_t interp_code_entries;   /* entries into non-lifted guest code (the interpreter ran >= 1 instruction) */
+    uint64_t generic_insn_execs;    /* instructions executed through the shared semantic core inside lifted code */
+    uint64_t tail_calls_lifted;     /* lifted jumps out of a function resolved straight to a lifted entry (tail calls) */
+    uint64_t continues_interpreted; /* lifted frames that had to continue in the interpreter (unresolved jumps,
+                                       code beyond known functions) */
+    uint64_t thunk_dispatches;      /* import thunks reached through x86_invoke/the interpreter (== platform API calls) */
+    uint32_t lifted_functions;      /* registered lifted functions */
 } x86_metrics_t;
 extern x86_metrics_t x86_metrics;
 
 /* Interpreter-only mode (differential oracle): ignore lifted functions. */
 extern int x86_force_interp;
+
+/* Debug/test only (read-only): copy [addr, addr+len) of guest memory into a host scratch buffer and return
+ * it, or 0 when any byte is unmapped or len is 0 or > X86_PEEK_MAX. Never faults, never writes guest state. */
+#define X86_PEEK_MAX 65536u
+const uint8_t *x86_debug_peek(uint32_t addr, uint32_t len);
 
 #endif

@@ -31,6 +31,12 @@ export interface BGTTestAPI {
   debugState(): unknown;
   injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(opts?: { unrecoverable?: boolean }): Promise<void>;
+  /**
+   * TEST-ONLY, READ-ONLY: `len` bytes (1..65536) of the game's guest memory at `addr` (pipeline games: the emulated
+   * address space, e.g. a variable's address from the disassembly), or null when unavailable or unmapped. There is
+   * deliberately no write counterpart: tests may observe game state, never change it.
+   */
+  peek(addr: number, len: number): Uint8Array | null;
 }
 
 function b64(bytes: Uint8Array): string {
@@ -77,6 +83,7 @@ export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
     debugState: () => rt.host?.debugState() ?? null,
     injectCommands: (base64) => rt.injectCommands(unb64(base64)),
     simulateDeviceLoss: (opts) => rt.simulateDeviceLoss(opts),
+    peek: (addr, len) => rt.host?.peek(addr, len) ?? null,
   };
   (window as unknown as { __BGT_TEST__: BGTTestAPI }).__BGT_TEST__ = api;
   return api;

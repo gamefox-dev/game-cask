@@ -22,8 +22,9 @@ Goal: a factual inventory with confidence levels. No execution of game code, no 
      `15h` system/joystick), 0x66-prefix density (386 code in 16-bit), port I/O opcodes (direct hardware)
    - **entropy**: > 7.5 suggests compressed or packed data (e.g. an executable packer). Look for unpack stubs
      before disassembling.
-4. Strings, for your eyes only: `npm run inspect -- --strings original/<file>`. They go to stdout and are never
-   written to reports. Quote only short, necessary strings in `analysis.md`.
+4. Strings, for your eyes only: `npm run inspect -- --strings original/<file>`: ASCII and UTF-16LE strings, plus the
+   decoded text of PE STRINGTABLE, MENU and DIALOG resources (with control classes and style bits). They go to stdout
+   and are never written to reports. Quote only short, necessary strings in `analysis.md`.
 5. Installers and archives: `npm run extract -- original/<file> <scratch dir>`. This is static and never executes
    anything. It unpacks zip, RCDATA-embedded PEs (bundlers/wrappers) and Inno Setup 5.x, verifies the installer's own
    SHA-1s, and names payload files from their PE metadata. It writes `extract.json` with the chain of each file.

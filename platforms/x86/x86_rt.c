@@ -145,16 +145,17 @@ static const x86_insn_t *decode_at(uint32_t eip) {
 
 /* run until EIP == ret_addr with ESP > esp_floor */
 static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
-    x86_metrics.interp_entries++;
+    int counted = 0;
     for (;;) {
         uint32_t eip = X.eip;
         if (eip == ret_addr && X.r[ESP] > esp_floor) return;
         if (x86_is_thunk(eip)) {
-            x86_metrics.thunk_calls++;
+            x86_metrics.thunk_dispatches++;
             if (thunk_fn(eip)) return;
             continue;
         }
         const x86_insn_t *in = decode_at(eip);
+        if (!counted) { counted = 1; x86_metrics.interp_code_entries++; }
         x86_metrics.interp_insns++;
         if ((in->op == XO_CALL || in->op == XO_CALL_IND) && !x86_force_interp) {
             uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
@@ -191,18 +192,32 @@ void x86_call(uint32_t target, uint32_t next) {
 }
 
 void x86_continue(uint32_t ra, uint32_t esp0) {
-    x86_metrics.continues++;
     /* a jump straight to a lifted function entry with the frame torn down is a tail call */
     if (X.r[ESP] == esp0) {
         x86_lifted_fn fn = x86_find_lifted(X.eip);
-        if (fn) { x86_metrics.lifted_calls++; fn(); return; }
+        if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
     }
+    /* a tail jump to an import thunk is an API call, not interpretation */
+    if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
     interp_until(ra, esp0);
 }
 
 void x86_exec_one(const x86_insn_t *in) {
-    x86_metrics.exec_one++;
+    x86_metrics.generic_insn_execs++;
     x86_exec_insn(in);
+}
+
+const uint8_t *x86_debug_peek(uint32_t addr, uint32_t len) {
+    static uint8_t *buf;
+    if (!len || len > X86_PEEK_MAX || (uint64_t)addr + len > 0x100000000ull || !x86_mapped(addr, len)) return 0;
+    if (!buf && !(buf = (uint8_t *)x86_alloc(X86_PEEK_MAX))) return 0;
+    for (uint32_t i = 0; i < len;) {
+        uint32_t a = addr + i, n = X86_PAGE - (a & (X86_PAGE - 1u));
+        if (n > len - i) n = len - i;
+        __builtin_memcpy(buf + i, x86_host(a), n);
+        i += n;
+    }
+    return buf;
 }
 
 #define X86_CALLBACK_SENTINEL 0xfffffff0u

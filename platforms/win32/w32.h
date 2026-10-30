@@ -26,12 +26,16 @@ typedef struct {
     uint32_t nmodules;
     const char *command_line; /* ANSI, without the program name */
     int32_t default_w, default_h;
+    /* system DLLs the profile implements (platforms/win32/dlls.json; entries ending in '*' are prefixes) */
+    const char *const *sys_dlls;
+    uint32_t nsys_dlls;
 } w32_config_t;
 
 typedef struct {
     uint32_t api_calls, stub_calls, stubs_distinct;
     char stubs[24][40];
     uint32_t gdi_ops, gdi_approx_rop, gdi_unsupported, gdi_getpixel_noread, mono_color_blits;
+    uint32_t gdi_pixel_reads, gdi_cpu_replays, gdi_replay_compactions;
     uint32_t messages, paints, timers_fired, yields, peek_yields;
     uint32_t targets_lost;
 } w32_metrics_t;

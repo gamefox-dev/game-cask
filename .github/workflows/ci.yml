@@ -39,11 +39,11 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - name: Wasm sample build
-        run: npm run build:games
+        run: npm run build:examples
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - name: Browser E2E (WebGL 2 fallback, software rendering)
-        run: npx playwright test --project=chromium-webgl2 --project=chromium-auto
+        run: BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
       - if: always()
         uses: actions/upload-artifact@v4
         with:

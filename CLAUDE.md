@@ -6,9 +6,10 @@ input, audio, storage and assets.
 
 **Purpose of a port.** Ports are how this kit is tested and improved. A port succeeds when it shows
 how far the kit's **systematic pipeline** carries a real game, and exactly where it needed help. Report
-kit metrics, exceptions and friction first, and the game level second.
+kit metrics, exceptions and iteration requests first, and the game level second.
 
-**When the user says "Port this game"**, follow the workflow below from step 1.
+**When the user says "Port this game"**, follow the workflow below from step 1. If a trial brief exists
+(`reports/brief.md`, made by `npm run trial:brief`), it adds the trial's rules; obey it.
 
 ## Read first
 1. `SPEC.md`: the brief and its success levels (L0–L5, §8).
@@ -27,57 +28,88 @@ extract (installer/archive)  ->  analyze (imports, call graph)  ->  lift machine
 
 - The pipeline is the default for everything.
 - **Exceptions** are the "minimal" part. They're hand-written C overrides of individual lifted functions
-  (`overrides/`), each justified and counted. Examples: a function the lifter cannot handle, or an API the
-  platform profile cannot express.
+  (`overrides/`), each justified and counted. Example: a function the lifter provably cannot handle.
 - Never rewrite game logic from genre knowledge. Never replace the pipeline with a hand-written emulator or
-  interpreter for one game. If the pipeline or a profile lacks something general, that is a **kit gap**:
-  record it (step 8) instead of working around the kit.
+  interpreter for one game. If the pipeline or a profile lacks something general, that is a **kit gap**: it becomes
+  an **iteration request** (below), never a workaround.
+
+## Done means: every observed problem is resolved (the work queue)
+Reaching a level is **not** the end of a port. Every problem you observe (a fault, a wrong pixel, a clipped label, a
+stub, a metric that looks wrong, a test that is weaker than its name) goes on the **work queue** in
+`reports/progress.json`:
+
+```json
+"queue": [{ "id": "Q1", "symptom": "...", "evidence": ["test/screenshot/metric/address"],
+            "layer": "lifter|semantics|platform-profile|renderer|test|game",
+            "status": "open|fixed|authentic|iteration-request", "next": "..." }]
+```
+
+- **Localize before reporting.** No item stays "unverified". Trace each one to its layer with the oracle (lifter),
+  the metrics and fault messages (profile), the probe (`npm run probe`), the resource tour, `peek` and the
+  disassembly. `game` means the original program does exactly this (authentic), proven from the binary.
+- The port is done only when every item is one of:
+  - `fixed`: with proof (a test that fails without the fix, or before/after evidence);
+  - `authentic`: proven to match the original's behaviour from binary evidence (code address, resource, data);
+  - `iteration-request`: the fix needs a kit change (below).
+- **Iteration requests.** A fix in `bgt/`, `platforms/`, `tools/` or `tests/` is a kit change. Do not make it and
+  do not stop silently: record the item as `iteration-request` (and in `reports/errors.json`, `"kind": "kit-gap"`)
+  and keep working on everything else. Your final reply **leads** with "Iteration requests": per item the symptom,
+  the evidence, the layer, the concrete kit change needed (in Win32/API or ABI terms, not game terms) and what you
+  will verify once it lands. The kit developer makes the change, then you are resumed.
+- **Resume mode.** When you continue an existing `port/` + `reports/` (e.g. after a kit iteration): read
+  `reports/progress.json` first, then `npm run build:port`, `npm run oracle -- port`, `npm run test:port`, and
+  re-check **every** queue item against the new kit before new work. Update each item's status with fresh evidence.
 
 ## Baseline (always, before a port)
 ```sh
 npm run doctor && npm test && npm run test:e2e
 ```
-Never start on a red baseline.
+Never start on a red baseline. (Kit suites never build or run `port/`.)
 
 ## Workflow ("Port this game")
 | step | do | skill |
 |---|---|---|
 | 1 | `npm run inspect`: inventory, formats, platform, tools | `inspect-game` |
 | 2 | Unpack installers/archives: `npm run extract -- original/X out/` (static, never executes) | `inspect-game` |
-| 3 | `npm run analyze -- FILE`: imports, functions, call graph, jump tables, unsupported/FPU instructions. Use REA only if actually callable | `use-rea` |
+| 3 | `npm run analyze -- FILE`: imports, functions, call graph, jump tables, data seeds, unsupported/FPU instructions. Use REA only if actually callable | `use-rea` |
 | 4 | Write `port/game.json` with a `"pipeline"` section (platform, modules) | `implement-port` |
-| 5 | `npm run build:port` → lift + compile; read the pipeline summary (generated vs hand-written LOC, generic insns, unresolved jumps) | `implement-port` |
+| 5 | `npm run build:port` → lift + compile; read the pipeline summary (generated vs hand-written LOC, generic insns, unresolved jumps, data seeds) | `implement-port` |
 | 6 | `npm run oracle -- port`: lifted vs interpreted builds must produce identical API traces | `browser-validation` |
-| 7 | Browser tests in `port/tests/` → `npm run test:port` on WebGPU and WebGL 2: boot, interaction, one complete loop | `browser-validation` |
-| 8 | Exceptions only where steps 5–7 prove them necessary: `port/overrides/*.c` (`X86_OVERRIDE(01002345)`), each listed with its reason. Kit gaps go in `reports/errors.json` (`"kind": "kit-gap"`) | `implement-port` |
+| 7 | Browser tests in `port/tests/` → `npm run test:port` on WebGPU and WebGL 2: boot, interaction, one complete loop. Run the **resource tour** and review screenshots with the **visual checklist** | `browser-validation` |
+| 8 | Work the queue: localize each item, fix what is port-side (tests, configuration, overrides with evidence), file iteration requests for kit gaps. Repeat 5–8 until every item is resolved | `implement-port` |
 | 9 | `npm run trial:record -- port <slug>` writes `trial.json` + a `NOTES.md` port note; `npm run report` | |
 | 10 | Independent validation by a **separate** agent that did not write the port | `independent-validator` agent |
 
-Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet in v0.2. That is a kit gap to report,
+Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet in v0.2. That is an iteration request,
 together with what such a profile would need. Do not substitute a one-off emulator.
 
 ## Hard rules
 - `original/` is read-only, private and never committed. `npm run leakcheck` must pass.
 - Never execute original binaries on the host. Static analysis plus the kit's own builds in the browser only.
 - No DRM/copy-protection/activation bypass. Stop and report it as blocked.
-- Do not modify `bgt/`, `platforms/`, `tools/` or `tests/` (the kit) during a port. Kit gaps are findings.
+- Do not modify `bgt/`, `platforms/`, `tools/`, `tests/` or `examples/` (the kit) during a port. Needed kit changes are
+  iteration requests (see above), not workarounds and not overrides.
 - Ports are private by default (`port/game.json` `"private": true`).
 - Label inference: anything not evidenced by the binary is `INFERRED`.
 - Never claim a tool ran, a test passed or a level was reached when it did not. Strict levels:
   **booted (L1)** authentic first screen · **interactive (L2)** input changes visible state reproducibly ·
   **playable (L3)** one complete representative loop in the browser.
+- Every port test states the breakage it would catch and asserts a change (see `browser-validation`).
+- Leave the developer's dev server (`:5173`) alone. Tests and probes start their own.
 - Report hardware gates separately. Desktop emulation is not iPhone verification.
 
 ## Commands
 | command | purpose |
 |---|---|
-| `npm run inspect` | read-only inventory of `original/` |
+| `npm run inspect` | read-only inventory of `original/`; `-- --strings FILE` (ASCII + UTF-16, PE resource text; stdout only) |
 | `npm run extract -- IN OUTDIR` | static unpacking (zip, RCDATA-embedded PEs, Inno Setup 5.x) |
 | `npm run analyze -- FILE [--disasm] [--func HEX]` | x86 PE analysis JSON / listing |
 | `npm run build:port` | pipeline build of `port/` (prints conversion metrics) |
 | `npm run oracle -- port [frames]` | differential oracle: lifted vs interpreted |
 | `npm run test:port` | the port's browser tests → `reports/e2e-port-*` |
-| `npm test` / `npm run test:e2e` | kit suites |
+| `npm run probe -- --game ID --script FILE.mjs` | scripted exploration in headless Chromium (no spec) → `reports/probe/` |
+| `npm test` / `npm run test:e2e` | kit suites (never touch `port/`) |
+| `npm run trial:brief -- --game FILE --slug SLUG` | write the trial brief → `reports/brief.md` |
 | `npm run trial:record -- port SLUG` | trial record for the trials repo |
 | `npm run report` / `npm run leakcheck` | validate + redact reports / block private data |
 | `npm run dev` | `http://localhost:5173/?game=<id>&debug=1` |
@@ -86,9 +118,11 @@ together with what such a profile would need. Do not substitute a one-off emulat
 - `bgt/`: ABI + browser runtime.
 - `platforms/x86`: decoder, semantics, interpreter, lifted-code runtime.
 - `platforms/win32`: Win32 profile.
-- `tools/`: inspect, extract, x86 analyze/lift, build pipeline, report.
+- `tools/`: inspect, extract, x86 analyze/lift, build pipeline, probe, report.
+- `tests/support/`: helpers for port tests (`tour.ts` resource tour, `evidence.ts` change assertions).
 - `examples/`:
   - `sample2d`: native BGT game
-  - `win32-hello`: pipeline example built from source
+  - `win32-hello`: pipeline example built from source (menu, dialog, message box)
+  - `win32-conformance`: Win32 profile conformance fixture (loader, GDI pixel reads)
 - `port/`: your port (private).
 - `reports/`: porting state (private).

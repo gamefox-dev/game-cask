@@ -35,7 +35,8 @@ Continue with deterministic tools. The kit's own come first:
 | x86 16-bit (DOS) disassembly | not in the kit yet (kit gap). `ndisasm -b 16 -o 0x100 FILE.COM` if installed (ask first) |
 | interactive RE | radare2/rizin (`r2 -a x86 -b 16 -m 0x100 FILE.COM`), Ghidra headless (`analyzeHeadless`) |
 | your own decoders | small Python (`python3 -I`) or Node scripts that parse headers, tables and formats. Keep them in the scratchpad or `port/tools/`, never inside `original/` |
-| strings | `npm run inspect -- --strings FILE` |
+| strings, resource text | `npm run inspect -- --strings FILE` (ASCII + UTF-16, STRINGTABLE/MENU/DIALOG) |
+| guest state at run time | `__BGT_TEST__.peek(addr, len)` in tests / `p.peek` in `npm run probe` scripts (read-only) |
 
 Installing a tool is a system change: ask the user first, or use one already present
 (`tools.local` in the inventory lists what was found).

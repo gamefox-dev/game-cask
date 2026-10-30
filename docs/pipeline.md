@@ -31,6 +31,14 @@ original/GAME.EXE ──extract──► modules ──analyze──► function
 
 `from` names a file in `original/`; `outer#inner` names a file inside an installer/archive (see
 `npm run extract`). Module names must match how other modules import them (case-insensitive).
+
+**Module resolution (Win32 semantics).** A DLL name resolves to a shipped module from `pipeline.modules` first, then
+to a system DLL the profile implements (`platforms/win32/dlls.json`). A *static* import of anything else fails the
+build with the importing module and DLL named. At run time `LoadLibrary*` of anything else returns NULL with
+`GetLastError() == ERROR_MOD_NOT_FOUND` (126) and `GetProcAddress` returns NULL with `ERROR_PROC_NOT_FOUND` (127) for
+names/ordinals that do not exist (the profile implements names, not ordinals), so programs take their own error path.
+`LoadLibrary` strips a path and appends `.dll` to names without an extension; export forwarders are followed.
+Imports by ordinal keep their number in fault and stub names (`comctl32.dll!#17`).
 Images keep their preferred base address unless two overlap; then the later one is relocated (it needs a
 `.reloc` section). Lifting and loading use the same base.
 
@@ -38,25 +46,52 @@ Images keep their preferred base address unless two overlap; then the later one 
 | stage | tool | output | guarantees |
 |---|---|---|---|
 | extract | `tools/extract/extract.py` | files + `extract.json` (chain, sha256) | static only; installer SHA-1s verified; encrypted installers refused |
-| analyze | `tools/x86/x86tool analyze` | JSON: imports + call sites, functions (seeded by entry, exports, relocated and immediate code pointers), call graph, jump tables, census | deterministic |
+| analyze | `tools/x86/x86tool analyze` | JSON: imports + call sites, functions (seeded by entry, exports, call targets, relocated and immediate code pointers), call graph, jump tables, census, `dataSeeds` | deterministic; pointer seeds that are data are not functions (below) |
 | lift | `tools/x86/x86tool lift` | C: `F_<addr>()` per function, a label per instruction, explicit control flow, jump tables as `switch` | same semantics as the interpreter (`platforms/x86/x86_sem.h`) |
-| profile | `platforms/win32` | Win32 API on BGT: USER (windows, messages, menus, dialogs), GDI on render targets, KERNEL/CRT, registry on storage | unknown imports fault by name |
+| profile | `platforms/win32` | Win32 API on BGT: USER (windows, messages, menus, dialogs), GDI on render targets (+ CPU replay for pixel reads), KERNEL/CRT, registry on storage | unknown APIs of known DLLs fault by name; unknown DLLs fail the build (static) or return NULL (dynamic) |
 | oracle | `npm run oracle -- <game>` | lifted vs interpret-only build, same scripted input; per-frame API-trace hash | first divergent frame localises a bug |
+
+### Data seeds
+Code sections can hold data (merged `.text`: IAT, strings, GUIDs, tables). A *pointer* seed (relocated or immediate
+code pointer; never an entry point, export or direct call target) is classified as data and not lifted when it lies
+in a PE data directory or an import name, its bytes are a NUL-terminated string (ASCII ≥ 8 printable chars, or UTF-16
+≥ 5), it starts with zero bytes, or it decodes into undecodable/unsupported instructions. The analysis is then re-run
+without those seeds, so functions "called" from data disappear too. `dataSeeds` in the analysis JSON lists address,
+seed kind and reason; `totals.dataSeeds` and the pipeline summary count them. A real function misclassified this way
+still runs (interpreted, visible as `interp_insns`).
 
 ## Metrics (what to report)
 - **Pipeline summary** (printed by the build, stored in `manifest.json` → `pipeline`):
   - generated vs hand-written LOC
-  - functions; specialized vs generic instructions (generic = executed through the shared semantic core)
-  - jump tables; unresolved indirect jumps; overrides
-- **Runtime** (`diagnostics().metrics`, from the game's `bgt_metrics` export):
+  - functions and data seeds rejected; specialized vs generic instructions (generic = executed through the shared
+    semantic core)
+  - jump tables; unresolved indirect jumps; overrides; the DLLs each module imports
+- **Runtime** (`diagnostics().metrics`, from the game's `bgt_metrics` export; names changed in v0.2.1, see
+  `docs/verification.md`):
   - `interp_insns`: guest instructions that ran in the interpreter (0 = fully lifted)
-  - `continues`: lifted frames that had to continue in the interpreter (unresolved jumps, code beyond known functions)
-  - `exec_one`: generic instruction executions
-  - `api_calls`, `apis_hit`, `stubs` (declared no-ops that were called)
-  - `gdi_ops`, `gdi_approx_rop` (raster ops approximated on the GPU)
-  - `gdi_unsupported`, `gdi_getpixel_noread` (GPU surfaces are not read back)
+  - `interp_code_entries`: entries into non-lifted guest code (the interpreter ran at least one instruction)
+  - `tail_calls_lifted`: lifted jumps out of a function resolved straight to a lifted function (tail calls; not
+    interpretation)
+  - `continues_interpreted`: lifted frames that had to continue in the interpreter (unresolved jumps, code beyond
+    known functions)
+  - `generic_insn_execs`: instruction executions through the shared semantic core inside lifted code
+  - `lifted_calls`, `api_calls`, `apis_hit`, `stubs` (declared no-ops that were called)
+  - `gdi_ops`, `gdi_approx_rop` (raster ops approximated on the GPU), `gdi_unsupported`
+  - `gdi_pixel_reads` (GetPixel/GetDIBits calls), `gdi_cpu_replays` (answered by CPU replay), `gdi_replay_compactions`,
+    `gdi_getpixel_noread` (impossible reads: the surface's history is unknown), `pixel_replay` (1 = enabled)
   - `mono_color_blits`, `peek_yields`, `targets_lost`, `trace_hash`
-- **Exceptions**: every override with a reason; every kit gap in `reports/errors.json`.
+- **Exceptions**: every override with a reason; every kit gap in `reports/errors.json` and as an iteration request in
+  the work queue (`CLAUDE.md`).
+
+## Pixel reads: CPU replay of the recorded GDI ops
+GDI draws on GPU render targets and nothing is read back from the GPU. When a module imports a pixel-read API
+(`GetPixel`, `GetDIBits`, or obtains one through `GetProcAddress`), the profile also logs every op it records per
+texture (fills and sprites with blend mode and tint, uploads, target creation/deletion) on top of a CPU base image.
+A read replays, on demand and for the queried pixel only, the ops that cover it, with the renderers' blend arithmetic;
+blit sources are resolved at the time of the blit. The log is applied to the base images when it fills (or when a
+texture with logged ops is deleted/overwritten) and before large region reads; a small cache serves repeated reads.
+`tests/e2e/win32-conformance.spec.ts` checks that the replayed values equal the GPU's pixels for every op kind on
+both backends.
 
 ## Exceptions (`<game>/overrides/*.c`)
 ```c
@@ -73,6 +108,8 @@ The lifter skips these addresses. The build counts them, along with their lines 
 ## Known v0.2 limits (kit gaps, not port work)
 - **x86:** 32-bit flat mode only. No x87/SSE (FPU instructions fault). No self-modifying code (the decoder caches).
 - **Profiles:** Win32 only; DOS/consoles need new profiles.
-- **GDI:** no GPU readback (`GetPixel`/`GetDIBits` only on CPU-known bitmaps). Rect-only clipping.
-  Bitwise raster ops beyond the mapped set are approximated (counted). No copying within one surface.
+- **GDI:** pixel reads come from CPU replay (exact for every recorded op; a surface drawn before replay was enabled,
+  e.g. when `GetPixel` is only found through `GetProcAddress` late, is unknown until overdrawn). Rect-only clipping.
+  Bitwise raster ops beyond the mapped set are approximated (counted). No copying within one surface. Drawing into a
+  DIB section does not update its guest bits. `GetDIBits` writes 24/32-bpp `BI_RGB` only.
 - **Win32:** no threads, no file writes, no COM, MENUEX templates unsupported.

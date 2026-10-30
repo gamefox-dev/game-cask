@@ -11,8 +11,10 @@
  *     (w32_metrics.gdi_approx_rop) — a measured exception, never silent;
  *   - everything is recorded into a deferred command list during bgt_update and submitted once in
  *     bgt_render, with geometric clipping on the CPU so consecutive draws batch.
- * GPU contents are not read back: GetPixel/GetDIBits work only on bitmaps whose pixels are still
- * known on the CPU (loaded/uploaded, not drawn into); otherwise they are counted exceptions.
+ * GPU contents are never read back. Pixel reads (GetPixel, GetDIBits) are answered from CPU pixels the
+ * profile still knows (loaded/uploaded bitmaps), else by replaying the recorded ops on the CPU for the queried
+ * pixels (w32_replay.c, counted as gdi_cpu_replays). Only reads without any known history are impossible
+ * (counted as gdi_getpixel_noread).
  *
  * SPDX-License-Identifier: MIT
  */
@@ -100,6 +102,7 @@ static uint32_t alloc_tex(void) {
 static void free_tex(uint32_t t) {
     if (!t || t >= TEX_LIMIT || !tex_used[t]) return;
     tex_used[t] = 0;
+    w32_rp_delete(t);
     if (cur_target == t) st_target(0);
     bgt_cmd_tex_delete(rb(16), t);
     if (cur_tex == t) cur_tex = 0xffffffffu;
@@ -111,6 +114,7 @@ static void upload(uint32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, con
     __builtin_memcpy(d, px, bytes);
     stage_used += (bytes + 15u) & ~15u;
     bgt_cmd_tex_update(rb(64), tex, (uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, d, bytes);
+    w32_rp_upload(tex, x, y, w, h, px);
 }
 
 /* clip a destination rect against [cl,ct,cr,cb); returns 0 if empty */
@@ -128,6 +132,7 @@ void g_fill(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_
     w32_m.gdi_ops++;
     st_target(tex); st_blend(blend); st_tex(0);
     bgt_cmd_rect(rb(64), (float)x, (float)y, (float)w, (float)h, rgba_of(rgb));
+    w32_rp_fill(tex, x, y, w, h, rgba_of(rgb), blend);
 }
 
 static void g_blit(uint32_t dtex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_t dx, int32_t dy, int32_t dw, int32_t dh,
@@ -143,6 +148,7 @@ static void g_blit(uint32_t dtex, int32_t cl, int32_t ct, int32_t cr, int32_t cb
     w32_m.gdi_ops++;
     st_target(dtex); st_blend(blend); st_tex(stex);
     bgt_cmd_sprite(rb(64), (float)x, (float)y, (float)w, (float)h, u0, v0, u1, v1, tint);
+    w32_rp_blit(dtex, x, y, w, h, stex, u0, v0, u1, v1, blend, tint);
 }
 
 int32_t g_text_w(int32_t n, int32_t scale) { return n * 6 * scale; }
@@ -167,6 +173,7 @@ void w32_gdi_init(void) {
             for (int c = 0; c < 5; c++)
                 if ((BGT_FONT5X7[g][r] >> (4 - c)) & 1) font_px[r * 95 * 6 + g * 6 + c] = 0xffffffffu;
     bgt_cmd_tex_create(rb(64), TEX_FONT, 95 * 6, 8);
+    w32_rp_create(TEX_FONT, 95 * 6, 8, 0);
     upload(TEX_FONT, 0, 0, 95 * 6, 8, font_px);
     /* stock objects */
     static const uint32_t brushes[5] = {0xffffff, 0xc0c0c0, 0x808080, 0x404040, 0x000000};
@@ -183,9 +190,10 @@ void w32_gdi_init(void) {
 void w32_gdi_screen(int32_t w, int32_t h) {
     if (w < 1 || h < 1) return;
     if (screen_ready && w == scr_w && h == scr_h) return;
-    if (screen_ready) { if (cur_target == TEX_SCREEN) st_target(0); bgt_cmd_tex_delete(rb(16), TEX_SCREEN); }
+    if (screen_ready) { if (cur_target == TEX_SCREEN) st_target(0); bgt_cmd_tex_delete(rb(16), TEX_SCREEN); w32_rp_delete(TEX_SCREEN); }
     if (cur_tex == TEX_SCREEN) cur_tex = 0xffffffffu;
     bgt_cmd_target_create(rb(64), TEX_SCREEN, (uint32_t)w, (uint32_t)h);
+    w32_rp_create(TEX_SCREEN, w, h, 0);
     scr_w = w; scr_h = h; screen_ready = 1;
     w32_io->logical_width = (uint32_t)w;
     w32_io->logical_height = (uint32_t)h;
@@ -236,6 +244,7 @@ static void ensure_tex(gobj_t *b) {
     if (b->tex || b->stock) return;
     b->tex = alloc_tex();
     bgt_cmd_target_create(rb(64), b->tex, (uint32_t)b->w, (uint32_t)b->h);
+    w32_rp_create(b->tex, b->w, b->h, 0);
     if (b->cpu && b->cpu_valid) upload(b->tex, 0, 0, b->w, b->h, b->cpu);
 }
 static uint32_t new_bitmap(int32_t w, int32_t h, int mono) {
@@ -335,13 +344,15 @@ uint32_t w32_load_bitmap(uint32_t hmod, uint32_t name, int wide) {
 
 /* ------------------------------------------------------------------ DC resolution */
 typedef struct { uint32_t tex; int32_t ox, oy, cl, ct, cr, cb; } surf_t;
-static int dc_surf(dc_t *d, surf_t *s) {
+/* resolve a DC to its surface, origin and clip; `for_read` = no side effects (no texture creation, the bitmap's
+ * CPU pixels stay valid; tex is 0 if the bitmap was never drawn on the GPU) */
+static int dc_surf_mode(dc_t *d, surf_t *s, int for_read) {
     if (d->kind == 2) {
         gobj_t *b = getobj(d->bmp);
         if (!b || b->stock) return 0;
-        ensure_tex(b);
+        if (!for_read) ensure_tex(b);
         s->tex = b->tex; s->ox = s->oy = 0; s->cl = s->ct = 0; s->cr = b->w; s->cb = b->h;
-        if (b->cpu) b->cpu_valid = 0; /* drawn on the GPU from now on */
+        if (b->cpu && !for_read) b->cpu_valid = 0; /* drawn on the GPU from now on */
     } else {
         if (!screen_ready) return 0;
         int32_t x, y, w, h;
@@ -358,6 +369,7 @@ static int dc_surf(dc_t *d, surf_t *s) {
     }
     return s->cr > s->cl && s->cb > s->ct;
 }
+static int dc_surf(dc_t *d, surf_t *s) { return dc_surf_mode(d, s, 0); }
 
 static uint32_t brush_color(uint32_t hbr, int *is_null) {
     if (hbr && hbr <= 31) { if (is_null) *is_null = 0; return w32_sys_color(hbr - 1); } /* COLOR_xxx + 1 */
@@ -739,6 +751,7 @@ static void dib_draw(dc_t *d, int32_t dx, int32_t dy, int32_t dw, int32_t dh, in
         if (dib_tmp_tex) free_tex(dib_tmp_tex);
         dib_tmp_tex = alloc_tex();
         bgt_cmd_tex_create(rb(64), dib_tmp_tex, (uint32_t)w, (uint32_t)h);
+        w32_rp_create(dib_tmp_tex, w, h, 0);
         dib_tmp_w = w; dib_tmp_h = h;
     }
     upload(dib_tmp_tex, 0, 0, w, h, px);
@@ -772,22 +785,43 @@ static uint32_t g_SetDIBits(void) {
     upload(b->tex, 0, 0, w, imin(h, b->h), c);
     return ARG(3);
 }
+/* GetDIBits(hdc, hbm, start, lines, bits, bmi, usage): 24/32-bpp BI_RGB output, bottom-up or top-down (negative
+ * biHeight); scan lines are counted in the DIB's own order. */
 static uint32_t g_GetDIBits(void) {
     gobj_t *b = getobj(ARG(1));
-    if (!b) return 0;
+    uint32_t bi = ARG(5);
+    if (!b || !bi) return 0;
     if (!ARG(4)) { /* fill in the BITMAPINFOHEADER only */
-        uint32_t bi = ARG(5);
         x86_wr32(bi + 4, (uint32_t)b->w); x86_wr32(bi + 8, (uint32_t)b->h); x86_wr16(bi + 12, 1); x86_wr16(bi + 14, 32);
         x86_wr32(bi + 16, 0); x86_wr32(bi + 20, (uint32_t)(b->w * b->h * 4));
         return 1;
     }
-    if (!b->cpu || !b->cpu_valid) { w32_m.gdi_getpixel_noread++; return 0; }
-    uint32_t bits = ARG(4), start = ARG(2), lines = ARG(3);
-    for (uint32_t y = 0; y < lines && start + y < (uint32_t)b->h; y++)
+    w32_m.gdi_pixel_reads++;
+    uint32_t bpp = x86_rd16(bi + 14), comp = x86_rd32(bi + 16);
+    int32_t dh = (int32_t)x86_rd32(bi + 8);
+    int top_down = dh < 0;
+    if ((bpp != 32 && bpp != 24) || comp != 0) { w32_m.gdi_unsupported++; return 0; }
+    uint32_t bits = ARG(4), start = ARG(2), lines = ARG(3), row = ((uint32_t)b->w * bpp + 31) / 32 * 4;
+    if (start >= (uint32_t)b->h) return 0;
+    if (lines > (uint32_t)b->h - start) lines = (uint32_t)b->h - start;
+    static uint32_t *px;
+    static uint32_t cap;
+    uint32_t need = (uint32_t)(b->w * b->h);
+    if (!(b->cpu && b->cpu_valid) && b->tex) {
+        if (need > cap) { px = (uint32_t *)x86_alloc(need * 4u); cap = need; }
+        if (!px || !w32_rp_read(b->tex, 0, 0, b->w, b->h, px)) { w32_m.gdi_getpixel_noread++; return 0; }
+        w32_m.gdi_cpu_replays++;
+    }
+    for (uint32_t i = 0; i < lines; i++) {
+        /* bottom-up DIBs store the bottom scan line first; top-down ones the top line */
+        int32_t sy = top_down ? (int32_t)(start + i) : b->h - 1 - (int32_t)(start + i);
+        uint32_t r = bits + i * row;
         for (int32_t x = 0; x < b->w; x++) {
-            uint32_t c = b->cpu[(b->h - 1 - (int32_t)(start + y)) * b->w + x];
-            x86_wr32(bits + (y * (uint32_t)b->w + (uint32_t)x) * 4, ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff));
+            uint32_t c = b->cpu && b->cpu_valid ? b->cpu[sy * b->w + x] : b->tex ? px[sy * b->w + x] : 0xff000000u;
+            if (bpp == 32) x86_wr32(r + 4u * (uint32_t)x, ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff));
+            else { x86_wr8(r + 3u * (uint32_t)x, (c >> 16) & 0xff); x86_wr8(r + 3u * (uint32_t)x + 1, (c >> 8) & 0xff); x86_wr8(r + 3u * (uint32_t)x + 2, c & 0xff); }
         }
+    }
     return lines;
 }
 static uint32_t g_FillRect(void) {
@@ -876,15 +910,32 @@ static uint32_t g_SetPixel(void) {
     if (d && dc_surf(d, &s)) g_fill(s.tex, s.cl, s.ct, s.cr, s.cb, s.ox + (int32_t)ARG(1), s.oy + (int32_t)ARG(2), 1, 1, ARG(3), BGT_BLEND_OPAQUE);
     return ARG(3);
 }
+int w32_is_pixel_read_api(const char *name) {
+    static const char *const names[] = {"GetPixel", "GetDIBits"};
+    for (uint32_t i = 0; i < sizeof names / sizeof names[0]; i++) if (w32_streqi(names[i], name)) return 1;
+    return 0;
+}
+/* the colour of one surface pixel as GDI sees it (COLORREF), from known CPU pixels or the CPU replay;
+ * returns 0 when the pixel's history is unknown */
+static int read_px(gobj_t *b, uint32_t tex, int32_t x, int32_t y, uint32_t *rgba) {
+    if (b && b->cpu && b->cpu_valid) { *rgba = b->cpu[y * b->w + x]; return 1; }
+    if (b && !b->tex) { *rgba = 0xff000000u; return 1; } /* never drawn or uploaded: a fresh (black) bitmap */
+    if (!w32_rp_pixel(tex, x, y, rgba)) return 0;
+    w32_m.gdi_cpu_replays++;
+    return 1;
+}
 static uint32_t g_GetPixel(void) {
     dc_t *d = getdc(ARG(0));
-    if (d && d->kind == 2) {
-        gobj_t *b = getobj(d->bmp);
-        int32_t x = (int32_t)ARG(1), y = (int32_t)ARG(2);
-        if (b && b->cpu && b->cpu_valid && x >= 0 && y >= 0 && x < b->w && y < b->h) return b->cpu[y * b->w + x] & 0xffffffu;
-    }
-    w32_m.gdi_getpixel_noread++;
-    return 0xffffffffu; /* CLR_INVALID: GPU surfaces are not read back */
+    surf_t s;
+    w32_m.gdi_pixel_reads++;
+    if (!d || !dc_surf_mode(d, &s, 1)) return 0xffffffffu;
+    int32_t x = s.ox + (int32_t)ARG(1), y = s.oy + (int32_t)ARG(2);
+    /* outside the clipping region: CLR_INVALID (Win32 contract, not a failure) */
+    if (x < s.cl || y < s.ct || x >= s.cr || y >= s.cb) return 0xffffffffu;
+    gobj_t *b = d->kind == 2 ? getobj(d->bmp) : 0;
+    uint32_t v;
+    if (!read_px(b, s.tex, x, y, &v)) { w32_m.gdi_getpixel_noread++; return 0xffffffffu; }
+    return v & 0xffffffu;
 }
 
 /* ------------------------------------------------------------------ text */

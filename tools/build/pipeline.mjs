@@ -63,7 +63,7 @@ function stripTimestamp(file) {
   writeFileSync(file, b);
 }
 
-function buildFixture(gameDir, fx, outDir) {
+export function buildFixture(gameDir, fx, outDir) {
   mkdirSync(outDir, { recursive: true });
   const out = join(outDir, fx.out);
   const inputs = fx.sources.map((s) => join(gameDir, s));
@@ -110,7 +110,42 @@ function resolveModule(gameDir, spec, fixtureFiles) {
 function peInfo(file) {
   const b = readFileSync(file);
   const nt = b.readUInt32LE(0x3c), opt = nt + 24;
-  return { base: b.readUInt32LE(opt + 28), size: b.readUInt32LE(opt + 56), relocs: b.readUInt32LE(opt + 96 + 5 * 8) !== 0 };
+  return { base: b.readUInt32LE(opt + 28), size: b.readUInt32LE(opt + 56), relocs: b.readUInt32LE(opt + 96 + 5 * 8) !== 0, importDlls: peImportDlls(b) };
+}
+
+/** Names of the DLLs a PE32 image imports statically (import directory), in file order. */
+export function peImportDlls(b) {
+  const nt = b.readUInt32LE(0x3c), opt = nt + 24, nsec = b.readUInt16LE(nt + 6), optsz = b.readUInt16LE(nt + 20);
+  const secs = [];
+  for (let i = 0; i < nsec; i++) {
+    const o = opt + optsz + 40 * i;
+    secs.push({ va: b.readUInt32LE(o + 12), vsize: b.readUInt32LE(o + 8), raw: b.readUInt32LE(o + 20), rawsize: b.readUInt32LE(o + 16) });
+  }
+  const off = (rva) => {
+    for (const s of secs) if (rva >= s.va && rva < s.va + Math.max(s.vsize, s.rawsize)) return s.raw + (rva - s.va);
+    return rva < b.length ? rva : -1;
+  };
+  const imp = b.readUInt32LE(opt + 96 + 8), out = [];
+  if (!imp) return out;
+  for (let de = off(imp); de >= 0 && de + 20 <= b.length; de += 20) {
+    const name = b.readUInt32LE(de + 12), iat = b.readUInt32LE(de + 16);
+    if (!name && !iat) break;
+    const p = off(name);
+    if (p < 0) continue;
+    let e = p;
+    while (e < b.length && b[e]) e++;
+    out.push(b.toString('latin1', p, e));
+  }
+  return out;
+}
+
+/** System DLLs the Win32 profile implements (platforms/win32/dlls.json); '*' entries are prefixes. */
+export function profileDlls() {
+  return JSON.parse(readFileSync(join(ROOT, 'platforms/win32/dlls.json'), 'utf8')).implemented.map((d) => d.toLowerCase());
+}
+export function isProfileDll(name, list = profileDlls()) {
+  const n = name.toLowerCase();
+  return list.some((d) => (d.endsWith('*') ? n.startsWith(d.slice(0, -1)) : n === d));
 }
 
 const cIdent = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -169,10 +204,20 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       writeFileSync(join(work, `analysis_${id}.json`), analysis);
       stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
     }
+    const totals = analysis ? JSON.parse(analysis).totals : null;
     mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: sha256(readFileSync(file)),
-      functions: analysis ? JSON.parse(analysis).totals.functions : 0 });
+      functions: totals ? totals.functions : 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
   if (!mods.some((m) => m.main)) mods[0].main = true;
+  /* static imports must resolve to a shipped module or a DLL the profile implements (Win32 would refuse to start
+     the program with "The program can't start because X.dll is missing") */
+  const sysDlls = profileDlls();
+  for (const m of mods) {
+    const missing = m.importDlls.filter((d) => !mods.some((o) => o.name.toLowerCase() === d.toLowerCase()) && !isProfileDll(d, sysDlls));
+    if (missing.length) {
+      throw new Error(`pipeline: ${m.name} imports ${missing.join(', ')}, which is neither a module in game.json "pipeline.modules" nor a DLL the ${p.platform} profile implements (platforms/${p.platform}/dlls.json). If the game ships it, add it as a module; otherwise it is a kit gap (iteration request).`);
+    }
+  }
   /* driver */
   const driver = join(work, 'pipeline_main.c');
   const ext = mods.filter((m) => m.lifted).map((m) => `extern const x86_lifted_entry_t x86_lifted_${m.id}[];`).join('\n');
@@ -185,7 +230,8 @@ ${ext}
 static const w32_module_cfg_t modules[] = {
 ${rows}
 };
-static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}};
+static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
+static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
@@ -196,11 +242,13 @@ BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash(); }
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
+BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
 `);
   /* lifted tables are sorted by address; the profile merges them across modules */
   const platform = [
     'platforms/x86/x86_decode.c', 'platforms/x86/x86_exec.c', 'platforms/x86/x86_rt.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
+    'platforms/win32/w32_replay.c',
     'platforms/common/font5x7.c',
   ].map((f) => join(ROOT, f));
   const sources = [driver, ...mods.filter((m) => m.lifted).map((m) => m.lifted), ...platform, ...ov.files];
@@ -210,7 +258,7 @@ BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(u
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
     interpretOnly: !!p.interpretOnly,
-    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, lift: m.stats })),
+    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
     loc: { generated, handwritten },
   };
@@ -225,7 +273,7 @@ BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(u
 }
 
 export function pipelineSummary(r) {
-  const f = r.modules.map((m) => `${m.name}: ${m.functions} fns${m.lift ? `, ${m.lift.specialized} specialized/${m.lift.generic} generic insns, ${m.lift.jumpTables} jump tables, ${m.lift.unresolvedJumps} unresolved` : ' (interpreted)'}`);
+  const f = r.modules.map((m) => `${m.name}: ${m.functions} fns${m.lift ? `, ${m.dataSeeds ?? 0} data seeds rejected, ${m.lift.specialized} specialized/${m.lift.generic} generic insns, ${m.lift.jumpTables} jump tables, ${m.lift.unresolvedJumps} unresolved` : ' (interpreted)'}`);
   return `pipeline ${r.platform}${r.interpretOnly ? ' [interpret-only oracle build]' : ''}: ${f.join('; ')}; generated ${r.loc.generated} LOC, hand-written ${r.loc.handwritten} LOC, ${r.exceptions.overrides.length} override(s)`;
 }
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // npm run trial:record -- <gameDir> <slug>
-// Writes reports/trial.json (kit commit, inputs, pipeline + runtime + oracle + e2e metrics) and, if missing,
-// a reports/NOTES.md port-note template. Copy both with the port into the trials repo:
+// Writes reports/trial.json (kit commit, inputs, the trial brief, pipeline + runtime + oracle + e2e metrics, the work
+// queue) and, if missing, a reports/NOTES.md port-note template. Copy both with the port into the trials repo:
 //   game-cask-trials/<game>/<NNN-slug>/{trial.json,NOTES.md,port/,reports/}
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { ROOT } from '../build/toolchain.mjs';
@@ -20,14 +21,19 @@ const e2e = readJ(join(ROOT, 'reports', 'e2e-port-results.json'));
 const progress = readJ(join(ROOT, 'reports', 'progress.json'));
 const errors = readJ(join(ROOT, 'reports', 'errors.json'));
 const overrides = manifest?.pipeline?.exceptions ?? null;
+const briefPath = join(ROOT, 'reports', 'brief.md');
+const brief = existsSync(briefPath) ? readFileSync(briefPath, 'utf8') : null;
+const queue = Array.isArray(progress?.queue) ? progress.queue : null;
+const byStatus = (q) => q.reduce((m, i) => ((m[i.status] = (m[i.status] ?? 0) + 1), m), {});
 
 const trial = {
-  schema: 'game-cask/trial/2',
+  schema: 'game-cask/trial/3',
   game: cfg.id,
   slug,
   recorded: new Date().toISOString(),
   kit: { repo: 'gamefox-dev/game-cask', commit: git('rev-parse', '--short', 'HEAD'), dirty: !!git('status', '--porcelain', '--', 'bgt', 'platforms', 'tools', 'tests', 'web', 'CLAUDE.md', '.claude') },
   inputs: (manifest?.pipeline?.modules ?? []).map((m) => ({ module: m.name, provenance: m.provenance, sha256: m.sha256 })),
+  brief: brief ? { sha256: createHash('sha256').update(brief).digest('hex'), text: brief } : null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
     modules: manifest.pipeline.modules.map((m) => ({ name: m.name, functions: m.functions, lift: m.lift })),
@@ -36,6 +42,8 @@ const trial = {
   oracle: oracle ? { frames: oracle.frames, identical: oracle.identical, firstDivergence: oracle.firstDivergence, errors: oracle.errors, metrics: oracle.metrics?.lifted } : null,
   e2e: e2e?.stats ? { expected: e2e.stats.expected, unexpected: e2e.stats.unexpected, skipped: e2e.stats.skipped, flaky: e2e.stats.flaky } : null,
   levels: { claimed: progress?.achieved_level ?? null, validated: null },
+  queue: queue ? { byStatus: byStatus(queue), items: queue.map((i) => ({ id: i.id, symptom: i.symptom, layer: i.layer, status: i.status })) } : null,
+  iterationRequests: (queue ?? []).filter((i) => i.status === 'iteration-request').map((i) => ({ id: i.id, symptom: i.symptom, layer: i.layer, next: i.next })),
   kitGaps: (errors?.errors ?? []).filter((e) => e.kind === 'kit-gap').map((e) => e.summary),
 };
 mkdirSync(join(ROOT, 'reports'), { recursive: true });
@@ -49,6 +57,9 @@ if (!existsSync(notes)) {
 ## Kit metrics
 - generated LOC ${trial.pipeline?.loc?.generated ?? '?'}, hand-written LOC ${trial.pipeline?.loc?.handwritten ?? '?'}, overrides ${trial.pipeline?.exceptions?.overrides?.length ?? '?'}
 - oracle: ${trial.oracle ? (trial.oracle.identical ? 'identical' : 'DIVERGED at frame ' + trial.oracle.firstDivergence) : 'not run'}
+- queue: ${trial.queue ? Object.entries(trial.queue.byStatus).map(([k, v]) => `${v} ${k}`).join(', ') : 'none recorded'}
+
+## Iteration requests
 
 ## What happened
 <!-- what worked through the pipeline unchanged, where it needed help -->
@@ -60,4 +71,4 @@ if (!existsSync(notes)) {
 ## Try differently next iteration
 `);
 }
-console.log(`trial: wrote reports/trial.json${existsSync(notes) ? ' (+ NOTES.md)' : ''}`);
+console.log(`trial: wrote reports/trial.json${existsSync(notes) ? ' (+ NOTES.md)' : ''}${brief ? '' : ' (no reports/brief.md: run npm run trial:brief first so the trial is reproducible)'}`);

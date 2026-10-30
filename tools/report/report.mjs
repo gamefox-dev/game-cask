@@ -61,18 +61,27 @@ if (existsSync(R)) {
   }
 }
 
-// e2e summary (Playwright JSON reporter)
-let e2e = null;
-const pw = readJson('e2e-results.json');
-if (pw && !pw.__error && pw.stats) {
+// e2e summaries (Playwright JSON reporter): kit suites and the port's tests
+const e2eSummary = (file) => {
+  const pw = readJson(file);
+  if (!pw || pw.__error || !pw.stats) return null;
   const tests = [];
   const visit = (suite, path) => {
     for (const s of suite.suites ?? []) visit(s, [...path, s.title]);
-    for (const sp of suite.specs ?? []) for (const t of sp.tests ?? []) tests.push({ title: [...path, sp.title].filter(Boolean).join(' › '), project: t.projectName, status: t.status });
+    for (const sp of suite.specs ?? []) {
+      for (const t of sp.tests ?? []) {
+        const catches = (t.annotations ?? []).filter((a) => a.type === 'catches').map((a) => a.description);
+        tests.push({ title: [...path, sp.title].filter(Boolean).join(' › '), project: t.projectName, status: t.status, catches });
+      }
+    }
   };
   for (const s of pw.suites ?? []) visit(s, []);
-  e2e = { expected: pw.stats.expected, unexpected: pw.stats.unexpected, skipped: pw.stats.skipped, flaky: pw.stats.flaky, tests };
-}
+  return { file, expected: pw.stats.expected, unexpected: pw.stats.unexpected, skipped: pw.stats.skipped, flaky: pw.stats.flaky, tests };
+};
+const e2eRuns = ['e2e-results.json', 'e2e-port-results.json'].map(e2eSummary).filter(Boolean);
+// port tests must state the breakage they would catch (tests/support/evidence.ts `catches`)
+const portRun = e2eRuns.find((r) => r.file === 'e2e-port-results.json');
+const noCatches = portRun ? [...new Set(portRun.tests.filter((t) => !t.catches.length && t.status !== 'skipped').map((t) => t.title))] : [];
 
 const inv = readJson('inventory.json');
 const lines = [
@@ -88,17 +97,28 @@ const lines = [
 if (inv && !inv.__error) {
   lines.push('## Inventory', '', `${inv.files.length} file(s), candidates: ${inv.candidates.map((c) => `${c.path} (${c.format}, ${c.confidence})`).join(', ') || 'none'}`, `REA: ${inv.tools?.rea?.available ? 'detected' : 'not detected'}`, '');
 }
-if (prog && !prog.__error) lines.push('## Progress', '', `Game: ${prog.game}  •  achieved **${prog.achieved_level}** (target ${prog.target_level})`, `Next: ${prog.next}`, '');
+if (prog && !prog.__error) {
+  lines.push('## Progress', '', `Game: ${prog.game}  •  achieved **${prog.achieved_level}** (target ${prog.target_level})`, `Next: ${prog.next}`, '');
+  if (Array.isArray(prog.queue)) {
+    const open = prog.queue.filter((q) => q.status === 'open');
+    lines.push('## Work queue', '', '| id | layer | status | symptom |', '|---|---|---|---|');
+    for (const q of prog.queue) lines.push(`| ${q.id} | ${q.layer} | ${q.status} | ${String(q.symptom ?? '').replace(/\|/g, '/')} |`);
+    lines.push('', open.length ? `**${open.length} item(s) still open: the port is not done.**` : 'No open items.', '');
+  } else {
+    lines.push('## Work queue', '', 'progress.json has no "queue": every observed problem must be recorded there (CLAUDE.md "Done means").', '');
+  }
+}
 if (sub && !sub.__error) {
   lines.push('## Subsystems', '', '| subsystem | strategy | status | confidence | deviations |', '|---|---|---|---|---|');
   for (const s of sub.subsystems) lines.push(`| ${s.name} | ${s.implementation_strategy} | ${s.status} | ${s.confidence} | ${(s.known_deviations ?? []).length} |`);
   lines.push('');
 }
-if (e2e) {
-  lines.push('## Browser E2E', '', `passed ${e2e.expected}, failed ${e2e.unexpected}, skipped ${e2e.skipped}, flaky ${e2e.flaky}`, '');
-  for (const t of e2e.tests) lines.push(`- ${t.status === 'expected' ? 'PASS' : t.status === 'skipped' ? 'SKIP' : 'FAIL'} [${t.project}] ${t.title}`);
+for (const e2e of e2eRuns) {
+  lines.push(`## Browser E2E (${e2e.file})`, '', `passed ${e2e.expected}, failed ${e2e.unexpected}, skipped ${e2e.skipped}, flaky ${e2e.flaky}`, '');
+  for (const t of e2e.tests) lines.push(`- ${t.status === 'expected' ? 'PASS' : t.status === 'skipped' ? 'SKIP' : 'FAIL'} [${t.project}] ${t.title}${t.catches.length ? ` (catches: ${t.catches.join('; ')})` : ''}`);
   lines.push('');
 }
+if (noCatches.length) lines.push('## Port tests without a stated breakage', '', 'Each port test should call `catches(...)` and assert a change (browser-validation skill):', '', ...noCatches.map((t) => `- ${t}`), '');
 if (machine.length) lines.push('## Machine artifacts (informational)', '', `${machine.length} redaction finding(s) in Playwright/bench JSON. These files are private; run \`npm run report -- --fix\` before sharing them.`, '');
 lines.push('## Checks', '', problems.length ? problems.map((p) => `- schema: ${p}`).join('\n') : '- schema: ok', sensitive.length ? sensitive.map((s) => `- redaction: ${s}`).join('\n') : '- redaction: ok', '');
 

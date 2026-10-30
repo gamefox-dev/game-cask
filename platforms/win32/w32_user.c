@@ -1296,6 +1296,99 @@ void w32_user_pump_input(void) {
     last_pbuttons = b;
 }
 
+/* ------------------------------------------------------------------ read-only layout for tests (debugState().ui) */
+static const char *class_name(wnd_t *w) {
+    if (w->builtin == B_BUTTON) return "button";
+    if (w->builtin == B_STATIC) return "static";
+    if (w->builtin == B_EDIT) return "edit";
+    if (w->builtin == B_OTHER) return "other";
+    if (w->is_dialog) return "#32770";
+    return w->cls > 0 ? classes[w->cls].name : "";
+}
+static void debug_items(w32_json_t *j, menu_t *m, int32_t x, int32_t y, int32_t w, int popup) {
+    int32_t yy = y + 2;
+    for (int i = 0; i < m->n; i++) {
+        mitem_t *it = &m->it[i];
+        if (i) wj_raw(j, ",");
+        wj_raw(j, "{\"pos\":"); wj_int(j, i);
+        wj_raw(j, ",\"text\":"); wj_str(j, it->text);
+        wj_raw(j, ",\"id\":"); wj_int(j, (it->flags & 0x10u) ? -1 : (int64_t)it->id);
+        wj_raw(j, ",\"flags\":"); wj_int(j, it->flags);
+        /* Win32 meaning: MF_SEPARATOR, or a resource MENUITEM SEPARATOR (flags 0, id 0, empty text) */
+        int sep = (it->flags & 0x800u) || (!(it->flags & 0x10u) && !it->id && !it->text[0]);
+        wj_raw(j, sep ? ",\"separator\":true" : ",\"separator\":false");
+        wj_raw(j, (it->flags & 3u) ? ",\"disabled\":true" : ",\"disabled\":false");
+        wj_raw(j, (it->flags & 8u) ? ",\"checked\":true" : ",\"checked\":false");
+        wj_raw(j, (it->flags & 0x10u) ? ",\"popup\":true" : ",\"popup\":false");
+        wj_raw(j, ",\"rect\":");
+        if (popup) { int32_t ih = it->flags & 0x800u ? 8 : 18; wj_rect(j, x, yy, w, ih); yy += ih; }
+        else { int32_t tw, tx = menu_title_x(m, i, &tw); wj_rect(j, x + tx, y, tw, MENU_H); }
+        wj_raw(j, "}");
+    }
+}
+void w32_user_debug_ui(w32_json_t *j) {
+    wnd_t *mw = W(main_hwnd);
+    menu_t *m = mw ? M(mw->menu) : 0;
+    wj_raw(j, "{\"main\":"); wj_int(j, main_hwnd);
+    wj_raw(j, ",\"modal\":"); wj_int(j, modal_hwnd);
+    wj_raw(j, ",\"focus\":"); wj_int(j, focus);
+    wj_raw(j, ",\"capture\":"); wj_int(j, capture);
+    wj_raw(j, ",\"menubar\":");
+    if (m) {
+        wj_raw(j, "{\"rect\":"); wj_rect(j, mw->x, mw->y, mw->w, MENU_H);
+        wj_raw(j, ",\"open\":"); wj_int(j, menu_open);
+        wj_raw(j, ",\"items\":["); debug_items(j, m, mw->x, mw->y, 0, 0); wj_raw(j, "]}");
+    } else wj_raw(j, "null");
+    wj_raw(j, ",\"popup\":");
+    menu_t *pm = menu_open >= 0 ? M(menu_open_handle) : 0;
+    if (pm && m) {
+        int32_t x, y, w, h;
+        popup_geom(pm, &x, &y, &w, &h);
+        wj_raw(j, "{\"menu\":"); wj_int(j, menu_open);
+        wj_raw(j, ",\"rect\":"); wj_rect(j, x, y, w, h);
+        wj_raw(j, ",\"items\":["); debug_items(j, pm, x, y, w, 1); wj_raw(j, "]}");
+    } else wj_raw(j, "null");
+    wj_raw(j, ",\"messagebox\":");
+    if (mb_active) {
+        uint32_t ids[3]; const char *lab[3];
+        int n = mb_buttons(ids, lab);
+        wj_raw(j, "{\"caption\":"); wj_str(j, mb_caption);
+        wj_raw(j, ",\"text\":"); wj_str(j, mb_text);
+        wj_raw(j, ",\"type\":"); wj_int(j, mb_type);
+        wj_raw(j, ",\"rect\":"); wj_rect(j, mb_x, mb_y, mb_w, mb_h);
+        wj_raw(j, ",\"buttons\":[");
+        for (int i = 0; i < n; i++) {
+            if (i) wj_raw(j, ",");
+            wj_raw(j, "{\"id\":"); wj_int(j, ids[i]);
+            wj_raw(j, ",\"text\":"); wj_str(j, lab[i]);
+            wj_raw(j, ",\"rect\":"); wj_rect(j, mb_x + mb_w / 2 - n * 40 + i * 80 + 5, mb_y + mb_h - 30, 70, 22);
+            wj_raw(j, "}");
+        }
+        wj_raw(j, "]}");
+    } else wj_raw(j, "null");
+    wj_raw(j, ",\"windows\":[");
+    int first = 1;
+    for (int i = 1; i < NWND; i++) {
+        wnd_t *w = &wnds[i];
+        if (!w->used || w->destroyed || !w->visible) continue;
+        if (!first) wj_raw(j, ",");
+        first = 0;
+        wj_raw(j, "{\"hwnd\":"); wj_int(j, hwnd_of(w));
+        wj_raw(j, ",\"parent\":"); wj_int(j, w->parent);
+        wj_raw(j, ",\"class\":"); wj_str(j, class_name(w));
+        wj_raw(j, ",\"text\":"); wj_str(j, w->text);
+        wj_raw(j, ",\"id\":"); wj_int(j, (w->style & 0x40000000u) ? (int64_t)w->id : 0);
+        wj_raw(j, ",\"style\":"); wj_int(j, w->style);
+        wj_raw(j, w->is_dialog ? ",\"dialog\":true" : ",\"dialog\":false");
+        wj_raw(j, w->enabled ? ",\"enabled\":true" : ",\"enabled\":false");
+        wj_raw(j, ",\"checked\":"); wj_int(j, w->checked);
+        wj_raw(j, ",\"rect\":"); wj_rect(j, w->x, w->y, w->w, w->h);
+        wj_raw(j, ",\"client\":"); wj_rect(j, w->cx, w->cy, w->cw, w->ch);
+        wj_raw(j, "}");
+    }
+    wj_raw(j, "]}");
+}
+
 void w32_user_present_overlay(void) {
     draw_menubar();
     if (menu_open >= 0) draw_popup();

@@ -10,7 +10,8 @@
 //   - is a binary file > 1 MiB
 //
 //   node tools/report/leakcheck.mjs [--staged] [--root DIR] [--against DIR ...]
-//     --against: extra reference directories (e.g. extracted installer payloads)
+//     --against: extra reference directories (e.g. extracted installer payloads). Kit-generated metadata inside
+//     them (the extractor's extract.json, any JSON with a "game-cask/..." schema) is not reference material.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -48,6 +49,17 @@ function candidates(root, staged) {
   }
 }
 
+/** Metadata the kit itself wrote next to extracted payloads (not game data). */
+export function isKitMetadata(full) {
+  if (!/\.json$/i.test(full)) return false;
+  try {
+    const doc = JSON.parse(readFileSync(full, 'utf8'));
+    return typeof doc?.schema === 'string' && doc.schema.startsWith('game-cask/');
+  } catch {
+    return false;
+  }
+}
+
 function isBinary(buf) {
   const n = Math.min(buf.length, 8000);
   for (let i = 0; i < n; i++) if (buf[i] === 0) return true;
@@ -60,7 +72,12 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
   // Reference material that must never be committed: <root>/original/ plus any
   // --against directories (e.g. the kit's original/ or files extracted from an installer).
   const refDirs = [join(root, 'original'), ...against];
-  const origFiles = refDirs.flatMap((d) => walk(d).filter((p) => !p.endsWith('.gitkeep')).map((p) => ({ label: d === refDirs[0] ? p : `${d}/${p}`, full: join(d, p) })));
+  const origFiles = refDirs.flatMap((d, i) =>
+    walk(d)
+      .filter((p) => !p.endsWith('.gitkeep'))
+      .map((p) => ({ label: i === 0 ? p : `${d}/${p}`, full: join(d, p) }))
+      .filter((f) => i === 0 || !isKitMetadata(f.full)), // --against dirs: skip the kit's own extract.json etc.
+  );
   const origHashes = new Map();
   const origWindows = [];
   for (const { label: p, full } of origFiles) {

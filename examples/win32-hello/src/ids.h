@@ -1,6 +1,14 @@
 #define IDB_TILES 101
 #define IDR_MENU 102
 #define IDR_ACCEL 103
+#define IDD_OPTIONS 104
 #define IDM_NEW 201
 #define IDM_ABOUT 202
 #define IDM_EXIT 203
+#define IDM_OPTIONS 204
+#define IDC_SMALL 301
+#define IDC_LARGE 302
+#define IDC_SOUND 303
+#define IDS_STATUS 1
+#define IDS_SOUND 2
+#define IDS_ABOUT 3

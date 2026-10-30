@@ -1,0 +1,13 @@
+{
+  "id": "win32-conformance",
+  "name": "Win32 profile conformance (kit fixture)",
+  "license": "CC0-1.0",
+  "private": false,
+  "pipeline": {
+    "platform": "win32",
+    "fixture": { "sources": ["src/conformance.c"], "out": "conformance.exe", "entry": "entry", "libs": ["gdi32", "user32", "kernel32"] },
+    "modules": [{ "from": "./build/conformance.exe", "name": "conformance.exe", "main": true }],
+    "width": 320, "height": 200
+  },
+  "touch": { "dpad": false, "buttons": [] }
+}
