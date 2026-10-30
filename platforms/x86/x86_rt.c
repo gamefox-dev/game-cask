@@ -13,6 +13,9 @@ x86_cpu_t X;
 uint8_t *x86_pages[1u << 20];
 x86_metrics_t x86_metrics;
 int x86_force_interp;
+const x86_insn_t *x86_lift_pending;
+uint32_t x86_lift_count;
+void x86_lift_block(uint32_t count);
 #ifdef X86_FLAT_GUEST
 uint8_t *x86_flat;
 uint64_t x86_guest_committed;
@@ -199,7 +202,21 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
             if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
             if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);continue;}
             x86_lifted_fn f=x86_find_lifted(X.eip);
-            if(f){uint32_t old=X.eip;x86_metrics.lifted_calls++;f();if(X.eip==old&&!X.transfer)x86_fault("lifted AMD64 entry made no progress",old);}
+            if (f) {
+                uint32_t old = X.eip;
+                uint64_t old_clock = X.tsc;
+                x86_metrics.lifted_calls++;
+                f();
+                if (x86_lift_pending) {
+                    const x86_insn_t *pending = x86_lift_pending; x86_lift_pending = 0;
+                    x86_exec_one(pending);
+                } else if (x86_lift_count) {
+                    uint32_t count = x86_lift_count; x86_lift_count = 0;
+                    x86_lift_block(count);
+                } else if (X.eip == old && X.tsc == old_clock && !X.transfer) {
+                    x86_fault("lifted AMD64 entry made no progress", old);
+                }
+            }
             else {
                 bgt_coverage_entry(X.eip, 2);
                 const x86_insn_t *in = decode_at(X.eip);
@@ -273,6 +290,20 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
     /* a tail jump to an import thunk is an API call, not interpretation */
     if (!x86_is_thunk(X.eip)) { x86_metrics.continues_interpreted++; bgt_coverage_entry(X.eip,2); }
     interp_until(ra, esp0);
+}
+
+/* Cold quantum-crossing path for a straight-line lifted block. Unlike interpretation/fallback
+ * entries this is bounded by the statically emitted block length and uses the generic semantic
+ * counter. It preserves the exact instruction at which the reference cooperates. */
+void x86_lift_block(uint32_t count) {
+    while (count--) {
+        const x86_insn_t *in = decode_at(X.eip);
+        uint32_t next = in->addr + in->len;
+        int call = in->op == XO_CALL || in->op == XO_CALL_IND;
+        x86_exec_one(in);
+        if (call) x86_invoke(X.eip, next);
+        if (X.transfer) return;
+    }
 }
 
 void x86_exec_one(const x86_insn_t *in) {

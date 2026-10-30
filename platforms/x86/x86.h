@@ -77,7 +77,7 @@ void x86_cooperate(void);
 void x86_set_scheduler(void (*schedule)(void));
 void x86_x87(const x86_insn_t *in);
 __attribute__((noreturn)) void x86_fault(const char *, uint32_t);
-static inline uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
+static __attribute__((noinline)) uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
     if ((uint64_t)a + n > X86_FLAT_BYTES || !x86_pages[a >> 12] ||
         !x86_pages[((uint64_t)a + n - 1) >> 12]) {
         x86_fault("unmapped flat guest memory", a);
@@ -87,12 +87,20 @@ static inline uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
 static inline uint8_t *x86_host(uint32_t a) {
     return a < X86_FLAT_BYTES && x86_pages[a >> 12] ? x86_flat + a : 0;
 }
-static inline uint32_t x86_rd8(uint32_t a) {return *x86_flat_at(a,1);}
-static inline uint32_t x86_rd16(uint32_t a) {uint16_t v;__builtin_memcpy(&v,x86_flat_at(a,2),2);return v;}
-static inline uint32_t x86_rd32(uint32_t a) {uint32_t v;__builtin_memcpy(&v,x86_flat_at(a,4),4);return v;}
-static inline void x86_wr8(uint32_t a,uint32_t v) {*x86_flat_at(a,1)=(uint8_t)v;}
-static inline void x86_wr16(uint32_t a,uint32_t v) {uint16_t x=(uint16_t)v;__builtin_memcpy(x86_flat_at(a,2),&x,2);}
-static inline void x86_wr32(uint32_t a,uint32_t v) {__builtin_memcpy(x86_flat_at(a,4),&v,4);}
+static __attribute__((noinline)) uint32_t x86_rd8(uint32_t a) {return *x86_flat_at(a,1);}
+static __attribute__((noinline)) uint32_t x86_rd16(uint32_t a) {
+    uint16_t v; __builtin_memcpy(&v, x86_flat_at(a, 2), 2); return v;
+}
+static __attribute__((noinline)) uint32_t x86_rd32(uint32_t a) {
+    uint32_t v; __builtin_memcpy(&v, x86_flat_at(a, 4), 4); return v;
+}
+static __attribute__((noinline)) void x86_wr8(uint32_t a,uint32_t v) {*x86_flat_at(a,1)=(uint8_t)v;}
+static __attribute__((noinline)) void x86_wr16(uint32_t a,uint32_t v) {
+    uint16_t x = (uint16_t)v; __builtin_memcpy(x86_flat_at(a, 2), &x, 2);
+}
+static __attribute__((noinline)) void x86_wr32(uint32_t a,uint32_t v) {
+    __builtin_memcpy(x86_flat_at(a, 4), &v, 4);
+}
 #else
 static inline uint8_t *x86_host(uint32_t a) {
     uint8_t *p = x86_pages[a >> 12];
