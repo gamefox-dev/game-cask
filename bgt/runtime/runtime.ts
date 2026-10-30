@@ -9,6 +9,7 @@ import {
   CAP_AUDIO,
   CAP_DIRECT_DRAW,
   CAP_GAMEPAD,
+  CAP_GPU, /* LANE-W2: advertise only a complete renderer GPU implementation. */
   CAP_LINEAR_FILTER,
   CAP_RENDER_TARGETS,
   CAP_READBACK,
@@ -357,6 +358,7 @@ export class BGTRuntime {
     if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
     let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK | CAP_STREAM_FILES;
+    /* LANE-W2 */ if (this.renderer.gpu?.languages) caps |= CAP_GPU;
     if (this.storage.persistent) caps |= CAP_STORAGE;
     if (hasTouch) caps |= CAP_TOUCH;
     if (this.opts.directDraw) caps |= CAP_DIRECT_DRAW;
@@ -387,6 +389,7 @@ export class BGTRuntime {
           displayHeight: this.canvas.height,
           arg0: this.opts.arg0 ?? 0,
           arg1: this.opts.arg1 ?? 0,
+          /* LANE-W2 */ gpuBackend: this.renderer.gpu,
           maxTextureDimension: this.renderer.maxTextureSize,
           sliceCode: manifest.slice?.code,
         },
@@ -427,7 +430,10 @@ export class BGTRuntime {
       r.restoreTextures(this.host.textures);
       this.deviceResets++;
       this.input.markEvent('deviceReset');
-      if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
+      /* LANE-W2: §13 attachment contents are lost on restoration. */
+      if (r.gpu?.languages || [...this.host.textures.entries.values()].some((e) => e.renderTarget)) {
+        this.input.markEvent('targetsLost');
+      }
       this.applySize();
     });
     r.onUnrecoverable((reason) => {
@@ -445,7 +451,8 @@ export class BGTRuntime {
   private switchToWebGL2(reason: string): void {
     const old = this.renderer;
     if (!this.host || this.failed) return;
-    if (!old || old.kind === 'webgl2') {
+    /* LANE-W2: no cross-backend §13 descriptor/language migration; never drop live GPU handles. */
+    if (!old || old.kind === 'webgl2' || old.gpu?.languages) {
       this.fail('device-lost', `graphics device lost and could not be recovered (${reason})`);
       return;
     }
