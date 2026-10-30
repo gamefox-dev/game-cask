@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, requireZig } from './toolchain.mjs';
@@ -130,13 +130,20 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   } catch {
     throw new Error(`compile failed for ${cfg.id} (zig ${zig.version})`);
   }
+  let asyncifyCached = false;
   if (cfg.asyncify) {
     // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
+    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from('O2/asyncify/bgt.yield/v1')]));
+    const postDir=join(ROOT,'node_modules/.cache/bgt/asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     try {
-      execFileSync(process.execPath, [wasmOpt, wasmPath, ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+      if(existsSync(cached)){cpSync(cached,wasmPath);asyncifyCached=true;}
+      else {
+        execFileSync(process.execPath, [wasmOpt, wasmPath, ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+        const temporary=cached+'.'+process.pid+'.tmp';cpSync(wasmPath,temporary);renameSync(temporary,cached);
+      }
     } catch {
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
     }
@@ -225,7 +232,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   if (pipe) {
     manifest.pipeline = pipe.report;
     const instructions = pipe.report.modules.reduce((n,m) => n+(m.lift ? m.lift.specialized+m.lift.generic : 0),0);
-    manifest.pipeline.metrics = { ...compileMetrics, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+    manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
     if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B`);

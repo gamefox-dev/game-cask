@@ -23,34 +23,37 @@ static uint32_t gformat(uint32_t fmt, int wide_fmt, uint32_t va, char *out, uint
         i++;
         if (!c) break;
         if (c != '%') { if (n + 1 < cap) out[n++] = (char)c; continue; }
-        int left = 0, zero = 0, width = 0, prec = -1, lng = 0;
+        int left = 0, zero = 0, width = 0, prec = -1, lng = 0, int64_fmt=0, length_l=0;
         for (;;) {
             c = wide_fmt ? x86_rd16(fmt + 2 * i) : x86_rd8(fmt + i);
             if (c == '-') { left = 1; i++; } else if (c == '0') { zero = 1; i++; } else if (c == '#' || c == '+' || c == ' ') i++; else break;
         }
         while ((c = wide_fmt ? x86_rd16(fmt + 2 * i) : x86_rd8(fmt + i)) >= '0' && c <= '9') { width = width * 10 + (int)(c - '0'); i++; }
         if (c == '.') { i++; prec = 0; while ((c = wide_fmt ? x86_rd16(fmt + 2 * i) : x86_rd8(fmt + i)) >= '0' && c <= '9') { prec = prec * 10 + (int)(c - '0'); i++; } }
-        while (c == 'l' || c == 'h' || c == 'w') { lng = c == 'w'; i++; c = wide_fmt ? x86_rd16(fmt + 2 * i) : x86_rd8(fmt + i); }
+        if(c=='I'){i++;uint32_t d=wide_fmt?x86_rd16(fmt+2*i):x86_rd8(fmt+i);if(d=='6'){i+=2;int64_fmt=1;}c=wide_fmt?x86_rd16(fmt+2*i):x86_rd8(fmt+i);}
+        while (c == 'l' || c == 'h' || c == 'w') { if(c=='l')length_l++;lng = c == 'w' || c=='l'; i++; c = wide_fmt ? x86_rd16(fmt + 2 * i) : x86_rd8(fmt + i); }
+        int64_fmt|=length_l>=2;
         i++;
         char tmp[64];
         uint32_t tn = 0;
         if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X' || c == 'p') {
-            uint32_t v = x86_rd32(va); va += 4;
-            int neg = (c == 'd' || c == 'i') && (int32_t)v < 0;
-            uint32_t u = neg ? (uint32_t)(-(int32_t)v) : v, base = (c == 'x' || c == 'X' || c == 'p') ? 16 : 10;
-            if (c == 'p') { width = 8; zero = 1; }
-            char d[16]; int dn = 0;
-            do { uint32_t r = u % base; d[dn++] = (char)(r < 10 ? '0' + r : (c == 'X' || c == 'p' ? 'A' : 'a') + r - 10); u /= base; } while (u);
-            while (prec > dn && dn < 15) d[dn++] = '0';
+            int wide_int=int64_fmt || (W32_64 && c=='p');
+            uint64_t v=wide_int?x86_rd64(va):x86_rd32(va);va+=W32_64?8:wide_int?8:4;
+            int neg = (c == 'd' || c == 'i') && (wide_int?(int64_t)v<0:(int32_t)v<0);
+            uint64_t u=neg?(wide_int?0ull-v:(uint32_t)(0u-(uint32_t)v)):v;uint32_t base = (c == 'x' || c == 'X' || c == 'p') ? 16 : 10;
+            if (c == 'p') { width = W32_64?16:8; zero = 1; }
+            char d[32]; int dn = 0;
+            do { uint32_t r = (uint32_t)(u % base); d[dn++] = (char)(r < 10 ? '0' + r : (c == 'X' || c == 'p' ? 'A' : 'a') + r - 10); u /= base; } while (u);
+            while (prec > dn && dn < 31) d[dn++] = '0';
             if (neg) tmp[tn++] = '-';
             int pad = width - dn - (int)tn;
             if (zero && !left) while (pad-- > 0 && tn < 40) tmp[tn++] = '0';
             while (dn) tmp[tn++] = d[--dn];
             if (!zero || left) { /* space padding handled below */ }
         } else if (c == 'c') {
-            tmp[tn++] = (char)(x86_rd32(va) & 0x7f); va += 4;
+            tmp[tn++] = (char)(x86_rd32(va) & 0x7f); va += w32_ptr_size();
         } else if (c == 's' || c == 'S') {
-            uint32_t p = x86_rd32(va); va += 4;
+            uint32_t p = x86_rd32(va); va += w32_ptr_size();
             int ws = (c == 'S') ? !wide_fmt : wide_fmt;
             if (lng) ws = 1;
             char s[512];
@@ -166,7 +169,7 @@ static void ensure_cmdline(void) {
 }
 static uint32_t k_GetCommandLineA(void) { ensure_cmdline(); return cmdline_a; }
 static uint32_t k_GetCommandLineW(void) { ensure_cmdline(); return cmdline_w; }
-static uint32_t k_GetStartupInfo(void) { uint32_t p = ARG(0); for (uint32_t i = 0; i < 68; i++) x86_wr8(p + i, 0); x86_wr32(p, 68); return 0; }
+static uint32_t k_GetStartupInfo(void) { uint32_t p = ARG(0); for (uint32_t i = 0; i < (X.mode64?104u:68u); i++) x86_wr8(p + i, 0); x86_wr32(p, X.mode64?104:68); return 0; }
 static uint32_t k_GetVersion(void) { return 0x0a280105u; } /* Windows XP 5.1 build 2600 */
 static uint32_t k_GetVersionEx(void) {
     uint32_t p = ARG(0);
@@ -372,7 +375,7 @@ static int seek_file(uint32_t i,int64_t delta,uint32_t method){
     files[i].pos=base+(uint64_t)delta;last_error=0;return 1;
 }
 static uint32_t k_SetFilePointer(void){uint32_t i=file_index(ARG(0));int64_t d=(int32_t)ARG(1);if(ARG(2))d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));if(!seek_file(i,d,ARG(3)))return 0xffffffffu;if(ARG(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;}
-static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0));int64_t d=(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,ARG(4)))return 0;if(ARG(3)){x86_wr32(ARG(3),(uint32_t)files[i].pos);x86_wr32(ARG(3)+4,(uint32_t)(files[i].pos>>32));}return 1;}
+static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0)),out=ARG(W32_64?2:3),method=ARG(W32_64?3:4);int64_t d=W32_64?(int64_t)ARG64(1):(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,method))return 0;if(out){x86_wr32(out,(uint32_t)files[i].pos);x86_wr32(out+4,(uint32_t)(files[i].pos>>32));}return 1;}
 static uint32_t get_file_attributes(int wide) { int32_t asset=open_file_asset(wide);if(asset<0){last_error=2;return 0xffffffffu;}bgt_asset_close((uint32_t)asset);return 0x21u; /* READONLY|ARCHIVE */ }
 static uint32_t k_GetFileAttributesA(void) { return get_file_attributes(0); }
 static uint32_t k_GetFileAttributesW(void) { return get_file_attributes(1); }
@@ -444,10 +447,10 @@ static uint32_t reg_open(int wide, uint32_t parent, uint32_t sub, uint32_t out) 
     for (const char *c = pp; *c && n < 150; c++) full[n++] = *c;
     if (s[0]) { full[n++] = '\\'; for (const char *c = s; *c && n < 159; c++) full[n++] = *c; }
     full[n] = 0;
-    for (uint32_t i = 0; i < nkeys; i++) if (w32_streqi(keys[i], full)) { x86_wr32(out, H_KEY + i); return 0; }
+    for (uint32_t i = 0; i < nkeys; i++) if (w32_streqi(keys[i], full)) { w32_wrptr(out, H_KEY + i); return 0; }
     if (nkeys >= 64) return 8;
     for (uint32_t i = 0; i <= n; i++) keys[nkeys][i] = full[i];
-    x86_wr32(out, H_KEY + nkeys++);
+    w32_wrptr(out, H_KEY + nkeys++);
     return 0;
 }
 static uint32_t r_RegOpenKeyExA(void) { return reg_open(0, ARG(0), ARG(1), ARG(4)); }
@@ -537,38 +540,37 @@ static uint32_t c_time(void) {
 }
 static uint32_t c_clock(void) { return w32_now_ms(); }
 static uint32_t c_exit(void) { return k_ExitProcess(); }
-static uint32_t c_sprintf(void) { return w32_format_to_guest(CARG(0), 4096, 0, CARG(1), X.r[ESP] + 12); }
-static uint32_t c_swprintf(void) { return w32_format_to_guest(CARG(0), 4096, 1, CARG(1), X.r[ESP] + 12); }
-static uint32_t c_snprintf(void) { return w32_format_to_guest(CARG(0), CARG(1), 0, CARG(2), X.r[ESP] + 16); }
+static uint32_t c_sprintf(void) { return w32_format_to_guest(CARG(0), 4096, 0, CARG(1), (uint32_t)X.r[ESP]+(X.mode64?24:12)); }
+static uint32_t c_swprintf(void) { return w32_format_to_guest(CARG(0), 4096, 1, CARG(1), (uint32_t)X.r[ESP]+(X.mode64?24:12)); }
+static uint32_t c_snprintf(void) { return w32_format_to_guest(CARG(0), CARG(1), 0, CARG(2), (uint32_t)X.r[ESP]+(X.mode64?32:16)); }
 static uint32_t c_initterm(void) {
     /* call each non-null function pointer in [begin, end) */
     uint32_t b = CARG(0), e = CARG(1);
-    for (uint32_t p = b; p < e; p += 4) { uint32_t fn = x86_rd32(p); if (fn) x86_callback(fn, 0, 0); }
+    for (uint32_t p = b; p < e; p += w32_ptr_size()) { uint32_t fn = (uint32_t)w32_rdptr(p); if (fn) x86_callback(fn, 0, 0); }
     return 0;
 }
 static uint32_t c_initterm_e(void) {
     uint32_t b = CARG(0), e = CARG(1);
-    for (uint32_t p = b; p < e; p += 4) { uint32_t fn = x86_rd32(p); if (fn) { uint32_t r = x86_callback(fn, 0, 0); if (r) return r; } }
+    for (uint32_t p = b; p < e; p += w32_ptr_size()) { uint32_t fn = (uint32_t)w32_rdptr(p); if (fn) { uint32_t r = x86_callback(fn, 0, 0); if (r) return r; } }
     return 0;
 }
 static uint32_t argv_cell, envp_cell;
 static void ensure_args(void) {
     if (argv_cell) return;
     ensure_cmdline();
-    argv_cell = w32_misc_alloc(8); envp_cell = w32_misc_alloc(8);
-    x86_wr32(argv_cell, cmdline_a); x86_wr32(argv_cell + 4, 0);
-    x86_wr32(envp_cell, 0);
+    argv_cell = w32_misc_alloc(16); envp_cell = w32_misc_alloc(16);
+    w32_wrptr(argv_cell, cmdline_a); w32_wrptr(envp_cell, 0);
 }
 static uint32_t c_getmainargs(void) {
     ensure_args();
-    x86_wr32(CARG(0), 1); x86_wr32(CARG(1), argv_cell); x86_wr32(CARG(2), envp_cell);
+    x86_wr32(CARG(0), 1); w32_wrptr(CARG(1), argv_cell); w32_wrptr(CARG(2), envp_cell);
     return 0;
 }
 static uint32_t fmode_cell, commode_cell, adjust_fdiv_cell, argc_cell;
 static uint32_t c_p_fmode(void) { if (!fmode_cell) fmode_cell = w32_misc_alloc(4); return fmode_cell; }
 static uint32_t c_p_commode(void) { if (!commode_cell) commode_cell = w32_misc_alloc(4); return commode_cell; }
 static uint32_t c_p_argc(void) { if (!argc_cell) { argc_cell = w32_misc_alloc(4); x86_wr32(argc_cell, 1); } return argc_cell; }
-static uint32_t c_p_argv(void) { ensure_args(); uint32_t c = w32_misc_alloc(4); x86_wr32(c, argv_cell); return c; }
+static uint32_t c_p_argv(void) { ensure_args(); uint32_t c = w32_misc_alloc(8); w32_wrptr(c, argv_cell); return c; }
 static uint32_t c_controlfp(void) { return 0x9001fu; }
 static uint32_t c_except_handler(void) { return 1; } /* ExceptionContinueSearch */
 static uint32_t c_XcptFilter(void) { return 0; }  /* EXCEPTION_CONTINUE_SEARCH */

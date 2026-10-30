@@ -10,6 +10,9 @@
 /* Execute `in` (located at in->addr); sets X.eip to the next instruction or branch target.
  * Calls into lifted functions directly. */
 void x86_exec_insn(const x86_insn_t *in) {
+#ifdef X86_FLAT_GUEST
+    x86_exec64(in);return;
+#endif
     const x86_opnd_t *a = &in->o[0], *b = &in->o[1], *c = &in->o[2];
     uint32_t next = in->addr + in->len;
     int sz = a->size ? a->size : 4;
@@ -78,7 +81,7 @@ void x86_exec_insn(const x86_insn_t *in) {
     case XO_CDQ: if (in->osz == 4) X.r[EDX] = (X.r[EAX] & 0x80000000u) ? 0xffffffffu : 0; else xs_setreg(EDX, 2, (X.r[EAX] & 0x8000u) ? 0xffffu : 0); return;
     case XO_SETCC: xs_write(a, (uint32_t)xs_cond(in->cc)); return;
     case XO_CMOVCC: { uint32_t v = xs_read(b); if (xs_cond(in->cc)) xs_write(a, v); return; }
-    case XO_BSWAP: { uint32_t v = X.r[a->reg]; X.r[a->reg] = (v >> 24) | ((v >> 8) & 0xff00u) | ((v << 8) & 0xff0000u) | (v << 24); return; }
+    case XO_BSWAP: { uint32_t v = X.r[a->reg]; X.r[a->reg] = (uint32_t)((v >> 24) | ((v >> 8) & 0xff00u) | ((v << 8) & 0xff0000u) | (v << 24)); return; }
     case XO_BT: case XO_BTS: case XO_BTR: case XO_BTC: {
         uint32_t bit = xs_read(b);
         x86_opnd_t m = *a;
@@ -122,9 +125,9 @@ void x86_exec_insn(const x86_insn_t *in) {
     case XO_JCC: if (xs_cond(in->cc)) X.eip = in->target; return;
     case XO_JMP: X.eip = in->target; return;
     case XO_JMP_IND: X.eip = xs_read(a); return;
-    case XO_LOOP: if (--X.r[ECX]) X.eip = in->target; return;
-    case XO_LOOPE: if (--X.r[ECX] && (X.flags & F_ZF)) X.eip = in->target; return;
-    case XO_LOOPNE: if (--X.r[ECX] && !(X.flags & F_ZF)) X.eip = in->target; return;
+    case XO_LOOP: X.r[ECX]=(uint32_t)(X.r[ECX]-1);if (X.r[ECX]) X.eip = in->target; return;
+    case XO_LOOPE:X.r[ECX]=(uint32_t)(X.r[ECX]-1);if (X.r[ECX] && (X.flags & F_ZF)) X.eip = in->target; return;
+    case XO_LOOPNE:X.r[ECX]=(uint32_t)(X.r[ECX]-1);if (X.r[ECX] && !(X.flags & F_ZF)) X.eip = in->target; return;
     case XO_JECXZ: if (!X.r[ECX]) X.eip = in->target; return;
     case XO_CALL: x86_push(next); X.eip = in->target; return;
     case XO_CALL_IND: { uint32_t t = xs_read(a); x86_push(next); X.eip = t; return; }

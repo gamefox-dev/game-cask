@@ -11,8 +11,6 @@ try {
   if (mi >= 0) {
     process.stdout.write(JSON.stringify(analyzePeMetadata(args[0]), null, 2)+'\n');
   } else {
-    const meta = analyzePeMetadata(args[0]);
-    if (meta.pe32plus) throw new Error('PE32+ / Win64 execution is not implemented. Use --metadata for imports and .pdata/.xdata records (not disassembly or lifting).');
     const dis = args.indexOf('--disasm');
     if (dis >= 0) args.splice(dis,1);
     const r = spawnSync(x86tool(),[dis>=0?'disasm':'analyze',...args],{stdio:'inherit'});

@@ -1,5 +1,57 @@
 # Verification record — Game Cask
 
+## Task 1 — AMD64 execution core (complete at the specified finish line)
+
+Source fixtures built with the kit's installed **Zig 0.13.0, x86_64-windows-gnu**, then lifted to wasm; no Windows
+executable was run on the host. No engine/game input, network search, system install or new npm dependency.
+
+| fixture | independently asserted result | lifted / interpreted oracle |
+|---|---|---|
+| `x64-basics` | integer result, SSE scalar/packed math, function pointer, RIP-relative jump table, Win64 varargs and LOCK result PASS | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-cpp` | C++ vtable/static constructor; caught **38**, destructors **3**, order **321**; rethrow caught **6**, destructors **3**, order **345** | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-tls` | `.tls` initialized/zero data + callback **1**, full-width dynamic TLS, setjmp/longjmp **23**, hand-checked unwind records | **300 frames identical**, no errors, lifted interp_insns **0** |
+| `x64-gui` | window, GDI pixels/text, pointer/key input moves green square; full-width message/userdata sentinels | **300 frames identical**, no errors, lifted interp_insns **0** |
+
+Evidence tests: `tests/unit/x64.test.ts` (all four oracle comparisons), `tests/unit/x64-semantics.test.ts` (8 independent
+encoding/result cases), `tests/e2e/x64.spec.ts` (4 fixtures × WebGL2/WebGPU). Oracles use the interpreter-only build,
+not a second copy of lifted code. A shared-semantics oracle cannot validate semantic correctness alone: known results,
+synthetic unwind records and independent opcode assertions cover that. C++ uses compiled `__gxx_personality_seh0` and
+linked compiler exception runtime, **not** a throw/catch replacement or function-name override. All generated pipeline
+builds report zero overrides/hand-written replacement LOC. Startup is included in zero-interpretation assertions.
+
+Final required gate run: doctor ready; lint/typecheck **0 errors**; unit **90/90** (16 files); browser **75 pass / 4
+existing skips** (WebGL2 35/2, WebGPU 35/2, auto 5); i386 hello **600-frame oracle identical/no errors**; leakcheck
+**198 files clean**. Four explicit CLI x64 oracles also passed at 300 frames each. No existing test timeouts/skips or
+assertions were relaxed. The old test expecting Win64 rejection is changed to require a successful relocated/lifted
+build and zero overrides; a forced DIR64 fixture pointer ensures that high-base rebasing is actually exercised.
+
+Task 1 metric snapshot (`node tools/bench/x64-metrics.mjs` → private reports/x64-fixtures.json):
+
+| fixture | functions | instructions | wasm bytes | total B/insn | build ms (warm) |
+|---|---:|---:|---:|---:|---:|
+| basics | 7 | 164 | 301573 | 1838.86 | 216.018 |
+| cpp | 615 | 31488 | 3119752 | 99.08 | 409.557 |
+| tls | 81 | 1933 | 462671 | 239.35 | 247.383 |
+| gui | 77 | 1667 | 438472 | 263.03 | 244.854 |
+
+Times explicitly use 15 object-cache hits and an Asyncify cache hit, not cold builds. Byte/insn includes profile and
+Asyncify fixed overhead. No multi-million-instruction performance/size claim. Asyncify is now content-cached with
+atomic publication, avoiding repeated identical expensive postprocessing in existing slice tests.
+
+Visual review: fixture x64-gui-input.png read with the image viewer; title readable, green square moved, background
+restored at its old position. All x64 browser cases pass on WebGL2/software and WebGPU/Metal on Apple M4. Actual Linux
+CI, Safari/Firefox, physical iPhone and an independent agent validation were **not run**. CI remains Linux-compatible;
+no macOS tool is required by these changes. No BGT ABI changes for this task.
+
+Risks/limits: 128 MiB checked flat address window (images 16–64 MiB), correctness-first generic semantic lifting,
+nonlocal transfer propagation/SEH and Win64 structure widths are the main review areas. AVX, general x87 arithmetic,
+MSVC C++ personality formats, dynamic unwind registration, multithreading, complete CRT/API coverage and precise
+nondefault floating-point environment behavior are not claimed. Exact details: docs/pipeline.md → AMD64 execution.
+
+---
+
+## Previous iteration evidence (historical; superseded for AMD64 by Task 1)
+
 ## Kit v0.3 changes (in progress)
 
 The implementation/limitations ledger is [v03-status.md](v03-status.md). This is not a claim that the entire v0.3
@@ -33,7 +85,7 @@ pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window
 
 ---
 
-## Final v0.3 development-branch run
+## Previous v0.3 development-branch run (before Task 1)
 
 - doctor ready; lint/typecheck clean.
 - Unit **78/78**, 14 files.
@@ -46,8 +98,9 @@ pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window
 from those commits. The finishing follow-up includes it. Historical Stage 4/5 commits alone are not self-contained;
 this deviates from the requested per-commit gate discipline. History was not rewritten. Final HEAD is tested.
 
-The broad v0.3 brief is **not complete**: no Win64 execution, general shader/buffer/pipeline/GL layer, cooperative
-threads, WASAPI/COM/device expansion or minimum-image slicing. The package is labelled 0.3.0-dev.1, not a finished
+At this earlier checkpoint the broad v0.3 brief was **not complete**: no Win64 execution, general shader/buffer/pipeline/GL
+layer, cooperative threads, WASAPI/COM/device expansion or minimum-image slicing. Task 1 above now supplies AMD64 core
+execution at its fixture finish line; unrelated remaining tasks are not claimed complete. The package is labelled 0.3.0-dev.1, not a finished
 v0.3 release. See the explicit per-stage missing-work ledger before starting another trial.
 
 # Historical v0.1 verification

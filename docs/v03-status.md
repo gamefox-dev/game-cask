@@ -1,6 +1,28 @@
 # v0.3 implementation work record
 
-**Release status: partial development build (`0.3.0-dev.1`), not the complete requested v0.3 kit.**
+**Task 1 (AMD64 execution core): COMPLETE at the fixture finish line.** The overall v0.3 branch is still a development
+build (`0.3.0-dev.1`): general GPU/GL, scheduling and other previously listed tasks were outside this one-task follow-up.
+
+## Task 1 finish-line evidence
+
+- Four original CC0 `x86_64-windows-gnu` fixtures: `x64-basics`, `x64-cpp`, `x64-tls`, `x64-gui`.
+- `tests/unit/x64.test.ts`: each prints its known PASS result, has **interp_insns=0 through CRT startup and 300 frames**,
+  and compares an independently built interpreter-only module for **300 frames: identical, no errors**.
+- `tests/e2e/x64.spec.ts`: all four pass on **WebGL 2 and WebGPU** (8 cases); GDI window/key/pointer changes are asserted
+  by pixels and logs. C++ explicitly asserts caught=38/destructors=3/order=321, plus rethrow=6/destructors=3/order=345.
+- `tests/unit/x64-semantics.test.ts`: eight independent encoding/result tests cover GPR/address/flag/LOCK/string and
+  SSE/SSE2 families, full-width values, scalar lanes, saturation/shuffle/conversion/NaN comparison and CPUID masks.
+  The TLS fixture additionally calls RtlVirtualUnwind on hand-checked prolog/allocation/save/epilog records.
+- Pipeline metrics and command reproduction: Stage 2 section below; `node tools/bench/x64-metrics.mjs` writes private
+  reports/x64-fixtures.json. No additional dependency or ABI revision, no game input/source/engine path.
+- Final required gates: **90 unit tests/16 files; 75 browser passes/4 existing skips** (WebGL2 35 pass/2 skip, WebGPU
+  35 pass/2 skip, auto 5 pass); doctor ready, lint/typecheck clean, 600-frame i386 hello oracle identical/no errors,
+  leakcheck **198 committable files**. Four explicit `npm run oracle -- examples/x64-* 300` commands also passed.
+  CI code remains Linux-compatible (POSIX compiler/Python, WebGPU optional); actual Ubuntu/remote CI not run here.
+
+The older Stage 4/5 commit caveat below describes prior history only. This Task 1 change is committed atomically with
+all modified sources and tests after the gates; no prior history was rewritten. Screenshot x64-gui-input.png was
+visually reviewed: legible text, dark background, green square moved by two inputs, no clipping/artifact observed.
 
 ## Commit/gate caveat
 
@@ -10,15 +32,16 @@ independently green/self-contained; the finishing follow-up includes that implem
 History was not rewritten. Review the final HEAD, not Stage 4/5 in isolation. This is a deviation from the requested
 per-stage-commit gate discipline, not an external/environmental block.
 
-The finished branch remains incomplete: x64 execution, the general GPU/GL layer, scheduler/COM/audio/input profile
-growth and minimum-image packaging were not delivered. They are recorded as missing below, not claimed blocked by
+The previous iteration left x64 execution, the general GPU/GL layer, scheduler/COM/audio/input profile
+growth and minimum-image packaging unfinished. Task 1 now delivers the x64 core at its fixture finish line;
+the remaining unrelated tasks are not claimed complete. They are recorded as missing below, not claimed blocked by
 unavailable game files or a missing dependency. No per-engine workaround was introduced.
 
 This is a kit-development record, not a game-port claim. No game inputs were accessed or fetched. All executable
 fixtures are original CC0 C compiled by the installed Zig; nothing was executed as a native Windows executable.
 The supplied queue/feasibility JSON was read as evidence only. Product/engine information does not select code paths.
 
-## Final HEAD verification (macOS Apple M4, Chromium WebGPU/Metal and WebGL 2 software)
+## Previous iteration verification (historical; before Task 1)
 
 Required final run: doctor ready; lint 0 errors; typecheck 0 errors; **78 unit tests / 14 files passed**;
 **67 browser tests passed, 4 existing skips** (WebGL2 31+2 skips; WebGPU 31+2 skips; auto 5);
@@ -74,29 +97,49 @@ Remaining Stage 1 qualifications (not silently counted as exact Windows fidelity
 - Seatbelt is not a read allowlist/network sandbox; no real provider-driven unattended trial or nested sandbox test.
 - Inventory entropy is explicitly a head sample, not per-section sampling. `--strings` still reads a complete file.
 
-## Stage 2 — partial (scale infrastructure and static x64 facts, NOT x64 conversion)
+## Stage 2 — execution core complete (Task 1); large-target optimization remains separate
 
-Implemented: read-only file-backed native analysis (overlays not copied into the analyzer heap); streamed CLI output;
-`analyze --metadata` parses PE32+ full-width base/imports and .pdata/.xdata record headers/codes. An original x64
-integer/SSE fixture built by Zig verifies the parser. Fixture builds accept `target: x86_64-windows-gnu`; they use
--fno-lto because Zig 0.13's LTO link dropped the fixture's unwind table (confirmed by inspecting emitted assembly).
-The pipeline refuses x64 with a concrete kit-gap error rather than truncating pointers into the i386 profile.
+The shared decoder handles REX/16 GPRs/32–64-bit address sizes/RIP-relative/GS and baseline SSE/SSE2. Integer and SIMD
+semantics are shared by the interpreter and predecoded labelled-C lifter. LOCK operations are single-threaded. CPUID
+reports only baseline implemented features; no AVX/AES/BMI/XSAVE dispatch. CRT FNINIT is supported; general x87
+arithmetic remains outside Task 1's finish line. The i386 CPU word width and classic tests are retained.
 
-Compilation uses parallel content-addressed objects (`BGT_BUILD_JOBS`, default 2, capped 8), invalidated by source,
-all relevant headers, flags, path and compiler version. A conservative local flag-liveness optimization exists behind
-`pipeline.flagLiveness: true`. It is **not enabled by default** because the measured fixture got larger, not smaller.
-Register locals, flat guest mapping, coverage-guided lifting and lazy wasm chunks are not yet implemented here.
+PE32+ images are rebased to a checked **128 MiB flat guest window**, with DIR64 relocations/eight-byte imports and
+16–64 MiB image space. GS TEB/PEB, static TLS templates/zero fill/callbacks and pointer-width dynamic TLS work for the
+fixture. Win64 home/register/stack arguments, callbacks and native USER structure/message/window-long-pointer
+layouts share the Win32 GDI/USER APIs. Pointers remain u64; unsupported high virtual addresses fault, not truncate.
+AMD64 defaults to compact loader + streamed original-module view; large overlays are not eagerly mapped.
 
-`node tools/bench/lift-scale.mjs 1024`: original CC0 fixture, 1024 generated functions + entry, 34,841 lifted
-instructions. Same build toolchain with flag elision off → on: wasm 780,183 → 788,395 B; interpreter 243,264 B;
-marginal 15.4106 → 15.6463 B/insn. Build 28.837 s → 9.533 s (shared objects warm, so NOT a pure optimization timing
-comparison); warm rebuild 5.154 s, 0 compiled/12 cached objects. Largest child RSS 303,136,768 B. This is NOT aggregate
-concurrent memory and excludes wasm-opt. No 7.2M-instruction/iPhone scale claim; no evidence yet that lazy chunks are
-necessary or sufficient. Reports are reproducible with the script, saved privately to reports/scale.json.
+RtlLookupFunctionEntry/RtlVirtualUnwind/RtlUnwindEx/RaiseException walk .pdata/.xdata and call compiled guest
+`__gxx_personality_seh0`/libunwind/libc++abi handlers and compiler landing pads. C++ exception/destructor/rethrow logic
+is not replaced by the profile. setjmp/longjmp restore nonvolatile GPR/XMM/IP/stack state through a guest transfer
+boundary. MinGW CRT and C++ static constructor execute in guest code. Unknown APIs/instructions fail explicitly.
 
-Missing: REX/16-GPR/RIP-relative decoder and shared 64-bit semantics, SSE/SSE2/x87 execution, CPUID, PE32+ rebased
-loader, Win64 thunks/callbacks, TEB/TLS, CRT, SEH/C++ exception/longjmp machinery. The base runtime's uint32 CPU/memory
-model cannot safely stand in for these; this stage is incomplete, not an environment-blocked success.
+Task 1 metrics (macOS Apple M4, installed Zig 0.13.0, total final wasm including profile/Asyncify):
+
+| fixture | functions | instructions | wasm bytes | wasm B/insn | warm build ms |
+|---|---:|---:|---:|---:|---:|
+| x64-basics | 7 | 164 | 301573 | 1838.86 | 216.018 |
+| x64-cpp | 615 | 31488 | 3119752 | 99.08 | 409.557 |
+| x64-tls | 81 | 1933 | 462671 | 239.35 | 247.383 |
+| x64-gui | 77 | 1667 | 438472 | 263.03 | 244.854 |
+
+All four measurements used **0 compiled/15 cached objects and an Asyncify cache hit**. They are not cold build times.
+The largest fixture is the genuinely linked C++ runtime (~31k decoded instructions), not a 7.2M-instruction feasibility
+claim. Instruction count includes cold code; generic_insn_execs counts shared-semantic execution within lifted C,
+while interp_insns is zero. Indirect targets still unresolved statically are reported honestly (including the assembly
+jump table); they resolve to lifted range labels at runtime, not an interpreter loop. Profile fixed cost dominates
+small-fixture byte/insn values.
+
+Builds remain parallel/incremental per object. A postprocess cache now hashes linked wasm, wasm-opt and pass/feature
+identity, and publishes atomically; `asyncify_cached` records hits. This fixes the slice tests spending their existing
+timeout rebuilding identical postprocessed modules, without weakening assertions or increasing timeouts. Conservative
+flag-liveness remains opt-in because the prior scale fixture regressed. No register-local/7.2M-scale speedup claimed.
+
+Remaining real-world compatibility: AVX/newer extensions, x87 arithmetic, precise FP trap/FTZ/DAZ/nondefault arithmetic
+rounding, wider flat memory, multiple threads, dynamic unwind table registration, MSVC C++ personalities/foreign
+exception edge cases, and the rest of the Win32/CRT API surface. MinGW-target here means the installed Zig target and
+its linked compiler runtime, not proof across every GCC/MSVC release. See docs/pipeline.md for the exact contract.
 
 ## Stage 3 — partial (additive ABI requests and readback, NOT the general GPU/GL layer)
 

@@ -29,6 +29,7 @@ typedef struct {
     /* system DLLs the profile implements (platforms/win32/dlls.json; entries ending in '*' are prefixes) */
     const char *const *sys_dlls;
     uint32_t nsys_dlls;
+    int mode64;
 } w32_config_t;
 
 typedef struct {

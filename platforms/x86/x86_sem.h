@@ -187,8 +187,9 @@ static inline void xs_string(int op, int sz, int rep) {
         case XO_SCAS: xs_alu(XO_CMP, xs_getreg(EAX, sz), xs_rdn(X.r[EDI], sz), sz); X.r[EDI] += (uint32_t)d; break;
         default: return;
         }
+        X.r[ESI]=(uint32_t)X.r[ESI];X.r[EDI]=(uint32_t)X.r[EDI];
         if (!rep) return;
-        X.r[ECX]--;
+        X.r[ECX]=(uint32_t)(X.r[ECX]-1);
         if (op == XO_CMPS || op == XO_SCAS) {
             int zf = !!(X.flags & F_ZF);
             if ((rep == 0xf3 && !zf) || (rep == 0xf2 && zf)) return;

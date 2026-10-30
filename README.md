@@ -35,8 +35,11 @@ No new npm dependencies are required for these tools; optional pi/Python PTY dri
 ## Development status
 
 This branch is a **partial v0.3 implementation**, not Win64/GL readiness. See [docs/v03-status.md](docs/v03-status.md)
-for stage-by-stage evidence and missing work. Executing x64 is still rejected explicitly. PE32+ imports/unwind-table
-metadata can be inspected with `npm run analyze -- FILE --metadata`. Pipeline builds now cache objects and compile in
+for stage-by-stage evidence and missing work. **AMD64 execution now passes the four source-built Task 1 fixtures**:
+integer/SSE/varargs, compiled C++ exceptions/destructors, TLS/setjmp and GDI/input. Each is fully lifted and oracle-identical
+for 300 frames. This is not arbitrary Win64 compatibility; see [docs/pipeline.md](docs/pipeline.md#amd64-execution-task-1)
+for the flat-address window, supported semantics and real-world limits. `analyze -- FILE --metadata` remains available.
+Pipeline builds cache objects and Asyncify output and compile in
 parallel (`BGT_BUILD_JOBS=2` by default); `node tools/bench/lift-scale.mjs 1024` reproduces scale measurements.
 ABI v0.3 is additive (`0x000300`): bounded async requests, command-ordered GPU readback, backend texture limits,
 streamed asset ranges, profile entry coverage and explicit slice boundaries. This is **not** the requested general

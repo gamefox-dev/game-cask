@@ -42,7 +42,7 @@ function hostCC() {
 
 /** Build (or reuse) the native x86tool. */
 export function x86tool() {
-  const srcs = [join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c'), join(ROOT, 'platforms/x86/x86_decode.h')];
+  const srcs = [join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c'), join(ROOT, 'platforms/x86/x86_decode.h'),join(ROOT,'tools/x86/lift64.h')];
   const h = sha256(Buffer.concat(srcs.map((s) => readFileSync(s)))).slice(0, 16);
   const out = join(CACHE, `x86tool-${h}`);
   if (!existsSync(out)) {
@@ -77,8 +77,8 @@ export function buildFixture(gameDir, fx, outDir) {
   }
   const target = fx.target ?? 'x86-windows-gnu';
   if (!['x86-windows-gnu','x86_64-windows-gnu'].includes(target)) throw new Error(`unsupported fixture target ${target}`);
-  const args = [fx.cpp ? 'c++' : 'cc', '-target', target, ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables','-fno-lto']), '-O1', '-fno-stack-protector', '-nostdlib', '-isystem', zigWinInclude(),
-    `-Wl,--entry,${fx.entry ?? 'entry'}`, '-Wl,--subsystem,windows', ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []), '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
+  const args = [fx.cpp ? 'c++' : 'cc', '-target', target, ...(target === 'x86-windows-gnu' ? ['-mcpu=i686'] : ['-funwind-tables','-fno-lto','-fno-emulated-tls']), fx.crt ? '-O2' : '-O1', '-fno-stack-protector', ...(fx.crt ? ['-s','-Wl,--gc-sections'] : ['-nostdlib']), '-isystem', zigWinInclude(),
+    ...(fx.crt ? [] : [`-Wl,--entry,${fx.entry ?? 'entry'}`]), '-Wl,--subsystem,windows', ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []), '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`)];
   execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
@@ -115,9 +115,9 @@ function resolveModule(gameDir, spec, fixtureFiles) {
 function peInfo(file) {
   const fd=openSync(file,'r');try {
     const p=peMetadata((o,n)=>{const b=Buffer.alloc(n);return b.subarray(0,readSync(fd,b,0,n,o));},fstatSync(fd).size);
-    if(p.pe32plus) throw new Error('pipeline: kit gap: PE32+ / Win64 execution is not implemented; analyze --metadata is static only (never truncate 64-bit pointers into the i386 profile)');
+    if(p.pe32plus && p.machine!=='x86-64')throw new Error('unsupported PE32+ machine');
     if(p.importErrors.length)throw new Error(p.importErrors.join('; '));
-    return {base:Number(BigInt(p.imageBase)),size:p.imageBytes,relocs:p.directories[5][0]!==0,importDlls:p.imports};
+    return {mode64:p.pe32plus,base:p.pe32plus?0x01000000:Number(BigInt(p.imageBase)),size:p.imageBytes,relocs:p.directories[5][0]!==0,importDlls:p.imports};
   }finally{closeSync(fd);}
 }
 
@@ -176,12 +176,16 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   const tool = x86tool();
   const ov = overrides(gameDir);
   const mods = [], streams = [];
+  let mode64=false;
   let next = 0x10000000;
   for (const m of p.modules) {
     const { file, provenance } = resolveModule(gameDir, m.from, fixtureFiles);
     const name = m.name ?? basename(m.from.split('#').pop()).toLowerCase();
     const info = peInfo(file);
+    if(mods.length && info.mode64!==mode64)throw new Error('cannot mix i386 and AMD64 modules in one process');mode64=info.mode64;
+    if(mode64 && p.streamModules!==false)p.streamModules=true;
     let base = info.base;
+    if(mode64 && !mods.length)next=0x01000000;
     /* keep preferred bases unless they overlap an earlier module (then relocate deterministically) */
     const overlaps = (b) => mods.some((o) => b < o.base + o.size && o.base < b + info.size);
     if (overlaps(base)) {
@@ -189,6 +193,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       while (overlaps(next)) next += 0x100000;
       base = next;
     }
+    if(mode64 && base+info.size>0x04000000)throw new Error('AMD64 images exceed the configured low flat image window (16..64 MiB)');
     const asset = `${p.streamModules ? 'loader' : 'modules'}/${name}`;
     mkdirSync(join(outAssetsDir, p.streamModules ? 'loader' : 'modules'), { recursive: true });
     if (p.streamModules) {
@@ -247,7 +252,7 @@ static const w32_module_cfg_t modules[] = {
 ${rows}
 };
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
-static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}};
+static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
@@ -263,6 +268,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   /* lifted tables are sorted by address; the profile merges them across modules */
   const platform = [
     'platforms/x86/x86_decode.c', 'platforms/x86/x86_exec.c', 'platforms/x86/x86_rt.c',
+    'platforms/x86/x86_exec64.c','platforms/x86/x86_simd.c','platforms/win32/w32_x64.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
     'platforms/win32/w32_replay.c',
     'platforms/common/font5x7.c',
@@ -273,6 +279,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   const report = {
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
+    machine: mode64?'x86-64':'i386',
     interpretOnly: !!p.interpretOnly,
     modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
@@ -285,7 +292,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),ranges:plan.ranges} : null,
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
-    cflags: ['-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],
+    cflags: [...(mode64?['-DX86_FLAT_GUEST=1','-fno-math-errno']:[]),'-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],
     asyncify: true,
     report,
   };

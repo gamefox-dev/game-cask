@@ -318,7 +318,7 @@ uint32_t w32_thunk_for(const char *dll, const char *name) {
 uint32_t w32_data_import(const char *name);
 uint32_t w32_resolve_api(const char *dll, const char *name) {
     const w32_api_t *api = w32_find_api(name);
-    if (!api) return 0;
+    if (!api) {int handled=-1;if(X.mode64)w64_api(name,&handled);else handled=0;return handled?w32_thunk_for(dll,name):0;}
     if (w32_is_pixel_read_api(name)) w32_rp_enable(); /* late: surfaces drawn before now have unknown history */
     return api->nargs == 255 ? w32_data_import(name) : w32_thunk_for(dll, name);
 }
@@ -363,10 +363,13 @@ static int thunk_handler(uint32_t addr) {
     uint32_t i = (addr - W32_THUNK_LO) / 16u;
     slot_t *s = &slots[i];
     trace(i);
-    for (uint32_t a = 0; a < 4; a++) trace(ARG(a));
+    for (uint32_t a = 0; a < 4; a++) {trace(ARG(a));if(X.mode64)trace((uint32_t)(ARG64(a)>>32));}
     s->hits++;
     w32_m.api_calls++;
-    if (!s->api) {
+    uint32_t transfer=(uint32_t)X.transfer;
+    if(X.mode64){static const int reg[4]={ECX,EDX,R8,R9};for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);}
+    int special=0;uint64_t result=X.mode64?w64_api(s->name,&special):0;
+    if (!s->api && !special) {
         /* arg count unknown: continuing would corrupt the stack */
         char msg[120];
         uint32_t n = 0;
@@ -379,16 +382,20 @@ static int thunk_handler(uint32_t addr) {
         note_stub(s->name[0] == '#' ? msg + 33 : s->name); /* ordinals keep their DLL: "dll!#14" */
         x86_fault(msg, addr);
     }
-    if (s->api->fn == 0) { /* declared stub: known signature, no behaviour */
+    if(X.transfer!=(int)transfer)return 0;
+    if(special)X.r[EAX]=result;
+    else if (s->api->fn == 0) { /* declared stub: known signature, no behaviour */
         w32_m.stub_calls++;
         note_stub(s->name);
         X.r[EAX] = 0;
     } else {
         X.r[EAX] = s->api->fn();
     }
-    trace(X.r[EAX]);
-    X.eip = x86_pop();
-    if (!s->api->cdecl) X.r[ESP] += 4u * s->api->nargs;
+    if(X.transfer!=(int)transfer)return 0;
+    if(X.mode64&&!special&&X.r[EAX]==0xffffffffu && (w32_streqi(s->name,"CreateFileA")||w32_streqi(s->name,"CreateFileW")||w32_streqi(s->name,"GetCurrentProcess")||w32_streqi(s->name,"GetCurrentThread")))X.r[EAX]=(x86_word_t)UINT64_MAX;
+    trace((uint32_t)X.r[EAX]);if(X.mode64)trace((uint32_t)((uint64_t)X.r[EAX]>>32));
+    X.eip = (uint32_t)x86_pop();
+    if (!X.mode64 && !s->api->cdecl) X.r[ESP] += 4u * s->api->nargs;
     return 0;
 }
 
@@ -402,35 +409,42 @@ static uint32_t load_image(const w32_module_cfg_t *mc, w32_module_t *m) {
     if (h <= 0) return 0;
     int32_t len = bgt_asset_size(h);
     if (!file_buf && !(file_buf = (uint8_t *)x86_alloc(FILE_BUF_BYTES))) { bgt_asset_close(h); return 0; }
-    if (len <= 0 || (uint32_t)len > FILE_BUF_BYTES) { bgt_asset_close(h); return 0; }
-    bgt_asset_read(h, file_buf, (uint32_t)len);
-    bgt_asset_close(h);
+    if (len <= 0) { bgt_asset_close(h); return 0; }
+    uint32_t prefix=(uint32_t)len<FILE_BUF_BYTES?(uint32_t)len:FILE_BUF_BYTES;
+    if(bgt_asset_read(h,file_buf,prefix)!=(int32_t)prefix){bgt_asset_close(h);return 0;}
     const uint8_t *d = file_buf;
 #define R16(o) ((uint32_t)d[(o)] | ((uint32_t)d[(o) + 1] << 8))
 #define R32(o) (R16(o) | (R16((o) + 2) << 16))
-    if (len < 0x40 || d[0] != 'M' || d[1] != 'Z') return 0;
-    uint32_t nt = R32(0x3c), opt = nt + 24, optsz = R16(nt + 20), nsec = R16(nt + 6);
-    uint32_t pref = R32(opt + 28), size = R32(opt + 56), hdr = R32(opt + 60);
+    if (len < 0x40 || d[0] != 'M' || d[1] != 'Z') {bgt_asset_close(h);return 0;}
+    uint32_t nt = R32(0x3c);if((uint64_t)nt+24>prefix){bgt_asset_close(h);return 0;}
+    uint32_t opt = nt + 24, optsz = R16(nt + 20), nsec = R16(nt + 6);
+    if((uint64_t)opt+optsz+40u*nsec>prefix){bgt_asset_close(h);return 0;}
+    int plus=R16(opt)==0x20b;if(plus!=X.mode64){bgt_asset_close(h);return 0;}
+    uint64_t pref = plus ? (uint64_t)R32(opt+24)|((uint64_t)R32(opt+28)<<32) : R32(opt+28);
+    uint32_t size = R32(opt + 56), hdr = R32(opt + 60);
     uint32_t base = mc->base ? mc->base : pref;
     uint8_t *img = x86_map(base, size);
-    if (!img) return 0;
-    __builtin_memcpy(img, d, hdr < (uint32_t)len ? hdr : (uint32_t)len);
+    if (!img) {bgt_asset_close(h);return 0;}
+    if(hdr>prefix||hdr>size){bgt_asset_close(h);return 0;}
+    __builtin_memcpy(img,d,hdr);
     for (uint32_t i = 0; i < nsec; i++) {
         uint32_t s = opt + optsz + 40 * i, vsz = R32(s + 8), va = R32(s + 12), rsz = R32(s + 16), raw = R32(s + 20);
         uint32_t c = rsz < vsz || !vsz ? rsz : vsz;
-        if (raw + c > (uint32_t)len) c = raw < (uint32_t)len ? (uint32_t)len - raw : 0;
-        if (va + c > size) c = va < size ? size - va : 0;
-        __builtin_memcpy(img + va, d + raw, c);
+        if ((uint64_t)raw + c > (uint32_t)len) c = raw < (uint32_t)len ? (uint32_t)len - raw : 0;
+        if ((uint64_t)va + c > size) c = va < size ? size - va : 0;
+        if(c){if(bgt_asset_seek(h,raw)<0||bgt_asset_read(h,img+va,c)!=(int32_t)c){bgt_asset_close(h);return 0;}}
     }
-    uint32_t dd = opt + 96;
+    bgt_asset_close(h);
+    uint32_t dd = opt + (plus?112:96);
     /* relocations (only when loaded away from the preferred base) */
     if (base != pref) {
-        uint32_t rr = R32(dd + 40), rs = R32(dd + 44), delta = base - pref;
+        uint32_t rr = R32(dd + 40), rs = R32(dd + 44);uint64_t delta = (uint64_t)base-pref;
         for (uint32_t p = rr; p + 8 <= rr + rs;) {
             uint32_t page = x86_rd32(base + p), bs = x86_rd32(base + p + 4);
             if (bs < 8) break;
             for (uint32_t k = 8; k + 2 <= bs; k += 2) {
                 uint32_t e = x86_rd16(base + p + k);
+                if ((e >> 12) == 10) x86_wr64(base+page+(e&0xfff),x86_rd64(base+page+(e&0xfff))+delta);
                 if ((e >> 12) == 3) x86_wr32(base + page + (e & 0xfff), x86_rd32(base + page + (e & 0xfff)) + delta);
             }
             p += bs;
@@ -444,6 +458,7 @@ static uint32_t load_image(const w32_module_cfg_t *mc, w32_module_t *m) {
     m->is_dll = (R16(nt + 22) & 0x2000) != 0;
     m->export_rva = R32(dd); m->export_size = R32(dd + 4);
     m->rsrc_rva = R32(dd + 16);
+    m->pdata_rva=R32(dd+24);m->pdata_size=R32(dd+28);m->tls_rva=R32(dd+72);
 #undef R16
 #undef R32
     return base;
@@ -451,7 +466,7 @@ static uint32_t load_image(const w32_module_cfg_t *mc, w32_module_t *m) {
 
 /* returns 0 when the module imports a DLL that is neither shipped nor implemented by the profile */
 static int bind_imports(w32_module_t *m) {
-    uint32_t nt = x86_rd32(m->base + 0x3c), dd = m->base + nt + 24 + 96;
+    uint32_t nt = x86_rd32(m->base + 0x3c), dd = m->base + nt + 24 + (X.mode64?112:96);
     uint32_t imp = x86_rd32(dd + 8);
     if (!imp) return 1;
     char dll[64], name[64];
@@ -474,10 +489,10 @@ static int bind_imports(w32_module_t *m) {
         }
         uint32_t lt = m->base + (ilt ? ilt : iat);
         for (uint32_t k = 0;; k++) {
-            uint32_t ent = x86_rd32(lt + 4 * k);
+            uint64_t ent = w32_rdptr(lt + w32_ptr_size() * k);
             if (!ent) break;
             uint32_t ord = 0;
-            if (ent & 0x80000000u) { /* by ordinal: keep the number in the name ("#14") */
+            if (ent & (X.mode64?0x8000000000000000ull:0x80000000u)) { /* by ordinal: keep the number in the name ("#14") */
                 ord = ent & 0xffffu;
                 char t[8]; int tn = 0; uint32_t v = ord;
                 do { t[tn++] = (char)('0' + v % 10); v /= 10; } while (v);
@@ -495,13 +510,18 @@ static int bind_imports(w32_module_t *m) {
                 const w32_api_t *api = find_api(name);
                 addr = api && api->nargs == 255 ? w32_data_import(name) : w32_thunk_for(dll, name);
             }
-            x86_wr32(m->base + iat + 4 * k, addr);
+            w32_wrptr(m->base + iat + w32_ptr_size() * k, addr);
         }
     }
     return 1;
 }
 
 static void setup_teb(void) {
+    if(X.mode64) {
+        x86_map(W32_TEB,0x10000);x86_wr64(W32_TEB+8,W32_STACK_HI);x86_wr64(W32_TEB+16,W32_STACK_LO);
+        x86_wr64(W32_TEB+0x30,W32_TEB);x86_wr64(W32_TEB+0x40,1);x86_wr64(W32_TEB+0x48,1);x86_wr64(W32_TEB+0x60,W32_PEB);
+        x86_wr64(W32_PEB+0x10,w32_mod_by_handle(0)->base);X.gs_base=W32_TEB;return;
+    }
     x86_map(W32_TEB, 0x2000);
     x86_wr32(W32_TEB + 0x00, 0xffffffffu); /* SEH chain end */
     x86_wr32(W32_TEB + 0x04, W32_STACK_HI);
@@ -516,6 +536,10 @@ static void setup_teb(void) {
 
 int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     cfg = c;
+#ifndef X86_FLAT_GUEST
+    if(c->mode64)return BGT_E_UNSUPPORTED;
+#endif
+    X.mode64=c->mode64;X.mxcsr=0x1f80;
     w32_io = io;
     slots = (slot_t *)x86_alloc(W32_THUNK_SLOTS * sizeof(slot_t));
     if (!slots || !x86_map(W32_THUNK_LO, W32_THUNK_HI - W32_THUNK_LO) || !x86_map(W32_MISC, W32_MISC_SIZE)) return BGT_E_LIMIT;
@@ -554,6 +578,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 
 void w32_wait_frame(void) {
     w32_m.yields++;
+    X.frame_insns=0;
     bgt_yield();
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
     w32_user_pump_input();
@@ -564,6 +589,7 @@ void w32_wait_frame(void) {
 void w32_update(void) {
     if (started) return; /* the guest lives inside bgt_yield from here on */
     started = 1;
+    if(X.mode64)w64_tls_init();
     /* DLL entry points first (DLL_PROCESS_ATTACH), then the program */
     for (uint32_t i = 0; i < w32_nmods; i++) {
         if (!w32_mods[i].is_dll || !w32_mods[i].entry) continue;
@@ -574,6 +600,7 @@ void w32_update(void) {
     if (!mainm || !mainm->entry) x86_fault("no program entry point", 0);
     x86_push(RET_SENTINEL);
     x86_invoke(mainm->entry, RET_SENTINEL);
+    while(X.transfer){X.transfer=0;x86_invoke(X.eip,RET_SENTINEL);}
     /* the program returned from its entry point */
     w32_exited = 1;
     w32_log("win32 profile: program returned from its entry point");
@@ -682,7 +709,8 @@ const char *w32_debug_json(void) {
         wj_raw(&j, ",\"base\":"); wj_int(&j, w32_mods[i].base);
         wj_raw(&j, ",\"size\":"); wj_int(&j, w32_mods[i].size); wj_raw(&j, "}");
     }
-    wj_raw(&j, "],\"ui\":");
+    wj_raw(&j,"],\"cpu\":{\"ip\":");wj_int(&j,X.eip);wj_raw(&j,",\"r\":[");for(int i=0;i<(X.mode64?16:8);i++){if(i)wj_raw(&j,",");wj_int(&j,(int64_t)X.r[i]);}wj_raw(&j,"]}");
+    wj_raw(&j, ",\"ui\":");
     w32_user_debug_ui(&j);
     wj_raw(&j, "}");
     j.b[j.n] = 0;

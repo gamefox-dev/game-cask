@@ -66,7 +66,8 @@ typedef struct { char name[64]; uint32_t ordinal, addr; } export_t;
 typedef struct {
     uint8_t *img;      /* mapped image (virtual layout), relocated to `base` */
     uint32_t size, base, pref_base, entry;
-    int is_dll, has_relocs;
+    uint64_t preferred64;
+    int mode64, is_dll, has_relocs;
     sect_t sec[96]; uint32_t nsec;
     import_t *imp; uint32_t nimp;
     export_t *exp; uint32_t nexp;
@@ -96,13 +97,14 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
     if (len < 0x40 || d[0] != 'M' || d[1] != 'Z') die("not an MZ/PE file");
     uint32_t nt = r32(d + 0x3c);
     if ((uint64_t)nt + 248 > len || memcmp(d + nt, "PE\0\0", 4)) die("no PE header");
-    if (r16(d + nt + 4) == 0x8664) die("PE32+ / Win64 execution is not implemented (use analyze --metadata)");
-    if (r16(d + nt + 4) != 0x14c) die("unsupported PE machine (requires i386)");
+    pe->mode64 = r16(d + nt + 4) == 0x8664;
+    if (!pe->mode64 && r16(d + nt + 4) != 0x14c) die("unsupported PE machine");
     uint32_t opt = nt + 24, optsz = r16(d + nt + 20);
-    if (r16(d + opt) != 0x10b) die("not PE32");
-    if (optsz < 224 || (uint64_t)opt + optsz > len) die("truncated PE32 optional header");
+    if (r16(d + opt) != (pe->mode64?0x20b:0x10b)) die("PE optional header/machine mismatch");
+    if (optsz < (pe->mode64?240:224) || (uint64_t)opt + optsz > len) die("truncated PE32 optional header");
     pe->is_dll = (r16(d + nt + 22) & 0x2000) != 0;
-    pe->pref_base = r32(d + opt + 28);
+    pe->preferred64 = pe->mode64 ? (uint64_t)r32(d+opt+24)|((uint64_t)r32(d+opt+28)<<32) : r32(d+opt+28);
+    pe->pref_base = pe->mode64 ? 0x01000000u : (uint32_t)pe->preferred64;
     pe->size = r32(d + opt + 56);
     if (pe->size > 256u << 20) die("image too large");
     uint32_t hdrsz = r32(d + opt + 60);
@@ -124,12 +126,12 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
     }
     pe->base = want_base ? want_base : pe->pref_base;
     pe->entry = r32(d + opt + 16) ? pe->base + r32(d + opt + 16) : 0;
-    const uint8_t *dd = d + opt + 96;
-    for (uint32_t k = 0; k < 16 && 96 + 8 * k + 8 <= optsz; k++) { pe->dd_rva[k] = r32(dd + 8 * k); pe->dd_size[k] = r32(dd + 8 * k + 4); }
+    const uint8_t *dd = d + opt + (pe->mode64?112:96);
+    for (uint32_t k = 0; k < 16 && (pe->mode64?112u:96u) + 8 * k + 8 <= optsz; k++) { pe->dd_rva[k] = r32(dd + 8 * k); pe->dd_size[k] = r32(dd + 8 * k + 4); }
     /* relocations */
     uint32_t rel_rva = r32(dd + 5 * 8), rel_sz = r32(dd + 5 * 8 + 4);
     pe->has_relocs = rel_rva && rel_sz;
-    int32_t delta = (int32_t)(pe->base - pe->pref_base);
+    int64_t delta = (int64_t)pe->base - (int64_t)pe->preferred64;
     if (pe->has_relocs) {
         uint32_t p = rel_rva, end = rel_rva + rel_sz;
         while (p + 8 <= end && p + 8 <= pe->size) {
@@ -137,6 +139,10 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
             if (bs < 8 || p + bs > pe->size) break;
             for (uint32_t k = 8; k + 2 <= bs; k += 2) {
                 uint32_t e = r16(pe->img + p + k), type = e >> 12, off = e & 0xfff;
+                if(type == 10 && (uint64_t)page+off+8<=pe->size) {
+                    uint8_t *q=pe->img+page+off;uint64_t v=(uint64_t)r32(q)|((uint64_t)r32(q+4)<<32);v+=(uint64_t)delta;
+                    w32(q,(uint32_t)v);w32(q+4,(uint32_t)(v>>32));vpush(&pe->reloc_vas,pe->base+page+off);
+                }
                 if (type == 3 && page + off + 4 <= pe->size) {
                     uint8_t *q = pe->img + page + off;
                     if (delta) w32(q, r32(q) + (uint32_t)delta);
@@ -161,15 +167,17 @@ static void pe_load(pe_t *pe, const uint8_t *d, uint32_t len, uint32_t want_base
             cstr(pe->img + name, 63, dll, sizeof dll);
             vpush(&pe->name_ranges, pe->base + name); vpush(&pe->name_ranges, pe->base + name + (uint32_t)strlen(dll) + 1);
             uint32_t lt = ilt ? ilt : iat;
-            for (uint32_t k = 0; lt + 4 * k + 4 <= pe->size; k++) {
-                uint32_t ent = r32(pe->img + lt + 4 * k);
+            uint32_t stride=pe->mode64?8:4;
+            for (uint32_t k = 0; lt + stride * k + stride <= pe->size; k++) {
+                uint32_t ent = r32(pe->img + lt + stride * k);
+                int ordinal=pe->mode64?!!(r32(pe->img+lt+stride*k+4)&0x80000000u):!!(ent&0x80000000u);
                 if (!ent) break;
                 if (pe->nimp == cap) { cap *= 2; pe->imp = realloc(pe->imp, cap * sizeof(import_t)); if (!pe->imp) die("oom"); }
                 import_t *im = &pe->imp[pe->nimp++];
                 memset(im, 0, sizeof *im);
                 snprintf(im->dll, sizeof im->dll, "%s", dll);
-                im->iat = pe->base + iat + 4 * k;
-                if (ent & 0x80000000u) { im->ordinal = ent & 0xffff; snprintf(im->name, sizeof im->name, "#%u", im->ordinal); }
+                im->iat = pe->base + iat + stride * k;
+                if (ordinal) { im->ordinal = ent & 0xffff; snprintf(im->name, sizeof im->name, "#%u", im->ordinal); }
                 else if (ent + 2 < pe->size) {
                     cstr(pe->img + ent + 2, 63, im->name, sizeof im->name);
                     vpush(&pe->name_ranges, pe->base + ent); vpush(&pe->name_ranges, pe->base + ent + 3 + (uint32_t)strlen(im->name));
@@ -206,13 +214,13 @@ static int decode_at(const pe_t *pe, uint32_t va, x86_insn_t *in) {
     const uint8_t *p = at(pe, va);
     if (!p || !is_code(pe, va)) return 0;
     uint32_t avail = pe->base + pe->size - va;
-    return x86_decode(p, avail > 15 ? 15 : avail, va, in);
+    return x86_decode_mode(p, avail > 15 ? 15 : avail, va, pe->mode64, in);
 }
 
 /* ------------------------------------------------------------------ analysis */
 typedef struct { uint32_t at; vec_t targets; int resolved; uint32_t table; } ijump_t;
 typedef struct {
-    uint32_t addr;
+    uint32_t addr, end;
     vec_t insns;       /* addresses of all instructions in the function (sorted) */
     vec_t labels;      /* branch targets inside the function */
     vec_t calls;       /* direct call targets */
@@ -238,6 +246,7 @@ static int func_index(an_t *a, uint32_t addr) {
 }
 static void add_func(an_t *a, uint32_t addr, int kind) {
     if (!is_code(a->pe, addr) || func_index(a, addr) >= 0 || vhas(&a->blocked, addr)) return;
+    if(a->pe->mode64 && kind>=3)for(uint32_t i=0;i<a->nf;i++)if(addr>a->f[i].addr&&addr<a->f[i].end)return;
     if (a->nf == a->capf) { a->capf = a->capf ? a->capf * 2 : 256; a->f = realloc(a->f, a->capf * sizeof(func_t)); if (!a->f) die("oom"); }
     func_t *f = &a->f[a->nf++];
     memset(f, 0, sizeof *f);
@@ -428,7 +437,39 @@ static void reset_analysis(an_t *a) {
 static void analyze(an_t *a);
 static void prune(an_t *a);
 /* analyse, classify data seeds, and re-analyse without them until stable (their bogus "calls" vanish too) */
+static void analyze64(an_t *a) {
+    pe_t *pe=a->pe;
+    uint32_t pr=pe->dd_rva[3],ps=pe->dd_size[3];
+    for(uint32_t off=0;off+12<=ps;off+=12) {
+        if(pr+off+12>pe->size)die("bad exception directory");
+        uint32_t begin=pe->base+r32(pe->img+pr+off),end=pe->base+r32(pe->img+pr+off+4);
+        if(begin>=end || !is_code(pe,begin))continue;
+        add_func(a,begin,0);int fi=func_index(a,begin);if(fi>=0)a->f[fi].end=end;
+    }
+    add_func(a,pe->entry,0);
+    for(uint32_t i=0;i<pe->nexp;i++)add_func(a,pe->exp[i].addr,1);
+    for(uint32_t i=0;i<pe->reloc_vas.n;i++){uint32_t slot=pe->reloc_vas.v[i];if(in_image(pe,slot,8)){uint64_t v=(uint64_t)r32(pe->img+slot-pe->base)|((uint64_t)r32(pe->img+slot-pe->base+4)<<32);if(v<=UINT32_MAX&&is_code(pe,(uint32_t)v))add_func(a,(uint32_t)v,3);}}
+    for(uint32_t i=0;i<a->nf;i++) {
+        if(!a->f[i].end) {analyze_func(a,i);if(a->f[i].insns.n){x86_insn_t in;uint32_t last=a->f[i].insns.v[a->f[i].insns.n-1];a->f[i].end=last+(decode_at(pe,last,&in)?in.len:1);}continue;}
+        for(uint32_t va=a->f[i].addr;va<a->f[i].end;) {
+            x86_insn_t in;vpush(&a->f[i].insns,va);
+            if(!decode_at(pe,va,&in)){a->f[i].undecodable++;va++;continue;}
+            a->census[in.op]++;if(in.op==XO_UNSUPPORTED)a->f[i].unsupported++;
+            if(in.op==XO_CALL){vpush(&a->f[i].calls,in.target);add_func(a,in.target,2);}
+            if(in.op==XO_CALL_IND || in.op==XO_JMP_IND){
+                const x86_opnd_t *o=&in.o[0];const import_t *im=o->kind==XK_MEM&&o->base==X86_NOREG&&o->index==X86_NOREG?import_at_iat(pe,(uint32_t)o->disp):0;
+                if(im){vpush(&a->f[i].imports,(uint32_t)(im-pe->imp));((import_t *)im)->sites++;}
+                if(in.op==XO_CALL_IND && !im)a->f[i].indirect_calls++;
+                if(in.op==XO_JMP_IND){func_t *f=&a->f[i];f->ij=realloc(f->ij,(f->nij+1)*sizeof(ijump_t));if(!f->ij)die("oom");ijump_t *j=&f->ij[f->nij++];memset(j,0,sizeof *j);j->at=va;j->resolved=im!=0;}
+            }
+            if(in.op==XO_LEA&&in.o[1].base==X86_NOREG&&in.o[1].index==X86_NOREG){uint32_t target=(uint32_t)in.o[1].disp;if(is_code(pe,target)){int inside=target>=a->f[i].addr&&target<a->f[i].end;if(!inside)add_func(a,target,4);}}
+            va+=in.len;
+        }
+        vsort_uniq(&a->f[i].insns);vsort_uniq(&a->f[i].calls);
+    }
+}
 static void analyze_all(an_t *a) {
+    if(a->pe->mode64){analyze64(a);return;}
     for (int iter = 0; iter < 8; iter++) {
         if (iter) reset_analysis(a);
         analyze(a);
@@ -453,6 +494,7 @@ static void emit_analysis(FILE *o, an_t *a, const char *name) {
     fprintf(o, "{\n  \"schema\": \"game-cask/x86-analysis/1\",\n  \"module\": "); json_str(o, name);
     fprintf(o, ",\n  \"imageBase\": %u, \"preferredBase\": %u, \"imageSize\": %u, \"entry\": %u, \"dll\": %s, \"relocations\": %u,\n",
             pe->base, pe->pref_base, pe->size, pe->entry, pe->is_dll ? "true" : "false", pe->reloc_vas.n);
+    fprintf(o,"  \"machine\":\"%s\",\"pointerBits\":%u,\"preferredBaseHex\":\"0x%llx\",\n",pe->mode64?"x86-64":"i386",pe->mode64?64u:32u,(unsigned long long)pe->preferred64);
     fprintf(o, "  \"sections\": [");
     for (uint32_t i = 0; i < pe->nsec; i++) {
         fprintf(o, "%s{\"name\": ", i ? ", " : ""); json_str(o, pe->sec[i].name);
@@ -532,7 +574,7 @@ static void ea(char *d, size_t cap, const x86_opnd_t *m) {
 /* C expression reading operand */
 static void rd(char *d, size_t cap, const x86_opnd_t *o) {
     char e[160];
-    if (o->kind == XK_IMM) { snprintf(d, cap, "0x%xu", o->imm & (o->size == 4 ? 0xffffffffu : o->size == 2 ? 0xffffu : 0xffu)); return; }
+    if (o->kind == XK_IMM) { snprintf(d, cap, "0x%xu", (uint32_t)o->imm & (o->size == 4 ? 0xffffffffu : o->size == 2 ? 0xffffu : 0xffu)); return; }
     if (o->kind == XK_REG) {
         if (o->size == 4) snprintf(d, cap, "X.r[%s]", RN[o->reg]);
         else snprintf(d, cap, "xs_getreg(%u, %u)", o->reg, o->size);
@@ -545,7 +587,7 @@ static void rd(char *d, size_t cap, const x86_opnd_t *o) {
 static void wr(char *d, size_t cap, const x86_opnd_t *o, const char *val) {
     char e[160];
     if (o->kind == XK_REG) {
-        if (o->size == 4) snprintf(d, cap, "X.r[%s] = %s;", RN[o->reg], val);
+        if (o->size == 4) snprintf(d, cap, "X.r[%s] = (uint32_t)(%s);", RN[o->reg], val);
         else snprintf(d, cap, "xs_setreg(%u, %u, %s);", o->reg, o->size, val);
         return;
     }
@@ -557,9 +599,9 @@ static void emit_insn_struct(FILE *o, const x86_insn_t *in) {
     fprintf(o, "{0x%08xu, 0x%08xu, %u, %u, %u, %u, %u, %u, %u, {", in->addr, in->target, in->op, in->len, in->osz, in->rep, in->cc, in->flags, in->nops);
     for (int i = 0; i < 3; i++) {
         const x86_opnd_t *p = &in->o[i];
-        fprintf(o, "%s{%u, %u, %u, %u, %u, %u, %u, 0, %d, 0x%xu}", i ? ", " : "", p->kind, p->size, p->reg, p->base, p->index, p->scale, p->seg_fs, p->disp, p->imm);
+        fprintf(o, "%s{%u, %u, %u, %u, %u, %u, %u, %u, %d, 0x%llxull}", i ? ", " : "", p->kind, p->size, p->reg, p->base, p->index, p->scale, p->seg_fs, p->pad, p->disp, (unsigned long long)p->imm);
     }
-    fprintf(o, "}}");
+    fprintf(o, "},%u,%u,%u,%u,%u,%u,%u}",in->mode64,in->rex,in->asz,in->simd_op,in->simd_prefix,in->simd_imm,in->lock);
 }
 
 typedef struct { uint32_t specialized, generic, calls_direct, calls_indirect, jt_switch, unresolved, flags_elided; } lift_stats_t;
@@ -573,6 +615,8 @@ static int lift_selected(uint32_t addr) { return !selection || vhas(&selected,ad
 /* Conservative local flag liveness: only elide flag writes when every intervening instruction is
  * known flag-neutral and the next flag user overwrites ALL arithmetic flags before reading any.
  * Calls, branches, partial writers and generic semantics are barriers, including at function exit. */
+#include "lift64.h"
+
 static int flag_liveness; /* opt-in until a workload proves a size/speed benefit */
 static int flags_dead(an_t *a, func_t *f, uint32_t k) {
     if (!flag_liveness) return 0;
@@ -627,7 +671,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             fprintf(o, "t = xs_shift(%u, %s, %s, %d); ", in.op, t1, t2, sz); wr(t3, sizeof t3, A, "t"); fprintf(o, "%s", t3); break;
         case XO_PUSH:
             if (in.osz != 4) { spec = 0; break; }
-            if (A->kind == XK_IMM) fprintf(o, "x86_push(0x%08xu);", A->imm); else { rd(t1, sizeof t1, A); fprintf(o, "t = %s; x86_push(t);", t1); }
+            if (A->kind == XK_IMM) fprintf(o, "x86_push(0x%08xu);", (uint32_t)A->imm); else { rd(t1, sizeof t1, A); fprintf(o, "t = %s; x86_push(t);", t1); }
             break;
         case XO_POP:
             if (in.osz != 4) { spec = 0; break; }
@@ -666,7 +710,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             else fprintf(o, "x86_call(0x%08xu, 0x%08xu);", in.target, next);
             break;
         case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "x86_call(%s, 0x%08xu);", t1, next); break;
-        case XO_RET: fprintf(o, "X.eip = x86_pop(); X.r[ESP] += %uu; return;", A->imm); break;
+        case XO_RET: fprintf(o, "X.eip = x86_pop(); X.r[ESP] += %uu; return;", (uint32_t)A->imm); break;
         case XO_JMP_IND: {
             rd(t1, sizeof t1, A);
             fprintf(o, "t = %s;", t1);
@@ -712,6 +756,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
 }
 
 static void lift(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
+    if(a->pe->mode64){lift64(o,a,name,st);return;}
     fprintf(o, "/* GENERATED by tools/x86/x86tool lift from module \"%s\" (base 0x%08x). Do not edit:\n", name, a->pe->base);
     fprintf(o, " * re-run the pipeline; override individual functions in port/overrides/. */\n");
     fprintf(o, "#include \"x86_lift.h\"\n#include \"bgt.h\"\n\n");
@@ -722,7 +767,7 @@ static void lift(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
     for (uint32_t i = 0; i < a->nf; i++) if(lift_selected(a->f[i].addr)) vpush(&order, a->f[i].addr);
     vsort_uniq(&order);
     fprintf(o, "\nconst x86_lifted_entry_t x86_lifted_%s[] = {\n", name);
-    for (uint32_t i = 0; i < order.n; i++) fprintf(o, "    {0x%08xu, F_%08x},\n", order.v[i], order.v[i]);
+    for (uint32_t i = 0; i < order.n; i++) fprintf(o, "    {0x%08xu, F_%08x, 0},\n", order.v[i], order.v[i]);
     fprintf(o, "};\nconst uint32_t x86_lifted_%s_count = %u;\n", name, order.n);
     free(order.v);
 }

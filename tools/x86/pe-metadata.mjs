@@ -23,6 +23,6 @@ export function analyzePeMetadata(path) {
       } catch (e) { errors.push(e.message); }
     }
     return { schema:'game-cask/pe-metadata/1', ...metadata, runtimeFunctions:functions, errors,
-      conversion: pe.pe32plus ? { supported:false, reason:'Win64 decoding/semantics, thunks and unwinding are not implemented; metadata is not lifted code' } : { supported:true, mode:'i386 Win32 pipeline' } };
+      conversion: pe.pe32plus ? { supported:true, mode:'AMD64 Win64 pipeline (rebased flat guest mapping); metadata itself is not lifted code' } : { supported:true, mode:'i386 Win32 pipeline' } };
   } finally { closeSync(fd); }
 }

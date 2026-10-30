@@ -28,7 +28,8 @@ enum { B_NONE, B_BUTTON, B_STATIC, B_EDIT, B_OTHER };
 typedef struct { int used; uint32_t style, proc, extra, inst, brush, menu_name; int menu_wide; char name[48]; } cls_t;
 typedef struct {
     int used, destroyed, cls, builtin;
-    uint32_t proc, parent, style, exstyle, id, menu, user, inst, font;
+    uint32_t proc, parent, style, exstyle, id, menu, inst, font;
+    uint64_t user;
     int32_t x, y, w, h;      /* window rect (desktop) */
     int32_t cx, cy, cw, ch;  /* client rect (desktop) */
     int visible, enabled, sized;
@@ -39,7 +40,7 @@ typedef struct {
     int is_dialog, dlg_ended, checked, pressed;
     uint32_t dlgproc, dlg_result, msgresult;
 } wnd_t;
-typedef struct { uint32_t hwnd, msg, wp, lp, time; int32_t x, y; } msg_t;
+typedef struct { uint32_t hwnd, msg; uint64_t wp, lp; uint32_t time; int32_t x, y; } msg_t;
 typedef struct { int used; uint32_t hwnd, id, ms, proc, due; } timer_t;
 typedef struct { uint32_t flags, id, sub; char text[48]; } mitem_t;
 typedef struct { int used, n; mitem_t it[32]; } menu_t;
@@ -153,7 +154,7 @@ static void raise_above(wnd_t *w) {
 }
 
 /* ------------------------------------------------------------------ messages */
-static void post(uint32_t hwnd, uint32_t msg, uint32_t wp, uint32_t lp) {
+static void post(uint32_t hwnd, uint32_t msg, uint64_t wp, uint64_t lp) {
     uint32_t n = (qt + 1) & 511u;
     if (n == qh) return;
     q[qt] = (msg_t){hwnd, msg, wp, lp, w32_now_ms(), last_px, last_py};
@@ -164,7 +165,7 @@ static uint32_t builtin_proc(wnd_t *w, uint32_t msg, uint32_t wp, uint32_t lp);
 static uint32_t dialog_default(wnd_t *w, uint32_t msg, uint32_t wp, uint32_t lp);
 static uint32_t def_proc(uint32_t hwnd, uint32_t msg, uint32_t wp, uint32_t lp);
 
-static uint32_t send(uint32_t hwnd, uint32_t msg, uint32_t wp, uint32_t lp) {
+static uint64_t send(uint32_t hwnd, uint32_t msg, uint64_t wp, uint64_t lp) {
     wnd_t *w = W(hwnd);
     if (!w) return 0;
     if (w->builtin) return builtin_proc(w, msg, wp, lp);
@@ -175,7 +176,8 @@ static uint32_t send(uint32_t hwnd, uint32_t msg, uint32_t wp, uint32_t lp) {
         return W(hwnd) ? dialog_default(w, msg, wp, lp) : 0;
     }
     if (!w->proc) return def_proc(hwnd, msg, wp, lp);
-    uint32_t args[4] = {hwnd, msg, wp, lp};
+    if(X.mode64){uint64_t args[4]={hwnd,msg,wp,lp};return x86_callback64(w->proc,4,args);}
+    uint32_t args[4] = {hwnd, msg, (uint32_t)wp, (uint32_t)lp};
     return x86_callback(w->proc, 4, args);
 }
 
@@ -210,6 +212,7 @@ static int next_msg(msg_t *out, uint32_t hwnd, uint32_t lo, uint32_t hi, int rem
     return 0;
 }
 static void write_msg(uint32_t p, const msg_t *m) {
+    if(X.mode64){x86_wr64(p,m->hwnd);x86_wr32(p+8,m->msg);x86_wr64(p+16,m->wp);x86_wr64(p+24,m->lp);x86_wr32(p+32,m->time);x86_wr32(p+36,(uint32_t)m->x);x86_wr32(p+40,(uint32_t)m->y);return;}
     x86_wr32(p, m->hwnd); x86_wr32(p + 4, m->msg); x86_wr32(p + 8, m->wp); x86_wr32(p + 12, m->lp);
     x86_wr32(p + 16, m->time); x86_wr32(p + 20, (uint32_t)m->x); x86_wr32(p + 24, (uint32_t)m->y);
 }
@@ -266,24 +269,26 @@ static uint32_t u_MsgWaitForMultipleObjects(void) {
     return 0x102u; /* WAIT_TIMEOUT, not a fabricated input notification */
 }
 static uint32_t u_TranslateMessage(void) {
-    uint32_t p = ARG(0), msg = x86_rd32(p + 4), vk = x86_rd32(p + 8);
+    uint32_t p = ARG(0), msg = x86_rd32(p + (X.mode64?8:4)), vk = x86_rd32(p + (X.mode64?16:8));
     if (msg != 0x0100) return 0;
     uint32_t ch = 0;
     int shift = keystate[0x10] & 0x80;
     if (vk >= 'A' && vk <= 'Z') ch = shift ? vk : vk + 32;
     else if (vk >= '0' && vk <= '9') ch = vk;
     else if (vk == 0x20 || vk == 0x0d || vk == 0x1b || vk == 0x08 || vk == 0x09) ch = vk;
-    if (ch) post(x86_rd32(p), 0x0102, ch, x86_rd32(p + 12));
+    if (ch) post(x86_rd32(p), 0x0102, ch, x86_rd32(p + (X.mode64?24:12)));
     return ch != 0;
 }
 static uint32_t u_DispatchMessage(void) {
     uint32_t p = ARG(0);
+    if(X.mode64){msg_t m={x86_rd32(p),x86_rd32(p+8),x86_rd64(p+16),x86_rd64(p+24),x86_rd32(p+32),(int32_t)x86_rd32(p+36),(int32_t)x86_rd32(p+40)};dispatch(&m);return 0;}
     msg_t m = {x86_rd32(p), x86_rd32(p + 4), x86_rd32(p + 8), x86_rd32(p + 12), x86_rd32(p + 16), (int32_t)x86_rd32(p + 20), (int32_t)x86_rd32(p + 24)};
     dispatch(&m);
     return 0;
 }
-static uint32_t u_SendMessage(void) { return send(ARG(0), ARG(1), ARG(2), ARG(3)); }
-static uint32_t u_PostMessage(void) { if (ARG(0) && !W(ARG(0))) return 0; post(ARG(0), ARG(1), ARG(2), ARG(3)); return 1; }
+uint64_t w32_send64(uint32_t hwnd,uint32_t msg,uint64_t wp,uint64_t lp){return send(hwnd,msg,wp,lp);}
+static uint32_t u_SendMessage(void) { return (uint32_t)send(ARG(0), ARG(1), ARG64(2), ARG64(3)); }
+static uint32_t u_PostMessage(void) { if (ARG(0) && !W(ARG(0))) return 0; post(ARG(0), ARG(1), ARG64(2), ARG64(3)); return 1; }
 static uint32_t u_PostQuitMessage(void) { quit_posted = 1; quit_code = ARG(0); return 0; }
 static uint32_t u_CallWindowProc(void) {
     uint32_t fn = ARG(0), args[4] = {ARG(1), ARG(2), ARG(3), ARG(4)};
@@ -303,7 +308,8 @@ static uint32_t begin_paint(uint32_t hwnd, uint32_t ps) {
     uint32_t hdc = w32_gdi_window_dc(hwnd, 1, l, t, r, b);
     int ferase = 0;
     if (erase) ferase = send(hwnd, 0x0014, hdc, 0) == 0; /* WM_ERASEBKGND */
-    x86_wr32(ps, hdc); x86_wr32(ps + 4, (uint32_t)ferase);
+    if(X.mode64){x86_wr64(ps,hdc);ps+=4;}else x86_wr32(ps,hdc);
+    x86_wr32(ps + 4, (uint32_t)ferase);
     x86_wr32(ps + 8, (uint32_t)l); x86_wr32(ps + 12, (uint32_t)t); x86_wr32(ps + 16, (uint32_t)r); x86_wr32(ps + 20, (uint32_t)b);
     raise_above(w);
     return hdc;
@@ -386,9 +392,9 @@ static uint32_t reg_class(uint32_t wc, int ex, int wide) {
         if (classes[i].used) continue;
         cls_t *c = &classes[i];
         c->used = 1;
-        c->style = x86_rd32(wc + o); c->proc = x86_rd32(wc + o + 4); c->extra = x86_rd32(wc + o + 12);
-        c->inst = x86_rd32(wc + o + 16); c->brush = x86_rd32(wc + o + 28); c->menu_name = x86_rd32(wc + o + 32); c->menu_wide = wide;
-        uint32_t nm = x86_rd32(wc + o + 36);
+        c->style = x86_rd32(wc + o); c->proc = x86_rd32(wc + (X.mode64?8:o+4)); c->extra = x86_rd32(wc + (X.mode64?20:o+12));
+        c->inst = x86_rd32(wc + (X.mode64?24:o+16)); c->brush = x86_rd32(wc + (X.mode64?48:o+28)); c->menu_name = x86_rd32(wc + (X.mode64?56:o+32)); c->menu_wide = wide;
+        uint32_t nm = x86_rd32(wc + (X.mode64?64:o+36));
         if (nm < 0x10000u) { c->name[0] = '#'; c->name[1] = 0; } else w32_gstr(nm, wide, c->name, sizeof c->name);
         return 0xc000u + (uint32_t)i;
     }
@@ -462,11 +468,12 @@ static uint32_t create_window(int wide) {
     static uint32_t cs_buf[4];
     static uint32_t cs_depth;
     if (cs_depth >= 4) x86_fault("CreateWindow nested too deeply", 0);
-    if (!cs_buf[cs_depth]) cs_buf[cs_depth] = w32_misc_alloc(48);
+    if (!cs_buf[cs_depth]) cs_buf[cs_depth] = w32_misc_alloc(80);
     uint32_t cs = cs_buf[cs_depth++]; /* windows created from WM_CREATE need their own CREATESTRUCT */
     x86_wr32(cs, param); x86_wr32(cs + 4, inst); x86_wr32(cs + 8, menu); x86_wr32(cs + 12, parent);
     x86_wr32(cs + 16, (uint32_t)p->h); x86_wr32(cs + 20, (uint32_t)p->w); x86_wr32(cs + 24, (uint32_t)p->y); x86_wr32(cs + 28, (uint32_t)p->x);
     x86_wr32(cs + 32, style); x86_wr32(cs + 36, tname); x86_wr32(cs + 40, cname); x86_wr32(cs + 44, exstyle);
+    if(X.mode64){x86_wr64(cs,param);x86_wr64(cs+8,inst);x86_wr64(cs+16,menu);x86_wr64(cs+24,parent);x86_wr32(cs+32,(uint32_t)p->h);x86_wr32(cs+36,(uint32_t)p->w);x86_wr32(cs+40,(uint32_t)p->y);x86_wr32(cs+44,(uint32_t)p->x);x86_wr32(cs+48,style);x86_wr64(cs+56,tname);x86_wr64(cs+64,cname);x86_wr32(cs+72,exstyle);}
     send(hwnd, 0x0081, 0, cs); /* WM_NCCREATE */
     int32_t created = (int32_t)send(hwnd, 0x0001, 0, cs); /* WM_CREATE */
     cs_depth--;
@@ -578,6 +585,12 @@ static uint32_t win_long(wnd_t *w, int32_t idx, int set, uint32_t val) {
         return old;
     }
 }
+uint64_t w32_longptr64(uint32_t hwnd,int32_t index,uint64_t value,int set) {
+    wnd_t *w=W(hwnd);if(!w)return 0;
+    if(index==-21){uint64_t old=w->user;if(set)w->user=value;return old;}
+    if(index>=0 && index+8<=128){uint64_t old=0;__builtin_memcpy(&old,w->extra+index,8);if(set)__builtin_memcpy(w->extra+index,&value,8);return old;}
+    return win_long(w,index,set,(uint32_t)value);
+}
 static uint32_t u_GetWindowLong(void) { wnd_t *w = W(ARG(0)); return w ? win_long(w, (int32_t)ARG(1), 0, 0) : 0; }
 static uint32_t u_SetWindowLong(void) { wnd_t *w = W(ARG(0)); return w ? win_long(w, (int32_t)ARG(1), 1, ARG(2)) : 0; }
 static uint32_t u_GetClassLong(void) {
@@ -634,8 +647,8 @@ static uint32_t u_LoadString(int wide) {
 }
 static uint32_t u_LoadStringA(void) { return u_LoadString(0); }
 static uint32_t u_LoadStringW(void) { return u_LoadString(1); }
-static uint32_t u_wsprintfA(void) { return w32_format_to_guest(ARG(0), 1024, 0, ARG(1), X.r[ESP] + 12); }
-static uint32_t u_wsprintfW(void) { return w32_format_to_guest(ARG(0), 1024, 1, ARG(1), X.r[ESP] + 12); }
+static uint32_t u_wsprintfA(void) { return w32_format_to_guest(ARG(0), 1024, 0, ARG(1), (uint32_t)X.r[ESP] + (X.mode64?24:12)); }
+static uint32_t u_wsprintfW(void) { return w32_format_to_guest(ARG(0), 1024, 1, ARG(1), (uint32_t)X.r[ESP] + (X.mode64?24:12)); }
 static uint32_t u_wvsprintfA(void) { return w32_format_to_guest(ARG(0), 1024, 0, ARG(1), ARG(2)); }
 static uint32_t u_wvsprintfW(void) { return w32_format_to_guest(ARG(0), 1024, 1, ARG(1), ARG(2)); }
 static uint32_t u_CharUpper(void) {
@@ -775,7 +788,7 @@ static uint32_t u_LoadAccelerators(int wide) {
 static uint32_t u_LoadAcceleratorsA(void) { return u_LoadAccelerators(0); }
 static uint32_t u_LoadAcceleratorsW(void) { return u_LoadAccelerators(1); }
 static uint32_t u_TranslateAccelerator(void) {
-    uint32_t t = ARG(1) - H_ACCEL, p = ARG(2), msg = x86_rd32(p + 4), vk = x86_rd32(p + 8);
+    uint32_t t = ARG(1) - H_ACCEL, p = ARG(2), msg = x86_rd32(p + (X.mode64?8:4)), vk = x86_rd32(p + (X.mode64?16:8));
     if (t >= naccel_tables || (msg != 0x0100 && msg != 0x0102)) return 0;
     for (uint32_t i = 0; i < naccel[t]; i++) {
         accel_t *a = &accels[t][i];
@@ -1534,6 +1547,7 @@ const w32_api_t w32_api_user[] = {
     API("SetCapture", 1, u_SetCapture), API("ReleaseCapture", 0, u_ReleaseCapture), API("GetCapture", 0, u_GetCapture),
     API("SetWindowTextA", 2, u_SetWindowTextA), API("SetWindowTextW", 2, u_SetWindowTextW),
     API("GetWindowTextA", 3, u_GetWindowTextA), API("GetWindowTextW", 3, u_GetWindowTextW),
+    API("GetWindowLongPtrA",2,u_GetWindowLong),API("GetWindowLongPtrW",2,u_GetWindowLong),API("SetWindowLongPtrA",3,u_SetWindowLong),API("SetWindowLongPtrW",3,u_SetWindowLong),
     API("GetWindowLongA", 2, u_GetWindowLong), API("GetWindowLongW", 2, u_GetWindowLong),
     API("SetWindowLongA", 3, u_SetWindowLong), API("SetWindowLongW", 3, u_SetWindowLong),
     API("GetClassLongA", 2, u_GetClassLong), API("GetClassLongW", 2, u_GetClassLong),

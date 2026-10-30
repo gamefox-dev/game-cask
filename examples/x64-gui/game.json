@@ -1,0 +1,5 @@
+{
+ "id":"x64-gui","name":"AMD64 window/GDI/input conformance (CC0)","private":false,"license":"CC0-1.0",
+ "pipeline":{"platform":"win32","fixture":{"target":"x86_64-windows-gnu","crt":true,"sources":["gui.c"],"out":"gui.exe","libs":["kernel32","user32","gdi32"]},"modules":[{"from":"./build/gui.exe","name":"gui.exe","main":true}],"width":320,"height":200},
+ "touch":{"dpad":false,"buttons":[]}
+}

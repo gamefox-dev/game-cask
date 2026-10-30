@@ -90,9 +90,10 @@ The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` be
 | 9 | `npm run trial:record -- port <slug>` writes `trial.json` + a `NOTES.md` port note; `npm run report` | |
 | 10 | Independent validation by a **separate** agent that did not write the port | `independent-validator` agent |
 
-Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet. **Win64 execution and OpenGL are also
-still gaps on this partial v0.3 branch**: metadata inspection is not execution support. Consult docs/v03-status.md. That is an iteration request,
-together with what such a profile would need. Do not substitute a one-off emulator.
+Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet. **Win64 baseline execution is implemented**
+for the four Task 1 fixtures (docs/pipeline.md → AMD64 execution); do not mistake that for universal Win64 compatibility.
+OpenGL, threads and broader APIs remain gaps. Unsupported instructions/APIs become iteration requests; never substitute
+a per-game interpreter or engine runtime.
 
 ## Hard rules
 - `original/` is read-only, private and never committed. `npm run leakcheck` must pass.
