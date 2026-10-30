@@ -1,351 +1,175 @@
 # Verification record — Game Cask
 
-## Task 2a — normal Win64 CRT programs and 2 GiB address window
+This records observed evidence, not unrestricted compatibility. The current merged capability/limits ledger is
+[v03-status.md](v03-status.md). Lane handoffs retain their narrower measurements and review histories; their earlier
+suite totals are not added together or presented as merged-tree results. Prior versions of this file remain in Git.
 
-Original CC0 normal **Zig 0.13.0 -O2 / standard MinGW CRT** fixtures pass fully lifted through startup and exit:
-`x64-crt` (seven exact native-reference group checksums, **180 distinct shared-CRT names actually hit**), `x64-cpprt`
-(vector/string/sort/map/iostream, four exact native checksums) and `x64-memory`. Native references compile/run the same
-source with host cc/c++, not Windows executables. `fixture-build.json` assertions reject -nostdlib/custom entry builds.
+## Integration I1 — merged tree
 
-`tests/unit/crt.test.ts` runs each for **300 frames**, then independently builds the interpreter-only version and checks
-**identical 300-frame oracles**, zero lifted interpretation/stubs, no errors, and completed exit in both modes. The
-math fixture resolves all 35 unary/binary double+float pairs through the shared DLL registry; raw bits must be within
-**4 ULP** of host libm (group checksums still exact). Additional cases test import census implemented/stub/unknown and
-an actually missing static import's full `api-ms-win-crt-utility-l1-1-0.dll!zzzzz` fault. `tests/e2e/crt.spec.ts` repeats
-native comparisons on **WebGL 2 and WebGPU**; this is runtime conformance, not a new game/L1–L3 claim.
+Branch `integration/p1` already contained S1/E/G/WG/F; I1 merged **GL → W2 → C** using `git merge --no-ff`:
 
-Shared registry counts (aliases counted, ten data names additional): **396 functions** — stdlib 53, stdio 56,
-string/wide/memory 45, math 113, time 25, locale/ctype 67, startup 37. The census and runtime use `crt.def`; no
-per-DLL qsort/llround patches. Host math/calendar/parsing/formatting reuse toolchain WASI musl, with **only BGT imports**
-in the resulting wasm and backend notices retained in each package. No npm dependency or system install was added.
-
-Memory proof: **629145600 bytes written**, **153600 pages verified**, checksum **70272000**, 16-byte-aligned guest
-malloc; guest heap extent **629145680 B**. Default guest window **1024 MiB**, fixture configured **2048 MiB**; an explicit
-upper-edge VirtualAlloc checks addresses through **2147418111**. Initial wasm **90898432 B**, final **2221473792 B**
-at the measured checkpoint (host/static layout may shift slightly after build changes). The guest high-water mapped
-end is **2147418112 B**; this is not a resident-RSS measurement. Memory grows on demand, not eagerly to the window size.
-CPU-heavy guest loops yield deterministically instead of failing the old two-million-instruction watchdog.
-
-Latest required gates: doctor ready; lint/typecheck clean; **95 unit tests / 17 files**, **81 browser passes / four
-unchanged skips** (WebGL2 38/2, WebGPU 38/2, auto 5); 600-frame i386 hello oracle and all four earlier 300-frame x64
-fixture oracles identical; leakcheck **220 committable files clean**. No assertion/skip/time limit was relaxed.
-
-Review limits: tests sample libm, not all inputs/rounding modes; C/ASCII locale, UTC localtime, empty environment,
-read-only shipped files plus process-local writable/temp files; no persistent CRT writes, full secure/positional/
-long-double formatting, general x87, AVX, multithreading or MSVC exception personalities. Image area remains 16–64 MiB.
-A fresh independent read-only session reviewed CRT/memory and reproduced seven defects with a separate CC0 fixture.
-All seven were fixed and added to the conformance source: reserved-VA/heap separation, __sys_nerr pointer, bounded
-scan, reusable FILE streams with shared file nodes, append-at-every-write, legacy snprintf and large character fields.
-The independent probe was rerun locally after the fixes; UTF-16 output and pointer scanning were also corrected and
-asserted. Its record is private scratch/task2a-review-independent; this is not independent whole-kit certification.
-
-The large STL module uses correctness-first semantic lifting, not a large-game performance claim. Actual Ubuntu CI,
-physical iPhone and desktop Safari/Firefox are not claimed. Existing suite assertions/skips are unchanged.
-
-## Linux CI slice timeout — reproduced and corrected locally
-
-A cold-cache run with **BGT_BUILD_JOBS=1**, forced **ANGLE SwiftShader WebGL 2**, unchanged 60-second test timeout
-and unchanged 30-second ready wait reproduced the failure at `fixtures.ts:76`. Trace evidence: synchronous
-`prepareSlice` compile/Asyncify occupied the worker past the test deadline; navigation started after timeout/teardown,
-so pending package requests and the ready wait were consequences, not the cause. No missing-file/renderer workaround.
-
-Slice recording/building now runs once in Playwright **global setup**, before any timed browser test/context exists;
-workers consume an explicit prepared index and fail if setup was omitted. Assertions, skipped cases and all timeout
-values are unchanged. With caches cold again, setup took **81.3 seconds** for conformance, then the exact failing test
-passed **three times** at **1.0 / 0.7 / 0.7 seconds** under forced SwiftShader. Before/after trace artifacts are private
-`reports/ci-slice-{before,after}-artifacts`; this is local reproduction, **not a claim of running Ubuntu CI**.
-Final CI-fix gates: doctor/lint/typecheck green; **96 unit tests / 17 files**, **81 browser passes / four unchanged
-skips**, identical 600-frame i386 oracle and earlier x64 oracles; leakcheck **221 committable files clean**.
-
----
-
-## Task 1 — AMD64 execution core (complete at the specified finish line)
-
-Source fixtures built with the kit's installed **Zig 0.13.0, x86_64-windows-gnu**, then lifted to wasm; no Windows
-executable was run on the host. No engine/game input, network search, system install or new npm dependency.
-
-| fixture | independently asserted result | lifted / interpreted oracle |
+| Merge | Commit | Semantic decision |
 |---|---|---|
-| `x64-basics` | integer result, SSE scalar/packed math, function pointer, RIP-relative jump table, Win64 varargs and LOCK result PASS | **300 frames identical**, no errors, lifted interp_insns **0** |
-| `x64-cpp` | C++ vtable/static constructor; caught **38**, destructors **3**, order **321**; rethrow caught **6**, destructors **3**, order **345** | **300 frames identical**, no errors, lifted interp_insns **0** |
-| `x64-tls` | `.tls` initialized/zero data + callback **1**, full-width dynamic TLS, setjmp/longjmp **23**, hand-checked unwind records | **300 frames identical**, no errors, lifted interp_insns **0** |
-| `x64-gui` | window, GDI pixels/text, pointer/key input moves green square; full-width message/userdata sentinels | **300 frames identical**, no errors, lifted interp_insns **0** |
+| GL | `1b4b05e` | No textual conflicts; retain E registries/DLLs, add GL registry/build/presentation/metrics/oracle |
+| W2 | `ac0ac4f` | Deduplicate shared GPU startup negotiation; retain restoration events and fail-closed loss behavior |
+| C | `353eb7d` | Keep all profile registries/sources with thread-aware duplicate APIs; per-thread errors, scheduler continuations, audio-event adapter; keep F optimized emitter with cold quantum transfer propagation |
 
-Evidence tests: `tests/unit/x64.test.ts` (all four oracle comparisons), `tests/unit/x64-semantics.test.ts` (8 independent
-encoding/result cases), `tests/e2e/x64.spec.ts` (4 fixtures × WebGL2/WebGPU). Oracles use the interpreter-only build,
-not a second copy of lifted code. A shared-semantics oracle cannot validate semantic correctness alone: known results,
-synthetic unwind records and independent opcode assertions cover that. C++ uses compiled `__gxx_personality_seh0` and
-linked compiler exception runtime, **not** a throw/catch replacement or function-name override. All generated pipeline
-builds report zero overrides/hand-written replacement LOC. Startup is included in zero-interpretation assertions.
+Follow-up integration repairs preserve the legacy 2D fallback while rejecting live/pending GPU migration, add
+thread-local COM apartment state and worker-audio assertions, isolate bridge provider environment, and disallow
+reuse of an unrelated browser server. See [handoff/integration-i1.md](handoff/integration-i1.md) for commits and review.
 
-Final required gate run: doctor ready; lint/typecheck **0 errors**; unit **90/90** (16 files); browser **75 pass / 4
-existing skips** (WebGL2 35/2, WebGPU 35/2, auto 5); i386 hello **600-frame oracle identical/no errors**; leakcheck
-**198 files clean**. Four explicit CLI x64 oracles also passed at 300 frames each. No existing test timeouts/skips or
-assertions were relaxed. The old test expecting Win64 rejection is changed to require a successful relocated/lifted
-build and zero overrides; a forced DIR64 fixture pointer ensures that high-base rebasing is actually exercised.
+### Environment and exact commands
 
-Task 1 metric snapshot (`node tools/bench/x64-metrics.mjs` → private reports/x64-fixtures.json):
+macOS / Apple M4, installed Node **24.19.0**, Zig **0.13.0**, Playwright **1.64.1**, Chromium. Tests run against the
+kit's source-built CC0 fixtures, never `port/` or original game inputs. Windows executables are lifted, not executed
+on the host. Native reference programs are built from the same original fixture C/C++/pthread-adapter source.
+No new dependency, web fetch, system install, push or test weakening.
 
-| fixture | functions | instructions | wasm bytes | total B/insn | build ms (warm) |
-|---|---:|---:|---:|---:|---:|
-| basics | 7 | 164 | 301573 | 1838.86 | 216.018 |
-| cpp | 615 | 31488 | 3119752 | 99.08 | 409.557 |
-| tls | 81 | 1933 | 462671 | 239.35 | 247.383 |
-| gui | 77 | 1667 | 438472 | 263.03 | 244.854 |
-
-Times explicitly use 15 object-cache hits and an Asyncify cache hit, not cold builds. Byte/insn includes profile and
-Asyncify fixed overhead. No multi-million-instruction performance/size claim. Asyncify is now content-cached with
-atomic publication, avoiding repeated identical expensive postprocessing in existing slice tests.
-
-Visual review: fixture x64-gui-input.png read with the image viewer; title readable, green square moved, background
-restored at its old position. All x64 browser cases pass on WebGL2/software and WebGPU/Metal on Apple M4. Actual Linux
-CI, Safari/Firefox, physical iPhone and an independent agent validation were **not run**. CI remains Linux-compatible;
-no macOS tool is required by these changes. No BGT ABI changes for this task.
-
-Risks/limits: 128 MiB checked flat address window (images 16–64 MiB), correctness-first generic semantic lifting,
-nonlocal transfer propagation/SEH and Win64 structure widths are the main review areas. AVX, general x87 arithmetic,
-MSVC C++ personality formats, dynamic unwind registration, multithreading, complete CRT/API coverage and precise
-nondefault floating-point environment behavior are not claimed. Exact details: docs/pipeline.md → AMD64 execution.
-
----
-
-## Previous iteration evidence (historical; superseded for AMD64 by Task 1)
-
-## Kit v0.3 changes (in progress)
-
-The implementation/limitations ledger is [v03-status.md](v03-status.md). This is not a claim that the entire v0.3
-brief is complete. Stage 1 fixture evidence covers the UI, timing and tooling fixes listed there, on WebGL 2 and
-WebGPU. No private game was available or used. No dependencies were added; no existing assertions were weakened.
-
-Metric change: `gdi_ops` now excludes profile-drawn chrome; new `chrome_ops` counts that drawing separately and may
-vary with extra renders. Compare guest traces and `gdi_ops`, not `chrome_ops`, for deterministic runs.
-
-New build metrics: `pipeline.metrics.wasm_bytes_per_insn` (TOTAL module / lifted instructions; null for interpreter),
-`build_ms`, compile/link `duration_ms`, `peak_child_rss_bytes` (largest child, not total), `objects_compiled/cached`,
-`jobs`, `lifted_insns`, `flagsElided` per lifted module (experimental opt-in). `packaging` measures raw and per-file
-gzip bytes, wasm and unique emitted chunks; excludes manifest. `coverage().metrics` adds frame count, errors,
-outside-slice events, bytes fetched, entries dropped, load→first-frame and render-completion avg/p95 (not GPU timestamps
-or vsync frame times). Strict slices reject incomplete overflowed coverage. trial.json stores build/package metrics,
-plus runtime evidence only if reports/slice-runtime.json exists and matches game/schema.
-
-ABI v0.3 subset: requests/readback/limits/stream ranges/coverage/slice boundary. Frozen v0.2 module fixture still loads.
-Both backend tests check ordered GPU readback, streamed sparse reads and strict missing code/data pauses. A sliced
-Win32 fixture runs 2000 extra steps before its omitted-dialog check; that is fixture stability, not target-game scale.
-Exact outstanding features, negative scale measurement and all qualifications are in v03-status.md.
-
-Stage 1 gate run: doctor ready, lint/typecheck clean, unit 63/63, e2e 59 passed/4 pre-existing skips,
-oracle identical/no errors (600 frames), leakcheck 158 files. A subsequent unit regression explicitly renders three
-extra frames and asserts gdi_ops/trace unchanged and chrome_ops increases. Fresh counts appear in the final record.
-
-Visual review of fixture screenshots: `phase0-controls.png` shows round selected radio, tick, stripped/escaped
-prefix labels, literal SS_NOPREFIX label; `caption-style.png` shows close/help caption buttons and legible descenders;
-`phase0-icon.png` shows the warning glyph and marked No default. All are substitute profile artwork, not Windows
-pixel-parity claims. Large/non-ASCII fonts, supplied About HICON and main-window caption/frame fidelity remain limits.
-
----
-
-## Previous v0.3 development-branch run (before Task 1)
-
-- doctor ready; lint/typecheck clean.
-- Unit **78/78**, 14 files.
-- E2E **67 passed / 4 pre-existing skips**: WebGL 2 31 pass/2 skip, WebGPU 31 pass/2 skip, auto 5 pass.
-- `oracle -- examples/win32-hello`: identical over 600 frames, no errors, lifted interpreter instructions 0.
-- leakcheck **178 files**, clean. No new dependencies; SPEC.md unchanged.
-- Scale and 2010-step fixture stability/packaging measurements: [v03-status.md](v03-status.md).
-
-**Commit caveat:** Stage 4/5 gates ran with an unstaged Win32 file implementation which was accidentally omitted
-from those commits. The finishing follow-up includes it. Historical Stage 4/5 commits alone are not self-contained;
-this deviates from the requested per-commit gate discipline. History was not rewritten. Final HEAD is tested.
-
-At this earlier checkpoint the broad v0.3 brief was **not complete**: no Win64 execution, general shader/buffer/pipeline/GL
-layer, cooperative threads, WASAPI/COM/device expansion or minimum-image slicing. Task 1 above now supplies AMD64 core
-execution at its fixture finish line; unrelated remaining tasks are not claimed complete. The package is labelled 0.3.0-dev.1, not a finished
-v0.3 release. See the explicit per-stage missing-work ledger before starting another trial.
-
-# Historical v0.1 verification
-
-This file is the evidence record for what has been **observed**. Anything not listed here is
-unverified.
-
-## Environment (builder run, 2026-10-29)
-
-| item | value |
-|---|---|
-| host | macOS 26.6.2, Apple M4 |
-| Node | 24.19.0 |
-| Zig (C → wasm32) | 0.13.0 |
-| Playwright | 1.64.1. Chromium 156.0.8078.4 (`chromium` channel + headless shell) |
-| WebGPU adapter | Apple / metal-3, hardware. Needs `--enable-unsafe-webgpu` in headless Chromium |
-| WebGL 2 | `chromium-webgl2` project: SwiftShader (software). WebGPU project: ANGLE Metal (hardware) |
-
-## Commands and results
-
-| command | result |
+| Command | Merged result |
 |---|---|
 | `npm run doctor` | ready |
-| `npm run typecheck` | 0 errors |
-| `npm run lint` | 0 ESLint errors (41 files). C sample + bench compile with `-Wall -Wextra -Werror` |
-| `npm test` | **36/36 passed** (5 files) |
-| `npm run test:e2e` | **42 passed, 1 skipped** (skip = the cross-backend comparison, which runs only in the WebGPU project). Three consecutive full runs green |
-| `npm run build` | production bundle without `__BGT_TEST__`; a `VITE_BGT_TEST=1` build contains it |
-| `npm run leakcheck` | ok (89 committable files) |
-| `npm run bench` | see below |
+| `npm run lint` | pass, including all example check-builds; existing compiler/linker warnings are not suppressed |
+| `npm run typecheck` | pass |
+| `env -u PI_PROVIDER_EXTENSION npm test` | **231 passed / 25 files**, no skips/failures |
+| `npm test` with inherited provider | **231 passed / 25 files**; bridge tests internally clear/restore the provider hook, not extension assertions |
+| `BGT_E2E_PORT=5292 BGT_REQUIRE_WEBGPU=1 npm run test:e2e` | **135 passed / 50 intentional skips / 0 failures** |
+| `npm run leakcheck` | clean; **317 committable files** including I1 handoff |
+| `git diff --check` | clean |
 
-### What the automated suites demonstrate
+Browser breakdown: **WebGL 2 70 pass / 20 skip; WebGPU 60 pass / 30 skip; auto 5 pass**.
+The 50 skips are four existing backend/tour exclusions, 28 W2-specific tests excluded in WebGPU and 18 WG-specific
+cases excluded in WebGL 2. Both actual backends execute; WebGPU is required, not skipped for missing hardware.
+W2's 28 GPU cases and WG's 18 GPU cases (including I1's new pre-draw-loss test) all pass on their intended backend.
 
-- **ABI:** `bgt_io_t` offsets/sizes, opcodes, error codes and limits in the C header match `abi.ts`.
-  This is checked by compiling a C probe. The C command encoder output is byte-identical to the TS encoder.
-- **Decoder safety:**
-  - framing errors reject atomically
-  - semantic errors skip only the bad command
-  - limits are enforced
-  - unsupported capabilities return `BGT_E_UNSUPPORTED`
-  - 2000-case random fuzz never throws
-  - hostile pointers/keys/paths from wasm get error codes
-  - traps and aborts are surfaced
-- **Sample L3 (headless and browser):** start → collect all 5 coins → win → title. The loop is driven by a
-  path-planning bot through the public input path, on WebGL 2 **and** WebGPU. The lose loop is
-  covered too (3 hits → game over → restart). Best score persists through `bgt_storage_*`.
-- **Determinism:** the browser state-hash sequence equals itself across reloads **and** equals the Node headless host.
-  Same-backend title frames are pixel-identical across reloads.
-- **Rendering conformance:** 25 pixel probes over clear, viewport, scissor, transform, the 4 blend modes,
-  nearest/linear sampling, triangles, and texture create/partial update/delete ordering. They pass on both backends.
-  WebGPU vs WebGL 2 (ANGLE Metal) diff fraction: **0.0** for the conformance scene and **0.0** for the sample title.
-- **Input:** scripted buttons, real keyboard events, a canvas tap (pointer) and touch-overlay buttons all move/start the game.
-- **Audio:** locked until a gesture (no autoplay), then the coin SFX pushes samples.
-- **Robustness:** 12 malformed command streams are rejected with the expected codes and the game keeps
-  rendering. Resize/orientation (4 viewports) and DPR 3 keep the letterbox correct.
-  Simulated WebGL context loss and WebGPU device loss both recover, with textures restored from shadow copies.
-- **Fallback:** `?backend=webgpu-fail` → WebGL 2. `auto` picks WebGPU when an adapter exists. `?backend=none` and a
-  missing game each show an accessible `role="alert"` panel.
+Every required oracle was invoked separately with `npm run oracle -- examples/<id> 300`:
 
-### Benchmark (`reports/bench.md`, medians of 120 stepped frames, cross-origin isolated timers)
+| ID | Compared frames | Result |
+|---|---:|---|
+| `x64-audio` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-basics` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-cpp` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-cpprt` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-crt` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-gl` | 300 | identical API + semantic GPU stream; recorder, not rasterization |
+| `x64-gui` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-input` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-memory` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-threads` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x64-tls` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `x86-threads` | 300 | identical; both errors null; lifted interp_insns 0 |
+| `win32-hello` | 300 | identical; both errors null; lifted interp_insns 0 |
 
-| sprites | batched render total (ms) | direct-call render total (ms) |
-|---:|---:|---:|
-| 1 000 | ~0.03–0.06 | ~0.045 |
-| 10 000 | ~0.28 | ~0.43–0.45 |
-| 50 000 | ~1.40 | ~2.21–2.24 |
+**13 oracles / 3,900 frame pairs**, no oracle skips/divergences/errors; `x64-gl` also has zero interpreted
+instructions. A shared-semantics differential oracle is not an independent proof of CPU semantics or GPU pixels;
+known-result/native-reference, full CPU/RAM comparisons and browser pixel assertions provide additional evidence.
 
-Batching wins from about 10k sprites up (≈1.6× at 50k). At 1k sprites the direct path was equal or
-slightly faster, so batching is **not** assumed to always be faster. GPU submit time is reported separately
-(≤ 0.5 ms). Frame interval is vsync-bound (≈16.7 ms) in all cases except direct@50k on SwiftShader (≈20 ms).
+Evidence: private `.scratch-I1/{doctor,lint,typecheck,unit,unit-inherited,e2e,leakcheck}.log`,
+`.scratch-I1/oracle-<id>.log`, `reports/oracle-<id>.json`, `reports/e2e-results.json` and browser artifacts.
+Build-heavy gates were sequential to avoid shared fixture/cache races. Scratch is local/excluded, not a published
+artifact. Own disposable outputs were cleaned; no ENOSPC occurred.
 
-## Gates NOT verified by this run
+### Integration regressions and independent review
 
-| gate | status |
-|---|---|
-| iPhone Safari (physical device) | **not performed**: no device attached to this session |
-| Desktop Safari / WebKit, Firefox | not run (opt-in projects `BGT_ALL_BROWSERS=1`) |
-| WebGPU on CI (Linux) | not run. The CI WebGPU job is opt-in on a self-hosted GPU runner |
-| GitHub Actions run | workflow written, not executed (no remote) |
+- **E/C events:** CreateEvent/WaitForSingleObject now resolve to the scheduler. The audio native pump signals those
+  same objects. `examples/x64-audio/audio.c` starts and joins a worker receiving an auto-event audio notification,
+  checks a sentinel last error, thread exit code and two worker completion logs. The original exact 48,000 stereo
+  output frames, amplitudes ±16384/±8192, opposite polarity, ~1 kHz and 58–62 virtual-frame span remain asserted.
+- **E/C COM:** worker CoCreateInstance before initialization returns CO_E_NOTINITIALIZED; a fresh worker initializes
+  and nests STA independently of primary MTA, rejects a mode change, then uninitializes independently. Storage uses
+  the fixed guest thread index rather than a process-global apartment counter.
+- **WG/W2 fallback:** existing GPU live-resource stop and legacy 2D keep-playing assertions both pass. Loss guards
+  consult host logical resources, pending GPU items and renderer resources. New browser regression submits an
+  unrendered buffer create, then separately create/delete (empty maps but queued work); both must stop before any
+  migration. Unit regression checks decoded handles, post-consumption live handles, pending deletion, safe empty
+  renegotiation, language mask changes and preservation of unrelated capabilities.
+- **F/C quantum:** retain F's optimized register-local code. The cold shared-semantic block path checks transfer
+  before invoking a CALL that the scheduler suspended before execution. Existing full CPU/RAM quantum tests and
+  both thread fixtures' spin/continuation/oracle cases remain green.
+- **Bridge:** each fake-pi test clears only inherited PI_PROVIDER_EXTENSION, restoring it afterward; exact workspace
+  extension assertions are unchanged. Own temporary test directories are removed even on failure.
+- **Browser harness:** the first I1 attempt used inherited port 5191, occupied by an unrelated SPA returning 200 at
+  the readiness URL. That run timed out and is not counted as kit evidence. `reuseExistingServer:false` now fails
+  closed on an occupied port. All successful merged runs own port 5292; the developer server was untouched.
 
-## Real-game trial: DOS Defender (`original/DOSDEF.COM`, Unlicense, binary-only)
+A genuinely fresh pi reviewer independently executed the bridge-only suite with the provider inherited:
+**24 tests / 1 file passed**, and inspected the integration read-only. It found the decoded-but-not-rendered GPU
+fallback hole; I1 fixed it and added the regressions above. Fresh recheck details and exact final verdict are recorded
+in the integration handoff; broad unit/browser/oracle results are the integrator's runs, not delegated execution.
+A second fresh independent session rechecked the repair and independently ran **34 tests / 2 files** (10 GPU-limits
+and 24 bridge), with the provider inherited and no global setup: **previous blocker fixed; no further concrete scoped
+issue**. It inspected rather than executed browser and COM/audio regressions. Both real session reports remain in
+`.scratch-I1/{review,recheck}/result.txt`; no independent broad-suite certification is implied.
+The reviewer bridge separately **timed out** on the WG/W2 policy choice; the stated safe default was resource-free
+legacy fallback plus fail-closed live/pending GPU handling. No reviewer approval of relaxed acceptance is implied.
 
-| item | result |
-|---|---|
-| test input | `DOSDEF.COM` 1.1.0 release binary (10 448 B, sha256 `f57bb629…a9d`). Upstream source deliberately **excluded** (binary-only policy in `original/PROVENANCE.txt`) |
-| porting agent | separate spawned subagent, given only `CLAUDE.md`, `.claude/agents/game-porter.md`, skills and repo tools. Kit files unmodified (`git diff` empty) |
-| REA | not available in this environment, and **not claimed**. Disassembly used capstone in a scratch venv |
-| strategy | `selective-emulate`: a small real-mode x86 interpreter in C runs the original code image. BGT-backed shims for DOS/BIOS, VGA mode 13h + palette, 70 Hz vsync, PIT/PC speaker and two virtual joysticks |
-| porter's claim | **L3** |
-| independent validator | **confirmed L3 on WebGL 2 and WebGPU**. 40 claims checked: 34 confirmed, 3 partially, 1 rejected, 2 unverifiable. `reports/validation.md` (private) |
-| key evidence | the original code draws the calibration screen (L1). Stick input changes game variables and pixels (L2). Start → player kills raise the score (score stays 0 without firing; each increment matches 1:1 a player kill) → game over → restart with the best score kept (L3). Reproduced on seeds 1–5 with identical numbers on both backends. `game.wasm` contains none of the game's code windows or strings |
-| port tests | `npm run test:port`: 23 passed, 1 skipped (cross-backend test runs only in the WebGPU project) |
-| rejected / partial claims | "every test checks errors" (3 tests don't). Game-rules subsystem marked `verified` though power-ups/boss were never exercised. Kill/game-over heuristics not labelled INFERRED |
-| deviations | 70 Hz → 60 Hz update fitting (7 frames per 6 updates), square pixels (no 4:3), replacement BIOS text font, chosen joystick range |
-| unverifiable | "binary never executed on host" and "binary-only policy obeyed": no contrary evidence found |
-| not done | iPhone Safari, power-ups/boss coverage, listening tests for audio (frequencies were checked numerically) |
+## What the merged tests establish
 
-### Kit changes made after the trial (from its confirmed feedback)
+### AMD64 / CRT / demand-grown memory
 
-1. `game.json` `"originals"`: the build copies hash-checked files from `original/` into the private build output,
-   so ports no longer need ad-hoc copy scripts.
-2. `npm run report -- --strict` no longer fails on machine-written Playwright/bench JSON. Those findings are reported as
-   informational; `--fix` before sharing them.
-3. Port and kit browser runs write separate results (`reports/e2e-port-*` vs `reports/e2e-*`).
-4. `input.keys` entries set to `null` unbind default keys.
-5. `inspect` marks LLVM/Apple `objdump` as unable to disassemble raw images.
-6. Bug found while testing (4): pressing a second key bound to an already-held button produced a spurious
-   `buttons_pressed` edge. Presses now latch only on real transitions.
+Task 1's original fixtures include integer/SSE results, C++ constructors/vtables and caught=38/destructors=3/order=321,
+rethrow=6/destructors=3/order=345, TLS/static callbacks/full-width dynamic values, setjmp/longjmp and synthetic unwind
+records, and visible GDI input changes. Task 2a's normal **-O2 / standard MinGW CRT** fixtures compare C/STL checksums
+against host-native builds. Shared `crt.def` has **396 functions** (aliases included, ten data names separate);
+`x64-crt` hits 180 distinct names. Libm raw-bit checks allow at most 4 ULP for sampled inputs, not all rounding modes.
 
-After these changes: `npm test` 37/37, `npm run test:e2e` 65 passed / 2 skipped (kit + port projects),
-`npm run test:port` 23 passed / 1 skipped, `npm run report -- --strict` exit 0, `npm run leakcheck` ok.
+The memory fixture touches **629145600 bytes**, verifies **153600 pages**, checksum **70272000**, and tests the
+upper edge of the configured **2048 MiB** guest window. The default is 1024 MiB; images occupy 16–64 MiB. Wasm memory
+grows on demand; this is not resident-RSS or arbitrary high-address support. Thread fixtures retain native checksum
+`d494e6e3159c5fea`, processed=96, exits=406, errors=0, plus i386 stdcall/full-width Interlocked64 contracts.
 
-Deferred (ABI change, v0.2 candidates):
-- a pixel-aspect flag for 320×200 DOS games
-- per-player gamepad assignment
-- running the game in a Worker so runaway loops can be pre-empted
+Evidence: `tests/unit/{x64,x64-semantics,crt,codegen,threads,audio-input}.test.ts`, corresponding browser specs and
+[THREADS.md](../platforms/win32/THREADS.md). No arbitrary MSVC/AVX/x87/multi-process compatibility claim.
 
-## Kit v0.2 (2026-10-30): systematic pipeline
+### GPU ABI / renderers / GL
 
-| item | evidence |
-|---|---|
-| ABI v0.2: render targets, XOR-like invert, multiply, `bgt_yield`/asyncify, runtime logical size, `bgt_metrics` | conformance probes pass on WebGPU (Metal) and WebGL 2 (SwiftShader): render-target orientation, invert white/black, multiply. Unit test suspends a never-returning loop with stack locals intact |
-| x86 decoder, shared semantics, interpreter, lifter (`tools/x86`) | decoder unit test on hand-checked encodings. Lifting is byte-deterministic |
-| Win32 profile (`platforms/win32`) on BGT | `examples/win32-hello`, built from our source (CC0), runs **fully lifted**: `interp_insns` 0, 0 stubs, 0 command errors; window, menu, popup, MessageBox, BitBlt, InvertRect, TextOut, timers, registry. Browser e2e passes on both backends |
-| differential oracle | 600 frames of scripted input: lifted (0 interpreted insns) and interpreted (211,605 insns) builds give identical API traces (9,228 calls, 11,977 GDI ops) |
-| generic extractor | reproduces trial 1's Solitaire payload byte-identically (same SHA-256), with names taken from the payloads' own metadata |
-| bug found by CI | unrecoverable WebGPU device loss hung the runtime → mid-game WebGL 2 fallback (CI green) |
+S1 layout/encoder/validation tests cover all 25 opcodes, negotiated prefix/tail limits, bounds/handles/budgets,
+shader-request logs, resource generations and owned upload/source bytes. Frozen v0.2 modules still load.
+WG/W2 native C scenes exercise indexed color triangles, alpha/mips, MRT sampling, depth/stencil, 1000 instanced
+sprites, uniform animation, shader language handling and ordered legacy-2D/GPU screen/readback interleaving.
+Browser probes assert actual pixels/formats/reflection failures/base vertex/first instance/full-width IDs, context
+or device restoration, and reset/attachment-loss events. The maintained WG frontend's integer/ternary evaluation
+review defects have lane regressions. WGSL is **WebGPU-only**; W2 advertises GLSL330/ES300 only.
 
-Totals: `npm test` 45/45, `npm run test:e2e` 50 passed / 3 skipped (by design).
+GL's `x64-gl` is normally compiled/lifted and records seven scenes through the actual §13 validator. Its oracle
+compares API hashes plus normalized GPU words, upload bytes and shader sources, ignoring only transport addresses.
+The recording backend does not compile/rasterize. GL-native-driver end-to-end scene goldens/readback remain deferred,
+not covered by separately passing backend-native pixel scenes. See [GL handoff](handoff/gl-profile.md) for bounded
+formats/reflection/context/cache exclusions. No general OpenGL conformance claim.
 
-Not verified: iPhone Safari; DOS/console profiles (not implemented); x87 FPU lifting (not implemented).
+### Codegen performance — measured lane evidence, unmet gate retained
 
-## Kit v0.2.1 changes (2026-10-30): from the Solitaire trial 2 findings
+[Lane F](handoff/codegen.md), [before JSON](handoff/codegen-before.json), [after JSON](handoff/codegen-after.json):
 
-Input: trial 2's `reports/errors.json` (E1–E9) and `reports/validation.md` (K1–K3). The trial's port and reports were
-not modified or re-run; everything below was developed and verified on kit fixtures built from our own CC0 source.
+| Program | Whole wasm before→after | Median execution before→after | Acceptance |
+|---|---|---|---|
+| codegen-cpu | 4,268,957→880,331 B; 128.14→26.43 B/insn (**4.85× smaller**) | 19.559→5.357 ms (**3.65× faster**) | CPU-heavy thresholds met |
+| x64-crt | 1,142,858→735,581 B; 213.82→137.62 B/insn (**1.55× smaller**) | 2.198→2.003 ms (**1.10× faster**) | **F-PERF-CRT open**, literal ≥2× size/speed not met |
 
-### Instructions: problems become a work queue, kit gaps become iteration requests
-- `CLAUDE.md`, `game-porter`, `implement-port`, `browser-validation`, `independent-validator`: reaching a level is not
-  done. Every observed problem goes on `reports/progress.json` → `queue` (`id, symptom, evidence, layer, status, next`),
-  localized to `lifter | semantics | platform-profile | renderer | test | game`. Done = every item `fixed` (proof),
-  `authentic` (binary evidence) or `iteration-request`. "Unverified" is not a status. Kit changes are never made by
-  the porter and never silently skipped: the final reply leads with "Iteration requests" (symptom, evidence, layer,
-  the kit change in Win32/API terms, the check after it lands). Resume mode is documented.
-- The validator grades the queue (unproven fixed/authentic items, wrong layers, problems missing from the queue) and
-  checks that every port test states what it catches and asserts a change.
-- `npm run report` validates the queue (`schema.mjs` `validateQueue`) and lists port tests without a `catches` note.
-- `docs/trial-brief.md` + `npm run trial:brief` (→ `reports/brief.md`; `--resume` adds the resume section);
-  `npm run trial:record` stores the brief, the queue and the iteration requests in `trial.json` (schema `trial/3`).
+Five fresh-instance 300-frame samples after a discarded warmup, excluding compile/instantiate/init, same installed
+Node/Zig host toolchain. These measurements predate the full merged profile and were **not rerun by I1**. Whole-module
+values include profile/Asyncify; no marginal-size substitution. Before/after compilation cache states differ, so no
+build-speed claim. `x64-cpp` and hello did not improve execution in the saved sample. No 7M-instruction scalability,
+real-game timing or mobile performance claim.
 
-### Tools for finding problems
-- **Resource tour** `tests/support/tour.ts`: every menu item through real input (layout rectangles from the new
-  read-only `debugState().ui`), screenshots, errors/aborts/new stubs/new APIs/metric deltas per item, dialogs and
-  message boxes dismissed, exit items skipped. Validated on win32-hello, which now has an Options dialog and a
-  STRINGTABLE: the tour finds the literal `&` and the check-box-style radio buttons (E6) without being told.
-- **Probe** `npm run probe -- --game ID --script F.mjs`: own Vite server on a free port (never :5173), headless
-  Chromium, `start/step/click/key/screenshot/crop/pixel/metrics/peek/tour`, artifacts in `reports/probe/`.
-- **Visual review checklist** and the **tests-must-fail rule** in `browser-validation`; helpers `catches`,
-  `expectChange`, `captureRegion`, `regionDiff`, `peekBytes` (`tests/support/evidence.ts`, re-exported by the fixtures).
+### Bridge and earlier UI/files/slice work
 
-### Kit gaps fixed (Win32 semantics)
-| item | change | verified by |
-|---|---|---|
-| E1 | DLL names resolve to a shipped module, then to a profile DLL (`platforms/win32/dlls.json`); otherwise `LoadLibrary*` → NULL + `ERROR_MOD_NOT_FOUND` (126), `GetProcAddress` → NULL + `ERROR_PROC_NOT_FOUND` (127) for unknown names and any ordinal of a profile DLL; no faulting thunks for dynamically loaded DLLs. Static imports of unknown DLLs fail the build (and boot) naming the DLL. Ordinal imports keep their number (`dll!#14`). Paths stripped, `.dll` appended, forwarders followed, `GetModuleHandle` only for loaded modules | `win32-profile.test.ts` (13 loader checks in `examples/win32-conformance`, e.g. `LoadLibraryA("missing.dll") == NULL && GetLastError() == 126`, `GetProcAddress(self, ordinal 1)`, `GetProcAddress(kernel32, ordinal 1) == NULL, 127`), `kit-tools.test.ts` (unknown static import fails the build), `win32-conformance.spec.ts` (both backends) |
-| E2 | Pixel reads on GPU surfaces are answered exactly by **CPU replay** of the recorded GDI ops (`platforms/win32/w32_replay.c`), on demand for the queried pixel, with log compaction and a cache; enabled when a module imports `GetPixel`/`GetDIBits` (or gets one via `GetProcAddress`). `GetDIBits` honours 24/32 bpp and top-down/bottom-up. `GetPixel` outside the clip returns `CLR_INVALID` without counting. New metrics `gdi_pixel_reads`, `gdi_cpu_replays`, `gdi_replay_compactions`, `pixel_replay`; `gdi_getpixel_noread` counts only reads without known history | `win32-conformance.spec.ts`: 30 op kinds (fills, all mapped raster ops, blits from CPU-known and GPU-drawn bitmaps, 2x/3:2 stretching, text, pens, XOR pens, pattern brush, StretchDIBits/SetDIBitsToDevice/SetDIBits, mono bitmap, screen→memory→screen) — **51 200 / 51 200 pixels identical to the GPU on WebGL 2 (SwiftShader) and WebGPU (Metal)**, plus GetPixel-on-memory-DC and GetDIBits equal to the GPU. A deliberate 3 % error in the multiply blend makes it fail. `win32-profile.test.ts` checks the same reads headless |
-| E3 | The analyzer classifies pointer seeds that are data (data directories, import names, strings, zero bytes, undecodable/unsupported decodes) as `dataSeeds`, re-analyses without them, and never lifts them; counts in the analysis JSON, the lift stats and the pipeline summary | `kit-tools.test.ts` with `tests/fixtures/win32/data_in_text.c` (ASCII + UTF-16 strings, zeros and `in al,0x60` inside `.text`, next to a pointer-only callback that stays a function) |
-| E4 | Metric renames (below) | docs, tests, oracle |
-| E5 | `__BGT_TEST__.peek(addr, len)` via the optional debug-only export `bgt_debug_peek` (ABI.md §2, §9); read-only, test builds only; `debugState().modules` gives module bases | `win32-profile.test.ts` (copy semantics, unmapped/oversized → null, state hash unchanged), conformance tests read their report with it |
-| E7 | `inspect --strings`: UTF-16LE strings and decoded STRINGTABLE / MENU(EX) / DIALOG(EX) text with control classes and styles (stdout only) | `kit-tools.test.ts` on win32-hello's resources |
-| E8 | `npm test` / `npm run test:e2e` / `lint` build only `examples/` and never run `port/tests` (port projects need `BGT_PORT_TESTS=1`, set by `test:port`). Result files are `reports/<prefix>-*`: `e2e` (kit), `e2e-port` (port), `e2e-adhoc` for a direct `npx playwright test`. The test server's readiness URL is kit-specific (`/games/index.json`), so an unrelated app on the port is never reused (K3) | baseline and final runs below (no port tests in the kit results) |
-| leakcheck | `--against` ignores the kit's own JSON metadata (`"schema": "game-cask/…"`, e.g. `extract.json`) while still blocking payload copies | `kit-tools.test.ts` |
+G's lane handoff records a real installed-pi **5/5** bridge e2e and a fresh read-only review; I1 reruns the no-model
+suite, not that optional real-model e2e. The loopback bridge persists questions/status/cursors and supports live
+boundary delivery/no-tools forks. It is same-user coordination, not isolation or a durable multi-writer database.
 
-Metric renames (E4), old → new:
-| v0.2 | v0.2.1 | counts |
-|---|---|---|
-| `continues` | `tail_calls_lifted` + `continues_interpreted` | lifted jumps resolved straight to lifted code (not interpretation) / lifted frames that really continued in the interpreter (tail jumps to import thunks count as neither) |
-| `interp_entries` | `interp_code_entries` | entries into non-lifted guest code where the interpreter ran ≥ 1 instruction (import-thunk calls no longer count) |
-| `exec_one` | `generic_insn_execs` | instructions executed through the shared semantic core inside lifted code |
+Earlier UI/GDI tests retain captions, mnemonic prefixes, radio/tick/separator/font fixes, multi-rect clipping and
+CPU replay versus GPU pixels. Existing streamed-file and strict-slice tests retain ordered reads, omitted-data/code
+outside-slice stops, and prebuilt global setup so compilation does not consume test deadlines. A prior cold-cache,
+forced-SwiftShader, jobs=1 local reproduction passed the slice failure three times after moving builds into setup;
+that was not remote Linux CI. Historical stage 4/5 commits omitted a needed kernel-file change; the finishing
+follow-up supplied it. Those historical commits are not individually self-contained; I1 does not rewrite history.
 
-Left for the porter's next iteration (made findable, not fixed): E9 (drawing artifact during animations), child-window
-clipping / status-bar overdraw (K1), dialog control rendering (`&` prefixes, radio buttons, separators) and dialog font
-and clipping (E6, K2).
+## Unverified / deferred gates
 
-Totals after v0.2.1 (macOS, Apple M4; WebGPU on Metal, WebGL 2 on SwiftShader): `npm run doctor` ready;
-`npm run typecheck` 0 errors; `npm run lint` clean (examples compile with `-Werror`); `npm test` **56/56** (9 files);
-`npm run test:e2e` **53 passed, 4 skipped** (the 3 by-design cross-backend skips plus the resource tour's WebGPU
-duplicate), no port projects; `npm run oracle -- examples/win32-hello` **identical** over 600 frames (lifted
-`interp_insns` 0, interpret-only 212 185, 9 231 API calls each), and `examples/win32-conformance` identical over 300;
-`npm run leakcheck` ok.
+- **F-PERF-CRT** ≥2× whole-module size and speed remains red as an acceptance target, not a failing functional test.
+- End-to-end GL-native scene pixel goldens and consolidation of the separate backend-native scene fixtures.
+- General GLSL/GL/Windows/CRT APIs, general native fibers/cyclic callback waits, full COM marshaling/audio/input
+  devices, minimum-image/lazy-wasm packaging and multi-million-instruction scale: exact bounds in v03-status.md.
+- Physical iPhone, Safari/WebKit/Firefox, physical rumble/listening and device performance, remote Ubuntu/GitHub CI,
+  nested sandbox/container provisioning: **not performed by I1**.
+- No real-game port was attempted or graded; fixture completion does not establish L1/L2/L3 for a game.
