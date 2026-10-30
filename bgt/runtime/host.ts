@@ -560,8 +560,14 @@ export class GameHost {
   }
 
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
-  setBackend(backend: number): void {
+  setBackend(backend: number, gpuBackend?: GpuBackend): void {
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
+    /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
+    this.config.gpuBackend = gpuBackend;
+    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend); }
+    else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
+    this.dv().setUint32(this.ioPtr + IO.caps,
+      (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
   }
 
   setDisplaySize(w: number, h: number): void {

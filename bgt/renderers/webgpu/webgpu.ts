@@ -2,7 +2,8 @@
 
 import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
-import { UNSUPPORTED_GPU } from '../types';
+import { GPU_OP } from '../../runtime/abi';
+import { WebGPUCommands } from './gpu';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const SHADER = /* wgsl */ `
@@ -76,10 +77,12 @@ interface DeviceObjects {
   white: GPUTexture;
   vbuf: GPUBuffer | null;
   vbufSize: number;
+  present: GPURenderPipeline;
 }
 
 export class WebGPURenderer implements Renderer {
-  readonly gpu = UNSUPPORTED_GPU; /* LANE-S1: interface only, no CAP_GPU. */
+  gpu!: WebGPUCommands;
+  private screen?: GPUTexture;
   readonly kind = 'webgpu' as const;
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0 };
   lost = false;
@@ -171,7 +174,24 @@ export class WebGPURenderer implements Renderer {
     );
     const white = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     device.queue.writeTexture({ texture: white }, WHITE_PIXEL, { bytesPerRow: 4 }, [1, 1]);
-    this.o = { device, pipelines, rtPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white, vbuf: null, vbufSize: 0 };
+    const presentModule = device.createShaderModule({ code: `
+      @group(1) @binding(0) var tex: texture_2d<f32>;
+      @group(1) @binding(1) var samp: sampler;
+      struct V { @builtin(position) p: vec4f, @location(0) uv: vec2f };
+      @vertex fn vs(@builtin(vertex_index) id: u32) -> V {
+        let uv = vec2f(f32((id << 1u) & 2u), f32(id & 2u));
+        return V(vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 0, 1), uv);
+      }
+      @fragment fn fs(v: V) -> @location(0) vec4f { return textureSample(tex, samp, v.uv); }
+    ` });
+    const present = device.createRenderPipeline({ layout,
+      vertex: { module: presentModule, entryPoint: 'vs' },
+      fragment: { module: presentModule, entryPoint: 'fs', targets: [{ format: this.format }] } });
+    this.o = { device, pipelines, rtPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white,
+      vbuf: null, vbufSize: 0, present };
+    this.screen = undefined;
+    if (this.gpu) await this.gpu.restore(device);
+    else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)));
     this.textures.clear();
     this.targets.clear();
     this.bindGroups.clear();
@@ -180,6 +200,7 @@ export class WebGPURenderer implements Renderer {
   private async handleLost(info: GPUDeviceLostInfo): Promise<void> {
     if (this.destroyed) return;
     this.lost = true;
+    this.gpu.lost();
     for (const cb of this.lostCbs) cb(`webgpu device lost (${info.reason}): ${info.message}`);
     try {
       if (this.failRecovery) throw new Error('recovery disabled for test (simulateLoss unrecoverable)');
@@ -271,14 +292,25 @@ export class WebGPURenderer implements Renderer {
     }
     if (bytes.byteLength) q.writeBuffer(this.o.vbuf!, 0, bytes);
 
-    const target = this.ctx.getCurrentTexture();
+    const outputLB = lb, output = this.ctx.getCurrentTexture();
+    // §13 requires a shared logical RGBA8 screen, independent of the canvas' preferred BGRA format.
+    // Keep the frozen physical-pixel 2D raster path when no GPU pass occurs (including fractional scaling).
+    const gpuFrame = frame.items.some(it => it.kind === 'gpu' && it.op === GPU_OP.PASS_BEGIN);
+    if (gpuFrame && (this.screen?.width !== frame.logicalW || this.screen.height !== frame.logicalH)) {
+      this.screen?.destroy();
+      this.screen = device.createTexture({ size: [frame.logicalW, frame.logicalH], format: 'rgba8unorm',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC });
+    }
+    const target = gpuFrame ? this.screen! : output;
+    this.gpu.frame(target);
+    if (gpuFrame) lb = { x: 0, y: 0, w: frame.logicalW, h: frame.logicalH, scale: 1 };
     const view = target.createView();
     let encoder: GPUCommandEncoder | null = null;
     let pass: GPURenderPassEncoder | null = null;
     let passTarget = -1;
     let first = true; // screen not yet cleared this frame
-    const W = this.canvas.width;
-    const H = this.canvas.height;
+    const W = target.width;
+    const H = target.height;
 
     const open = (targetHandle: number) => {
       encoder = device.createCommandEncoder();
@@ -311,13 +343,22 @@ export class WebGPURenderer implements Renderer {
     const readbacks: Promise<void>[] = [];
     for (const it of frame.items) {
       switch (it.kind) {
+        case 'gpu':
+          close();
+          if (first) { open(0); close(); }
+          this.gpu.execute(it);
+          if (it.op === GPU_OP.PASS_BEGIN) this.stats.passes++;
+          if (it.op === GPU_OP.DRAW || it.op === GPU_OP.DRAW_INDEXED) this.stats.drawCalls++;
+          break;
         case 'readback': {
           close();
           if (!it.target && first) { open(0); close(); }
           const tex = it.target ? this.textures.get(it.target) : target;
           if (!tex) { it.complete(); break; }
-          readbacks.push((it.target ? this.readback(tex,false,it.x,it.y,it.w,it.h) : this.readback(tex,this.format === 'bgra8unorm')).then((px) => {
-            it.complete(it.target ? px.data : readbackRect(px,it,frame.logicalW,frame.logicalH,lb));
+          const result = it.target ? this.readback(tex, false, it.x, it.y, it.w, it.h) :
+            this.readback(tex, !gpuFrame && this.format === 'bgra8unorm');
+          readbacks.push(result.then((px) => {
+            it.complete(it.target ? px.data : readbackRect(px, it, frame.logicalW, frame.logicalH, lb));
           }).catch(() => { it.complete(); }));
           break;
         }
@@ -357,7 +398,7 @@ export class WebGPURenderer implements Renderer {
           }
           const p = pass as unknown as GPURenderPassEncoder;
           p.setScissorRect(x, y, w, h);
-          const set = it.target ? this.o.rtPipelines : this.o.pipelines;
+          const set = it.target || gpuFrame ? this.o.rtPipelines : this.o.pipelines;
           p.setPipeline(set[it.blend] ?? set[BLEND_ALPHA]);
           p.setBindGroup(1, this.bindGroup(it.texture, it.filter));
           p.draw(it.count, 1, it.first, 0);
@@ -372,8 +413,20 @@ export class WebGPURenderer implements Renderer {
     }
     close();
 
+    if (gpuFrame) {
+      const presentEncoder = device.createCommandEncoder();
+      const present = presentEncoder.beginRenderPass({ colorAttachments: [{ view: output.createView(),
+        loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+      present.setViewport(outputLB.x, outputLB.y, outputLB.w, outputLB.h, 0, 1);
+      present.setPipeline(this.o.present);
+      present.setBindGroup(0, this.o.uniformGroup);
+      present.setBindGroup(1, device.createBindGroup({ layout: this.o.texLayout, entries: [
+        { binding: 0, resource: view }, { binding: 1, resource: this.o.samplers[0] },
+      ] }));
+      present.draw(3); present.end(); device.queue.submit([presentEncoder.finish()]);
+    }
     let pending: Promise<Pixels> | null = null;
-    if (readback) pending = this.readback(target,this.format === 'bgra8unorm');
+    if (readback) pending = this.readback(output, this.format === 'bgra8unorm');
     this.stats.submitMs = performance.now() - t0;
     if (readbacks.length) return Promise.all(readbacks).then(() => pending);
     return pending;
@@ -440,6 +493,7 @@ export class WebGPURenderer implements Renderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.gpu?.lost();
     this.o?.device.destroy();
   }
 }
