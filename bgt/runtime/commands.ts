@@ -6,6 +6,10 @@
 // submission. Pass 2 executes commands in order; a semantic error (unknown
 // opcode, bad handle, limit) skips just that command and is reported.
 
+import { executeGpu, type GpuState } from './commands-gpu';
+import { GPU_OP } from './abi';
+import type { GpuItem } from '../renderers/types';
+
 import {
   BLEND_MODES,
   BGT_OK,
@@ -42,6 +46,7 @@ export interface ReadbackItem {
   complete(data?: Uint8Array<ArrayBuffer>, error?: number): void;
 }
 export type FrameItem =
+  | GpuItem
   | ReadbackItem
   /** `target` 0 = screen (logical surface), else a render-target texture handle. */
   | { kind: 'draw'; first: number; count: number; texture: number; filter: number; blend: number; clip: Rect; target: number }
@@ -59,6 +64,8 @@ export class Frame {
   items: FrameItem[] = [];
   submits = 0;
   commandBytes = 0;
+  gpuUploadBytes = 0;
+  gpuVertices = 0;
   private buf = new ArrayBuffer(65536 * VERTEX_FLOATS * 4);
   f32 = new Float32Array(this.buf);
   u32 = new Uint32Array(this.buf);
@@ -70,6 +77,8 @@ export class Frame {
     this.items = [];
     this.submits = 0;
     this.commandBytes = 0;
+    this.gpuUploadBytes = 0;
+    this.gpuVertices = 0;
   }
 
   /** Bytes of vertex data, suitable for one GPU upload. */
@@ -79,7 +88,7 @@ export class Frame {
 
   reserve(n: number): boolean {
     const need = this.vertexCount + n;
-    if (need > LIMITS.verticesPerFrame) return false;
+    if (need + this.gpuVertices > LIMITS.verticesPerFrame) return false;
     if (need * VERTEX_FLOATS > this.f32.length) {
       let cap = this.f32.length / VERTEX_FLOATS;
       while (cap < need) cap *= 2;
@@ -222,6 +231,9 @@ export interface DecodeResult {
 
 export interface DecodeContext {
   state: DrawState;
+  /** Only supplied for a backend implementing §13; omitted means E_UNSUPPORTED. */
+  gpu?: GpuState;
+  gpuRequest?: (id: number) => ((data?: Uint8Array<ArrayBuffer>, error?: number) => void) | number;
   frame: Frame;
   textures: TextureTable;
   linearFilter: boolean;
@@ -349,12 +361,18 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
     }
     off = p + payload;
   }
+  if (ctx.gpu?.pass) {
+    ctx.gpu.pass = undefined;
+    ctx.frame.items.push({ kind: 'gpu', op: GPU_OP.PASS_END, words: [] });
+    errors.push({ code: E_STATE, message: 'GPU pass not ended in submission; closed implicitly', offset: len, op: 0 });
+  }
   return { status: errors.length ? errors[0].code : BGT_OK, executed, errors };
 }
 
 function describe(op: number, code: number, flags: number): string {
   if (flags) return `op 0x${op.toString(16)}: non-zero command flags`;
-  const name = Object.entries(OP).find(([, v]) => v === op)?.[0] ?? `0x${op.toString(16)}`;
+  const name = Object.entries(OP).find(([, v]) => v === op)?.[0]
+    ?? Object.entries(GPU_OP).find(([, v]) => v === op)?.[0] ?? `0x${op.toString(16)}`;
   const why: Record<number, string> = {
     [E_INVALID]: 'invalid payload',
     [E_BOUNDS]: 'pointer/length outside linear memory',
@@ -372,6 +390,11 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
   const u = (o: number) => dv.getUint32(p + o, true);
   const i = (o: number) => dv.getInt32(p + o, true);
   const f = (o: number) => dv.getFloat32(p + o, true);
+
+  if (op >= GPU_OP.BUFFER_CREATE && op <= GPU_OP.DRAW_INDEXED) {
+    return executeGpu(op, dv, p, n, mem, ctx);
+  }
+  if (ctx.gpu?.pass) return E_STATE; // No legacy operation may interrupt an explicit GPU pass.
 
   switch (op) {
     case OP.READBACK: {
@@ -611,6 +634,12 @@ export class CommandEncoder {
   triangles(verts: Array<[number, number, number, number, number]>) {
     this.cmd(OP.TRIANGLES, 4 + verts.length * VERTEX_SIZE).u32(verts.length);
     for (const v of verts) this.f32(v[0]).f32(v[1]).f32(v[2]).f32(v[3]).u32(v[4]);
+    return this;
+  }
+  /** §13 wire-word encoder: float fields must be passed as IEEE-754 u32 bits. */
+  gpu(op: number, words: readonly number[]) {
+    this.cmd(op, words.length * 4);
+    for (const word of words) this.u32(word);
     return this;
   }
   /** Raw command for malformed-input tests. */
