@@ -5,8 +5,9 @@ typedef struct { x86_opnd_t first; int64_t low, high; } l64_span_t;
 typedef struct { l64_span_t spans[16]; int n, safe; } l64_guard_t;
 static int l64_span_add(l64_guard_t *g, x86_opnd_t p, int bytes, int64_t stack_delta) {
     if ((p.pad & 1) || bytes < 1 || bytes > 16) return 0;
+    /* Normalized RIP-relative no-base addresses are uint32; other disp32 values sign-extend. */
     int64_t offset = (p.pad & 4) ? (int64_t)p.imm :
-        (p.base == X86_NOREG && (p.pad & 2)) ? (uint32_t)p.disp : p.disp;
+        (p.base == X86_NOREG && (p.pad & 2)) ? (int64_t)(uint32_t)p.disp : (int64_t)p.disp;
     if (p.base == ESP) offset += stack_delta;
     if (offset > INT64_MAX - bytes) return 0;
     for (int i = 0; i < g->n; i++) {

@@ -36,14 +36,16 @@ async function harness(hex: string) {
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
     + text.replace('#include "x86_lift64.h"', `#include "${ROOT}/platforms/x86/x86_lift64.h"`) + `
-BGT_EXPORT(run) void run(unsigned interpreted) {
+BGT_EXPORT(run) unsigned run(unsigned interpreted) {
+    unsigned fallback_blocks=0;
     for(unsigned guard=0;X.eip>=${base}u && X.eip<${base + code.length}u;guard++) {
         if(guard>5000000u)__builtin_trap();
         if(interpreted){reference();continue;}
         F_01001000();
         if(x86_lift_pending){const x86_insn_t *p=x86_lift_pending;x86_lift_pending=0;x86_exec_one(p);}
-        else if(x86_lift_count){unsigned n=x86_lift_count;x86_lift_count=0;x86_lift_block(n);}
+        else if(x86_lift_count){unsigned n=x86_lift_count;x86_lift_count=0;fallback_blocks++;x86_lift_block(n);}
     }
+    return fallback_blocks;
 }`;
   writeFileSync(join(dir, 'probe.c'), source);
   const wasm = await compileC(relative(ROOT, join(dir, 'probe.c')));
@@ -113,6 +115,39 @@ it('flat-memory faults spill locals, live flags and reference partial cross-page
     };
     expect(execute(0), hex).toEqual(execute(1));
   }
+});
+
+it('negative RBP displacements stay in signed guarded spans without reference fallback', async () => {
+  // Set RBP in a preceding block so the guarded block has an unchanged base.
+  // Wrongly zero-extending -8 guards RBP+0xfffffff8 instead and forces reference execution.
+  const h = await harness('48c7c508200000eb00'
+    + '48b88877665544332211488945f8488b5df8488345f801c3');
+  const execute = (interp: number) => {
+    h.ex.reset(base, 0);
+    const fallbackBlocks = h.ex.run(interp);
+    return { fallbackBlocks, cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+      ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+  };
+  const lifted = execute(0), interpreted = execute(1);
+  expect(lifted.fallbackBlocks).toBe(0);
+  expect(lifted).toEqual(interpreted);
+  expect(new DataView(lifted.ram.buffer).getBigUint64(0x2000, true)).toBe(0x1122334455667789n);
+  expect(h.text).toContain('+0xfffffffffffffff8ull,8u)');
+});
+
+it.each([
+  // Absolute SIB disp32 is signed in addr64 mode; normalized RIP-relative addresses are uint32.
+  ['488b0425f8ffffffc3', 'fffffffffffffff8'],
+  ['488b05f1effffec3', 'fffffff8'],
+])('no-base guard displacement keeps its address width (%s)', async (hex, offset) => {
+  const h = await harness(hex);
+  expect(h.text).toContain(`+0x${offset}ull,8u)`);
+  const execute = (interp: number) => {
+    h.ex.reset(base, 0);
+    expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
+    return h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size());
+  };
+  expect(execute(0)).toEqual(execute(1));
 });
 
 it('implicit stack operations retain reference low-address behavior for full-width RSP', async () => {

@@ -42,7 +42,9 @@ function hostCC() {
 
 /** Build (or reuse) the native x86tool. */
 export function x86tool() {
-  const srcs = [join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c'), join(ROOT, 'platforms/x86/x86_decode.h'),join(ROOT,'tools/x86/lift64.h')];
+  const srcs = ['tools/x86/x86tool.c', 'platforms/x86/x86_decode.c',
+    'platforms/x86/x86_decode.h', 'platforms/x86/x86.h',
+    'tools/x86/lift64.h', 'tools/x86/lift64_guard.h'].map((s) => join(ROOT, s));
   const h = sha256(Buffer.concat(srcs.map((s) => readFileSync(s)))).slice(0, 16);
   const out = join(CACHE, `x86tool-${h}`);
   if (!existsSync(out)) {
