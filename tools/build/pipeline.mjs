@@ -287,6 +287,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     /* LANE-E: additive audio/COM/input profile translation units. */
     'platforms/win32/w32_audio.c', 'platforms/win32/w32_com.c', 'platforms/win32/w32_input.c',
     'platforms/win32/w32_x64.c',
+    'platforms/win32/w32_gl.c', /* LANE-GL */
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
     'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
