@@ -108,7 +108,11 @@ static uint64_t c_strerror(void) {
     if (!p) p = w32_misc_alloc(128);
     w32_pstr(p, 128, 0, errstr(ARG(0))); return p;
 }
-static uint64_t c_sys_nerr(void) { return 43; }
+static uint64_t c_sys_nerr(void) {
+    static uint32_t p;
+    if (!p) { p = w32_misc_alloc(4); x86_wr32(p, 43); }
+    return p;
+}
 static uint64_t c_timezone(void) { return cell(48); }
 static uint64_t c_daylight(void) { return cell(56); }
 static uint64_t c_tzname(void) {

@@ -233,12 +233,10 @@ static uint32_t k_Lock(void) { return ARG(0); }
 static uint32_t k_Size(void) { return w32_heap_size(ARG(0)); }
 static uint32_t k_VirtualAlloc(void) {
     uint32_t want = ARG(0), size = ARG(1);
-    if (want && x86_mapped(want, size)) return want;
 #ifdef X86_FLAT_GUEST
-    if (want) {
-        if ((want & 65535u) || !size || (uint64_t)want + size > X86_FLAT_BYTES) return 0;
-        return x86_map(want, size) ? want : 0;
-    }
+    if (want) return w32_virtual_map(want, size);
+#else
+    if (want && x86_mapped(want, size)) return want;
 #endif
     return w32_heap_alloc(size, 1); /* contents zeroed as committed pages are */
 }

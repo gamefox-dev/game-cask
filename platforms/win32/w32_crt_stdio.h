@@ -1,8 +1,14 @@
 /* Guest FILE tokens and Windows va_list adapters; musl does numeric formatting/parsing. MIT. */
-typedef struct {
-    uint32_t handle, data, capacity, size, pos;
-    int open, write, eof, error, pushback, temporary;
+typedef struct crt_node {
+    struct crt_node *next;
     char name[512];
+    uint32_t data, capacity, size;
+} crt_node_t;
+static crt_node_t *file_nodes;
+typedef struct {
+    uint32_t handle, pos;
+    crt_node_t *node;
+    int open, read, write, append, eof, error, pushback, temporary;
 } crt_file_t;
 static crt_file_t cfiles[64];
 static uint32_t iob_base;
@@ -12,6 +18,7 @@ uint32_t crt_iob_base(void) {
     if (!iob_base) {
         iob_base = w32_misc_alloc(64 * 48);
         for (unsigned i = 0; i < 3; i++) { cfiles[i].open = 1; cfiles[i].pushback = -1; }
+        cfiles[0].read = 1; cfiles[1].write = cfiles[2].write = 1;
     }
     return iob_base;
 }
@@ -38,33 +45,36 @@ static void log_bytes(const char *s, uint32_t n) {
 static uint32_t file_write(crt_file_t *f, const uint8_t *src, uint32_t n) {
     if (!f) { crt_errno(9); return 0; }
     if (f == &cfiles[1] || f == &cfiles[2]) { log_bytes((const char *)src, n); return n; }
-    if (!f->write) { f->error = 1; crt_errno(13); return 0; }
+    if (!f->write || !f->node) { f->error = 1; crt_errno(13); return 0; }
+    crt_node_t *node = f->node;
+    if (f->append) f->pos = node->size;
     if ((uint64_t)f->pos + n > UINT32_MAX - 16) { f->error = 1; crt_errno(27); return 0; }
     uint32_t end = f->pos + n;
-    if (end > f->capacity) {
+    if (end > node->capacity) {
         uint32_t capacity = end < 4096 ? 4096 : end;
-        uint32_t data = w32_heap_realloc(f->data, capacity);
+        uint32_t data = w32_heap_realloc(node->data, capacity);
         if (!data) { f->error = 1; crt_errno(12); return 0; }
-        f->data = data; f->capacity = capacity;
+        node->data = data; node->capacity = capacity;
     }
-    if (f->pos > f->size) memset(cmem(f->data + f->size, f->pos - f->size), 0, f->pos - f->size);
-    if (n) memcpy(cmem(f->data + f->pos, n), src, n);
+    if (f->pos > node->size) memset(cmem(node->data + node->size, f->pos - node->size), 0, f->pos - node->size);
+    if (n) memcpy(cmem(node->data + f->pos, n), src, n);
     f->pos = end;
-    if (f->size < end) f->size = end;
+    if (node->size < end) node->size = end;
     return n;
 }
 static uint32_t file_read(crt_file_t *f, uint8_t *dst, uint32_t n) {
     if (!f) { crt_errno(9); return 0; }
+    if (!f->read) { f->error = 1; crt_errno(13); return 0; }
     uint32_t got = 0;
     if (n && f->pushback >= 0) { *dst++ = (uint8_t)f->pushback; f->pushback = -1; got++; }
     if (f->handle) {
         uint32_t count = 0;
         if (!w32_file_read_buf(f->handle, dst, n - got, &count)) { f->error = 1; crt_errno(5); }
         got += count;
-    } else if (f->data) {
-        uint32_t count = f->pos < f->size ? f->size - f->pos : 0;
+    } else if (f->node) {
+        uint32_t count = f->pos < f->node->size ? f->node->size - f->pos : 0;
         if (count > n - got) count = n - got;
-        if (count) memcpy(dst, cmem(f->data + f->pos, count), count);
+        if (count) memcpy(dst, cmem(f->node->data + f->pos, count), count);
         f->pos += count; got += count;
     }
     if (got < n) f->eof = 1;
@@ -78,21 +88,30 @@ static uint64_t file_open(int wide, int temporary) {
     }
     int write = mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+') != 0;
     if (mode[0] != 'r' && mode[0] != 'w' && mode[0] != 'a') { crt_errno(22); return 0; }
-    unsigned slot = 64;
-    for (unsigned i = 3; i < 64; i++) {
-        if (!cfiles[i].open && !temporary && *name && !strcmp(cfiles[i].name, name)) { slot = i; break; }
-        if (slot == 64 && !cfiles[i].open && !cfiles[i].name[0]) slot = i;
-    }
+    unsigned slot;
+    for (slot = 3; slot < 64 && cfiles[slot].open; slot++) {}
     if (slot == 64) { crt_errno(24); return 0; }
-    crt_file_t *f = &cfiles[slot];
-    if (temporary || mode[0] == 'w') { w32_heap_free(f->data); memset(f, 0, sizeof *f); }
-    if (!f->data && mode[0] == 'r') {
-        f->handle = w32_file_open_str(name, 0);
-        if (!f->handle) { crt_errno(2); return 0; }
-        if (write) { w32_file_close_h(f->handle); f->handle = 0; crt_errno(13); return 0; }
+    crt_node_t *node = 0;
+    if (!temporary) for (crt_node_t *p = file_nodes; p; p = p->next) {
+        if (!strcmp(p->name, name)) { node = p; break; }
     }
-    strcpy(f->name, name); f->open = 1; f->write = write; f->eof = f->error = 0;
-    f->pushback = -1; f->temporary = temporary; f->pos = mode[0] == 'a' ? f->size : 0;
+    uint32_t asset = 0;
+    if (!node && !temporary) asset = w32_file_open_str(name, 0);
+    if (asset && write) { w32_file_close_h(asset); crt_errno(13); return 0; }
+    if (!node && !asset && mode[0] == 'r') { crt_errno(2); return 0; }
+    if (!node && !asset) {
+        node = calloc(1, sizeof *node);
+        if (!node) { crt_errno(12); return 0; }
+        strcpy(node->name, name);
+        if (!temporary) { node->next = file_nodes; file_nodes = node; }
+    }
+    if (node && mode[0] == 'w') { node->size = 0; }
+    crt_file_t *f = &cfiles[slot];
+    memset(f, 0, sizeof *f);
+    f->handle = asset; f->node = node; f->open = 1; f->write = write;
+    f->read = mode[0] == 'r' || strchr(mode, '+') != 0;
+    f->append = mode[0] == 'a'; f->pushback = -1; f->temporary = temporary;
+    f->pos = f->append && node ? node->size : 0;
     return iob_base + slot * 48;
 }
 static uint64_t c_fopen(void) { return file_open(0, 0); }
@@ -104,7 +123,8 @@ static uint64_t c_fclose(void) {
     flush_stdout();
     if (f->handle) w32_file_close_h(f->handle);
     f->handle = 0; f->open = 0;
-    if (f->temporary) { w32_heap_free(f->data); memset(f, 0, sizeof *f); }
+    if (f->temporary && f->node) { w32_heap_free(f->node->data); free(f->node); }
+    memset(f, 0, sizeof *f);
     return 0;
 }
 static uint64_t c_fflush(void) { flush_stdout(); return 0; }
@@ -177,7 +197,7 @@ static int file_seek(crt_file_t *f, int64_t delta, uint32_t method) {
         if (method == 1 && f->pushback >= 0) delta--;
         if (!w32_file_seek_pos(f->handle, delta, method, 0)) { crt_errno(22); return -1; }
     } else {
-        uint64_t base = method == 0 ? 0 : method == 1 ? file_tell(f) : f->size;
+        uint64_t base = method == 0 ? 0 : method == 1 ? file_tell(f) : f->node ? f->node->size : 0;
         if ((delta < 0 && (uint64_t)(-(delta + 1)) + 1 > base) ||
             (delta >= 0 && (uint64_t)delta + base > UINT32_MAX)) { crt_errno(22); return -1; }
         f->pos = (uint32_t)(base + (uint64_t)delta);
@@ -212,17 +232,52 @@ static void out_add(format_out_t *o, const char *s, size_t n) {
     }
     memcpy(o->bytes + o->n, s, n); o->n += n; o->bytes[o->n] = 0;
 }
+static void out_codepoint(format_out_t *o, unsigned c) {
+    char s[4]; unsigned n;
+    if (c < 128) { s[0] = (char)c; n = 1; }
+    else if (c < 2048) { s[0] = (char)(192 | (c >> 6)); s[1] = (char)(128 | (c & 63)); n = 2; }
+    else if (c < 65536) {
+        s[0] = (char)(224 | (c >> 12)); s[1] = (char)(128 | ((c >> 6) & 63));
+        s[2] = (char)(128 | (c & 63)); n = 3;
+    } else {
+        s[0] = (char)(240 | (c >> 18)); s[1] = (char)(128 | ((c >> 12) & 63));
+        s[2] = (char)(128 | ((c >> 6) & 63)); s[3] = (char)(128 | (c & 63)); n = 4;
+    }
+    out_add(o, s, n);
+}
+static unsigned utf8_next(const char *s, size_t n, size_t *at) {
+    unsigned c = (uint8_t)s[(*at)++];
+    unsigned more = c < 128 ? 0 : c < 224 ? 1 : c < 240 ? 2 : 3;
+    if (!more) return c;
+    c &= (1u << (6 - more)) - 1;
+    while (more-- && *at < n) c = (c << 6) | ((uint8_t)s[(*at)++] & 63);
+    return c;
+}
+static size_t utf16_units(const char *s, size_t n) {
+    size_t units = 0, at = 0;
+    while (at < n) units += utf8_next(s, n, &at) > 65535 ? 2 : 1;
+    return units;
+}
+static void wide_field(format_out_t *o, const char *s, size_t n, const char *spec) {
+    const char *p = spec + 1;
+    int left = strchr(p, '-') != 0;
+    while (*p && strchr("-+ #0", *p)) p++;
+    unsigned width = (unsigned)strtoul(p, 0, 10);
+    size_t units = utf16_units(s, n), pad = width > units ? width - units : 0;
+    if (!left) while (pad--) out_add(o, " ", 1);
+    out_add(o, s, n);
+    if (left) while (pad--) out_add(o, " ", 1);
+}
 static char *utf16_string(uint32_t p, int limit) {
     format_out_t o = {0};
     for (int i = 0; limit < 0 || i < limit; i++) {
         unsigned c = x86_rd16(p + (uint32_t)i * 2);
         if (!c) break;
-        char s[4]; unsigned n;
-        if (c < 128) { s[0] = (char)c; n = 1; }
-        else if (c < 2048) { s[0] = (char)(192 | (c >> 6)); s[1] = (char)(128 | (c & 63)); n = 2; }
-        else { s[0] = (char)(224 | (c >> 12)); s[1] = (char)(128 | ((c >> 6) & 63));
-            s[2] = (char)(128 | (c & 63)); n = 3; }
-        out_add(&o, s, n);
+        if (c >= 0xd800 && c <= 0xdbff && (limit < 0 || i + 1 < limit)) {
+            unsigned low = x86_rd16(p + (uint32_t)(i + 1) * 2);
+            if (low >= 0xdc00 && low <= 0xdfff) { c = 0x10000 + ((c - 0xd800) << 10) + low - 0xdc00; i++; }
+        }
+        out_codepoint(&o, c);
     }
     if (!o.bytes) o.bytes = calloc(1, 1);
     return o.bytes;
@@ -238,7 +293,10 @@ static format_out_t format_guest(uint32_t fmt, uint32_t va, int wide, uint64_t o
     unsigned step = wide ? 2 : 1;
     for (uint32_t p = fmt; sch(p, (unsigned)wide);) {
         unsigned ch = sch(p, (unsigned)wide); p += step;
-        if (ch != '%') { char c = (char)ch; out_add(&o, &c, 1); continue; }
+        if (ch != '%') {
+            if (wide) out_codepoint(&o, ch); else { char c = (char)ch; out_add(&o, &c, 1); }
+            continue;
+        }
         if (sch(p, (unsigned)wide) == '%') { out_add(&o, "%", 1); p += step; continue; }
         char spec[96] = "%"; unsigned sn = 1;
         while (strchr("-+ #0", (int)sch(p, (unsigned)wide)) && sch(p, (unsigned)wide)) {
@@ -302,15 +360,27 @@ static format_out_t format_guest(uint32_t fmt, uint32_t va, int wide, uint64_t o
             if (c == 'S') source_wide = !source_wide;
             text = source_wide && v ? utf16_string(cp(v), precision) : 0;
             const char *s = !v ? "(null)" : source_wide ? text : cstr(cp(v));
-            spec[sn++] = 's'; spec[sn] = 0;
-            n = s ? snprintf(0, 0, spec, s) : -1;
-            if (n >= 0) { temp = malloc((size_t)n + 1); if (temp) snprintf(temp, (size_t)n + 1, spec, s); }
+            if (wide && s) {
+                size_t bytes = strlen(s);
+                if (!source_wide && precision >= 0 && bytes > (size_t)precision) bytes = (size_t)precision;
+                wide_field(&o, s, bytes, spec); n = 0;
+            } else {
+                spec[sn++] = 's'; spec[sn] = 0;
+                n = s ? snprintf(0, 0, spec, s) : -1;
+                if (n >= 0) { temp = malloc((size_t)n + 1); if (temp) snprintf(temp, (size_t)n + 1, spec, s); }
+            }
         } else if (c == 'c' || c == 'C') {
-            spec[sn++] = 'c'; spec[sn] = 0;
-            n = snprintf(local, sizeof local, spec, (int)v); temp = 0;
+            if (wide) {
+                format_out_t chout = {0}; out_codepoint(&chout, (unsigned)v & 65535);
+                wide_field(&o, chout.bytes, chout.n, spec); free(chout.bytes); n = 0;
+            } else {
+                spec[sn++] = 'c'; spec[sn] = 0;
+                n = snprintf(0, 0, spec, (int)v);
+                if (n >= 0) { temp = malloc((size_t)n + 1); if (temp) snprintf(temp, (size_t)n + 1, spec, (int)v); }
+            }
         } else if (c == 'p') {
             n = snprintf(local, sizeof local, "%016llX", (unsigned long long)v); temp = 0;
-        } else if (c == 'n') { store_count(cp(v), size, o.n); n = 0; }
+        } else if (c == 'n') { store_count(cp(v), size, wide ? utf16_units(o.bytes, o.n) : o.n); n = 0; }
         else { o.error = 1; }
         if (n < 0 || (n >= (int)sizeof local && !temp)) o.error = 1;
         else out_add(&o, temp ? temp : local, (size_t)n);
@@ -322,14 +392,27 @@ static format_out_t format_guest(uint32_t fmt, uint32_t va, int wide, uint64_t o
 uint64_t crt_vformat(uint32_t dst, uint64_t cap, uint32_t fmt, uint32_t va, int wide, uint64_t options) {
     format_out_t o = format_guest(fmt, va, wide, options);
     if (o.error) { free(o.bytes); crt_errno(22); return UINT64_MAX; }
-    uint64_t copied = o.n < cap ? o.n : cap ? cap - 1 : 0;
+    int legacy = (options & 1) != 0;
+    uint64_t count = wide ? utf16_units(o.bytes, o.n) : o.n;
+    uint64_t copied = count < cap ? count : legacy ? cap : cap ? cap - 1 : 0;
     if (dst && cap) {
         if (!wide) { if (copied) memcpy(cmem(dst, (uint32_t)copied), o.bytes, (size_t)copied); }
-        else for (uint32_t i = 0; i < copied; i++) x86_wr16(dst + i * 2, (uint8_t)o.bytes[i]);
-        swr(dst + (uint32_t)copied * (wide ? 2 : 1), (unsigned)wide, 0);
+        else {
+            size_t at = 0; uint32_t written = 0;
+            while (at < o.n && written < copied) {
+                unsigned c = utf8_next(o.bytes, o.n, &at);
+                if (c > 65535) {
+                    c -= 65536; x86_wr16(dst + 2 * written++, 0xd800 | (c >> 10));
+                    if (written == copied) break;
+                    c = 0xdc00 | (c & 1023);
+                }
+                x86_wr16(dst + 2 * written++, c);
+            }
+        }
+        if (!legacy || count < cap) swr(dst + (uint32_t)copied * (wide ? 2 : 1), (unsigned)wide, 0);
     }
-    uint64_t result = o.n;
-    if (!(options & 2) && o.n >= cap) result = UINT64_MAX;
+    uint64_t result = count;
+    if (legacy ? count > cap : !(options & 2) && count >= cap) result = UINT64_MAX;
     free(o.bytes);
     return result;
 }
@@ -346,8 +429,8 @@ static uint64_t c_sprintf(void) { return crt_vformat(ARG(0), UINT32_MAX, ARG(1),
 static uint64_t c_vsprintf(void) { return crt_vformat(ARG(0), UINT32_MAX, ARG(1), ARG(2), 0, 2); }
 static uint64_t c_snprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), direct_va(3), 0, 2); }
 static uint64_t c_vsnprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), ARG(3), 0, 2); }
-static uint64_t c_legacy_snprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), direct_va(3), 0, 0); }
-static uint64_t c_legacy_vsnprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), ARG(3), 0, 0); }
+static uint64_t c_legacy_snprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), direct_va(3), 0, 1); }
+static uint64_t c_legacy_vsnprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2), ARG(3), 0, 1); }
 static uint64_t c_common_vsprintf(void) { return crt_vformat(ARG(1), ARG64(2), ARG(3), ARG(5), 0, ARG64(0)); }
 static uint64_t c_common_vswprintf(void) { return crt_vformat(ARG(1), ARG64(2), ARG(3), ARG(5), 1, ARG64(0)); }
 static uint64_t c_common_vfprintf(void) { return print_file(ARG(1), ARG(2), ARG(4), ARG64(0)); }
@@ -379,16 +462,20 @@ static uint64_t c_vswprintf(void) { return crt_vformat(ARG(0), ARG64(1), ARG(2),
 static uint32_t scan_consumed;
 uint64_t crt_vscan(uint32_t src, uint64_t len, uint32_t fmt, uint32_t va, int wide) {
     scan_consumed = 0;
-    char *input = wide ? utf16_string(src, len > INT_MAX ? -1 : (int)len) : cstr(src);
+    char *input;
+    int owned = wide || len != UINT64_MAX;
+    if (len != UINT64_MAX) {
+        uint32_t n = 0;
+        while (n < len && sch(src + n * (wide ? 2u : 1u), (unsigned)wide)) n++;
+        input = malloc((size_t)n + 1);
+        if (input) {
+            for (uint32_t i = 0; i < n; i++) input[i] = (char)sch(src + i * (wide ? 2u : 1u), (unsigned)wide);
+            input[n] = 0;
+        }
+    } else input = wide ? utf16_string(src, -1) : cstr(src);
     char *format = wide ? utf16_string(fmt, -1) : cstr(fmt);
-    if (!input || !format) { crt_errno(12); return UINT64_MAX; }
-    char *bounded = 0;
-    if (len < strlen(input)) {
-        bounded = malloc((size_t)len + 1);
-        if (!bounded) { crt_errno(12); return UINT64_MAX; }
-        memcpy(bounded, input, (size_t)len); bounded[len] = 0;
-    }
-    const char *s = bounded ? bounded : input, *start = s, *f = format;
+    if (!input || !format) { if (owned) free(input); if (wide) free(format); crt_errno(12); return UINT64_MAX; }
+    const char *s = input, *start = s, *f = format;
     int assigned = 0;
     while (*f) {
         if (isspace((unsigned char)*f)) { while (isspace((unsigned char)*s)) s++; f++; continue; }
@@ -413,7 +500,8 @@ uint64_t crt_vscan(uint32_t src, uint64_t len, uint32_t fmt, uint32_t va, int wi
         if (!*s) { if (!assigned) assigned = -1; break; }
         char spec[128]; int used = -1, result = 0;
         unsigned long long integer = 0; double real = 0;
-        if (strchr("diuoxX", c)) {
+        if (strchr("diuoxX", c) || c == 'p') {
+            if (c == 'p') { c = 'x'; size = 8; }
             /* Normalize Windows LLP64 lengths to the backend's long long. */
             unsigned n = 1; spec[0] = '%';
             if (width) n += (unsigned)snprintf(spec + n, sizeof spec - n, "%u", width);
@@ -457,7 +545,8 @@ uint64_t crt_vscan(uint32_t src, uint64_t len, uint32_t fmt, uint32_t va, int wi
         s += used; if (!suppress) assigned++;
     }
     scan_consumed = (uint32_t)(s - start);
-    free(bounded); if (wide) { free(input); free(format); }
+    if (owned) free(input);
+    if (wide) free(format);
     return (uint64_t)(int64_t)assigned;
 }
 static uint64_t scan_file(uint32_t token, uint32_t fmt, uint32_t va) {

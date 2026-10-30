@@ -97,6 +97,7 @@ uint32_t w32_heap_alloc(uint32_t n, int zero);
 void w32_heap_free(uint32_t a);
 uint32_t w32_heap_size(uint32_t a);
 uint32_t w32_heap_realloc(uint32_t a, uint32_t n);
+uint32_t w32_virtual_map(uint32_t addr, uint32_t size);
 
 /* time */
 uint32_t w32_now_ms(void);

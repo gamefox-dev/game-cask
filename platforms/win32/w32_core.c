@@ -81,14 +81,66 @@ void w32_sleep_ms(uint32_t ms) {
 /* ------------------------------------------------------------------ guest heap (first fit, lazily mapped) */
 /* block: [u32 size_with_header | used(bit0)] [u32 requested] payload */
 static uint32_t heap_end = W32_HEAP_LO, heap_mapped = W32_HEAP_LO;
-static int heap_grow_to(uint32_t end) {
+#ifdef X86_FLAT_GUEST
+typedef struct { uint32_t lo, hi, skip; } virtual_range_t;
+static virtual_range_t virtual_ranges[256];
+static uint32_t virtual_n;
+uint32_t w32_virtual_map(uint32_t addr, uint32_t size) {
+    uint64_t end = ((uint64_t)addr + size + 65535u) & ~65535ull;
+    if (!size || (addr & 65535u) || end > X86_FLAT_BYTES) return 0;
+    for (uint32_t i = 0; i < virtual_n; i++) {
+        virtual_range_t *r = &virtual_ranges[i];
+        if (addr >= r->lo && end <= r->hi) return addr;
+        if (addr < r->hi && end > r->lo) return 0;
+    }
+    if (virtual_n == 256 || (addr < heap_end && end > W32_HEAP_LO)) return 0;
+    for (uint32_t p = addr >> 12; p < end >> 12; p++) if (x86_pages[p]) return 0;
+    if (!x86_map(addr, (uint32_t)end - addr)) return 0;
+    virtual_ranges[virtual_n++] = (virtual_range_t){addr, (uint32_t)end, addr};
+    return addr;
+}
+static uint32_t heap_skip(uint32_t p) {
+    for (uint32_t i = 0; i < virtual_n; i++) {
+        virtual_range_t *r = &virtual_ranges[i];
+        if (p >= r->skip && p < r->hi) return r->hi;
+    }
+    return p;
+}
+static uint32_t heap_place(uint32_t p, uint32_t need) {
+    for (uint32_t i = 0; i < virtual_n; i++) {
+        virtual_range_t *r = &virtual_ranges[i];
+        if (p < r->hi && (uint64_t)p + need > r->lo) {
+            p = r->hi; i = UINT32_MAX; /* restart for possibly adjacent reservations */
+        }
+    }
+    return p;
+}
+static void heap_commit_skip(uint32_t begin, uint32_t end) {
+    while (begin < end) {
+        virtual_range_t *first = 0;
+        for (uint32_t i = 0; i < virtual_n; i++) {
+            virtual_range_t *r = &virtual_ranges[i];
+            if (r->lo >= begin && r->hi <= end && (!first || r->lo < first->lo)) first = r;
+        }
+        if (!first) break;
+        first->skip = begin; begin = first->hi;
+    }
+}
+#endif
+static int heap_grow_to(uint32_t begin, uint32_t end) {
     if (end > W32_HEAP_HI) return 0;
+#ifdef X86_FLAT_GUEST
+    uint32_t lo = begin & ~65535u, hi = (end + 65535u) & ~65535u;
+    return x86_map(lo, hi - lo) != 0;
+#else
+    (void)begin;
     if (end > heap_mapped) {
         uint32_t to = (end + 0xffffu) & ~0xffffu;
         if (!x86_map(heap_mapped, to - heap_mapped)) return 0;
         heap_mapped = to;
     }
     return 1;
+#endif
 }
 uint32_t w32_heap_alloc(uint32_t n, int zero) {
     uint32_t header = W32_64 ? 16u : 8u;
@@ -96,11 +148,22 @@ uint32_t w32_heap_alloc(uint32_t n, int zero) {
     if (required > W32_HEAP_HI - W32_HEAP_LO) return 0;
     uint32_t need = (uint32_t)required;
     for (uint32_t p = W32_HEAP_LO; p < heap_end;) {
+#ifdef X86_FLAT_GUEST
+        uint32_t next = heap_skip(p);
+        if (next != p) { p = next; continue; }
+#endif
         uint32_t h = x86_rd32(p), size = h & ~15u;
         if (!size) break;
         if (!(h & 1u)) {
             uint32_t q = p + size; /* coalesce following free blocks */
-            while (q < heap_end && !(x86_rd32(q) & 1u)) { size += x86_rd32(q) & ~15u; q = p + size; }
+            while (q < heap_end) {
+#ifdef X86_FLAT_GUEST
+                if (heap_skip(q) != q) break;
+#endif
+                uint32_t hq = x86_rd32(q), sq = hq & ~15u;
+                if ((hq & 1u) || !sq) break;
+                size += sq; q = p + size;
+            }
             if (size >= need) {
                 if (size - need >= 32) { x86_wr32(p + need, size - need); x86_wr32(p + need + 4, 0); size = need; }
                 x86_wr32(p, size | 1u); x86_wr32(p + 4, n);
@@ -116,7 +179,13 @@ uint32_t w32_heap_alloc(uint32_t n, int zero) {
         p += size;
     }
     uint32_t p = heap_end;
-    if ((uint64_t)p + need > W32_HEAP_HI || !heap_grow_to(p + need)) return 0;
+#ifdef X86_FLAT_GUEST
+    p = heap_place(p, need);
+#endif
+    if ((uint64_t)p + need > W32_HEAP_HI || !heap_grow_to(p, p + need)) return 0;
+#ifdef X86_FLAT_GUEST
+    heap_commit_skip(heap_end, p);
+#endif
     heap_end = p + need;
     x86_wr32(p, need | 1u); x86_wr32(p + 4, n);
     if (zero) {

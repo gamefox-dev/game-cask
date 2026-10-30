@@ -3,7 +3,7 @@
 ## Task 2a — normal Win64 CRT programs and 2 GiB address window
 
 Original CC0 normal **Zig 0.13.0 -O2 / standard MinGW CRT** fixtures pass fully lifted through startup and exit:
-`x64-crt` (six exact native-reference group checksums, **178 distinct shared-CRT names actually hit**), `x64-cpprt`
+`x64-crt` (seven exact native-reference group checksums, **180 distinct shared-CRT names actually hit**), `x64-cpprt`
 (vector/string/sort/map/iostream, four exact native checksums) and `x64-memory`. Native references compile/run the same
 source with host cc/c++, not Windows executables. `fixture-build.json` assertions reject -nostdlib/custom entry builds.
 
@@ -21,7 +21,7 @@ in the resulting wasm and backend notices retained in each package. No npm depen
 
 Memory proof: **629145600 bytes written**, **153600 pages verified**, checksum **70272000**, 16-byte-aligned guest
 malloc; guest heap extent **629145680 B**. Default guest window **1024 MiB**, fixture configured **2048 MiB**; an explicit
-upper-edge VirtualAlloc checks addresses through **2147418111**. Initial wasm **90832896 B**, final **2221408256 B**
+upper-edge VirtualAlloc checks addresses through **2147418111**. Initial wasm **90898432 B**, final **2221473792 B**
 at the measured checkpoint (host/static layout may shift slightly after build changes). The guest high-water mapped
 end is **2147418112 B**; this is not a resident-RSS measurement. Memory grows on demand, not eagerly to the window size.
 CPU-heavy guest loops yield deterministically instead of failing the old two-million-instruction watchdog.
@@ -33,6 +33,12 @@ fixture oracles identical; leakcheck **220 committable files clean**. No asserti
 Review limits: tests sample libm, not all inputs/rounding modes; C/ASCII locale, UTC localtime, empty environment,
 read-only shipped files plus process-local writable/temp files; no persistent CRT writes, full secure/positional/
 long-double formatting, general x87, AVX, multithreading or MSVC exception personalities. Image area remains 16–64 MiB.
+A fresh independent read-only session reviewed CRT/memory and reproduced seven defects with a separate CC0 fixture.
+All seven were fixed and added to the conformance source: reserved-VA/heap separation, __sys_nerr pointer, bounded
+scan, reusable FILE streams with shared file nodes, append-at-every-write, legacy snprintf and large character fields.
+The independent probe was rerun locally after the fixes; UTF-16 output and pointer scanning were also corrected and
+asserted. Its record is private scratch/task2a-review-independent; this is not independent whole-kit certification.
+
 The large STL module uses correctness-first semantic lifting, not a large-game performance claim. Actual Ubuntu CI,
 physical iPhone and desktop Safari/Firefox are not claimed. Existing suite assertions/skips are unchanged.
 

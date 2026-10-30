@@ -150,8 +150,38 @@ static void calendar_locale(void) {
     check(localtime(&t) != 0); check(time(0) > 0); check(clock() != (clock_t)-1);
     end("time");
 }
+static void file_edges(void) {
+    begin();
+    FILE *a = fopen("crt-empty.tmp", "wb"); check(a != 0); if (a) fclose(a);
+    a = fopen("crt-empty.tmp", "rb"); check(a != 0); if (a) { check(fgetc(a) == EOF); fclose(a); }
+    a = fopen("crt-shared.tmp", "w+b"); check(a != 0);
+    if (a) {
+        check(fwrite("abc", 1, 3, a) == 3); check(fflush(a) == 0);
+        FILE *b = fopen("crt-shared.tmp", "rb"); check(b != 0);
+        if (b) { check(fgetc(b) == 'a'); fclose(b); } fclose(a);
+    }
+    a = fopen("crt-shared.tmp", "a+b"); check(a != 0);
+    if (a) { check(fseek(a, 0, SEEK_SET) == 0); check(fputc('Z', a) == 'Z'); fclose(a); }
+    a = fopen("crt-shared.tmp", "rb"); check(a != 0);
+    if (a) { char b[8] = {0}; check(fread(b, 1, 7, a) == 4); check(!strcmp(b, "abcZ")); fclose(a); }
+    for (unsigned i = 0; i < 100; i++) {
+        char name[32]; snprintf(name, sizeof name, "crt-reuse-%u.tmp", i);
+        a = fopen(name, "wb"); check(a != 0); if (a) fclose(a);
+    }
+    char b[16]; check(snprintf(b, 10, "%300c", 'X') == 300); check(!strcmp(b, "         "));
+    void *pointer = 0; check(sscanf("01000020", "%p", &pointer) == 1);
+    check((uintptr_t)pointer == 0x01000020);
+    end("file-edges");
+}
 #ifdef _WIN32
+static int bounded_scan(const char *s, size_t n, const char *fmt, ...) {
+    typedef int (*scanner)(uint64_t, const char *, size_t, const char *, void *, va_list);
+    scanner fn = (scanner)(uintptr_t)GetProcAddress(LoadLibraryA("ucrtbase.dll"), "__stdio_common_vsscanf");
+    va_list ap; va_start(ap, fmt); int result = fn(0, s, n, fmt, 0, ap); va_end(ap); return result;
+}
 static void aliases(void) {
+    /* Windows wide output does not require the host C locale's multibyte encoder. */
+    wchar_t w[16]; check(swprintf(w, 16, L"%ls", L"\u03a9") == 1); check(w[0] == 0x3a9 && w[1] == 0);
     /* Host-native run avoids libc tmpfile's system-directory policy; Windows CRT is checked here. */
     FILE *f = tmpfile(); check(f != 0);
     if (f) { check(fputc('Z', f) == 'Z'); check(fclose(f) == 0); }
@@ -163,6 +193,28 @@ static void aliases(void) {
     }
     /* Wider names survive LoadLibrary, static imports and missing-symbol diagnostics. */
     check(LoadLibraryA("api-ms-win-crt-utility-l1-1-0.dll") != 0);
+    HMODULE lib = LoadLibraryA("ucrtbase.dll");
+    int *(*nerr)(void) = (int *(*)(void))(uintptr_t)GetProcAddress(lib, "__sys_nerr");
+    check(nerr && *nerr() >= 34);
+    typedef int (*legacy_format)(char *, size_t, const char *, ...);
+    legacy_format legacy = (legacy_format)(uintptr_t)GetProcAddress(lib, "_snprintf");
+    char b[4] = {'?', '?', '?', '!'};
+    check(legacy(b, 3, "%s", "abc") == 3); check(!memcmp(b, "abc!", 4));
+    check(legacy(b, 2, "%s", "abc") == -1); check(b[0] == 'a' && b[1] == 'b');
+    volatile unsigned char *v = VirtualAlloc((void *)(uintptr_t)0x04010000, 65536,
+                                            MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    check(v != 0);
+    if (v) {
+        v[0] = 0x5a;
+        void *p = calloc(1, 256 * 1024); check(p != 0); check(v[0] == 0x5a); free(p);
+    }
+    unsigned char *limited = VirtualAlloc((void *)(uintptr_t)0x20000000, 65536,
+                                           MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    check(limited != 0);
+    if (limited) {
+        limited[65535] = '7'; int scanned = 0;
+        check(bounded_scan((char *)limited + 65535, 1, "%d", &scanned) == 1); check(scanned == 7);
+    }
 }
 #endif
 int main(void) {
@@ -170,6 +222,7 @@ int main(void) {
 #ifdef _WIN32
     aliases();
 #endif
+    file_edges();
     printf("crt result=%s failures=%u\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;
 }
