@@ -2,6 +2,7 @@
 
 import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
+import { UNSUPPORTED_GPU } from '../types';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const VS = `#version 300 es
@@ -33,6 +34,7 @@ export interface WebGL2Options {
 }
 
 export class WebGL2Renderer implements Renderer {
+  readonly gpu = UNSUPPORTED_GPU; /* LANE-S1: interface only, no CAP_GPU. */
   readonly kind = 'webgl2' as const;
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0 };
   lost = false;

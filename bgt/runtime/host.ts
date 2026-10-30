@@ -37,6 +37,10 @@ import {
 } from './commands';
 import { Vfs } from './vfs';
 import { Requests } from './requests';
+/* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
+import { GpuState } from './commands-gpu';
+import { CAP_GPU, GPU_LIMITS, GPU_LIMITS_SIZE } from './abi';
+import type { GpuBackend } from '../renderers/types';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -68,6 +72,7 @@ export interface HostConfig {
   arg0: number;
   arg1: number;
   maxTextureDimension?: number;
+  /* LANE-S1 */ gpuBackend?: GpuBackend;
   sliceCode?: number[];
 }
 
@@ -166,6 +171,7 @@ export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
+  /* LANE-S1 */ private gpu?: GpuState;
   readonly codeCoverage = new Map<number, number>();
   codeCoverageDropped = 0;
   private allowedCode: Set<number> | null = null;
@@ -198,7 +204,12 @@ export class GameHost {
   private constructor(
     private readonly services: HostServices,
     readonly config: HostConfig,
-  ) { if(config.sliceCode)this.allowedCode=new Set(config.sliceCode); }
+  ) {
+    if (config.sliceCode) this.allowedCode = new Set(config.sliceCode);
+    /* LANE-S1: a caller cannot advertise an absent/unsupported GPU implementation. */
+    if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) this.gpu = new GpuState(config.gpuBackend);
+    else config.caps &= ~CAP_GPU;
+  }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
     const host = new GameHost(services, config);
@@ -276,6 +287,11 @@ export class GameHost {
   private decodeContext(): DecodeContext {
     return {
       state: this.state,
+      /* LANE-S1 */ gpu: this.gpu,
+      gpuRequest: this.gpu ? (id) => {
+        const token = this.requests.reserve(id);
+        return typeof token === 'number' ? token : (data, error) => this.requests.complete(token, data, error);
+      } : undefined,
       frame: this.frame,
       textures: this.textures,
       linearFilter: (this.config.caps & CAP_LINEAR_FILTER) !== 0,
@@ -343,9 +359,19 @@ export class GameHost {
         },
         gpu_limits: (dst: number, cap: number) => {
           if ((cap >>> 0) < 16) return E_LIMIT;
-          if ((dst & 3) || !this.inRange(dst,16)) return E_BOUNDS;
+          /* LANE-S1: cap 16..79 retains the frozen prefix; cap >=80 opts into GPU limits. */
+          const size = (cap >>> 0) >= GPU_LIMITS_SIZE ? GPU_LIMITS_SIZE : 16;
+          if ((dst & 3) || !this.inRange(dst, size)) return E_BOUNDS;
           const dv = this.dv();
-          [16,this.config.maxTextureDimension ?? LIMITS.textureDim,LIMITS.textures-1,LIMITS.textureBytes].forEach((v,i) => dv.setUint32(dst+i*4,v,true));
+          const values = [size, this.config.maxTextureDimension ?? LIMITS.textureDim,
+            LIMITS.textures - 1, LIMITS.textureBytes];
+          if (size === GPU_LIMITS_SIZE) values.push(
+            this.gpu ? 1 : 0, GPU_LIMITS.handles, GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
+            GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
+            GPU_LIMITS.uniformAlignment, GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
+            this.gpu?.backend.languages ?? 0, 13, 65535, 0,
+          );
+          values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
           return 0;
         },
         request_status: (id: number) => this.requests.status(id >>> 0),
@@ -598,7 +624,11 @@ export class GameHost {
   render(): Frame {
     if (!this.initialized) throw new HostError('render before init');
     const pending = this.frame.items.filter((it) => it.kind !== 'draw');
+    /* LANE-S1: retained update/init GPU work still counts toward the consumed frame's budgets. */
+    const gpuUploads = this.frame.gpuUploadBytes, gpuVertices = this.frame.gpuVertices;
     this.frame.reset(this.logicalWidth, this.logicalHeight);
+    this.frame.gpuUploadBytes = gpuUploads;
+    this.frame.gpuVertices = gpuVertices;
     this.frame.items.push(...pending);
     this.state = defaultState(this.logicalWidth, this.logicalHeight);
     this.decodeTime = 0;

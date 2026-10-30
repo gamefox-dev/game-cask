@@ -29,7 +29,29 @@ export interface GpuStats {
   submitMs: number;
 }
 
+/** Validated §13 command; words follow GPU_LAYOUT, uploads/source are owned copies.
+ * Dispatch execute at this item's exact position in Frame.items, never during decoding.
+ * For SHADER_CREATE invoke complete exactly once, including failure/device loss.
+ */
+export interface GpuItem {
+  kind: 'gpu';
+  op: number;
+  words: readonly number[];
+  data?: Uint8Array<ArrayBuffer>;
+  source?: string;
+  complete?: (code: number, log?: string) => void;
+}
+export interface GpuBackend {
+  /** Bit language: WGSL=1, GLSL330=2, GLSLES300=4. Zero means unsupported (no CAP_GPU). */
+  readonly languages: number;
+  /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */
+  execute(item: GpuItem): number;
+}
+export const UNSUPPORTED_GPU: GpuBackend = { languages: 0, execute: () => -4 };
+
 export interface Renderer {
+  /** Absent in existing renderers: equivalent to UNSUPPORTED_GPU. Never advertises CAP_GPU. */
+  readonly gpu?: GpuBackend;
   readonly kind: BackendKind;
   readonly canvas: HTMLCanvasElement;
   readonly maxTextureSize: number;

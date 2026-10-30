@@ -240,4 +240,6 @@ static inline int32_t bgt_cmd_submit(bgt_cmdbuf_t *b) {
     return rc;
 }
 
+#include "bgt_gpu_cmd.h"
+
 #endif /* BGT_CMD_H */

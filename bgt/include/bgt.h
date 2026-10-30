@@ -58,6 +58,9 @@ extern "C" {
 #define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
+#define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
+
+#include "bgt_gpu.h"
 
 #define BGT_BACKEND_NONE     0
 #define BGT_BACKEND_WEBGPU   1
@@ -221,7 +224,14 @@ BGT_IMPORT(asset_range_request) int32_t bgt_asset_range_request(uint32_t handle,
 
 typedef struct bgt_gpu_limits {
     uint32_t byte_size, max_texture_dimension, max_texture_handles, texture_budget_bytes;
-} bgt_gpu_limits_t; /* 16 bytes */
+} bgt_gpu_limits_t; /* frozen 16-byte prefix */
+typedef struct bgt_gpu_limits_v3 {
+    bgt_gpu_limits_t base;
+    uint32_t gpu_supported, max_gpu_handles, gpu_budget_bytes, max_buffer_bytes;
+    uint32_t max_vertex_buffers, max_attributes, max_binding_slots, max_color_attachments;
+    uint32_t uniform_offset_alignment, max_uniform_range, max_vertex_stride, max_shader_bytes;
+    uint32_t shader_languages, max_mip_levels, max_instances, reserved;
+} bgt_gpu_limits_v3_t; /* 80 bytes; cap >= 80 queries this extension */
 BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
 
 /* v0.3 asynchronous request results. status: 0 pending, 1 ready, or error. Reads do not consume.
