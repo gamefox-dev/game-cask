@@ -169,6 +169,10 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 continue;
             }
         }
+        if (in->op == XO_CALL || in->op == XO_CALL_IND) {
+            uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
+            if (!x86_is_thunk(t)) bgt_coverage_entry(t,2);
+        }
         x86_exec_insn(in);
     }
 }
@@ -177,11 +181,13 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
     uint32_t esp_floor = X.r[ESP]; /* return address is at [esp_floor] */
     x86_lifted_fn fn = x86_find_lifted(target);
     if (fn) {
+        bgt_coverage_entry(target,1);
         x86_metrics.lifted_calls++;
         fn();
         return;
     }
     X.eip = target;
+    if (!x86_is_thunk(target)) bgt_coverage_entry(target,2);
     interp_until(ret_addr, esp_floor);
 }
 
@@ -198,7 +204,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
         if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
     }
     /* a tail jump to an import thunk is an API call, not interpretation */
-    if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
+    if (!x86_is_thunk(X.eip)) { x86_metrics.continues_interpreted++; bgt_coverage_entry(X.eip,2); }
     interp_until(ra, esp0);
 }
 

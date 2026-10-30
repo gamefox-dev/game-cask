@@ -250,7 +250,7 @@ export class WebGPURenderer implements Renderer {
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Promise<Pixels | null> | null {
-    if (this.lost) return null;
+    if (this.lost) { for(const it of frame.items)if(it.kind==='readback')it.complete();return null; }
     const t0 = performance.now();
     const { device } = this.o;
     const q = device.queue;

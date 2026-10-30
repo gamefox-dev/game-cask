@@ -405,3 +405,23 @@ While a range promise is outstanding, browser simulation updates are held; rende
 settled. Deterministic test stepping awaits pending I/O before advancing a frame, as does the oracle. Wall-clock
 network latency is not virtual guest time. This is not a cooperative thread scheduler; a future worker must avoid
 blocking all guest threads on an unrelated read.
+
+### Coverage and slice boundaries
+
+`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`
+lifted, `2` interpreted). This is profile instrumentation, never a game-dependent branch. Host stores up to 65,536
+unique entries with ORed kind bits. Function entry coverage does not claim instruction/block coverage.
+`slice_missing(u32 kind,u32 address)` / `bgt_slice_missing` stops at an explicitly missing dependency (1 code, 2 data).
+The runtime pauses and reports `outsideSlice` rather than a wasm trap; resumption requires a broader package/reload.
+No IO layout changes. These functions are present only for v0.3 modules; older modules do not import them.
+
+Debug/test API `coverage()` returns schema `game-cask/coverage/1`: game id, module names/bases/SHA-256, executed entries,
+file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. The probe and
+browser fixture save snapshots. Strict slice manifests carry `slice.code` (allowed entries) and per-chunk `missing`
+flags. An executed entry outside the set or a read of a missing chunk pauses visibly and records the dependency,
+without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
+
+Coverage-guided nonslice builds keep all data and interpret unselected functions, recording kind=2 for the next build.
+The current loader image retains conservative virtual section bytes (including unlifted machine code/data), so this
+is **not** yet a minimum-image slice. Unknown indirect entry targets, self-modifying code and fine-grained basic block
+coverage remain unsupported; see docs/v03-status.md.

@@ -9,6 +9,7 @@
 // Output: web/public/games/<id>/{game.wasm, manifest.json, assets/...}
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
@@ -65,10 +66,12 @@ export function loadGameConfig(gameDir) {
   return cfg;
 }
 
-export function buildGame(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT } = {}) {
+export function buildGame(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null } = {}) {
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  if(sliceCoverage)cfg.slice={...(cfg.slice ?? {}),coverage:sliceCoverage};
+  if(cfg.slice && cfg.pipeline)cfg.pipeline.streamModules=true;
   if (interpretOnly) {
     /* differential-oracle build: same game, nothing lifted, everything interpreted */
     if (!cfg.pipeline) throw new Error(`${cfg.id}: --interpret-only needs a pipeline game`);
@@ -190,6 +193,20 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     assets.push({ path: to, size: data.byteLength, sha256: hash, url: `assets/${to}?h=${hash.slice(0, 16)}`, original: true });
   }
 
+  let slice = null;
+  if(pipe?.slicePlan) {
+    const kept=new Set();let total=0,included=0;
+    for(const file of streams)for(const c of file.chunks) {
+      total+=c.size;
+      const covered=pipe.slicePlan.ranges.some((r)=>r.path===file.path&&r.offset<c.offset+c.size&&c.offset<r.offset+r.length);
+      if(covered){kept.add(c.url);included+=c.size;}else c.missing=true;
+    }
+    for(const file of streams)for(const c of file.chunks)if(c.missing&&!kept.has(c.url))rmSync(join(outDir,c.url),{force:true});
+    slice={code:pipe.slicePlan.code,data:true,originalChunkBytes:total,fileChunkBytes:included};
+  }
+  const payloads=walk(outDir).filter((f)=>!f.endsWith('manifest.json'));
+  const packaging={download_bytes_raw:0,download_bytes_gzip:0,wasm_bytes:wasm.length,file_chunk_bytes:0};
+  for(const f of payloads){const b=readFileSync(f);packaging.download_bytes_raw+=b.length;packaging.download_bytes_gzip+=gzipSync(b).length;if(f.includes(`${sep}chunks${sep}`))packaging.file_chunk_bytes+=b.length;}
   const manifest = {
     schema: 'bgt-manifest/1',
     id: cfg.id,
@@ -198,6 +215,8 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     private: cfg.private ?? false,
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
+    packaging,
+    ...(slice ? {slice} : {}),
     ...(streams.length ? {streams} : {}),
     touch: cfg.touch ?? { dpad: true, buttons: ['A', 'B', 'START'] },
     input: cfg.input ?? {},
@@ -254,7 +273,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const all = argv.includes('--all');
   const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
-  const targets = all || examples ? allGameDirs({ includePort: all }) : argv.filter((a) => !a.startsWith('--'));
+  const si=argv.indexOf('--slice');
+  const sliceCoverage=si>=0?argv.slice(si+1).flatMap((s)=>s.split(',')):null;
+  if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
+  const targets = all || examples ? allGameDirs({ includePort: all }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
   if (!targets.length) {
     console.error('usage: build.mjs <gameDir...> | --all | --examples [--check]');
     process.exit(1);
@@ -262,7 +284,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check, interpretOnly });
+      buildGame(t, { check, interpretOnly, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);

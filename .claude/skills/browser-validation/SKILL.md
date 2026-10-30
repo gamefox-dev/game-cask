@@ -126,6 +126,17 @@ Write a one-line verdict per reviewed screenshot into the queue item or `reports
 - Anything less is reported as the lower level. "Renders something" is not L1.
 - A level is a milestone, not the end: the port is done when the work queue is resolved (see `CLAUDE.md`).
 
+## Slice validation
+
+Use the launcher's slice in reports/brief.md as the L3 definition. Probe and shared-fixture test runs save coverage
+snapshots (see docs/pipeline.md). Keep module identity evidence; build selection rejects different hashes/bases.
+After `build:port -- --slice reports/...json`, rerun the **same complete loop**. Assert
+`diagnostics().outsideSlice === null`, no errors, the expected changed state/pixels and the authentic completion.
+Exercise at least one omitted callback/range and assert a visible outside-slice pause (not `failed()`, trap or 404).
+A broad freeze-at-missing-dependency is not a completed loop. Reload a broader package rather than resuming that stack.
+Run a long, labelled scripted workload and save `coverage()` to reports/slice-runtime.json for trial:record; report
+its frame count and error/outside-slice events. Render-completion avg/p95 is not GPU timestamp/vsync frame time.
+
 ## GPU notes
 - `chromium-webgl2` typically renders with SwiftShader (software). `chromium-webgpu` needs a real adapter
   (`BGT_REQUIRE_WEBGPU=1` makes absence a failure instead of a skip).

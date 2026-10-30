@@ -136,6 +136,33 @@ See ABI.md §12 for asset_size64, asset_range_request and request result lifetim
 before advancing virtual time. Win32 support is read-only CreateFile/ReadFile/size/seek/close, including self-open;
 CRT FILE APIs are still a gap. Threads/audio/COM/expanded input/GL are **not implemented by this change**.
 
+## Recording and packaging a vertical slice (v0.3 subset)
+
+During a probe, `reports/probe/coverage.json` records executed lifted/interpreted entries, module hashes/bases and file
+chunks read. Browser tests using the shared fixture save `reports/coverage/<project>/*.json`; each also attaches the
+snapshot. The read-only test API has `coverage()`. A snapshot is specific to exact binaries AND load bases; mismatches
+fail the build. Preserve a successful launcher's entire L3 loop, not just a boot screenshot.
+
+- Coverage-guided lifting without packaging: `pipeline.coverage: ["../reports/probe/coverage.json"]` selects recorded
+  entries plus their static call closure; unselected code remains interpreted and recorded for the next build.
+- Strict package: `npm run build:port -- --slice reports/probe/coverage.json` (CLI paths resolve from the repository root), or `game.json` `slice:{coverage:["../reports/...json"]}` (config paths resolve from port/). CLI accepts comma-separated
+  or multiple files after --slice (last option). Modules use the compact loader/streamed original view automatically.
+  Only covered file chunks are emitted. Uncovered callbacks and data ranges pause visibly, with
+  `diagnostics().outsideSlice` / accessible status text and a coverage record. They do not trap, 404 or load full files.
+  Reload a broader package; an interrupted guest C stack is not resumable in-place.
+
+Build `packaging`: raw/gzip payload bytes (sum of separately gzipped files, excludes manifest), wasm bytes, emitted
+unique chunk bytes. `manifest.slice` also records original/included logical chunk bytes. The runtime coverage snapshot
+has `load_to_first_frame_ms`, `frame_ms_avg/p95` (render-completion wall time, at most 10k recent samples),
+`frames_measured`, error/outside-slice events. These are NOT GPU timestamp queries or vsync intervals. Tests/probes may
+call an extra render; label the workload and backend. Long-run stability is evidence only when a long script ran.
+Copy the final snapshot to `reports/slice-runtime.json` before `trial:record`; game/schema identity is checked, and
+metrics are copied to trial.json along with manifest packaging/pipeline metrics. Missing evidence is null, not zero.
+
+Current limitation: conservative virtual PE section bytes are retained, not the mathematically minimum loader data.
+Code remains a single wasm module, no lazy code chunks. x64/GL/threads remain gaps. Coverage is function entries,
+not a guarantee against jumping into an unrecorded basic block within a covered function.
+
 ## Known execution limits (kit gaps, not port work)
 - **x86:** 32-bit flat mode only. No x87/SSE (FPU instructions fault). No self-modifying code (the decoder caches).
 - **Profiles:** Win32 only; DOS/consoles need new profiles.

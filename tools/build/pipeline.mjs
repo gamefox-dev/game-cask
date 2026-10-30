@@ -23,6 +23,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
+import { coveragePlan, staticClosure } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
@@ -155,6 +156,9 @@ function overrides(gameDir) {
  */
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const recorded=cfg.slice?.coverage ?? p.coverage;
+  const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
+  const sliceCode=new Set();
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
   mkdirSync(work, { recursive: true });
@@ -169,7 +173,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     const f = buildFixture(gameDir, p.fixture, join(work, 'fixture'));
     fixtureFiles[`./build/${p.fixture.out}`] = f;
   }
-  const tool = p.interpretOnly ? null : x86tool();
+  const tool = x86tool();
   const ov = overrides(gameDir);
   const mods = [], streams = [];
   let next = 0x10000000;
@@ -193,10 +197,24 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     } else cpSync(file, join(outAssetsDir, asset));
     const id = cIdent(name);
     let lifted = null, stats = null, analysis = null;
-    if (tool) {
+    if(plan && p.interpretOnly) {
+      const identity=plan.modules.find((m)=>m.name===name);
+      if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
+      const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+      for(const a of staticClosure(an,plan.code))sliceCode.add(a);
+    }
+    if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
       const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
+      if(plan) {
+        const identity=plan.modules.find((m)=>m.name===name);
+        if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
+        const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+        const selected=staticClosure(an,plan.code);
+        for(const a of selected)sliceCode.add(a);
+        const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);
+      }
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
       writeFileSync(join(work, `analysis_${id}.json`), analysis);
@@ -204,7 +222,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     }
     const totals = analysis ? JSON.parse(analysis).totals : null;
     mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: hashFile(file),
-      functions: totals ? totals.functions : 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
+      functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
   if (!mods.some((m) => m.main)) mods[0].main = true;
   /* static imports must resolve to a shipped module or a DLL the profile implements (Win32 would refuse to start
@@ -264,6 +282,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   return {
     sources,
     streams,
+    slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),ranges:plan.ranges} : null,
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: ['-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],

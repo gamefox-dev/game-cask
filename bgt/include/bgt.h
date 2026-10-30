@@ -209,6 +209,11 @@ static inline int bgt_key_pressed(const bgt_io_t *io, uint32_t key) {
 
 /* Logging. Text is UTF-8, explicit length, no terminator required. */
 BGT_IMPORT(log)   void bgt_log(uint32_t level, const char *ptr, uint32_t len);
+/* v0.3 profile instrumentation; not game logic. kind 1 lifted / 2 interpreted function entry. */
+BGT_IMPORT(coverage_entry) void bgt_coverage_entry(uint32_t address, uint32_t kind);
+/* Stop at an unprovided slice dependency (kind 1 code, 2 data). Runtime pauses; reload a broader package. */
+BGT_IMPORT(slice_missing) void bgt_slice_missing(uint32_t kind, uint32_t address);
+
 /* v0.3 ranges work for preloaded AND streamed handles. u64 file offsets are split into lo/hi.
  * asset_size64 writes a little-endian u64; range returns a request ID (or error), not byte data. */
 BGT_IMPORT(asset_size64) int32_t bgt_asset_size64(uint32_t handle, uint64_t *size);

@@ -186,7 +186,7 @@ export class WebGL2Renderer implements Renderer {
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Pixels | null {
-    if (this.lost) return null;
+    if (this.lost) { for(const it of frame.items)if(it.kind==='readback')it.complete();return null; }
     const gl = this.gl;
     const t0 = performance.now();
     const H = this.canvas.height;

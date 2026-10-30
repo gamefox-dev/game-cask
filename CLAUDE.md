@@ -21,7 +21,7 @@ slice is the L3 definition and packaging scope; never silently lower it.
 
 ## Read first
 1. `SPEC.md`: the brief and its success levels (L0–L5, §8).
-2. `bgt/abi/ABI.md`: the ABI (v0.2). Port against it; do not change it.
+2. `bgt/abi/ABI.md`: the ABI (v0.3 additive implemented subset; see §12 and docs/v03-status.md). Port against it; do not change it.
 3. `docs/pipeline.md`: how the conversion pipeline works and how to read its metrics.
 4. `original/PROVENANCE.txt` or other user notes, if present. **Obey any POLICY there**
    (e.g. binary-only: never fetch or use upstream source or third-party descriptions of the game's internals).
@@ -90,7 +90,8 @@ The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` be
 | 9 | `npm run trial:record -- port <slug>` writes `trial.json` + a `NOTES.md` port note; `npm run report` | |
 | 10 | Independent validation by a **separate** agent that did not write the port | `independent-validator` agent |
 
-Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet in v0.2. That is an iteration request,
+Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet. **Win64 execution and OpenGL are also
+still gaps on this partial v0.3 branch**: metadata inspection is not execution support. Consult docs/v03-status.md. That is an iteration request,
 together with what such a profile would need. Do not substitute a one-off emulator.
 
 ## Hard rules
@@ -114,7 +115,8 @@ together with what such a profile would need. Do not substitute a one-off emulat
 | `npm run inspect` | read-only inventory of `original/`; `-- --strings FILE` (ASCII + UTF-16, PE resource text; stdout only) |
 | `npm run extract -- IN OUTDIR` | static unpacking (zip, RCDATA-embedded PEs, Inno Setup 5.x) |
 | `npm run analyze -- FILE [--disasm] [--func HEX]` | x86 PE analysis JSON / listing |
-| `npm run build:port` | pipeline build of `port/` (prints conversion metrics) |
+| `npm run build:port` | pipeline build of `port/` (prints conversion/scale metrics) |
+| `npm run build:port -- --slice COVERAGE.json` | strict code/data slice from a recorded loop; CLI paths from repo root, config paths from port/ |
 | `npm run oracle -- port [frames]` | differential oracle: lifted vs interpreted |
 | `npm run test:port` | the port's browser tests → `reports/e2e-port-*` |
 | `npm run probe -- --game ID --script FILE.mjs` | scripted exploration in headless Chromium (no spec) → `reports/probe/` |

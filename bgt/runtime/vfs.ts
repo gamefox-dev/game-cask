@@ -29,11 +29,18 @@ export class Vfs {
   pathFor(handle: number): string | null { return this.open.get(handle)?.path ?? null; }
   range(handle: number, offset: number, length: number): Uint8Array<ArrayBuffer> | null {
     const f=this.open.get(handle);
-    return f?.data ? f.data.slice(offset,offset+length) : null;
+    if(f?.data) { this.record(f.path,offset,length,f.size);return f.data.slice(offset,offset+length); }
+    return null;
   }
   private open = new Map<number, OpenFile>();
   private nextHandle = 1;
   readonly missing = new Set<string>();
+  private ranges = new Map<string,{path:string;offset:number;length:number}>();
+  coverage(): {path:string;offset:number;length:number}[] { return [...this.ranges.values()]; }
+  private record(path:string,offset:number,length:number,size:number):void {
+    for(let off=Math.floor(offset/65536)*65536;off<Math.min(offset+length,size);off+=65536)
+      this.ranges.set(`${path}:${off}`,{path,offset:off,length:Math.min(65536,size-off)});
+  }
   totalBytes = 0;
 
   add(path: string, data: Uint8Array): void {
@@ -81,6 +88,7 @@ export class Vfs {
     if (!f.data) return E_STATE; // streamed files require asset_range_request + yield
     const n = Math.min(dst.byteLength, f.size - f.pos);
     dst.set(f.data.subarray(f.pos, f.pos + n));
+    this.record(f.path,f.pos,n,f.size);
     f.pos += n;
     return n;
   }

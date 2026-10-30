@@ -182,6 +182,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log });
     await p.start();
     await script.default(p);
+    const coverage=await page.evaluate(() => window.__BGT_TEST__?.coverage?.());
+    if(coverage){const file=join(out,'coverage.json');writeFileSync(file,JSON.stringify(coverage,null,2)+'\n');log.artifacts.push(file);}
     const d = await p.diagnostics().catch(() => null);
     if (d?.errors?.length) log.errors.push(...d.errors.map((e) => `${e.kind}: ${e.message}`));
   } catch (e) {

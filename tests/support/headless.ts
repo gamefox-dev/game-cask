@@ -55,6 +55,7 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
     displayHeight: 360,
     arg0: opts.arg0 ?? 0,
     arg1: opts.arg1 ?? 0,
+    sliceCode:manifest.slice?.code,
   });
   host.init();
   const input = emptyInput();

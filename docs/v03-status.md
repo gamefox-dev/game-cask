@@ -90,6 +90,20 @@ and CRT FILE streaming. Existing TLS/interlocked/QPC remain the prior single-thr
 suspended guest stacks safely requires scheduler/CPU/callback work; the single Asyncify stack cannot simply be reused
 as multiple threads. These are unfinished kit subsystems, not game-side override opportunities.
 
-## Stage 5 — pending
+## Stage 5 — partial (functional coverage-guided selection and strict boundaries)
 
-The launcher's slice definition exists. Runtime coverage-based code/data packaging does not yet exist.
+Implemented: function-entry instrumentation (lifted/interpreted kind bits), file-chunk coverage (eager and streamed),
+probe/test snapshot persistence, hash/base-checked coverage merge and static call closure. `pipeline.coverage` selects
+lifted functions with recorded interpreter fallback. Strict `--slice` / game.json slice adds an entry allowlist and
+omits uncovered original/data chunks. Code/data misses pause with accessible 'outside this slice' state, not a trap or
+404; the dependency is recorded. Tests prove boot→uncovered-dialog and boot→missing-self-read pause on both backends;
+unit tests prove fallback interpretation, static closure, omitted files and identity rejection.
+
+Build packaging measures raw/gzip payload, wasm and emitted unique file chunks; snapshots measure load→first frame,
+render completion avg/p95, frames and errors/outside events. trial:record includes these when an identity-matching
+reports/slice-runtime.json is supplied; absent runtime evidence remains null. Docs/skills state the exact workflow.
+
+Not done: truly minimum loader-image data (virtual sections retained conservatively), basic-block/instruction
+coverage, lazy wasm code chunks, performance at 7.2M insns, a long representative real-game stability run, hardware
+mobile verification. A strict boundary requires reload with a broader build; guest stack is not resumed after the
+missing-entry exception. Snapshot collection caps at 65,536 code addresses. No claim of a complete v0.3 slice system.

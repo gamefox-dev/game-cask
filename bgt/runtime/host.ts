@@ -68,6 +68,7 @@ export interface HostConfig {
   arg0: number;
   arg1: number;
   maxTextureDimension?: number;
+  sliceCode?: number[];
 }
 
 export interface InputSnapshot {
@@ -110,6 +111,10 @@ export class GameAbort extends Error {
     super(`game aborted (${errorName(code)}): ${message}`);
     this.name = 'GameAbort';
   }
+}
+
+export class OutsideSlice extends Error {
+  constructor(readonly kind: number,readonly address: number) { super(`outside this slice: ${kind===1?'code':'data'} at 0x${address.toString(16)}`);this.name='OutsideSlice'; }
 }
 
 export class HostError extends Error {
@@ -161,6 +166,9 @@ export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
+  readonly codeCoverage = new Map<number, number>();
+  codeCoverageDropped = 0;
+  private allowedCode: Set<number> | null = null;
   private ioWork = new Set<Promise<void>>();
   get ioPending(): boolean { return this.ioWork.size > 0; }
   async settleRequests(): Promise<void> { await Promise.all([...this.ioWork]); }
@@ -190,7 +198,7 @@ export class GameHost {
   private constructor(
     private readonly services: HostServices,
     readonly config: HostConfig,
-  ) {}
+  ) { if(config.sliceCode)this.allowedCode=new Set(config.sliceCode); }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
     const host = new GameHost(services, config);
@@ -323,6 +331,15 @@ export class GameHost {
           this.decodeTime += s.now() - t0;
           this.recordDecode(res);
           return res.status;
+        },
+        slice_missing: (kind: number,addr: number) => { throw new OutsideSlice(kind >>> 0,addr >>> 0); },
+        coverage_entry: (addr: number, kind: number) => {
+          addr >>>= 0; kind >>>= 0;
+          if (kind === 1 || kind === 2) {
+            if(this.codeCoverage.has(addr) || this.codeCoverage.size < 65536)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0) | kind);
+            else this.codeCoverageDropped++;
+          }
+          if(this.allowedCode && !this.allowedCode.has(addr))throw new OutsideSlice(1,addr);
         },
         gpu_limits: (dst: number, cap: number) => {
           if ((cap >>> 0) < 16) return E_LIMIT;

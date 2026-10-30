@@ -23,9 +23,9 @@ import {
   OP,
 } from './abi';
 import type { CommandError, DecodeResult } from './commands';
-import { GameHost, InputSnapshot, emptyInput } from './host';
+import { GameHost, InputSnapshot, emptyInput, OutsideSlice } from './host';
 import { Vfs } from './vfs';
-import { RangeFiles, type StreamedFile } from './range-files';
+import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
 import { WebAudioSink } from '../audio/audio';
 import { InputManager, TestInputEvent, TouchConfig, InputConfig } from '../input/input';
 import { BrowserStorage } from '../storage/storage';
@@ -61,6 +61,8 @@ export interface Manifest {
   wasm: { url: string; size: number; sha256: string };
   assets: Array<{ path: string; url: string; size: number; sha256: string }>;
   streams?: StreamedFile[];
+  pipeline?: { modules: {name:string;base:number;sha256:string}[] };
+  slice?: {code?:number[];data?:boolean};
   touch?: TouchConfig;
   input?: InputConfig;
 }
@@ -106,6 +108,7 @@ export interface BGTDiagnostics {
   /** v0.2: updates that ended suspended in bgt_yield, and whether the game is parked there now */
   yields: number;
   suspended: boolean;
+  outsideSlice: {kind:number;address:number;message:string} | null;
   /** v0.2: the game's own kit metrics (bgt_metrics export), if any */
   metrics: unknown;
   /** kit coverage: BGT commands executed (by name) and runtime imports called */
@@ -144,6 +147,16 @@ export class BGTRuntime {
   ready = false;
   paused = false;
   failed = false;
+  outsideSlice: {kind:number;address:number;message:string} | null = null;
+  private loadStarted = 0;
+  private firstFrameMs: number | null = null;
+  private frameTimes: number[] = [];
+  private sliceEvents = 0;
+  private renderTail: Promise<void> = Promise.resolve();
+  private renderBusy = false;
+  private noteOutside(kind:number,address:number,message:string):void {
+    this.outsideSlice={kind,address,message};this.sliceEvents++;this.pause();this.status(message);
+  }
   private rangeFiles: RangeFiles | null = null;
   private snap: InputSnapshot = emptyInput();
   private raf = 0;
@@ -281,6 +294,7 @@ export class BGTRuntime {
   }
 
   private async load(): Promise<void> {
+    this.loadStarted=performance.now();
     const base = this.opts.gameUrl;
     this.status('Loading game…', 0);
     let res: Response;
@@ -357,7 +371,12 @@ export class BGTRuntime {
           audio: this.audio,
           storage: this.storage,
           now: () => performance.now(),
-          rangeRead: (path,offset,length) => this.rangeFiles!.read(path,offset,length),
+          rangeRead: async (path,offset,length) => {
+            try{return await this.rangeFiles!.read(path,offset,length);}catch(e){
+              if(e instanceof OutsideDataRange){this.noteOutside(2,e.offset,e.message);}
+              throw e;
+            }
+          },
         },
         {
           backend: this.renderer.kind === 'webgpu' ? BACKEND_WEBGPU : BACKEND_WEBGL2,
@@ -368,6 +387,7 @@ export class BGTRuntime {
           arg0: this.opts.arg0 ?? 0,
           arg1: this.opts.arg1 ?? 0,
           maxTextureDimension: this.renderer.maxTextureSize,
+          sliceCode: manifest.slice?.code,
         },
       );
       this.host.init();
@@ -530,6 +550,9 @@ export class BGTRuntime {
     try {
       return fn();
     } catch (e) {
+      if(e instanceof OutsideSlice) {
+        this.noteOutside(e.kind,e.address,e.message);return undefined;
+      }
       const isTrap = e instanceof WebAssembly.RuntimeError;
       const isAbort = e instanceof Error && e.name === 'GameAbort';
       this.fail(isTrap ? 'trap' : isAbort ? 'abort' : 'js', isTrap ? `wasm trap: ${(e as Error).message}` : e);
@@ -548,17 +571,26 @@ export class BGTRuntime {
     }
   }
 
+  /** Render serially: async readbacks must not race the next frame's command buffers. */
+  renderFrame(readback:boolean):Promise<Pixels|null> {
+    const work=this.renderTail.then(async()=>{this.renderBusy=true;try{return await this.renderNow(readback);}finally{this.renderBusy=false;}});
+    this.renderTail=work.then(()=>{},()=>{});return work;
+  }
+
   /** Render the current state; optionally read back pixels. */
-  async renderFrame(readback: boolean): Promise<Pixels | null> {
+  private async renderNow(readback: boolean): Promise<Pixels | null> {
+    const started=performance.now();
     const host = this.host;
     const r = this.renderer;
     if (!host || !r || this.failed) return null;
+    if(this.outsideSlice)return null;
     const frame = this.guard(() => host.render());
     if (!frame) return null;
     let out: Pixels | null | Promise<Pixels | null> = null;
     try {
-      out = r.drawFrame(frame, this.letterbox, readback);
+      out = await r.drawFrame(frame, this.letterbox, readback);
     } catch (e) {
+      for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
     }
     this.lastFrameStats = {
@@ -569,6 +601,8 @@ export class BGTRuntime {
       submits: frame.submits,
     };
     host.consume();
+    if(this.firstFrameMs===null)this.firstFrameMs=performance.now()-this.loadStarted;
+    this.frameTimes.push(performance.now()-started);if(this.frameTimes.length>10000)this.frameTimes.shift();
     return out;
   }
 
@@ -583,7 +617,7 @@ export class BGTRuntime {
       }
       this.last = t;
       this.checkLossWatchdog();
-      if (this.paused || !this.ready || this.failed || this.renderer?.lost || this.host?.ioPending) return;
+      if (this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy) return;
       let n = 0;
       while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates && !this.host?.ioPending) {
         if (this.guard(() => this.stepOnce()) === undefined && this.failed) return;
@@ -604,6 +638,7 @@ export class BGTRuntime {
   }
 
   resume(): void {
+    if(this.outsideSlice)return; // select a broader package and reload; never resume an aborted guest stack
     this.paused = false;
     this.acc = 0;
   }
@@ -612,10 +647,12 @@ export class BGTRuntime {
     if (!this.ready || this.failed) throw new Error('runtime not ready');
     this.pause();
     for (let i = 0; i < frames; i++) {
-      if (this.failed) break;
+      if (this.failed || this.outsideSlice) break;
+      await this.renderTail;
       await this.host?.settleRequests();
+      if(this.outsideSlice)break;
       this.guard(() => this.stepOnce());
-      if (this.failed) break;
+      if (this.failed || this.outsideSlice) break;
       // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.
       while (this.renderer?.lost && !this.failed) {
         this.checkLossWatchdog();
@@ -644,6 +681,16 @@ export class BGTRuntime {
 
   async simulateDeviceLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
     await this.renderer?.simulateLoss(opts);
+  }
+
+  coverageSnapshot() {
+    return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
+      code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
+      files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
+      metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+        load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
+        frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},
+      timing:this.diagnostics().timing};
   }
 
   diagnostics(): BGTDiagnostics {
@@ -694,6 +741,7 @@ export class BGTRuntime {
       debugStateAvailable: host?.hasDebugState ?? false,
       yields: host?.yields ?? 0,
       suspended: host?.suspended ?? false,
+      outsideSlice: this.outsideSlice,
       metrics: host?.metrics() ?? null,
       coverage: {
         ops: Object.fromEntries(Object.entries(host?.opCounts ?? {}).map(([k, v]) => [OP_NAMES[Number(k)] ?? k, v])),

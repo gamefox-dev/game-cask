@@ -38,6 +38,11 @@ This branch is a **partial v0.3 implementation**, not Win64/GL readiness. See [d
 for stage-by-stage evidence and missing work. Executing x64 is still rejected explicitly. PE32+ imports/unwind-table
 metadata can be inspected with `npm run analyze -- FILE --metadata`. Pipeline builds now cache objects and compile in
 parallel (`BGT_BUILD_JOBS=2` by default); `node tools/bench/lift-scale.mjs 1024` reproduces scale measurements.
+ABI v0.3 is additive (`0x000300`): bounded async requests, command-ordered GPU readback, backend texture limits,
+streamed asset ranges, profile entry coverage and explicit slice boundaries. This is **not** the requested general
+GPU/shader/OpenGL layer. `pipeline.streamModules:true` provides chunked executable self-open without preloading large
+overlays; `streams` describes shipped large files. Probes/tests record code/file coverage; `build:port -- --slice FILE`
+builds a strict partial package and pauses outside it. [docs/pipeline.md](docs/pipeline.md) gives the verified workflow.
 No new npm dependencies. Python 3 stdlib measures compiler/linker RSS (largest child, not aggregate memory).
 
 ## How porting works
@@ -100,7 +105,8 @@ Useful URL flags:
 | `npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]` | operator: isolated, remote-free clone at commit, npm ci, copy input, write brief |
 | `npm run trial:brief -- --game <file> --slug <slug> [--resume] [--slice TEXT]` | trial brief for a porting agent → `reports/brief.md` |
 | `npm run inspect` | read-only inventory of `original/` → `reports/inventory.json`; `-- --strings FILE` prints ASCII/UTF-16 strings and PE resource text (stdout only) |
-| `npm run extract -- IN OUT` / `npm run analyze -- FILE` | static unpacking / x86 analysis + disassembly |
+| `npm run build:port -- --slice COVERAGE.json` | partial code/data slice; file paths from repo root; outside dependencies pause clearly |
+| `npm run extract -- IN OUT` / `npm run analyze -- FILE [--metadata]` | static unpacking / x86 analysis + disassembly |
 | `npm run oracle -- <gameDir>` | differential oracle: lifted vs interpreted builds |
 | `npm run trial:record -- <gameDir> <slug>` | trial record (`trial.json` + port note) for the trials repo |
 | `npm run report` | validate + redact `reports/`, write `reports/summary.md` |

@@ -9,6 +9,19 @@ WebGPU. No private game was available or used. No dependencies were added; no ex
 Metric change: `gdi_ops` now excludes profile-drawn chrome; new `chrome_ops` counts that drawing separately and may
 vary with extra renders. Compare guest traces and `gdi_ops`, not `chrome_ops`, for deterministic runs.
 
+New build metrics: `pipeline.metrics.wasm_bytes_per_insn` (TOTAL module / lifted instructions; null for interpreter),
+`build_ms`, compile/link `duration_ms`, `peak_child_rss_bytes` (largest child, not total), `objects_compiled/cached`,
+`jobs`, `lifted_insns`, `flagsElided` per lifted module (experimental opt-in). `packaging` measures raw and per-file
+gzip bytes, wasm and unique emitted chunks; excludes manifest. `coverage().metrics` adds frame count, errors,
+outside-slice events, bytes fetched, entries dropped, load→first-frame and render-completion avg/p95 (not GPU timestamps
+or vsync frame times). Strict slices reject incomplete overflowed coverage. trial.json stores build/package metrics,
+plus runtime evidence only if reports/slice-runtime.json exists and matches game/schema.
+
+ABI v0.3 subset: requests/readback/limits/stream ranges/coverage/slice boundary. Frozen v0.2 module fixture still loads.
+Both backend tests check ordered GPU readback, streamed sparse reads and strict missing code/data pauses. A sliced
+Win32 fixture runs 2000 extra steps before its omitted-dialog check; that is fixture stability, not target-game scale.
+Exact outstanding features, negative scale measurement and all qualifications are in v03-status.md.
+
 Stage 1 gate run: doctor ready, lint/typecheck clean, unit 63/63, e2e 59 passed/4 pre-existing skips,
 oracle identical/no errors (600 frames), leakcheck 158 files. A subsequent unit regression explicitly renders three
 extra frames and asserts gdi_ops/trace unchanged and chrome_ops increases. Fresh counts appear in the final record.

@@ -1,6 +1,9 @@
 // Chunk-backed immutable files: only requested chunks are fetched; bounded verified LRU cache.
 import { normalizeAssetPath } from './vfs';
-export interface FileChunk { offset: number; size: number; url: string; sha256: string }
+export interface FileChunk { offset: number; size: number; url: string; sha256: string; missing?: boolean }
+export class OutsideDataRange extends Error {
+  constructor(readonly path:string,readonly offset:number,readonly length:number){super(`outside this slice: ${path} at ${offset}+${length}`);}
+}
 export interface StreamedFile { path: string; size: number; chunkSize: number; chunks: FileChunk[] }
 export interface RangeRead { path: string; offset: number; length: number }
 export class RangeFiles {
@@ -58,6 +61,7 @@ export class RangeFiles {
     while(lo<hi){const m=(lo+hi)>>>1;if(file.chunks[m].offset+file.chunks[m].size<=offset)lo=m+1;else hi=m;}
     for(let i=lo;i<file.chunks.length&&n<size;i++) {
       const c=file.chunks[i];this.reads.set(`${path}:${c.offset}`,{path,offset:c.offset,length:c.size});
+      if(c.missing)throw new OutsideDataRange(path,c.offset,c.size);
       const b=await this.chunk(c),start=Math.max(0,offset-c.offset),count=Math.min(b.length-start,size-n);
       out.set(b.subarray(start,start+count),n);n+=count;
     }
