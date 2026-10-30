@@ -10,7 +10,9 @@
 #include "w32_int.h"
 
 #define DATA 255 /* nargs marker: data import (IAT slot points at a variable, not a thunk) */
-static uint32_t last_error;
+/* LANE-C: errors from file/module APIs are private to the calling guest thread too. */
+#include "w32_thread.h"
+#define last_error (*w32_thread_error())
 static uint32_t rng_state = 1;
 
 /* ------------------------------------------------------------------ formatted output (wsprintf/sprintf) */
@@ -199,26 +201,9 @@ static void systemtime(uint32_t p) {
     x86_wr16(p + 8, rem / 3600); x86_wr16(p + 10, rem / 60 % 60); x86_wr16(p + 12, rem % 60); x86_wr16(p + 14, w32_now_ms() % 1000u);
 }
 static uint32_t k_GetSystemTime(void) { systemtime(ARG(0)); return 0; }
-static uint32_t k_Sleep(void) {
-    w32_sleep_ms(ARG(0));
-    return 0;
-}
-static uint32_t k_GetLastError(void) { return last_error; }
-static uint32_t k_SetLastError(void) { last_error = ARG(0); return 0; }
 static uint32_t k_one(void) { return 1; }
 static uint32_t k_zero(void) { return 0; }
 static uint32_t k_GetCurrentProcess(void) { return 0xffffffffu; }
-static uint32_t k_GetCurrentThread(void) { return 0xfffffffeu; }
-static uint32_t tls[64];
-static uint32_t tls_used;
-static uint32_t k_TlsAlloc(void) { for (uint32_t i = 0; i < 64; i++) if (!(tls_used & (1u << (i & 31))) && i < 32) { tls_used |= 1u << i; return i; } return 0xffffffffu; }
-static uint32_t k_TlsFree(void) { if (ARG(0) < 32) tls_used &= ~(1u << ARG(0)); return 1; }
-static uint32_t k_TlsGetValue(void) { return ARG(0) < 64 ? tls[ARG(0)] : 0; }
-static uint32_t k_TlsSetValue(void) { if (ARG(0) < 64) tls[ARG(0)] = ARG(1); return 1; }
-static uint32_t k_InterlockedIncrement(void) { uint32_t v = x86_rd32(ARG(0)) + 1; x86_wr32(ARG(0), v); return v; }
-static uint32_t k_InterlockedDecrement(void) { uint32_t v = x86_rd32(ARG(0)) - 1; x86_wr32(ARG(0), v); return v; }
-static uint32_t k_InterlockedExchange(void) { uint32_t v = x86_rd32(ARG(0)); x86_wr32(ARG(0), ARG(1)); return v; }
-static uint32_t k_InterlockedCompareExchange(void) { uint32_t v = x86_rd32(ARG(0)); if (v == ARG(2)) x86_wr32(ARG(0), ARG(1)); return v; }
 /* heaps: one guest heap serves all (HeapCreate returns a pseudo handle) */
 static uint32_t k_HeapCreate(void) { return H_HEAP + 1; }
 static uint32_t k_GetProcessHeap(void) { return H_HEAP; }
@@ -409,10 +394,9 @@ static uint32_t create_file(int wide) {
 }
 static uint32_t k_CreateFileA(void){return create_file(0);}
 static uint32_t k_CreateFileW(void){return create_file(1);}
-/* LANE-E: event fallback; scheduler lane can replace the owned event adapter. */
-extern int w32_audio_close_event(uint32_t h);
 static uint32_t k_CloseHandle(void) {
-    if (w32_audio_close_event(ARG(0))) return 1;
+    /* LANE-E/C: audio now shares the scheduler's event handles. */
+    if (ARG(0) > 0x00100000u && ARG(0) < 0x00100400u) return (uint32_t)w32_thread_api("CloseHandle");
     uint32_t i = file_index(ARG(0));
     if (!i) { last_error = 6; return 0; }
     bgt_asset_close(files[i].asset); files[i].asset = 0; return 1;
@@ -689,15 +673,8 @@ const w32_api_t w32_api_kernel[] = {
     API("GetTickCount", 0, k_GetTickCount), API("timeGetTime", 0, k_GetTickCount),
     API("QueryPerformanceCounter", 1, k_QueryPerformanceCounter), API("QueryPerformanceFrequency", 1, k_QueryPerformanceFrequency),
     API("GetSystemTimeAsFileTime", 1, k_GetSystemTimeAsFileTime), API("GetSystemTime", 1, k_GetSystemTime), API("GetLocalTime", 1, k_GetSystemTime),
-    API("Sleep", 1, k_Sleep),
-    API("GetLastError", 0, k_GetLastError), API("SetLastError", 1, k_SetLastError),
-    API("GetCurrentProcessId", 0, k_one), API("GetCurrentThreadId", 0, k_one),
-    API("GetCurrentProcess", 0, k_GetCurrentProcess), API("GetCurrentThread", 0, k_GetCurrentThread),
-    API("TlsAlloc", 0, k_TlsAlloc), API("TlsFree", 1, k_TlsFree), API("TlsGetValue", 1, k_TlsGetValue), API("TlsSetValue", 2, k_TlsSetValue),
-    STUB("InitializeCriticalSection", 1), API("InitializeCriticalSectionAndSpinCount", 2, k_one),
-    STUB("EnterCriticalSection", 1), STUB("LeaveCriticalSection", 1), STUB("DeleteCriticalSection", 1),
-    API("InterlockedIncrement", 1, k_InterlockedIncrement), API("InterlockedDecrement", 1, k_InterlockedDecrement),
-    API("InterlockedExchange", 2, k_InterlockedExchange), API("InterlockedCompareExchange", 3, k_InterlockedCompareExchange),
+    /* Thread/synchronisation APIs live in w32_thread.c for both guest widths. */
+    API("GetCurrentProcessId", 0, k_one), API("GetCurrentProcess", 0, k_GetCurrentProcess),
     API("HeapCreate", 3, k_HeapCreate), API("HeapDestroy", 1, k_one), API("GetProcessHeap", 0, k_GetProcessHeap),
     API("HeapAlloc", 3, k_HeapAlloc), API("HeapFree", 3, k_HeapFree), API("HeapReAlloc", 4, k_HeapReAlloc), API("HeapSize", 3, k_HeapSize),
     API("LocalAlloc", 2, k_LocalAlloc), API("LocalFree", 1, k_LocalFree), API("LocalReAlloc", 3, k_LocalReAlloc),

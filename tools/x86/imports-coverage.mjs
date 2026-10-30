@@ -13,6 +13,11 @@ export function crtRegistry() {
 
 export function importStatus(name, dll, machine = 'x86-64') {
   if (!isProfileDll(dll)) return { status: 'unknown', group: null };
+  /* LANE-C: shared thread registry has precedence over legacy width-specific bridges. */
+  const threads = readFileSync(join(ROOT, 'platforms/win32/w32_thread.c'), 'utf8');
+  if ([...threads.matchAll(/\b(?:T|C|T64)\("([^"]+)",\s*\d+(?:,\s*\d+)?\)/g)].some((m) => m[1] === name)) {
+    return { status: 'implemented', group: 'threads' };
+  }
   if (machine === 'x86-64') {
     const crt = crtRegistry().find((e) => e.name === name);
     if (crt) return { status: crt.status, group: crt.group };

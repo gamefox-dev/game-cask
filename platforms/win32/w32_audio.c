@@ -1,5 +1,6 @@
 /* Shared-mode WASAPI on the virtual clock. SPDX-License-Identifier: MIT */
 #include "w32_audio.h"
+#include "w32_thread.h" /* LANE-E/C: audio notifications use scheduler-owned events. */
 #define E_INVALIDARG 0x80070057u
 #define NOT_INIT 0x88890001u
 #define CAPACITY 19200u
@@ -10,48 +11,6 @@ typedef struct {
     int16_t pcm[CAPACITY * 2];
 } audio_t;
 static audio_t clients[NAUDIO];
-/* Main-thread fallback events. A scheduler can replace this adapter without changing COM/audio state. */
-static struct { uint32_t used, manual, signaled; } events[64];
-#define EVENT_BASE 0x000b0000u
-static uint32_t event_create(void) {
-    for (uint32_t i = 1; i < 64; i++) if (!events[i].used) {
-        events[i].used = 1; events[i].manual = !!ARG(1); events[i].signaled = !!ARG(2);
-        return EVENT_BASE + i;
-    }
-    return 0;
-}
-static uint32_t event_set(void) {
-    uint32_t i = ARG(0) - EVENT_BASE;
-    if (!i || i >= 64 || !events[i].used) return 0;
-    events[i].signaled = 1; return 1;
-}
-static uint32_t event_reset(void) {
-    uint32_t i = ARG(0) - EVENT_BASE;
-    if (!i || i >= 64 || !events[i].used) return 0;
-    events[i].signaled = 0; return 1;
-}
-int w32_audio_close_event(uint32_t h) {
-    uint32_t i = h - EVENT_BASE;
-    if (!i || i >= 64 || !events[i].used) return 0;
-    events[i].used = 0; return 1;
-}
-void w32_audio_signal_event(uint32_t h) {
-    uint32_t i = h - EVENT_BASE;
-    if (i && i < 64 && events[i].used) events[i].signaled = 1;
-}
-static uint32_t event_wait(void) {
-    uint32_t i = ARG(0) - EVENT_BASE, timeout = ARG(1), start = w32_now_ms();
-    if (!i || i >= 64 || !events[i].used) return 0xffffffffu;
-    for (;;) {
-        w32_audio_pump();
-        if (events[i].signaled) {
-            if (!events[i].manual) events[i].signaled = 0;
-            return 0;
-        }
-        if (timeout != 0xffffffffu && w32_now_ms() - start >= timeout) return 258;
-        w32_wait_frame();
-    }
-}
 static audio_t *client(void) {
     w32_com_object_t *o = w32_com_object(ARG(0));
     return o && o->state && o->state <= NAUDIO ? &clients[o->state - 1] : 0;
@@ -86,7 +45,7 @@ void w32_audio_pump(void) {
         /* One signal per virtual pump; auto-reset events coalesce missed periods, as on Windows. */
         if (now - a->event_ms >= 10) {
             a->event_ms = now;
-            w32_audio_signal_event(a->event);
+            w32_thread_signal_event(a->event);
         }
     }
 }
@@ -186,8 +145,7 @@ static uint32_t setevent(void) {
     audio_t *a = client();
     if (!a || !a->initialized) return NOT_INIT;
     if (!(a->flags & 0x40000u)) return 0x88890011u;
-    uint32_t i = ARG(1) - EVENT_BASE;
-    if (!i || i >= 64 || !events[i].used) return E_INVALIDARG;
+    if (!w32_thread_event_valid(ARG(1))) return E_INVALIDARG;
     a->event = ARG(1); return 0;
 }
 static uint32_t service(void) {
@@ -249,8 +207,6 @@ const w32_api_t w32_api_audio[] = {
     API("BgtAudioReset", 1, reset), API("BgtAudioEvent", 2, setevent), API("BgtAudioService", 3, service),
     API("BgtAudioPeriod", 3, period), API("BgtAudioLatency", 2, latency),
     API("BgtAudioGet", 3, getbuffer), API("BgtAudioRelease", 3, releasebuffer),
-    API("CreateEventA", 4, event_create), API("CreateEventW", 4, event_create),
-    API("SetEvent", 1, event_set), API("ResetEvent", 1, event_reset), API("WaitForSingleObject", 2, event_wait),
 };
 const uint32_t w32_api_audio_n = sizeof w32_api_audio / sizeof w32_api_audio[0];
 uint32_t w32_audio_method(uint32_t kind, uint32_t slot, uint32_t *nargs) {
