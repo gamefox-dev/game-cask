@@ -37,7 +37,12 @@ export interface Rect {
   h: number;
 }
 
+export interface ReadbackItem {
+  kind: 'readback'; target: number; x: number; y: number; w: number; h: number;
+  complete(data?: Uint8Array<ArrayBuffer>, error?: number): void;
+}
 export type FrameItem =
+  | ReadbackItem
   /** `target` 0 = screen (logical surface), else a render-target texture handle. */
   | { kind: 'draw'; first: number; count: number; texture: number; filter: number; blend: number; clip: Rect; target: number }
   | { kind: 'texCreate'; handle: number; width: number; height: number; renderTarget: boolean }
@@ -223,6 +228,8 @@ export interface DecodeContext {
   triangles: boolean;
   /** v0.2 render targets enabled (BGT_CAP_RENDER_TARGETS) */
   renderTargets?: boolean;
+  readback?: (id: number) => ((data?: Uint8Array<ArrayBuffer>, error?: number) => void) | number;
+  maxTextureDimension?: number;
   /** kit coverage: executed commands per opcode (incremented by the decoder) */
   opCounts?: Record<number, number>;
 }
@@ -367,6 +374,21 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
   const f = (o: number) => dv.getFloat32(p + o, true);
 
   switch (op) {
+    case OP.READBACK: {
+      if (n !== 24) return E_INVALID;
+      if (!ctx.readback) return E_UNSUPPORTED;
+      const id = u(0), target = u(4), x = u(8), y = u(12), w = u(16), h = u(20);
+      if (!w || !h) return E_INVALID;
+      if (w * h * 4 > 8 * 1024 * 1024) return E_LIMIT;
+      const t = target ? ctx.textures.entries.get(target) : null;
+      if (target && !t) return E_NOT_FOUND;
+      if (t && !t.renderTarget) return E_INVALID;
+      if (x + w > (t?.width ?? fr.logicalW) || y + h > (t?.height ?? fr.logicalH)) return E_BOUNDS;
+      const complete = ctx.readback(id);
+      if (typeof complete === 'number') return complete;
+      fr.items.push({kind:'readback',target,x,y,w,h,complete});
+      return BGT_OK;
+    }
     case OP.CLEAR: {
       if (n !== 4) return E_INVALID;
       const ts = targetSize(ctx);
@@ -454,7 +476,7 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
       if (rt && !ctx.renderTargets) return E_UNSUPPORTED;
       if (handle === 0 || handle >= LIMITS.textures) return E_INVALID;
       if (ctx.textures.entries.has(handle)) return E_STATE;
-      if (w === 0 || h === 0 || w > LIMITS.textureDim || h > LIMITS.textureDim) return E_LIMIT;
+      if (w === 0 || h === 0 || w > (ctx.maxTextureDimension ?? LIMITS.textureDim) || h > (ctx.maxTextureDimension ?? LIMITS.textureDim)) return E_LIMIT;
       const bytes = w * h * 4;
       if (ctx.textures.totalBytes + bytes > LIMITS.textureBytes) return E_LIMIT;
       ctx.textures.entries.set(handle, { width: w, height: h, renderTarget: rt, shadow: new Uint8Array(bytes) });
@@ -566,6 +588,9 @@ export class CommandEncoder {
   }
   blend(mode: number) { return this.cmd(OP.BLEND, 4).u32(mode); }
   texture(handle: number, filter = 0) { return this.cmd(OP.TEXTURE, 8).u32(handle).u32(filter); }
+  readback(request: number, target: number, x: number, y: number, w: number, h: number) {
+    return this.cmd(OP.READBACK,24).u32(request).u32(target).u32(x).u32(y).u32(w).u32(h);
+  }
   texCreate(handle: number, w: number, h: number, renderTarget = false) {
     return this.cmd(OP.TEX_CREATE, 16).u32(handle).u32(w).u32(h).u32(FORMAT_RGBA8 | (renderTarget ? TEX_RENDER_TARGET : 0));
   }

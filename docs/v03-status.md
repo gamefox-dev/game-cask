@@ -60,9 +60,19 @@ Missing: REX/16-GPR/RIP-relative decoder and shared 64-bit semantics, SSE/SSE2/x
 loader, Win64 thunks/callbacks, TEB/TLS, CRT, SEH/C++ exception/longjmp machinery. The base runtime's uint32 CPU/memory
 model cannot safely stand in for these; this stage is incomplete, not an environment-blocked success.
 
-## Stage 3 — pending
+## Stage 3 — partial (additive ABI requests and readback, NOT the general GPU/GL layer)
 
-GPU buffer/shader/pipeline commands and WGL/OpenGL are not implemented at this checkpoint.
+ABI version 0x000300, frozen old IO/commands retained; gpu_limits reports backend limits; v0.3 textures may use those
+limits within the old byte budget. CAP_READBACK + batched READBACK op captures target/screen bytes in command order.
+Bounded request_status/read/close exposes results only across update/yield boundaries. WebGPU stages/maps; WebGL 2
+uses glReadPixels internally (synchronous implementation, deferred ABI result). Original CC0 gpu-readback fixture
+asserts before/after capture ordering, top/bottom colours, screen sample and completion after yield on both backends.
+A deliberately v0.2-exporting fixture verifies backward loading. ABI.md §12 specifies every implemented addition.
+
+Missing: general GPU buffers/layouts/shader modules, GLSL/WGSL translation/fallback, pipeline depth/stencil/cull,
+multiple attachments, instancing/index/base vertex, mipmaps/formats/sampling and query results; WGL/OpenGL state tracker
+and entry points, GL metrics and GL 3.3 fixture. This cannot be called the brief's GPU layer. No new dependencies.
+The existing boot test's exact ABI string changes 0.2 → 0.3 solely for this additive version bump, not weaker coverage.
 
 ## Stage 4 — pending
 

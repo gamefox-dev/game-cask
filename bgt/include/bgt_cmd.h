@@ -32,7 +32,8 @@ enum {
     BGT_OP_TEX_UPDATE = 0x11, /* u32 handle, x, y, w, h, data_ptr, data_len (== w*h*4, tight rows)    */
     BGT_OP_TEX_DELETE = 0x12, /* u32 handle                                                            */
     BGT_OP_SPRITES    = 0x20, /* u32 count, then count * bgt_sprite_t                                  */
-    BGT_OP_TRIANGLES  = 0x21  /* u32 vertex_count (multiple of 3), then vertex_count * bgt_vertex_t    */
+    BGT_OP_TRIANGLES  = 0x21, /* u32 vertex_count (multiple of 3), then vertex_count * bgt_vertex_t    */
+    BGT_OP_READBACK   = 0x30  /* v0.3: u32 request, target, x, y, width, height; RGBA8, rows top to bottom */
 };
 
 #define BGT_BLEND_OPAQUE        0u
@@ -169,6 +170,11 @@ static inline void bgt_cmd_target_create(bgt_cmdbuf_t *b, uint32_t handle, uint3
 static inline void bgt_cmd_target(bgt_cmdbuf_t *b, uint32_t handle) {
     uint8_t *p = bgt_cmd_push(b, BGT_OP_TARGET, 4);
     if (p) bgt__put32(p, handle);
+}
+
+static inline void bgt_cmd_readback(bgt_cmdbuf_t *b, uint32_t request, uint32_t target, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+    uint8_t *p = bgt_cmd_push(b, BGT_OP_READBACK, 24);
+    if (p) { bgt__put32(p, request); bgt__put32(p + 4, target); bgt__put32(p + 8, x); bgt__put32(p + 12, y); bgt__put32(p + 16, w); bgt__put32(p + 20, h); }
 }
 
 /* data must stay valid until bgt_submit_commands returns (it is copied then). */

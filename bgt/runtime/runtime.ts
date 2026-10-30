@@ -11,6 +11,7 @@ import {
   CAP_GAMEPAD,
   CAP_LINEAR_FILTER,
   CAP_RENDER_TARGETS,
+  CAP_READBACK,
   CAP_SCISSOR,
   CAP_STORAGE,
   CAP_TOUCH,
@@ -335,7 +336,7 @@ export class BGTRuntime {
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
-    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS;
+    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK;
     if (this.storage.persistent) caps |= CAP_STORAGE;
     if (hasTouch) caps |= CAP_TOUCH;
     if (this.opts.directDraw) caps |= CAP_DIRECT_DRAW;
@@ -359,6 +360,7 @@ export class BGTRuntime {
           displayHeight: this.canvas.height,
           arg0: this.opts.arg0 ?? 0,
           arg1: this.opts.arg1 ?? 0,
+          maxTextureDimension: this.renderer.maxTextureSize,
         },
       );
       this.host.init();

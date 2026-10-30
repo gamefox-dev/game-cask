@@ -2,7 +2,7 @@
 
 import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
-import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice } from '../types';
+import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const VS = `#version 300 es
 layout(location = 0) in vec2 a_pos;
@@ -230,6 +230,19 @@ export class WebGL2Renderer implements Renderer {
 
     for (const it of frame.items) {
       switch (it.kind) {
+        case 'readback': {
+          bindTarget(it.target);
+          const rt = it.target ? this.targets.get(it.target) : null;
+          const width = rt ? it.w : this.canvas.width, height = rt ? it.h : H;
+          const raw = new Uint8Array(width*height*4), data = new Uint8Array(raw.length);
+          gl.readPixels(rt ? it.x : 0,rt ? it.y : 0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,raw);
+          for (let y=0;y<height;y++) {
+            const row = it.target ? y : height-1-y;
+            data.set(raw.subarray(row*width*4,(row+1)*width*4),y*width*4);
+          }
+          it.complete(rt ? data : readbackRect({width,height,data},it,frame.logicalW,frame.logicalH,lb));
+          break;
+        }
         case 'texCreate': {
           const old = this.textures.get(it.handle);
           if (old) gl.deleteTexture(old);

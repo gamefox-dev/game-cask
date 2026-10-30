@@ -9,6 +9,7 @@ import {
   CAP_LINEAR_FILTER,
   CAP_RENDER_TARGETS,
   CAP_YIELD,
+  CAP_READBACK,
   CAP_TRIANGLES,
   DT_US,
   E_BOUNDS,
@@ -32,6 +33,7 @@ import {
   emitSprite,
 } from './commands';
 import { Vfs } from './vfs';
+import { Requests } from './requests';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -61,6 +63,7 @@ export interface HostConfig {
   displayHeight: number;
   arg0: number;
   arg1: number;
+  maxTextureDimension?: number;
 }
 
 export interface InputSnapshot {
@@ -153,6 +156,7 @@ const utf8 = new TextDecoder('utf-8', { fatal: false });
 export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
+  readonly requests = new Requests();
   state: DrawState = defaultState(1, 1);
   logicalWidth = 0;
   logicalHeight = 0;
@@ -199,6 +203,7 @@ export class GameHost {
     const instance = await WebAssembly.instantiate(module, imports);
     host.exports = instance.exports as unknown as GameExports;
     const v = host.exports.bgt_abi_version() >>> 0;
+    if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
     }
@@ -262,6 +267,11 @@ export class GameHost {
       triangles: (this.config.caps & CAP_TRIANGLES) !== 0,
       renderTargets: (this.config.caps & CAP_RENDER_TARGETS) !== 0,
       opCounts: this.opCounts,
+      maxTextureDimension: this.config.maxTextureDimension,
+      readback: (this.config.caps & CAP_READBACK) ? (id) => {
+        const token = this.requests.reserve(id);
+        return typeof token === 'number' ? token : (data, error) => this.requests.complete(token, data, error);
+      } : undefined,
     };
   }
 
@@ -307,6 +317,19 @@ export class GameHost {
           this.recordDecode(res);
           return res.status;
         },
+        gpu_limits: (dst: number, cap: number) => {
+          if ((cap >>> 0) < 16) return E_LIMIT;
+          if ((dst & 3) || !this.inRange(dst,16)) return E_BOUNDS;
+          const dv = this.dv();
+          [16,this.config.maxTextureDimension ?? LIMITS.textureDim,LIMITS.textures-1,LIMITS.textureBytes].forEach((v,i) => dv.setUint32(dst+i*4,v,true));
+          return 0;
+        },
+        request_status: (id: number) => this.requests.status(id >>> 0),
+        request_read: (id: number, dst: number, cap: number) => {
+          if (!this.inRange(dst,cap)) return E_BOUNDS;
+          return this.requests.read(id >>> 0,this.mem().subarray(dst >>> 0,(dst >>> 0)+(cap >>> 0)));
+        },
+        request_close: (id: number) => this.requests.close(id >>> 0),
         asset_open: (ptr: number, len: number) => {
           const p = this.str(ptr, len, 512);
           return p === null ? E_INVALID : s.vfs.openFile(p);
@@ -475,6 +498,7 @@ export class GameHost {
   update(): void {
     if (!this.initialized) throw new HostError('update before init');
     const t0 = this.services.now();
+    this.requests.advance();
     const ex = this.exports;
     if (this.asyncState === AsyncState.Suspended) {
       // resume inside bgt_yield where the previous update stopped

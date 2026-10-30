@@ -1,7 +1,7 @@
 // Mirror of bgt/include/bgt.h and bgt_cmd.h. tests/unit/abi-layout.test.ts
 // compiles a C probe against the headers and checks these values match.
 
-export const ABI_VERSION = (0 << 16) | (2 << 8);
+export const ABI_VERSION = (0 << 16) | (3 << 8);
 
 export const BGT_OK = 0;
 export const E_INVALID = -1;
@@ -33,6 +33,7 @@ export const CAP_TRIANGLES = 1 << 6;
 export const CAP_DIRECT_DRAW = 1 << 7;
 export const CAP_RENDER_TARGETS = 1 << 8;
 export const CAP_YIELD = 1 << 9;
+export const CAP_READBACK = 1 << 10;
 
 export const BACKEND_NONE = 0;
 export const BACKEND_WEBGPU = 1;
@@ -117,6 +118,7 @@ export const OP = {
   TEX_DELETE: 0x12,
   SPRITES: 0x20,
   TRIANGLES: 0x21,
+  READBACK: 0x30,
 } as const;
 
 export const SPRITE_SIZE = 36;
