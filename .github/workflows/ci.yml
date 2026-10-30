@@ -27,6 +27,8 @@ jobs:
         with:
           version: 0.13.0
       - run: npm ci
+      # before npm test: the unit suite's probe-mode test launches headless Chromium
+      - run: npx playwright install --with-deps chromium
       - name: Private asset leak check
         run: npm run leakcheck
       - name: Negative check — leak check must reject a committed original/ file
@@ -41,7 +43,6 @@ jobs:
       - name: Wasm sample build
         run: npm run build:examples
       - run: npm test
-      - run: npx playwright install --with-deps chromium
       - name: Browser E2E (WebGL 2 fallback, software rendering)
         run: BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
       - if: always()
