@@ -12,6 +12,7 @@ import {
   CAP_LINEAR_FILTER,
   CAP_RENDER_TARGETS,
   CAP_READBACK,
+  CAP_STREAM_FILES,
   CAP_SCISSOR,
   CAP_STORAGE,
   CAP_TOUCH,
@@ -24,6 +25,7 @@ import {
 import type { CommandError, DecodeResult } from './commands';
 import { GameHost, InputSnapshot, emptyInput } from './host';
 import { Vfs } from './vfs';
+import { RangeFiles, type StreamedFile } from './range-files';
 import { WebAudioSink } from '../audio/audio';
 import { InputManager, TestInputEvent, TouchConfig, InputConfig } from '../input/input';
 import { BrowserStorage } from '../storage/storage';
@@ -58,6 +60,7 @@ export interface Manifest {
   private?: boolean;
   wasm: { url: string; size: number; sha256: string };
   assets: Array<{ path: string; url: string; size: number; sha256: string }>;
+  streams?: StreamedFile[];
   touch?: TouchConfig;
   input?: InputConfig;
 }
@@ -141,6 +144,7 @@ export class BGTRuntime {
   ready = false;
   paused = false;
   failed = false;
+  private rangeFiles: RangeFiles | null = null;
   private snap: InputSnapshot = emptyInput();
   private raf = 0;
   private last = 0;
@@ -293,6 +297,8 @@ export class BGTRuntime {
     const manifest = (await res.json()) as Manifest;
     if (manifest.schema !== 'bgt-manifest/1') throw new RuntimeFailure('asset', `unsupported manifest schema ${manifest.schema}`);
     this.manifest = manifest;
+    this.rangeFiles = new RangeFiles(base);
+    for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size); }
     document.title = `${manifest.name} — Game Cask`;
 
     const total = manifest.wasm.size + manifest.assets.reduce((n, a) => n + a.size, 0);
@@ -336,7 +342,7 @@ export class BGTRuntime {
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
-    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK;
+    let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK | CAP_STREAM_FILES;
     if (this.storage.persistent) caps |= CAP_STORAGE;
     if (hasTouch) caps |= CAP_TOUCH;
     if (this.opts.directDraw) caps |= CAP_DIRECT_DRAW;
@@ -351,6 +357,7 @@ export class BGTRuntime {
           audio: this.audio,
           storage: this.storage,
           now: () => performance.now(),
+          rangeRead: (path,offset,length) => this.rangeFiles!.read(path,offset,length),
         },
         {
           backend: this.renderer.kind === 'webgpu' ? BACKEND_WEBGPU : BACKEND_WEBGL2,
@@ -576,9 +583,9 @@ export class BGTRuntime {
       }
       this.last = t;
       this.checkLossWatchdog();
-      if (this.paused || !this.ready || this.failed || this.renderer?.lost) return;
+      if (this.paused || !this.ready || this.failed || this.renderer?.lost || this.host?.ioPending) return;
       let n = 0;
-      while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates) {
+      while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates && !this.host?.ioPending) {
         if (this.guard(() => this.stepOnce()) === undefined && this.failed) return;
         this.acc -= STEP_MS;
         n++;
@@ -606,6 +613,7 @@ export class BGTRuntime {
     this.pause();
     for (let i = 0; i < frames; i++) {
       if (this.failed) break;
+      await this.host?.settleRequests();
       this.guard(() => this.stepOnce());
       if (this.failed) break;
       // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.

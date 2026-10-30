@@ -34,6 +34,7 @@ export const CAP_DIRECT_DRAW = 1 << 7;
 export const CAP_RENDER_TARGETS = 1 << 8;
 export const CAP_YIELD = 1 << 9;
 export const CAP_READBACK = 1 << 10;
+export const CAP_STREAM_FILES = 1 << 11;
 
 export const BACKEND_NONE = 0;
 export const BACKEND_WEBGPU = 1;

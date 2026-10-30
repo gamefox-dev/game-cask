@@ -15,6 +15,9 @@ import {
   E_BOUNDS,
   E_INVALID,
   E_LIMIT,
+  E_NOT_FOUND,
+  E_IO,
+  E_STATE,
   IO,
   LIMITS,
   MAX_TOUCHES,
@@ -53,6 +56,7 @@ export interface HostServices {
   audio?: AudioSink;
   storage?: StorageSink;
   now(): number;
+  rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export interface HostConfig {
@@ -157,6 +161,9 @@ export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
+  private ioWork = new Set<Promise<void>>();
+  get ioPending(): boolean { return this.ioWork.size > 0; }
+  async settleRequests(): Promise<void> { await Promise.all([...this.ioWork]); }
   state: DrawState = defaultState(1, 1);
   logicalWidth = 0;
   logicalHeight = 0;
@@ -335,6 +342,26 @@ export class GameHost {
           return p === null ? E_INVALID : s.vfs.openFile(p);
         },
         asset_size: (h: number) => s.vfs.size(h),
+        asset_size64: (h: number,dst: number) => {
+          if (!this.inRange(dst,8)) return E_BOUNDS;
+          const size=s.vfs.size(h);if(size<0)return size;
+          this.dv().setBigUint64(dst >>> 0,BigInt(size),true);return 0;
+        },
+        asset_range_request: (h: number,lo: number,hi: number,len: number) => {
+          const path=s.vfs.pathFor(h);if(!path)return E_NOT_FOUND;
+          const off=(lo >>> 0)+(hi >>> 0)*0x100000000, length=len >>> 0;
+          if(!Number.isSafeInteger(off))return E_INVALID;
+          if(length>8*1024*1024)return E_LIMIT;
+          const immediate=s.vfs.range(h,off,length);
+          if(!immediate && !s.rangeRead)return E_STATE;
+          const token=this.requests.reserve();if(typeof token==='number')return token;
+          if(immediate)this.requests.complete(token,immediate);
+          else {
+            const work=Promise.resolve().then(()=>s.rangeRead!(path,off,length)).then((data)=>{this.requests.complete(token,data);},(error)=>{s.log(2,`asset range failed: ${path} at ${off}+${length}: ${String(error)}`);this.requests.complete(token,undefined,E_IO);});
+            this.ioWork.add(work);void work.finally(()=>this.ioWork.delete(work));
+          }
+          return token.id;
+        },
         asset_read: (h: number, dst: number, size: number) => {
           if (!this.inRange(dst, size)) return E_BOUNDS;
           return s.vfs.read(h, this.mem().subarray(dst >>> 0, (dst >>> 0) + (size >>> 0)));

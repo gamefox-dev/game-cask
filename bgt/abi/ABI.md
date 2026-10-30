@@ -375,3 +375,33 @@ complete with E_IO. No query-result readback is implemented yet.
 Conformance: `examples/gpu-readback` draws two colours, captures, overwrites the target, yields and checks all bytes;
 a separate screen request checks orientation/colour. Browser tests run on both backends. `requests.test.ts` tests
 lifetime, cancellation, bounds/caps and the old-version host contract.
+
+### Streamed immutable files (`BGT_CAP_STREAM_FILES`, bit 11)
+
+`asset_open` names either an eager asset or a streamed file. Eager v0.2 asset_read/seek semantics are unchanged.
+New `asset_size64(handle,dst)` writes an LE u64 file size (8 writable bytes required); unknown handle → E_NOT_FOUND.
+`asset_range_request(handle,offset_lo,offset_hi,bytes)` returns a positive request ID for an immutable read of up to
+8 MiB, or an error. Offset is unsigned u64, restricted to JS-exact integers (≤2^53−1); unsafe offset → E_INVALID.
+The result is truncated at EOF (including zero bytes). Reads never move the legacy handle position. Eager files
+can use this API too. Poll/read/close with §12 request functions after yielding. No delayed writes into guest memory.
+Legacy asset_read on a streamed handle returns E_STATE: it never loads the whole file implicitly. Legacy asset_size
+is i32, so use size64 for large files.
+
+Manifest `streams` entries: `{path,size,chunkSize,chunks:[{offset,size,url,sha256}]}`. Paths use the existing safe VFS
+rules; chunks must exactly cover the file in order (zero-size file has no chunks), each 4 KiB–1 MiB maximum configured
+chunk size, final chunk may be short. Fetches are **chunked ranges**, not HTTP Range headers. The runtime fetches only
+chunks touched by requests, validates response lengths and SHA-256 in a secure context, coalesces in-flight chunk
+fetches and keeps a 16 MiB LRU. No whole-file preload. Network/integrity failure → request E_IO + a diagnostic log.
+
+`game.json` `streams:[{from:"./file",path:"data/file",chunkSize:262144}]` writes chunks at build time using bounded
+reads. `from` must be game-local or within original/. Pipeline `streamModules:true` packages each original executable
+as a streamed `modules/<name>` file and makes a separate compact loader image containing headers and only the
+virtually mapped bytes. This keeps overlays out of the eager loader asset; original file offsets are retained by
+the streamed self-open view. `GetModuleFileNameW` → `CreateFileW` resolves that original view, not the compact image.
+The Win32 profile implements read-only OPEN_EXISTING, ReadFile, GetFileSize(Ex), SetFilePointer(Ex), CloseHandle,
+EOF, negative-seek errors and missing files. Overlapped reads, writes and CRT FILE APIs are not implemented yet.
+
+While a range promise is outstanding, browser simulation updates are held; rendering/input delivery resume when
+settled. Deterministic test stepping awaits pending I/O before advancing a frame, as does the oracle. Wall-clock
+network latency is not virtual guest time. This is not a cooperative thread scheduler; a future worker must avoid
+blocking all guest threads on an unrelated read.

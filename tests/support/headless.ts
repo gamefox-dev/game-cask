@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { BACKEND_HEADLESS, BUTTONS, ButtonName, CAP_DIRECT_DRAW, CAP_LINEAR_FILTER, CAP_RENDER_TARGETS, CAP_SCISSOR, CAP_STORAGE, CAP_TRIANGLES } from '../../bgt/runtime/abi';
 import { GameHost, InputSnapshot, StorageSink, emptyInput } from '../../bgt/runtime/host';
 import { Vfs } from '../../bgt/runtime/vfs';
+import { RangeFiles } from '../../bgt/runtime/range-files';
 import { HID } from '../../bgt/input/input';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -22,6 +23,7 @@ export interface Headless {
   /** key by KeyboardEvent.code (held until released) */
   key(code: string, down: boolean): void;
   step(n?: number): void;
+  stepAsync(n?: number): Promise<void>;
   state<T = Record<string, unknown>>(): T;
 }
 
@@ -30,6 +32,8 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
   const vfs = new Vfs();
   for (const a of manifest.assets) vfs.add(a.path, new Uint8Array(readFileSync(join(dir, 'assets', a.path))));
+  const ranges = new RangeFiles('',async (url) => new Response(readFileSync(join(dir,String(url))))) ;
+  for(const s of manifest.streams ?? []) { ranges.add(s);vfs.addStream(s.path,s.size); }
   const logs: string[] = [];
   const store = opts.storage ?? new Map<string, Uint8Array>();
   const storage: StorageSink = {
@@ -42,6 +46,7 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
     vfs,
     storage,
     now: () => performance.now(),
+    rangeRead:(path,offset,length)=>ranges.read(path,offset,length),
   }, {
     backend: BACKEND_HEADLESS,
     caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS,
@@ -94,6 +99,7 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
         host.consume();
       }
     },
+    stepAsync: async (n=1) => { for(let i=0;i<n;i++) { await host.settleRequests();h.step(1); } },
     state: <T,>() => host.debugState() as T,
   };
   return h;

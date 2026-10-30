@@ -235,6 +235,7 @@ static void report_line(const char *what) {
 }
 
 void phase0(HWND h);
+void file_checks(void);
 void phase0_message(HWND h);
 void phase0_about(HWND h);
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
@@ -246,6 +247,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (w == 'T') phase0(h);
         if (w == 'I') phase0_message(h);
         if (w == 'A') phase0_about(h);
+        if (w == 'F') file_checks();
         return 0;
     case WM_DESTROY: PostQuitMessage(0); return 0;
     }

@@ -126,6 +126,16 @@ cost; interpret-only = null. For marginal cost subtract an otherwise identical i
 `peak_child_rss_bytes` is the largest compiler/linker child (NOT total parallel memory or wasm-opt), plus cache counts
 and job count. The current pipeline does not load code chunks lazily.
 
+## v0.3 streaming files (implemented)
+
+`pipeline.streamModules: true` creates compact eager loader images (virtual bytes only) plus a streamed original-file
+view for CreateFile(GetModuleFileName()). Shipped data can use `streams:[{from:"./data",path:"data",chunkSize:262144}]`.
+Build preparation reads bounded chunks, not entire files. The manifest's `streams` records size/chunk URLs/hashes;
+the runtime only fetches requested ranges and keeps a 16 MiB LRU. Large overlays never enter the eager loader VFS.
+See ABI.md §12 for asset_size64, asset_range_request and request result lifetimes. Tests/oracle await pending I/O
+before advancing virtual time. Win32 support is read-only CreateFile/ReadFile/size/seek/close, including self-open;
+CRT FILE APIs are still a gap. Threads/audio/COM/expanded input/GL are **not implemented by this change**.
+
 ## Known execution limits (kit gaps, not port work)
 - **x86:** 32-bit flat mode only. No x87/SSE (FPU instructions fault). No self-modifying code (the decoder caches).
 - **Profiles:** Win32 only; DOS/consoles need new profiles.

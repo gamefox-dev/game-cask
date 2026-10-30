@@ -18,11 +18,12 @@
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
+import { streamFile, compactPe, hashFile } from './files.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -111,11 +112,12 @@ function resolveModule(gameDir, spec, fixtureFiles) {
 }
 
 function peInfo(file) {
-  const b = readFileSync(file);
-  const nt = b.readUInt32LE(0x3c), opt = nt + 24;
-  if (b.readUInt16LE(nt + 4) === 0x8664 || b.readUInt16LE(opt) === 0x20b)
-    throw new Error('pipeline: kit gap: PE32+ / Win64 execution is not implemented; analyze --metadata is static only (never truncate 64-bit pointers into the i386 profile)');
-  return { base: b.readUInt32LE(opt + 28), size: b.readUInt32LE(opt + 56), relocs: b.readUInt32LE(opt + 96 + 5 * 8) !== 0, importDlls: peImportDlls(b) };
+  const fd=openSync(file,'r');try {
+    const p=peMetadata((o,n)=>{const b=Buffer.alloc(n);return b.subarray(0,readSync(fd,b,0,n,o));},fstatSync(fd).size);
+    if(p.pe32plus) throw new Error('pipeline: kit gap: PE32+ / Win64 execution is not implemented; analyze --metadata is static only (never truncate 64-bit pointers into the i386 profile)');
+    if(p.importErrors.length)throw new Error(p.importErrors.join('; '));
+    return {base:Number(BigInt(p.imageBase)),size:p.imageBytes,relocs:p.directories[5][0]!==0,importDlls:p.imports};
+  }finally{closeSync(fd);}
 }
 
 /** Names of the DLLs a PE32 image imports statically (import directory), in file order. */
@@ -158,12 +160,18 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   mkdirSync(work, { recursive: true });
   const fixtureFiles = {};
   if (p.fixture) {
+    for (const data of p.fixture.patternFiles ?? []) {
+      if (!/^[a-z0-9-]+\.[a-z0-9]+$/.test(data.name) || !Number.isInteger(data.bytes) || data.bytes < 0 || data.bytes > 512*1024*1024) throw new Error('invalid CC0 pattern fixture');
+      const dir=join(work,'fixture');mkdirSync(dir,{recursive:true});
+      const fd=openSync(join(dir,data.name),'w');
+      try {const b=Buffer.alloc(65536);for(let off=0;off<data.bytes;off+=b.length){const n=Math.min(b.length,data.bytes-off);for(let i=0;i<n;i++)b[i]=(((off+i)*(data.multiplier ?? 1)+(data.increment ?? 0))^(data.xorShift ? (off+i)>>>data.xorShift : 0))&255;writeSync(fd,b,0,n);}}finally{closeSync(fd);}
+    }
     const f = buildFixture(gameDir, p.fixture, join(work, 'fixture'));
     fixtureFiles[`./build/${p.fixture.out}`] = f;
   }
   const tool = p.interpretOnly ? null : x86tool();
   const ov = overrides(gameDir);
-  const mods = [];
+  const mods = [], streams = [];
   let next = 0x10000000;
   for (const m of p.modules) {
     const { file, provenance } = resolveModule(gameDir, m.from, fixtureFiles);
@@ -177,9 +185,12 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       while (overlaps(next)) next += 0x100000;
       base = next;
     }
-    const asset = `modules/${name}`;
-    mkdirSync(join(outAssetsDir, 'modules'), { recursive: true });
-    cpSync(file, join(outAssetsDir, asset));
+    const asset = `${p.streamModules ? 'loader' : 'modules'}/${name}`;
+    mkdirSync(join(outAssetsDir, p.streamModules ? 'loader' : 'modules'), { recursive: true });
+    if (p.streamModules) {
+      compactPe(file,join(outAssetsDir,asset));
+      streams.push(streamFile(file,`modules/${name}`,join(outAssetsDir,'..'),p.chunkSize));
+    } else cpSync(file, join(outAssetsDir, asset));
     const id = cIdent(name);
     let lifted = null, stats = null, analysis = null;
     if (tool) {
@@ -192,7 +203,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
     }
     const totals = analysis ? JSON.parse(analysis).totals : null;
-    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: sha256(readFileSync(file)),
+    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: hashFile(file),
       functions: totals ? totals.functions : 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
   if (!mods.some((m) => m.main)) mods[0].main = true;
@@ -252,6 +263,8 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   writeFileSync(join(work, 'pipeline.json'), JSON.stringify(report, null, 2) + '\n');
   return {
     sources,
+    streams,
+    fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: ['-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable'],
     asyncify: true,

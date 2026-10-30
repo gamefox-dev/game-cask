@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, requireZig } from './toolchain.mjs';
 import { runPipeline, pipelineSummary } from './pipeline.mjs';
+import { streamFile } from './files.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -140,6 +141,14 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   const wasm = readFileSync(wasmPath);
 
   const assets = [];
+  const streams = [...(pipe?.streams ?? [])];
+  for (const file of cfg.streams ?? []) {
+    const src=file.from.startsWith('./build/') && pipe?.fixtureDir ? join(pipe.fixtureDir,file.from.slice(8)) : resolve(gameDir,file.from);
+    const orig=resolve(ROOT,'original');
+    if(!src.startsWith(gameDir+sep)&&!src.startsWith(orig+sep)&&!(pipe?.fixtureDir && src.startsWith(pipe.fixtureDir+sep)))throw new Error('stream source must be game-local or in original/');
+    if(streams.some((s)=>s.path===file.path))throw new Error('duplicate streamed path');
+    streams.push(streamFile(src,file.path,outDir,file.chunkSize));
+  }
   if (pipe) {
     for (const file of walk(join(outDir, 'assets'))) {
       const rel = relative(join(outDir, 'assets'), file).split(sep).join('/');
@@ -185,10 +194,11 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     schema: 'bgt-manifest/1',
     id: cfg.id,
     name: cfg.name,
-    abi: '0.1',
+    abi: '0.3',
     private: cfg.private ?? false,
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
+    ...(streams.length ? {streams} : {}),
     touch: cfg.touch ?? { dpad: true, buttons: ['A', 'B', 'START'] },
     input: cfg.input ?? {},
     toolchain: { zig: zig.version, cflags: [...CFLAGS, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },

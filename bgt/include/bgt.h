@@ -57,6 +57,7 @@ extern "C" {
 #define BGT_CAP_RENDER_TARGETS (1u << 8)  /* v0.2: TEX_CREATE with BGT_TEX_RENDER_TARGET + TARGET op */
 #define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
+#define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
 
 #define BGT_BACKEND_NONE     0
 #define BGT_BACKEND_WEBGPU   1
@@ -208,6 +209,11 @@ static inline int bgt_key_pressed(const bgt_io_t *io, uint32_t key) {
 
 /* Logging. Text is UTF-8, explicit length, no terminator required. */
 BGT_IMPORT(log)   void bgt_log(uint32_t level, const char *ptr, uint32_t len);
+/* v0.3 ranges work for preloaded AND streamed handles. u64 file offsets are split into lo/hi.
+ * asset_size64 writes a little-endian u64; range returns a request ID (or error), not byte data. */
+BGT_IMPORT(asset_size64) int32_t bgt_asset_size64(uint32_t handle, uint64_t *size);
+BGT_IMPORT(asset_range_request) int32_t bgt_asset_range_request(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
+
 typedef struct bgt_gpu_limits {
     uint32_t byte_size, max_texture_dimension, max_texture_handles, texture_budget_bytes;
 } bgt_gpu_limits_t; /* 16 bytes */

@@ -74,9 +74,21 @@ multiple attachments, instancing/index/base vertex, mipmaps/formats/sampling and
 and entry points, GL metrics and GL 3.3 fixture. This cannot be called the brief's GPU layer. No new dependencies.
 The existing boot test's exact ABI string changes 0.2 → 0.3 solely for this additive version bump, not weaker coverage.
 
-## Stage 4 — pending
+## Stage 4 — partial (streaming files and Win32 self-open; no scheduler/audio/COM growth)
 
-Cooperative threads, streaming file imports, WASAPI/COM and expanded device APIs are not implemented at this checkpoint.
+Implemented: bounded-build file chunking, hash-verified lazy reads, 16 MiB LRU/in-flight coalescing, 64-bit asset size
+and split-offset range request imports, delayed request completion across yield. Original module self-open is separate
+from the compact loader image. Win32 read-only CreateFileA/W, ReadFile, GetFileSize(Ex), SetFilePointer(Ex), CloseHandle,
+EOF/error paths are fixture-tested. The 8 MiB CC0 patterned data fixture reads across the 4 MiB boundary using just
+two 64 KiB chunks (pattern varies per chunk to catch wrong seeks), not full-file preload. The same fixture self-opens
+its executable and reads the original MZ/header and tail. Browser and oracle hold external I/O until the next virtual
+frame, with a headless asynchronous stepping helper. Secure-context SHA-256 is required for streamed bytes.
+
+Missing: CreateThread and a deterministic cooperative scheduler, WaitFor*/events/mutexes/semaphores/CS/SRW/conditions,
+per-thread TLS, WASAPI/WinMM/DirectSound expansion, COM class registry, Raw Input/XInput/DirectInput, offline sockets
+and CRT FILE streaming. Existing TLS/interlocked/QPC remain the prior single-thread model. Supporting multiple
+suspended guest stacks safely requires scheduler/CPU/callback work; the single Asyncify stack cannot simply be reused
+as multiple threads. These are unfinished kit subsystems, not game-side override opportunities.
 
 ## Stage 5 — pending
 
