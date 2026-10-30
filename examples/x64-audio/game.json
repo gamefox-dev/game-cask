@@ -1,0 +1,10 @@
+{
+  "id":"x64-audio", "name":"WASAPI generated stereo tone (CC0)", "private":false, "license":"CC0-1.0",
+  "pipeline":{
+    "platform":"win32",
+    "fixture":{"target":"x86_64-windows-gnu", "crt":true, "sources":["audio.c"], "out":"audio.exe",
+      "libs":["kernel32", "ole32", "uuid", "propsys"]},
+    "modules":[{"from":"./build/audio.exe", "name":"audio.exe", "main":true}], "width":320, "height":160
+  },
+  "touch":{"dpad":false,"buttons":[]}
+}

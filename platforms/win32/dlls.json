@@ -1,7 +1,9 @@
 {
+  "laneE": "/* LANE-E */ Additive COM/property/XInput system DLL names.",
   "comment": "System DLLs the Win32 profile implements (by name, case-insensitive). LoadLibrary resolves a name to a shipped pipeline module first (game.json), then to this list; anything else fails with ERROR_MOD_NOT_FOUND. A static import of a DLL that is in neither fails the build. Entries ending in '*' are prefixes (API sets).",
   "implemented": [
     "kernel32.dll", "user32.dll", "gdi32.dll", "advapi32.dll", "shell32.dll", "comctl32.dll", "winmm.dll",
+    "ole32.dll", "propsys.dll", "xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll",
     "msvcrt.dll", "ucrtbase.dll", "api-ms-win-crt-*", "api-ms-win-core-*"
   ]
 }

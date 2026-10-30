@@ -1,0 +1,10 @@
+{
+  "id":"x64-input", "name":"XInput and Raw Input state (CC0)", "private":false, "license":"CC0-1.0",
+  "pipeline":{
+    "platform":"win32",
+    "fixture":{"target":"x86_64-windows-gnu", "crt":true, "sources":["input.c"], "out":"input.exe",
+      "libs":["kernel32", "user32", "gdi32", "xinput1_4"]},
+    "modules":[{"from":"./build/input.exe", "name":"input.exe", "main":true}], "width":320, "height":160
+  },
+  "touch":{"dpad":false,"buttons":[]}
+}

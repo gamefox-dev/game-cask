@@ -4,7 +4,7 @@
 // never lost.
 
 import { BUTTONS, ButtonName, EVENT_AUDIO_UNLOCKED, EVENT_FOCUS_LOST, EVENT_RESIZED, EVENT_DEVICE_RESET, EVENT_TARGETS_LOST } from '../runtime/abi';
-import type { InputSnapshot } from '../runtime/host';
+import type { GamepadSnapshot, InputSnapshot } from '../runtime/host';
 import type { Letterbox } from '../renderers/types';
 
 /** KeyboardEvent.code -> USB HID usage id. */
@@ -39,6 +39,8 @@ const PAD_BUTTONS: Array<[number, ButtonName]> = [
 ];
 
 export type TestInputEvent =
+  | { type: 'gamepad'; index: number; connected: boolean; buttons?: number;
+      axes?: [number, number, number, number]; triggers?: [number, number] }
   | { type: 'key'; code: string; down: boolean }
   | { type: 'button'; button: ButtonName; down: boolean }
   /** buttons: MouseEvent.buttons bitmask (1 primary, 2 secondary, 4 middle); overrides `down`. */
@@ -73,6 +75,8 @@ export class InputManager {
   private touches = new Map<number, { x: number; y: number }>();
   private events = 0;
   private axes: [number, number, number, number] = [0, 0, 0, 0];
+  private testPads = new Map<number, GamepadSnapshot>();
+  private gamepads: GamepadSnapshot[] = [];
   private overlayEl: HTMLElement | null = null;
   private disposers: Array<() => void> = [];
   private canvasDisposers: Array<() => void> = [];
@@ -182,7 +186,18 @@ export class InputManager {
 
   injectTest(events: TestInputEvent[]): void {
     for (const ev of events) {
-      if (ev.type === 'key') this.key(ev.code, ev.down);
+      if (ev.type === 'gamepad') {
+        if (!Number.isInteger(ev.index) || ev.index < 0 || ev.index > 3) throw new Error('invalid gamepad index');
+        this.testPads.set(ev.index, {
+          connected: ev.connected, buttons: ev.buttons ?? 0,
+          axes: (ev.axes ?? [0, 0, 0, 0]).map(
+            (v) => Math.round(Math.max(-1, Math.min(1, v)) * 32767),
+          ) as GamepadSnapshot['axes'],
+          triggers: (ev.triggers ?? [0, 0]).map(
+            (v) => Math.round(Math.max(0, Math.min(1, v)) * 65535),
+          ) as GamepadSnapshot['triggers'],
+        });
+      } else if (ev.type === 'key') this.key(ev.code, ev.down);
       else if (ev.type === 'button') {
         const bit = BUTTONS[ev.button];
         if (bit === undefined) throw new Error(`unknown button ${ev.button}`);
@@ -201,6 +216,15 @@ export class InputManager {
     }
   }
 
+  /** Best-effort browser actuator; deterministic state never depends on physical vibration support. */
+  rumble(index: number, left: number, right: number): void {
+    const pad = typeof navigator !== 'undefined' ? navigator.getGamepads?.()[index] : null;
+    const actuator = pad?.vibrationActuator;
+    if (actuator) void actuator.playEffect('dual-rumble', {
+      duration: 100, strongMagnitude: left / 65535, weakMagnitude: right / 65535,
+    }).catch(() => { /* unsupported actuator / denied by browser */ });
+  }
+
   markEvent(ev: 'resized' | 'deviceReset' | 'audioUnlocked' | 'targetsLost'): void {
     const bits = { resized: EVENT_RESIZED, deviceReset: EVENT_DEVICE_RESET, audioUnlocked: EVENT_AUDIO_UNLOCKED, targetsLost: EVENT_TARGETS_LOST };
     this.events |= bits[ev];
@@ -210,7 +234,20 @@ export class InputManager {
     this.sources.pad = 0;
     this.axes = [0, 0, 0, 0];
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) {
+    this.gamepads = Array.from({ length: 4 }, (_, index) => {
+      const p = pads[index];
+      return this.testPads.get(index) ?? {
+        connected: !!p?.connected,
+        buttons: p?.buttons.reduce((bits, b, i) => bits | (b.pressed ? 1 << i : 0), 0) ?? 0,
+        axes: [0, 1, 2, 3].map(
+          (i) => Math.round(Math.max(-1, Math.min(1, p?.axes[i] ?? 0)) * 32767),
+        ) as GamepadSnapshot['axes'],
+        triggers: [6, 7].map((i) => Math.round((p?.buttons[i]?.value ?? 0) * 65535)) as GamepadSnapshot['triggers'],
+      };
+    });
+    for (const pad of this.gamepads) {
+      const p = { connected: pad.connected, axes: pad.axes.map((v) => v / 32767),
+        buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: !!(pad.buttons & (1 << i)) })) };
       if (!p || !p.connected) continue;
       for (const [i, name] of PAD_BUTTONS) if (p.buttons[i]?.pressed) this.sources.pad |= BUTTONS[name];
       for (let a = 0; a < 4; a++) {
@@ -250,6 +287,7 @@ export class InputManager {
     this.pointer.latched = 0;
     out.pointerInside = this.pointer.inside;
     out.axes = [...this.axes];
+    out.gamepads = this.gamepads.map((p) => ({ ...p, axes: [...p.axes], triggers: [...p.triggers] }));
     out.touches = [...this.touches.entries()].slice(0, 4).map(([id, t]) => ({ id, ...t }));
     out.events = this.events;
     this.events = 0;

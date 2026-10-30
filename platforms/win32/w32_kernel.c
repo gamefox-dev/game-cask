@@ -409,7 +409,14 @@ static uint32_t create_file(int wide) {
 }
 static uint32_t k_CreateFileA(void){return create_file(0);}
 static uint32_t k_CreateFileW(void){return create_file(1);}
-static uint32_t k_CloseHandle(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0;}bgt_asset_close(files[i].asset);files[i].asset=0;return 1;}
+/* LANE-E: event fallback; scheduler lane can replace the owned event adapter. */
+extern int w32_audio_close_event(uint32_t h);
+static uint32_t k_CloseHandle(void) {
+    if (w32_audio_close_event(ARG(0))) return 1;
+    uint32_t i = file_index(ARG(0));
+    if (!i) { last_error = 6; return 0; }
+    bgt_asset_close(files[i].asset); files[i].asset = 0; return 1;
+}
 static uint32_t k_ReadFile(void){
     uint32_t i=file_index(ARG(0)),dst=ARG(1),want=ARG(2),got=0,out=ARG(3);
     if(out)x86_wr32(out,0);

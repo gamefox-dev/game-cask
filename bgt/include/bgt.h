@@ -259,6 +259,15 @@ BGT_IMPORT(asset_close) int32_t bgt_asset_close(int32_t handle);
  * accepted (may be fewer than offered when the queue is full or audio is
  * still locked; audio is unlocked by the first user gesture). */
 BGT_IMPORT(audio_push)   int32_t bgt_audio_push(const int16_t *samples, uint32_t frames);
+/* v0.3 additive audio/input imports; old IO layout and mono import are unchanged. */
+BGT_IMPORT(audio_push_stereo) int32_t bgt_audio_push_stereo(const int16_t *samples, uint32_t frames);
+typedef struct bgt_gamepad {
+    uint32_t connected, buttons;
+    int16_t axes[4];
+    uint16_t triggers[2];
+} bgt_gamepad_t;
+BGT_IMPORT(input_gamepad) int32_t bgt_input_gamepad(uint32_t index, bgt_gamepad_t *out, uint32_t bytes);
+BGT_IMPORT(input_gamepad_rumble) int32_t bgt_input_gamepad_rumble(uint32_t index, uint32_t left, uint32_t right);
 BGT_IMPORT(audio_queued) int32_t bgt_audio_queued(void); /* frames scheduled but not yet played */
 
 /* Small key/value persistence. Keys: 1..64 bytes of [A-Za-z0-9_.-].

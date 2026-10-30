@@ -636,6 +636,12 @@ static uint32_t u_LoadImageA(void) { return u_LoadImage(0); }
 static uint32_t u_LoadImageW(void) { return u_LoadImage(1); }
 static uint32_t u_GetKeyState(void) { uint32_t v = ARG(0) & 0xffu; return keystate[v] & 0x80u ? 0xff80u : 0; }
 static uint32_t u_GetAsyncKeyState(void) { uint32_t v = ARG(0) & 0xffu; return keystate[v] & 0x80u ? 0x8000u : 0; }
+/* LANE-E: keyboard snapshot shares the held state used by both key-state APIs. */
+static uint32_t u_GetKeyboardState(void) {
+    if (!ARG(0)) return 0;
+    for (uint32_t i = 0; i < 256; i++) x86_wr8(ARG(0) + i, keystate[i]);
+    return 1;
+}
 static uint32_t regmsg_next = 0xc100;
 static uint32_t u_RegisterWindowMessage(void) { return regmsg_next++; }
 static uint32_t u_MessageBeep(void) { return 1; }
@@ -1330,8 +1336,12 @@ static uint32_t u_PtInRect(void) { uint32_t r = ARG(0); int32_t x = (int32_t)ARG
 static uint32_t u_IsRectEmpty(void) { uint32_t r = ARG(0); return RD(r, 2) <= RD(r, 0) || RD(r, 3) <= RD(r, 1); }
 static uint32_t u_EqualRect(void) { for (uint32_t i = 0; i < 4; i++) if (RD(ARG(0), i) != RD(ARG(1), i)) return 0; return 1; }
 
+/* LANE-E: Raw Input posts through the same bounded USER message queue. */
+void w32_input_post(uint32_t hwnd, uint32_t msg, uint32_t wp, uint32_t lp) { post(hwnd, msg, wp, lp); }
+
 /* ------------------------------------------------------------------ input pump */
-static uint32_t hid_to_vk(uint32_t hid) {
+/* LANE-E: Raw Input and USER use the same HID-to-VK translation. */
+uint32_t w32_input_vk(uint32_t hid) {
     if (hid >= 4 && hid <= 29) return 'A' + hid - 4;
     if (hid >= 30 && hid <= 38) return '1' + hid - 30;
     if (hid == 39) return '0';
@@ -1340,7 +1350,10 @@ static uint32_t hid_to_vk(uint32_t hid) {
     case 40: return 0x0d; case 41: return 0x1b; case 42: return 0x08; case 43: return 0x09; case 44: return 0x20;
     case 79: return 0x27; case 80: return 0x25; case 81: return 0x28; case 82: return 0x26;
     case 73: return 0x2d; case 74: return 0x24; case 75: return 0x21; case 76: return 0x2e; case 77: return 0x23; case 78: return 0x22;
-    case 224: case 228: return 0x11; case 225: case 229: return 0x10; case 226: case 230: return 0x12;
+    /* LANE-E: retain sided modifiers; aggregate VKs are derived after sampling all keys. */
+    case 224: return 0xa2; case 228: return 0xa3;
+    case 225: return 0xa0; case 229: return 0xa1;
+    case 226: return 0xa4; case 230: return 0xa5;
     default: return 0;
     }
 }
@@ -1381,16 +1394,28 @@ void w32_user_pump_input(void) {
     /* keyboard */
     for (uint32_t k = 0; k < 256; k++) {
         uint32_t now = (io->keys[k >> 5] >> (k & 31)) & 1u, was = (prev_keys[k >> 5] >> (k & 31)) & 1u, pressed = (io->keys_pressed[k >> 5] >> (k & 31)) & 1u;
-        uint32_t vk = hid_to_vk(k);
+        uint32_t vk = w32_input_vk(k); /* LANE-E */
         if (!vk) continue;
+        /* LANE-E: WM_KEY* uses generic modifier VKs, state queries retain left/right identity. */
+        uint32_t message_vk = vk >= 0xa0 && vk <= 0xa5 ? 0x10u + (vk - 0xa0u) / 2 : vk;
         if ((now && !was) || (pressed && !was)) {
             keystate[vk] |= 0x80;
             if (mb_active) { if (vk == 0x0d) { uint32_t ids[3]; const char *labels[3]; int n = mb_buttons(ids, labels); uint32_t idx = (mb_type >> 8) & 3u; mb_result = (int)ids[idx < (uint32_t)n ? idx : 0]; } else if (vk == 0x1b) mb_result = (mb_type & 0xfu) == 4 ? 7 : 2; continue; }
             if (modal_hwnd && (vk == 0x0d || vk == 0x1b)) { send(modal_hwnd, 0x0111, vk == 0x0d ? 1 : 2, 0); continue; }
-            post(focus ? focus : main_hwnd, 0x0100, vk, 1);
+            post(focus ? focus : main_hwnd, 0x0100, message_vk, 1); /* LANE-E */
         }
-        if (!now && (was || pressed)) { keystate[vk] &= 0x7f; if (!mb_active) post(focus ? focus : main_hwnd, 0x0101, vk, 0xc0000001u); }
+        if (!now && (was || pressed)) {
+            keystate[vk] &= 0x7f;
+            if (!mb_active) post(focus ? focus : main_hwnd, 0x0101, message_vk, 0xc0000001u); /* LANE-E */
+        }
     }
+    /* LANE-E: aggregate modifier and mouse states cannot depend on HID iteration order. */
+    keystate[0x10] = keystate[0xa0] | keystate[0xa1];
+    keystate[0x11] = keystate[0xa2] | keystate[0xa3];
+    keystate[0x12] = keystate[0xa4] | keystate[0xa5];
+    keystate[1] = (b & 1) ? 0x80 : 0;
+    keystate[2] = (b & 2) ? 0x80 : 0;
+    keystate[4] = (b & 4) ? 0x80 : 0;
     for (int i = 0; i < 8; i++) prev_keys[i] = io->keys[i];
     /* mouse */
     int moved = px != last_px || py != last_py;
@@ -1571,6 +1596,7 @@ const w32_api_t w32_api_user[] = {
     API("LoadImageA", 6, u_LoadImageA), API("LoadImageW", 6, u_LoadImageW),
     API("SetCursor", 1, u_SetCursor), API("ShowCursor", 1, u_ShowCursor), API("GetCursorPos", 1, u_GetCursorPos), API("SetCursorPos", 2, u_one),
     API("ClipCursor", 1, u_one), API("DestroyIcon", 1, u_one), API("DestroyCursor", 1, u_one),
+    /* LANE-E */ API("GetKeyboardState", 1, u_GetKeyboardState),
     API("GetKeyState", 1, u_GetKeyState), API("GetAsyncKeyState", 1, u_GetAsyncKeyState),
     API("RegisterWindowMessageA", 1, u_RegisterWindowMessage), API("RegisterWindowMessageW", 1, u_RegisterWindowMessage),
     API("MessageBeep", 1, u_MessageBeep), API("MessageBoxA", 4, u_MessageBoxA), API("MessageBoxW", 4, u_MessageBoxW),

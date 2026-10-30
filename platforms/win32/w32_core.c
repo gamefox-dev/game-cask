@@ -5,6 +5,9 @@
  * SPDX-License-Identifier: MIT
  */
 #include "w32_int.h"
+/* LANE-E: additive profile registries and virtual-clock pumps. */
+#include "w32_audio.h"
+#include "w32_input.h"
 
 bgt_io_t *w32_io;
 w32_metrics_t w32_m;
@@ -386,9 +389,12 @@ static uint32_t nslots;
 const w32_api_t *w32_find_api(const char *name);
 static const w32_api_t *find_api(const char *name) { return w32_find_api(name); }
 const w32_api_t *w32_find_api(const char *name) {
-    const w32_api_t *tabs[3] = {w32_api_kernel, w32_api_user, w32_api_gdi};
-    const uint32_t ns[3] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n};
-    for (int t = 0; t < 3; t++)
+    /* LANE-E */
+    const w32_api_t *tabs[6] = {w32_api_kernel, w32_api_user, w32_api_gdi,
+        w32_api_com, w32_api_audio, w32_api_input};
+    const uint32_t ns[6] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n,
+        w32_api_com_n, w32_api_audio_n, w32_api_input_n};
+    for (int t = 0; t < 6; t++)
         for (uint32_t i = 0; i < ns[t]; i++) {
             const char *a = tabs[t][i].name, *b = name;
             while (*a && *a == *b) { a++; b++; }
@@ -709,6 +715,9 @@ void w32_wait_frame(void) {
     X.frame_insns=0;
     bgt_yield();
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
+    /* LANE-E: snapshot once after yield, before guest message dispatch. */
+    w32_audio_pump();
+    w32_input_pump();
     w32_user_pump_input();
     w32_user_fire_timers();
 }

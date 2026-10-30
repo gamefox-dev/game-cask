@@ -369,6 +369,7 @@ export class BGTRuntime {
           log: (level, message) => this.gameLog(level, message),
           vfs: this.vfs,
           audio: this.audio,
+          gamepadRumble: (index, left, right) => this.input.rumble(index, left, right),
           storage: this.storage,
           now: () => performance.now(),
           rangeRead: async (path,offset,length) => {
