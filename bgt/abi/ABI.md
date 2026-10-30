@@ -406,6 +406,62 @@ settled. Deterministic test stepping awaits pending I/O before advancing a frame
 network latency is not virtual guest time. This is not a cooperative thread scheduler; a future worker must avoid
 blocking all guest threads on an unrelated read.
 
+### Stereo audio and independent gamepads (Lane E, additive v0.3)
+
+The 224-byte IO layout, merged buttons/axes, and mono `audio_push` remain unchanged. New imports use module `bgt`:
+
+| import | contract |
+|---|---|
+| `audio_push_stereo(ptr,frames)` | Interleaved signed int16 **L,R**, at `io.audio_sample_rate`; returns accepted **frames**, not samples. |
+| `input_gamepad(index,ptr,bytes)` | Writes a 20-byte LE snapshot for slot 0..3; `bytes >= 20`; returns 0. |
+| `input_gamepad_rumble(index,left,right)` | Best-effort actuator magnitudes 0..65535; returns 0 for a connected pad. |
+
+Stereo pushes are capped at 48,000 frames/call; oversized counts or invalid memory return E_BOUNDS without calling
+an audio sink. Audio unlock, 300ms queue, partial acceptance and Web Audio resampling follow the mono contract.
+A host without stereo output accepts zero frames (there is no implicit downmix). Browser output preserves channels.
+
+Gamepad structure: u32 `connected` at 0, u32 standard Gamepad API button-index bits at 4, four int16 axes at 8
+(LX, LY, RX, RY, −32767..32767; browser **Y-down**), two u16 triggers at 16 (0..65535). Disconnected slots are zero.
+Invalid index/short structure → E_INVALID; invalid destination → E_BOUNDS. Snapshots are copied at each update;
+keyboard/touch/merged virtual buttons never masquerade as a connected pad. Existing IO axes still aggregate pads.
+Rumble invalid index → E_INVALID; disconnected → E_NOT_FOUND. Browser actuator absence/rejection is not an error;
+physical vibration is not simulation state. Magnitudes saturate; duration is best-effort 100ms, refresh to sustain.
+
+Test API adds `{type:'gamepad',index,connected,buttons?,axes?,triggers?}` with normalized float axes −1..1 and triggers
+0..1, and standard button-index bits. An injected slot overrides its physical slot until reload, including disconnect.
+
+The Win32 profile maps standard buttons to XInput, flips stick Y, preserves trigger range, increments packet numbers
+only when pad state changes, and returns ERROR_DEVICE_NOT_CONNECTED for absent slots. Raw Input registrations cover
+usage-page 1 keyboard (6) and mouse (2); WM_INPUT carries bounded generation-checked handles (last 256 records).
+GetRawInputData supports RID_INPUT/RID_HEADER, size queries and insufficient buffers, with native x86/x64 layouts.
+Records derive from per-update HID edges and relative pointer deltas; this is **not** unaccelerated hardware input.
+Only remove/foreground/INPUTSINK flags are supported; unsupported registrations fail rather than fabricate devices.
+Known letter scan codes are supplied; unknown hardware scan codes are zero. No HID enumeration or raw wheel yet.
+GetKeyboardState/GetAsyncKeyState/GetKeyState share held keyboard and mouse-button state, including sided/aggregate
+modifiers. Async's historical low-bit latch and keyboard toggle states are not emulated.
+
+COM provides a GUID class registry (currently MMDeviceEnumerator), apartment init nesting/mode checks, identity,
+QueryInterface/AddRef/Release and task-memory ownership; unsupported classes/interfaces return HRESULT failures.
+PropVariantClear/Copy handle scalar, LPSTR/LPWSTR, CLSID and profile IUnknown ownership (BSTR/arrays unsupported);
+InitPropVariantFromString creates an owned LPWSTR variant.
+No COM marshaling, aggregation or cross-apartment threads. WASAPI exposes default render endpoint/device/IAudioClient/
+IAudioRenderClient with shared stereo float32/int16 PCM, 8–192kHz; other formats/exclusive mode return errors.
+GetMixFormat allocates 48kHz float32 stereo. Initialize accepts up to 19,200 source frames (minimum 10ms); buffering,
+GetCurrentPadding, Start/Stop/Reset and GetBuffer/ReleaseBuffer use an owned ring. Conversion clips float to int16
+and uses deterministic phase-accumulator sample repetition/decimation for rate conversion (not a bandlimited filter).
+SILENT buffers produce zeroes. The virtual clock drains source frames; locked/full BGT output may drop audio but does
+not stall the simulated endpoint. Event streams signal every 10 virtual ms, coalesced at frame/poll boundaries.
+Main-thread CreateEvent/SetEvent/ResetEvent/WaitForSingleObject supplies polling now; **no guest threads** are created.
+The threads lane should replace that event adapter, call `w32_audio_pump` at virtual scheduling boundaries, and route
+`w32_audio_signal_event` through scheduler wakeups. Audio pumping never invokes a guest callback or uses wall time.
+WinMM waveOut and capture/endpoint enumeration/session control are not supplied by this addition.
+
+Conformance: `examples/x64-audio` generates a 1kHz two-channel tone through public COM vtables (float32/48kHz then
+int16/24kHz), with owned strings, failure paths and event polling. Unit tests assert actual sink samples, amplitudes,
+channel polarity, crossings and virtual duration. `examples/x64-input` draws four state squares and reports raw/pad
+state; unit/browser tests inject pads/keyboard/mouse and assert make/break, deltas, packets and pixels on both backends.
+Both are original CC0 fixtures, fully lifted, with 300-frame differential oracles and no per-game profile branches.
+
 ### Coverage and slice boundaries
 
 `coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`

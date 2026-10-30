@@ -63,23 +63,30 @@ export class WebAudioSink implements AudioSink {
     }
   }
 
-  push(samples: Int16Array): number {
+  push(samples: Int16Array): number { return this.pushChannels(samples, 1); }
+
+  pushStereo(samples: Int16Array): number { return this.pushChannels(samples, 2); }
+
+  private pushChannels(samples: Int16Array, channels: number): number {
+    const frames = Math.floor(samples.length / channels);
     const ctx = this.ctx;
     if (!ctx || !this.unlocked || ctx.state !== 'running' || samples.length === 0) {
-      this.droppedFrames += samples.length;
+      this.droppedFrames += frames;
       return 0;
     }
     const now = ctx.currentTime;
     if (this.nextTime < now + MIN_LEAD_S) this.nextTime = now + MIN_LEAD_S;
     const room = Math.floor((now + MAX_AHEAD_S - this.nextTime) * AUDIO_RATE);
-    const n = Math.max(0, Math.min(samples.length, room));
-    this.droppedFrames += samples.length - n;
+    const n = Math.max(0, Math.min(frames, room));
+    this.droppedFrames += frames - n;
     if (n === 0) return 0;
     // If the context fell back to a different rate, let the buffer carry our
     // rate: Web Audio resamples AudioBuffers to the context rate.
-    const buf = ctx.createBuffer(1, n, AUDIO_RATE);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) ch[i] = samples[i] / 32768;
+    const buf = ctx.createBuffer(channels, n, AUDIO_RATE);
+    for (let c = 0; c < channels; c++) {
+      const ch = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) ch[i] = samples[i * channels + c] / 32768;
+    }
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(this.gain!);

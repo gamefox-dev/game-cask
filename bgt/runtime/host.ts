@@ -41,6 +41,8 @@ import { Requests } from './requests';
 export interface AudioSink {
   readonly sampleRate: number;
   push(samples: Int16Array): number;
+  /** v0.3 additive: interleaved stereo, return accepted frames (not samples). */
+  pushStereo?(samples: Int16Array): number;
   queued(): number;
 }
 
@@ -54,6 +56,7 @@ export interface HostServices {
   log(level: number, message: string): void;
   vfs: Vfs;
   audio?: AudioSink;
+  gamepadRumble?(index: number, left: number, right: number): void;
   storage?: StorageSink;
   now(): number;
   rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
@@ -71,7 +74,16 @@ export interface HostConfig {
   sliceCode?: number[];
 }
 
+export interface GamepadSnapshot {
+  connected: boolean;
+  /** Standard Gamepad API button-index bits; axes retain browser Y-down convention. */
+  buttons: number;
+  axes: [number, number, number, number];
+  triggers: [number, number];
+}
+
 export interface InputSnapshot {
+  gamepads?: GamepadSnapshot[];
   buttons: number;
   pressed: number;
   released: number;
@@ -391,6 +403,29 @@ export class GameHost {
           if (!s.audio) return 0;
           return s.audio.push(new Int16Array(this.exports.memory.buffer.slice(ptr >>> 0, (ptr >>> 0) + (frames >>> 0) * 2)));
         },
+        audio_push_stereo: (ptr: number, frames: number) => {
+          const n = frames >>> 0;
+          if (n > 48000 || !this.inRange(ptr, n * 4)) return E_BOUNDS;
+          if (!s.audio?.pushStereo) return 0;
+          return s.audio.pushStereo(new Int16Array(this.exports.memory.buffer.slice(ptr >>> 0, (ptr >>> 0) + n * 4)));
+        },
+        input_gamepad_rumble: (index: number, left: number, right: number) => {
+          if ((index >>> 0) >= 4) return E_INVALID;
+          if (!this.gamepads[index]?.connected) return E_NOT_FOUND;
+          s.gamepadRumble?.(index, Math.min(65535, left >>> 0), Math.min(65535, right >>> 0));
+          return BGT_OK;
+        },
+        input_gamepad: (index: number, ptr: number, bytes: number) => {
+          if ((index >>> 0) >= 4 || (bytes >>> 0) < 20) return E_INVALID;
+          if (!this.inRange(ptr, 20)) return E_BOUNDS;
+          const dv = this.dv();
+          const p = ptr >>> 0, pad = this.gamepads[index]?.connected ? this.gamepads[index] : undefined;
+          dv.setUint32(p, pad?.connected ? 1 : 0, true);
+          dv.setUint32(p + 4, pad?.buttons ?? 0, true);
+          for (let a = 0; a < 4; a++) dv.setInt16(p + 8 + 2 * a, pad?.axes[a] ?? 0, true);
+          for (let t = 0; t < 2; t++) dv.setUint16(p + 16 + 2 * t, pad?.triggers[t] ?? 0, true);
+          return BGT_OK;
+        },
         audio_queued: () => (s.audio ? s.audio.queued() : 0),
         storage_read: (kp: number, kl: number, dst: number, cap: number) => {
           const key = keyOf(kp, kl);
@@ -509,7 +544,14 @@ export class GameHost {
     dv.setUint32(this.ioPtr + IO.display_height, h, true);
   }
 
+  private gamepads: GamepadSnapshot[] = [];
+
   writeInput(inp: InputSnapshot): void {
+    this.gamepads = (inp.gamepads ?? []).slice(0, 4).map((pad) => ({
+      connected: !!pad.connected, buttons: pad.buttons >>> 0,
+      axes: pad.axes.map((a) => Math.max(-32767, Math.min(32767, a | 0))) as GamepadSnapshot['axes'],
+      triggers: pad.triggers.map((t) => Math.max(0, Math.min(65535, t | 0))) as GamepadSnapshot['triggers'],
+    }));
     const dv = this.dv();
     const p = this.ioPtr;
     dv.setUint32(p + IO.frame, this.frameIndex >>> 0, true);

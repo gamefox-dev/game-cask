@@ -284,6 +284,8 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   const platform = [
     'platforms/x86/x86_decode.c', 'platforms/x86/x86_exec.c', 'platforms/x86/x86_rt.c',
     'platforms/x86/x86_exec64.c', 'platforms/x86/x86_simd.c', 'platforms/x86/x86_x87.c',
+    /* LANE-E: additive audio/COM/input profile translation units. */
+    'platforms/win32/w32_audio.c', 'platforms/win32/w32_com.c', 'platforms/win32/w32_input.c',
     'platforms/win32/w32_x64.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
     'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
