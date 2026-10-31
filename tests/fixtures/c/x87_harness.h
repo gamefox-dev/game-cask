@@ -5,6 +5,9 @@
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u<<20];
+/* K2/K3 integration: paged semantic helpers share protection metadata too. */
+uint8_t x86_protection[1u<<20];
+int x86_protection_active;
 static uint8_t ram[65536];
 /* The AMD64 emitter references its arena on guarded fast paths. In this small
  * paged harness guards deoptimize to checked semantic accesses. */
