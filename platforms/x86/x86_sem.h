@@ -174,27 +174,81 @@ static inline const char *xs_muldiv(int op, uint32_t v, int sz) {
     return 0;
 }
 
-/* string instruction with optional REP prefix */
-static inline void xs_string(int op, int sz, int rep) {
-    int32_t d = (X.flags & F_DF) ? -sz : sz;
-    for (;;) {
-        if (rep && X.r[ECX] == 0) return;
-        switch (op) {
-        case XO_MOVS: xs_wrn(X.r[EDI], xs_rdn(X.r[ESI], sz), sz); X.r[ESI] += (uint32_t)d; X.r[EDI] += (uint32_t)d; break;
-        case XO_STOS: xs_wrn(X.r[EDI], xs_getreg(EAX, sz), sz); X.r[EDI] += (uint32_t)d; break;
-        case XO_LODS: xs_setreg(EAX, sz, xs_rdn(X.r[ESI], sz)); X.r[ESI] += (uint32_t)d; break;
-        case XO_CMPS: xs_alu(XO_CMP, xs_rdn(X.r[ESI], sz), xs_rdn(X.r[EDI], sz), sz); X.r[ESI] += (uint32_t)d; X.r[EDI] += (uint32_t)d; break;
-        case XO_SCAS: xs_alu(XO_CMP, xs_getreg(EAX, sz), xs_rdn(X.r[EDI], sz), sz); X.r[EDI] += (uint32_t)d; break;
-        default: return;
+/* LANE-K5a: implicit operands shared by both widths and both execution modes.
+ * Address size selects the index/count aliases, NOT the element width. */
+static inline uint64_t xs_string_mask(int asz) {
+    return asz == 2 ? UINT16_MAX : asz == 4 ? UINT32_MAX : UINT64_MAX;
+}
+static inline void xs_string_advance(int reg, int asz, int delta) {
+    uint64_t mask = xs_string_mask(asz), value = (X.r[reg] + delta) & mask;
+    X.r[reg] = asz == 2 ? (X.r[reg] & ~mask) | value : value;
+}
+static inline uint32_t xs_string_address(int reg, int asz, int seg) {
+    uint64_t address = X.r[reg] & xs_string_mask(asz);
+    address += seg == 1 ? X.fs_base : seg == 2 ? X.gs_base : 0;
+    return X.mode64 ? x86_address(address) : (uint32_t)address;
+}
+static inline uint64_t xs_string_load(uint32_t address, int sz) {
+    return sz == 8 ? x86_rd64(address) : xs_rdn(address, sz);
+}
+static inline void xs_string(int op, int sz, int rep, int asz,
+                             uint32_t addr, uint32_t next, int seg) {
+    int source = op == XO_MOVS || op == XO_LODS || op == XO_CMPS;
+    int dest = op == XO_MOVS || op == XO_STOS || op == XO_CMPS || op == XO_SCAS;
+    int compare = op == XO_CMPS || op == XO_SCAS;
+    int delta = (X.flags & F_DF) ? -sz : sz;
+    uint64_t mask = sz == 8 ? UINT64_MAX : (1ull << (sz * 8)) - 1;
+    uint32_t initial_flags = X.flags, completed_flags = X.flags;
+    /* A fault or quantum transfer must identify the string, not its successor.
+     * No operand (even an address) is evaluated for a zero repeat count. */
+    X.eip = addr;
+    while (!rep || (X.r[ECX] & xs_string_mask(asz))) {
+        if (++X.frame_insns > 2000000u) {
+#if defined(X86_WIDE_CPU) && !defined(X86_FLAT_GUEST)
+            /* Standalone semantic probes do not install a runtime scheduler. */
+            x86_fault("string instruction budget exhausted", addr);
+#else
+            /* Interrupt/quantum state observes the last completed comparison,
+             * unlike the special pre-instruction EFLAGS rollback on a fault. */
+            X.flags = completed_flags;
+            x86_cooperate();
+            if (X.transfer) return;
+            initial_flags = X.flags; /* resumed instruction's fault baseline */
+#endif
         }
-        X.r[ESI]=(uint32_t)X.r[ESI];X.r[EDI]=(uint32_t)X.r[EDI];
-        if (!rep) return;
-        X.r[ECX]=(uint32_t)(X.r[ECX]-1);
-        if (op == XO_CMPS || op == XO_SCAS) {
-            int zf = !!(X.flags & F_ZF);
-            if ((rep == 0xf3 && !zf) || (rep == 0xf2 && zf)) return;
+        uint32_t si = 0, di = 0;
+        if (source) { si = xs_string_address(ESI, asz, seg); x86_check_access(si, sz, 1); }
+        if (dest) {
+            di = xs_string_address(EDI, asz, 0); /* ES, never the source segment override. */
+            x86_check_access(di, sz, op == XO_MOVS || op == XO_STOS ? 2 : 1);
+        }
+        uint64_t value = source ? xs_string_load(si, sz) : X.r[EAX] & mask;
+        uint32_t result_flags = initial_flags;
+        if (compare) {
+            uint64_t rhs = xs_string_load(di, sz), result = (value - rhs) & mask;
+            /* CMP flags, including the qword form; do not publish them until
+             * completion. REPE/REPNE faults restore pre-instruction EFLAGS. */
+            uint64_t sign = 1ull << (sz * 8 - 1);
+            xs_setf(F_CF, value < rhs); xs_setf(F_OF, !!((value ^ rhs) & (value ^ result) & sign));
+            xs_setf(F_AF, !!((value ^ rhs ^ result) & 16)); xs_setf(F_ZF, result == 0);
+            xs_setf(F_SF, !!(result & sign)); xs_setf(F_PF, xs_parity((uint32_t)result));
+            result_flags = completed_flags = X.flags;
+            X.flags = initial_flags;
+        } else if (op == XO_LODS) {
+            X.r[EAX] = sz >= 4 ? value : (X.r[EAX] & ~mask) | value;
+        } else if (sz == 8) x86_wr64(di, value);
+        else xs_wrn(di, (uint32_t)value, sz);
+        /* Commit only a completed iteration. Unused registers are never written. */
+        if (source) xs_string_advance(ESI, asz, delta);
+        if (dest) xs_string_advance(EDI, asz, delta);
+        if (rep) xs_string_advance(ECX, asz, -1);
+        if (!rep || !(X.r[ECX] & xs_string_mask(asz)) || (compare &&
+            ((rep == 0xf3 && !(result_flags & F_ZF)) || (rep == 0xf2 && (result_flags & F_ZF))))) {
+            X.flags = result_flags;
+            break;
         }
     }
+    X.eip = next;
 }
 
 #endif

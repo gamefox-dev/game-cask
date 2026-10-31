@@ -55,26 +55,8 @@ void x86_exec64(const x86_insn_t *in) {
     case XO_BT:case XO_BTS:case XO_BTR:case XO_BTC:{uint64_t bit=x64_read(b);x86_opnd_t m=*a;if(a->kind==XK_MEM && b->kind==XK_REG)m.disp+=(int32_t)(((int64_t)bit>>(n==8?6:5))*n);uint64_t v=x64_read(&m),mask=1ull<<(bit&(n*8-1));xs_setf(F_CF,!!(v&mask));if(in->op!=XO_BT){v=in->op==XO_BTS?v|mask:in->op==XO_BTR?v&~mask:v^mask;x64_write(&m,v);}return;}
     case XO_BSF:case XO_BSR:{uint64_t v=x64_read(b);xs_setf(F_ZF,!v);if(v)x64_write(a,in->op==XO_BSF?__builtin_ctzll(v):63-__builtin_clzll(v));return;}
     case XO_SHLD:case XO_SHRD:{uint32_t count=(uint32_t)x64_read(c)&(n==8?63:31);if(!count)return;uint64_t av=x64_read(a),bv=x64_read(b);int bits=n*8;uint64_t r=in->op==XO_SHLD?(av<<count)|(bv>>(bits-count)):(av>>count)|(bv<<(bits-count));xs_setf(F_CF,in->op==XO_SHLD?(av>>(bits-count))&1:(av>>(count-1))&1);if(count==1)xs_setf(F_OF,!!((av^r)&(1ull<<(bits-1))));x64_szp(r,n);x64_write(a,r);return;}
-    case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: {
-        int sz = a->size, delta = (X.flags & F_DF) ? -sz : sz, rep = in->rep;
-        for (;;) {
-            if (++X.frame_insns > 2000000u) {
-#ifdef X86_FLAT_GUEST
-        X.eip = in->addr; /* LANE-C: REP registers already describe the remaining iterations. */
-        x86_cooperate();
-        if (X.transfer) return;
-        X.eip = next;
-#else
-        x86_fault("AMD64 string instruction budget exhausted", in->addr);
-#endif
-            }
-            if (rep && !(in->asz == 4 ? (uint32_t)X.r[ECX] : X.r[ECX])) return;
-            uint32_t si = x86_address(in->asz == 4 ? (uint32_t)X.r[ESI] : X.r[ESI]);
-            uint32_t di = x86_address(in->asz == 4 ? (uint32_t)X.r[EDI] : X.r[EDI]);
-        if(in->op==XO_MOVS)x64_store(di,x64_load(si,sz),sz);else if(in->op==XO_STOS)x64_store(di,x64_reg(EAX,sz),sz);else if(in->op==XO_LODS)x64_set(EAX,sz,x64_load(si,sz));else if(in->op==XO_CMPS)x64_alu(XO_CMP,x64_load(si,sz),x64_load(di,sz),sz);else x64_alu(XO_CMP,x64_reg(EAX,sz),x64_load(di,sz),sz);
-        if(in->op==XO_MOVS||in->op==XO_LODS||in->op==XO_CMPS)X.r[ESI]+=delta;if(in->op==XO_MOVS||in->op==XO_STOS||in->op==XO_CMPS||in->op==XO_SCAS)X.r[EDI]+=delta;if(in->asz==4){X.r[ESI]=(uint32_t)X.r[ESI];X.r[EDI]=(uint32_t)X.r[EDI];}
-        if(!rep)return;X.r[ECX]--;if(in->asz==4)X.r[ECX]=(uint32_t)X.r[ECX];if(in->op==XO_CMPS||in->op==XO_SCAS){if((rep==0xf3 && !(X.flags&F_ZF))||(rep==0xf2 && (X.flags&F_ZF)))return;}}
-    }
+    case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS:
+        xs_string(in->op, n, in->rep, in->asz, in->addr, next, a->seg_fs); return;
     case XO_CLC:X.flags&=~F_CF;return;case XO_STC:X.flags|=F_CF;return;case XO_CMC:X.flags^=F_CF;return;case XO_CLD:X.flags&=~F_DF;return;case XO_STD:X.flags|=F_DF;return;
     case XO_LEAVE:X.r[ESP]=X.r[EBP];X.r[EBP]=x86_pop();return;
     case XO_NOP:return;

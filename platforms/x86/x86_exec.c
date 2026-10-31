@@ -110,7 +110,7 @@ void x86_exec_insn(const x86_insn_t *in) {
         xs_write(a, r);
         return;
     }
-    case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: xs_string(in->op, sz, in->rep); return;
+    case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: xs_string(in->op, sz, in->rep, in->asz, in->addr, next, a->seg_fs); return;
     case XO_CLC: X.flags &= ~F_CF; return;
     case XO_STC: X.flags |= F_CF; return;
     case XO_CMC: X.flags ^= F_CF; return;
