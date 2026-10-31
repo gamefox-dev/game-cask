@@ -7,12 +7,12 @@
 // web/public/games/ (run `npm run build:port` first). The script default-exports `async function (p)`; see
 // .claude/skills/browser-validation/SKILL.md for the API. Artifacts (PNGs, probe.json with the log, console and
 // errors) go to --out (default reports/probe/, private). Never touches kit or port test results.
-import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from '../build/toolchain.mjs';
+import { startServer, stopServer, validatePort } from './server.mjs';
 
 const WEBGPU_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU', '--use-angle=metal', '--ignore-gpu-blocklist'];
 
@@ -39,27 +39,9 @@ const portFree = (port) => new Promise((res) => {
   s.listen(port, '127.0.0.1', () => s.close(() => res(true)));
 });
 async function freePort(start) {
-  for (let p = start; p < start + 50; p++) if (p !== 5173 && (await portFree(p))) return p;
+  if (!Number.isInteger(start) || start < 1 || start > 65535) throw new Error('invalid BGT_PROBE_PORT');
+  for (let p = start; p <= Math.min(65535, start + 49); p++) if (p !== 5173 && (await portFree(p))) return p;
   throw new Error(`no free port in ${start}..${start + 49}`);
-}
-
-async function startServer(port) {
-  const vite = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  const child = spawn(process.execPath, [vite, '--port', String(port), '--strictPort', '--host', '127.0.0.1'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
-  let out = '';
-  child.stdout.on('data', (d) => (out += d));
-  child.stderr.on('data', (d) => (out += d));
-  const url = `http://127.0.0.1:${port}/`;
-  for (let i = 0; i < 300; i++) {
-    if (child.exitCode !== null) throw new Error(`vite exited: ${out}`);
-    try {
-      const r = await fetch(`${url}games/index.json`);
-      if (r.ok) return { child, url };
-    } catch {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  child.kill();
-  throw new Error(`vite did not start on ${port}: ${out}`);
 }
 
 /** The object handed to the script. Coordinates are logical pixels. */
@@ -171,8 +153,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const script = await import(pathToFileURL(resolve(a.script)).href);
     if (typeof script.default !== 'function') throw new Error(`${a.script} must default-export async function (p)`);
     const port = a.port ?? (await freePort(Number(process.env.BGT_PROBE_PORT ?? 5189)));
-    if (port === 5173) throw new Error('port 5173 is the developer\'s dev server; pick another');
-    server = await startServer(port);
+    validatePort(port);
+    server = await startServer(port, a.game);
     const { chromium } = await import('@playwright/test');
     browser = await chromium.launch(a.backend === 'webgpu' ? { channel: 'chromium', args: WEBGPU_ARGS } : {});
     const ctx = await browser.newContext({ baseURL: server.url, viewport: { width: 960, height: 540 } });
@@ -192,7 +174,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     code = 1;
   } finally {
     await browser?.close().catch(() => {});
-    server?.child.kill();
+    await stopServer(server?.child);
   }
   if (a) {
     const out = resolve(ROOT, a.out);
