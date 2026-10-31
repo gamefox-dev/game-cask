@@ -1,5 +1,6 @@
 import { Browser, Page } from '@playwright/test';
-import { test, expect, openGame, assertBackend, step, readPixels, diffFraction, requireWebGPU, Pixels, attachScreenshot } from './fixtures';
+import { assertWebGPUAvailable } from './webgpu-availability';
+import { test, expect, openGame, assertBackend, step, readPixels, diffFraction, Pixels, attachScreenshot } from './fixtures';
 
 interface Conf {
   done: boolean;
@@ -16,6 +17,7 @@ interface Conf {
 }
 
 async function conformance(page: Page, backend: string): Promise<Conf> {
+  if (backend === 'webgpu') await assertWebGPUAvailable(page, test.info());
   await page.goto(`/conformance.html?backend=${backend}`);
   await page.waitForFunction(() => (window as any).__CONF__?.done, null, { timeout: 30_000 });
   return page.evaluate(() => (window as any).__CONF__);
@@ -40,10 +42,9 @@ test('conformance scene: every v0.1 2D operation renders correctly on this backe
   void collector;
   test.skip(backendParam === 'auto', 'covered by explicit backend projects');
   const c = await conformance(page, backendParam);
-  if (c.unavailable) {
-    if (backendParam === 'webgpu' && !requireWebGPU()) test.skip(true, 'WebGPU unavailable');
-    throw new Error(`${backendParam} unavailable`);
-  }
+  // Missing adapters already skipped/failed in conformance's preflight. An unavailable
+  // renderer after that (e.g. canvas context creation failed) is a regression, not a skip.
+  if (c.unavailable) throw new Error(`${backendParam} renderer unavailable after preflight`);
   expect(c.error).toBeUndefined();
   expect(c.backend).toBe(backendParam);
   expect(c.decode.status).toBe(0);
@@ -73,10 +74,7 @@ test('WebGPU and WebGL 2 produce matching images (conformance scene and sample t
   void collector;
   test.skip(backendParam !== 'webgpu', 'runs in the WebGPU project, which can create both backends');
   const gpu = await conformance(page, 'webgpu');
-  if (gpu.unavailable) {
-    test.skip(!requireWebGPU(), 'WebGPU unavailable');
-    throw new Error('WebGPU unavailable');
-  }
+  if (gpu.unavailable) throw new Error('WebGPU renderer unavailable after preflight');
   const gl = await conformance(page, 'webgl2');
   const conf = diffFraction(toPixels(gpu), toPixels(gl), 8);
   const a = await renderTitle(browser, 'webgpu', {});

@@ -5,7 +5,8 @@ import type { Page } from '@playwright/test';
 
 // One common GLSL330/ES300 scene stream, with the original native-WGSL/lifetime cases retained as arg1=2/3.
 // RGB delta <=2, <=1.5% displaced raster/filter pixels; symmetric one-device-pixel match required.
-for (const scene of [0,1,2,3,4,5,6,7,8,9]) test(`GPU shared scene ${scene}: cross-backend pixels`,
+for (const scene of [0,1,2,3,4,5,6,7,8,9]) for (const cross of [false, true])
+  test(`GPU shared scene ${scene}: ${cross ? 'cross-backend pixels' : 'backend execution and readback'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
     const capture = async (target: Page, backend: string) => {
@@ -23,7 +24,9 @@ for (const scene of [0,1,2,3,4,5,6,7,8,9]) test(`GPU shared scene ${scene}: cros
       if (scene === 5) await step(target, 30-s.frame);
       return readPixels(target);
     };
-    const a = await capture(page, backendParam), backend = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
+    const a = await capture(page, backendParam);
+    if (!cross) return; // Kept as a separate passing test when the comparison needs unavailable hardware.
+    const backend = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
     const b = await otherBackend(backend, info, p => capture(p, backend));
     const comparison = compareGpuImages(a,b); console.log('COMPARISON',scene,comparison);
     expect(comparison.different).toBeLessThanOrEqual(0.015);

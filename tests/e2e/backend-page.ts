@@ -1,13 +1,14 @@
 import { chromium, type Page, type TestInfo } from '@playwright/test';
 import { expect } from './fixtures';
+import { webgpuArgs, webglArgs } from './browser-options';
 
 /** Separate launch configs: Metal WebGL lacks §13 indexed-blend/limits on some Chromium builds.
- * Use the same executable's SwiftShader for the WebGL cross image; WebGPU uses native Metal.
- * Every requested backend/capability is asserted by callers; no availability skip. */
+ * Use the same executable's SwiftShader for the WebGL cross image; WebGPU uses native Metal
+ * on macOS and Chromium's platform backend elsewhere.
+ * openGame probes WebGPU on this launch and reports an availability skip (or required-hardware
+ * failure) before guest startup. Callers still assert the actual selected backend/capabilities. */
 export async function otherBackend<T>(backend: string, info: TestInfo, run: (page: Page) => Promise<T>): Promise<T> {
-  const browser = await chromium.launch({ channel: 'chromium', args: backend === 'webgpu' ?
-    ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU', '--use-angle=metal', '--ignore-gpu-blocklist'] :
-    ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await chromium.launch({ channel: 'chromium', args: backend === 'webgpu' ? webgpuArgs : webglArgs });
   try {
     const context = await browser.newContext({ baseURL: info.project.use.baseURL,
       viewport: { width: 960, height: 540 } });

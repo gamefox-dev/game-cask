@@ -3,20 +3,38 @@ import { compareGpuImages } from '../support/gpu-image';
 import { otherBackend } from './backend-page';
 import type { Page } from '@playwright/test';
 
-test('x64-smoke: 600 GL frames, worker/file/audio threads and XInput on both renderers',
+for (const cross of [false, true])
+  test(`x64-smoke: 600 GL frames, worker/file/audio threads and XInput ${cross ? 'across both renderers' : 'on this renderer'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
+    // 600 frames / 6,000 GL draws per renderer, plus cold driver startup. SwiftShader can
+    // cost much more than the suite's 60s default; this is a functional, not realtime gate.
+    info.setTimeout(cross ? 240_000 : 120_000);
     const run = async (p: Page, backend: string) => {
-      await openGame(p, backend, { game: 'x64-smoke' }); await assertBackend(p, backend, info);
+      const status = await openGame(p, backend, { game: 'x64-smoke' });
+      await assertBackend(p, backend, info);
+      expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
       await p.locator('canvas').click(); await p.keyboard.press('Space');
+      const checkedStep = async () => {
+        try { await step(p,1); }
+        catch (error) { throw new Error(`smoke startup step failed: ${error}; diagnostics=${JSON.stringify(await diagnostics(p))}`); }
+      };
       for (let i=0;i<100;i++) {
-        await step(p,1); await p.waitForTimeout(10);
+        await checkedStep(); await p.waitForTimeout(10);
         if ((await diagnostics(p)).logs.some(l => l.message.includes('x64-gl PASS'))) break;
       }
+      const startup = await diagnostics(p);
+      expect(startup.logs.some(l => l.message.includes('x64-gl PASS')), JSON.stringify(startup)).toBe(true);
+      expect(startup.errors).toEqual([]);
       const images = [], hashes: string[] = [];
       const advance = async (n: number) => hashes.push(...await p.evaluate(async count => {
         const t=(window as any).__BGT_TEST__, out: string[]=[];
-        for(let i=0;i<count;i++) { await t.step(1); out.push(t.stateHash()); } return out;
+        for(let i=0;i<count;i++) {
+          try { await t.step(1); }
+          catch (error) { throw new Error(`smoke frame ${i}/${count}: ${error}; diagnostics=${JSON.stringify(t.diagnostics())}`); }
+          out.push(t.stateHash());
+        }
+        return out;
       },n));
       for (const held of [false,true,false]) {
         await input(p,[{type:'gamepad',index:0,connected:held,buttons:held?1:0,axes:[0,0,0,0],triggers:[0,0]}]);
@@ -36,7 +54,9 @@ test('x64-smoke: 600 GL frames, worker/file/audio threads and XInput on both ren
       const end = await readPixels(p); expect(diffFraction(images[0],end,0)).toBe(0);
       return { images, end, hashes, result: d.logs.find(l => l.message.includes('x64-smoke PASS'))?.message };
     };
-    const a = await run(page,backendParam), other = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
+    const a = await run(page,backendParam);
+    if (!cross) return;
+    const other = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
     const b = await otherBackend(other,info,p => run(p,other));
     expect(a.result).toBe(b.result);
     expect(a.hashes,'per-frame API oracle across real backends').toEqual(b.hashes);

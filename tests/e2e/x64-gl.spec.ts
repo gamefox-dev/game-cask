@@ -14,11 +14,14 @@ const probes = [
   { name:'stencil excludes right half', x:220,y:150, rgb:[13,26,38] },
 ];
 // Regression for actual driver compilation, texture orientation, state, readback and update-only presentation.
-test('x64-gl: all seven real scenes have pixels and cross-backend images agree',
+for (const cross of [false, true])
+  test(`x64-gl: ${cross ? 'cross-backend images agree' : 'all seven real scenes have pixels'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
     const capture = async (p: Page, backend: string) => {
-      await openGame(p,backend,{game:'x64-gl'}); await assertBackend(p,backend,info);
+      const status = await openGame(p,backend,{game:'x64-gl'});
+      await assertBackend(p,backend,info);
+      expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
       for (let i=0;i<100;i++) {
         await step(p,1); await p.waitForTimeout(10);
         if ((await diagnostics(p)).logs.some(l => l.message.includes('x64-gl PASS'))) break;
@@ -41,7 +44,9 @@ test('x64-gl: all seven real scenes have pixels and cross-backend images agree',
       await info.attach(`x64-gl-${backend}.png`,{body:await p.locator('canvas').screenshot(),contentType:'image/png'});
       return px;
     };
-    const a=await capture(page,backendParam), backend=backendParam==='webgpu'?'webgl2':'webgpu';
+    const a=await capture(page,backendParam);
+    if (!cross) return;
+    const backend=backendParam==='webgpu'?'webgl2':'webgpu';
     const b=await otherBackend(backend,info,p=>capture(p,backend));
     const comparison=compareGpuImages(a,b); console.log('GL COMPARISON',comparison);
     expect(comparison.different).toBeLessThanOrEqual(0.015);

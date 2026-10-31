@@ -4,6 +4,87 @@ This records observed evidence, not unrestricted compatibility. The current merg
 [v03-status.md](v03-status.md). Lane handoffs retain their narrower measurements and review histories; their earlier
 suite totals are not added together or presented as merged-tree results. Prior versions of this file remain in Git.
 
+## FIX2 — cross-backend tests without a WebGPU adapter
+
+The three new cross-backend specs now report **separate backend-only and comparison tests**. WebGL 2
+execution/readback, all eight x64-gl pixel probes across seven scenes, and x64-smoke's complete **600 frames / 6,000 draws**
+still assert without WebGPU. Only WebGPU/comparison tests skip, with an adapter-acquisition reason;
+`BGT_REQUIRE_WEBGPU=1` turns that absence into failure. Shared `openGame` and visual conformance preflight
+the actual browser launch before starting a guest. Missing API, null adapter, or Dawn adapter-acquisition
+`OperationError` may skip; errors after a successful adapter probe (including unavailable canvas/device
+initialization) fail. Successful acquisition is retained across pages/contexts in the same test/browser;
+subsequent adapter loss cannot skip already completed GPU work. Independent tests or browser launches
+retain their own first-probe availability decision. Secondary launches share project flags; Metal is
+selected only on macOS.
+
+### Smoke failure and budget
+
+Reviewer-supplied Ubuntu CI run **41144543509** was inspected locally, not rerun remotely. Its
+`e2e-results.json` records x64-smoke as **timedOut**, 65,461 ms total, with a **60,000 ms test timeout**,
+not a primary WebGL runtime failure. The attached primary browser log contains
+`x64-smoke PASS frames=600 worker=8599ce32 files=2 pad=100 buttons=100 audio=joined`, with no console/page/
+request errors. Trace `68b2edbe5d0887115771a6a03d4894c83ccc4b17.zip` shows primary WebGL diagnostics
+`ready=true`, `failed=false`, `frame=617`, `gl_draws=6000`, no runtime errors, after roughly **44 seconds**.
+The secondary WebGPU launch then reports destroyed-device loss, unavailable external Instance, no adapter
+on recovery, and switches to WebGL 2; the original combined test runs beyond its remaining budget.
+Primary coverage reports average frame render cost **57.19 ms**, p95 **119.29 ms**, plus trace/readback cost.
+This establishes software-rendering/combined-test budget cost in that artifact. The brief's separate
+`runtime not ready` wording is **not reproduced in that result**; no unobserved trap is attributed to timeout.
+
+The smoke explicitly allows **120 seconds per backend-only test / 240 seconds per cross-backend test**
+for cold startup and software rasterization. It is a functional gate, not a 60 Hz/realtime benchmark.
+No short CI loop is substituted: exact completion/checksum/files/gamepad/audio logs, 6,000 draws, zero
+stubs/interpreted instructions/errors, all images and every cross-backend API hash remain asserted.
+Startup readiness and stepping failures now include runtime diagnostics rather than just `runtime not ready`.
+
+### Reproduction and local gates
+
+macOS Apple M4, Node 24.19.0, installed Chromium/Playwright 1.64.1; no install or web fetch.
+`BGT_E2E_NO_WEBGPU=1` applies SwiftShader, unsafe-SwiftShader permission, `--disable-webgpu` and
+`--disable-features=WebGPU` to **both project and secondary launches**, without unsafe-WebGPU enabling.
+An opt-in fallback test verifies requestAdapter really returns no adapter, auto selects WebGL 2 with
+reported notes, and expected pixels render. It fails rather than silently claiming a no-adapter reproduction
+if Chromium changes the flag behavior. Normal runs intentionally skip this reproduction-only test.
+
+```sh
+npm run build:examples
+BGT_E2E_PORT=5295 BGT_E2E_NO_WEBGPU=1 BGT_RESULTS_PREFIX=fix2-resume-ci \
+  npx playwright test --project=chromium-webgl2 --project=chromium-auto
+# Includes the three affected specs: 12 backend-only passes and 12 reasoned comparison skips.
+BGT_E2E_PORT=5295 BGT_E2E_NO_WEBGPU=1 BGT_RESULTS_PREFIX=fix2-resume-noadapter-all npx playwright test
+BGT_E2E_PORT=5295 BGT_REQUIRE_WEBGPU=1 BGT_RESULTS_PREFIX=fix2-resume-normal npx playwright test
+```
+
+| Local gate | Result |
+|---|---|
+| Forced no-adapter, CI's WebGL 2 + auto projects | **90 passed / 32 skipped / 0 failed** |
+| Forced no-adapter, all three projects | **95 passed / 143 skipped / 0 failed** |
+| Normal full browser suite, WebGPU required | **193 passed / 45 intentional skips / 0 failed** |
+| Required-WebGPU negative check, forced absence, x64-gl comparison | **expected failure**, `WebGPU required but WebGPU unavailable: requestAdapter returned null` |
+| Smoke, SwiftShader plus 8× CDP CPU throttling | all 600 frames pass, **29.6 s**; not Ubuntu performance certification |
+| `npm test` | **262 passed / 31 files** |
+| `npm run typecheck`, `npm run lint`, `npm run leakcheck`, `git diff --check` | pass |
+
+After resuming the interrupted session, reviewed every recovered diff/new file; no truncated source was
+found. Repeated the build, CI-project no-adapter reproduction, full no-adapter and required-WebGPU browser
+suites, required-hardware negative check, units and static gates. Final full no-adapter/normal runs include
+the cross-page-loss repair. Evidence: private `.scratch-FIX2/resume-*.log`,
+`reports/fix2-resume-*-results.json`, decoded supplied CI smoke attachments/trace in scratch. The earlier
+software/CPU-throttled smoke run is `.scratch-FIX2/slow.log`, not a new performance measurement.
+An earlier intermediate normal rerun had a win32-hello startup failure: its trace showed
+`net::ERR_NETWORK_CHANGED` loading four Vite modules before any runtime/test API existed. No retry or
+allowance was added. Resume runs passed normally. Port 5195 was already occupied; it was left alone and
+resume runs owned port 5295 instead. The developer server was untouched.
+
+Fresh independent sessions found post-probe conformance skips, repeated same-page loss skips, and finally
+fresh-page loss skipping within one visual comparison/browser. All are repaired with maintained behavioral
+regressions. The final separate recheck independently passed **20 availability tests**, and an in-memory
+old-behavior negative control made all three new cross-page callback regressions fail with `test skipped`.
+Scope/details are in `.scratch-FIX2/resume-recheck/result.md`; broad-suite numbers above are the developer's
+runs. Temporary duplicate decoded traces and test caches were removed after review; compact logs,
+results and review reports remain. This is a local no-adapter reproduction plus inspection of a supplied
+remote failure, **not a passing remote Ubuntu rerun**. No runtime, web source or game fixture was changed.
+
 ## Integration I1 — merged tree
 
 Branch `integration/p1` already contained S1/E/G/WG/F; I1 merged **GL → W2 → C** using `git merge --no-ff`:

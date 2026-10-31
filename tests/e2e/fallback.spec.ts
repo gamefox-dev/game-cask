@@ -1,4 +1,17 @@
 import { test, expect, openGame, diagnostics, step, readPixels, findColor, WALL_BLUE } from './fixtures';
+import { noWebGPU } from './browser-options';
+
+test('no-WebGPU reproduction really has no adapter and still renders on WebGL 2', async ({ page, collector }) => {
+  void collector;
+  test.skip(!noWebGPU, 'opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction');
+  expect(await openGame(page, 'auto')).toBe('ready');
+  expect(await page.evaluate(async () => !!await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' }))).toBe(false);
+  const d = await diagnostics(page);
+  expect(d.backend).toBe('webgl2');
+  expect(d.backendNotes.join(' ')).toMatch(/webgpu:/);
+  await step(page, 2);
+  expect(findColor(await readPixels(page), WALL_BLUE, 4).count).toBeGreaterThan(5000);
+});
 
 test('intentional WebGPU failure falls back to WebGL 2 and still plays', async ({ page, collector }) => {
   void collector;

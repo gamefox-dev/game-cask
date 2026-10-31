@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { existsSync } from 'node:fs';
+import { noWebGPU, webgpuArgs, webglArgs } from './tests/e2e/browser-options';
 
 // Projects:
 //   chromium-webgl2  forced WebGL 2 fallback (software-friendly; the CI gate)
@@ -16,7 +17,6 @@ import { existsSync } from 'node:fs';
 //                    NOT iPhone Safari verification)
 const PORT = Number(process.env.BGT_E2E_PORT ?? 5179);
 const PREFIX = process.env.BGT_RESULTS_PREFIX ?? 'e2e-adhoc';
-const webgpuArgs = ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU', '--use-angle=metal', '--ignore-gpu-blocklist'];
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -49,7 +49,8 @@ export default defineConfig({
     {
       name: 'chromium-webgl2',
       testDir: 'tests/e2e',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, backendParam: 'webgl2' } as never,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 },
+        ...(noWebGPU ? { launchOptions: { args: webglArgs } } : {}), backendParam: 'webgl2' } as never,
     },
     {
       name: 'chromium-webgpu',
