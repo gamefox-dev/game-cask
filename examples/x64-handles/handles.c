@@ -109,12 +109,21 @@ int main(void) {
     SECURITY_ATTRIBUTES sa={sizeof sa,0,TRUE};
     HANDLE event=CreateEventA(&sa,FALSE,FALSE,0);alias=dup(event,0,FALSE,DUPLICATE_SAME_ACCESS);
     CHECK("create inherit",GetHandleInformation(event,&flags)&&flags==1);
+    CHECK("wrong semaphore kind",!ReleaseSemaphore(alias,1,0)&&GetLastError()==ERROR_INVALID_HANDLE);
     CHECK("event alias sharing",SetEvent(alias)&&WaitForSingleObject(event,0)==WAIT_OBJECT_0&&WaitForSingleObject(alias,0)==WAIT_TIMEOUT);
     CHECK("event source close",CloseHandle(event)&&SetEvent(alias)&&WaitForSingleObject(alias,0)==WAIT_OBJECT_0);CloseHandle(alias);
     HANDLE mutex=CreateMutexA(0,TRUE,0);alias=dup(mutex,0,FALSE,DUPLICATE_SAME_ACCESS);
     CHECK("mutex alias recursion",WaitForSingleObject(alias,0)==WAIT_OBJECT_0&&CloseHandle(mutex)&&ReleaseMutex(alias)&&ReleaseMutex(alias));CloseHandle(alias);
     HANDLE sem=CreateSemaphoreA(0,1,2,0);alias=dup(sem,0,FALSE,DUPLICATE_SAME_ACCESS);
     CHECK("semaphore shared count",WaitForSingleObject(alias,0)==WAIT_OBJECT_0&&WaitForSingleObject(sem,0)==WAIT_TIMEOUT);
+    CHECK("semaphore zero release",!ReleaseSemaphore(alias,0,0)&&GetLastError()==ERROR_INVALID_PARAMETER);
+    CHECK("semaphore negative release",!ReleaseSemaphore(alias,-1,0)&&GetLastError()==ERROR_INVALID_PARAMETER);
+    CHECK("wrong mutex kind",!ReleaseMutex(alias)&&GetLastError()==ERROR_INVALID_HANDLE);
+    CHECK("semaphore bad output",!ReleaseSemaphore(alias,1,(LONG *)(uintptr_t)1)&&GetLastError()==ERROR_INVALID_PARAMETER);
+    CHECK("semaphore failure retains count",WaitForSingleObject(sem,0)==WAIT_TIMEOUT);
+#ifdef _WIN64
+    LONG previous=123;CHECK("semaphore full width output",!ReleaseSemaphore(alias,1,(LONG *)((uintptr_t)&previous|0x100000000ull))&&GetLastError()==ERROR_INVALID_PARAMETER&&previous==123);
+#endif
     CHECK("semaphore source close",CloseHandle(sem)&&ReleaseSemaphore(alias,1,0)&&WaitForSingleObject(alias,0)==WAIT_OBJECT_0);CloseHandle(alias);
     HANDLE file=CreateFileA("handles.exe",GENERIC_READ,FILE_SHARE_READ,&sa,OPEN_EXISTING,0,0);
     CHECK("file open",file!=INVALID_HANDLE_VALUE);

@@ -725,12 +725,16 @@ static uint64_t thread_api(const char *name) {
             o->value = IS("SetEvent"); wake_waiters(); return 1;
         }
         if (IS("ReleaseMutex")) {
-            if (o->kind != MUTEX || o->owner != x86_current) { t->error = 288; return 0; }
+            if (o->kind != MUTEX) { t->error = 6; return 0; }
+            if (o->owner != x86_current) { t->error = 288; return 0; }
             if (!--o->recursion) o->owner = INFINITE;
             wake_waiters(); return 1;
         }
-        if (o->kind != SEMAPHORE || (int32_t)v <= 0 || v > o->limit - o->value) { t->error = 298; return 0; }
-        if (ARG(2)) x86_wr32(ARG(2), o->value);
+        if (o->kind != SEMAPHORE) { t->error = 6; return 0; }
+        if ((int32_t)v <= 0) { t->error = 87; return 0; }
+        if (v > o->limit - o->value) { t->error = 298; return 0; }
+        if(ARG64(2) && !output(ARG64(2),4)){t->error=87;return 0;}
+        if (ARG64(2)) x86_wr32(ARG(2), o->value);
         o->value += v; wake_waiters(); return 1;
     }
     if (IS("InitializeCriticalSection") || IS("InitializeCriticalSectionAndSpinCount") ||
