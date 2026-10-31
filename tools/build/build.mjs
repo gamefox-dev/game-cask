@@ -102,7 +102,9 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   }
   const wasmPath = join(outDir, 'game.wasm');
   // Only the AMD64 CRT bridge links toolchain musl. Other BGT builds remain freestanding.
-  const withCrt = pipe?.report.machine === 'x86-64';
+  // LANE-K3: shared x87 uses the same musl libm on i386 and AMD64.
+  // Native BGT examples retain their freestanding build.
+  const withCrt = !!pipe;
   const compileBase = CFLAGS.map((f) => withCrt && f === '--target=wasm32-freestanding'
     ? '--target=wasm32-wasi' : f);
   const linkBase = withCrt

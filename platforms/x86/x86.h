@@ -36,6 +36,13 @@ typedef uint64_t x86_word_t;
 #else
 typedef uint32_t x86_word_t;
 #endif
+/* Exact architectural ext80 payload; no host long-double ABI dependency. */
+typedef struct { uint64_t sig; uint16_t se; } x86_ext80_t;
+typedef struct {
+    x86_ext80_t st[8];
+    uint16_t control, status, tags;
+    uint8_t initialized;
+} x86_fpu_t;
 typedef struct {
     x86_word_t r[16];
     uint32_t eip, flags, fs_base, gs_base;
@@ -45,9 +52,11 @@ typedef struct {
     uint32_t frame_insns;
     uint32_t callback_depth; /* LANE-C: native profile continuations cannot be discarded. */
     uint64_t tsc;
+    x86_fpu_t fpu; /* Copied with X on every cooperative thread switch. */
 } x86_cpu_t;
 
 extern x86_cpu_t X;
+void x86_x87(const x86_insn_t *in);
 
 /* ------------------------------------------------------------------ guest memory (4 KiB pages) */
 #define X86_PAGE 4096u
@@ -77,7 +86,6 @@ void x86_set_scheduler(void (*schedule)(void));
 #define X86_HOST_ARENA_BYTES (64u << 20)
 extern uint8_t *x86_flat;
 extern uint64_t x86_guest_committed;
-void x86_x87(const x86_insn_t *in);
 __attribute__((noreturn)) void x86_fault(const char *, uint32_t);
 static __attribute__((noinline)) uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
     if ((uint64_t)a + n > X86_FLAT_BYTES || !x86_pages[a >> 12] ||

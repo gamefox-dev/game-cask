@@ -2,6 +2,7 @@
 #define X86_WIDE_CPU 1
 #include "../../../platforms/x86/x86.h"
 #include "bgt.h"
+#include "wasi_offline.h"
 x86_cpu_t X;
 uint8_t *x86_pages[1u<<20];
 static uint8_t ram[65536],code[32];
@@ -16,6 +17,7 @@ void x86_wr32_slow(uint32_t a,uint32_t v){x86_wr16(a,v);x86_wr16(a+2,v>>16);}
 #include "../../../platforms/x86/x86_decode.c"
 #include "../../../platforms/x86/x86_exec64.c"
 #include "../../../platforms/x86/x86_simd.c"
+#include "../../../platforms/x86/x86_x87.c"
 BGT_EXPORT(reset) void reset(void){__builtin_memset(&X,0,sizeof X);__builtin_memset(ram,0,sizeof ram);for(int i=0;i<16;i++)x86_pages[i]=ram+i*4096;X.mode64=1;X.mxcsr=0x1f80;}
 BGT_EXPORT(cpu) uint32_t cpu(void){return (uint32_t)(uintptr_t)&X;}
 BGT_EXPORT(regs) uint32_t regs(void){return (uint32_t)(uintptr_t)X.r;}
