@@ -11,7 +11,7 @@ BGT_EXPORT(bgt_update) void update(uint32_t dt){
     int32_t result=bgt_random_bytes(bytes,sizeof bytes);
     if(result)for(uint32_t i=0;i<sizeof bytes;i++)if(bytes[i]!=0xa5)bgt_abort(-3,"partial entropy failure",23);
     if(result==0) {
-        uint32_t changed=0;for(uint32_t i=0;i<sizeof bytes;i++)changed|=bytes[i];
+        uint32_t changed=0;for(uint32_t i=0;i<sizeof bytes;i++)changed|=bytes[i]^0xa5;
         if(!changed)bgt_abort(-3,"zero entropy",12);
         bgt_log(1,"entropy-ok",10);
     } else if(result==BGT_E_IO)bgt_log(1,"entropy-failed",14);

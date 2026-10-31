@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT */
 #include "w32_imm32.h"
 #include "w32_thread.h"
-static int window(void) { int32_t x,y,w,h; return w32_user_client(ARG(0), &x,&y,&w,&h); }
+static int window(void) { int32_t x,y,w,h; return ARG64(0)<=UINT32_MAX && w32_user_client(ARG(0), &x,&y,&w,&h); }
 static uint32_t context(void) {
     if (!window()) *w32_thread_error() = 1400;
     return 0;

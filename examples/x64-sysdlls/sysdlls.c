@@ -26,6 +26,7 @@ static void check(int ok,const char *name) {
     if(!ok)ExitProcess(77);
 }
 #define CHECK(x,n) check(!!(x),n)
+#define HIGH(p) ((void*)((uintptr_t)(p)+0x100000000ull))
 static HWND window;
 static LRESULT CALLBACK proc(HWND w,UINT m,WPARAM p,LPARAM l) {return DefWindowProcA(w,m,p,l);}
 static DWORD WINAPI avrt_wrong_thread(void *p) {return !AvSetMmThreadPriority((HANDLE)p,AVRT_PRIORITY_HIGH)&&GetLastError()==ERROR_INVALID_HANDLE;}
@@ -34,6 +35,7 @@ static void avrt(void) {
     CHECK(!AvSetMmThreadCharacteristicsA("MissingTask",&index)&&GetLastError()==ERROR_INVALID_TASK_NAME,"avrt-name");
     CHECK(!AvSetMmThreadCharacteristicsA("Games",0)&&GetLastError()==ERROR_INVALID_PARAMETER,"avrt-pointer");
     index=999;CHECK(!AvSetMmThreadCharacteristicsA("Games",&index)&&GetLastError()==ERROR_INVALID_TASK_INDEX,"avrt-index");
+    index=0;CHECK(!AvSetMmThreadCharacteristicsA("Games",HIGH(&index))&&index==0,"avrt-wide-pointer");
     index=0;HANDLE h=AvSetMmThreadCharacteristicsA("Games",&index);
     CHECK(h&&index,"avrt-task");
     CHECK(!AvSetMmThreadCharacteristicsA("Games",&index)&&GetLastError()==ERROR_THREAD_ALREADY_IN_TASK,"avrt-duplicate");
@@ -62,6 +64,7 @@ static void desktop(void) {
     BOOL enabled=123;
     CHECK(DwmIsCompositionEnabled(&enabled)==S_OK&&!enabled,"dwm-composition");
     CHECK(FAILED(DwmIsCompositionEnabled(0)),"dwm-pointer");
+    enabled=123;CHECK(FAILED(DwmIsCompositionEnabled(HIGH(&enabled)))&&enabled==123,"dwm-wide-pointer");
     DWM_BLURBEHIND blur={0};blur.dwFlags=DWM_BB_ENABLE;blur.fEnable=1;
     CHECK(DwmEnableBlurBehindWindow(window,&blur)==DWM_E_COMPOSITIONDISABLED,"dwm-blur");
     CHECK(DwmFlush()==DWM_E_COMPOSITIONDISABLED,"dwm-flush");
@@ -77,11 +80,13 @@ static void desktop(void) {
     CHECK(GetAdaptersAddresses(AF_INET,0,0,(void*)buffer,&size)==ERROR_NO_DATA&&(unsigned char)buffer[0]==0xa5,"ip-empty-list");
     CHECK(GetAdaptersAddresses(999,0,0,0,&size)==ERROR_INVALID_PARAMETER,"ip-family");
     CHECK(GetAdaptersAddresses(0,0,0,0,0)==ERROR_INVALID_PARAMETER,"ip-size-pointer");
+    size=123;CHECK(GetAdaptersAddresses(0,0,0,0,HIGH(&size))==ERROR_INVALID_PARAMETER&&size==123,"ip-wide-pointer");
     struct sockaddr_in addr={0};addr.sin_family=AF_INET;DWORD index=999;
     CHECK(GetBestInterfaceEx((void*)&addr,&index)==ERROR_NETWORK_UNREACHABLE&&index==999,"ip-route");
     addr.sin_family=999;CHECK(GetBestInterfaceEx((void*)&addr,&index)==WSAEAFNOSUPPORT,"ip-route-family");
     WCHAR path[512];GetModuleFileNameW(0,path,512);
     CHECK(PathFileExistsW(path),"path-self");
+    CHECK(!PathFileExistsW(HIGH(path)),"path-wide-pointer");
     CHECK(!PathFileExistsW(L"C:\\game\\missing-file.bin")&&!PathFileExistsW(0),"path-missing");
 }
 static int enum_count;
@@ -103,6 +108,7 @@ static void directinput(void) {
     GUID bad={1};p=(void*)1;
     CHECK(IDirectInput8_QueryInterface(di,&bad,&p)==E_NOINTERFACE&&!p,"di-interface");
     CHECK(IDirectInput8_EnumDevices(di,DI8DEVCLASS_ALL,enum_devices,(void*)0x12345678,DIEDFL_ATTACHEDONLY)==S_OK&&enum_count>=2,"di-enumerate");
+    enum_count=0;CHECK(IDirectInput8_EnumDevices(di,DI8DEVCLASS_ALL,enum_devices,(void*)0x12345678,DIEDFL_FORCEFEEDBACK)==S_OK&&!enum_count,"di-no-forcefeedback");
     CHECK(IDirectInput8_CreateDevice(di,&GUID_SysKeyboard,&keyboard,0)==S_OK,"di-keyboard");
     CHECK(IDirectInput8_CreateDevice(di,&GUID_SysMouse,&mouse,0)==S_OK,"di-mouse");
     LPDIRECTINPUTDEVICE8W absent=(void*)1;
@@ -115,6 +121,11 @@ static void directinput(void) {
     CHECK(IDirectInputDevice8_GetDeviceInfo(mouse,&info)==S_OK&&IsEqualGUID(&info.guidInstance,&GUID_SysMouse),"di-info");
     CHECK(IDirectInputDevice8_SetCooperativeLevel(keyboard,window,DISCL_NONEXCLUSIVE|DISCL_FOREGROUND)==S_OK,"di-cooperative");
     CHECK(IDirectInputDevice8_SetCooperativeLevel(keyboard,window,DISCL_EXCLUSIVE|DISCL_FOREGROUND)==E_ACCESSDENIED,"di-exclusive");
+    DIDATAFORMAT format=c_dfDIMouse;format.dwFlags=DIDF_ABSAXIS;
+    CHECK(IDirectInputDevice8_SetDataFormat(mouse,&format)==DIERR_UNSUPPORTED,"di-format-axis-mode");
+    DIOBJECTDATAFORMAT unsupported={&GUID_Slider,0,DIDFT_ABSAXIS|DIDFT_ANYINSTANCE,0};
+    format=(DIDATAFORMAT){sizeof format,sizeof unsupported,DIDF_RELAXIS,4,1,&unsupported};
+    CHECK(IDirectInputDevice8_SetDataFormat(mouse,&format)==DIERR_OBJECTNOTFOUND,"di-format-missing-object");
     CHECK(IDirectInputDevice8_SetDataFormat(keyboard,&c_dfDIKeyboard)==S_OK&&IDirectInputDevice8_SetDataFormat(mouse,&c_dfDIMouse)==S_OK,"di-format");
     BYTE keys[256];CHECK(IDirectInputDevice8_GetDeviceState(keyboard,sizeof keys,keys)==DIERR_NOTACQUIRED,"di-not-acquired");
     CHECK(IDirectInputDevice8_Acquire(keyboard)==S_OK&&IDirectInputDevice8_Acquire(mouse)==S_OK,"di-acquire");
@@ -123,6 +134,8 @@ static void directinput(void) {
     CHECK(IDirectInputDevice8_SetDataFormat(keyboard,&c_dfDIKeyboard)==DIERR_ACQUIRED,"di-format-acquired");
     CHECK(IDirectInputDevice8_Poll(keyboard)==S_OK,"di-poll");
     CHECK(IDirectInputDevice8_RunControlPanel(keyboard,window,0)==E_NOTIMPL,"di-unsupported");
+    CHECK(IDirectInputDevice8_EnumEffectsInFile(keyboard,L"missing",0,0,0)==E_NOTIMPL,"di-file-unsupported");
+    keys[0]=0x55;CHECK(IDirectInputDevice8_GetDeviceState(keyboard,sizeof keys,HIGH(keys))==DIERR_INVALIDPARAM&&keys[0]==0x55,"di-wide-pointer");
     CHECK(IDirectInput8_GetDeviceStatus(di,&GUID_SysKeyboard)==S_OK,"di-status");
     CHECK(IDirectInputDevice8_Unacquire(mouse)==S_OK&&IDirectInputDevice8_Unacquire(mouse)==S_FALSE&&IDirectInputDevice8_Acquire(mouse)==S_OK,"di-unacquire");
 }
@@ -138,6 +151,7 @@ static void networking(void) {
     CHECK(socket(AF_INET,SOCK_STREAM,0)==INVALID_SOCKET&&WSAGetLastError()==WSANOTINITIALISED,"wsa-not-started");
     WSADATA data;memset(&data,0xa5,sizeof data);
     CHECK(WSAStartup(0,&data)==WSAVERNOTSUPPORTED,"wsa-version-reject");
+    CHECK(WSAStartup(MAKEWORD(2,2),HIGH(&data))==WSAEFAULT&&data.wVersion==0xa5a5,"wsa-wide-pointer");
     CHECK(WSAStartup(MAKEWORD(1,1),&data)==0&&data.wVersion==MAKEWORD(1,1)&&data.wHighVersion==MAKEWORD(2,2)&&data.szDescription[0],"wsa-v1-layout");
     CHECK(WSAStartup(MAKEWORD(2,2),&data)==0&&data.wVersion==MAKEWORD(2,2),"wsa-v2-layout");
     CHECK(WSACleanup()==0,"wsa-nesting");
@@ -159,26 +173,42 @@ static void networking(void) {
     int yes=1;CHECK(setsockopt(s,SOL_SOCKET,SO_KEEPALIVE,(void*)&yes,sizeof yes)==0,"socket-option");
     CHECK(send(s,"x",1,0)==SOCKET_ERROR&&WSAGetLastError()==WSAENOTCONN,"socket-send");
     char b[64];CHECK(recv(s,b,sizeof b,0)==SOCKET_ERROR&&WSAGetLastError()==WSAENOTCONN,"socket-recv");
-    CHECK(sendto(s,"x",1,0,(void*)&addr,sizeof addr)==SOCKET_ERROR&&WSAGetLastError()==WSAENETUNREACH,"socket-sendto");
+    CHECK(sendto(s,"x",1,0,(void*)&addr,sizeof addr)==SOCKET_ERROR&&WSAGetLastError()==WSAENOTCONN,"socket-sendto");
     CHECK(recvfrom(s,b,sizeof b,0,0,0)==SOCKET_ERROR&&WSAGetLastError()==WSAENOTCONN,"socket-recvfrom");
     fd_set f;FD_ZERO(&f);FD_SET(s,&f);CHECK(__WSAFDIsSet(s,&f),"socket-fdset");
     struct timeval tv={0,0};CHECK(select(0,&f,0,0,&tv)==0&&f.fd_count==0,"socket-select");
     CHECK(closesocket(s)==0&&closesocket(s)==SOCKET_ERROR&&WSAGetLastError()==WSAENOTSOCK,"socket-close");
     SOCKET d=socket(AF_INET,SOCK_DGRAM,0);addr.sin_port=0;CHECK(bind(d,(void*)&addr,sizeof addr)==0,"socket-datagram-bind");
+    CHECK(sendto(d,"x",1,0,(void*)&addr,sizeof addr)==SOCKET_ERROR&&WSAGetLastError()==WSAENETUNREACH,"socket-datagram-sendto");
     CHECK(recv(d,b,sizeof b,0)==SOCKET_ERROR&&WSAGetLastError()==WSAENETDOWN,"socket-offline-blocking");
     CHECK(ioctlsocket(d,FIONBIO,&nonblock)==0&&recv(d,b,sizeof b,0)==SOCKET_ERROR&&WSAGetLastError()==WSAEWOULDBLOCK,"socket-datagram-nonblocking");
     closesocket(d);
     struct in6_addr v6;CHECK(inet_pton(AF_INET6,"2001:db8::1",&v6)==1&&v6.s6_addr[0]==0x20&&v6.s6_addr[15]==1,"socket-ipv6");
     memset(b,0x55,sizeof b);CHECK(inet_pton(AF_INET,"1.2.3.999",b)==0&&b[0]==0x55,"socket-invalid-address");
+    CHECK(inet_pton(AF_INET,"192.0.2.1",HIGH(b))==-1&&WSAGetLastError()==WSAEFAULT&&b[0]==0x55,"socket-wide-pointer");
     struct addrinfo hints={0},*result=0;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;hints.ai_flags=AI_NUMERICHOST;
     CHECK(getaddrinfo("192.0.2.1","443",&hints,&result)==0&&result&&result->ai_family==AF_INET&&result->ai_addrlen==16&&((struct sockaddr_in*)result->ai_addr)->sin_port==htons(443),"socket-addrinfo");
     char host[64],service[16];
     CHECK(getnameinfo(result->ai_addr,(socklen_t)result->ai_addrlen,host,sizeof host,service,sizeof service,NI_NUMERICHOST|NI_NUMERICSERV)==0&&!strcmp(host,"192.0.2.1")&&!strcmp(service,"443"),"socket-nameinfo");
-    freeaddrinfo(result);CHECK(1,"socket-freeaddr");
+    freeaddrinfo(result);
+    int freed=1;
+    for(int i=0;i<80;i++) {result=0;if(getaddrinfo("192.0.2.1","443",&hints,&result)||!result){freed=0;break;}freeaddrinfo(result);}
+    CHECK(freed,"socket-freeaddr");
     result=(void*)1;CHECK(getaddrinfo("offline.invalid","80",&hints,&result)==WSAHOST_NOT_FOUND&&!result,"socket-no-dns");
     HANDLE worker=CreateThread(0,0,socket_worker,0,0,0);DWORD code=0;
     CHECK(WaitForSingleObject(worker,1000)==WAIT_OBJECT_0&&GetExitCodeThread(worker,&code)&&code&&socket_worker_done,"socket-cooperative-worker");CloseHandle(worker);
     CHECK(WSACleanup()==0&&WSACleanup()==SOCKET_ERROR&&WSAGetLastError()==WSANOTINITIALISED,"wsa-cleanup");
+    CHECK(WSAStartup(MAKEWORD(2,2),&data)==0,"wsa-restart");
+    SOCKET owners[64];u_short ports[64];int unique=1;
+    for(int i=0;i<64;i++) {
+        owners[i]=socket(AF_INET,SOCK_STREAM,0);addr.sin_family=AF_INET;addr.sin_addr.s_addr=0;addr.sin_port=i<32?htons(49184+i):0;
+        if(bind(owners[i],(void*)&addr,sizeof addr)){unique=0;break;}
+        struct sockaddr_in own;int n=sizeof own;getsockname(owners[i],(void*)&own,&n);ports[i]=own.sin_port;
+        for(int j=0;j<i;j++)if(ports[i]==ports[j])unique=0;
+    }
+    CHECK(unique,"socket-ephemeral-collision");
+    for(int i=0;i<64;i++)closesocket(owners[i]);
+    WSACleanup();
 }
 int main(void) {
     WNDCLASSA cls={0};cls.lpfnWndProc=proc;cls.lpszClassName="SystemDllFixture";RegisterClassA(&cls);
@@ -189,12 +219,19 @@ int main(void) {
         MSG msg;while(PeekMessageA(&msg,0,0,0,PM_REMOVE))DispatchMessageA(&msg);
         if(!pad) {
             HRESULT hr=IDirectInput8_CreateDevice(di,&pad_guid,&pad,0);
-            if(hr==S_OK)CHECK(IDirectInputDevice8_SetDataFormat(pad,&c_dfDIJoystick)==S_OK&&IDirectInputDevice8_Acquire(pad)==S_OK,"di-pad-acquire");
+            if(hr==S_OK) {
+                DIOBJECTDATAFORMAT y={&GUID_YAxis,0,DIDFT_ABSAXIS|DIDFT_ANYINSTANCE,0};
+                DIDATAFORMAT subset={sizeof subset,sizeof y,DIDF_ABSAXIS,4,1,&y};LONG value=0;
+                CHECK(IDirectInputDevice8_SetDataFormat(pad,&subset)==S_OK&&IDirectInputDevice8_Acquire(pad)==S_OK&&IDirectInputDevice8_GetDeviceState(pad,4,&value)==S_OK,"di-pad-subset");
+                char t[80];wsprintfA(t,"sysdlls subset y=%ld",value);OutputDebugStringA(t);
+                IDirectInputDevice8_Unacquire(pad);
+                CHECK(IDirectInputDevice8_SetDataFormat(pad,&c_dfDIJoystick)==S_OK&&IDirectInputDevice8_Acquire(pad)==S_OK,"di-pad-acquire");
+            }
             else CHECK(hr==DIERR_DEVICENOTREG,"di-pad-discovery");
         }
         if(pad) {
             DIJOYSTATE j;HRESULT hr=IDirectInputDevice8_GetDeviceState(pad,sizeof j,&j);
-            if(hr==S_OK) {char t[128];wsprintfA(t,"sysdlls pad x=%ld y=%ld button=%u",j.lX,j.lY,j.rgbButtons[0]);OutputDebugStringA(t);}
+            if(hr==S_OK) {char t[128];wsprintfA(t,"sysdlls pad x=%ld y=%ld button=%u pov=%lu absent=%lu",j.lX,j.lY,j.rgbButtons[0],j.rgdwPOV[0],j.rgdwPOV[1]);OutputDebugStringA(t);}
             else CHECK(hr==DIERR_INPUTLOST,"di-pad-disconnect");
         }
         BYTE keys[256];DIMOUSESTATE m;

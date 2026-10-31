@@ -2,7 +2,7 @@ import { beforeAll, expect, it } from 'vitest';
 import { compileC } from '../support/compile';
 import { GameHost } from '../../bgt/runtime/host';
 import { Vfs } from '../../bgt/runtime/vfs';
-import { CAP_GPU, E_BOUNDS, E_LIMIT, GPU_LIMITS_SIZE, GPU_OP } from '../../bgt/runtime/abi';
+import { CAP_ENTROPY, CAP_GPU, E_BOUNDS, E_LIMIT, GPU_LIMITS_SIZE, GPU_OP } from '../../bgt/runtime/abi';
 import { CommandEncoder } from '../../bgt/runtime/commands';
 let wasm: WebAssembly.Module;
 beforeAll(async () => { wasm = await WebAssembly.compile(await compileC('tests/fixtures/c/gpu_limits_probe.c')); });
@@ -54,11 +54,11 @@ it('GPU renegotiation cannot discard decoded resources or pending work before ba
   host.setBackend(2, { languages: 6, execute: () => 0 });
   host.init(); // Re-query extended limits through the fixture's init export.
   let words = new Uint32Array(host.peek(0, 112)!.buffer);
-  expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | 1);
+  expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | CAP_ENTROPY | 1); // LANE-K1
   host.setBackend(2);
   host.init();
   words = new Uint32Array(host.peek(0, 112)!.buffer);
-  expect(words[16]).toBe(0); expect(words[25]).toBe(1);
+  expect(words[16]).toBe(0); expect(words[25]).toBe(CAP_ENTROPY | 1); // LANE-K1: preserve entropy.
 });
 it('an explicitly enabled GPU host reports its language mask and clears no unrelated capability', async () => {
   const host = await GameHost.create(wasm, { log: () => {}, vfs: new Vfs(), now: () => 0 }, {
@@ -67,5 +67,5 @@ it('an explicitly enabled GPU host reports its language mask and clears no unrel
   });
   host.init();
   const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
-  expect(words[4]).toBe(1); expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | 1);
+  expect(words[4]).toBe(1); expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | CAP_ENTROPY | 1); // LANE-K1
 });

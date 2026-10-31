@@ -49,6 +49,13 @@ it('entropy provider failure returns E_IO, never a successful all-zero result', 
     {backend:3,caps:0,seed:1,displayWidth:1,displayHeight:1,arg0:0,arg1:0});
   host.init();host.update();expect(logs).toEqual(['entropy-failed']);
 });
+it('late entropy failure leaves the whole guest buffer untouched after an earlier successful chunk', async () => {
+  let calls=0;const logs:string[]=[];
+  const host=await GameHost.create(await compileC('tests/fixtures/c/entropy_probe.c'),
+    {vfs:new Vfs(),now:()=>0,log:(_l,s)=>logs.push(s),entropy: bytes=>{if(++calls===2)throw new Error('late failure');bytes.fill(0x42);}},
+    {backend:3,caps:0,seed:1,displayWidth:1,displayHeight:1,arg0:0,arg1:0});
+  host.init();host.update();expect(calls).toBe(2);expect(logs).toEqual(['entropy-failed']);
+});
 it('AVRT scheduler weights are 1:5:3, bounded and cannot be replenished to starve peers', () => {
   const dir=mkdtempSync(join(tmpdir(),'bgt-k1-sched-'));
   try {

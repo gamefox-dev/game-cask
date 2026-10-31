@@ -14,19 +14,19 @@ beforeAll(async () => {
   h = await loadHeadless('x64-sysdlls'); await h.stepAsync(80);
 }, 120_000);
 const cases = [
-  'avrt-name','avrt-pointer','avrt-index','avrt-task','avrt-duplicate','avrt-priority','avrt-priority-invalid','avrt-thread-owner','avrt-revert','avrt-stale',
+  'avrt-wide-pointer','avrt-name','avrt-pointer','avrt-index','avrt-task','avrt-duplicate','avrt-priority','avrt-priority-invalid','avrt-thread-owner','avrt-revert','avrt-stale',
   'rng-system','rng-pseudo-handle','rng-empty','rng-null','rng-flags','rng-provider','rng-no-provider','rng-wide-pointer','rng-span','rng-entropy-flag',
-  'dwm-composition','dwm-pointer','dwm-blur','dwm-flush','dwm-window',
+  'dwm-wide-pointer','dwm-composition','dwm-pointer','dwm-blur','dwm-flush','dwm-window',
   'ime-absent','ime-disassociate','ime-invalid-context','ime-release','ime-composition','ime-window',
-  'ip-adapters','ip-empty-list','ip-family','ip-size-pointer','ip-route','ip-route-family','path-self','path-missing',
-  'di-version','di-create','di-identity','di-refcount','di-interface','di-callback','di-enumerate','di-keyboard','di-mouse','di-device-identity',
-  'di-ansi','di-release','di-pad-absent','di-pad-discovery','di-caps','di-info','di-cooperative','di-exclusive','di-format','di-not-acquired','di-acquire','di-acquire-again','di-state-size','di-format-acquired',
-  'di-poll','di-unsupported','di-status','di-unacquire','di-live-keyboard','di-live-mouse',
-  'wsa-not-started','wsa-version-reject','wsa-v1-layout','wsa-v2-layout','wsa-nesting','wsa-cleanup',
+  'ip-wide-pointer','ip-adapters','ip-empty-list','ip-family','ip-size-pointer','ip-route','ip-route-family','path-wide-pointer','path-self','path-missing',
+  'di-version','di-create','di-identity','di-refcount','di-interface','di-callback','di-enumerate','di-no-forcefeedback','di-keyboard','di-mouse','di-device-identity',
+  'di-ansi','di-release','di-pad-absent','di-pad-discovery','di-caps','di-info','di-cooperative','di-exclusive','di-format-axis-mode','di-format-missing-object','di-format','di-not-acquired','di-acquire','di-acquire-again','di-state-size','di-format-acquired',
+  'di-wide-pointer','di-file-unsupported','di-poll','di-unsupported','di-status','di-unacquire','di-live-keyboard','di-live-mouse',
+  'wsa-wide-pointer','wsa-restart','wsa-not-started','wsa-version-reject','wsa-v1-layout','wsa-v2-layout','wsa-nesting','wsa-cleanup',
   'socket-family','socket-type','socket-handle','socket-byte-order','socket-inet-addr','socket-connect','socket-wsaconnect',
   'socket-bind-nonlocal','socket-bind','socket-name','socket-listen','socket-nonblocking','socket-accept','socket-option','socket-send','socket-recv',
-  'socket-sendto','socket-recvfrom','socket-fdset','socket-select','socket-close','socket-datagram-bind','socket-offline-blocking','socket-datagram-nonblocking',
-  'socket-cooperative-worker','socket-ipv6','socket-invalid-address','socket-addrinfo','socket-nameinfo','socket-freeaddr','socket-no-dns',
+  'socket-sendto','socket-datagram-sendto','socket-recvfrom','socket-fdset','socket-select','socket-close','socket-datagram-bind','socket-offline-blocking','socket-datagram-nonblocking',
+  'socket-wide-pointer','socket-ephemeral-collision','socket-cooperative-worker','socket-ipv6','socket-invalid-address','socket-addrinfo','socket-nameinfo','socket-freeaddr','socket-no-dns',
 ];
 it.each(cases)('%s contract: catches wrong result/error/output or layout', name => {
   expect(h.logs, h.logs.join('\n')).toContain(`guest: sysdlls PASS ${name}`);
@@ -43,10 +43,12 @@ it('DirectInput snapshots reflect BGT key and relative pointer changes', async (
   expect(h.logs).toContain('guest: sysdlls input key=0 mouse=7,-4 button=0');
 });
 it('DirectInput gamepad discovery, data format and disconnected-device errors', async () => {
-  h.input.gamepads=[{connected:true,buttons:1,axes:[16384,-8192,0,0],triggers:[0,0]}];
+  h.input.gamepads=[{connected:true,buttons:1|(1<<12)|(1<<15),axes:[16384,-8192,0,0],triggers:[0,0]}];
   await h.stepAsync(2);
   expect(h.logs).toContain('guest: sysdlls PASS di-pad-acquire');
-  expect(h.logs).toContain('guest: sysdlls pad x=49151 y=24575 button=128');
+  expect(h.logs).toContain('guest: sysdlls PASS di-pad-subset');
+  expect(h.logs).toContain('guest: sysdlls subset y=24575');
+  expect(h.logs).toContain('guest: sysdlls pad x=49151 y=24575 button=128 pov=4500 absent=4294967295');
   h.input.gamepads[0].connected=false;await h.stepAsync(2);
   expect(h.logs).toContain('guest: sysdlls PASS di-pad-disconnect');
 });

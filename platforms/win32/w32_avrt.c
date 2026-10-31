@@ -1,13 +1,14 @@
 /* LANE-K1: MMCSS registrations are per guest thread. Cooperative scheduling remains bounded.
  * SPDX-License-Identifier: MIT */
 #include "w32_avrt.h"
+#include "w32_sysdll.h"
 #include "w32_thread.h"
 static struct { uint32_t handle, task; int priority; } tasks[X86_THREADS];
 static uint32_t sequence;
 static uint32_t fail(uint32_t e) { *w32_thread_error() = e; return 0; }
 static uint32_t set_task(void) {
     char name[128];
-    if (!ARG(0) || !ARG(1)) return fail(87);
+    if (!w32_sys_string(ARG64(0),0,sizeof name) || !w32_sys_span(ARG64(1),4)) return fail(87);
     w32_gstr(ARG(0), 0, name, sizeof name);
     static const char *names[] = {"Audio", "Capture", "Distribution", "Games", "Playback", "Pro Audio", "Window Manager"};
     uint32_t i;
