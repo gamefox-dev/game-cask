@@ -7,7 +7,7 @@
 //   node tools/build/build.mjs --examples --check    compile to a temp dir only (lint gate)
 //
 // Output: web/public/games/<id>/{game.wasm, manifest.json, assets/...}
-import { execFileSync } from 'node:child_process';
+import { execFileSync, withBuildWriters } from './exec.mjs';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from 'node:fs';
@@ -17,6 +17,8 @@ import { ROOT, requireZig } from './toolchain.mjs';
 import { runPipeline, pipelineSummary } from './pipeline.mjs';
 import { streamFile } from './files.mjs';
 import { libcNotices } from './libc-notices.mjs';
+import { leaseCache, pruneCache, touchCache } from './cache.mjs';
+import { buildLock } from './lock.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -67,10 +69,20 @@ export function loadGameConfig(gameDir) {
   return cfg;
 }
 
-export function buildGame(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null } = {}) {
+export function buildGame(gameDirArg, options = {}) {
+  const cfg=loadGameConfig(resolve(ROOT,gameDirArg));
+  const release=buildLock(join(ROOT,'node_modules/.cache/bgt/locks'),cfg.id+(options.interpretOnly?'-interp':''));
+  try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
+}
+
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null } = {}) {
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  // Measurement/debug override; 0 preserves the old monolithic orchestration.
+  if (cfg.pipeline && process.env.BGT_CHUNK_INSNS !== undefined) cfg.pipeline.chunkInstructions=Number(process.env.BGT_CHUNK_INSNS);
+  if(cfg.pipeline?.chunkInstructions !== undefined && cfg.pipeline.chunkInstructions !== 0 &&
+    (!Number.isInteger(cfg.pipeline.chunkInstructions) || cfg.pipeline.chunkInstructions<256 || cfg.pipeline.chunkInstructions>1000000)) throw new Error('chunkInstructions must be 0 (monolithic) or 256..1000000');
   if(sliceCoverage)cfg.slice={...(cfg.slice ?? {}),coverage:sliceCoverage};
   if(cfg.slice && cfg.pipeline)cfg.pipeline.streamModules=true;
   if (interpretOnly) {
@@ -102,7 +114,9 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   }
   const wasmPath = join(outDir, 'game.wasm');
   // Only the AMD64 CRT bridge links toolchain musl. Other BGT builds remain freestanding.
-  const withCrt = pipe?.report.machine === 'x86-64';
+  // LANE-K3: shared x87 uses the same musl libm on i386 and AMD64.
+  // Native BGT examples retain their freestanding build.
+  const withCrt = !!pipe;
   const compileBase = CFLAGS.map((f) => withCrt && f === '--target=wasm32-freestanding'
     ? '--target=wasm32-wasi' : f);
   const linkBase = withCrt
@@ -127,7 +141,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
       const compileFlags = [...compileBase, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
       const headerDirs = [...includes.map((d) => join(ROOT, d)), gameDir];
       const headers = [...new Set(headerDirs.flatMap(walk).filter((f) => /\.(h|inc|def)$/.test(f)))].sort();
-      const common = Buffer.concat([Buffer.from(JSON.stringify([zig.version, compileFlags])), ...headers.map(readFileSyncBuffer)]);
+      const common = Buffer.from(JSON.stringify([zig.path,zig.version,compileFlags,headers.map((f)=>[f,sha256(readFileSyncBuffer(f))]) ]));
       const allSources = [...sources, ...libcSources];
       const objects = allSources.map((file) => {
         const out = join(cache, sha256(Buffer.concat([common,Buffer.from(file),readFileSync(file)]))+'.o');
@@ -135,12 +149,20 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
       });
       const link = [zig.path, 'cc', ...compileBase, ...objects.map((o) => o.out),
         ...linkBase, ...(cfg.ldflags ?? []), '-o', wasmPath];
-      compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+      const budget = Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576;
+      const release = leaseCache(cache,objects.map((o)=>o.out));
+      try {
+        pruneCache(cache,budget);
+        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+        touchCache(objects.map((o)=>o.out));
+      } finally {release();}
+      compileMetrics.object_cache = pruneCache(cache,budget);
     } else execFileSync(zig.path, args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
   } catch {
     throw new Error(`compile failed for ${cfg.id} (zig ${zig.version})`);
   }
   let asyncifyCached = false;
+  const asyncifyStarted = performance.now();
   if (cfg.asyncify) {
     // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
@@ -148,6 +170,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
     const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from('O2/asyncify/bgt.yield/v1')]));
     const postDir=join(ROOT,'node_modules/.cache/bgt/asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
+    const releasePost = leaseCache(postDir,[cached]);
     try {
       if(existsSync(cached)){cpSync(cached,wasmPath);asyncifyCached=true;}
       else {
@@ -156,8 +179,11 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
       }
     } catch {
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
-    }
+    } finally { releasePost(); }
+    touchCache([cached]);
+    pruneCache(postDir,Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576);
   }
+  const asyncifyMs = performance.now()-asyncifyStarted;
   if (withCrt) writeFileSync(join(outDir, 'CRT-NOTICES.txt'), libcNotices(zig.path));
   const wasm = readFileSync(wasmPath);
 
@@ -211,6 +237,23 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     assets.push({ path: to, size: data.byteLength, sha256: hash, url: `assets/${to}?h=${hash.slice(0, 16)}`, original: true });
   }
 
+  // Win32 directory enumeration uses the same asset/stream inventory as the browser VFS.
+  // This generated index is private build output, never a copy of a trial import measurement.
+  if (pipe) {
+    const files = new Map();
+    for (const f of [...assets, ...streams]) {
+      if (f.path.startsWith('loader/')) continue;
+      const path = f.path.startsWith('modules/') ? f.path.slice(8) : f.path;
+      if (/[\t\r\n]/.test(path)) throw new Error('Win32 file name contains an index delimiter');
+      files.set(path, f.size);
+    }
+    const data = Buffer.from([...files].sort(([a], [b]) => a.localeCompare(b))
+      .map(([path, size]) => `${size}\t${path}\n`).join(''));
+    const hash = sha256(data), path = 'bgt-file-index.txt';
+    writeFileSync(join(outDir, 'assets', path), data);
+    assets.push({ path, size: data.length, sha256: hash, url: `assets/${path}?h=${hash.slice(0,16)}` });
+  }
+
   let slice = null;
   if(pipe?.slicePlan) {
     const kept=new Set();let total=0,included=0;
@@ -244,7 +287,7 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
   if (pipe) {
     manifest.pipeline = pipe.report;
     const instructions = pipe.report.modules.reduce((n,m) => n+(m.lift ? m.lift.specialized+m.lift.generic : 0),0);
-    manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+    manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
     if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B`);

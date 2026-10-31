@@ -67,6 +67,17 @@ export { expect };
 
 export const requireWebGPU = () => process.env.BGT_REQUIRE_WEBGPU === '1';
 
+/** Software rasterizers are best effort, not a pixel/performance support gate.
+ * Guard only hardware-sensitive assertions; keep guest execution/logic checks running.
+ * Explicit opt-in: never infer this from OS/CI and weaken a real-GPU run. */
+export function hardwarePixels(): boolean {
+  if (process.env.BGT_SOFTWARE_RENDERER !== '1') return true;
+  const info = test.info(), description = 'software renderer: untested environment';
+  if (!info.annotations.some(a => a.type === 'pixel-assertions-skipped' && a.description === description))
+    info.annotations.push({ type: 'pixel-assertions-skipped', description });
+  return false;
+}
+
 export async function openGame(
   page: Page,
   backend: string,

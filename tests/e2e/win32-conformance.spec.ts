@@ -3,6 +3,7 @@
 // The fixture (examples/win32-conformance) draws every op kind, reads the pixels back in the guest and reports
 // them in guest memory; the test reads that report with the read-only peek and the GPU pixels with readPixels.
 import { test, expect, openGame, assertBackend, diagnostics, step, readPixels, attachScreenshot, catches, peekBytes } from './fixtures';
+import { hardwarePixels } from './fixtures';
 import { CW, RH, LOADER_CHECKS, REPORT_BYTES, parseReport, reportAddress, rgbOf } from '../support/conformance';
 
 test('CPU replay of GDI ops matches GPU output for every recorded op kind; loader follows Win32', async ({ page, backendParam, collector }, testInfo) => {
@@ -26,6 +27,8 @@ test('CPU replay of GDI ops matches GPU output for every recorded op kind; loade
   expect(d.errors).toEqual([]);
   await attachScreenshot(page, testInfo, 'win32-conformance.png');
 
+  // All loader/CPU replay/guest checks above run on software too.
+  if (!hardwarePixels()) return;
   // GPU pixels at logical pixel centres
   const px = await readPixels(page);
   const s = d.letterbox.w / d.logical.width;

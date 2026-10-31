@@ -33,8 +33,8 @@ static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writi
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
     uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_remaining << 8) | (writing << 5) | n;
-    fprintf(o, "address=%s;p=xl_pointer(address,%d);if(!p){fault=0x%llxull;value=%s;goto memory_fault;}\n",
-            ea, n, (unsigned long long)meta, value);
+    fprintf(o, "address=%s;p=xl_pointer_access(address,%d,%d);if(!p){fault=0x%llxull;value=%s;goto memory_fault;}\n",
+            ea, n, writing ? 2 : 1, (unsigned long long)meta, value);
 }
 static void l64_read(FILE *o, const x86_opnd_t *p, const char *dest, uint32_t next) {
     if (p->kind == XK_IMM) fprintf(o, "%s=0x%llxull;", dest,

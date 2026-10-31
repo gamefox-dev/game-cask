@@ -19,11 +19,12 @@
  * SPDX-License-Identifier: MIT
  */
 #include "w32_int.h"
+#include "w32_thread.h"
 
 extern const uint8_t BGT_FONT5X7[95][7];
 
 /* ------------------------------------------------------------------ objects */
-enum { OB_NONE, OB_BITMAP, OB_BRUSH, OB_PEN, OB_FONT, OB_RGN, OB_PAL };
+enum { OB_NONE, OB_BITMAP, OB_BRUSH, OB_PEN, OB_FONT, OB_RGN, OB_PAL, OB_ICON };
 typedef struct {
     int type, stock;
     int32_t w, h;
@@ -294,6 +295,40 @@ static uint32_t *cpu_px(gobj_t *b) {
         b->cpu_valid = !b->tex; /* if it was already drawn on the GPU, these pixels are not the truth */
     }
     return b->cpu;
+}
+
+/* ICONINFO owns copies of its mask/color bitmaps; the caller retains the originals. */
+uint32_t w32_CreateIconIndirect(void) {
+    uint32_t p=ARG(0),size=W32_64?32:20;
+    if(!p||!x86_mapped(p,size)){*w32_thread_error()=87;return 0;}
+    uint32_t mask=(uint32_t)w32_rdptr(p+(W32_64?16:12)),color=(uint32_t)w32_rdptr(p+(W32_64?24:16));
+    gobj_t *m=getobj(mask),*c=getobj(color);
+    if(!m||m->type!=OB_BITMAP||!m->mono||(color&&(!c||c->type!=OB_BITMAP))||(!c&&(m->h&1))||(c&&(c->w!=m->w||c->h!=m->h))){*w32_thread_error()=87;return 0;}
+    if((m->tex&&!m->cpu_valid)||(c&&c->tex&&!c->cpu_valid)){*w32_thread_error()=50;return 0;}
+    uint32_t h=newobj(OB_ICON);gobj_t *icon=getobj(h);icon->w=m->w;icon->h=c?c->h:m->h/2;icon->mono=!c;
+    icon->style=x86_rd32(p)!=0;
+    icon->rl=icon->style?icon->w/2:(int32_t)x86_rd32(p+4);icon->rt=icon->style?icon->h/2:(int32_t)x86_rd32(p+8);
+    if(!icon->style&&(icon->rl<0||icon->rt<0||icon->rl>=icon->w||icon->rt>=icon->h)){icon->type=OB_NONE;*w32_thread_error()=87;return 0;}
+    uint32_t pixels=(uint32_t)(m->w*m->h),colors=c?(uint32_t)(c->w*c->h):0;
+    icon->cpu=x86_alloc((pixels+colors)*4);if(!icon->cpu){icon->type=OB_NONE;*w32_thread_error()=8;return 0;}
+    __builtin_memcpy(icon->cpu,cpu_px(m),pixels*4);if(c)__builtin_memcpy(icon->cpu+pixels,cpu_px(c),colors*4);
+    icon->cpu_valid=1;return h;
+}
+uint32_t w32_GetIconInfo(void) {
+    gobj_t *icon=getobj(ARG(0));uint32_t out=ARG(1),size=W32_64?32:20;
+    if(!icon||icon->type!=OB_ICON){*w32_thread_error()=6;return 0;}
+    if(!out||!x86_accessible(out,size,2)){*w32_thread_error()=87;return 0;}
+    uint32_t mask=new_bitmap(icon->w,icon->mono?icon->h*2:icon->h,1),color=0;
+    gobj_t *m=getobj(mask);uint32_t pixels=(uint32_t)(m->w*m->h);
+    __builtin_memcpy(cpu_px(m),icon->cpu,pixels*4);
+    if(!icon->mono){color=new_bitmap(icon->w,icon->h,0);__builtin_memcpy(cpu_px(getobj(color)),icon->cpu+pixels,(uint32_t)(icon->w*icon->h)*4);}
+    for(uint32_t i=0;i<size;i++)x86_wr8(out+i,0);
+    x86_wr32(out,(uint32_t)icon->style);x86_wr32(out+4,(uint32_t)icon->rl);x86_wr32(out+8,(uint32_t)icon->rt);
+    w32_wrptr(out+(W32_64?16:12),mask);w32_wrptr(out+(W32_64?24:16),color);return 1;
+}
+uint32_t w32_DestroyIcon(void) {
+    gobj_t *o=getobj(ARG(0));if(!o||o->type!=OB_ICON){*w32_thread_error()=6;return 0;}
+    o->type=OB_NONE;return 1;
 }
 
 /* decode a packed DIB (BITMAPINFOHEADER/BITMAPCOREHEADER + palette + bits) from guest memory.
@@ -643,6 +678,9 @@ static uint32_t g_SelectClipRgn(void) {
     return 2;
 }
 static uint32_t g_ExcludeClipRect(void) { w32_m.gdi_unsupported++; return 2; } /* rect-only clip model: ignored (counted) */
+/* Arbitrary polygon masks cannot be represented by the current rectangular region model.
+ * Return failure rather than widening the clip to a bounding box. */
+static uint32_t g_CreatePolygonRgn(void) { w32_m.gdi_unsupported++; return 0; }
 static uint32_t g_CreateRectRgn(void) {
     uint32_t h = newobj(OB_RGN);
     gobj_t *o = getobj(h);
@@ -751,12 +789,14 @@ static uint32_t g_GetObject(void) {
     uint32_t n = ARG(1), p = ARG(2);
     if (!o) return 0;
     if (o->type == OB_BITMAP) {
-        if (!p) return 24;
+        uint32_t bytes=W32_64?32:24;
+        if (!p) return bytes;
         uint32_t vals[6] = {0, (uint32_t)o->w, (uint32_t)o->h, (uint32_t)((o->mono ? (o->w + 15) / 16 * 2 : o->w * 4)), 0, 0};
         for (uint32_t i = 0; i < 4 && 4 * i < n; i++) x86_wr32(p + 4 * i, vals[i]);
         if (n >= 16) { x86_wr16(p + 16, 1); x86_wr16(p + 18, o->mono ? 1 : 32); }
-        if (n >= 24) x86_wr32(p + 20, o->dib_bits);
-        return n < 24 ? n : 24;
+        if (W32_64 && n>=24) x86_wr32(p+20,0);
+        if (n >= bytes) w32_wrptr(p+(W32_64?24:20),o->dib_bits);
+        return n < bytes ? n : bytes;
     }
     if (o->type == OB_BRUSH) { if (p && n >= 12) { x86_wr32(p, o->style == 1 ? 1 : o->style == 3 ? 3 : 0); x86_wr32(p + 4, o->color); x86_wr32(p + 8, 0); } return 12; }
     if (o->type == OB_PEN) { if (p && n >= 16) { x86_wr32(p, (uint32_t)o->style); x86_wr32(p + 4, (uint32_t)o->width); x86_wr32(p + 8, 0); x86_wr32(p + 12, o->color); } return 16; }
@@ -1107,8 +1147,10 @@ static uint32_t g_LineDDA(void) {
 }
 
 #define API(n, a, f) {n, a, 0, f}
+#define FAPI(n, a, f) API(n, a, f)
 #define STUB(n, a) {n, a, 0, 0}
 const w32_api_t w32_api_gdi[] = {
+    FAPI("CreatePolygonRgn",3,g_CreatePolygonRgn),
     API("CreateCompatibleDC", 1, g_CreateCompatibleDC), API("DeleteDC", 1, g_DeleteDC), API("SaveDC", 1, g_SaveDC), API("RestoreDC", 2, g_RestoreDC),
     API("SelectObject", 2, g_SelectObject), API("DeleteObject", 1, g_DeleteObject), API("GetStockObject", 1, g_GetStockObject),
     API("GetCurrentObject", 2, g_GetCurrentObject),

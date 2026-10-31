@@ -84,6 +84,19 @@ describe('pi bridge persistent state and wait semantics', () => {
     expect(s.state.nextId).toBe(1);
     expect(() => status(s, { context: { percent: 'bad' } })).toThrow();
   });
+  it('gives run CI reviewer requests 45 minutes, preserving explicit timeouts and ordinary defaults', () => {
+    const s = store();
+    for (const question of ['please run CI', 'Please RUN ci after the merge']) {
+      const q = s.question({ lane: 'G', to: 'reviewer', question });
+      expect(q.expiresAt - q.createdAt).toBe(2700_000);
+    }
+    for (const timeout_s of [0, 12, 3600]) {
+      const q = s.question({ lane: 'G', to: 'reviewer', question: 'please run CI', timeout_s });
+      expect(q.expiresAt - q.createdAt).toBe(timeout_s * 1000);
+    }
+    const q = s.question({ lane: 'G', to: 'reviewer', question: 'review the circuit and decide' });
+    expect(q.expiresAt - q.createdAt).toBe(900_000);
+  });
   it('claims one live question at a time, retries delivery, and never claims fork questions', () => {
     const s = store(); status(s);
     s.question({ lane: 'G', to: 'instance', mode: 'fork', question: 'copy' });
@@ -108,12 +121,13 @@ describe('pi bridge persistent state and wait semantics', () => {
     expect(matchWait(s.state, ['stalled'], [], s.state.seq, now, 10).type).toBe('stalled');
     status(s); expect(matchWait(s.state, ['stalled'], [], s.state.seq, now, 10)).toBeNull();
   });
-  it('does not report agent_end as finished, resets status for a replacement session', () => {
+  it('never reports agent_end OR agent_settled as driver finished; replacement sessions reset context', () => {
     const s = store(); status(s, { sessionId: 'old', context: { percent: 90 } });
     s.status({ lane: 'G', event: 'agent_end' });
     expect(matchWait(s.state, ['finished'])).toBeNull();
     s.status({ lane: 'G', event: 'agent_settled', phase: 'finished' });
-    expect(matchWait(s.state, ['finished']).type).toBe('finished');
+    expect(matchWait(s.state, ['finished'])).toBeNull();
+    expect(s.state.lanes.G.agentPhase).toBe('finished');
     status(s, { sessionId: 'new' });
     expect(s.state.lanes.G.context).toBeUndefined();
   });
@@ -173,15 +187,17 @@ describe('pi bridge HTTP and CLI (no model)', () => {
     expect((await cli('questions')).stdout).toContain('options=["a","b"]');
     expect((await cli('answer', '--id', String(q.id), 'a')).stdout).toContain('answered');
     expect((await cli('questions')).stdout).toBe('');
-    await post('/status', { lane: 'G', phase: 'finished' });
+    await post('/lifecycle', { lane: 'G', runId: 'driver', action: 'started' });
+    await post('/lifecycle', { lane: 'G', runId: 'driver', action: 'ended', code: 0 });
     await expect(cli('ask', '--lane', 'G', 'too late')).rejects.toThrow();
   });
   it('wait CLI blocks then exits with exactly one line on a new finished event', async () => {
     const { store: s, cli } = await serve(); status(s);
     const waiting = cli('wait', '--for', 'finished', '--lanes', 'G', '--timeout-s', '4');
     await new Promise(done => setTimeout(done, 120));
-    status(s, { phase: 'finished' });
-    expect((await waiting).stdout).toBe('G finished\n');
+    s.lifecycle({ lane: 'G', runId: 'driver', action: 'started' });
+    s.lifecycle({ lane: 'G', runId: 'driver', action: 'ended', code: 4 });
+    expect((await waiting).stdout).toBe('G finished exit=4\n');
   });
   it('wait handles queued questions, late startup, lane filters, timeout and cancellation', async () => {
     const { store: s, base } = await serve(); status(s);
@@ -315,7 +331,10 @@ describe('pi bridge extension boundaries', () => {
     await hooks.turn_end(assistant('brief answer'), ctx);
     expect(s.state.answers[0]).toMatchObject({ id: q.id, text: 'brief answer' });
     await hooks.agent_end({}, ctx); expect(s.state.lanes.G.phase).toBe('running');
-    await hooks.agent_settled({ aborted: false }, ctx); expect(s.state.lanes.G.phase).toBe('finished');
+    await hooks.agent_settled({ aborted: false }, ctx);
+    expect(s.state.lanes.G.phase).toBe('running');
+    expect(s.state.lanes.G.agentPhase).toBe('finished');
+    expect(matchWait(s.state, ['finished'])).toBeNull();
   });
   it('ask_reviewer receives a human answer and explicitly returns the default on timeout', async () => {
     const { store: s, tool } = await extension();

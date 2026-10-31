@@ -8,11 +8,17 @@ No BGT ABI change is required: the only suspending host import remains `bgt_yiel
 
 - Thread IDs are monotonically assigned, starting with primary thread 1. The bounded process admits 64 total
   thread creations including the primary thread; exhausted tables fail explicitly with ERROR_NOT_ENOUGH_MEMORY.
-- Each context contains all guest GPRs, XMM registers, flags, MXCSR, FS/GS bases, instruction clock and PC/SP.
+- Each context contains all guest GPRs, XMM registers, flags, MXCSR, K3 x87 stack/tags/control/status,
+  FS/GS bases, instruction clock and PC/SP.
   Workers have independent guest stacks, TEBs, last-error cells, static TLS templates and dynamic TLS/FLS values.
 - A blocking thunk first completes its guest return/stack cleanup. It requests transfer value 2, which unwinds
   generated native C frames to the process driver. The driver saves the context, resolves waiters, then chooses
-  the first runnable context strictly after the previous one, wrapping through the fixed thread table.
+  the next credited runnable context strictly after the previous one, wrapping through the fixed thread table.
+  Default equal weights preserve round robin. Kernel SetThreadPriority -2..2 and AVRT use weights 1..5;
+  kernel IDLE/TIME_CRITICAL (-15/+15) map to endpoint weights, not host realtime. GetThreadPriority preserves
+  the kernel-requested Windows value. Credits refill only when eligible peers exhaust a round, never on a setter;
+  repeated high-priority calls cannot starve peers (bounded by 5×64 selections). AVRT uses the same last-setter
+  scheduler hook and revert restores its default weight.
   An SEH/longjmp transfer (value 1) instead resumes the same context.
 - Wait arbitration scans in that same rotating order. Wait-any chooses the lowest available array index;
   wait-all checks every object before consuming anything. Auto events consume one signal, semaphores one token;
@@ -39,8 +45,8 @@ There is no decoder/fetch loop in the generated code, and the fixtures assert ze
 
 ## Implemented surface
 
-CreateThread, _beginthreadex, ExitThread, _endthreadex, GetExitCodeThread, thread handles/current IDs,
-CREATE_SUSPENDED + ResumeThread; WaitForSingleObject[Ex]/WaitForMultipleObjects[Ex]; unnamed manual/auto events,
+CreateThread, _beginthread/_beginthreadex, ExitThread, _endthread/_endthreadex, GetExitCodeThread,
+GetThreadPriority/SetThreadPriority, thread handles/current IDs, CREATE_SUSPENDED + SuspendThread/ResumeThread; WaitForSingleObject[Ex]/WaitForMultipleObjects[Ex]; unnamed manual/auto events,
 recursive mutexes, counting semaphores; critical sections, exclusive/shared SRW locks and condition variables;
 WaitOnAddress/WakeByAddressSingle/All; Sleep/SleepEx/SwitchToThread; scalar/pointer/64-bit Interlocked operations;
 64 reusable TLS slots, 128 reusable FLS slots with destructor callbacks (four exit passes).
@@ -54,12 +60,15 @@ The AMD64 primary PEB was moved out of the full TEB to avoid aliasing TLS slots 
 This is a bounded single-process cooperative profile, not arbitrary Windows compatibility. The lock registry holds
 512 live lock addresses; DeleteCriticalSection releases its entry for reuse. Named object namespaces
 are rejected with ERROR_NOT_SUPPORTED; no cross-process handles, security/access enforcement, APC queues, alertable
-APC delivery, thread priorities, asynchronous SuspendThread/TerminateThread, fibers, or dynamic module attachment.
+APC delivery, host realtime scheduling, asynchronous TerminateThread, fibers, or dynamic module attachment.
+SuspendThread counts are implemented cooperatively and remain independent of sleep/event waits; this is not
+asynchronous host-context suspension. GetThreadContext/SetThreadContext fail explicitly rather than invent snapshots.
 The Ex wait/sleep APIs provide ordinary waits (no APC delivery). Handles are non-reused numeric slots (1023 total
 synchronisation/thread handles); closing one never terminates its worker. Stacks/TEBs are retained for process life.
 Native callback nesting is LIFO: cyclic dependencies between separately parked profile callbacks need general native
 continuation switching. Existing InitOnceExecuteOnce remains the older single-thread bridge, not a new concurrency
-contract. Broader CRT per-thread locale/errno and x87 stack switching are not provided by this thread layer.
+contract. Broader CRT per-thread locale/errno remain bounded. Whole-CPU copies isolate x87 state per thread;
+precision/exception boundaries are documented in [X87.md](../x86/X87.md).
 
 ## Evidence / reproduction
 

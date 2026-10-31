@@ -12,7 +12,7 @@ static uint64_t c_strxfrm(void) {
     uint32_t n = slen(ARG(1), 0), cap = ARG(2);
     if (cap) {
         uint32_t copy = n < cap ? n + 1 : cap;
-        memcpy(cmem(ARG(0), copy), cmem(ARG(1), copy), copy);
+        memcpy(cwmem(ARG(0), copy), cmem(ARG(1), copy), copy);
     }
     return n;
 }
@@ -20,7 +20,7 @@ static uint64_t c_wcsxfrm(void) {
     uint32_t n = slen(ARG(1), 1), cap = ARG(2);
     if (cap) {
         uint32_t copy = (n < cap ? n + 1 : cap) * 2;
-        memcpy(cmem(ARG(0), copy), cmem(ARG(1), copy), copy);
+        memcpy(cwmem(ARG(0), copy), cmem(ARG(1), copy), copy);
     }
     return n;
 }

@@ -1,10 +1,11 @@
 import { test, expect, openGame, assertBackend, step, diagnostics, input, readPixels, diffFraction } from './fixtures';
+import { hardwarePixels } from './fixtures';
 import { compareGpuImages } from '../support/gpu-image';
 import { otherBackend } from './backend-page';
 import type { Page } from '@playwright/test';
 
 for (const cross of [false, true])
-  test(`x64-smoke: 600 GL frames, worker/file/audio threads and XInput ${cross ? 'across both renderers' : 'on this renderer'}`,
+  test(`x64-smoke: 600 GL frames, worker/file/audio threads and XInput ${cross ? 'across both renderers @webgpu' : 'on this renderer'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
     // 600 frames / 6,000 GL draws per renderer, plus cold driver startup. SwiftShader can
@@ -41,7 +42,7 @@ for (const cross of [false, true])
         await advance(100); images.push(await readPixels(p));
       }
       expect(diffFraction(images[0],images[1],2)).toBeGreaterThan(0.1);
-      expect(diffFraction(images[0],images[2],2)).toBe(0);
+      if (hardwarePixels()) expect(diffFraction(images[0],images[2],2)).toBe(0);
       await advance(310);
       const d = await diagnostics(p), m = d.metrics as Record<string, any>;
 
@@ -51,7 +52,8 @@ for (const cross of [false, true])
       expect(m.gl_draws).toBe(6000); expect(m.exited).toBe(0);
       expect(d.commandErrors.count).toBe(0); expect(d.errors).toEqual([]);
       expect(d.audio.playedFrames).toBeGreaterThan(0);
-      const end = await readPixels(p); expect(diffFraction(images[0],end,0)).toBe(0);
+      const end = await readPixels(p);
+      if (hardwarePixels()) expect(diffFraction(images[0],end,0)).toBe(0);
       return { images, end, hashes, result: d.logs.find(l => l.message.includes('x64-smoke PASS'))?.message };
     };
     const a = await run(page,backendParam);

@@ -1,7 +1,7 @@
 import {beforeAll,it,expect} from 'vitest';
 import {compileC} from '../support/compile';
 let ex:any,dv:DataView;
-beforeAll(async()=>{const result=await WebAssembly.instantiate(await compileC('tests/fixtures/c/x64_semantics.c'));ex=result.instance.exports;dv=new DataView(ex.memory.buffer);});
+beforeAll(async()=>{const result=await WebAssembly.instantiate(await compileC('tests/fixtures/c/x64_semantics.c', [], true));ex=result.instance.exports;dv=new DataView(ex.memory.buffer);});
 function reset(){ex.reset();}
 function reg(i:number,v?:bigint){const o=ex.regs()+i*8;if(v!==undefined)dv.setBigUint64(o,BigInt.asUintN(64,v),true);return dv.getBigUint64(o,true);}
 function vec(i:number,v:number[],type='u32'){const o=ex.vectors()+i*16;if(type==='f64'){v.forEach((n,k)=>dv.setFloat64(o+8*k,n,true));}else if(type==='f32'){v.forEach((n,k)=>dv.setFloat32(o+4*k,n,true));}else v.forEach((n,k)=>dv.setUint32(o+4*k,n,true));}

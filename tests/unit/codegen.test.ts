@@ -117,6 +117,23 @@ it('flat-memory faults spill locals, live flags and reference partial cross-page
   }
 });
 
+it('global protection flag disables lifted span fast paths and protected writes fault with identical state', async () => {
+  // Straight-line guarded block writes across two mapped pages: first RW, second read-only.
+  const h = await harness('48c7c3fc2f0000eb0048b88877665544332211488903c3');
+  expect(h.text).toContain('if(x86_protection_active||!xl_pointer(');
+  const execute = (interp: number) => {
+    h.ex.reset(base, 0); h.ex.protect(3, 2); // PAGE_READONLY
+    expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
+    return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+      ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+  };
+  expect(execute(0)).toEqual(execute(1));
+  // A read-only load is legal, but the global flag must still force the checked boundary.
+  const read = await harness('48c7c300300000eb00488b03c3');
+  read.ex.reset(base, 0); read.ex.protect(3, 2);
+  expect(read.ex.run(0)).toBeGreaterThan(0);
+});
+
 it('negative RBP displacements stay in signed guarded spans without reference fallback', async () => {
   // Set RBP in a preceding block so the guarded block has an unchanged base.
   // Wrongly zero-extending -8 guards RBP+0xfffffff8 instead and forces reference execution.

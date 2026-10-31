@@ -1,0 +1,12 @@
+{
+  "id": "x64-scale",
+  "name": "CC0 generated Win64 scale fixture",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true,
+      "out": "scale.exe", "generator": "generate.mjs", "generatorArgs": [12000]
+    },
+    "modules": [{"from": "./build/scale.exe", "main": true}]
+  }
+}

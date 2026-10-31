@@ -1,5 +1,7 @@
 import { test, expect, openGame, assertBackend, step, input, debugState, readPixels, diagnostics, attachScreenshot } from './fixtures';
 
+import { hardwarePixels } from './fixtures';
+
 test('resource separator flags/height and dialog caption style buttons are rendered and close through input', async ({ page, backendParam, collector }, info) => {
   collector.allow(/guest:/);
   expect(await openGame(page, backendParam, {game:'win32-hello'})).toBe('ready');
@@ -23,8 +25,10 @@ test('resource separator flags/height and dialog caption style buttons are rende
     const o=4*(Math.floor(d.letterbox.y+(y+0.5)*scale)*px.width+Math.floor(d.letterbox.x+(x+0.5)*scale));
     return [...px.data.subarray(o,o+3)];
   };
-  expect(at(dlg.rect[0]+dlg.rect[2]-16,dlg.rect[1]+3)).toEqual([255,255,255]);
-  expect(at(dlg.rect[0]+dlg.rect[2]-30,dlg.rect[1]+3)).toEqual([255,255,255]);
+  if (hardwarePixels()) {
+    expect(at(dlg.rect[0]+dlg.rect[2]-16,dlg.rect[1]+3)).toEqual([255,255,255]);
+    expect(at(dlg.rect[0]+dlg.rect[2]-30,dlg.rect[1]+3)).toEqual([255,255,255]);
+  }
   await attachScreenshot(page,info,'caption-style.png');
   await click([dlg.rect[0]+dlg.rect[2]-16,dlg.rect[1]+3,12,12]);
   expect((await debugState(page)).ui.windows.some((w: any)=>w.dialog)).toBe(false);

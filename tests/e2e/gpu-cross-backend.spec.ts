@@ -6,13 +6,14 @@ import type { Page } from '@playwright/test';
 // One common GLSL330/ES300 scene stream, with the original native-WGSL/lifetime cases retained as arg1=2/3.
 // RGB delta <=2, <=1.5% displaced raster/filter pixels; symmetric one-device-pixel match required.
 for (const scene of [0,1,2,3,4,5,6,7,8,9]) for (const cross of [false, true])
-  test(`GPU shared scene ${scene}: ${cross ? 'cross-backend pixels' : 'backend execution and readback'}`,
+  test(`GPU shared scene ${scene}: ${cross ? 'cross-backend pixels @webgpu' : 'backend execution and readback'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
     const capture = async (target: Page, backend: string) => {
       await target.setViewportSize({width:160,height:128});
-      await openGame(target, backend, { game: 'gpu-scenes', arg0: String(scene) });
+      const status = await openGame(target, backend, { game: 'gpu-scenes', arg0: String(scene) });
       await assertBackend(target, backend, info);
+      expect(status, JSON.stringify(await diagnostics(target))).toBe('ready');
       for (let i=0; i<40; i++) {
         await step(target, 1); await target.waitForTimeout(10);
         if ((await debugState(target)).read) break;

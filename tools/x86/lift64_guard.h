@@ -72,7 +72,9 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
 }
 static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t count) {
     if (!g->safe || !g->n) return;
-    fprintf(o, "if(");
+    /* K2/K3: permissions can change at API boundaries. Fall back before any local
+     * mutation; reference semantics enforce each operand's actual read/write access. */
+    fprintf(o, "if(x86_protection_active||");
     for (int i = 0; i < g->n; i++) {
         const l64_span_t *s = &g->spans[i]; x86_opnd_t p = s->first;
         /* Build the affine expression with a full-width displacement, not truncated to disp32. */

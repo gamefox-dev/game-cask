@@ -203,6 +203,7 @@ export class GameHost {
   readonly importCounts: Record<string, number> = {};
   commandErrorCount = 0;
   readonly timings: HostTimings = { updateMs: 0, renderMs: 0, decodeMs: 0 };
+  instantiateMs = 0;
   private exports!: GameExports;
   private ioPtr = 0;
   private initialized = false;
@@ -243,7 +244,9 @@ export class GameHost {
     const names = WebAssembly.Module.exports(module).map((e) => e.name);
     const absent = REQUIRED_EXPORTS.filter((n) => !names.includes(n));
     if (absent.length) throw new HostError(`game is missing required exports: ${absent.join(', ')}`);
+    const instantiateStart = performance.now();
     const instance = await WebAssembly.instantiate(module, imports);
+    host.instantiateMs = performance.now()-instantiateStart;
     host.exports = instance.exports as unknown as GameExports;
     const v = host.exports.bgt_abi_version() >>> 0;
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits

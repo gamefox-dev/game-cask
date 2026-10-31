@@ -86,15 +86,7 @@ void x86_exec64(const x86_insn_t *in) {
     case XO_JECXZ:if(!(in->asz==4?(uint32_t)X.r[ECX]:X.r[ECX]))X.eip=in->target;return;
     case XO_CPUID:cpuid();return;case XO_RDTSC:X.r[EAX]=(uint32_t)X.tsc;X.r[EDX]=(uint32_t)(X.tsc>>32);return;
     case XO_SIMD:x86_simd(in);return;
-    case XO_FPU:
-        if (in->simd_op == 0xdb && (in->simd_imm == 0xe3 || in->simd_imm == 0xe2)) {
-            X.mxcsr = 0x1f80; return;
-        }
-#ifdef X86_FLAT_GUEST
-        x86_x87(in); return;
-#else
-        x86_fault("x87 arithmetic unsupported", in->addr);
-#endif
+    case XO_FPU: x86_x87(in); return;
     default:x86_fault("unsupported AMD64 instruction",in->addr);
     }
 }

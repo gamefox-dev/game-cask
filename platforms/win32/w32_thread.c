@@ -21,7 +21,8 @@ typedef struct {
     uint32_t error, teb, stack, code, object, kind, start_ms, timeout_ms, finite, suspended;
     uint32_t handles[64], count, all, lock, shared, recursive, cv, notified, address, size, deferred;
     uint64_t compare;
-    int fresh;
+    int fresh, crt_auto_close;
+    int32_t priority;
 } thread_t;
 static thread_t threads[X86_THREADS];
 static object_t objects[OBJECTS];
@@ -182,7 +183,7 @@ static void wake_waiters(void) {
         default: break;
         }
         if (done) {
-            t->kind = NONE; x86_tasks[i].ready = 1; x86_tasks[i].cpu.r[EAX] = result;
+            t->kind = NONE; x86_tasks[i].ready = !t->suspended; x86_tasks[i].cpu.r[EAX] = result;
             *error_cell(t) = t->error;
             if (t->deferred) { w32_trace_result(result); t->deferred = 0; }
         }
@@ -243,6 +244,7 @@ void w32_thread_return(uint32_t code) {
     }
     if (x86_current) tls_notify(3);
     t->code = code;
+    if (t->crt_auto_close && t->object) objects[t->object-H_SYNC].closed=1;
     x86_tasks[x86_current].live = x86_tasks[x86_current].ready = 0;
     for (uint32_t i = 1; i <= nobjects; i++) if (objects[i].kind == MUTEX && objects[i].owner == x86_current) {
         objects[i].owner = INFINITE; objects[i].recursion = 0; objects[i].abandoned = 1;
@@ -296,7 +298,7 @@ void w32_thread_quantum(void) {
 }
 static uint32_t create_thread(int begin) {
     if (nthreads == X86_THREADS) { self()->error = 8; return 0; }
-    uint32_t flags = ARG(4);
+    uint32_t flags = begin==2?0:ARG(4);
     if (flags & ~4u) { self()->error = 87; return 0; }
     uint32_t h = new_object(THREAD);
     if (!h) return 0;
@@ -317,7 +319,8 @@ static uint32_t create_thread(int begin) {
     if (!W32_64) x86_wr32(t->teb, INFINITE);
     tls_image(t->teb);
     x86_cpu_t saved = X;
-    uint32_t entry = ARG(2); uint64_t arg = ARG64(3); uint32_t idptr = ARG(5);
+    uint32_t entry = ARG(begin==2?0:2); uint64_t arg = ARG64(begin==2?2:3); uint32_t idptr = begin==2?0:ARG(5);
+    t->crt_auto_close=begin==2;
     x86_cpu_t *cpu = &x86_tasks[i].cpu;
     __builtin_memset(cpu, 0, sizeof *cpu);
     cpu->mode64 = saved.mode64; cpu->mxcsr = 0x1f80; cpu->eip = entry;
@@ -372,9 +375,12 @@ static void notify(uint32_t addr, int all, int address) {
 /* One signature table is shared by GetProcAddress, i386 cleanup and AMD64 dispatch. */
 #define T(n, a) {n, a, 0, 0}
 #define C(n, a) {n, a, 1, 0}
+#define TF(n,a) T(n,a)
 #define T64(n, a32, a64) {n, W32_64 ? a64 : a32, 0, 0}
 static const w32_api_t api[] = {
-    T("CreateThread",6), C("_beginthreadex",6), T("ExitThread",1), C("_endthreadex",1),
+    T("CreateThread",6), C("_beginthreadex",6), C("_beginthread",3), C("_endthread",0), C("_lock",1), C("_unlock",1),
+    T("GetTickCount64",0), T("GetThreadPriority",1), T("SetThreadPriority",2), T("SuspendThread",1), TF("GetThreadContext",2), TF("SetThreadContext",2),
+    T("ExitThread",1), C("_endthreadex",1),
     T("GetExitCodeThread",2), T("GetCurrentThreadId",0), T("GetCurrentThread",0), T("ResumeThread",1),
     T("WaitForSingleObject",2), T("WaitForSingleObjectEx",3), T("WaitForMultipleObjects",4),
     T("WaitForMultipleObjectsEx",5), T("Sleep",1), T("SleepEx",2), T("SwitchToThread",0),
@@ -408,9 +414,45 @@ const w32_api_t *w32_thread_find(const char *name) {
 static uint64_t thread_api(const char *name) {
     thread_t *t = self();
     uint32_t p = ARG(0), v = ARG(1);
-    if (IS("CreateThread") || IS("_beginthreadex")) return create_thread(IS("_beginthreadex"));
+    if (IS("CreateThread") || IS("_beginthreadex") || IS("_beginthread")) {
+        uint32_t h=create_thread(IS("_beginthread")?2:IS("_beginthreadex"));
+        return !h&&IS("_beginthread")?(W32_64?UINT64_MAX:FAILED):h;
+    }
+    if (IS("_endthread")) { w32_thread_return(0); return 0; }
+    if (IS("_lock") || IS("_unlock")) {
+        static uint32_t crt_locks;
+        if(p>=64)x86_fault("invalid CRT lock number",p);
+        if(!crt_locks)crt_locks=w32_misc_alloc(64*8);
+        uint32_t addr=crt_locks+8*p;
+        if(IS("_unlock")){release(addr,0);return 0;}
+        t->lock=addr;t->shared=0;t->recursive=1;
+        if(acquire(addr,x86_current,0,1))return 0;
+        return block(LOCK_WAIT,INFINITE);
+    }
+    if(IS("GetThreadPriority") || IS("SetThreadPriority") || IS("SuspendThread") || IS("GetThreadContext") || IS("SetThreadContext")) {
+        object_t *o=object(p);uint32_t tid=p==0xfffffffeu?x86_current:o&&o->kind==THREAD?o->thread:X86_THREADS;
+        if(tid==X86_THREADS){t->error=6;return IS("GetThreadPriority")?0x7fffffffu:IS("SuspendThread")?FAILED:0;}
+        if(IS("GetThreadPriority"))return (uint64_t)(int64_t)threads[tid].priority;
+        if(IS("SetThreadPriority")){
+            int32_t priority=(int32_t)v;
+            if((priority<-2||priority>2)&&priority!=-15&&priority!=15){t->error=87;return 0;}
+            /* Windows idle/time-critical map to the bounded endpoint weights, not realtime.
+             * The scheduler never replenishes credits on a priority change. */
+            int weight_priority=priority<-2?-2:priority>2?2:priority;
+            if(!x86_sched_set_priority(tid,weight_priority)){t->error=87;return 0;}
+            threads[tid].priority=priority;return 1;
+        }
+        if(IS("SuspendThread")){
+            uint32_t old=threads[tid].suspended;
+            if(old==127){t->error=298;return FAILED;}
+            threads[tid].suspended++;x86_tasks[tid].ready=0;
+            if(tid==x86_current)yield_requested=1;return old;
+        }
+        t->error=50;return 0; /* no asynchronous context editing */
+    }
     if (IS("ExitThread") || IS("_endthreadex")) { w32_thread_return(p); return 0; }
     if (IS("GetCurrentThreadId")) return x86_current + 1;
+    if (IS("GetTickCount64")) return w32_now_ms64();
     if (IS("GetCurrentThread")) return W32_64 ? UINT64_MAX - 1 : 0xfffffffeu;
     if (IS("GetLastError")) return t->error;
     if (IS("SetLastError")) { t->error = p; return 0; }
@@ -425,7 +467,7 @@ static uint64_t thread_api(const char *name) {
             x86_wr32(v, x86_tasks[tid].live ? 259 : threads[tid].code); return 1;
         }
         uint32_t old = threads[tid].suspended;
-        if (old) { threads[tid].suspended = 0; x86_tasks[tid].ready = 1; }
+        if (old) { threads[tid].suspended--; if(!threads[tid].suspended && threads[tid].kind==NONE)x86_tasks[tid].ready = 1; }
         return old;
     }
     if (IS("WaitForSingleObject") || IS("WaitForSingleObjectEx")) return wait_objects(0);

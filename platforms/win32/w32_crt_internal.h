@@ -17,8 +17,12 @@
 
 static inline uint32_t cp(uint64_t p) { return x86_address(p); }
 static inline void *cmem(uint32_t p, uint32_t n) {
-    if (n && !x86_mapped(p, n)) x86_fault("CRT buffer crosses unmapped guest memory", p);
+    if (n) x86_check_access(p,n,1);
     return n ? x86_flat_at(p, n) : 0;
+}
+static inline void *cwmem(uint32_t p,uint32_t n) {
+    if(n)x86_check_access(p,n,2);
+    return n?x86_flat_at(p,n):0;
 }
 static void flush_stdout(void);
 static inline char *cstr(uint32_t p) {

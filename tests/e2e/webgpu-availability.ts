@@ -1,4 +1,5 @@
 import type { Browser, Page, TestInfo } from '@playwright/test';
+import { resolve } from 'node:path';
 
 const available = new WeakSet<Page>();
 // A comparison can create fresh pages/contexts after its first successful WebGPU capture.
@@ -6,9 +7,9 @@ const available = new WeakSet<Page>();
 const availableBrowsers = new WeakMap<TestInfo, WeakSet<Browser>>();
 export const webGPUWasAvailable = (page: Page): boolean => available.has(page);
 
-/** Probe on the actual launch/page before starting a GPU guest (which could abort on fallback).
- * Only adapter acquisition can skip. Device creation, guest execution and rendering errors
- * after a successful adapter probe remain failures, never availability skips. */
+/** Probe the actual launch before starting a GPU guest: adapter, device, submission,
+ * exact readback and survival across a task turn. Only initial probe failure can skip;
+ * loss after a successful probe or guest/render failures always remain failures. */
 export async function assertWebGPUAvailable(page: Page, info: TestInfo): Promise<void> {
   const browser = page.context().browser();
   const url = new URL('/__bgt_webgpu_probe__', info.project.use.baseURL).href;
@@ -16,16 +17,10 @@ export async function assertWebGPUAvailable(page: Page, info: TestInfo): Promise
   let reason: string | null;
   try {
     await page.goto(url);
-    reason = await page.evaluate(async () => {
-      if (!navigator.gpu) return 'navigator.gpu is absent';
-      try {
-        return await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }) ? null : 'requestAdapter returned null';
-      } catch (e) {
-        // Dawn can reject instead of returning null when its external Instance is unavailable.
-        if (e instanceof DOMException && e.name === 'OperationError') return `requestAdapter: ${e.name}: ${e.message}`;
-        throw e;
-      }
-    });
+    reason = await page.evaluate(async path => {
+      const { webGPUProbeReason } = await import(/* @vite-ignore */ path);
+      return webGPUProbeReason();
+    }, `/@fs${resolve('bgt/renderers/webgpu/probe.ts')}`);
   } finally { await page.unroute(url); }
   if (reason) {
     const message = `WebGPU unavailable: ${reason}`;

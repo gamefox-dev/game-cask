@@ -49,8 +49,11 @@ export default defineConfig({
     {
       name: 'chromium-webgl2',
       testDir: 'tests/e2e',
+      // Cross-backend comparisons belong to the opt-in, required-device project.
+      grepInvert: /@webgpu/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 },
-        ...(noWebGPU ? { launchOptions: { args: webglArgs } } : {}), backendParam: 'webgl2' } as never,
+        ...(noWebGPU || process.env.BGT_SOFTWARE_RENDERER === '1' ? { launchOptions: { args: webglArgs } } : {}),
+        backendParam: 'webgl2' } as never,
     },
     {
       name: 'chromium-webgpu',
@@ -67,7 +70,9 @@ export default defineConfig({
       name: 'chromium-auto',
       testDir: 'tests/e2e',
       testMatch: /(boot|fallback)\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, channel: 'chromium', launchOptions: { args: webgpuArgs }, backendParam: 'auto' } as never,
+      // User-default launch, NOT unsafe WebGPU/Vulkan flags from the hardware gate.
+      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, channel: 'chromium',
+        ...(noWebGPU ? { launchOptions: { args: webglArgs } } : {}), backendParam: 'auto' } as never,
     },
     // Private, game-specific tests written by the porter (port/ is git-ignored).
     ...(process.env.BGT_PORT_TESTS === '1' && existsSync('port/tests')

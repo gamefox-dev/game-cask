@@ -4,6 +4,102 @@ This records observed evidence, not unrestricted compatibility. The current merg
 [v03-status.md](v03-status.md). Lane handoffs retain their narrower measurements and review histories; their earlier
 suite totals are not added together or presented as merged-tree results. Prior versions of this file remain in Git.
 
+## FIX3 — usable-device startup and CI separation
+
+### Supported environments
+
+- **WebGPU on a real GPU:** primary target.
+- **WebGL 2 on a real GPU:** supported fallback.
+- **No GPU / software rasterizers (SwiftShader, VMs, CI):** untested, not blocked; best effort,
+  software-specific quirks ignored. Passing software tests do not certify hardware or performance.
+
+Default Linux CI retains typecheck, units, wasm example builds, lint/leak checks, WebGL 2 functional
+execution and user-default auto boot/fallback. Every cross-backend comparison (including the smoke's
+second renderer) is tagged `@webgpu` and excluded from the WebGL project; the opt-in GPU job runs the
+WebGPU project with `BGT_REQUIRE_WEBGPU=1`. Existing WebGPU-specific suites remain backend-gated.
+Only default software CI explicitly sets `BGT_SOFTWARE_RENDERER=1`: strict pixel/color equality,
+GPU-vs-CPU raster comparisons and narrow raster tolerances are omitted with the annotation
+`pixel-assertions-skipped: software renderer: untested environment`. Boot, backend selection,
+compilation/readback completion, opcode coverage, lifting, loader/input/thread/audio/file logic,
+error assertions and the full **600-frame / 6,000-draw** smoke remain active. Broad visible-change
+checks still run as best-effort smoke, with no realtime threshold. Real-hardware runs leave the flag
+unset and preserve the original pixel assertions/tolerances. This policy supersedes FIX2's decision
+to attempt cross-backend comparisons from default Linux CI.
+
+### Artifact root cause and regression provenance
+
+Inspected all failures in supplied run **41158704599**, and extracted all 13 trace ZIPs into private
+`/Users/dev/projects/pi-work/scratch-FIX3/traces/`. Chromium exposes an adapter/device but its Dawn
+Instance dies on use; successful adapter discovery was incorrectly treated as usability. Boot trace
+`836fdc2d2d4ff500dc5550bf5019cf2e2c7ce1ab` records guest title/ready logs, then an external-Instance
+warning and `webgpu device lost (unknown): A valid external Instance reference no longer exists.`,
+then the failed `step`, another destroyed-device loss and fallback. The four `runtime not ready`
+failures occur on secondary WebGPU launches immediately after preflight/openGame, not on primary
+WebGL execution. Those secondary launches lack detailed browser snapshots/logs in the supplied
+traces, so their exact internal fatal reason is not directly recorded; startup/device-loss racing is
+the supported inference, not a proven guest trap or a separately diagnosed lifting fault. The two `toEqual([])` failures
+are **runtime error arrays containing frame-0 `device-lost (destroyed)`**, not different image/hash
+values. The primary WebGL smoke completed all 600 frames with its PASS log. Error assertions were
+not removed or filtered to hide these losses.
+
+**FIX2 (`cca40eb`) introduced the auto-boot regression**, not K1 or FIX1. It removed the unconditional
+`--use-angle=metal` on Linux while retaining unsafe-WebGPU/Vulkan flags; previously unsupported Metal
+caused early unavailability/fallback, whereas FIX2 exposed the broken Dawn path. Auto now uses the
+normal user-default Chromium launch instead of hardware-job unsafe flags. Runtime protection is
+independent of flags and applies to users too.
+
+### Repair and local reproduction
+
+Shared `bgt/renderers/webgpu/probe.ts` checks adapter → device → tiny buffer submission → exact
+readback → queue completion, repeats with a different sentinel after a task turn, and races loss
+and a bounded timeout. Runtime retains the same GPU/adapter/device instead of throwing away the
+successful probe and assuming another device works. It checks again after renderer initialization,
+before publishing/wiring recovery; rejected startup destroys resources and auto falls back to WebGL 2
+with a diagnostic reason, without guest device-reset/error pollution. Explicit `backend=webgpu` still
+fails closed. Post-success guest/render/context failures and later availability loss remain failures,
+not hardware skips; test preflight imports the same module on its actual browser launch.
+
+Reproduced **present-but-broken** locally with browser init-script adapters: device acquisition throws
+Dawn's OperationError, submission throws it, or the acquired device is already destroyed. Each auto
+case boots and renders on WebGL 2 with a stage-specific reason, no runtime errors and no reset. Actual
+Chromium preflight gives three reasoned skips; the same cases with `BGT_REQUIRE_WEBGPU=1` give three
+expected failures and zero skips. Unit tests also cover corrupt readback, mapping/completion failure,
+loss on a later task, timeout/late-device cleanup and preserving failure after prior successful work.
+No claim of reproducing Ubuntu's native driver failure on this macOS/Apple M4 host, and no attempt to
+make SwiftShader WebGPU a supported target.
+
+### Local gates (macOS / Apple M4, Node 24.19.0, installed Chromium/Playwright 1.64.1)
+
+| Check | Result |
+|---|---|
+| `npm run doctor`, `npm run typecheck`, `npm run lint`, `npm run leakcheck`, `git diff --check` | pass |
+| `npm test` | **417 passed / 35 files** |
+| CI-mode WebGL 2 + auto, `BGT_SOFTWARE_RENDERER=1` | **95 passed / 25 intentional skips / 0 failures** |
+| All projects, `BGT_REQUIRE_WEBGPU=1`, strict pixels enabled | **192 passed / 51 intentional skips / 0 failures** |
+| Injected broken-adapter policy, `BGT_TEST_BROKEN_WEBGPU=1` | **3 reasoned skips**, then **3 expected required-device failures** |
+
+Commands use owned test port 5297 and `BGT_RESULTS_PREFIX=fix3-{final-ci,final-real,policy,policy-required}`.
+Private logs/results and fresh independent review are in `scratch-FIX3/`; no original/game input,
+web source, system install, dependency change or push. An initial command hit global heavy-build
+slot contention and its timeout left port 5296 occupied; it was not reused. One early injected-loss
+fixture incorrectly also threw submission failure, so it was repaired to isolate actual loss; all
+final suites above include the corrected fixture.
+
+Fresh independent review found an additional initialization-error delivery window: while the final
+probe yielded native tasks, uncaptured pipeline validation errors could be forwarded to an empty
+callback list before runtime wiring. Initialization now accumulates those original messages and
+rejects/cleans up before publication; auto retains the reason in `backendNotes`, required WebGPU
+fails closed, and later errors still reach consumers. Three maintained actual-renderer/runtime-selection
+regressions cover that case even though all four probe submissions succeed. A second fresh independent
+session **approved**, personally passing **40 focused tests / 4 files**, then repeating the three startup
+regressions. Reports: private `review-result.md` and `recheck-result.md`; no independent broad-browser
+certification is implied. All broad local gates above were rerun after this repair.
+
+CI request round 1 for `350fe42` timed out after 900 seconds without a result. Round 2/final for
+**`d3c22f8` is GREEN on Ubuntu**, reviewer-reported run **41164491670**. The reviewer performed the
+push/remote execution; this developer did not push. This validates the default Linux functional job,
+not the opt-in real-GPU job or general software-rasterizer conformance.
+
 ## FIX2 — cross-backend tests without a WebGPU adapter
 
 The three new cross-backend specs now report **separate backend-only and comparison tests**. WebGL 2

@@ -5,6 +5,28 @@ games. You bring the game files; your coding agent analyses them with reverse-en
 rebuilds the game in C. It runs in the browser through a small, stable ABI called the
 **Game Cask Browser Target (BGT)**: WebGPU first, WebGL 2 fallback, phone-friendly input.
 
+## Supported environments
+
+| Environment | Support policy |
+|---|---|
+| WebGPU on a real GPU | Primary target |
+| WebGL 2 on a real GPU | Supported fallback |
+| No GPU / software rasterizers (SwiftShader, VMs, CI) | Untested, not blocked; best effort, software-specific quirks ignored |
+
+Auto selection checks an adapter, device, tiny submission and exact readback before starting a game.
+If that fails it selects WebGL 2 and reports the reason in backend diagnostics. Merely exposing
+`navigator.gpu` or an adapter does not qualify a device. This is a startup check, not a guarantee
+against later device loss. Browser/driver and physical-device coverage remains bounded by
+[docs/verification.md](docs/verification.md); this matrix is not iPhone/Safari certification.
+
+Default Linux CI runs typecheck, unit tests, wasm example builds, lint/leak checks and the WebGL 2
+functional/auto-boot suites. Cross-backend comparisons and WebGPU device tests run in the opt-in
+GPU job (`workflow_dispatch: webgpu=true`, `BGT_REQUIRE_WEBGPU=1`). With explicit
+`BGT_SOFTWARE_RENDERER=1`, strict rasterizer pixel assertions are annotated as skipped with
+`software renderer: untested environment`; boot, fallback, lifting and logic assertions still run.
+Broad smoke/visible-change checks remain best-effort, not performance certification. Real-hardware
+runs leave this flag unset and retain all original pixel tolerances and equality checks.
+
 ## Port a game
 
 ```sh
@@ -103,7 +125,7 @@ Useful URL flags:
 | `npm run bundle -- --game <id>` | static bundle with only that game (default page) in `dist-bundle/`, for hosting |
 | `npm run lint` | ESLint, host C tools with real GCC (`-std=c11 -O2 -Wall -Wextra -Werror`) when available on PATH, and all example check-builds; quietly skips GCC when absent (including clang-only systems) |
 | `npm test` | unit tests (ABI layout vs header, decoder, analyzer, Win32 profile conformance, host safety, sample L3 headless, tools) |
-| `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
+| `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without a usable probed device), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |
 | `npm run probe -- --game <id> --script <f.mjs>` | scripted exploration in headless Chromium on its own server (screenshots, zoomed crops, metrics, read-only `peek`, resource tour) → `reports/probe/` |
 | `npm run trial:setup -- --kit COMMIT --game FILE --dir NEW_PATH [--slice TEXT]` | operator: isolated, remote-free clone at commit, npm ci, copy input, write brief |

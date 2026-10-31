@@ -123,7 +123,8 @@ static void unwind_exception(uint32_t record,uint32_t target_frame,uint32_t targ
         uint32_t handler=w64_virtual_unwind(phase2?2:1,base,pc,fn,next,data,frame),est=ptr(x86_rd64(frame));
         if(phase2){uint32_t flags=x86_rd32(record+4)|2u;if(est==target_frame)flags|=0x20u;x86_wr32(record+4,flags);}
         x86_wr64(disp,pc);x86_wr64(disp+8,base);x86_wr64(disp+16,fn);x86_wr64(disp+24,est);x86_wr64(disp+32,target_pc);x86_wr64(disp+40,c);x86_wr64(disp+48,handler);x86_wr64(disp+56,x86_rd64(data));x86_wr64(disp+64,0);x86_wr32(disp+72,0);
-        if(handler){uint64_t args[4]={record,est,c,disp};x86_callback64(handler,4,args);if(X.transfer){depth--;return;}}
+        if(handler){uint64_t args[4]={record,est,c,disp};uint64_t disposition=x86_callback64(handler,4,args);if(X.transfer){depth--;return;}
+            if(!phase2 && disposition==0){if(x86_rd32(record+4)&1)x86_fault("noncontinuable exception resumed",record);w64_context_restore(c);X.transfer=1;depth--;return;}}
         if(phase2&&est==target_frame){w64_context_restore(c);X.r[EAX]=retval;X.eip=target_pc;X.transfer=1;depth--;return;}
         for(uint32_t i=0;i<CTX_BYTES;i++)x86_wr8(c+i,x86_rd8(next+i));
         if(x86_rd64(cr(c,ESP))<=sp)x86_fault("unwind made no stack progress",pc);
@@ -140,15 +141,39 @@ static uint32_t setjmp64(void){uint32_t p=ARG(0);static const unsigned regs[10]=
 static uint32_t longjmp64(void){uint32_t p=ARG(0),value=ARG(1);static const unsigned regs[9]={EBX,ESP,EBP,ESI,EDI,R12,R13,R14,R15};for(unsigned i=0;i<9;i++)X.r[regs[i]]=x86_rd64(p+8+8*i);X.eip=ptr(x86_rd64(p+80));X.r[EAX]=value?value:1;X.mxcsr=x86_rd32(p+88);for(unsigned i=0;i<10;i++)for(unsigned j=0;j<16;j++)X.xmm[i+6].u8[j]=(uint8_t)x86_rd8(p+96+i*16+j);X.transfer=1;return (uint32_t)X.r[EAX];}
 static uint32_t once_execute(void){uint32_t cell=ARG(0);if(!(x86_rd64(cell)&2)){uint64_t args[3]={cell,ARG64(2),ARG64(3)};uint64_t ok=x86_callback64(ARG(1),3,args);if(!ok)return 0;x86_wr64(cell,2);}return 1;}
 static uint32_t system_info(void){uint32_t p=ARG(0);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr16(p,9);x86_wr32(p+4,4096);x86_wr64(p+8,0x10000);x86_wr64(p+16,X86_FLAT_BYTES-1);x86_wr64(p+24,1);x86_wr32(p+32,1);x86_wr32(p+36,8664);x86_wr32(p+40,65536);return 0;}
-static uint32_t virtual_query(void){uint32_t p=ARG(1);for(unsigned i=0;i<48;i++)x86_wr8(p+i,0);x86_wr64(p,ARG(0)&~4095u);x86_wr64(p+8,ARG(0)&~4095u);x86_wr32(p+16,4);x86_wr64(p+24,4096);x86_wr32(p+32,0x1000);x86_wr32(p+36,4);x86_wr32(p+40,0x20000);return 48;}
+static uint32_t c_specific_handler(void) {
+    uint32_t record=ARG(0),frame=ARG(1),ctx=ARG(2),disp=ARG(3);uint64_t established=ARG64(1);
+    uint32_t base=ptr(x86_rd64(disp+8)),pc=ptr(x86_rd64(disp)),data=ptr(x86_rd64(disp+56));
+    uint32_t flags=x86_rd32(record+4),count=x86_rd32(data),index=x86_rd32(disp+72);
+    if(count>4096)x86_fault("invalid C scope count",data);
+    for(uint32_t i=index;i<count;i++){
+        uint32_t s=data+4+16*i,begin=x86_rd32(s)+base,end=x86_rd32(s+4)+base;
+        if(pc<begin||pc>=end)continue;
+        uint32_t handler=x86_rd32(s+8),jump=x86_rd32(s+12);
+        if(flags&6){
+            if(jump)continue;
+            uint32_t target=ptr(x86_rd64(disp+32));
+            if((flags&0x20)&&target>=begin&&target<end)continue;
+            x86_wr32(disp+72,i+1);uint64_t a[2]={1,established};x86_callback64(base+handler,2,a);
+            if(X.transfer)return 0;
+        }else if(jump){
+            int32_t filter=(int32_t)handler;
+            if(handler!=1){uint32_t ep=w32_heap_alloc(16,0);x86_wr64(ep,record);x86_wr64(ep+8,ctx);
+                uint64_t a[2]={ep,established};filter=(int32_t)x86_callback64(base+handler,2,a);w32_heap_free(ep);if(X.transfer)return 0;}
+            if(filter<0)return 0; /* ExceptionContinueExecution */
+            if(filter>0){uint32_t initial=depth?scratch_origin[depth-1]:ctx;unwind_exception(record,frame,base+jump,0,initial,1);return 0;}
+        }
+    }
+    return 1; /* ExceptionContinueSearch */
+}
 typedef struct {const char *name;uint32_t(*fn)(void);} api64_t;
 static const api64_t api[] = {
+ {"__C_specific_handler",c_specific_handler},
  {"RtlLookupFunctionEntry",rtl_lookup},{"RtlVirtualUnwind",rtl_virtual},{"RtlCaptureContext",rtl_capture},{"RtlRestoreContext",rtl_restore},{"RtlUnwindEx",rtl_unwind},{"RaiseException",raise_exception},
  {"__intrinsic_setjmpex",setjmp64},{"_setjmpex",setjmp64},
  {"_setjmp",setjmp64},{"setjmp",setjmp64},{"longjmp",longjmp64},{"_longjmp",longjmp64},
  {"InitOnceExecuteOnce",once_execute},
  {"GetSystemInfo",system_info},{"GetNativeSystemInfo",system_info},
- {"VirtualQuery",virtual_query},
 };
 uint64_t w64_api(const char *name,int *handled) {
     int query=*handled<0;*handled=0;

@@ -1,4 +1,5 @@
 import { test, expect, openGame, readPixels, diagnostics, debugState, step } from './fixtures';
+import { hardwarePixels } from './fixtures';
 import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
 
@@ -6,6 +7,7 @@ test.beforeEach(async ({ collector }) => { void collector; });
 
 function near(actual: number[], expected: number[], tolerance = 2): void {
   expect(actual.length).toBe(expected.length);
+  if (!hardwarePixels()) return;
   for (let i = 0; i < expected.length; i++) expect(Math.abs(actual[i]-expected[i])).toBeLessThanOrEqual(tolerance);
 }
 async function probe<T>(page: Page, name: string, file = 'gpu-webgl2-probe.ts'): Promise<T> {

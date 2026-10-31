@@ -73,12 +73,12 @@ static uint64_t c_frexpf(void) {
 }
 static uint64_t c_modf(void) {
     double i, r = modf(cd(0), &i);
-    memcpy(cmem(ARG(1), 8), &i, 8);
+    memcpy(cwmem(ARG(1), 8), &i, 8);
     return rd(r);
 }
 static uint64_t c_modff(void) {
     float i, r = modff(cf(0), &i);
-    memcpy(cmem(ARG(1), 4), &i, 4);
+    memcpy(cwmem(ARG(1), 4), &i, 4);
     return rf(r);
 }
 static int win_class(double d) {

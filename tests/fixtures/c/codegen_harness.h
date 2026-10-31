@@ -6,6 +6,8 @@
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u << 20];
+uint8_t x86_protection[1u << 20];
+int x86_protection_active;
 static uint8_t ram[65536];
 uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;
@@ -38,7 +40,8 @@ static void reference(void) {
 void x86_lift_block(uint32_t count) { while (count--) reference(); }
 BGT_EXPORT(reset) void reset(uint32_t pc, uint32_t budget) {
     __builtin_memset(&X, 0, sizeof X); __builtin_memset(ram, 0, sizeof ram);
-    for (int i = 0; i < 16; i++) x86_pages[i] = ram + i * 4096;
+    for (int i = 0; i < 16; i++) { x86_pages[i] = ram + i * 4096; x86_protection[i] = 0; }
+    x86_protection_active = 0;
     X.mode64 = 1; X.mxcsr = 0x1f80; X.eip = pc; X.r[ESP] = 0x8000; X.frame_insns = budget;
     yields = 0; x86_lift_pending = 0; x86_lift_count = 0;
 }
@@ -46,4 +49,7 @@ BGT_EXPORT(cpu) uint32_t cpu(void) { return (uint32_t)(uintptr_t)&X; }
 BGT_EXPORT(cpu_size) uint32_t cpu_size(void) { return sizeof X; }
 BGT_EXPORT(ram) uint32_t ram_addr(void) { return (uint32_t)(uintptr_t)ram; }
 BGT_EXPORT(unmap) void unmap(uint32_t page) { x86_pages[page] = 0; }
+BGT_EXPORT(protect) void protect(uint32_t page, uint32_t mode) {
+    x86_protection[page] = (uint8_t)mode; x86_protection_active = 1;
+}
 BGT_EXPORT(yields) uint32_t yield_count(void) { return yields; }
