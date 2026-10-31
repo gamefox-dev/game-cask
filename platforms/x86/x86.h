@@ -52,6 +52,23 @@ extern x86_cpu_t X;
 /* ------------------------------------------------------------------ guest memory (4 KiB pages) */
 #define X86_PAGE 4096u
 extern uint8_t *x86_pages[1u << 20];
+/* Windows PAGE_* metadata. Zero denotes legacy RWX mappings, not an unmapped page. */
+extern uint8_t x86_protection[1u << 20];
+__attribute__((noreturn)) void x86_fault(const char *,uint32_t);
+static inline int x86_accessible(uint32_t addr, uint32_t size, unsigned access) {
+    if ((uint64_t)addr+size>0x100000000ull) return 0;
+    if (!size) return 1;
+    uint32_t last=(uint32_t)(((uint64_t)addr+size-1)>>12);
+    for(uint32_t i=addr>>12;i<=last;i++) {
+        if(!x86_pages[i]) return 0;
+        unsigned p=x86_protection[i],mask=p==0?7:p==1?0:p==2?1:p==4?3:p==0x10?4:p==0x20?5:p==0x40?7:0;
+        if((mask&access)!=access)return 0;
+    }
+    return 1;
+}
+static inline void x86_check_access(uint32_t addr,uint32_t size,unsigned access) {
+    if(!x86_accessible(addr,size,access))x86_fault("guest memory access violation",addr);
+}
 
 /* Map [addr, addr+size) to fresh zeroed host memory (page-aligned; idempotent for mapped pages).
  * Returns the host pointer for `addr`, or 0 when out of memory. Pages of one call are contiguous. */
@@ -89,19 +106,19 @@ static __attribute__((noinline)) uint8_t *x86_flat_at(uint32_t a, uint32_t n) {
 static inline uint8_t *x86_host(uint32_t a) {
     return a < X86_FLAT_BYTES && x86_pages[a >> 12] ? x86_flat + a : 0;
 }
-static __attribute__((noinline)) uint32_t x86_rd8(uint32_t a) {return *x86_flat_at(a,1);}
+static __attribute__((noinline)) uint32_t x86_rd8(uint32_t a) {x86_check_access(a,1,1);return *x86_flat_at(a,1);}
 static __attribute__((noinline)) uint32_t x86_rd16(uint32_t a) {
-    uint16_t v; __builtin_memcpy(&v, x86_flat_at(a, 2), 2); return v;
+    uint16_t v; x86_check_access(a,2,1); __builtin_memcpy(&v, x86_flat_at(a, 2), 2); return v;
 }
 static __attribute__((noinline)) uint32_t x86_rd32(uint32_t a) {
-    uint32_t v; __builtin_memcpy(&v, x86_flat_at(a, 4), 4); return v;
+    uint32_t v; x86_check_access(a,4,1); __builtin_memcpy(&v, x86_flat_at(a, 4), 4); return v;
 }
-static __attribute__((noinline)) void x86_wr8(uint32_t a,uint32_t v) {*x86_flat_at(a,1)=(uint8_t)v;}
+static __attribute__((noinline)) void x86_wr8(uint32_t a,uint32_t v) {x86_check_access(a,1,2);*x86_flat_at(a,1)=(uint8_t)v;}
 static __attribute__((noinline)) void x86_wr16(uint32_t a,uint32_t v) {
-    uint16_t x = (uint16_t)v; __builtin_memcpy(x86_flat_at(a, 2), &x, 2);
+    x86_check_access(a,2,2); uint16_t x = (uint16_t)v; __builtin_memcpy(x86_flat_at(a, 2), &x, 2);
 }
 static __attribute__((noinline)) void x86_wr32(uint32_t a,uint32_t v) {
-    __builtin_memcpy(x86_flat_at(a, 4), &v, 4);
+    x86_check_access(a,4,2); __builtin_memcpy(x86_flat_at(a, 4), &v, 4);
 }
 #else
 static inline uint8_t *x86_host(uint32_t a) {
@@ -109,29 +126,35 @@ static inline uint8_t *x86_host(uint32_t a) {
     return p ? p + (a & 0xfffu) : 0;
 }
 static inline uint32_t x86_rd8(uint32_t a) {
+    x86_check_access(a,1,1);
     uint8_t *p = x86_pages[a >> 12];
     return p ? p[a & 0xfffu] : x86_rd8_slow(a);
 }
 static inline uint32_t x86_rd16(uint32_t a) {
+    x86_check_access(a,2,1);
     uint8_t *p = x86_pages[a >> 12];
     if (p && (a & 0xfffu) <= 0xffeu) { uint16_t v; __builtin_memcpy(&v, p + (a & 0xfffu), 2); return v; }
     return x86_rd16_slow(a);
 }
 static inline uint32_t x86_rd32(uint32_t a) {
+    x86_check_access(a,4,1);
     uint8_t *p = x86_pages[a >> 12];
     if (p && (a & 0xfffu) <= 0xffcu) { uint32_t v; __builtin_memcpy(&v, p + (a & 0xfffu), 4); return v; }
     return x86_rd32_slow(a);
 }
 static inline void x86_wr8(uint32_t a, uint32_t v) {
+    x86_check_access(a,1,2);
     uint8_t *p = x86_pages[a >> 12];
     if (p) p[a & 0xfffu] = (uint8_t)v; else x86_wr8_slow(a, v);
 }
 static inline void x86_wr16(uint32_t a, uint32_t v) {
+    x86_check_access(a,2,2);
     uint8_t *p = x86_pages[a >> 12];
     if (p && (a & 0xfffu) <= 0xffeu) { uint16_t t = (uint16_t)v; __builtin_memcpy(p + (a & 0xfffu), &t, 2); }
     else x86_wr16_slow(a, v);
 }
 static inline void x86_wr32(uint32_t a, uint32_t v) {
+    x86_check_access(a,4,2);
     uint8_t *p = x86_pages[a >> 12];
     if (p && (a & 0xfffu) <= 0xffcu) __builtin_memcpy(p + (a & 0xfffu), &v, 4);
     else x86_wr32_slow(a, v);

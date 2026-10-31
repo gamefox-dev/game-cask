@@ -66,6 +66,7 @@ __wasi_errno_t __wasi_fd_read(__wasi_fd_t fd, const __wasi_iovec_t *iov, __wasi_
 #include "w32_crt_locale.h"
 #include "w32_crt_math.h"
 #include "w32_crt_stdio.h"
+#include "w32_crt_extra.h"
 
 uint32_t w32_crt_data(const char *name) {
     args_init();

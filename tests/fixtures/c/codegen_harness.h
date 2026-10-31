@@ -6,6 +6,7 @@
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u << 20];
+uint8_t x86_protection[1u << 20];
 static uint8_t ram[65536];
 uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;

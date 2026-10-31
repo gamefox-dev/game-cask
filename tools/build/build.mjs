@@ -211,6 +211,23 @@ export function buildGame(gameDirArg, { check = false, quiet = false, interpretO
     assets.push({ path: to, size: data.byteLength, sha256: hash, url: `assets/${to}?h=${hash.slice(0, 16)}`, original: true });
   }
 
+  // Win32 directory enumeration uses the same asset/stream inventory as the browser VFS.
+  // This generated index is private build output, never a copy of a trial import measurement.
+  if (pipe) {
+    const files = new Map();
+    for (const f of [...assets, ...streams]) {
+      if (f.path.startsWith('loader/')) continue;
+      const path = f.path.startsWith('modules/') ? f.path.slice(8) : f.path;
+      if (/[\t\r\n]/.test(path)) throw new Error('Win32 file name contains an index delimiter');
+      files.set(path, f.size);
+    }
+    const data = Buffer.from([...files].sort(([a], [b]) => a.localeCompare(b))
+      .map(([path, size]) => `${size}\t${path}\n`).join(''));
+    const hash = sha256(data), path = 'bgt-file-index.txt';
+    writeFileSync(join(outDir, 'assets', path), data);
+    assets.push({ path, size: data.length, sha256: hash, url: `assets/${path}?h=${hash.slice(0,16)}` });
+  }
+
   let slice = null;
   if(pipe?.slicePlan) {
     const kept=new Set();let total=0,included=0;

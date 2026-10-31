@@ -127,8 +127,35 @@ static uint32_t getraw(void) {
     for (uint32_t i = 0; i < n; i++) x86_wr8(dst + i, raw[s].bytes[i]);
     return n;
 }
+#include "w32_thread.h"
+static uint32_t device_list(void) {
+    uint32_t dst=ARG(0),count=ARG(1),stride=W32_64?16:8;
+    if(!count || ARG(2)!=stride){*w32_thread_error()=87;return 0xffffffffu;}
+    if(!dst){x86_wr32(count,2);return 0;}
+    if(x86_rd32(count)<2){x86_wr32(count,2);*w32_thread_error()=122;return 0xffffffffu;}
+    for(unsigned i=0;i<2;i++){w32_wrptr(dst+i*stride,i+1);x86_wr32(dst+i*stride+w32_ptr_size(),i);}
+    return 2;
+}
+static uint32_t device_info(void) {
+    uint32_t h=ARG(0),cmd=ARG(1),dst=ARG(2),count=ARG(3);
+    if(h<1||h>2){*w32_thread_error()=6;return 0xffffffffu;}
+    if(!count){*w32_thread_error()=87;return 0xffffffffu;}
+    const char *name=h==1?"BGT\\\\Mouse":"BGT\\\\Keyboard";
+    uint32_t need=cmd==0x20000007u?w32_slen(name)+1:cmd==0x2000000bu?32:0;
+    if(!need){*w32_thread_error()=87;return 0xffffffffu;}
+    if(!dst){x86_wr32(count,need);return 0;}
+    if(x86_rd32(count)<need){x86_wr32(count,need);*w32_thread_error()=122;return 0xffffffffu;}
+    if(cmd==0x20000007u){w32_pstr(dst,need,0,name);return need-1;}
+    if(x86_rd32(dst)!=32){*w32_thread_error()=87;return 0xffffffffu;}
+    for(unsigned i=4;i<32;i++)x86_wr8(dst+i,0);
+    x86_wr32(dst+4,h-1);
+    if(h==1){x86_wr32(dst+12,3);x86_wr32(dst+16,60);}
+    else {x86_wr32(dst+8,4);x86_wr32(dst+16,1);x86_wr32(dst+20,12);x86_wr32(dst+24,3);x86_wr32(dst+28,101);}
+    return 32;
+}
 #define API(n, a, f) {n, a, 0, f}
 const w32_api_t w32_api_input[] = {
+    API("GetRawInputDeviceList",3,device_list), API("GetRawInputDeviceInfoA",4,device_info),
     API("XInputGetState", 2, getstate), API("XInputSetState", 2, setstate),
     API("XInputGetCapabilities", 3, capabilities), API("RegisterRawInputDevices", 3, register_raw),
     API("GetRawInputData", 5, getraw),

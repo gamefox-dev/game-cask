@@ -67,11 +67,12 @@ uint32_t w32_misc_alloc(uint32_t n) {
     return a;
 }
 static uint64_t virtual_us;
-uint32_t w32_now_ms(void) {
+uint64_t w32_now_ms64(void) {
     uint64_t frame_us = w32_io ? (uint64_t)w32_io->frame * BGT_DT_US : 0;
     if (virtual_us < frame_us) virtual_us = frame_us;
-    return (uint32_t)(virtual_us / 1000u);
+    return virtual_us / 1000u;
 }
+uint32_t w32_now_ms(void) { return (uint32_t)w32_now_ms64(); }
 void w32_sleep_ms(uint32_t ms) {
     if (!ms) { w32_wait_frame(); return; }
     uint64_t deadline = virtual_us + (uint64_t)ms * 1000u;
@@ -86,24 +87,45 @@ void w32_sleep_ms(uint32_t ms) {
 /* ------------------------------------------------------------------ guest heap (first fit, lazily mapped) */
 /* block: [u32 size_with_header | used(bit0)] [u32 requested] payload */
 static uint32_t heap_end = W32_HEAP_LO, heap_mapped = W32_HEAP_LO;
-#ifdef X86_FLAT_GUEST
-typedef struct { uint32_t lo, hi, skip; } virtual_range_t;
+typedef struct { uint32_t lo, hi, skip, live, prot; } virtual_range_t;
 static virtual_range_t virtual_ranges[256];
 static uint32_t virtual_n;
-uint32_t w32_virtual_map(uint32_t addr, uint32_t size) {
-    uint64_t end = ((uint64_t)addr + size + 65535u) & ~65535ull;
-    if (!size || (addr & 65535u) || end > X86_FLAT_BYTES) return 0;
+uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot) {
+    uint64_t end = ((uint64_t)addr + size + 4095u) & ~4095ull;
+    uint64_t limit=0xffff0000ull;
+#ifdef X86_FLAT_GUEST
+    limit=X86_FLAT_BYTES;
+#endif
+    if (!size || (addr & 65535u) || end > limit) return 0;
     for (uint32_t i = 0; i < virtual_n; i++) {
         virtual_range_t *r = &virtual_ranges[i];
+        if(!r->live)continue;
         if (addr >= r->lo && end <= r->hi) return addr;
         if (addr < r->hi && end > r->lo) return 0;
     }
-    if (virtual_n == 256 || (addr < heap_end && end > W32_HEAP_LO)) return 0;
+    int reuse=-1;for(uint32_t i=0;i<virtual_n;i++)if(!virtual_ranges[i].live&&virtual_ranges[i].lo==addr&&virtual_ranges[i].hi==end)reuse=(int)i;
+    if ((virtual_n == 256 && reuse<0) || (reuse<0 && addr < heap_end && end > W32_HEAP_LO)) return 0;
     for (uint32_t p = addr >> 12; p < end >> 12; p++) if (x86_pages[p]) return 0;
     if (!x86_map(addr, (uint32_t)end - addr)) return 0;
-    virtual_ranges[virtual_n++] = (virtual_range_t){addr, (uint32_t)end, addr};
+    __builtin_memset(x86_host(addr),0,(uint32_t)end-addr);
+    if(reuse>=0){virtual_ranges[reuse].live=1;virtual_ranges[reuse].prot=prot;}
+    else virtual_ranges[virtual_n++] = (virtual_range_t){addr, (uint32_t)end, addr,1,prot};
     return addr;
 }
+uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot) {
+    uint64_t need=((uint64_t)size+65535)&~65535ull;if(!size||need>W32_HEAP_LO-65536)return 0;
+    for(uint32_t a=131072;(uint64_t)a+need<=W32_HEAP_LO;a+=65536){
+        int free=1;for(uint32_t p=a>>12;p<((uint64_t)a+need)>>12;p++)if(x86_pages[p]){free=0;a=(p<<12)&~65535u;break;}
+        if(free){uint32_t mapped=w32_virtual_map(a,size,prot);if(mapped)return mapped;}
+    }
+    return 0;
+}
+int w32_virtual_release(uint32_t addr) {
+    for(uint32_t i=0;i<virtual_n;i++){virtual_range_t *r=&virtual_ranges[i];if(r->live&&r->lo==addr){
+        for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;return 1;
+    }}return 0;
+}
+#ifdef X86_FLAT_GUEST
 static uint32_t heap_skip(uint32_t p) {
     for (uint32_t i = 0; i < virtual_n; i++) {
         virtual_range_t *r = &virtual_ranges[i];
@@ -132,6 +154,26 @@ static void heap_commit_skip(uint32_t begin, uint32_t end) {
     }
 }
 #endif
+int w32_memory_region(uint32_t addr,uint32_t *base,uint64_t *end,uint32_t *type,uint32_t *initial_prot) {
+    *base=0;*end=0x100000000ull;*type=0x20000;*initial_prot=4;
+#ifdef X86_FLAT_GUEST
+    *end=X86_FLAT_BYTES;
+#endif
+    for(uint32_t i=0;i<virtual_n;i++){
+        virtual_range_t *r=&virtual_ranges[i];if(!r->live)continue;
+        if(addr>=r->lo&&addr<r->hi){*base=r->lo;*end=r->hi;*initial_prot=r->prot;return 1;}
+        if(r->lo>addr&&r->lo<*end)*end=r->lo;if(r->hi<=addr&&r->hi>*base)*base=r->hi;
+    }
+    for(uint32_t i=0;i<w32_nmods;i++){
+        uint32_t lo=w32_mods[i].base;uint64_t hi=((uint64_t)lo+w32_mods[i].size+4095)&~4095ull;
+        if(addr>=lo&&addr<hi){*base=lo;*end=hi;*type=0x1000000;*initial_prot=0x40;return 1;}
+        if(lo>addr&&lo<*end)*end=lo;if(hi<=addr&&hi>*base)*base=(uint32_t)hi;
+    }
+    uint32_t first=addr&~4095u;uint64_t hi=(uint64_t)first+4096;
+    while(first>=4096 && first>*base && x86_pages[(first>>12)-1])first-=4096;
+    while(hi<*end && x86_pages[hi>>12])hi+=4096;
+    *base=first;*end=hi;return 1;
+}
 static int heap_grow_to(uint32_t begin, uint32_t end) {
     if (end > W32_HEAP_HI) return 0;
 #ifdef X86_FLAT_GUEST
@@ -532,6 +574,7 @@ static int thunk_handler(uint32_t addr) {
     if (X.transfer != (int)transfer) return 0;
     if (X.mode64 && !special && !s->crt && X.r[EAX] == 0xffffffffu &&
         (w32_streqi(s->name, "CreateFileA") || w32_streqi(s->name, "CreateFileW") ||
+         w32_streqi(s->name, "FindFirstFileW") || w32_streqi(s->name, "FindFirstFileExW") ||
          w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread"))) {
         X.r[EAX] = (x86_word_t)UINT64_MAX;
     }
