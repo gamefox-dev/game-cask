@@ -846,6 +846,8 @@ const char *w32_metrics_json(void) {
     jkv("lifted_calls", x86_metrics.lifted_calls);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interp_code_entries", x86_metrics.interp_code_entries);
+    jkv("interp_functions", x86_metrics.interp_functions);
+    jkv("interp_unowned_entries", x86_metrics.interp_unowned_entries);
     jkv("generic_insn_execs", x86_metrics.generic_insn_execs);
     jkv("tail_calls_lifted", x86_metrics.tail_calls_lifted);
     jkv("continues_interpreted", x86_metrics.continues_interpreted);

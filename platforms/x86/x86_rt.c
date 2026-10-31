@@ -169,6 +169,50 @@ static x86_thunk_fn thunk_fn;
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
 
+/* Coverage is block/continuation entry evidence, not an instruction trace. The host
+ * deduplicates addresses. Function census uses a bounded byte per analyzed owner. */
+static const x86_code_range_t *code_ranges, *cached_range;
+static uint32_t ncode_ranges, cached_lo;
+static uint64_t cached_hi;
+static uint8_t *interpreted_owners;
+void x86_register_code_ranges(const x86_code_range_t *ranges, uint32_t count, uint32_t functions) {
+    code_ranges = ranges; ncode_ranges = count; cached_range = 0; cached_lo = 0; cached_hi = 0;
+    interpreted_owners = functions ? x86_alloc(functions) : 0;
+    if (functions && !interpreted_owners) x86_fault("out of memory (coverage owners)", 0);
+}
+static int interpreted_entry(uint32_t addr, int entry) {
+    int changed = addr < cached_lo || (uint64_t)addr >= cached_hi;
+    if (changed) {
+        uint32_t lo = 0, hi = ncode_ranges;
+        while (lo < hi) { uint32_t m = (lo + hi) / 2; if (code_ranges[m].addr <= addr) lo = m + 1; else hi = m; }
+        cached_range = lo && addr < code_ranges[lo-1].end ? &code_ranges[lo-1] : 0;
+        cached_lo = cached_range ? cached_range->addr : lo ? code_ranges[lo-1].end : 0;
+        cached_hi = cached_range ? cached_range->end : lo < ncode_ranges ? code_ranges[lo].addr : 0x100000000ull;
+    }
+    /* Entering an unowned gap is also a continuation boundary. Cache the gap
+     * so its remaining straight-line instructions do not become entry events. */
+    entry = entry || changed;
+    if (entry) bgt_coverage_entry(addr, 2);
+    return entry;
+}
+static void interpreted_count(int entry, const x86_code_range_t *owner) {
+    x86_metrics.interp_insns++;
+    if (owner && !interpreted_owners[owner->owner]) {
+        interpreted_owners[owner->owner] = 1; x86_metrics.interp_functions++;
+    }
+    if (entry) {
+        x86_metrics.interp_code_entries++;
+        if (!owner) x86_metrics.interp_unowned_entries++;
+    }
+}
+static int ends_block(const x86_insn_t *in) {
+    switch (in->op) {
+    case XO_CALL: case XO_CALL_IND: case XO_RET: case XO_JMP: case XO_JMP_IND:
+    case XO_JCC: case XO_LOOP: case XO_LOOPE: case XO_LOOPNE: case XO_JECXZ: return 1;
+    default: return 0;
+    }
+}
+
 /* ------------------------------------------------------------------ interpreter loop */
 /* decoded-instruction cache (direct mapped; self-modifying code is not supported in v0.2) */
 #define DC_SIZE 8192u
@@ -207,13 +251,15 @@ static const x86_insn_t *decode_at(uint32_t eip) {
 static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
 #ifdef X86_FLAT_GUEST
     {
+        int entry = 1;
         for(;;) {
             if (X.eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
             if(X.transfer)return;
             if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
-            if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);continue;}
+            if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);entry=1;continue;}
             x86_lifted_fn f=x86_find_lifted(X.eip);
             if (f) {
+                entry = 1;
                 uint32_t old = X.eip;
                 uint64_t old_clock = X.tsc;
                 x86_metrics.lifted_calls++;
@@ -229,15 +275,21 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 }
             }
             else {
-                bgt_coverage_entry(X.eip, 2);
                 const x86_insn_t *in = decode_at(X.eip);
-                x86_metrics.interp_insns++;
+                int counted_entry = interpreted_entry(X.eip, entry);
+                const x86_code_range_t *owner = cached_range;
+                uint32_t budget = X.frame_insns, addr = in->addr;
+                int next_entry = ends_block(in);
                 x86_exec64(in);
+                /* The semantic core may transfer before executing this instruction. REP
+                 * suspension after partial execution still counts this dispatch once. */
+                if (!(budget >= 2000000u && X.transfer && X.eip == addr)) interpreted_count(counted_entry, owner);
+                entry = next_entry;
             }
         }
     }
 #endif
-    int counted = 0;
+    int entry = 1;
     for (;;) {
         uint32_t eip = X.eip;
         if (eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
@@ -246,16 +298,17 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
         if (x86_is_thunk(eip)) {
             x86_metrics.thunk_dispatches++;
             if (thunk_fn(eip)) return;
+            entry = 1;
             continue;
         }
         /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
         x86_lifted_fn resume = x86_find_lifted(eip);
-        if (resume) { x86_metrics.lifted_calls++; resume(); continue; }
+        if (resume) { x86_metrics.lifted_calls++; resume(); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
         const x86_insn_t *in = decode_at(eip);
-        if (!counted) { counted = 1; x86_metrics.interp_code_entries++; }
-        x86_metrics.interp_insns++;
+        int counted_entry = interpreted_entry(eip, entry);
+        interpreted_count(counted_entry, cached_range);
         if ((in->op == XO_CALL || in->op == XO_CALL_IND) && !x86_force_interp) {
             uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
             x86_lifted_fn fn = x86_find_lifted(t);
@@ -264,16 +317,14 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 x86_push(next);
                 x86_metrics.lifted_calls++;
                 fn();
+                entry = 1;
                 if (X.transfer) return; /* LANE-C */
                 if (X.eip != next) x86_fault("lifted callee returned to an unexpected address", in->addr);
                 continue;
             }
         }
-        if (in->op == XO_CALL || in->op == XO_CALL_IND) {
-            uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
-            if (!x86_is_thunk(t)) bgt_coverage_entry(t,2);
-        }
         x86_exec_insn(in);
+        entry = ends_block(in);
     }
 }
 
@@ -291,7 +342,6 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
         return;
     }
     X.eip = target;
-    if (!x86_is_thunk(target)) bgt_coverage_entry(target,2);
     interp_until(ret_addr, esp_floor);
 }
 
@@ -309,7 +359,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
         if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
     }
     /* a tail jump to an import thunk is an API call, not interpretation */
-    if (!x86_is_thunk(X.eip)) { x86_metrics.continues_interpreted++; bgt_coverage_entry(X.eip,2); }
+    if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
     interp_until(ra, esp0);
 }
 

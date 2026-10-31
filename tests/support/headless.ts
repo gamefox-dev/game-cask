@@ -70,6 +70,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     arg0: opts.arg0 ?? 0,
     arg1: opts.arg1 ?? 0,
     sliceCode:manifest.slice?.code,
+    sliceCodeRanges:manifest.slice?.codeRanges,
   });
   host.init();
   const input = emptyInput();
