@@ -622,7 +622,6 @@ static uint32_t r_RegSetValueEx(int wide) {
 }
 static uint32_t r_RegSetValueExA(void) { return r_RegSetValueEx(0); }
 static uint32_t r_RegSetValueExW(void) { return r_RegSetValueEx(1); }
-static uint32_t r_RegDeleteValue(void) { return 0; }
 
 /* ------------------------------------------------------------------ MSVC runtime (cdecl) */
 #define CARG(n) ARG(n)
@@ -798,7 +797,8 @@ const w32_api_t w32_api_kernel[] = {
     API("RegCloseKey", 1, r_RegCloseKey),
     API("RegQueryValueExA", 6, r_RegQueryValueExA), API("RegQueryValueExW", 6, r_RegQueryValueExW),
     API("RegSetValueExA", 6, r_RegSetValueExA), API("RegSetValueExW", 6, r_RegSetValueExW),
-    API("RegDeleteValueA", 2, r_RegDeleteValue), API("RegDeleteValueW", 2, r_RegDeleteValue),
+    /* Legacy unavailable deletion is an explicit success stub, not an implemented contract. */
+    STUB("RegDeleteValueA", 2), STUB("RegDeleteValueW", 2),
     /* SHELL32 / COMCTL32 */
     API("ShellAboutA", 4, s_ShellAboutA), API("ShellAboutW", 4, s_ShellAboutW),
     STUB("InitCommonControls", 0), API("InitCommonControlsEx", 1, k_one),

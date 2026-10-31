@@ -31,6 +31,8 @@ it('both width registries distinguish result-producing handles from unavailable 
       expect(importStatus(name,'kernel32.dll',width)).toEqual({status:'implemented',group:'threads'});
       expect(runtimeRegistry(width).filter((e:any)=>e.name===name)).toHaveLength(1);
     }
+    for(const name of ['RegDeleteValueA','RegDeleteValueW'])
+      expect(importStatus(name,'advapi32.dll',width)).toEqual({status:'stub',group:'kernel'});
     for(const name of ['GetThreadContext','SetThreadContext','CreateProcessW','CreatePipe'])
       expect(importStatus(name,'kernel32.dll',width)).toMatchObject({status:'implemented',capability:'failure-only'});
   }
