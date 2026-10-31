@@ -740,7 +740,8 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
         case XO_LEAVE: fprintf(o, "X.r[ESP] = X.r[EBP]; X.r[EBP] = x86_pop();"); break;
         case XO_NOP: fprintf(o, ";"); break;
         case XO_CDQ: if (in.osz == 4) fprintf(o, "X.r[EDX] = (X.r[EAX] & 0x80000000u) ? 0xffffffffu : 0;"); else spec = 0; break;
-        case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: fprintf(o, "xs_string(%u, %d, %u);", in.op, sz, in.rep); break;
+        /* LANE-K5a: preserve address aliases, source segment and precise REP restart. */
+        case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: fprintf(o, "xs_string(%u, %d, %u, %u, 0x%08xu, 0x%08xu, %u);if(X.transfer)return;", in.op, sz, in.rep, in.asz, in.addr, next, A->seg_fs); break;
         case XO_MUL: case XO_IMUL1: case XO_DIV: case XO_IDIV: {
             rd(t1, sizeof t1, A);
             fprintf(o, "{ const char *e = xs_muldiv(%u, %s, %d); if (e) x86_fault(e, 0x%08xu); }", in.op, t1, sz, va);

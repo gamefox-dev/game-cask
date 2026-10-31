@@ -87,8 +87,8 @@ int x86_decode_mode(const uint8_t *bytes, uint32_t avail, uint32_t addr, int mod
         else if (op == 0x66) { in->osz = 2; prefix = 0x66; }
         else if (op == 0x64) fs = 1;
         else if (op == 0x65 && mode64) fs = 2;
-        else if (op == 0x67 && mode64) r.asz = 4;
-        else if (op == 0x65 || op == 0x67) unsup = 1;
+        else if (op == 0x67) r.asz = mode64 ? 4 : 2;
+        else if (op == 0x65) unsup = 1;
         else if (op == 0xf2 || op == 0xf3) { in->rep = (uint8_t)op; prefix = (int)op; }
         else if (op == 0xf0) in->lock = 1;
         else if (op == 0xf0 || op == 0x2e || op == 0x3e || op == 0x26 || op == 0x36) { /* lock / null segments */ }
@@ -275,6 +275,10 @@ done:
         if(p->kind==XK_MEM && p->base==X86_RIPREG) {p->disp=(int32_t)((uint32_t)p->disp+addr+in->len);p->base=X86_NOREG;p->pad|=2;}
         if(p->kind==XK_REG && p->size==1 && !r.rex && p->reg>=4 && p->reg<8)p->reg+=12;
     }
+    /* LANE-K5a: 16-bit addressing is supported for implicit string operands.
+     * Explicit 16-bit ModRM addressing remains outside the decoder's subset. */
+    if (r.asz == 2 && !(in->op >= XO_MOVS && in->op <= XO_SCAS)) unsup = 1;
+    if (in->op >= XO_MOVS && in->op <= XO_SCAS) a->seg_fs = (uint8_t)fs;
     if (unsup) in->op = XO_UNSUPPORTED;
     if (in->op == XO_UNSUPPORTED) in->flags |= X86_F_TERMINATOR;
     if (in->flags & (X86_F_BRANCH | X86_F_CALL)) in->target += addr + in->len;
