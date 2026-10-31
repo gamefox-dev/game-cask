@@ -84,6 +84,19 @@ describe('pi bridge persistent state and wait semantics', () => {
     expect(s.state.nextId).toBe(1);
     expect(() => status(s, { context: { percent: 'bad' } })).toThrow();
   });
+  it('gives run CI reviewer requests 45 minutes, preserving explicit timeouts and ordinary defaults', () => {
+    const s = store();
+    for (const question of ['please run CI', 'Please RUN ci after the merge']) {
+      const q = s.question({ lane: 'G', to: 'reviewer', question });
+      expect(q.expiresAt - q.createdAt).toBe(2700_000);
+    }
+    for (const timeout_s of [0, 12, 3600]) {
+      const q = s.question({ lane: 'G', to: 'reviewer', question: 'please run CI', timeout_s });
+      expect(q.expiresAt - q.createdAt).toBe(timeout_s * 1000);
+    }
+    const q = s.question({ lane: 'G', to: 'reviewer', question: 'review the circuit and decide' });
+    expect(q.expiresAt - q.createdAt).toBe(900_000);
+  });
   it('claims one live question at a time, retries delivery, and never claims fork questions', () => {
     const s = store(); status(s);
     s.question({ lane: 'G', to: 'instance', mode: 'fork', question: 'copy' });

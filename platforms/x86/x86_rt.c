@@ -13,6 +13,7 @@ void x86_exec_insn(const x86_insn_t *in);
 x86_cpu_t X;
 uint8_t *x86_pages[1u << 20];
 uint8_t x86_protection[1u << 20];
+int x86_protection_active;
 x86_metrics_t x86_metrics;
 int x86_force_interp;
 const x86_insn_t *x86_lift_pending;

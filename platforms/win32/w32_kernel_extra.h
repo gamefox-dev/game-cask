@@ -100,6 +100,7 @@ static uint32_t k_VirtualProtect(void) {
     uint32_t old=x86_protection[first>>12];if(!old)old=0x40;
     x86_wr32(ARG(3),old);
     for(uint32_t i=(uint32_t)(first>>12);i<last>>12;i++)x86_protection[i]=(uint8_t)prot;
+    if(prot!=0x40)x86_protection_active=1;
     return 1;
 }
 static uint32_t k_VirtualQuery(void) {

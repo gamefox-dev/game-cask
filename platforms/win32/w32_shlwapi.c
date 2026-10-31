@@ -4,12 +4,8 @@
 #include "w32_sysdll.h"
 #include "w32_thread.h"
 int w32_path_exists(const char *path, uint32_t *attrs) {
-    /* LANE-K1/K2 integration seam: existing immutable VFS namespace only. */
-    uint32_t h = w32_file_open_str(path, 1);
-    if (!h) return 0;
-    w32_file_close_h(h);
-    if (attrs) *attrs = 0x80; /* FILE_ATTRIBUTE_NORMAL */
-    return 1;
+    /* K1/K2: use the same shipped/mutable namespace as FindFirstFile, without opening. */
+    return w32_fs_query(path, attrs);
 }
 static uint32_t exists(void) {
     /* SHLWAPI does not promise to set last error. Preserve it across the probe. */

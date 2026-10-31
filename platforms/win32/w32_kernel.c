@@ -227,6 +227,7 @@ static uint32_t k_VirtualAlloc(void) {
     if(!p){last_error=want?487:8;return 0;}
     uint64_t end=((uint64_t)p+size+4095)&~4095ull;
     for(uint32_t i=p>>12;i<end>>12;i++)x86_protection[i]=(uint8_t)prot;
+    if(prot!=0x40)x86_protection_active=1;
     return p;
 }
 static uint32_t k_VirtualFree(void) {
@@ -444,7 +445,10 @@ int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_
 }
 static uint32_t k_SetFilePointer(void){uint32_t i=file_index(ARG(0));int64_t d=(int32_t)ARG(1);if(ARG(2))d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));if(!seek_file(i,d,ARG(3)))return 0xffffffffu;if(ARG(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;}
 static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0)),out=ARG(W32_64?2:3),method=ARG(W32_64?3:4);int64_t d=W32_64?(int64_t)ARG64(1):(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,method))return 0;if(out){x86_wr32(out,(uint32_t)files[i].pos);x86_wr32(out+4,(uint32_t)(files[i].pos>>32));}return 1;}
-static uint32_t get_file_attributes(int wide) { int32_t asset=open_file_asset(wide);if(asset<0){last_error=2;return 0xffffffffu;}bgt_asset_close((uint32_t)asset);return 0x21u; /* READONLY|ARCHIVE */ }
+static uint32_t get_file_attributes(int wide) {
+    char raw[512];uint32_t attrs;w32_gstr(ARG(0),wide,raw,sizeof raw);
+    if(!w32_fs_query(raw,&attrs)){last_error=2;return 0xffffffffu;}return attrs;
+}
 static uint32_t k_GetFileAttributesA(void) { return get_file_attributes(0); }
 static uint32_t k_GetFileAttributesW(void) { return get_file_attributes(1); }
 static uint32_t k_GetWindowsDirectory(int wide) { return w32_pstr(ARG(0), ARG(1), wide, "C:\\WINDOWS"); }

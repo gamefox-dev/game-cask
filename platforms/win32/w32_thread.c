@@ -436,8 +436,11 @@ static uint64_t thread_api(const char *name) {
         if(IS("SetThreadPriority")){
             int32_t priority=(int32_t)v;
             if((priority<-2||priority>2)&&priority!=-15&&priority!=15){t->error=87;return 0;}
-            /* Priorities are stored, but the cooperative scheduler has no priority policy. */
-            if(priority){t->error=50;return 0;}threads[tid].priority=priority;return 1;
+            /* Windows idle/time-critical map to the bounded endpoint weights, not realtime.
+             * The scheduler never replenishes credits on a priority change. */
+            int weight_priority=priority<-2?-2:priority>2?2:priority;
+            if(!x86_sched_set_priority(tid,weight_priority)){t->error=87;return 0;}
+            threads[tid].priority=priority;return 1;
         }
         if(IS("SuspendThread")){
             uint32_t old=threads[tid].suspended;

@@ -63,6 +63,8 @@ void x86_x87(const x86_insn_t *in);
 extern uint8_t *x86_pages[1u << 20];
 /* Windows PAGE_* metadata. Zero denotes legacy RWX mappings, not an unmapped page. */
 extern uint8_t x86_protection[1u << 20];
+/* Monotonic: once non-default permissions exist, unchecked lifted span fast paths stay off. */
+extern int x86_protection_active;
 __attribute__((noreturn)) void x86_fault(const char *,uint32_t);
 static inline int x86_accessible(uint32_t addr, uint32_t size, unsigned access) {
     if ((uint64_t)addr+size>0x100000000ull) return 0;

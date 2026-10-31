@@ -116,7 +116,9 @@ export class BridgeStore {
     const lane = validLane(body.lane);
     if (!['reviewer', 'instance'].includes(body.to)) throw new Error('invalid question destination');
     if (body.to === 'instance' && !Object.hasOwn(this.state.lanes, lane)) throw new Error(`unknown lane ${lane}`);
-    const timeout = body.timeout_s ?? 900;
+    const question = text(body.question, 'question');
+    // CI commonly occupies a whole heavy-command slot for 15–45 minutes.
+    const timeout = body.timeout_s ?? (body.to === 'reviewer' && /\brun\s+ci\b/i.test(question) ? 2700 : 900);
     if (!Number.isFinite(timeout) || timeout < 0 || timeout > 86400) throw new Error('invalid timeout_s');
     if (body.options !== undefined && (!Array.isArray(body.options) ||
         body.options.length > 50 || body.options.some(o => typeof o !== 'string' || o.length > 1000))) {
@@ -125,7 +127,6 @@ export class BridgeStore {
     if (body.default !== undefined && (typeof body.default !== 'string' || body.default.length > 32000)) {
       throw new Error('invalid default');
     }
-    const question = text(body.question, 'question');
     const q = { id: this.state.nextId++, lane, to: body.to, question,
       mode: body.mode === 'fork' ? 'fork' : 'live', options: body.options, default: body.default,
       createdAt: this.now(), expiresAt: this.now() + timeout * 1000, state: 'queued' };

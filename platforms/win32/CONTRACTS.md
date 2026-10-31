@@ -46,8 +46,12 @@ deny modes fail EACCES rather than claiming unimplemented sharing. In-memory fil
 fail EEXIST. `_wrmdir` fails EACCES (directory deletion not supported). `_wchdir`/SetCurrentDirectoryW currently
 accept only the virtual C:\\GAME root. No persistent writable filesystem or complete text-mode/locale parity.
 The deterministic cooperative scheduler owns `_beginthread` lifetime/auto-close and recursive numbered CRT locks.
-Suspend counts are independent of sleep/event wait state; normal priority is supported, other priorities fail
-ERROR_NOT_SUPPORTED. Asynchronous context editing/GetThreadContext fail ERROR_NOT_SUPPORTED, not fake snapshots.
+Suspend counts are independent of sleep/event wait state. Kernel thread priorities -2..2 use K1's bounded
+scheduler weights 1..5; IDLE (-15) / TIME_CRITICAL (15) map to the endpoint weights, never host realtime.
+GetThreadPriority preserves the requested Windows value. Repeated SetThreadPriority calls do not refill credits;
+all runnable peers retain bounded turns. AVRT uses the same scheduler hook (last priority setter wins; reverting
+AVRT restores the default scheduler weight). Asynchronous context editing/GetThreadContext fail
+ERROR_NOT_SUPPORTED, not fake snapshots.
 
 ## VFS and kernel
 

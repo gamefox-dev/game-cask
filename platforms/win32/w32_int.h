@@ -151,6 +151,7 @@ uint32_t w32_crt_data(const char *name);
 
 /* Profile file access shared with CRT FILE* I/O */
 void w32_fs_normalize(const char *raw,char *out);
+int w32_fs_query(const char *raw,uint32_t *attrs);
 void w32_fs_update(const char *raw,uint64_t size);
 void w32_fs_remove(const char *raw);
 uint32_t w32_file_open_str(const char *raw, int wide);

@@ -133,7 +133,9 @@ int main(void) {
     CHECK("Find-created-directory",find!=INVALID_HANDLE_VALUE&&(fd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY));K("FindClose",find,0,0,0,0,0);
     CHECK("GetCurrentHwProfileA",!invoke("advapi32.dll","GetCurrentHwProfileA",U(bytes),0,0,0,0,0)&&GetLastError()==50);
     CHECK("GetThreadPriority",neg(K("GetThreadPriority",(HANDLE)-2,0,0,0,0,0))==0);
-    CHECK("SetThreadPriority",K("SetThreadPriority",(HANDLE)-2,0,0,0,0,0)&&!K("SetThreadPriority",(HANDLE)-2,2,0,0,0,0)&&GetLastError()==50);
+    CHECK("SetThreadPriority",K("SetThreadPriority",(HANDLE)-2,2,0,0,0,0)&&neg(K("GetThreadPriority",(HANDLE)-2,0,0,0,0,0))==2);
+    CHECK("SetThreadPriority-invalid",!K("SetThreadPriority",(HANDLE)-2,3,0,0,0,0)&&GetLastError()==87&&neg(K("GetThreadPriority",(HANDLE)-2,0,0,0,0,0))==2);
+    CHECK("SetThreadPriority-reset",K("SetThreadPriority",(HANDLE)-2,0,0,0,0,0));
     CHECK("GetThreadContext",!K("GetThreadContext",(HANDLE)-2,page,0,0,0,0)&&GetLastError()==50);
     CHECK("SetThreadContext",!K("SetThreadContext",(HANDLE)-2,page,0,0,0,0)&&GetLastError()==50);
     CHECK("SuspendThread",neg(K("SuspendThread",123,0,0,0,0,0))==-1&&GetLastError()==6);

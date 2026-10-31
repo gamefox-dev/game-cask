@@ -31,6 +31,13 @@ static void fs_init(void) {
     }
     bgt_asset_close(h);
 }
+/* Shared metadata query: no kernel/CRT file or search slot is consumed. */
+int w32_fs_query(const char *raw,uint32_t *attrs) {
+    fs_init();char path[512];w32_fs_normalize(raw,path);
+    if(!path[0]){if(attrs)*attrs=0x10;return 1;} /* virtual C:\\GAME root */
+    fs_node_t *n=fs_lookup(path);if(!n)return 0;
+    if(attrs)*attrs=n->attributes;return 1;
+}
 void w32_fs_update(const char *raw,uint64_t size) { fs_init();fs_add(raw,size,0x20,0); }
 void w32_fs_remove(const char *raw) { fs_init();char path[512];w32_fs_normalize(raw,path);fs_node_t *n=fs_lookup(path);if(n&&!n->shipped)n->live=0; }
 static uint32_t k_CreateDirectoryW(void) {

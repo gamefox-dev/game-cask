@@ -126,7 +126,9 @@ cannot report completion; the supervisor's final-result file is authoritative fo
 Use `ask_reviewer(question, options?, default?, timeout_s?)` **only for real decisions not settled by the brief**:
 ownership conflicts, ambiguous acceptance boundaries or a tradeoff requiring operator choice. Never use it for
 routine confirmations, progress acknowledgements or permission to follow existing instructions. Give concrete
-options and a safe default where possible. It waits up to 900 seconds by default, then explicitly returns
+options and a safe default where possible. It waits up to 900 seconds by default; reviewer requests containing
+“run CI” (for example “please run CI”) default to 2700 seconds instead, since CI takes about **15–45 minutes**.
+An explicit `timeout_s` overrides either default. On expiry it explicitly returns
 `Reviewer timeout; using default: …`. Without a default it reports `(no default supplied)`; do not treat that as
 permission to violate a hard rule. Reviewer/deadline races use the first persisted answer; abort signals cancel
 waiting. A bridge outage before enqueue fails the tool instead of pretending a reviewer answered; after enqueue
