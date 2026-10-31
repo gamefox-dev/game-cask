@@ -53,6 +53,23 @@ BGT_EXPORT(nested) void nested(void) {
     x86_push(0xfffffff4u);x86_invoke(0x1000,0xfffffff4u);
 }
 #endif
+/* K5a adds an inner quantum check before each string iteration. K5c must count
+ * actual execution, not a dispatch suspended before its first iteration. */
+BGT_EXPORT(string_run) void string_run(uint32_t quantum, uint32_t repeat, uint32_t count) {
+    static const x86_code_range_t r[]={{0x1000,0x1003,0},{0x1010,0x1012,0}};
+    prepare();x86_register_code_ranges(r,2,1);x86_set_scheduler(suspend);
+    /* Separate stable addresses: the runtime deliberately caches decoded code. */
+    x86_wr8(0x1000,0xf3);x86_wr8(0x1001,0xaa);x86_wr8(0x1002,0xc3);
+    x86_wr8(0x1010,0xaa);x86_wr8(0x1011,0xc3);
+    X.r[EAX]=0x5a;X.r[ECX]=count;X.r[ESI]=0x4000;X.r[EDI]=0x3000;
+    for(unsigned i=0;i<4;i++)x86_wr8(0x3000+i,0);
+    X.frame_insns=quantum;x86_push(0xfffffff4u);x86_invoke(repeat?0x1000:0x1010,0xfffffff4u);
+}
+BGT_EXPORT(pc) uint32_t pc(void) { return X.eip; }
+BGT_EXPORT(remaining) uint32_t remaining(void) { return (uint32_t)X.r[ECX]; }
+BGT_EXPORT(destination) uint32_t destination(void) { return (uint32_t)X.r[EDI]; }
+BGT_EXPORT(source) uint32_t source(void) { return (uint32_t)X.r[ESI]; }
+BGT_EXPORT(byte) uint32_t byte(uint32_t i) { return x86_rd8(0x3000+i); }
 BGT_EXPORT(resume) void resume(void) { X.transfer=0; x86_invoke(X.eip,0xfffffff4u); }
 BGT_EXPORT(insns) uint32_t insns(void) { return (uint32_t)x86_metrics.interp_insns; }
 BGT_EXPORT(entries) uint32_t entries(void) { return (uint32_t)x86_metrics.interp_code_entries; }

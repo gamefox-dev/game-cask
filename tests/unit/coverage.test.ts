@@ -46,6 +46,33 @@ it('counts actual interpreted instructions, dynamic block entries and unique own
  }
 });
 
+it('string quantum transfers count partial work but not pre-first-iteration suspension in both widths',async()=>{
+ for(const mode of [0,1]) {
+  const {instance}=await WebAssembly.instantiate(await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]),{bgt:{coverage_entry:()=>{},abort:()=>{throw new Error('unexpected guest abort');}}});
+  const ex=instance.exports as any;
+  for(const repeat of [0,1])for(const budget of [1999999,2000000]) {
+   ex.string_run(budget,repeat,3);
+   expect(ex.pc()).toBe(repeat?0x1000:0x1010);expect(ex.remaining()).toBe(3);expect(ex.destination()).toBe(0x3000);expect(ex.source()).toBe(0x4000);
+   expect([0,1,2,3].map(i=>ex.byte(i))).toEqual([0,0,0,0]);
+   expect(ex.insns()).toBe(0);expect(ex.entries()).toBe(0);expect(ex.functions()).toBe(0);expect(ex.unowned()).toBe(0);
+   ex.resume();expect(ex.insns()).toBe(2);expect(ex.entries()).toBe(1);expect(ex.functions()).toBe(1);
+   expect(ex.remaining()).toBe(repeat?0:3);expect(ex.destination()).toBe(repeat?0x3003:0x3001);
+   expect([0,1,2,3].map(i=>ex.byte(i))).toEqual(repeat?[0x5a,0x5a,0x5a,0]:[0x5a,0,0,0]);
+  }
+  ex.string_run(1999998,1,3); // one completed REP iteration before the inner check suspends
+  expect(ex.pc()).toBe(0x1000);expect(ex.remaining()).toBe(2);expect(ex.destination()).toBe(0x3001);
+  expect(ex.insns()).toBe(1);expect(ex.entries()).toBe(1);expect(ex.functions()).toBe(1);
+  expect([0,1,2,3].map(i=>ex.byte(i))).toEqual([0x5a,0,0,0]);
+  ex.resume();expect(ex.insns()).toBe(3);expect(ex.entries()).toBe(2);expect(ex.functions()).toBe(1);
+  expect(ex.remaining()).toBe(0);expect(ex.destination()).toBe(0x3003);
+  expect([0,1,2,3].map(i=>ex.byte(i))).toEqual([0x5a,0x5a,0x5a,0]);
+  ex.string_run(1999999,1,0); // zero-count REP is a completed dispatch, not a suspension
+  expect(ex.insns()).toBe(1);expect(ex.entries()).toBe(1);expect(ex.functions()).toBe(1);
+  expect(ex.pc()).toBe(0x1002);expect(ex.destination()).toBe(0x3000);
+  ex.resume();expect(ex.insns()).toBe(2);expect(ex.entries()).toBe(2);
+ }
+});
+
 it('records owned-to-unowned fall-through once and stops a strict slice before executing the unowned instruction in both widths',async()=>{
  for(const mode of [0,1]) {
   const wasm=await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]);

@@ -57,6 +57,9 @@ it('CRT FILE: native byte/position parity, bounded yields, aliases, text/wide, c
     expect(accounting['peek done'].consumedBytes-accounting['peek start'].consumedBytes).toBe(1);
     expect(accounting['peek done'].observedBytes-accounting['peek start'].observedBytes).toBe(1);
     expect(h.host.fileIo.files.filter(f=>f.path==='cr-boundary.txt')).toEqual([{path:'cr-boundary.txt',offset:0,length:65536},{path:'cr-boundary.txt',offset:65536,length:1}]);
+    // Indirect tail jumps through CRT import wrappers are handled by the profile,
+    // not executed as lifted guest entries (nor allowed by a guest code slice).
+    expect([...h.host.codeCoverage.keys()].filter(addr=>addr>=0x00b00000&&addr<0x00c00000)).toEqual([]);
     const buffered={frames:h.host.frameIndex,smallFrames,smallRequests,...h.host.fileIo};
     buildGame(dir,{quiet:true,interpretOnly:true});const diff=await oracle(cfg.id,300);
     expect(diff.identical,JSON.stringify(diff)).toBe(true);expect(diff.errors).toEqual({lifted:null,interpreted:null});

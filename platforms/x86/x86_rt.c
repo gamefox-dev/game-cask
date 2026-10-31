@@ -205,6 +205,9 @@ static void interpreted_count(int entry, const x86_code_range_t *owner) {
         if (!owner) x86_metrics.interp_unowned_entries++;
     }
 }
+static int is_string(int op) {
+    return op == XO_MOVS || op == XO_STOS || op == XO_LODS || op == XO_CMPS || op == XO_SCAS;
+}
 static int ends_block(const x86_insn_t *in) {
     switch (in->op) {
     case XO_CALL: case XO_CALL_IND: case XO_RET: case XO_JMP: case XO_JMP_IND:
@@ -279,11 +282,15 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 int counted_entry = interpreted_entry(X.eip, entry);
                 const x86_code_range_t *owner = cached_range;
                 uint32_t budget = X.frame_insns, addr = in->addr;
-                int next_entry = ends_block(in);
+                int next_entry = ends_block(in), string = is_string(in->op), rep = in->rep;
+                x86_word_t count = X.r[ECX];
                 x86_exec64(in);
-                /* The semantic core may transfer before executing this instruction. REP
-                 * suspension after partial execution still counts this dispatch once. */
-                if (!(budget >= 2000000u && X.transfer && X.eip == addr)) interpreted_count(counted_entry, owner);
+                /* Both dispatch and the first string iteration can transfer before execution.
+                 * A partially executed REP changes its count and still counts once. A zero-
+                 * count REP completes at next, so it also remains a completed dispatch.
+                 * Keep all evidence local: a scheduler callback may interpret reentrantly. */
+                if (!(X.transfer && X.eip == addr && (string ?
+                      (!rep || X.r[ECX] == count) : budget >= 2000000u))) interpreted_count(counted_entry, owner);
                 entry = next_entry;
             }
         }
@@ -308,7 +315,11 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
         const x86_insn_t *in = decode_at(eip);
         int counted_entry = interpreted_entry(eip, entry);
-        interpreted_count(counted_entry, cached_range);
+        const x86_code_range_t *owner = cached_range;
+        int string = is_string(in->op), rep = in->rep, next_entry = ends_block(in);
+        uint32_t addr = in->addr;
+        x86_word_t count = X.r[ECX];
+        if (!string) interpreted_count(counted_entry, owner);
         if ((in->op == XO_CALL || in->op == XO_CALL_IND) && !x86_force_interp) {
             uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
             x86_lifted_fn fn = x86_find_lifted(t);
@@ -324,7 +335,10 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
             }
         }
         x86_exec_insn(in);
-        entry = ends_block(in);
+        /* i386's outer quantum check already ran; strings have an inner check too. */
+        if (string && !(X.transfer && X.eip == addr && (!rep || X.r[ECX] == count)))
+            interpreted_count(counted_entry, owner);
+        entry = next_entry;
     }
 }
 
