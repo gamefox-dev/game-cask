@@ -1,7 +1,7 @@
 // Kit v0.2.1 tools: analyzer data seeds (E3), static imports of unknown DLLs, inspect --strings with UTF-16 and PE
 // resource text (E7), leakcheck reference metadata, the trial brief, the work-queue schema and probe mode.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -133,16 +133,26 @@ describe('trial brief and work queue', () => {
 });
 
 describe('probe mode', () => {
-  it('runs a script against the test API on its own server and writes artifacts', () => {
+  it('loads the intended module/backend on its own server and writes artifacts and real coverage', () => {
     const dir = tmp();
-    writeFileSync(join(dir, 's.mjs'), `export default async function (p) {
-      await p.step(5); await p.screenshot('shot'); await p.crop('crop', { x: 0, y: 0, w: 4, h: 4 }, 4);
-      const st = await p.debugState(); p.log('mz', (await p.peek(st.modules[0].base, 2)).toString('latin1'), (await p.metrics()).interp_insns);
-    }\n`);
-    execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out')], { cwd: ROOT, stdio: 'pipe' });
-    const j = JSON.parse(readFileSync(join(dir, 'out', 'probe.json'), 'utf8'));
-    expect(j.errors).toEqual([]);
-    expect(j.lines).toEqual(['mz MZ 0']);
-    expect(existsSync(join(dir, 'out', 'shot.png')) && existsSync(join(dir, 'out', 'crop.png'))).toBe(true);
+    try {
+      writeFileSync(join(dir, 's.mjs'), `export default async function (p) {
+        await p.step(5); await p.screenshot('shot'); await p.crop('crop', { x: 0, y: 0, w: 4, h: 4 }, 4);
+        const st = await p.debugState(), d = await p.diagnostics();
+        p.log('mz', (await p.peek(st.modules[0].base, 2)).toString('latin1'), (await p.metrics()).interp_insns);
+        p.log(d.game.id, d.backend, st.modules[0].name);
+      }\n`);
+      execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--backend', 'webgl2', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out')], { cwd: ROOT, stdio: 'pipe' });
+      const j = JSON.parse(readFileSync(join(dir, 'out', 'probe.json'), 'utf8'));
+      expect(j.errors).toEqual([]);
+      expect(j.notes).toEqual([]);
+      expect(j.lines).toEqual(['mz MZ 0', 'win32-hello webgl2 hello.exe']);
+      expect(existsSync(join(dir, 'out', 'shot.png')) && existsSync(join(dir, 'out', 'crop.png'))).toBe(true);
+      const coverage = JSON.parse(readFileSync(join(dir, 'out', 'coverage.json'), 'utf8'));
+      expect(coverage.game).toBe('win32-hello');
+      expect(coverage.modules[0].name).toBe('hello.exe');
+      expect(coverage.code.length).toBeGreaterThan(0);
+      expect(coverage.metrics.code_entries_dropped).toBe(0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   }, 120_000);
 });
