@@ -95,8 +95,10 @@ session **approved**, personally passing **40 focused tests / 4 files**, then re
 regressions. Reports: private `review-result.md` and `recheck-result.md`; no independent broad-browser
 certification is implied. All broad local gates above were rerun after this repair.
 
-CI request round 1 for `350fe42` timed out after 900 seconds without a result. That is not remote green;
-the repaired follow-up is submitted as the second/final round, with the result recorded when returned.
+CI request round 1 for `350fe42` timed out after 900 seconds without a result. Round 2/final for
+**`d3c22f8` is GREEN on Ubuntu**, reviewer-reported run **41164491670**. The reviewer performed the
+push/remote execution; this developer did not push. This validates the default Linux functional job,
+not the opt-in real-GPU job or general software-rasterizer conformance.
 
 ## FIX2 — cross-backend tests without a WebGPU adapter
 
