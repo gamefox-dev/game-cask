@@ -1,0 +1,6 @@
+{
+  "id": "gpu-scenes", "name": "Native GPU scenes (CC0)", "license": "CC0-1.0", "private": false,
+  "asyncify": true,
+  "sources": ["scenes.c", "wgsl-scenes.c"],
+  "touch": { "dpad": false, "buttons": [] }
+}

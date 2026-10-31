@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test as base, expect, Page, TestInfo } from '@playwright/test';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
+import { assertWebGPUAvailable, webGPUWasAvailable } from './webgpu-availability';
 
 export interface Collector {
   consoleErrors: string[];
@@ -71,6 +72,7 @@ export async function openGame(
   backend: string,
   params: Record<string, string> = {},
 ): Promise<'ready' | 'failed'> {
+  if (backend === 'webgpu') await assertWebGPUAvailable(page, test.info());
   const q = new URLSearchParams({ game: 'sample2d', backend, ephemeral: '1', paused: '1', ...params });
   await page.goto(`/?${q}`);
   await page.waitForFunction(() => {
@@ -84,7 +86,8 @@ export async function openGame(
 export async function assertBackend(page: Page, backendParam: string, testInfo: TestInfo): Promise<string> {
   const d = await diagnostics(page);
   if (backendParam === 'webgpu' && d.backend !== 'webgpu') {
-    if (requireWebGPU()) throw new Error(`WebGPU required but got ${d.backend}: ${d.backendNotes.join('; ')}`);
+    if (requireWebGPU() || webGPUWasAvailable(page))
+      throw new Error(`WebGPU required/adapter present but got ${d.backend}: ${d.backendNotes.join('; ')}`);
     testInfo.skip(true, `WebGPU unavailable here: ${d.backendNotes.join('; ') || d.errors.map((e) => e.message).join('; ')}`);
   }
   if (backendParam === 'webgl2') expect(d.backend).toBe('webgl2');

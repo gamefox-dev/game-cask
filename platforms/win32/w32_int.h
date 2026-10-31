@@ -23,7 +23,7 @@
 #define W32_THUNK_LO 0x00b00000u
 #define W32_MISC 0x00c00000u
 #define W32_TEB 0x00a00000u
-#define W32_PEB 0x00a01000u
+#define W32_PEB 0x00a10000u /* LANE-C: keep the full AMD64 TEB (TLS slots at +0x1480) disjoint. */
 #define W32_SYSDLL_BASE 0x00d00000u
 #else
 #define W32_STACK_LO 0x00200000u

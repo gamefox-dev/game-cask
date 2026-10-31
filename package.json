@@ -8,7 +8,10 @@
   "engines": {
     "node": ">=20.11"
   },
+  "//": "/* LANE-G */ Workspace-only bridge scripts; no dependency changes.",
   "scripts": {
+    "bridge": "node tools/harness/pi/bridge/cli.mjs",
+    "test:bridge-e2e": "node tools/harness/pi/bridge/e2e.mjs",
     "prepare": "node tools/build/install-hooks.mjs",
     "doctor": "node tools/build/check-toolchain.mjs",
     "build:games": "node tools/build/build.mjs --all",
@@ -20,7 +23,7 @@
     "preview": "vite preview",
     "bundle": "node tools/build/bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint . && node tools/build/build.mjs --examples --check",
+    "lint": "eslint . && node tools/build/check-host-gcc.mjs && node tools/build/build.mjs --examples --check",
     "test": "vitest run",
     "test:e2e": "npm run build:examples && BGT_RESULTS_PREFIX=e2e playwright test",
     "test:e2e:webgl2": "npm run build:examples && BGT_RESULTS_PREFIX=e2e playwright test --project=chromium-webgl2",

@@ -1,0 +1,12 @@
+{
+  "id": "x64-threads",
+  "name": "CC0 cooperative Win64 worker pool",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true,
+      "out": "threads.exe", "sources": ["threads.c"]
+    },
+    "modules": [{"from": "./build/threads.exe", "main": true}]
+  }
+}

@@ -58,6 +58,10 @@ extern "C" {
 #define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
+#define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
+#define BGT_CAP_ENTROPY        (1u << 13) /* LANE-K1: host entropy, not simulation PRNG */
+
+#include "bgt_gpu.h"
 
 #define BGT_BACKEND_NONE     0
 #define BGT_BACKEND_WEBGPU   1
@@ -221,7 +225,14 @@ BGT_IMPORT(asset_range_request) int32_t bgt_asset_range_request(uint32_t handle,
 
 typedef struct bgt_gpu_limits {
     uint32_t byte_size, max_texture_dimension, max_texture_handles, texture_budget_bytes;
-} bgt_gpu_limits_t; /* 16 bytes */
+} bgt_gpu_limits_t; /* frozen 16-byte prefix */
+typedef struct bgt_gpu_limits_v3 {
+    bgt_gpu_limits_t base;
+    uint32_t gpu_supported, max_gpu_handles, gpu_budget_bytes, max_buffer_bytes;
+    uint32_t max_vertex_buffers, max_attributes, max_binding_slots, max_color_attachments;
+    uint32_t uniform_offset_alignment, max_uniform_range, max_vertex_stride, max_shader_bytes;
+    uint32_t shader_languages, max_mip_levels, max_instances, reserved;
+} bgt_gpu_limits_v3_t; /* 80 bytes; cap >= 80 queries this extension */
 BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
 
 /* v0.3 asynchronous request results. status: 0 pending, 1 ready, or error. Reads do not consume.
@@ -249,6 +260,18 @@ BGT_IMPORT(asset_close) int32_t bgt_asset_close(int32_t handle);
  * accepted (may be fewer than offered when the queue is full or audio is
  * still locked; audio is unlocked by the first user gesture). */
 BGT_IMPORT(audio_push)   int32_t bgt_audio_push(const int16_t *samples, uint32_t frames);
+/* LANE-K1: optional v0.3 host entropy. BGT_OK or E_BOUNDS/E_UNSUPPORTED/E_IO. */
+BGT_IMPORT(random_bytes) int32_t bgt_random_bytes(void *dst, uint32_t len);
+
+/* v0.3 additive audio/input imports; old IO layout and mono import are unchanged. */
+BGT_IMPORT(audio_push_stereo) int32_t bgt_audio_push_stereo(const int16_t *samples, uint32_t frames);
+typedef struct bgt_gamepad {
+    uint32_t connected, buttons;
+    int16_t axes[4];
+    uint16_t triggers[2];
+} bgt_gamepad_t;
+BGT_IMPORT(input_gamepad) int32_t bgt_input_gamepad(uint32_t index, bgt_gamepad_t *out, uint32_t bytes);
+BGT_IMPORT(input_gamepad_rumble) int32_t bgt_input_gamepad_rumble(uint32_t index, uint32_t left, uint32_t right);
 BGT_IMPORT(audio_queued) int32_t bgt_audio_queued(void); /* frames scheduled but not yet played */
 
 /* Small key/value persistence. Keys: 1..64 bytes of [A-Za-z0-9_.-].

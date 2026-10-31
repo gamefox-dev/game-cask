@@ -17,6 +17,8 @@
 #   PI_BIN          pi executable (default pi on PATH)
 #   PI_EXTRA_ARGS   extra pi args, e.g. "--no-skills"
 #   PI_TUI_SELECT=1 (tui) pick model+thinking via /model and /thinking in the TUI instead of CLI flags
+#   PI_BRIDGE=1    load the workspace bridge extension; requires PI_LANE and a running bridge server
+#   PI_BRIDGE_PORT localhost bridge port (default 5190); never installs global pi resources
 set -u
 umask 077
 [ $# -eq 3 ] || { sed -n 2,3p "$0"; exit 2; }
@@ -37,10 +39,21 @@ if [ "$LEAN" = 1 ]; then
   ARGS+=(--no-extensions --no-mcp)
   [ -n "${PI_PROVIDER_EXTENSION:-}" ] && ARGS+=(-e "$PI_PROVIDER_EXTENSION")
 fi
+if [ "${PI_BRIDGE:-0}" = 1 ]; then
+  : "${PI_LANE:?PI_BRIDGE=1 requires PI_LANE}"
+  export PI_LANE PI_BRIDGE
+  ARGS+=(-e "$HERE/bridge/extension.js")
+  # Shared bridge brief template applies to trial and lane prompts without modifying either source brief.
+  { cat "$PROMPT"; printf '\n'; cat "$HERE/bridge/agent-brief.md"; } > "$RUND/bridge-brief.md"
+  PROMPT="$RUND/bridge-brief.md"
+fi
 # shellcheck disable=SC2206
 [ -n "${PI_EXTRA_ARGS:-}" ] && ARGS+=($PI_EXTRA_ARGS)
 
 finish() { # $1 = exit code
+  if [ "${PI_BRIDGE:-0}" = 1 ]; then
+    node "$HERE/bridge/cli.mjs" ended --lane "$PI_LANE" "$1" >> "$RUND/bridge.log" 2>&1 || true
+  fi
   python3 "$HERE/pisess.py" final "$RUND/sessions" > "$OUT" 2>/dev/null
   python3 "$HERE/pisess.py" render "$RUND/sessions" > "$RUND/transcript.txt" 2>/dev/null
   printf '{"mode":"%s","model":"%s","thinking":"%s","exit":%s,"seconds":%s}\n' "$MODE" "$MODEL" "$THINK" "$1" $(( $(date +%s) - START )) > "$RUND/run.json"

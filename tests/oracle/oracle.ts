@@ -4,6 +4,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadHeadless, ROOT, Headless } from '../support/headless';
+/* LANE-GL: opt-in fixture recorder; no rendering is claimed by this oracle. */
+import { glStream } from '../support/x64-gl-stream';
+const streamOptions = (id: string) => ['x64-gl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {
@@ -31,19 +34,34 @@ export function defaultScript(frames: number, w: number, h: number, seed = 7): O
 }
 
 async function run(id: string, frames: number, script: OracleStep[]): Promise<{ hashes: string[]; metrics: unknown; error: string | null }> {
-  const h: Headless = await loadHeadless(id, { storage: new Map() });
+  const stream = streamOptions(id);
+  /* LANE-K1: deterministic entropy tape is TEST REPLAY ONLY, never used by real play. */
+  let cursor = 0;
+  const entropy = (bytes: Uint8Array) => { for (let i=0;i<bytes.length;i++) bytes[i] = ((cursor++ * 73 + 41) ^ (cursor >>> 8)) & 255; };
+  const h: Headless = await loadHeadless(id, { storage: new Map(), ...stream, entropy });
   const hashes: string[] = [];
   let error: string | null = null;
   const byFrame = new Map<number, OracleStep[]>();
   for (const st of script) byFrame.set(st.frame, [...(byFrame.get(st.frame) ?? []), st]);
   try {
+    // The smoke's measured 600-frame loop follows deterministic shader/file startup.
+    // Recorder-only pre-roll is identical in both builds and remains part of the trace hash.
+    const startup: string[] = [];
+    if (id.replace(/-interp$/, '') === 'x64-smoke') for (let f=0;f<20;f++) {
+      await h.stepAsync(1);
+      if (h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
+      startup.push((h.host.stateHash() ?? '') + ':' + stream!.frameHash());
+    }
     for (let f = 0; f < frames; f++) {
       for (const st of byFrame.get(f) ?? []) {
         if (st.pointer) h.pointer(...st.pointer);
         if (st.key) h.key(...st.key);
       }
       await h.stepAsync(1); // settle external range I/O before advancing deterministic guest time
-      hashes.push(h.host.stateHash() ?? '');
+      /* LANE-GL: compare semantic GPU bytes too, not just the first four integer API arguments. */
+      if (stream && h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
+      hashes.push((f === 0 && startup.length ? startup.join('|') + '|' : '') +
+        (h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : ''));
     }
   } catch (e) {
     error = (e as Error).message;
@@ -52,7 +70,7 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{ 
 }
 
 export async function oracle(id: string, frames = 300, script?: OracleStep[]): Promise<OracleReport> {
-  const probe = await loadHeadless(id);
+  const probe = await loadHeadless(id, streamOptions(id));
   await probe.stepAsync(1);
   const sc = script ?? defaultScript(frames, probe.host.logicalWidth, probe.host.logicalHeight);
   const a = await run(id, frames, sc);

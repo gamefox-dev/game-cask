@@ -1,7 +1,8 @@
-# Game Cask Browser Target (BGT) — ABI v0.3 (partial GPU extension)
+# Game Cask Browser Target (BGT) — ABI v0.3
 
 Status: **v0.3** (`0x000300`, additive; §12 adds requests/readback to the frozen v0.1/v0.2 interfaces).
-This branch does **not** yet provide the full v0.3 GPU-layer brief (buffers/shaders/pipelines/OpenGL). The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
+§13 defines and validates the GPU command interface; current browser renderers do not advertise `CAP_GPU`.
+GPU execution and the OpenGL profile are separate implementations. The C header is [`bgt/include/bgt.h`](../include/bgt.h) and
 [`bgt_cmd.h`](../include/bgt_cmd.h). The TypeScript mirror is
 [`bgt/runtime/abi.ts`](../runtime/abi.ts). `tests/unit/abi-layout.test.ts` compiles a C
 probe against the headers and fails if the mirror drifts.
@@ -334,7 +335,7 @@ Optional `uint32_t bgt_metrics(void)` returns NUL-terminated JSON with kit metri
 
 Version is `0x000300`. Lifecycle, `bgt_io_t` (224 B), command header v1 and every v0.2 opcode/layout are unchanged.
 Old modules exporting `0x000200` are tested against the v0.3 host. New functionality is additive and capability-gated.
-The full shader/buffer/pipeline/OpenGL layer is **not implemented**; no shader-language support is advertised.
+The shader/buffer/pipeline interface is defined in §13; no current browser backend advertises its capability.
 
 ### GPU limits
 
@@ -406,6 +407,79 @@ settled. Deterministic test stepping awaits pending I/O before advancing a frame
 network latency is not virtual guest time. This is not a cooperative thread scheduler; a future worker must avoid
 blocking all guest threads on an unrelated read.
 
+### Stereo audio and independent gamepads (Lane E, additive v0.3)
+
+The 224-byte IO layout, merged buttons/axes, and mono `audio_push` remain unchanged. New imports use module `bgt`:
+
+| import | contract |
+|---|---|
+| `audio_push_stereo(ptr,frames)` | Interleaved signed int16 **L,R**, at `io.audio_sample_rate`; returns accepted **frames**, not samples. |
+| `input_gamepad(index,ptr,bytes)` | Writes a 20-byte LE snapshot for slot 0..3; `bytes >= 20`; returns 0. |
+| `input_gamepad_rumble(index,left,right)` | Best-effort actuator magnitudes 0..65535; returns 0 for a connected pad. |
+
+Stereo pushes are capped at 48,000 frames/call; oversized counts or invalid memory return E_BOUNDS without calling
+an audio sink. Audio unlock, 300ms queue, partial acceptance and Web Audio resampling follow the mono contract.
+A host without stereo output accepts zero frames (there is no implicit downmix). Browser output preserves channels.
+
+Gamepad structure: u32 `connected` at 0, u32 standard Gamepad API button-index bits at 4, four int16 axes at 8
+(LX, LY, RX, RY, −32767..32767; browser **Y-down**), two u16 triggers at 16 (0..65535). Disconnected slots are zero.
+Invalid index/short structure → E_INVALID; invalid destination → E_BOUNDS. Snapshots are copied at each update;
+keyboard/touch/merged virtual buttons never masquerade as a connected pad. Existing IO axes still aggregate pads.
+Rumble invalid index → E_INVALID; disconnected → E_NOT_FOUND. Browser actuator absence/rejection is not an error;
+physical vibration is not simulation state. Magnitudes saturate; duration is best-effort 100ms, refresh to sustain.
+
+Test API adds `{type:'gamepad',index,connected,buttons?,axes?,triggers?}` with normalized float axes −1..1 and triggers
+0..1, and standard button-index bits. An injected slot overrides its physical slot until reload, including disconnect.
+
+The Win32 profile maps standard buttons to XInput, flips stick Y, preserves trigger range, increments packet numbers
+only when pad state changes, and returns ERROR_DEVICE_NOT_CONNECTED for absent slots. Raw Input registrations cover
+usage-page 1 keyboard (6) and mouse (2); WM_INPUT carries bounded generation-checked handles (last 256 records).
+GetRawInputData supports RID_INPUT/RID_HEADER, size queries and insufficient buffers, with native x86/x64 layouts.
+Records derive from per-update HID edges and relative pointer deltas; this is **not** unaccelerated hardware input.
+Only remove/foreground/INPUTSINK flags are supported; unsupported registrations fail rather than fabricate devices.
+Known letter scan codes are supplied; unknown hardware scan codes are zero. No HID enumeration or raw wheel yet.
+GetKeyboardState/GetAsyncKeyState/GetKeyState share held keyboard and mouse-button state, including sided/aggregate
+modifiers. Async's historical low-bit latch and keyboard toggle states are not emulated.
+
+COM provides a GUID class registry (currently MMDeviceEnumerator), apartment init nesting/mode checks, identity,
+QueryInterface/AddRef/Release and task-memory ownership; unsupported classes/interfaces return HRESULT failures.
+PropVariantClear/Copy handle scalar, LPSTR/LPWSTR, CLSID and profile IUnknown ownership (BSTR/arrays unsupported);
+InitPropVariantFromString creates an owned LPWSTR variant.
+No COM marshaling, aggregation or cross-apartment threads. WASAPI exposes default render endpoint/device/IAudioClient/
+IAudioRenderClient with shared stereo float32/int16 PCM, 8–192kHz; other formats/exclusive mode return errors.
+GetMixFormat allocates 48kHz float32 stereo. Initialize accepts up to 19,200 source frames (minimum 10ms); buffering,
+GetCurrentPadding, Start/Stop/Reset and GetBuffer/ReleaseBuffer use an owned ring. Conversion clips float to int16
+and uses deterministic phase-accumulator sample repetition/decimation for rate conversion (not a bandlimited filter).
+SILENT buffers produce zeroes. The virtual clock drains source frames; locked/full BGT output may drop audio but does
+not stall the simulated endpoint. Event streams signal every 10 virtual ms, coalesced at frame/poll boundaries.
+Main-thread CreateEvent/SetEvent/ResetEvent/WaitForSingleObject supplies polling now; **no guest threads** are created.
+The threads lane should replace that event adapter, call `w32_audio_pump` at virtual scheduling boundaries, and route
+`w32_audio_signal_event` through scheduler wakeups. Audio pumping never invokes a guest callback or uses wall time.
+WinMM waveOut and capture/endpoint enumeration/session control are not supplied by this addition.
+
+Conformance: `examples/x64-audio` generates a 1kHz two-channel tone through public COM vtables (float32/48kHz then
+int16/24kHz), with owned strings, failure paths and event polling. Unit tests assert actual sink samples, amplitudes,
+channel polarity, crossings and virtual duration. `examples/x64-input` draws four state squares and reports raw/pad
+state; unit/browser tests inject pads/keyboard/mouse and assert make/break, deltas, packets and pixels on both backends.
+Both are original CC0 fixtures, fully lifted, with 300-frame differential oracles and no per-game profile branches.
+
+### Host entropy (LANE-K1, additive v0.3)
+
+`BGT_CAP_ENTROPY` (bit 13) advertises an available host entropy source.
+`bgt_random_bytes(void *dst, uint32_t length)` fills the checked linear-memory span with
+Web Crypto `getRandomValues` bytes, splitting requests at the browser's 65,536-byte quota.
+It returns `BGT_OK`, `BGT_E_BOUNDS` for an invalid span, `BGT_E_UNSUPPORTED` if no provider
+exists, or `BGT_E_IO` on provider failure. Failed host calls do not modify the destination.
+Zero length is accepted when a provider exists. This is not the seeded simulation PRNG;
+normal browser play never substitutes deterministic bytes. The BCrypt profile consumes
+this source (system-preferred RNG or Windows' RNG pseudo-handle); no algorithm/hash
+providers are advertised.
+
+Only the headless differential oracle explicitly supplies a deterministic entropy replay
+provider. That tape makes lifted/interpreted comparisons reproducible, is test-only,
+and is not cryptographically secure. Independent host tests exercise real Web Crypto,
+quota splitting, invalid ranges and provider failure; browser fixtures use real entropy.
+
 ### Coverage and slice boundaries
 
 `coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`
@@ -425,3 +499,311 @@ Coverage-guided nonslice builds keep all data and interpret unselected functions
 The current loader image retains conservative virtual section bytes (including unlifted machine code/data), so this
 is **not** yet a minimum-image slice. Unknown indirect entry targets, self-modifying code and fine-grained basic block
 coverage remain unsupported; see docs/v03-status.md.
+
+## 13. v0.3 GPU layer (additive interface)
+
+This section is normative for the wire interface, validator and future backend/profile implementations. Execution
+is **not enabled** in existing renderers. `BGT_CAP_GPU` / TS `CAP_GPU` is bit 12. Without it, every GPU opcode below
+returns `E_UNSUPPORTED` after stream framing validation, with no resources/requests allocated. Existing 2D commands,
+readback, requests, streamed files, IO, ABI version and command stream version are unchanged. A backend advertises
+this bit only after implementing this section, not merely because the browser supports WebGL/WebGPU. Shader language
+support is separately queried; GLSL translation is not implicitly promised by CAP_GPU.
+
+### 13.1 Wire conventions, handles, errors and ordering
+
+Opcodes use the existing 8-byte prefix, zero flags and 4-aligned payload. Below, a comma-separated field is one u32
+word unless explicitly `f32` or `i32`. Sizes exclude the prefix. C structs use precisely this order, no padding;
+`bgt_gpu.h` is included by `bgt.h`, and `bgt_gpu_cmd.h` by `bgt_cmd.h`. Every op has a
+`bgt_cmd_gpu_<lowercase-op>(bgt_cmdbuf_t*, const bgt_gpu_<lowercase-op>_t*)` helper; PASS_END takes only the buffer.
+PIPELINE_CREATE and PASS_BEGIN additionally take arrays for their inline tails (see below). These struct-copy
+encoders target the ABI's little-endian C machine (wasm32); pointer fields are **u32 wasm offsets**, not host pointers.
+TS mirrors are `GPU_OP`, `GPU`, `GPU_LAYOUT`, `GPU_PIPELINE_FIELDS`, `GPU_LIMITS` in `runtime/abi.ts`.
+`CommandEncoder.gpu(op, words)` emits these exact words; encode f32 fields as their IEEE-754 bits.
+
+GPU handles are caller-chosen integers 1..1023 in **five separate namespaces**: buffer, texture, sampler, shader,
+pipeline. Zero is not a resource, except as the screen color attachment / absent depth attachment in PASS_BEGIN.
+They are distinct from legacy TEX_* handles: there is no implicit legacy/GPU texture aliasing or cross-sampling.
+Deleting allows immediate handle reuse; already queued commands still refer to the prior generation by stream order.
+CREATE of an invalid handle → E_INVALID; duplicate → E_STATE; missing resource on use/update/delete → E_NOT_FOUND.
+Resources persist across submits/frames. Buffers start zero; textures start color zero / depth 1 / stencil 0 at every
+mip. There is no mip generation, array/cube texture, multisampling, storage buffer or compute interface in this layer.
+Profiles implement these only by general transformations or report unsupported; never silently reinterpret them.
+
+Framing validation is still all-or-nothing. Semantic failures skip **only** the failing command, preserve prior state,
+and return the first error from submit (all errors retain opcode/offset). Wrong fixed length or inconsistent inline
+tail → E_INVALID; oversized inline counts → E_LIMIT; nonzero command flags → E_UNSUPPORTED. Capability gating
+precedes payload validation so old modules retain E_UNSUPPORTED for formerly unknown opcodes (even malformed).
+With the capability present: shape validation precedes lifecycle/state checks, which precede
+resource checks; create checks handle/duplicate first. Bad enums, boolean outside 0..1, NaN/Inf, zero required size,
+misalignment and data length mismatch → E_INVALID. Memory pointer+length, buffer/texture region or draw-fetch outside
+bounds → E_BOUNDS (addition/multiplication is checked without u32 wrapping). Documented budget/count → E_LIMIT.
+Known unsupported language or depth upload → E_UNSUPPORTED. Backend allocation/device errors → E_IO and diagnostic;
+shader errors use the request result below. A well-shaped but unsupported opcode still uses the legacy E_UNSUPPORTED.
+
+All resource operations (0x40..0x4b) are **outside** a GPU pass. Pipeline binding/dynamic state/buffer binding/draws
+(0x4e..0x58) are **inside** a pass. No legacy command, including READBACK and 2D state/resource operations, may occur
+inside a GPU pass: E_STATE, no effect. Resource operations during a pass, nested begin, end outside a pass, draws
+without a pipeline/required bindings, attachment feedback, incompatible pipeline targets → E_STATE. A pass must end
+in the **same submission**. At submission end an unterminated pass is closed by a synthetic PASS_END and E_STATE is
+reported at offset byte_len/op 0; preceding valid work is retained, and subsequent submissions start outside a pass.
+
+Frame.items is the single ordering authority. Resource changes, readback and GPU pass boundaries break 2D batches.
+All previously queued 2D draws finish before a GPU begin; GPU end stores results before later 2D draws/readback.
+The screen is the same letterboxed logical surface as 2D (RGBA8, not a second canvas). GPU load preserves earlier
+screen content; clear/load and later 2D blending observe that content in stream order. GPU passes do not modify the
+legacy viewport/transform/scissor/texture/blend/TARGET state. At begin, GPU viewport/scissor cover the whole attachment,
+depth range is [0,1], stencil ref 0, blend constant (0,0,0,0); all bindings and pipeline are unset. Bindings persist
+on pipeline switch **within** the pass, but nothing persists to the next pass.
+
+### 13.2 Buffers, textures, samplers and shaders
+
+| Opcode | Name | Bytes | Payload, in order |
+|---|---|---:|---|
+| 0x40 | BUFFER_CREATE | 20 | handle, usage, size, data_ptr, data_len |
+| 0x41 | BUFFER_UPDATE | 16 | handle, offset, data_ptr, data_len |
+| 0x42 | BUFFER_DELETE | 4 | handle |
+| 0x43 | TEXTURE_CREATE | 24 | handle, width, height, mips, format, usage |
+| 0x44 | TEXTURE_UPDATE | 32 | handle, mip, x, y, width, height, data_ptr, data_len |
+| 0x45 | TEXTURE_DELETE | 4 | handle |
+| 0x46 | SAMPLER_CREATE | 32 | handle, min_filter, mag_filter, mip_filter, wrap_u, wrap_v, compare_enable, compare |
+| 0x47 | SAMPLER_DELETE | 4 | handle |
+| 0x48 | SHADER_CREATE | 24 | handle, stage, language, source_ptr, source_len, request |
+| 0x49 | SHADER_DELETE | 4 | handle |
+
+BUFFER_CREATE usage is a nonempty OR of VERTEX=1, INDEX=2, UNIFORM=4. Size is positive, at most 64 MiB. data_len is
+0 (zero-initialize) or exactly size; UPDATE length is positive and replaces precisely [offset,offset+data_len).
+All upload/source bytes are copied before submit returns, even if guest memory overlaps the command stream; backend
+items use owned copies, never the original pointer. Deleting a buffer is safe outside a pass; bindings are pass-local.
+Uniform bytes have the layout agreed by shaders (std140-compatible, see binding convention).
+
+Texture usage is nonempty OR SAMPLED=1, ATTACHMENT=2. Dimensions are 1..4096; mips is 1..1+floor(log2(max(width,height))).
+At mip L dimensions are max(1,floor(width/2^L)), max(1,floor(height/2^L)). No implicit extra mips or auto-LOD generation.
+
+| Format | Value | Bytes/texel | Interpretation |
+|---|---:|---:|---|
+| RGBA8 | 0 | 4 | linear normalized RGBA |
+| RGBA8_SRGB | 1 | 4 | RGB sRGB decode on sampling/encode on attachment write; alpha linear |
+| R8 | 2 | 1 | normalized red, sample (r,0,0,1) |
+| RG8 | 3 | 2 | normalized red/green, sample (r,g,0,1) |
+| RGBA16F | 4 | 8 | four LE IEEE binary16 values |
+| DEPTH24_STENCIL8 | 5 | 4 | depth normalized 24-bit, unsigned stencil 8-bit |
+| DEPTH32F | 6 | 4 | float depth |
+| NONE | 0xffffffff | — | pipeline with no depth attachment (not a texture format) |
+
+All listed formats are part of CAP_GPU; a backend lacking native attachment support must implement it or leave the
+capability unset. TEXTURE_UPDATE accepts color formats only (depth formats → E_UNSUPPORTED); rows tightly packed,
+top-to-bottom, data_len exactly width*height*bytes_per_texel. Region must fit the selected mip. Coordinates and
+normalized sampling origin are top-left; no upload flip is guest-visible. Depth textures can be sampled (depth aspect
+only; stencil sampling is absent). Attachment writes are stored; there is no discard/store option.
+
+Sampler filters: min/mag NEAREST=0, LINEAR=1; mip NONE=0 (base level only), NEAREST=1, LINEAR=2 (trilinear).
+Wrap CLAMP=0 (edge), REPEAT=1, MIRROR=2. Compare enable is boolean; compare uses the enum below. Comparison samplers
+require a depth format; comparison produces depth-test samples. Non-comparison depth sampling returns depth in red.
+Sampler LOD clamps to allocated levels, LOD bias 0, anisotropy 1. No mutable sampler state or border color.
+
+Shader stage VERTEX=1, FRAGMENT=2, COMBINED=3. Languages WGSL=0, GLSL330=1, GLSLES300=2. COMBINED is WGSL only;
+otherwise a module contains exactly its declared stage. Source is positive-length strict UTF-8 without NUL, at most
+1 MiB, copied during submit. GLSL starts with `#version 330 core` or `#version 300 es` respectively, ES includes
+precision declarations. Entry points are WGSL `vs_main` / `fs_main`, GLSL `main`. Source-language errors (including
+bad version, entry point, illegal bindings/reflection) are compilation errors, not synchronous payload errors.
+WGSL combined can occupy both pipeline shader fields. The two shaders in a pipeline must use the same language and
+supply the appropriate stages (E_INVALID). No cross-language linking or automatic GLSL translation is required;
+backends may translate and advertise additional language bits once conformant.
+
+SHADER_CREATE reserves its caller-selected `request` through the **existing** §12 request allocator (same ID space,
+32 outstanding/8 MiB result budget, duplicate/invalid/limit errors unchanged). It returns BGT_OK after queuing, not
+a compilation result. The backend eventually invokes the item's `complete(code, log)` exactly once: BGT_OK on
+successful compilation, E_IO on compile/reflection/device failure, with UTF-8 log text (empty allowed, truncated to
+1 MiB). The ready request data is **i32 LE compile_status followed by UTF-8 log bytes**, no NUL. request_status is 1
+even when compile_status is E_IO, so request_read can retrieve diagnostics. Results remain invisible until a later
+update boundary, exactly as other requests. Closing cancels result delivery, not compilation or the shader object.
+Deleting a pending shader does not cancel its request; stale completion must not mutate a reused shader handle.
+A pipeline requires both shaders successfully compiled (pending/failed → E_STATE). Profiles wait for the request,
+read the status and log, and close it before reusing the ID. A shader referenced by any live pipeline cannot be
+deleted (E_STATE); delete the pipeline first. A failed shader remains allocated until explicitly deleted.
+
+### 13.3 Pipeline layout and immutable state
+
+0x4a PIPELINE_CREATE: 104-byte header, then buffer_count * 8 bytes of vertex layouts, attribute_count * 16 bytes
+of attributes, color_count * 36 bytes of color states, with **no pointer or padding** between arrays.
+0x4b PIPELINE_DELETE: 4 bytes, handle. Pipeline fields are immutable.
+
+The 26 header words (byte offset = index*4):
+
+| Index | Field | Meaning |
+|---:|---|---|
+| 0..2 | handle, vertex_shader, fragment_shader | GPU resource namespaces |
+| 3 | topology | POINTS=0, LINES=1, LINE_STRIP=2, TRIANGLES=3, TRIANGLE_STRIP=4 |
+| 4..5 | cull, front_face | NONE=0/FRONT=1/BACK=2; CCW=0/CW=1 |
+| 6 | depth_format | NONE, DEPTH24_STENCIL8 or DEPTH32F |
+| 7..9 | depth_test, depth_write, depth_compare | booleans, compare enum |
+| 10..12 | stencil_enable, stencil_read_mask, stencil_write_mask | boolean, u8 masks (u32 words) |
+| 13..16 | front_compare, front_fail, front_depth_fail, front_pass | front-face stencil compare and ops |
+| 17..20 | back_compare, back_fail, back_depth_fail, back_pass | back-face stencil compare and ops |
+| 21..22 | uniform_mask, texture_mask | bits 0..7 declare slots required by either stage |
+| 23..25 | buffer_count, attribute_count, color_count | <=8, <=16, <=4; zero allowed |
+
+Depth test/write require a depth format; stencil_enable requires DEPTH24_STENCIL8. Disabled depth test behaves as
+ALWAYS (depth_write can still write). Disabled stencil preserves stencil. Compare enum (also sampler): NEVER=0,
+LESS=1, EQUAL=2, LEQUAL=3, GREATER=4, NOT_EQUAL=5, GEQUAL=6, ALWAYS=7. Stencil comparison is
+`(reference & read_mask) compare (stored & read_mask)`. Ops KEEP=0, ZERO=1, REPLACE=2, INCREMENT_CLAMP=3,
+DECREMENT_CLAMP=4, INVERT=5, INCREMENT_WRAP=6, DECREMENT_WRAP=7. Ops apply to 8-bit stencil, with write_mask
+preserving masked-off bits. REPLACE uses dynamic stencil reference. No depth bias, clamp, conservative raster or
+polygon mode in this version. Point size 1; line width 1; primitives with insufficient final vertices are ignored.
+Primitive restart is disabled, including all-ones index values. No strip-to-list reordering may change winding.
+
+Vertex layout record (8 B): `stride, step`; stride positive multiple of 4, <=2048; step VERTEX=0 or INSTANCE=1.
+Buffer slot is its index in this array. Attribute (16 B): `location, buffer, offset, format`. Location 0..15 unique;
+buffer must index an existing layout; attribute end must fit stride. No overlapping-location alias; overlapping
+byte ranges are legal. Formats and byte sizes: FLOAT=0/4, FLOAT2=1/8, FLOAT3=2/12, FLOAT4=3/16, UNORM8X4=4/4,
+SINT=5/4, SINT2=6/8, SINT3=7/12, SINT4=8/16, UINT=9/4, UINT2=10/8, UINT3=11/12, UINT4=12/16.
+Offsets align to 4 except UNORM8X4 (alignment 1). Integers are signed/unsigned 32-bit per component; UNORM converts
+to float [0,1]. No packed/half/double vertex formats; profiles expand those into supported formats.
+
+Color state record (36 B): `format, blend, src_rgb, dst_rgb, op_rgb, src_alpha, dst_alpha, op_alpha, write_mask`.
+Format 0..4, blend boolean. Each channel computes `op(src*src_factor, dst*dst_factor)`, separately RGB and alpha;
+when disabled source replaces destination. Write mask bits R=1,G=2,B=4,A=8 (zero legal). Factors ZERO=0, ONE=1,
+SRC_COLOR=2, ONE_MINUS_SRC_COLOR=3, DST_COLOR=4, ONE_MINUS_DST_COLOR=5, SRC_ALPHA=6, ONE_MINUS_SRC_ALPHA=7,
+DST_ALPHA=8, ONE_MINUS_DST_ALPHA=9, CONSTANT=10, ONE_MINUS_CONSTANT=11. For alpha, color factors mean that color's
+alpha component. Ops ADD=0, SUBTRACT=1, REVERSE_SUBTRACT=2, MIN=3, MAX=4; MIN/MAX ignore factors. Normalized targets
+clamp output to [0,1]. No dual-source blending, logic op or alpha-to-coverage. Blend constant supplies RGBA factors.
+
+### 13.4 Passes, state, bindings and draws
+
+| Opcode | Name | Bytes | Payload, in order |
+|---|---|---:|---|
+| 0x4c | PASS_BEGIN | 28 + color_count*28 | color_count, depth_texture, depth_mip, depth_load, stencil_load, f32 clear_depth, clear_stencil; then color records |
+| 0x4d | PASS_END | 0 | — |
+| 0x4e | PIPELINE | 4 | handle |
+| 0x4f | VIEWPORT | 24 | f32 x, y, width, height, min_depth, max_depth |
+| 0x50 | SCISSOR | 16 | x, y, width, height |
+| 0x51 | STENCIL_REF | 4 | value |
+| 0x52 | BLEND_CONSTANT | 16 | f32 r, g, b, a |
+| 0x53 | VERTEX_BUFFER | 16 | slot, handle, offset, size |
+| 0x54 | INDEX_BUFFER | 16 | handle, format, offset, size |
+| 0x55 | UNIFORM_BUFFER | 16 | slot, handle, offset, size |
+| 0x56 | TEXTURE | 12 | slot, handle, sampler |
+| 0x57 | DRAW | 16 | count, instances, first, first_instance |
+| 0x58 | DRAW_INDEXED | 20 | count, instances, first, i32 base_vertex, first_instance |
+
+Color attachment record (28 B): `texture, mip, load, f32 r, g, b, a`. Load ops LOAD=0, CLEAR=1 (depth/stencil use
+the same enum). Clear colors are finite floats, converted/clamped to the target representation; sRGB clear values
+are linear. Clear depth is finite [0,1]; clear stencil/ref <=255. Clear ignores scissor/write masks. Depth_texture=0
+means no depth attachment (depth_mip/depth_load/stencil_load must be zero). DEPTH32F requires stencil_load=LOAD.
+Every attachment must have ATTACHMENT usage, the appropriate color/depth format and a valid mip. All selected mip
+sizes must match. At least one attachment is required, depth-only legal. No texture may occur twice, even different
+mips; duplicates/feedback → E_STATE. Texture=0 in a color record means screen, requires mip 0 and color_count=1;
+optional depth texture must match logical dimensions. Pipeline color count/formats and depth format must exactly
+match the active pass on PIPELINE binding, otherwise E_STATE. Sampling any active attachment, even another mip,
+is forbidden. Legacy readback cannot read GPU-namespace textures; a profile renders/copies through the screen when
+it needs the existing screen READBACK interface. No new readback alias is implied.
+
+Viewport/scissor use attachment pixels, top-left, +y down; screen coordinates are logical and letterbox-scaled.
+Viewport finite x,y>=0, width,height>0, fits attachment, depth range 0<=min<=max<=1. Scissor unsigned, fits attachment;
+zero area is legal and suppresses rasterization. Blend constant components finite [0,1]. GPU NDC is +x right, +y up,
+z in [0,w]; front-face winding is measured in this NDC xy plane **before** top-left viewport conversion. Profiles
+translating legacy GL [-w,w] depth convert z to (z+w)/2. Backends translating to GL clip space convert z to 2z-w;
+backends adjust Y/front-face and texture orientation so the same BGT source renders the same orientation on both.
+Fragment position is top-left pixel centre with depth [0,1]. No guest-visible backend flip is permitted.
+
+VERTEX/INDEX/UNIFORM_BUFFER require corresponding usage bits and positive size fitting the buffer. Vertex offset
+multiple of 4; index format UINT16=0 or UINT32=1, offset and size multiple of 2 or 4 respectively. Uniform offset
+multiple of 256, size multiple of 16 and <=65536. Slots 0..7; uniform and texture slots are independent namespaces.
+TEXTURE requires SAMPLED usage and an existing sampler. Every pipeline layout buffer slot must be bound, even if
+no attributes reference it. Required masks must be covered before a draw; extra bound slots are harmless. Buffer
+and texture bindings need not wait for PIPELINE. No automatic binding of handle 0 or dummy buffers/textures.
+
+DRAW: first is first vertex. DRAW_INDEXED: first is first **index**, measured from the bound index range start;
+indices are unsigned, add signed base_vertex with no wrap. The resulting vertex index must be 0..0xffffffff.
+instances and count are positive; instances<=65535. first_instance offsets instance-buffer fetching as well as
+the shader instance index. Vertex-rate fetch uses vertex index; instance-rate fetch uses first_instance+i (divisor
+1). Every referenced attribute's last byte must fit its bound range; the validator uses the CPU index shadow to
+check indexed draws (including negative base_vertex). It never reads browser GPU memory. All-ones indices are
+ordinary indices. first+count-1 and first_instance+instances-1 must fit u32; any out-of-range fetch → E_BOUNDS.
+Missing pipeline/index/required vertex/uniform/texture binding → E_STATE. Zero count/instances → E_INVALID, not a
+silent no-op. The shared frame vertex budget includes count*instances for GPU draws, plus generated 2D vertices.
+
+### 13.5 Shader binding/reflection convention
+
+There is no arbitrary native binding layout or uniform-location ABI. Profiles translate their API state to these
+portable slots, rewriting shader inputs/uniforms as needed. Backends must validate reflection against this convention
+and pipeline masks/vertex layouts (unused declared bindings are allowed; an active undeclared slot is an error).
+WGSL uses `@group(0) @binding(s)` for uniform buffers s=0..7, `@group(1) @binding(2*s)` for textures,
+`@group(1) @binding(2*s+1)` for samplers. A comparison depth texture uses texture_depth_2d/sampler_comparison.
+Attributes use `@location(location)`, fragment outputs `@location(color_index)`. Uniform layouts must be std140
+compatible on both languages (16-byte vector/matrix/array alignment; explicitly pad scalar/vec2 arrays; no WGSL-only
+layout assumptions). Integer vs float attributes must match shader input types. Color output scalar type is float.
+
+GLSL uses `layout(location=L) in` attributes and `layout(location=C) out` fragment outputs. Uniform blocks are
+`layout(std140) uniform bgt_uS { ... };` with decimal S=0..7. Backends reflect block names and call
+uniformBlockBinding(S); GLSL330/ES300 do not need binding layout qualifiers. Texture uniforms are named `bgt_tS`
+(`sampler2D` or `sampler2DShadow`), bound to texture unit S; BGT binds the separate sampler on that unit. No ordinary
+non-block uniforms, implicit attribute locations, native binding decorations or dynamic sampler-array indexing.
+Varyings have matching names/types/interpolation in GLSL, matching @location in WGSL. Profiles flatten uniform
+locations to std140 block ranges and texture units to slots; there is no engine-specific reflection shortcut.
+
+GLSL sources access vertex/instance IDs through `bgt_vertex_index` and `bgt_instance_index` (u32 expressions), and
+fragment coordinates through `bgt_frag_coord` (vec4 expression), **not** gl_VertexID/gl_InstanceID/gl_FragCoord
+outside a backend-inserted prelude. Backends insert definitions after #version/precision lines. Vertex index includes
+first or signed base_vertex; instance index includes first_instance (GL gl_InstanceID alone does not). Fragment
+position uses top-left viewport coordinates. WGSL uses corresponding vertex_index/instance_index/position builtins
+with the same semantics. Native GLSL gl_Position is the vertex output but holds BGT [0,w] depth before backend
+conversion. Backend rewriting/wrappers may use private names prefixed `bgt_internal_`; guest sources must not use
+that prefix. Pipeline reflection/link/target incompatibility detected after decoding reports E_IO with diagnostic
+through the renderer's onError channel; module compile errors always complete the shader request with log.
+
+### 13.6 Extended limits, backend handoff and recovery
+
+The old 16-byte `bgt_gpu_limits_t` stays unchanged. `gpu_limits(dst,cap)` with cap 16..79 still writes 16 bytes and
+byte_size=16. cap>=80 opts into `bgt_gpu_limits_v3_t` (80 bytes, byte_size=80); only those 80 bytes are validated/
+written, larger tails untouched. cap<16 → E_LIMIT; misaligned/out-of-range destination → E_BOUNDS, no partial write.
+The first 16 bytes retain their existing texture-limit meanings, independent of CAP_GPU. Extension words:
+
+| Offset | Field | Value |
+|---:|---|---:|
+| 16 | gpu_supported | 1 iff CAP_GPU, otherwise 0 |
+| 20 | max_gpu_handles | 1023 per namespace |
+| 24 | gpu_budget_bytes | 268435456 aggregate GPU buffers + all texture mips + shader source bytes |
+| 28 | max_buffer_bytes | 67108864 |
+| 32 | max_vertex_buffers | 8 |
+| 36 | max_attributes | 16 |
+| 40 | max_binding_slots | 8 each uniform/texture namespace |
+| 44 | max_color_attachments | 4 |
+| 48 | uniform_offset_alignment | 256 |
+| 52 | max_uniform_range | 65536 |
+| 56 | max_vertex_stride | 2048 |
+| 60 | max_shader_bytes | 1048576 |
+| 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
+| 68 | max_mip_levels | 13 |
+| 72 | max_instances | 65535 |
+| 76 | reserved | 0 |
+
+These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
+supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each GPU
+texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
+alignment overhead is charged. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
+their separate frozen budgets. Queued GPU upload/source copies additionally total at most 256 MiB per frame;
+exceeding this → E_LIMIT. All existing submit/command/2D frame limits still apply. Resource updates are ordered, not
+coalesced across draws or passes. No backend may reorder a deletion ahead of earlier commands using that resource.
+
+`commands-gpu.ts` exports per-host `GpuState`; `DecodeContext.gpu` and `gpuRequest` enable validation. `host.ts`
+accepts `HostConfig.gpuBackend` only together with CAP_GPU; absent/zero-language implementation clears the bit.
+Validated `GpuItem` records appear in `Frame.items` in order, with owned `data`/`source`, decoded u32 `words`
+(including f32 bit patterns), and shader `complete`. `renderers/types.ts` defines `GpuBackend.languages` and
+`execute(item): number`. The backend's frame loop calls execute at the **item's position**, flushing/ending any 2D
+batch first, and returns/records nonzero errors via diagnostics; decoding never calls browser APIs. `Renderer.gpu`
+is optional; missing is exactly `UNSUPPORTED_GPU` (languages 0, execute returns E_UNSUPPORTED). Current renderers
+explicitly return `UNSUPPORTED_GPU` and runtime capabilities omit CAP_GPU. Backend lanes must wire Renderer.gpu into HostConfig and capability
+selection when complete; simply adding execute is insufficient. No new browser implementation is hidden in this ABI.
+
+On device loss, pending shader requests must complete with E_IO/log. GPU buffers, textures, samplers, shaders and
+pipelines must be recreated from backend-owned descriptors and upload shadows in creation/update order; all
+attachment contents are lost (EVENT_TARGETS_LOST), while uploaded content is restored. Maintain CPU buffer shadows
+for bounds validation and invalidate no guest handles silently. If a fallback backend cannot support the advertised
+languages/features or restore these resources, stop with a diagnostic, rather than continuing with missing objects.
+
+Conformance entry points: `tests/unit/abi-layout.test.ts` compares all C/TS struct offsets, enum/opcode values and
+all C encoder output, including inline tails. `tests/unit/gpu-commands.test.ts` covers every accepted op and malformed
+structure/ranges/handles/state/ordering/shader results using a recording backend. `requests.test.ts` retains the
+unchanged v0.2 module regression and deferred request tests. Browser GPU rendering tests are the backend lanes'
+responsibility; this section alone does not claim GPU pixels or an OpenGL 3.3 profile are implemented.

@@ -1,0 +1,10 @@
+{
+  "id":"x64-sysdlls", "name":"Offline Win64 system DLL contracts (CC0)", "private":false, "license":"CC0-1.0",
+  "pipeline":{
+    "platform":"win32",
+    "fixture":{"target":"x86_64-windows-gnu", "crt":true, "sources":["sysdlls.c"], "out":"sysdlls.exe",
+      "libs":["wsock32", "ws2_32", "avrt", "bcrypt", "dinput8", "dxguid", "dwmapi", "imm32", "iphlpapi", "shlwapi", "kernel32", "user32", "gdi32"]},
+    "modules":[{"from":"./build/sysdlls.exe", "name":"sysdlls.exe", "main":true}], "width":320, "height":160
+  },
+  "touch":{"dpad":false,"buttons":[]}
+}

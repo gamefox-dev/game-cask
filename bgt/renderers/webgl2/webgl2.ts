@@ -1,7 +1,11 @@
 // WebGL 2 backend (fallback). Consumes the shared decoded Frame.
 
-import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED, FILTER_LINEAR } from '../../runtime/abi';
+import {
+  BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLEND_PREMULTIPLIED,
+  FILTER_LINEAR, GPU_OP,
+} from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
+import { WebGL2Gpu } from './gpu';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const VS = `#version 300 es
@@ -33,6 +37,7 @@ export interface WebGL2Options {
 }
 
 export class WebGL2Renderer implements Renderer {
+  readonly gpu: WebGL2Gpu;
   readonly kind = 'webgl2' as const;
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0 };
   lost = false;
@@ -46,6 +51,7 @@ export class WebGL2Renderer implements Renderer {
   private targets = new Map<number, { fbo: WebGLFramebuffer; w: number; h: number }>();
   private samplers: WebGLSampler[] = [];
   private white!: WebGLTexture;
+  private snapshot?: { texture: WebGLTexture; fbo: WebGLFramebuffer; w: number; h: number; lb: Letterbox };
   private textures = new Map<number, WebGLTexture>();
   private lostCbs: Array<(r: string) => void> = [];
   private restoredCbs: Array<() => void> = [];
@@ -57,6 +63,7 @@ export class WebGL2Renderer implements Renderer {
     private readonly opts: WebGL2Options,
   ) {
     this.gl = gl;
+    this.gpu = new WebGL2Gpu(gl, (m) => { for (const cb of this.errorCbs) cb(m); });
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       this.lost = true;
@@ -65,7 +72,13 @@ export class WebGL2Renderer implements Renderer {
       for (const cb of this.lostCbs) cb('webgl context lost');
     });
     canvas.addEventListener('webglcontextrestored', () => {
-      this.initResources();
+      try {
+        this.initResources();
+        this.gpu.restore();
+      } catch (e) {
+        for (const cb of this.unrecoverableCbs) cb(`GPU restore failed: ${(e as Error).message}`);
+        return;
+      }
       this.lost = false;
       for (const cb of this.restoredCbs) cb();
     });
@@ -99,6 +112,7 @@ export class WebGL2Renderer implements Renderer {
 
   private initResources(): void {
     const gl = this.gl;
+    this.snapshot = undefined;
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const p = gl.createProgram()!;
     gl.attachShader(p, this.compile(gl.VERTEX_SHADER, VS));
@@ -178,15 +192,25 @@ export class WebGL2Renderer implements Renderer {
     }
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
-    if (mode === BLEND_ALPHA) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    else if (mode === BLEND_ADD) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
-    else if (mode === BLEND_PREMULTIPLIED) gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    else if (mode === BLEND_INVERT) gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
-    else if (mode === BLEND_MULTIPLY) gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
+    if (mode === BLEND_ALPHA) {
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    } else if (mode === BLEND_ADD) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
+    else if (mode === BLEND_PREMULTIPLIED) {
+      gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    } else if (mode === BLEND_INVERT) {
+      gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
+    } else if (mode === BLEND_MULTIPLY) gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE);
   }
 
   drawFrame(frame: Frame, lb: Letterbox, readback: boolean): Pixels | null {
-    if (this.lost) { for(const it of frame.items)if(it.kind==='readback')it.complete();return null; }
+    if (this.lost) {
+      for (const it of frame.items) {
+        if (it.kind === 'readback') it.complete();
+        if (it.kind === 'gpu') this.gpu.execute(it);
+      }
+      return null;
+    }
+    this.gpu.beginFrame(frame.logicalW, frame.logicalH, lb);
     const gl = this.gl;
     const t0 = performance.now();
     const H = this.canvas.height;
@@ -194,7 +218,9 @@ export class WebGL2Renderer implements Renderer {
     this.stats.passes = 1;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.disable(gl.SCISSOR_TEST);
+    gl.disable(gl.SCISSOR_TEST); gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.STENCIL_TEST); gl.disable(gl.CULL_FACE);
+    gl.colorMask(true, true, true, true);
     gl.viewport(0, 0, this.canvas.width, H);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -228,8 +254,32 @@ export class WebGL2Renderer implements Renderer {
     };
     bindTarget(0);
 
+    if (this.snapshot) {
+      const old = this.snapshot.lb;
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.snapshot.fbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null); gl.disable(gl.SCISSOR_TEST);
+      gl.blitFramebuffer(old.x, this.snapshot.h-old.y-old.h, old.x+old.w, this.snapshot.h-old.y,
+        lb.x, H-lb.y-lb.h, lb.x+lb.w, H-lb.y, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.enable(gl.SCISSOR_TEST);
+    }
+    let gpuDirty = false;
     for (const it of frame.items) {
+      if (it.kind !== 'gpu' && gpuDirty) {
+        gl.useProgram(this.program); gl.bindVertexArray(this.vao);
+        gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.CULL_FACE);
+        gl.colorMask(true, true, true, true); gl.activeTexture(gl.TEXTURE0);
+        gl.enable(gl.SCISSOR_TEST); curBlend = -1; curTarget = -1;
+        bindTarget(0); gpuDirty = false;
+      }
       switch (it.kind) {
+        case 'gpu': {
+          if (this.gpu.execute(it) === 0) {
+            if (it.op === GPU_OP.PASS_BEGIN) this.stats.passes++;
+            if (it.op === GPU_OP.DRAW || it.op === GPU_OP.DRAW_INDEXED) this.stats.drawCalls++;
+          }
+          gpuDirty = true; curTarget = -1; curBlend = -1;
+          break;
+        }
         case 'readback': {
           bindTarget(it.target);
           const rt = it.target ? this.targets.get(it.target) : null;
@@ -297,10 +347,29 @@ export class WebGL2Renderer implements Renderer {
 
     if (this.opts.debug) {
       const err = gl.getError();
-      if (err !== gl.NO_ERROR && !gl.isContextLost()) for (const cb of this.errorCbs) cb(`WebGL error 0x${err.toString(16)}`);
+      if (err !== gl.NO_ERROR && !gl.isContextLost()) {
+        for (const cb of this.errorCbs) cb(`WebGL error 0x${err.toString(16)}`);
+      }
     }
 
+    gl.useProgram(this.program);
     bindTarget(0);
+    // Retain the final physical image, including any legacy draws after a GPU pass.
+    // Win32 guests submit in update: repeated paused captures must not erase their screen.
+    if (frame.items.length && (this.snapshot || frame.items.some(it => it.kind === 'gpu'))) {
+      if (this.snapshot?.w !== this.canvas.width || this.snapshot.h !== H) {
+        if (this.snapshot) { gl.deleteTexture(this.snapshot.texture); gl.deleteFramebuffer(this.snapshot.fbo); }
+        const texture = this.makeTexture(this.canvas.width, H), fbo = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        this.snapshot = { texture, fbo, w: this.canvas.width, h: H, lb: { ...lb } };
+      }
+      this.snapshot.lb = { ...lb };
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.snapshot.fbo); gl.disable(gl.SCISSOR_TEST);
+      gl.blitFramebuffer(0, 0, this.canvas.width, H, 0, 0, this.canvas.width, H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     let out: Pixels | null = null;
     if (readback) {
       const w = this.canvas.width;

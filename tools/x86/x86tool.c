@@ -629,7 +629,8 @@ static void emit_insn_struct(FILE *o, const x86_insn_t *in) {
     fprintf(o, "},%u,%u,%u,%u,%u,%u,%u}",in->mode64,in->rex,in->asz,in->simd_op,in->simd_prefix,in->simd_imm,in->lock);
 }
 
-typedef struct { uint32_t specialized, generic, calls_direct, calls_indirect, jt_switch, unresolved, flags_elided; } lift_stats_t;
+typedef struct { uint32_t specialized, generic, calls_direct, calls_indirect, jt_switch, unresolved, flags_elided;
+    uint32_t entries; /* LANE-C: resumable registry entries, separate from function count. */ } lift_stats_t;
 
 static int lift_selected(uint32_t addr);
 static int lifted_has(an_t *a, uint32_t addr) { return lift_selected(addr) && vhas(&a->known, addr); }
@@ -661,12 +662,19 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     fprintf(o, "\n/* function %08x (%u instructions) */\nvoid F_%08x(void) {\n", f->addr, f->insns.n, f->addr);
     fprintf(o, "    bgt_coverage_entry(0x%08xu, 1);\n", f->addr);
     fprintf(o, "    const uint32_t ra = x86_rd32(X.r[ESP]), esp0 = X.r[ESP]; (void)ra; (void)esp0;\n    uint32_t t, u; (void)t; (void)u;\n");
-    fprintf(o, "    goto L_%08x;\n", f->addr);
+    /* LANE-C: all instruction labels are legal cooperative resume points. */
+    fprintf(o, "    switch (X.eip) {\n");
+    for (uint32_t k = 0; k < f->insns.n; k++)
+        fprintf(o, "    case 0x%08xu: goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
+    fprintf(o, "    default: goto L_%08x; }\n", f->addr);
     for (uint32_t k = 0; k < f->insns.n; k++) {
         uint32_t va = f->insns.v[k];
         x86_insn_t in;
         char txt[160];
         fprintf(o, "L_%08x:", va);
+        /* LANE-C: identical instruction quantum in lifted and interpreted i386. */
+        fprintf(o, " if (++X.frame_insns > 2000000u) { X.eip = 0x%08xu; "
+            "x86_cooperate(); if (X.transfer) return; }", va);
         if (!decode_at(a->pe, va, &in)) { fprintf(o, " x86_fault(\"undecodable instruction\", 0x%08xu);\n", va); continue; }
         x86_format(&in, txt, sizeof txt);
         for (char *c = txt; *c; c++) if (*c == '*' && c[1] == '/') *c = 'x'; /* keep comments closed */
@@ -725,13 +733,16 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
                 if (inside) { fprintf(o, "goto L_%08x;", in.target); break; }
             }
             /* tail call to another function */
-            if (lifted_has(a, in.target)) fprintf(o, "F_%08x(); return;", in.target);
+            if (lifted_has(a, in.target)) fprintf(o, "X.eip = 0x%08xu; F_%08x(); return;", in.target, in.target);
             else fprintf(o, "X.eip = 0x%08xu; x86_continue(ra, esp0); return;", in.target);
             break;
         case XO_CALL:
             st->calls_direct++;
             if (lifted_has(a, in.target))
-                fprintf(o, "x86_push(0x%08xu); x86_metrics.lifted_calls++; F_%08x(); if (X.eip != 0x%08xu) x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, next, va);
+                /* LANE-C */
+                fprintf(o, "x86_push(0x%08xu); X.eip = 0x%08xu; x86_metrics.lifted_calls++; "
+                    "F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
+                    "x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, in.target, next, va);
             else fprintf(o, "x86_call(0x%08xu, 0x%08xu);", in.target, next);
             break;
         case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "x86_call(%s, 0x%08xu);", t1, next); break;
@@ -766,6 +777,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
         } else {
             st->specialized++;
         }
+        if (in.op == XO_CALL || in.op == XO_CALL_IND) fprintf(o, " if (X.transfer) return;"); /* LANE-C */
         fprintf(o, "\n");
         /* fall-through into an instruction that is not next in this function's list: jump to it */
         if (!(in.flags & X86_F_TERMINATOR) && in.op != XO_JMP && in.op != XO_JMP_IND && in.op != XO_RET) {
@@ -792,8 +804,27 @@ static void lift(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
     for (uint32_t i = 0; i < a->nf; i++) if(lift_selected(a->f[i].addr)) vpush(&order, a->f[i].addr);
     vsort_uniq(&order);
     fprintf(o, "\nconst x86_lifted_entry_t x86_lifted_%s[] = {\n", name);
-    for (uint32_t i = 0; i < order.n; i++) fprintf(o, "    {0x%08xu, F_%08x, 0},\n", order.v[i], order.v[i]);
-    fprintf(o, "};\nconst uint32_t x86_lifted_%s_count = %u;\n", name, order.n);
+    /* LANE-C: exact instruction entries avoid claiming gaps/overlapping i386 function ranges. */
+    vec_t entries = {0};
+    for (uint32_t i = 0; i < order.n; i++) {
+        func_t *f = &a->f[func_index(a, order.v[i])];
+        if (vhas(&skip, f->addr)) vpush(&entries, f->addr);
+        else for (uint32_t j = 0; j < f->insns.n; j++) vpush(&entries, f->insns.v[j]);
+    }
+    vsort_uniq(&entries);
+    for (uint32_t i = 0; i < entries.n; i++) {
+        uint32_t owner = 0;
+        for (uint32_t j = 0; j < order.n; j++) {
+            func_t *f = &a->f[func_index(a, order.v[j])];
+            if (vhas(&f->insns, entries.v[i])) { owner = f->addr; break; }
+        }
+        fprintf(o, "    {0x%08xu, F_%08x, 0x%08xu},\n", entries.v[i], owner,
+            entries.v[i] == owner ? owner + 1 : 0);
+    }
+    st->entries = entries.n; /* LANE-C */
+    free(entries.v);
+    fprintf(o, "};\nconst uint32_t x86_lifted_%s_count = sizeof x86_lifted_%s / sizeof x86_lifted_%s[0];\n",
+        name, name, name); /* LANE-C */
     free(order.v);
 }
 
@@ -872,8 +903,12 @@ int main(int argc, char **argv) {
                 name, emitted, skip.n, a.nds, st.specialized, st.generic, st.jt_switch, st.unresolved);
         FILE *sf = fopen(strcat(strcpy(xcalloc(strlen(out) + 16, 1), out), ".stats.json"), "wb");
         if (sf) {
-            fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, \"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u, \"flagsElided\": %u}\n",
-                    emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved, st.flags_elided);
+            /* LANE-C: distinguish resumable registry entries from source functions. */
+            fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, "
+                    "\"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u, "
+                    "\"flagsElided\": %u, \"entries\": %u}\n",
+                    emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved,
+                    st.flags_elided, pe.mode64 ? emitted : st.entries);
             fclose(sf);
         }
         return 0;

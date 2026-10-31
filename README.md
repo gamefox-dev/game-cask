@@ -101,6 +101,7 @@ Useful URL flags:
 | `npm run dev` | build games, start Vite |
 | `npm run build` | build games + production bundle in `dist/` |
 | `npm run bundle -- --game <id>` | static bundle with only that game (default page) in `dist-bundle/`, for hosting |
+| `npm run lint` | ESLint, host C tools with real GCC (`-std=c11 -O2 -Wall -Wextra -Werror`) when available on PATH, and all example check-builds; quietly skips GCC when absent (including clang-only systems) |
 | `npm test` | unit tests (ABI layout vs header, decoder, analyzer, Win32 profile conformance, host safety, sample L3 headless, tools) |
 | `npm run test:e2e` | kit browser tests: WebGL 2, WebGPU (skips without an adapter), fallback, robustness, Win32 conformance, resource tour. Never builds or runs `port/` → `reports/e2e-*` |
 | `npm run test:port` | your port's private browser tests (`port/tests/`) → `reports/e2e-port-*` |

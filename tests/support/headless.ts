@@ -7,6 +7,15 @@ import { GameHost, InputSnapshot, StorageSink, emptyInput } from '../../bgt/runt
 import { Vfs } from '../../bgt/runtime/vfs';
 import { RangeFiles } from '../../bgt/runtime/range-files';
 import { HID } from '../../bgt/input/input';
+/* LANE-GL: opt-in command-stream validation without a pixel backend. */
+import { CAP_GPU, CAP_READBACK } from '../../bgt/runtime/abi';
+import type { GpuBackend } from '../../bgt/renderers/types';
+import type { Frame } from '../../bgt/runtime/commands';
+export interface StreamOptions {
+  entropy?: (bytes: Uint8Array) => void; /* LANE-K1: explicit oracle replay only */
+  gpuBackend?: GpuBackend;
+  executeFrame?: (frame: Frame) => void;
+}
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -27,7 +36,9 @@ export interface Headless {
   state<T = Record<string, unknown>>(): T;
 }
 
-export async function loadHeadless(id: string, opts: { seed?: number; arg0?: number; arg1?: number; storage?: Map<string, Uint8Array>; dir?: string } = {}): Promise<Headless> {
+export async function loadHeadless(id: string, opts: StreamOptions & {
+  seed?: number; arg0?: number; arg1?: number; storage?: Map<string, Uint8Array>; dir?: string;
+} = {}): Promise<Headless> {
   const dir = opts.dir ?? join(ROOT, 'web', 'public', 'games', id);
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
   const vfs = new Vfs();
@@ -45,11 +56,14 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
     log: (_l, m) => logs.push(m),
     vfs,
     storage,
+    entropy: opts.entropy, /* LANE-K1 */
     now: () => performance.now(),
     rangeRead:(path,offset,length)=>ranges.read(path,offset,length),
   }, {
     backend: BACKEND_HEADLESS,
-    caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS,
+    caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS |
+      (opts.gpuBackend ? CAP_GPU : 0) | (opts.executeFrame ? CAP_READBACK : 0), /* LANE-GL */
+    gpuBackend: opts.gpuBackend,
     seed: opts.seed ?? 1,
     displayWidth: 640,
     displayHeight: 360,
@@ -96,7 +110,8 @@ export async function loadHeadless(id: string, opts: { seed?: number; arg0?: num
         latchedButtons = 0;
         keysPressed.fill(0);
         host.update();
-        host.render();
+        const frame = host.render();
+        opts.executeFrame?.(frame); /* LANE-GL: requests still become visible only at the next update. */
         host.consume();
       }
     },

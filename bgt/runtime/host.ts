@@ -37,10 +37,16 @@ import {
 } from './commands';
 import { Vfs } from './vfs';
 import { Requests } from './requests';
+/* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
+import { GpuState } from './commands-gpu';
+import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import type { GpuBackend } from '../renderers/types';
 
 export interface AudioSink {
   readonly sampleRate: number;
   push(samples: Int16Array): number;
+  /** v0.3 additive: interleaved stereo, return accepted frames (not samples). */
+  pushStereo?(samples: Int16Array): number;
   queued(): number;
 }
 
@@ -54,8 +60,11 @@ export interface HostServices {
   log(level: number, message: string): void;
   vfs: Vfs;
   audio?: AudioSink;
+  gamepadRumble?(index: number, left: number, right: number): void;
   storage?: StorageSink;
   now(): number;
+  /** LANE-K1: explicit test replay hook. Omit for real Web Crypto entropy. Throw on failure. */
+  entropy?(bytes: Uint8Array): void;
   rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
 }
 
@@ -68,10 +77,20 @@ export interface HostConfig {
   arg0: number;
   arg1: number;
   maxTextureDimension?: number;
+  /* LANE-S1 */ gpuBackend?: GpuBackend;
   sliceCode?: number[];
 }
 
+export interface GamepadSnapshot {
+  connected: boolean;
+  /** Standard Gamepad API button-index bits; axes retain browser Y-down convention. */
+  buttons: number;
+  axes: [number, number, number, number];
+  triggers: [number, number];
+}
+
 export interface InputSnapshot {
+  gamepads?: GamepadSnapshot[];
   buttons: number;
   pressed: number;
   released: number;
@@ -166,6 +185,7 @@ export class GameHost {
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
+  /* LANE-S1 */ private gpu?: GpuState;
   readonly codeCoverage = new Map<number, number>();
   codeCoverageDropped = 0;
   private allowedCode: Set<number> | null = null;
@@ -198,7 +218,15 @@ export class GameHost {
   private constructor(
     private readonly services: HostServices,
     readonly config: HostConfig,
-  ) { if(config.sliceCode)this.allowedCode=new Set(config.sliceCode); }
+  ) {
+    /* LANE-K1: advertise only an available entropy provider. */
+    if (typeof services.entropy === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') config.caps |= CAP_ENTROPY;
+    else config.caps &= ~CAP_ENTROPY;
+    if (config.sliceCode) this.allowedCode = new Set(config.sliceCode);
+    /* LANE-S1: a caller cannot advertise an absent/unsupported GPU implementation. */
+    if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) this.gpu = new GpuState(config.gpuBackend);
+    else config.caps &= ~CAP_GPU;
+  }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
     const host = new GameHost(services, config);
@@ -276,6 +304,11 @@ export class GameHost {
   private decodeContext(): DecodeContext {
     return {
       state: this.state,
+      /* LANE-S1 */ gpu: this.gpu,
+      gpuRequest: this.gpu ? (id) => {
+        const token = this.requests.reserve(id);
+        return typeof token === 'number' ? token : (data, error) => this.requests.complete(token, data, error);
+      } : undefined,
       frame: this.frame,
       textures: this.textures,
       linearFilter: (this.config.caps & CAP_LINEAR_FILTER) !== 0,
@@ -318,6 +351,21 @@ export class GameHost {
     };
     return {
       bgt: {
+        /* LANE-K1: Web Crypto's 65536-byte quota is handled without truncating the request. */
+        random_bytes: (ptr: number, len: number) => {
+          if (!this.inRange(ptr, len)) return E_BOUNDS;
+          if (!(this.config.caps & CAP_ENTROPY)) return E_UNSUPPORTED;
+          try {
+            const bytes = new Uint8Array(len >>> 0);
+            for (let i = 0; i < bytes.length; i += 65536) {
+              const chunk = bytes.subarray(i, i + 65536);
+              if (s.entropy) s.entropy(chunk);
+              else globalThis.crypto.getRandomValues(chunk);
+            }
+            this.mem().set(bytes, ptr >>> 0);
+            return BGT_OK;
+          } catch { return E_IO; }
+        },
         log: (level: number, ptr: number, len: number) => {
           const msg = this.str(ptr, Math.min(len >>> 0, LIMITS.logBytes), LIMITS.logBytes);
           s.log(level >>> 0, msg ?? '<invalid log range>');
@@ -343,9 +391,19 @@ export class GameHost {
         },
         gpu_limits: (dst: number, cap: number) => {
           if ((cap >>> 0) < 16) return E_LIMIT;
-          if ((dst & 3) || !this.inRange(dst,16)) return E_BOUNDS;
+          /* LANE-S1: cap 16..79 retains the frozen prefix; cap >=80 opts into GPU limits. */
+          const size = (cap >>> 0) >= GPU_LIMITS_SIZE ? GPU_LIMITS_SIZE : 16;
+          if ((dst & 3) || !this.inRange(dst, size)) return E_BOUNDS;
           const dv = this.dv();
-          [16,this.config.maxTextureDimension ?? LIMITS.textureDim,LIMITS.textures-1,LIMITS.textureBytes].forEach((v,i) => dv.setUint32(dst+i*4,v,true));
+          const values = [size, this.config.maxTextureDimension ?? LIMITS.textureDim,
+            LIMITS.textures - 1, LIMITS.textureBytes];
+          if (size === GPU_LIMITS_SIZE) values.push(
+            this.gpu ? 1 : 0, GPU_LIMITS.handles, GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
+            GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
+            GPU_LIMITS.uniformAlignment, GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
+            this.gpu?.backend.languages ?? 0, 13, 65535, 0,
+          );
+          values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
           return 0;
         },
         request_status: (id: number) => this.requests.status(id >>> 0),
@@ -390,6 +448,29 @@ export class GameHost {
           if (!this.inRange(ptr, (frames >>> 0) * 2)) return E_BOUNDS;
           if (!s.audio) return 0;
           return s.audio.push(new Int16Array(this.exports.memory.buffer.slice(ptr >>> 0, (ptr >>> 0) + (frames >>> 0) * 2)));
+        },
+        audio_push_stereo: (ptr: number, frames: number) => {
+          const n = frames >>> 0;
+          if (n > 48000 || !this.inRange(ptr, n * 4)) return E_BOUNDS;
+          if (!s.audio?.pushStereo) return 0;
+          return s.audio.pushStereo(new Int16Array(this.exports.memory.buffer.slice(ptr >>> 0, (ptr >>> 0) + n * 4)));
+        },
+        input_gamepad_rumble: (index: number, left: number, right: number) => {
+          if ((index >>> 0) >= 4) return E_INVALID;
+          if (!this.gamepads[index]?.connected) return E_NOT_FOUND;
+          s.gamepadRumble?.(index, Math.min(65535, left >>> 0), Math.min(65535, right >>> 0));
+          return BGT_OK;
+        },
+        input_gamepad: (index: number, ptr: number, bytes: number) => {
+          if ((index >>> 0) >= 4 || (bytes >>> 0) < 20) return E_INVALID;
+          if (!this.inRange(ptr, 20)) return E_BOUNDS;
+          const dv = this.dv();
+          const p = ptr >>> 0, pad = this.gamepads[index]?.connected ? this.gamepads[index] : undefined;
+          dv.setUint32(p, pad?.connected ? 1 : 0, true);
+          dv.setUint32(p + 4, pad?.buttons ?? 0, true);
+          for (let a = 0; a < 4; a++) dv.setInt16(p + 8 + 2 * a, pad?.axes[a] ?? 0, true);
+          for (let t = 0; t < 2; t++) dv.setUint16(p + 16 + 2 * t, pad?.triggers[t] ?? 0, true);
+          return BGT_OK;
         },
         audio_queued: () => (s.audio ? s.audio.queued() : 0),
         storage_read: (kp: number, kl: number, dst: number, cap: number) => {
@@ -498,9 +579,24 @@ export class GameHost {
     return rc;
   }
 
+  /** Decoded resources and unconsumed GPU work count even before the renderer sees their creation. */
+  get hasGpuWork(): boolean {
+    const gpu = this.gpu;
+    return !!(gpu && (gpu.buffers.size || gpu.textures.size || gpu.samplers.size ||
+      gpu.shaders.size || gpu.pipelines.size || gpu.pass)) || this.frame.items.some((it) => it.kind === 'gpu');
+  }
+
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
-  setBackend(backend: number): void {
+  setBackend(backend: number, gpuBackend?: GpuBackend): void {
+    if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
+    this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
+    /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
+    this.config.gpuBackend = gpuBackend;
+    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend); }
+    else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
+    this.dv().setUint32(this.ioPtr + IO.caps,
+      (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
   }
 
   setDisplaySize(w: number, h: number): void {
@@ -509,7 +605,14 @@ export class GameHost {
     dv.setUint32(this.ioPtr + IO.display_height, h, true);
   }
 
+  private gamepads: GamepadSnapshot[] = [];
+
   writeInput(inp: InputSnapshot): void {
+    this.gamepads = (inp.gamepads ?? []).slice(0, 4).map((pad) => ({
+      connected: !!pad.connected, buttons: pad.buttons >>> 0,
+      axes: pad.axes.map((a) => Math.max(-32767, Math.min(32767, a | 0))) as GamepadSnapshot['axes'],
+      triggers: pad.triggers.map((t) => Math.max(0, Math.min(65535, t | 0))) as GamepadSnapshot['triggers'],
+    }));
     const dv = this.dv();
     const p = this.ioPtr;
     dv.setUint32(p + IO.frame, this.frameIndex >>> 0, true);
@@ -598,7 +701,11 @@ export class GameHost {
   render(): Frame {
     if (!this.initialized) throw new HostError('render before init');
     const pending = this.frame.items.filter((it) => it.kind !== 'draw');
+    /* LANE-S1: retained update/init GPU work still counts toward the consumed frame's budgets. */
+    const gpuUploads = this.frame.gpuUploadBytes, gpuVertices = this.frame.gpuVertices;
     this.frame.reset(this.logicalWidth, this.logicalHeight);
+    this.frame.gpuUploadBytes = gpuUploads;
+    this.frame.gpuVertices = gpuVertices;
     this.frame.items.push(...pending);
     this.state = defaultState(this.logicalWidth, this.logicalHeight);
     this.decodeTime = 0;

@@ -12,7 +12,9 @@ void x86_exec64(const x86_insn_t *in) {
     X.tsc++;
     if (++X.frame_insns > 2000000u) {
 #ifdef X86_FLAT_GUEST
+        X.eip = in->addr; /* LANE-C: resume before the unexecuted instruction. */
         x86_cooperate();
+        if (X.transfer) return;
 #else
         x86_fault("AMD64 instruction budget exhausted without yield", in->addr);
 #endif
@@ -58,7 +60,10 @@ void x86_exec64(const x86_insn_t *in) {
         for (;;) {
             if (++X.frame_insns > 2000000u) {
 #ifdef X86_FLAT_GUEST
+        X.eip = in->addr; /* LANE-C: REP registers already describe the remaining iterations. */
         x86_cooperate();
+        if (X.transfer) return;
+        X.eip = next;
 #else
         x86_fault("AMD64 string instruction budget exhausted", in->addr);
 #endif
