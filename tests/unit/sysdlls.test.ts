@@ -52,6 +52,17 @@ it('DirectInput gamepad discovery, data format and disconnected-device errors', 
   h.input.gamepads[0].connected=false;await h.stepAsync(2);
   expect(h.logs).toContain('guest: sysdlls PASS di-pad-disconnect');
 });
+it('every DirectInput COM vtable slot has its Windows stdcall arity, including unsupported methods', () => {
+  const source=readFileSync(join(ROOT,'platforms/win32/w32_dinput8.c'),'utf8');
+  const arities=new Map([...source.matchAll(/API\("([^"]+)",(\d+),/g)].map(m=>[m[1],Number(m[2])]));
+  const root=source.match(/const char \*root\[\]=\{([^}]+)\}/)![1].match(/"[^"]+"/g)!.map(n=>n.slice(1,-1));
+  expect(root.map(n=>arities.get(n))).toEqual([3,1,1,4,5,2,3,3,4,6,5]);
+  const declared=source.match(/const uint8_t nargs\[32\]=\{([^}]+)\}/)![1].split(',').map(Number);
+  expect(declared).toEqual([3,1,1,2,4,3,3,1,1,3,5,2,2,3,4,2,3,4,5,4,3,2,2,4,2,1,5,5,5,4,4,2]);
+  const named=source.match(/methods\[32\]=\{([^}]+)\}/)![1];
+  for(const [,slot,name] of named.matchAll(/\[(\d+)\]="([^"]+)"/g)) expect(arities.get(name),name).toBe(declared[Number(slot)]);
+  for(const n of [2,3,4,5,6]) expect(arities.get(`K1DiUnsupported${n}`)).toBe(n);
+});
 it('all nine DLL namespaces are registered and every target export is covered', () => {
   const dir = join(ROOT, 'node_modules/.cache/bgt/pipeline/x64-sysdlls/fixture/sysdlls.exe');
   const coverage = importsCoverage(dir);
