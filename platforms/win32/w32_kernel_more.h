@@ -31,34 +31,7 @@ static uint32_t s_CommandLineToArgvW(void) {
     }
     x86_wr32(argc_out,argc);return base;
 }
-static uint32_t k_GetHandleInformation(void) {
-    if(!file_index(ARG(0))){last_error=6;return 0;}
-    if(!ARG(1)){last_error=87;return 0;}
-    x86_wr32(ARG(1),0);return 1;
-}
-static uint32_t k_SetHandleInformation(void) {
-    if(!file_index(ARG(0)))return k_fail(6);
-    if(ARG(1)&~3u)return k_fail(87);
-    if(ARG(2)&ARG(1))return k_fail(50);return 1;
-}
-static uint32_t k_DuplicateHandle(void) {
-    if(ARG(3))w32_wrptr(ARG(3),0);
-    if(!file_index(ARG(1)) && ARG(1)!=0xffffffffu)return k_fail(6);
-    return k_fail(50); /* no shared kernel-object handle indirection yet */
-}
-static uint32_t k_GetProcessAffinityMask(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    if(!ARG(1)||!ARG(2))return k_fail(87);
-    w32_wrptr(ARG(1),1);w32_wrptr(ARG(2),1);return 1;
-}
-static uint32_t k_SetProcessAffinityMask(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    return ARG64(1)==1?1:k_fail(87);
-}
-static uint32_t k_SetPriorityClass(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    return ARG(1)==0x20?1:k_fail(50); /* normal cooperative process only */
-}
+/* Owned handles/process queries are dispatched by the shared scheduler registry. */
 static uint32_t k_FormatMessageW(void) {
     uint32_t flags=ARG(0),id=ARG(2),out=ARG(4),cap=ARG(5);const char *text=0;
     if(!(flags&0x1000)||flags&0x400)return k_fail(87); /* system messages, not arbitrary module resources */

@@ -1,4 +1,5 @@
 {
+  "laneK4a": "Owned kernel handles share the width-aware scheduler registry. DuplicateHandle and same-process OpenProcess/OpenThread produce real handles; GetThreadContext/SetThreadContext and external process creation remain explicitly failure-only. Census capabilities come from FAPI/TF declarations, not DLL presence.",
   "laneK1": "/* LANE-K1 */ Offline Windows system DLL contracts; not a host networking bridge.",
   "laneGL": "/* LANE-GL */ OpenGL 3.3 bounded profile and WGL.",
   "laneE": "/* LANE-E */ Additive COM/property/XInput system DLL names.",

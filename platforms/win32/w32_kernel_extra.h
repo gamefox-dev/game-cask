@@ -125,12 +125,6 @@ static uint32_t k_VirtualQuery(void) {
     x86_wr32(p+(W32_64?36:20),prot);
     x86_wr32(p+(W32_64?40:24),mapped?type:0);return bytes;
 }
-static uint32_t k_OpenProcess(void) { last_error=ARG(2)==1?50:87;return 0; }
-static uint32_t k_GetExitCodeProcess(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    if(!ARG(1)||!x86_mapped(ARG(1),4))return k_fail(87);
-    x86_wr32(ARG(1),259);return 1;
-}
 static uint32_t k_GetCurrentHwProfileA(void) { return k_fail(50); } /* no Windows hardware registry */
 static uint32_t s_ShellExecuteW(void) { last_error=1155;return 31; } /* SE_ERR_NOASSOC */
 static uint32_t s_SHGetKnownFolderPath(void) { if(ARG(3))w32_wrptr(ARG(3),0);return 0x80070002u; }

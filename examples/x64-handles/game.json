@@ -1,0 +1,9 @@
+{
+  "id": "x64-handles",
+  "name": "CC0 Win32 owned handle contracts",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": { "target": "x86_64-windows-gnu", "crt": true, "out": "handles.exe", "sources": ["handles.c"] },
+    "modules": [{ "from": "./build/handles.exe", "main": true }]
+  }
+}

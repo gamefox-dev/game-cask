@@ -59,18 +59,27 @@ The AMD64 primary PEB was moved out of the full TEB to avoid aliasing TLS slots 
 
 This is a bounded single-process cooperative profile, not arbitrary Windows compatibility. The lock registry holds
 512 live lock addresses; DeleteCriticalSection releases its entry for reuse. Named object namespaces
-are rejected with ERROR_NOT_SUPPORTED; no cross-process handles, security/access enforcement, APC queues, alertable
+are rejected with ERROR_NOT_SUPPORTED; no cross-process handles, ACL/impersonation enforcement, APC queues, alertable
 APC delivery, host realtime scheduling, asynchronous TerminateThread, fibers, or dynamic module attachment.
 SuspendThread counts are implemented cooperatively and remain independent of sleep/event waits; this is not
 asynchronous host-context suspension. GetThreadContext/SetThreadContext fail explicitly rather than invent snapshots.
-The Ex wait/sleep APIs provide ordinary waits (no APC delivery). Handles are non-reused numeric slots (1023 total
-synchronisation/thread handles); closing one never terminates its worker. Stacks/TEBs are retained for process life.
+The Ex wait/sleep APIs provide ordinary waits (no APC delivery). Handles are reusable numeric slots (1023 concurrent
+kernel handles across all supported object types); per-handle access masks and inheritance/protect-close flags are
+enforced. Same-process DuplicateHandle/OpenThread/OpenProcess and ID/query/priority/wait APIs share owned aliases;
+closing one never terminates its worker or invalidates other aliases. See [CONTRACTS.md](CONTRACTS.md).
+Stacks/TEBs are retained for process life.
 Native callback nesting is LIFO: cyclic dependencies between separately parked profile callbacks need general native
 continuation switching. Existing InitOnceExecuteOnce remains the older single-thread bridge, not a new concurrency
 contract. Broader CRT per-thread locale/errno remain bounded. Whole-CPU copies isolate x87 state per thread;
 precision/exception boundaries are documented in [X87.md](../x86/X87.md).
 
 ## Evidence / reproduction
+
+- `examples/x64-handles`: normal -O2 CRT startup and current-thread pseudo duplication followed by priority/TLS,
+  owned thread/process/sync/file/console/registry aliases, close-source, independent flags, access denials,
+  full-width invalid arguments/output protection and mixed waits. `examples/x86-handles` exercises the same CC0
+  source through the baseline i386 entry contract; it does not claim normal i386 UCRT support. Both have
+  300-frame differential oracles, zero interpreted instructions and actual-backend browser tests.
 
 - `examples/x64-threads`: normal linked MinGW-target CRT at -O2. Four workers consume an eight-slot queue, using
   an event barrier, critical section + condition variable, and semaphore backpressure. Thread exit codes total 406;

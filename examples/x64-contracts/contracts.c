@@ -112,8 +112,9 @@ int main(void) {
     CHECK("FormatMessage-allocate",K("FormatMessageW",FORMAT_MESSAGE_FROM_SYSTEM|FORMAT_MESSAGE_ALLOCATE_BUFFER,0,87,0,&ft,0)>0&&ft&&LocalFree((void *)(uintptr_t)ft)==0);
     HANDLE self=CreateFileW(L"contracts.exe",GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
     CHECK("GetHandleInformation",K("GetHandleInformation",self,&flags,0,0,0,0)&&flags==0);
-    CHECK("SetHandleInformation",K("SetHandleInformation",self,HANDLE_FLAG_INHERIT,HANDLE_FLAG_INHERIT,0,0,0)==0&&GetLastError()==50);
-    CHECK("DuplicateHandle",!K("DuplicateHandle",(HANDLE)-1,self,(HANDLE)-1,&ft,0,0)&&GetLastError()==50&&ft==0);CloseHandle(self);
+    CHECK("SetHandleInformation",SetHandleInformation(self,HANDLE_FLAG_INHERIT,HANDLE_FLAG_INHERIT)&&GetHandleInformation(self,&flags)&&flags==HANDLE_FLAG_INHERIT);
+    HANDLE kernelAlias=0;
+    CHECK("DuplicateHandle",DuplicateHandle(GetCurrentProcess(),self,GetCurrentProcess(),&kernelAlias,0,FALSE,DUPLICATE_SAME_ACCESS)&&kernelAlias!=self&&CloseHandle(self)&&GetFileSize(kernelAlias,0)>0&&CloseHandle(kernelAlias));
     WIN32_FIND_DATAW fd;HANDLE find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"contracts.exe",&fd,0,0,0,0);
     CHECK("FindFirstFileW",find!=INVALID_HANDLE_VALUE&&fd.nFileSizeLow>0&&!wcscmp(fd.cFileName,L"contracts.exe"));
     CHECK("FindNextFileW",!K("FindNextFileW",find,&fd,0,0,0,0)&&GetLastError()==18);
@@ -175,7 +176,7 @@ int main(void) {
     CHECK("FILE-eof",fgetc(alias)==EOF&&feof(alias)&&(*(unsigned *)((char *)alias+24)&0x10));
     CHECK("_fstat64",C("_fstat64",desc,bytes,0,0,0,0)==0&&*(uint64_t *)(bytes+24)==3);
     CHECK("_wstat64",C("_wstat64",L"scratch",bytes,0,0,0,0)==0&&*(uint64_t *)(bytes+24)==3);
-    CHECK("_get_osfhandle",C("_get_osfhandle",1,0,0,0,0,0)==0x1f5&&C("_get_osfhandle",desc,0,0,0,0,0)==UINT64_MAX);
+    CHECK("_get_osfhandle",C("_get_osfhandle",1,0,0,0,0,0)==(uintptr_t)GetStdHandle(STD_OUTPUT_HANDLE)&&C("_get_osfhandle",desc,0,0,0,0,0)==UINT64_MAX);
     CHECK("_getpid",C("_getpid",0,0,0,0,0,0)==GetCurrentProcessId());
     CHECK("_close",C("_close",desc,0,0,0,0,0)==0&&C("_close",desc,0,0,0,0,0)==UINT64_MAX);
     CHECK("_fdopen-owner-closed",fgetc(alias)==EOF);
