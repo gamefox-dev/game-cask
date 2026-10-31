@@ -18,13 +18,14 @@
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
 import { coveragePlan, staticClosure } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
+import { analyzeCached, liftChunks } from './chunks.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -71,7 +72,12 @@ function stripTimestamp(file) {
 export function buildFixture(gameDir, fx, outDir) {
   mkdirSync(outDir, { recursive: true });
   const out = join(outDir, fx.out);
-  const inputs = fx.sources.map((s) => join(gameDir, s));
+  // Generators are trusted, game-local source tools, never executables extracted from a PE.
+  const generated = fx.generator ? join(outDir, 'generated') : null;
+  const sourceNames = fx.generator
+    ? JSON.parse(execFileSync(process.execPath, [join(gameDir, fx.generator), generated, ...(fx.generatorArgs ?? []).map(String)], { encoding: 'utf8' }))
+    : fx.sources;
+  const inputs = sourceNames.map((s) => join(generated ?? gameDir, s));
   let resFile = null;
   if (fx.resources) {
     resFile = join(outDir, basename(fx.out) + '.res');
@@ -92,7 +98,21 @@ export function buildFixture(gameDir, fx, outDir) {
     '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`),
   ];
   writeFileSync(join(outDir, 'fixture-build.json'), JSON.stringify({ target, normalCrt: normal, args }, null, 2));
-  execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
+  if (fx.generator) {
+    // Zig's multi-input driver otherwise starts one clang per source, unbounded on large fixtures.
+    const dir = join(outDir,'objects'); mkdirSync(dir,{recursive:true});
+    const version = execFileSync('zig',['version'],{encoding:'utf8'}).trim();
+    const flags = [fx.cpp ? 'c++' : 'cc','-target',target,'-O2','-fno-stack-protector','-funwind-tables','-fno-lto','-fno-emulated-tls','-isystem',zigWinInclude()];
+    const headers = (root) => readdirSync(root,{withFileTypes:true}).flatMap((e)=>e.isDirectory() ? headers(join(root,e.name)) : /\.(h|inc|def)$/.test(e.name) ? [join(root,e.name)] : []);
+    const headerBytes = headers(generated).sort().map((f)=>Buffer.concat([Buffer.from(f),readFileSync(f)]));
+    const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
+    const link = ['zig',...args.filter((a)=>!inputs.includes(a))];
+    link.splice(link.indexOf('-o'),0,...objects.map((o)=>o.out));
+    const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
+    writeFileSync(join(outDir,'fixture-metrics.json'),JSON.stringify(metrics));
+    const keep = new Set(objects.map((o)=>o.out));
+    for (const f of readdirSync(dir)) if (!keep.has(join(dir,f))) rmSync(join(dir,f),{force:true});
+  } else execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
 }
@@ -218,7 +238,8 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       streams.push(streamFile(file,`modules/${name}`,join(outAssetsDir,'..'),p.chunkSize));
     } else cpSync(file, join(outAssetsDir, asset));
     const id = cIdent(name);
-    let lifted = null, stats = null, analysis = null;
+    let lifted = null, stats = null, analysis = null, chunkSources = null, scale = null;
+    const identity = hashFile(file);
     if(plan && p.interpretOnly) {
       const identity=plan.modules.find((m)=>m.name===name);
       if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
@@ -228,22 +249,37 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
       const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
+      const measured = mode64 && p.chunkInstructions !== 0 ? analyzeCached(tool,file,id,base,work,identity) : null;
+      let selectedSet = null;
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if(plan) {
         const identity=plan.modules.find((m)=>m.name===name);
         if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
-        const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+        const an=measured?.analysis ?? JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
         const selected=staticClosure(an,plan.code);
+        selectedSet = new Set(selected);
         for(const a of selected)sliceCode.add(a);
         const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);
       }
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
-      analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
-      writeFileSync(join(work, `analysis_${id}.json`), analysis);
-      stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
+      if (measured && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
+        const result = liftChunks({tool,file,id,base,work,analysis:measured.analysis,key:measured.key,
+          selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,budget:p.chunkInstructions ?? 32768});
+        // Remove the old monolithic intermediate after successful chunk publication.
+        rmSync(lifted,{force:true});rmSync(lifted+'.stats.json',{force:true});
+        chunkSources = result.sources; lifted = chunkSources[0]; stats = result.stats;
+        analysis = JSON.stringify(measured.analysis);
+        scale = {...result.metrics,analysis_ms:measured.analysis_ms,analysis_cached:measured.analysis_cached};
+      } else {
+        const started = performance.now();
+        analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
+        writeFileSync(join(work, `analysis_${id}.json`), analysis);
+        stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
+        scale = {lift_ms:performance.now()-started,generated_c_bytes:statSync(lifted).size,chunks:1};
+      }
     }
     const totals = analysis ? JSON.parse(analysis).totals : null;
-    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, stats, provenance, sha256: hashFile(file),
+    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, chunkSources, stats, scale, provenance, sha256: identity,
       functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
   if (!mods.some((m) => m.main)) mods[0].main = true;
@@ -303,8 +339,9 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
   ].map((f) => join(ROOT, f));
-  const sources = [driver, ...mods.filter((m) => m.lifted).map((m) => m.lifted), ...platform, ...ov.files];
-  const generated = mods.filter((m) => m.lifted).reduce((n, m) => n + lines(m.lifted), 0) + lines(driver);
+  const liftedSources = mods.filter((m) => m.lifted).flatMap((m) => m.chunkSources ?? [m.lifted]);
+  const sources = [driver, ...liftedSources, ...platform, ...ov.files];
+  const generated = liftedSources.reduce((n, f) => n + lines(f), 0) + lines(driver);
   const handwritten = [...ov.files, ...(cfg.sources ?? []).map((s) => join(gameDir, s))].filter(existsSync).reduce((n, f) => n + lines(f), 0);
   const report = {
     schema: 'game-cask/pipeline/1',
@@ -314,7 +351,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     interpretOnly: !!p.interpretOnly,
     ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
       optimization: p.fixture.crt === true ? '-O2' : '-O1', language: p.fixture.cpp ? 'C++' : 'C' } } : {}),
-    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats })),
+    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats, scale: m.scale })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
     loc: { generated, handwritten },
   };
