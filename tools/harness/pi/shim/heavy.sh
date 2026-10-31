@@ -5,7 +5,7 @@ if [ "${1:-}" = --execute ]; then
   shift; RESULT=$1; shift
   export BGT_HEAVY_HELD=1
   "$@"; RC=$?
-  printf '%s\n' "$RC" > "$RESULT"
+  printf '%s\n' "$RC" > "$RESULT" || exit 74
   exit "$RC"
 fi
 NAME=$1; shift

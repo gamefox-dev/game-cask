@@ -244,6 +244,13 @@ describe('queued lane supervisor', () => {
 });
 
 describe('machine-wide heavy gate', () => {
+  it('fails closed when the exit marker cannot be written, never retries a real command', async () => {
+    const dir = temp(), trace = join(dir, 'calls');
+    const real = script(join(dir, 'real'), `echo called >> "${trace}"; exit 75`);
+    await expect(exec('bash', [join(here, 'shim/heavy.sh'), '--execute', join(dir, 'missing/result'), real]))
+      .rejects.toMatchObject({ code: 74 });
+    expect(readFileSync(trace, 'utf8')).toBe('called\n');
+  });
   it('serializes heavy npm/npx, nested calls pass through, and real exit 75 is never retried', async () => {
     const dir = mkdtempSync('/private/tmp/bgt-gate-test-'); dirs.push(dir);
     const real = script(join(dir, 'real'), `
