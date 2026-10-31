@@ -30,7 +30,8 @@ export function bridgeExtension(pi, Type) {
       if (entry.type === 'message' && entry.message.role === 'assistant') steps++;
       cost += (entry.type === 'message' ? entry.message.usage : entry.usage)?.cost?.total ?? 0;
     }
-    await call('/status', { lane, event, phase, steps, context: ctx.getContextUsage() ?? null, cost,
+    await call('/status', { lane, runId: process.env.PI_BRIDGE_RUN_ID,
+      event, phase, steps, context: ctx.getContextUsage() ?? null, cost,
       model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null, tools, commit, errors,
       cwd: ctx.cwd, sessionId: ctx.sessionManager.getSessionId(),
       sessionFile: ctx.sessionManager.getSessionFile(), leafId: ctx.sessionManager.getLeafId() });
@@ -79,7 +80,7 @@ export function bridgeExtension(pi, Type) {
     await deliver();
   });
   pi.on('agent_end', async (_event, ctx) => { await status(ctx, 'agent_end'); });
-  // agent_end can precede retries/queued steering; only settled means finished.
+  // Settled is agent state only. The process owner alone can publish finished.
   pi.on('agent_before_settle', async () => { await deliver(); });
   pi.on('agent_settled', async (event, ctx) => {
     const last = ctx.sessionManager.getBranch().filter(e => e.type === 'message' &&

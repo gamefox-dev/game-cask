@@ -19,7 +19,7 @@ mkdir -p "$PI_CODING_AGENT_DIR" "$ZIG_GLOBAL_CACHE_DIR" "$ZIG_LOCAL_CACHE_DIR"
 AGENT=$(cd "$PI_CODING_AGENT_DIR" && pwd -P)
 exec /usr/bin/sandbox-exec -f "$HERE/pi.sb.in" \
   -D "WORK=$WORK" -D "ORIGINAL=$WORK/original" -D "SCRATCH=$SCRATCH" -D "AGENT=$AGENT" -D "CACHE=$SCRATCH" \
-  -D "GLOBAL_AGENT=$HOME/.pi/agent" \
-  -D "SSH=$HOME/.ssh" -D "GH=$HOME/.config/gh" -D "KEYCHAINS=$HOME/Library/Keychains" \
-  -D "GITCONFIG=$HOME/.gitconfig" -D "GITCREDENTIALS=$HOME/.git-credentials" -D "GITDIR=$HOME/.config/git" \
+  -D "GLOBAL_AGENT=${PI_LANES_ORIGINAL_HOME:-$HOME}/.pi/agent" \
+  -D "SSH=${PI_LANES_ORIGINAL_HOME:-$HOME}/.ssh" -D "GH=${PI_LANES_ORIGINAL_HOME:-$HOME}/.config/gh" -D "KEYCHAINS=${PI_LANES_ORIGINAL_HOME:-$HOME}/Library/Keychains" \
+  -D "GITCONFIG=${PI_LANES_ORIGINAL_HOME:-$HOME}/.gitconfig" -D "GITCREDENTIALS=${PI_LANES_ORIGINAL_HOME:-$HOME}/.git-credentials" -D "GITDIR=${PI_LANES_ORIGINAL_HOME:-$HOME}/.config/git" \
   "$HERE/run-pi.sh" "$@"

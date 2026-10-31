@@ -92,15 +92,15 @@ describe('Phase 0 tooling regressions', () => {
     const dir = temp(), cli = join(dir,'fake-pi');
     writeFileSync(cli, '#!/usr/bin/env python3\nimport sys,os,json\nd=sys.argv[sys.argv.index("--session-dir")+1]\nos.makedirs(d,exist_ok=True)\nwith open(os.path.join(d,"s.jsonl"),"w") as f:\n f.write(json.dumps({"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"fixture final"}],"stopReason":"stop"}})+"\\n")\n');
     chmodSync(cli,0o755); writeFileSync(join(dir,'prompt'),'fixture');
-    execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'5'},stdio:'pipe'});
+    execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'5',PI_BRIDGE:'0',PI_PROVIDER_EXTENSION:''},stdio:'pipe'});
     expect(readFileSync(join(dir,'result'),'utf8').trim()).toBe('fixture final');
     expect(JSON.parse(readFileSync(join(dir,'result.d/run.json'),'utf8')).exit).toBe(0);
   });
 
   it('pi driver timeout is reported distinctly and does not silently succeed',()=>{
     const dir=temp(),cli=join(dir,'sleep-pi');writeFileSync(cli,'#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n');chmodSync(cli,0o755);writeFileSync(join(dir,'prompt'),'fixture');
-    let code=0;try{execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'1'},stdio:'pipe'});}catch(e){code=(e as {status:number}).status;}
-    expect(code).toBe(4);expect(JSON.parse(readFileSync(join(dir,'result.d/run.json'),'utf8')).exit).toBe(4);
+    let code=0;try{execFileSync('bash',[join(ROOT,'tools/harness/pi/run-pi.sh'),dir,join(dir,'prompt'),join(dir,'result')],{env:{...process.env,PI_BIN:cli,PI_MODEL:'fixture/model',PI_TIMEOUT:'1',PI_BRIDGE:'0',PI_PROVIDER_EXTENSION:''},stdio:'pipe'});}catch(e){code=(e as {status:number}).status;}
+    expect(code).toBe(124);expect(JSON.parse(readFileSync(join(dir,'result.d/run.json'),'utf8')).exit).toBe(124);
   });
 
   it('launcher-selected slice becomes the explicit L3 and packaging contract', () => {

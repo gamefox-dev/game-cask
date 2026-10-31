@@ -35,5 +35,6 @@ export async function waitFor({ spec, lanes = [], since, stalledMinutes = 10, ti
   }
 }
 export function eventSummary(event) {
-  return `${event.lane} ${event.type}${event.id ? ` #${event.id}` : ''}`;
+  return `${event.lane} ${event.type}${event.id ? ` #${event.id}` : ''}` +
+    `${event.code == null ? '' : ` exit=${event.code}`}`;
 }
