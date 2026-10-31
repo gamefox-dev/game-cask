@@ -136,9 +136,14 @@ export class WebGPURenderer implements Renderer {
       alphaMode: 'opaque',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST,
     });
+    // Runtime consumers are wired only after create() resolves. The final probe
+    // yields task turns, so retain asynchronous initialization errors until then.
+    let initializing = true;
+    const initErrors: string[] = [];
     device.addEventListener('uncapturederror', (ev) => {
       const msg = (ev as GPUUncapturedErrorEvent).error.message;
-      for (const cb of this.errorCbs) cb(`WebGPU: ${msg}`);
+      if (initializing) initErrors.push(msg);
+      else for (const cb of this.errorCbs) cb(`WebGPU: ${msg}`);
     });
     const module = device.createShaderModule({ code: SHADER });
     const uLayout = device.createBindGroupLayout({
@@ -206,6 +211,8 @@ export class WebGPURenderer implements Renderer {
     this.bindGroups.clear();
     // Do not publish or wire loss recovery for a renderer that never became usable.
     await checkWebGPUDevice(device);
+    if (initErrors.length) throw new Error(`WebGPU initialization: ${initErrors.join('; ')}`);
+    initializing = false;
     void device.lost.then((info) => this.handleLost(info));
   }
 

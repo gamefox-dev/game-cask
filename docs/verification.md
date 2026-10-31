@@ -73,18 +73,30 @@ make SwiftShader WebGPU a supported target.
 | Check | Result |
 |---|---|
 | `npm run doctor`, `npm run typecheck`, `npm run lint`, `npm run leakcheck`, `git diff --check` | pass |
-| `npm test` | **414 passed / 34 files** |
+| `npm test` | **417 passed / 35 files** |
 | CI-mode WebGL 2 + auto, `BGT_SOFTWARE_RENDERER=1` | **95 passed / 25 intentional skips / 0 failures** |
 | All projects, `BGT_REQUIRE_WEBGPU=1`, strict pixels enabled | **192 passed / 51 intentional skips / 0 failures** |
 | Injected broken-adapter policy, `BGT_TEST_BROKEN_WEBGPU=1` | **3 reasoned skips**, then **3 expected required-device failures** |
 
-Commands use owned test port 5297 and `BGT_RESULTS_PREFIX=fix3-{ci,real,policy,policy-required}`.
+Commands use owned test port 5297 and `BGT_RESULTS_PREFIX=fix3-{final-ci,final-real,policy,policy-required}`.
 Private logs/results and fresh independent review are in `scratch-FIX3/`; no original/game input,
 web source, system install, dependency change or push. An initial command hit global heavy-build
 slot contention and its timeout left port 5296 occupied; it was not reused. One early injected-loss
 fixture incorrectly also threw submission failure, so it was repaired to isolate actual loss; all
-final suites above include the corrected fixture. Remote CI and independent-review results are
-recorded below when available, not inferred from these local checks.
+final suites above include the corrected fixture.
+
+Fresh independent review found an additional initialization-error delivery window: while the final
+probe yielded native tasks, uncaptured pipeline validation errors could be forwarded to an empty
+callback list before runtime wiring. Initialization now accumulates those original messages and
+rejects/cleans up before publication; auto retains the reason in `backendNotes`, required WebGPU
+fails closed, and later errors still reach consumers. Three maintained actual-renderer/runtime-selection
+regressions cover that case even though all four probe submissions succeed. A second fresh independent
+session **approved**, personally passing **40 focused tests / 4 files**, then repeating the three startup
+regressions. Reports: private `review-result.md` and `recheck-result.md`; no independent broad-browser
+certification is implied. All broad local gates above were rerun after this repair.
+
+CI request round 1 for `350fe42` timed out after 900 seconds without a result. That is not remote green;
+the repaired follow-up is submitted as the second/final round, with the result recorded when returned.
 
 ## FIX2 — cross-backend tests without a WebGPU adapter
 
