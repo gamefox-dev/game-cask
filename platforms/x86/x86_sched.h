@@ -15,6 +15,10 @@ extern uint32_t x86_current;
 extern uint32_t x86_sched_target;
 void x86_sched_init(void);
 void x86_sched_save(void);
-/* Round robin, starting strictly after current. Returns 0 if no runnable task. */
+/* LANE-K1: bounded weighted round robin. Weights 1..5 for priorities -2..2.
+ * Each ready task gets a turn within at most 5*X86_THREADS selections. */
+int x86_sched_set_priority(uint32_t task, int priority);
+int x86_sched_get_priority(uint32_t task);
+/* Round robin within a credit round, starting strictly after current. Returns 0 if no runnable task. */
 int x86_sched_next(void);
 #endif

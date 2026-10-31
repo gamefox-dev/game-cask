@@ -463,6 +463,23 @@ channel polarity, crossings and virtual duration. `examples/x64-input` draws fou
 state; unit/browser tests inject pads/keyboard/mouse and assert make/break, deltas, packets and pixels on both backends.
 Both are original CC0 fixtures, fully lifted, with 300-frame differential oracles and no per-game profile branches.
 
+### Host entropy (LANE-K1, additive v0.3)
+
+`BGT_CAP_ENTROPY` (bit 13) advertises an available host entropy source.
+`bgt_random_bytes(void *dst, uint32_t length)` fills the checked linear-memory span with
+Web Crypto `getRandomValues` bytes, splitting requests at the browser's 65,536-byte quota.
+It returns `BGT_OK`, `BGT_E_BOUNDS` for an invalid span, `BGT_E_UNSUPPORTED` if no provider
+exists, or `BGT_E_IO` on provider failure. Failed host calls do not modify the destination.
+Zero length is accepted when a provider exists. This is not the seeded simulation PRNG;
+normal browser play never substitutes deterministic bytes. The BCrypt profile consumes
+this source (system-preferred RNG or Windows' RNG pseudo-handle); no algorithm/hash
+providers are advertised.
+
+Only the headless differential oracle explicitly supplies a deterministic entropy replay
+provider. That tape makes lifted/interpreted comparisons reproducible, is test-only,
+and is not cryptographically secure. Independent host tests exercise real Web Crypto,
+quota splitting, invalid ranges and provider failure; browser fixtures use real entropy.
+
 ### Coverage and slice boundaries
 
 `coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`

@@ -294,6 +294,9 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     /* LANE-E: additive audio/COM/input profile translation units. */
     'platforms/win32/w32_audio.c', 'platforms/win32/w32_com.c', 'platforms/win32/w32_input.c',
     'platforms/win32/w32_gl.c', /* LANE-GL */
+    /* LANE-K1: shared system DLL contracts, both widths. */
+    ...['avrt', 'bcrypt', 'dinput8', 'dwmapi', 'imm32', 'iphlpapi', 'shlwapi', 'ws2_32', 'wsock32']
+      .map((dll) => `platforms/win32/w32_${dll}.c`),
     /* LANE-C: cooperative scheduler and shared thread APIs (both guest widths). */
     'platforms/win32/w32_x64.c', 'platforms/win32/w32_thread.c', 'platforms/x86/x86_sched.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
