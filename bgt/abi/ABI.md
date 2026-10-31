@@ -500,23 +500,28 @@ quota splitting, invalid ranges and provider failure; browser fixtures use real 
 
 ### Coverage and slice boundaries
 
-`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`
-lifted, `2` interpreted). This is profile instrumentation, never a game-dependent branch. Host stores up to 65,536
-unique entries with ORed kind bits. Function entry coverage does not claim instruction/block coverage.
+`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records profile function/block/continuation entries
+(`kind=1` lifted, `2` interpreted), not every decoded instruction. This is profile instrumentation, never a
+game-dependent branch. Host stores up to 1,048,576 unique addresses with ORed kind bits; rejected events increment
+`metrics.code_entries_dropped`, and any positive drop count rejects selective/strict builds. Recording entries does
+not claim instruction-level packaging or complete path coverage within a selected function.
 `slice_missing(u32 kind,u32 address)` / `bgt_slice_missing` stops at an explicitly missing dependency (1 code, 2 data).
 The runtime pauses and reports `outsideSlice` rather than a wasm trap; resumption requires a broader package/reload.
 No IO layout changes. These functions are present only for v0.3 modules; older modules do not import them.
 
 Debug/test API `coverage()` returns schema `game-cask/coverage/1`: game id, module names/bases/SHA-256, executed entries,
-file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. The probe and
-browser fixture save snapshots. Strict slice manifests carry `slice.code` (allowed entries) and per-chunk `missing`
-flags. An executed entry outside the set or a read of a missing chunk pauses visibly and records the dependency,
-without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
+file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. Execution
+counters remain in `metrics.execution`; consumed/observed/read-ahead FILE byte counters remain separate, and
+`readAhead` ranges alone are not packaging evidence. The probe and browser fixture save snapshots. Strict slice
+manifests carry `slice.code` (allowed entries), `slice.codeRanges` (half-open owning function ranges) and per-chunk
+`missing` flags. An executed entry outside both allowed entries and owning ranges, or a read of a missing chunk,
+pauses visibly and records the dependency, without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
 
 Coverage-guided nonslice builds keep all data and interpret unselected functions, recording kind=2 for the next build.
 The current loader image retains conservative virtual section bytes (including unlifted machine code/data), so this
-is **not** yet a minimum-image slice. Unknown indirect entry targets, self-modifying code and fine-grained basic block
-coverage remain unsupported; see docs/v03-status.md.
+is **not** yet a minimum-image slice. Discovery records unknown indirect entries, but unowned code may require
+analyzer improvements before selective convergence. Self-modifying code and instruction-level strict packaging
+remain unsupported; see [pipeline.md](../../docs/pipeline.md) for ownership/selection and exact counter definitions.
 
 ## 13. v0.3 GPU layer (additive interface)
 

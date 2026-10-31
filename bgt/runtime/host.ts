@@ -79,6 +79,7 @@ export interface HostConfig {
   maxTextureDimension?: number;
   /* LANE-S1 */ gpuBackend?: GpuBackend;
   sliceCode?: number[];
+  sliceCodeRanges?: {addr:number;end:number}[];
 }
 
 export interface GamepadSnapshot {
@@ -179,6 +180,9 @@ export interface HostTimings {
   decodeMs: number;
 }
 
+// Safety net, not normal discovery granularity: 16x the former 65,536-entry cap.
+// At most 1,048,576 distinct function/block/continuation addresses per loaded runtime.
+export const CODE_COVERAGE_LIMIT = 1_048_576;
 const utf8 = new TextDecoder('utf-8', { fatal: false });
 
 export class GameHost {
@@ -404,10 +408,15 @@ export class GameHost {
         coverage_entry: (addr: number, kind: number) => {
           addr >>>= 0; kind >>>= 0;
           if (kind === 1 || kind === 2) {
-            if(this.codeCoverage.has(addr) || this.codeCoverage.size < 65536)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0) | kind);
+            if(this.codeCoverage.has(addr) || this.codeCoverage.size < CODE_COVERAGE_LIMIT)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0) | kind);
             else this.codeCoverageDropped++;
           }
-          if(this.allowedCode && !this.allowedCode.has(addr))throw new OutsideSlice(1,addr);
+          if(this.allowedCode && !this.allowedCode.has(addr)) {
+            const ranges=this.config.sliceCodeRanges ?? [];
+            let lo=0,hi=ranges.length;
+            while(lo<hi){const m=(lo+hi)>>>1;if(ranges[m].addr<=addr)lo=m+1;else hi=m;}
+            if(!lo||addr>=ranges[lo-1].end)throw new OutsideSlice(1,addr);
+          }
         },
         gpu_limits: (dst: number, cap: number) => {
           if ((cap >>> 0) < 16) return E_LIMIT;

@@ -63,7 +63,7 @@ export interface Manifest {
   assets: Array<{ path: string; url: string; size: number; sha256: string }>;
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
-  slice?: {code?:number[];data?:boolean};
+  slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
   input?: InputConfig;
 }
@@ -400,6 +400,7 @@ export class BGTRuntime {
           arg1: this.opts.arg1 ?? 0,
           maxTextureDimension: this.renderer.maxTextureSize,
           sliceCode: manifest.slice?.code,
+          sliceCodeRanges: manifest.slice?.codeRanges,
         },
       );
       this.host.init();
@@ -708,7 +709,9 @@ export class BGTRuntime {
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
       readAhead:this.vfs.readAheadCoverage(),
-      metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
+      metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,
+        execution:this.host?.metrics() ?? null,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+        crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
         load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
         frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},
       timing:this.diagnostics().timing};
