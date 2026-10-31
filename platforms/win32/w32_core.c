@@ -10,6 +10,15 @@
 #include "w32_input.h"
 #include "w32_gl.h"
 #include "w32_thread.h"
+/* LANE-K1: system DLL contracts. */
+#include "w32_avrt.h"
+#include "w32_bcrypt.h"
+#include "w32_dinput8.h"
+#include "w32_dwmapi.h"
+#include "w32_imm32.h"
+#include "w32_iphlpapi.h"
+#include "w32_shlwapi.h"
+#include "w32_ws2_32.h"
 
 bgt_io_t *w32_io;
 w32_metrics_t w32_m;
@@ -395,11 +404,15 @@ const w32_api_t *w32_find_api(const char *name) {
     const w32_api_t *thread = w32_thread_find(name);
     if (thread) return thread;
     /* LANE-E/GL: keep the complete additive registry. */
-    const w32_api_t *tabs[7] = {w32_api_kernel, w32_api_user, w32_api_gdi,
-        w32_api_com, w32_api_audio, w32_api_input, w32_api_gl};
-    const uint32_t ns[7] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n,
-        w32_api_com_n, w32_api_audio_n, w32_api_input_n, w32_api_gl_n};
-    for (int t = 0; t < 7; t++)
+    const w32_api_t *tabs[] = {w32_api_kernel, w32_api_user, w32_api_gdi,
+        w32_api_com, w32_api_audio, w32_api_input, w32_api_gl,
+        /* LANE-K1 */ w32_api_avrt, w32_api_bcrypt, w32_api_dinput8, w32_api_dwmapi,
+        w32_api_imm32, w32_api_iphlpapi, w32_api_shlwapi, w32_api_ws2_32};
+    const uint32_t ns[] = {w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n,
+        w32_api_com_n, w32_api_audio_n, w32_api_input_n, w32_api_gl_n,
+        /* LANE-K1 */ w32_api_avrt_n, w32_api_bcrypt_n, w32_api_dinput8_n, w32_api_dwmapi_n,
+        w32_api_imm32_n, w32_api_iphlpapi_n, w32_api_shlwapi_n, w32_api_ws2_32_n};
+    for (uint32_t t = 0; t < sizeof ns / sizeof ns[0]; t++)
         for (uint32_t i = 0; i < ns[t]; i++) {
             const char *a = tabs[t][i].name, *b = name;
             while (*a && *a == *b) { a++; b++; }
@@ -532,7 +545,9 @@ static int thunk_handler(uint32_t addr) {
     if (X.transfer != (int)transfer) return 0;
     if (X.mode64 && !special && !s->crt && X.r[EAX] == 0xffffffffu &&
         (w32_streqi(s->name, "CreateFileA") || w32_streqi(s->name, "CreateFileW") ||
-         w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread"))) {
+         w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread") ||
+         /* LANE-K1: INVALID_SOCKET is UINT_PTR, not a zero-extended int. */
+         w32_streqi(s->name, "socket") || w32_streqi(s->name, "accept"))) {
         X.r[EAX] = (x86_word_t)UINT64_MAX;
     }
     if (!w32_thread_deferred_result()) w32_trace_result(X.r[EAX]); /* LANE-C */

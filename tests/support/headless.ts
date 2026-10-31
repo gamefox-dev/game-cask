@@ -12,6 +12,7 @@ import { CAP_GPU, CAP_READBACK } from '../../bgt/runtime/abi';
 import type { GpuBackend } from '../../bgt/renderers/types';
 import type { Frame } from '../../bgt/runtime/commands';
 export interface StreamOptions {
+  entropy?: (bytes: Uint8Array) => void; /* LANE-K1: explicit oracle replay only */
   gpuBackend?: GpuBackend;
   executeFrame?: (frame: Frame) => void;
 }
@@ -55,6 +56,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     log: (_l, m) => logs.push(m),
     vfs,
     storage,
+    entropy: opts.entropy, /* LANE-K1 */
     now: () => performance.now(),
     rangeRead:(path,offset,length)=>ranges.read(path,offset,length),
   }, {

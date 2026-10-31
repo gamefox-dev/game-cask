@@ -59,6 +59,7 @@ extern "C" {
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
 #define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
+#define BGT_CAP_ENTROPY        (1u << 13) /* LANE-K1: host entropy, not simulation PRNG */
 
 #include "bgt_gpu.h"
 
@@ -259,6 +260,9 @@ BGT_IMPORT(asset_close) int32_t bgt_asset_close(int32_t handle);
  * accepted (may be fewer than offered when the queue is full or audio is
  * still locked; audio is unlocked by the first user gesture). */
 BGT_IMPORT(audio_push)   int32_t bgt_audio_push(const int16_t *samples, uint32_t frames);
+/* LANE-K1: optional v0.3 host entropy. BGT_OK or E_BOUNDS/E_UNSUPPORTED/E_IO. */
+BGT_IMPORT(random_bytes) int32_t bgt_random_bytes(void *dst, uint32_t len);
+
 /* v0.3 additive audio/input imports; old IO layout and mono import are unchanged. */
 BGT_IMPORT(audio_push_stereo) int32_t bgt_audio_push_stereo(const int16_t *samples, uint32_t frames);
 typedef struct bgt_gamepad {

@@ -35,7 +35,10 @@ export function defaultScript(frames: number, w: number, h: number, seed = 7): O
 
 async function run(id: string, frames: number, script: OracleStep[]): Promise<{ hashes: string[]; metrics: unknown; error: string | null }> {
   const stream = streamOptions(id);
-  const h: Headless = await loadHeadless(id, { storage: new Map(), ...stream });
+  /* LANE-K1: deterministic entropy tape is TEST REPLAY ONLY, never used by real play. */
+  let cursor = 0;
+  const entropy = (bytes: Uint8Array) => { for (let i=0;i<bytes.length;i++) bytes[i] = ((cursor++ * 73 + 41) ^ (cursor >>> 8)) & 255; };
+  const h: Headless = await loadHeadless(id, { storage: new Map(), ...stream, entropy });
   const hashes: string[] = [];
   let error: string | null = null;
   const byFrame = new Map<number, OracleStep[]>();

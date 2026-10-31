@@ -39,7 +39,7 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_GPU, GPU_LIMITS, GPU_LIMITS_SIZE } from './abi';
+import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 
 export interface AudioSink {
@@ -63,6 +63,8 @@ export interface HostServices {
   gamepadRumble?(index: number, left: number, right: number): void;
   storage?: StorageSink;
   now(): number;
+  /** LANE-K1: explicit test replay hook. Omit for real Web Crypto entropy. Throw on failure. */
+  entropy?(bytes: Uint8Array): void;
   rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
 }
 
@@ -217,6 +219,9 @@ export class GameHost {
     private readonly services: HostServices,
     readonly config: HostConfig,
   ) {
+    /* LANE-K1: advertise only an available entropy provider. */
+    if (typeof services.entropy === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') config.caps |= CAP_ENTROPY;
+    else config.caps &= ~CAP_ENTROPY;
     if (config.sliceCode) this.allowedCode = new Set(config.sliceCode);
     /* LANE-S1: a caller cannot advertise an absent/unsupported GPU implementation. */
     if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) this.gpu = new GpuState(config.gpuBackend);
@@ -346,6 +351,21 @@ export class GameHost {
     };
     return {
       bgt: {
+        /* LANE-K1: Web Crypto's 65536-byte quota is handled without truncating the request. */
+        random_bytes: (ptr: number, len: number) => {
+          if (!this.inRange(ptr, len)) return E_BOUNDS;
+          if (!(this.config.caps & CAP_ENTROPY)) return E_UNSUPPORTED;
+          try {
+            const bytes = new Uint8Array(len >>> 0);
+            for (let i = 0; i < bytes.length; i += 65536) {
+              const chunk = bytes.subarray(i, i + 65536);
+              if (s.entropy) s.entropy(chunk);
+              else globalThis.crypto.getRandomValues(chunk);
+            }
+            this.mem().set(bytes, ptr >>> 0);
+            return BGT_OK;
+          } catch { return E_IO; }
+        },
         log: (level: number, ptr: number, len: number) => {
           const msg = this.str(ptr, Math.min(len >>> 0, LIMITS.logBytes), LIMITS.logBytes);
           s.log(level >>> 0, msg ?? '<invalid log range>');

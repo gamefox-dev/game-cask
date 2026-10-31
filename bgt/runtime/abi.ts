@@ -162,6 +162,7 @@ export function errorName(code: number): string {
 
 // ---- v0.3 GPU layer (§13); all offsets and lengths are bytes.
 export const CAP_GPU = 1 << 12;
+export const CAP_ENTROPY = 1 << 13; /* LANE-K1 */
 export const GPU_OP = {
   BUFFER_CREATE: 0x40,
   BUFFER_UPDATE: 0x41,

@@ -31,7 +31,9 @@ export function importStatus(name, dll, machine = 'x86-64') {
     if (names.some((m) => m[1] === name)) return { status: 'implemented', group: 'win64' };
   }
   /* LANE-GL: same explicit API registry as runtime dispatch. */
-  for (const file of ['w32_kernel.c', 'w32_user.c', 'w32_gdi.c', 'w32_gl_api.h']) {
+  for (const file of ['w32_kernel.c', 'w32_user.c', 'w32_gdi.c', 'w32_gl_api.h',
+    /* LANE-K1: DLL contracts; WSOCK32 shares the Winsock registry. */
+    ...['avrt', 'bcrypt', 'dinput8', 'dwmapi', 'imm32', 'iphlpapi', 'shlwapi', 'ws2_32'].map((d) => `w32_${d}.c`)]) {
     const source = readFileSync(join(ROOT, 'platforms/win32', file), 'utf8');
     for (const m of source.matchAll(/\b(API|CAPI|DATAI|STUB|CSTUB|GLSTUB)\("([^"]+)"/g)) {
       if (m[2] === name) return { status: m[1].includes('STUB') ? 'stub' : 'implemented', group: 'win32' };
