@@ -16,7 +16,7 @@
 //     "interpretOnly": false    true = oracle build: no lifting, everything runs in the interpreter
 //   }
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
@@ -75,7 +75,7 @@ export function buildFixture(gameDir, fx, outDir) {
   // Generators are trusted, game-local source tools, never executables extracted from a PE.
   const generated = fx.generator ? join(outDir, 'generated') : null;
   const sourceNames = fx.generator
-    ? JSON.parse(execFileSync(process.execPath, [join(gameDir, fx.generator), generated, ...(fx.generatorArgs ?? []).map(String)], { encoding: 'utf8' }))
+    ? JSON.parse(execFileSync(process.execPath, [join(gameDir, fx.generator), generated, ...(fx.generatorArgs ?? []).map(String)], { encoding: 'utf8', cwd: gameDir }))
     : fx.sources;
   const inputs = sourceNames.map((s) => join(generated ?? gameDir, s));
   let resFile = null;
@@ -104,7 +104,7 @@ export function buildFixture(gameDir, fx, outDir) {
     const version = execFileSync('zig',['version'],{encoding:'utf8'}).trim();
     const flags = [fx.cpp ? 'c++' : 'cc','-target',target,'-O2','-fno-stack-protector','-funwind-tables','-fno-lto','-fno-emulated-tls','-isystem',zigWinInclude()];
     const headers = (root) => readdirSync(root,{withFileTypes:true}).flatMap((e)=>e.isDirectory() ? headers(join(root,e.name)) : /\.(h|inc|def)$/.test(e.name) ? [join(root,e.name)] : []);
-    const headerBytes = headers(generated).sort().map((f)=>Buffer.concat([Buffer.from(f),readFileSync(f)]));
+    const headerBytes = [...new Set([...headers(generated),...headers(gameDir)])].sort().map((f)=>Buffer.concat([Buffer.from(f),readFileSync(f)]));
     const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
     const link = ['zig',...args.filter((a)=>!inputs.includes(a))];
     link.splice(link.indexOf('-o'),0,...objects.map((o)=>o.out));

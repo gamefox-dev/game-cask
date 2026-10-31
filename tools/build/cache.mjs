@@ -2,30 +2,19 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { buildLock } from './lock.mjs';
+import { buildWriterToken } from './exec.mjs';
 
 function locked(dir, fn) {
-  mkdirSync(dir,{recursive:true});
-  const lock=join(dir,'.gc-lock'), wait=new Int32Array(new SharedArrayBuffer(4));
-  for (let tries=0;;tries++) {
-    try {mkdirSync(lock);break;} catch(e) {
-      if(e.code!=='EEXIST')throw e;
-      try {
-        const pid=Number(readFileSync(join(lock,'pid'),'utf8'));
-        try {process.kill(pid,0);} catch(err) {if(err.code==='ESRCH'){rmSync(lock,{recursive:true,force:true});continue;}}
-      } catch(err) {if(err.code!=='ENOENT')throw err;}
-      if(tries>3000)throw new Error('cache collection lock timeout');
-      Atomics.wait(wait,0,0,10);
-    }
-  }
-  try {writeFileSync(join(lock,'pid'),String(process.pid));return fn();}
-  finally {rmSync(lock,{recursive:true,force:true});}
+  const release=buildLock(dir,'.gc',30);
+  try {return fn();} finally {release();}
 }
 
 export function leaseCache(dir, files) {
   return locked(dir,()=>{
   const leases = join(dir,'.leases'); mkdirSync(leases,{recursive:true});
   const path = join(leases,`${process.pid}-${randomUUID()}.json`);
-  const tmp = path + '.tmp'; writeFileSync(tmp,JSON.stringify({pid:process.pid,files})); renameSync(tmp,path);
+  const tmp = path + '.tmp'; writeFileSync(tmp,JSON.stringify({pid:process.pid,files,writerToken:buildWriterToken()})); renameSync(tmp,path);
   return () => rmSync(path,{force:true});
   });
 }
@@ -39,8 +28,11 @@ export function pruneCache(dir, maxBytes) {
     const path = join(leases,file);
     try {
       const lease = JSON.parse(readFileSync(path,'utf8'));
-      let alive = true;
-      try {process.kill(lease.pid,0);} catch(e) {if(e.code==='ESRCH')alive=false;}
+      // The guardian removes .writers only after draining subprocesses. It is
+      // authoritative even when the owner is an unreaped zombie (kill(pid,0)
+      // would pin stale generations indefinitely).
+      let alive = lease.writerToken ? existsSync(lease.writerToken+'.writers') : true;
+      if (!lease.writerToken) try {process.kill(lease.pid,0);} catch(e) {if(e.code==='ESRCH')alive=false;}
       if (alive) for (const f of lease.files) pinned.add(f);
       else rmSync(path,{force:true});
     } catch(e) {if(e.code!=='ENOENT')throw e;}

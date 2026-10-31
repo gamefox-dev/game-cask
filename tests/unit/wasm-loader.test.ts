@@ -36,6 +36,16 @@ it('does not hide valid-MIME compile failures by falling back',async()=>{
   await expect(compileVerifiedWasm(response('application/wasm',invalid),metadata)).rejects.toThrow();
   expect(spy).not.toHaveBeenCalled();spy.mockRestore();
 });
+it('bounds the source before teeing and cancels an oversized streaming response',async()=>{
+  let pulled=0,cancelled=false;
+  const body=new ReadableStream<Uint8Array>({
+    pull(c) {pulled++;c.enqueue(pulled===1?wasm:new Uint8Array(16));},
+    cancel() {cancelled=true;},
+  },{highWaterMark:0});
+  await expect(compileVerifiedWasm(new Response(body,{headers:{'content-type':'application/wasm'}}),expected)).rejects.toThrow(/size/);
+  await new Promise((r)=>setTimeout(r,20));
+  expect(cancelled).toBe(true);expect(pulled).toBeLessThan(5);
+});
 it('rejects HTTP errors before compilation',async()=>{
   await expect(compileVerifiedWasm(new Response('',{status:404}),expected)).rejects.toThrow(/404/);
 });

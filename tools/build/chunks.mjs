@@ -1,5 +1,5 @@
 // Chunk orchestration only: no instruction emission or guest semantics live here.
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,6 +23,8 @@ export function analyzeCached(tool, file, id, base, dir, identity) {
   const cached = existsSync(out + '.key') && readFileSync(out + '.key','utf8') === key;
   if (!cached) {
     const an = execFileSync(tool, ['analyze',file,'--name',id,'--base',base.toString(16)], {encoding:'utf8',maxBuffer:256<<20});
+    // Do not leave the old key validating a newly written analysis after interruption.
+    rmSync(out + '.key',{force:true});
     writeFileSync(out, an); writeFileSync(out + '.key', key);
   }
   return { analysis: JSON.parse(readFileSync(out,'utf8')), key, analysis_ms: performance.now()-start, analysis_cached: cached };

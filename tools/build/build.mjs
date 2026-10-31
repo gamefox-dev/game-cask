@@ -7,7 +7,7 @@
 //   node tools/build/build.mjs --examples --check    compile to a temp dir only (lint gate)
 //
 // Output: web/public/games/<id>/{game.wasm, manifest.json, assets/...}
-import { execFileSync } from 'node:child_process';
+import { execFileSync, withBuildWriters } from './exec.mjs';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from 'node:fs';
@@ -72,13 +72,17 @@ export function loadGameConfig(gameDir) {
 export function buildGame(gameDirArg, options = {}) {
   const cfg=loadGameConfig(resolve(ROOT,gameDirArg));
   const release=buildLock(join(ROOT,'node_modules/.cache/bgt/locks'),cfg.id+(options.interpretOnly?'-interp':''));
-  try {return buildGameUnlocked(gameDirArg,options);} finally {release();}
+  try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
 function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null } = {}) {
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  // Measurement/debug override; 0 preserves the old monolithic orchestration.
+  if (cfg.pipeline && process.env.BGT_CHUNK_INSNS !== undefined) cfg.pipeline.chunkInstructions=Number(process.env.BGT_CHUNK_INSNS);
+  if(cfg.pipeline?.chunkInstructions !== undefined && cfg.pipeline.chunkInstructions !== 0 &&
+    (!Number.isInteger(cfg.pipeline.chunkInstructions) || cfg.pipeline.chunkInstructions<256 || cfg.pipeline.chunkInstructions>1000000)) throw new Error('chunkInstructions must be 0 (monolithic) or 256..1000000');
   if(sliceCoverage)cfg.slice={...(cfg.slice ?? {}),coverage:sliceCoverage};
   if(cfg.slice && cfg.pipeline)cfg.pipeline.streamModules=true;
   if (interpretOnly) {
@@ -135,7 +139,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const compileFlags = [...compileBase, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
       const headerDirs = [...includes.map((d) => join(ROOT, d)), gameDir];
       const headers = [...new Set(headerDirs.flatMap(walk).filter((f) => /\.(h|inc|def)$/.test(f)))].sort();
-      const common = Buffer.concat([Buffer.from(JSON.stringify([zig.version, compileFlags])), ...headers.map(readFileSyncBuffer)]);
+      const common = Buffer.from(JSON.stringify([zig.path,zig.version,compileFlags,headers.map((f)=>[f,sha256(readFileSyncBuffer(f))]) ]));
       const allSources = [...sources, ...libcSources];
       const objects = allSources.map((file) => {
         const out = join(cache, sha256(Buffer.concat([common,Buffer.from(file),readFileSync(file)]))+'.o');

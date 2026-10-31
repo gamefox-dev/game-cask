@@ -10,6 +10,8 @@ import { partitionFunctions } from '../../tools/build/chunks.mjs';
 import { buildGame } from '../../tools/build/build.mjs';
 // @ts-expect-error ESM build tool
 import { leaseCache, pruneCache } from '../../tools/build/cache.mjs';
+// @ts-expect-error ESM tool
+import { withBuildWriters } from '../../tools/build/exec.mjs';
 // @ts-expect-error CC0 source generator
 import { generate } from '../../examples/x64-scale/generate.mjs';
 
@@ -26,6 +28,12 @@ it('bounds cache bytes without evicting live-build leases',()=>{
     expect(pruneCache(dir,0)).toEqual({bytes:4,removed:4,pinnedBytes:4});
     expect(readFileSync(a,'utf8')).toBe('aaaa'); release();
     expect(pruneCache(dir,0).bytes).toBe(0);
+    // A drained generation cannot be pinned by kill(pid,0), even if its owner
+    // remains alive/zombie. The writer barrier, not PID reuse/reaping, is authority.
+    writeFileSync(a,'aaaa');const token=join(dir,'generation');writeFileSync(token+'.writers','');
+    const done=withBuildWriters(token,()=>leaseCache(dir,[a]));
+    expect(pruneCache(dir,0).pinnedBytes).toBe(4);
+    rmSync(token+'.writers');expect(pruneCache(dir,0).bytes).toBe(0);done();
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
 it('generator is deterministic and native checksum equals the fully lifted large fixture',async()=>{

@@ -15,7 +15,21 @@ export interface WasmLoadResult {
 export async function compileVerifiedWasm(response: Response, expected: { size: number; sha256: string },
   progress: (bytes: number) => void = () => {}): Promise<WasmLoadResult> {
   if (!response.ok) throw new Error(`failed to load game.wasm (HTTP ${response.status})`);
+  if (!Number.isSafeInteger(expected.size) || expected.size < 0) throw new Error('invalid game.wasm manifest size');
   const start = performance.now();
+  // Enforce the bound upstream of tee/compileStreaming: cancelling only the hash
+  // branch would leave the compiler consuming an arbitrarily large response.
+  if (response.body) {
+    let observed = 0;
+    const bounded = response.body.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({
+      transform(chunk,controller) {
+        observed += chunk.byteLength;
+        if (observed > expected.size) controller.error(new Error('game.wasm exceeds manifest size'));
+        else controller.enqueue(chunk);
+      },
+    }));
+    response = new Response(bounded,{status:response.status,headers:response.headers});
+  }
   const streaming = typeof WebAssembly.compileStreaming === 'function' && !!response.body &&
     response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() === 'application/wasm';
   const copy = streaming ? response.clone() : response;

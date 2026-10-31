@@ -27,6 +27,10 @@ def main():
         try:
             with open(os.devnull, 'wb') as sink:
                 subprocess.run(t['args'] + ['--out', temp], check=True, stdout=sink)
+            # Invalidate the old generation BEFORE replacing any payload. A crash at
+            # either rename can then never validate mismatched source/stats under key A.
+            try: os.unlink(t['out'] + '.key')
+            except FileNotFoundError: pass
             os.replace(temp, t['out'])
             os.replace(temp + '.stats.json', t['out'] + '.stats.json')
             with open(temp + '.key', 'w') as f:
