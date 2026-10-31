@@ -119,7 +119,8 @@ int x86_decode_mode(const uint8_t *bytes, uint32_t avail, uint32_t addr, int mod
     if (op >= 0x91 && op <= 0x97) { in->op = XO_XCHG; reg(a, 0, osz); reg(b, (int)(op & 7) + ((r.rex & 1) ? 8 : 0), osz); DONE(2); }
     if (op >= 0xb0 && op <= 0xb7) { in->op = XO_MOV; reg(a, (int)(op & 7) + ((r.rex & 1) ? 8 : 0), 1); imm(b, u8(&r), 1); DONE(2); }
     if (op >= 0xb8 && op <= 0xbf) { in->op = XO_MOV; reg(a, (int)(op & 7) + ((r.rex & 1) ? 8 : 0), osz); imm(b, osz == 8 ? u64(&r) : immediate(&r,osz), osz); DONE(2); }
-    if (op >= 0xd8 && op <= 0xdf) { /* x87: decode length only */
+    if (op == 0x9b) { in->op = XO_FPU; in->simd_op = 0x9b; DONE(0); } /* FWAIT */
+    if (op >= 0xd8 && op <= 0xdf) { /* x87 operands + encoding for shared semantics */
         in->op = XO_FPU; in->simd_op=(uint8_t)op;in->simd_imm=(uint8_t)(r.pos<r.avail?r.b[r.pos]:0); modrm(&r, a, 4, fs); DONE(0);
     }
 

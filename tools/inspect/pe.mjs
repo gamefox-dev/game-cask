@@ -23,7 +23,8 @@ export function peMetadata(readAt, fileSize) {
     sections.push({ name: s.toString('latin1', 0, 8).replace(/\0+$/, ''), vsize: s.readUInt32LE(8), rva: s.readUInt32LE(12), rawSize: s.readUInt32LE(16), rawPtr: s.readUInt32LE(20) });
   }
   const off = (rva, n = 1) => {
-    if (rva < opt.readUInt32LE(60) && rva + n <= fileSize) return rva;
+    if (!Number.isSafeInteger(rva) || !Number.isSafeInteger(n) || rva < 0 || n < 0 || rva + n > opt.readUInt32LE(56)) throw new Error('PE RVA range outside image');
+    if (rva < opt.readUInt32LE(60) && rva + n <= opt.readUInt32LE(60) && rva + n <= fileSize) return rva;
     for (const s of sections) {
       const delta = rva - s.rva, span = s.vsize || s.rawSize;
       if (delta >= 0 && delta + n <= span && delta + n <= s.rawSize && s.rawPtr + delta + n <= fileSize) return s.rawPtr + delta;

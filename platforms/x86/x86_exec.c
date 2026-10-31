@@ -132,7 +132,7 @@ void x86_exec_insn(const x86_insn_t *in) {
     case XO_CALL: x86_push(next); X.eip = in->target; return;
     case XO_CALL_IND: { uint32_t t = xs_read(a); x86_push(next); X.eip = t; return; }
     case XO_RET: X.eip = x86_pop(); X.r[ESP] += a->imm; return;
-    case XO_FPU: x86_fault("x87 FPU instruction (not supported in v0.2)", in->addr);
+    case XO_FPU: x86_x87(in); return;
     case XO_INT: case XO_INT3: case XO_HLT: x86_fault("int/int3/hlt executed", in->addr);
     default: x86_fault("unsupported instruction", in->addr);
     }

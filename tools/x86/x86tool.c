@@ -246,7 +246,13 @@ static int func_index(an_t *a, uint32_t addr) {
     return -1;
 }
 static void add_func(an_t *a, uint32_t addr, int kind) {
-    if (!is_code(a->pe, addr) || func_index(a, addr) >= 0 || vhas(&a->blocked, addr)) return;
+    if (!is_code(a->pe, addr)) return;
+    int existing = func_index(a, addr);
+    if (existing >= 0) {
+        if (kind < a->f[existing].seed_kind) a->f[existing].seed_kind = kind;
+        return;
+    }
+    if (vhas(&a->blocked, addr) && kind >= 3) return;
     if (a->pe->mode64 && kind >= 3) for (uint32_t i = 0; i < a->nf; i++)
         if (a->f[i].unwind_range && addr > a->f[i].addr && addr < a->f[i].end) return;
     if (a->nf == a->capf) { a->capf = a->capf ? a->capf * 2 : 256; a->f = realloc(a->f, a->capf * sizeof(func_t)); if (!a->f) die("oom"); }
@@ -417,7 +423,9 @@ static int is_string_at(const pe_t *pe, uint32_t va) {
 }
 static const char *data_reason(const an_t *a, const func_t *f) {
     const pe_t *pe = a->pe;
-    if (f->seed_kind < 3) return 0;
+    if (f->seed_kind < 3 || f->unwind_range) return 0;
+    /* A pointer discovered before a direct call must not weaken call provenance. */
+    for (uint32_t i = 0; i < a->nf; i++) if (vhas(&a->f[i].calls, f->addr)) return 0;
     uint32_t va = f->addr;
     for (uint32_t k = 0; k < 16; k++) {
         if (k == 4) continue; /* the security directory holds a file offset, not an RVA */
@@ -425,9 +433,14 @@ static const char *data_reason(const an_t *a, const func_t *f) {
     }
     for (uint32_t i = 0; i + 1 < pe->name_ranges.n; i += 2) if (va >= pe->name_ranges.v[i] && va < pe->name_ranges.v[i + 1]) return "import-name";
     const uint8_t *p = at(pe, va);
-    if (p && va + 1 < pe->base + pe->size && p[0] == 0 && p[1] == 0) return "zero-bytes";
+    if (pe->mode64) {
+        /* Only an entire aligned NULL pointer is decisive on AMD64. Two zero bytes
+         * and unsupported instructions (notably UD2) can be intentional real code. */
+        if (!(va & 7) && in_image(pe, va, 8) && !r32(p) && !r32(p + 4)) return "zero-pointer";
+        return 0; /* Printable instruction streams can be real indirect callbacks. */
+    } else if (p && in_image(pe, va, 2) && p[0] == 0 && p[1] == 0) return "zero-bytes";
     if (is_string_at(pe, va)) return "string";
-    if (f->undecodable || f->unsupported) return "undecodable-or-unsupported";
+    if (!pe->mode64 && (f->undecodable || f->unsupported)) return "undecodable-or-unsupported";
     return 0;
 }
 static void reset_analysis(an_t *a) {
@@ -435,6 +448,7 @@ static void reset_analysis(an_t *a) {
     a->nf = 0;
     a->known.n = 0;
     memset(a->census, 0, sizeof a->census);
+    for (uint32_t i = 0; i < a->pe->nimp; i++) a->pe->imp[i].sites = 0;
 }
 static void analyze(an_t *a);
 static void prune(an_t *a);
@@ -443,9 +457,9 @@ static void analyze64(an_t *a) {
     pe_t *pe=a->pe;
     uint32_t pr=pe->dd_rva[3],ps=pe->dd_size[3];
     for(uint32_t off=0;off+12<=ps;off+=12) {
-        if(pr+off+12>pe->size)die("bad exception directory");
+        if((uint64_t)pr+off+12>pe->size)die("bad exception directory");
         uint32_t begin=pe->base+r32(pe->img+pr+off),end=pe->base+r32(pe->img+pr+off+4);
-        if(begin>=end || !is_code(pe,begin))continue;
+        if(begin>=end || !is_code(pe,begin) || !in_image(pe,begin,end-begin))continue;
         add_func(a, begin, 0);
         int fi = func_index(a, begin);
         if (fi >= 0) { a->f[fi].end = end; a->f[fi].unwind_range = 1; }
@@ -477,6 +491,7 @@ static void analyze64(an_t *a) {
             x86_insn_t in;vpush(&a->f[i].insns,va);
             if(!decode_at(pe,va,&in)){a->f[i].undecodable++;va++;continue;}
             a->census[in.op]++;if(in.op==XO_UNSUPPORTED)a->f[i].unsupported++;
+            if(in.op==XO_FPU)a->f[i].fpu++;
             if (in.op == XO_CALL) { vpush(&a->f[i].calls, in.target); add_func(a, in.target, 2); }
             /* MinGW tail-calls leaf math helpers that have no unwind entry. */
             if ((in.op == XO_JMP || in.op == XO_JCC) &&
@@ -494,11 +509,10 @@ static void analyze64(an_t *a) {
     }
 }
 static void analyze_all(an_t *a) {
-    if(a->pe->mode64){analyze64(a);return;}
-    for (int iter = 0; iter < 8; iter++) {
+    for (int iter = 0; ; iter++) {
         if (iter) reset_analysis(a);
-        analyze(a);
-        prune(a);
+        if (a->pe->mode64) analyze64(a);
+        else { analyze(a); prune(a); }
         uint32_t added = 0;
         for (uint32_t i = 0; i < a->nf; i++) {
             const char *r = data_reason(a, &a->f[i]);
@@ -511,6 +525,18 @@ static void analyze_all(an_t *a) {
         }
         if (!added) break;
         vsort_uniq(&a->blocked);
+    }
+    /* Census is function-instruction membership, not globally unique addresses.
+     * Rebuild after pruning so all totals have exactly the same population. */
+    memset(a->census, 0, sizeof a->census);
+    for (uint32_t i = 0; i < a->nf; i++) {
+        func_t *f = &a->f[i]; f->unsupported = f->fpu = f->undecodable = 0;
+        for (uint32_t k = 0; k < f->insns.n; k++) {
+            x86_insn_t in;
+            if (!decode_at(a->pe, f->insns.v[k], &in)) { f->undecodable++; continue; }
+            a->census[in.op]++;
+            f->unsupported += in.op == XO_UNSUPPORTED; f->fpu += in.op == XO_FPU;
+        }
     }
 }
 
