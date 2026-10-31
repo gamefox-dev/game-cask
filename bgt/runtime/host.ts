@@ -65,7 +65,7 @@ export interface HostServices {
   now(): number;
   /** LANE-K1: explicit test replay hook. Omit for real Web Crypto entropy. Throw on failure. */
   entropy?(bytes: Uint8Array): void;
-  rangeRead?(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>;
+  rangeRead?(path: string, offset: number, length: number, ahead?: boolean): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export interface HostConfig {
@@ -190,6 +190,7 @@ export class GameHost {
   codeCoverageDropped = 0;
   private allowedCode: Set<number> | null = null;
   private ioWork = new Set<Promise<void>>();
+  get fileIo() { const v=this.services.vfs;return { consumedBytes:v.consumedBytes,observedBytes:v.observedBytes,readAheadBytes:v.readAheadBytes,readAheadRequests:v.readAheadRequests,files:v.coverage(),readAhead:v.readAheadCoverage() }; }
   get ioPending(): boolean { return this.ioWork.size > 0; }
   async settleRequests(): Promise<void> { await Promise.all([...this.ioWork]); }
   state: DrawState = defaultState(1, 1);
@@ -352,6 +353,22 @@ export class GameHost {
       const k = this.str(ptr, len, LIMITS.storageKeyBytes);
       return k && /^[A-Za-z0-9_.-]{1,64}$/.test(k) ? k : null;
     };
+    const rangeRequest = (h: number,lo: number,hi: number,len: number,ahead = false) => {
+          const path=s.vfs.pathFor(h);if(!path)return E_NOT_FOUND;
+          const off=(lo >>> 0)+(hi >>> 0)*0x100000000, length=ahead ? Math.min(len >>> 0,65536-(off%65536)) : len >>> 0;
+          if(!Number.isSafeInteger(off))return E_INVALID;
+          if((len >>> 0)>8*1024*1024)return E_LIMIT;
+          const immediate=s.vfs.range(h,off,length,ahead);
+          if(!immediate && !s.rangeRead)return E_STATE;
+          const token=this.requests.reserve();if(typeof token==='number')return token;
+          if(ahead)s.vfs.readAheadRequests++;
+          if(immediate){if(ahead)s.vfs.readAhead(h,off,immediate.length);this.requests.complete(token,immediate);}
+          else {
+            const work=Promise.resolve().then(()=>s.rangeRead!(path,off,length,ahead)).then((data)=>{if(ahead)s.vfs.readAhead(h,off,data.length);this.requests.complete(token,data);},(error)=>{s.log(2,`asset range failed: ${path} at ${off}+${length}: ${String(error)}`);this.requests.complete(token,undefined,E_IO);});
+            this.ioWork.add(work);void work.finally(()=>this.ioWork.delete(work));
+          }
+          return token.id;
+    };
     return {
       bgt: {
         /* LANE-K1: Web Crypto's 65536-byte quota is handled without truncating the request. */
@@ -425,20 +442,15 @@ export class GameHost {
           const size=s.vfs.size(h);if(size<0)return size;
           this.dv().setBigUint64(dst >>> 0,BigInt(size),true);return 0;
         },
-        asset_range_request: (h: number,lo: number,hi: number,len: number) => {
-          const path=s.vfs.pathFor(h);if(!path)return E_NOT_FOUND;
-          const off=(lo >>> 0)+(hi >>> 0)*0x100000000, length=len >>> 0;
-          if(!Number.isSafeInteger(off))return E_INVALID;
-          if(length>8*1024*1024)return E_LIMIT;
-          const immediate=s.vfs.range(h,off,length);
-          if(!immediate && !s.rangeRead)return E_STATE;
-          const token=this.requests.reserve();if(typeof token==='number')return token;
-          if(immediate)this.requests.complete(token,immediate);
-          else {
-            const work=Promise.resolve().then(()=>s.rangeRead!(path,off,length)).then((data)=>{this.requests.complete(token,data);},(error)=>{s.log(2,`asset range failed: ${path} at ${off}+${length}: ${String(error)}`);this.requests.complete(token,undefined,E_IO);});
-            this.ioWork.add(work);void work.finally(()=>this.ioWork.delete(work));
-          }
-          return token.id;
+        asset_range_request: (h: number,lo: number,hi: number,len: number) => rangeRequest(h,lo,hi,len),
+        asset_read_ahead: (h: number,lo: number,hi: number,len: number) => rangeRequest(h,lo,hi,len,true),
+        asset_consumed: (h: number,lo: number,hi: number,len: number) => {
+          const off=(lo >>> 0)+(hi >>> 0)*0x100000000;
+          return Number.isSafeInteger(off) ? s.vfs.consume(h,off,len >>> 0) : E_INVALID;
+        },
+        asset_observed: (h: number,lo: number,hi: number,len: number) => {
+          const off=(lo >>> 0)+(hi >>> 0)*0x100000000;
+          return Number.isSafeInteger(off) ? s.vfs.consume(h,off,len >>> 0,true) : E_INVALID;
         },
         asset_read: (h: number, dst: number, size: number) => {
           if (!this.inRange(dst, size)) return E_BOUNDS;

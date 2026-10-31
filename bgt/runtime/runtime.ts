@@ -320,7 +320,7 @@ export class BGTRuntime {
     if (manifest.schema !== 'bgt-manifest/1') throw new RuntimeFailure('asset', `unsupported manifest schema ${manifest.schema}`);
     this.manifest = manifest;
     this.rangeFiles = new RangeFiles(base);
-    for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size); }
+    for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
 
     const total = manifest.wasm.size + manifest.assets.reduce((n, a) => n + a.size, 0);
@@ -382,8 +382,8 @@ export class BGTRuntime {
           gamepadRumble: (index, left, right) => this.input.rumble(index, left, right),
           storage: this.storage,
           now: () => performance.now(),
-          rangeRead: async (path,offset,length) => {
-            try{return await this.rangeFiles!.read(path,offset,length);}catch(e){
+          rangeRead: async (path,offset,length,ahead) => {
+            try{return await this.rangeFiles!.read(path,offset,length,ahead);}catch(e){
               if(e instanceof OutsideDataRange){this.noteOutside(2,e.offset,e.message);}
               throw e;
             }
@@ -707,7 +707,8 @@ export class BGTRuntime {
     return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
-      metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+      readAhead:this.vfs.readAheadCoverage(),
+      metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
         load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
         frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},
       timing:this.diagnostics().timing};

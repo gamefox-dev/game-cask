@@ -377,7 +377,7 @@ int w32_file_close_h(uint32_t h) {
     /* Internal CRT close must not replace the caller's guest arguments. */
     return w32_thread_close_handle(h);
 }
-int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
+static int file_read_buffered(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got, int ahead) {
     uint32_t i = file_index(h);
     *got = 0;
     if (!i) return 0;
@@ -385,7 +385,7 @@ int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
         uint32_t n = want - *got;
         if (n > 65536) n = 65536;
         if (n > files[i].size - files[i].pos) n = (uint32_t)(files[i].size - files[i].pos);
-        int32_t r = bgt_asset_range_request(files[i].asset, (uint32_t)files[i].pos,
+        int32_t r = (ahead ? bgt_asset_read_ahead : bgt_asset_range_request)(files[i].asset, (uint32_t)files[i].pos,
                                           (uint32_t)(files[i].pos >> 32), n);
         if (r < 0) return 0;
         int32_t status;
@@ -395,9 +395,23 @@ int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
         if (count < 0) return 0;
         *got += (uint32_t)count;
         files[i].pos += (uint32_t)count;
-        if (!count) break;
+        if (!count || ahead) break;
     }
     return 1;
+}
+int w32_file_read_buf(uint32_t h,uint8_t *dst,uint32_t want,uint32_t *got) {
+    return file_read_buffered(h,dst,want,got,0);
+}
+int w32_file_read_ahead(uint32_t h,uint8_t *dst,uint32_t want,uint32_t *got) {
+    return file_read_buffered(h,dst,want,got,1);
+}
+void w32_file_consumed(uint32_t h,uint64_t pos,uint32_t n) {
+    uint32_t i=file_index(h);
+    if(i)bgt_asset_consumed(files[i].asset,(uint32_t)pos,(uint32_t)(pos>>32),n);
+}
+void w32_file_observed(uint32_t h,uint64_t pos,uint32_t n) {
+    uint32_t i=file_index(h);
+    if(i)bgt_asset_observed(files[i].asset,(uint32_t)pos,(uint32_t)(pos>>32),n);
 }
 int w32_file_size_get(uint32_t h, uint64_t *size_out) {
     uint32_t i = file_index(h);

@@ -202,7 +202,7 @@ int main(void) {
     CHECK("wcsftime",C("wcsftime",wide,1024,L"%Y-%m-%d",&tm,0,0)==10&&!wcscmp(wide,L"2001-10-25"));
     CHECK("wcsftime-unicode",C("wcsftime",wide,1024,L"\u00e9\U0001f600",&tm,0,0)==3&&wide[0]==0xe9&&wide[1]==0xd83d&&wide[2]==0xde00&&wide[3]==0);
     file=tmpfile();CHECK("putwc",C("putwc",'Q',file,0,0,0,0)=='Q');rewind(file);CHECK("getwc",C("getwc",file,0,0,0,0,0)=='Q');fclose(file);
-    file=tmpfile();CHECK("fwprintf",C("fwprintf",file,L"%ls %d",L"wide",7,0,0)==6);rewind(file);memset(bytes,0,sizeof bytes);fread(bytes,1,6,file);CHECK("fwprintf-bytes",!strcmp(bytes,"wide 7"));fclose(file);
+    file=tmpfile();CHECK("fwprintf",C("fwprintf",file,L"%ls %d",L"wide",7,0,0)==6);rewind(file);memset(bytes,0,sizeof bytes);CHECK("fwprintf-bytes",fread(bytes,1,12,file)==12&&!memcmp(bytes,"w\0i\0d\0e\0 \0" "7\0",12));fclose(file);
     errno=2;C("perror","fixture",0,0,0,0,0);CHECK("perror",1);
     unsigned argc=0;wchar_t **argv=(wchar_t **)(uintptr_t)S("CommandLineToArgvW",L"app \"a b\" c\\\\\"d",&argc,0,0,0,0);
     CHECK("CommandLineToArgvW",argv&&argc==3&&!wcscmp(argv[1],L"a b"));LocalFree(argv);

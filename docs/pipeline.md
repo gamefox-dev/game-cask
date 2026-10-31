@@ -299,7 +299,17 @@ Nondefault rounding/FTZ/traps, 80-bit long double, positional formats, unsupport
 MSVC-specific C++ personalities remain gaps. Static unknown imports fault with untruncated DLL!symbol; dynamic unknown
 lookup returns NULL.
 
-FILE reads of shipped profile files use the existing range-request/yield machinery and preserve slice boundaries.
+FILE reads of shipped profile files use deferred range-request/yield machinery with a bounded **16 KiB default
+read-ahead buffer** (configurable through Windows setvbuf/setbuf, maximum 64 KiB). A byte read from owned bytes
+needs no new request/update. Refills stop at both the current 64 KiB boundary and actual stream chunk boundary,
+so speculation cannot pull an adjacent omitted strict-slice chunk. Consumption, including physical CRLF input
+bytes but excluding returned pushback bytes, drives `files` coverage; speculative ranges and byte/request counts
+are recorded separately in `readAhead` and `crtReadAheadBytes`/`crtReadAheadRequests`. `crtConsumedBytes` counts
+actual FILE source bytes delivered/read, not source chunk download bytes. Inspected non-LF bytes after CR are
+recorded separately as `crtObservedBytes` and also retained in packaging coverage because translation depends on them. Chunk-level packaging is deliberately
+coarser than byte counters. FILE positioning uses logical physical-byte cookies; raw descriptors expose the
+underlying read-ahead cursor until fflush/position synchronizes them. Full contracts and bounds:
+[CRT FILE contracts](../platforms/win32/CONTRACTS.md#crt-files-formatting-and-locks).
 CRT-created writable and temporary files live in process memory only; shipped files remain read-only. Streams support
 read/write/seek/position/pushback/EOF/error and formatted scanning; stdout/stderr log complete lines. The deterministic
 process environment is empty, locale support is **C/ASCII**, and localtime is **UTC**, derived from the virtual clock.

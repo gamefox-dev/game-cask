@@ -119,10 +119,10 @@ void crt_exit_handlers(void) {
         if (X.transfer) return;
     }
 }
-static uint64_t c_cexit(void) { crt_exit_handlers(); flush_stdout(); return 0; }
+static uint64_t c_cexit(void) { crt_exit_handlers(); file_flush_all(); flush_stdout(); return 0; }
 static uint64_t c_exit(void) {
     uint32_t code = ARG(0);
-    crt_exit_handlers(); flush_stdout(); w32_exit_guest(code); return 0;
+    crt_exit_handlers(); file_flush_all(); flush_stdout(); w32_exit_guest(code); return 0;
 }
 static uint64_t c_fast_exit(void) { w32_exit_guest(ARG(0)); return 0; }
 static uint64_t c_abort(void) { x86_fault("guest CRT abort", X.eip); }
