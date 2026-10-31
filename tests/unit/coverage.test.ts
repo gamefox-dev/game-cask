@@ -133,15 +133,18 @@ it('two successive selective builds converge on a >65k-instruction workload from
   const second=await loadHeadless(id);await second.stepAsync(8);
   const two:any=second.host.metrics();expect(two.interp_insns).toBe(0);expect(two.interp_code_entries).toBe(0);expect(two.interp_functions).toBe(0);
   expect(second.logs).toEqual(first.logs);expect(second.host.codeCoverageDropped).toBe(0);
+  expect(one.trace_hash).toBe(baseline.trace_hash);expect(two.trace_hash).toBe(baseline.trace_hash);
   const interpreted=[...first.host.codeCoverage].filter(([,kind])=>kind&2).map(([addr])=>addr);
   expect(interpreted).toHaveLength(2); // body start AND an interior entry in the same .pdata range
   for(const addr of interpreted)expect((second.host.codeCoverage.get(addr) ?? 0)&1).toBe(1);
   // The same recorded workload also works when range-normalized selection is enforced strictly.
   cfg.slice={coverage:['early.json','more.json']};save();buildGame(dir,{quiet:true});
   const sliced=await loadHeadless(id);await sliced.stepAsync(8);expect(sliced.logs).toEqual(second.logs);
+  expect((sliced.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
   cfg.pipeline.interpretOnly=true;save();buildGame(dir,{quiet:true});
   const reference=await loadHeadless(id);await reference.stepAsync(8);expect(reference.logs).toEqual(second.logs);
   expect((reference.host.metrics() as any).interp_insns).toBe(baseline.interp_insns);
+  expect((reference.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
   mkdirSync(join(ROOT,'reports'),{recursive:true});
   writeFileSync(join(ROOT,'reports/coverage-discovery.json'),JSON.stringify({
     workload:'CC0 70000-NOP indirect function + interior continuation, 8 frames',
