@@ -75,6 +75,8 @@ export interface RuntimeErrorRecord {
   frame: number;
 }
 
+import { compileVerifiedWasm } from './wasm-loader';
+
 export interface BGTDiagnostics {
   abi: string;
   game: { id: string; name: string } | null;
@@ -96,6 +98,9 @@ export interface BGTDiagnostics {
     renderMs: number;
     decodeMs: number;
     gpuSubmitMs: number;
+    wasmDownloadCompileVerifyMs: number;
+    wasmInstantiateMs: number;
+    wasmStreaming: boolean;
   };
   lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number };
   commandErrors: { count: number; recent: CommandError[] };
@@ -150,6 +155,8 @@ export class BGTRuntime {
   failed = false;
   outsideSlice: {kind:number;address:number;message:string} | null = null;
   private loadStarted = 0;
+  private wasmLoadMs = 0;
+  private wasmStreaming = false;
   private firstFrameMs: number | null = null;
   private frameTimes: number[] = [];
   private sliceEvents = 0;
@@ -327,10 +334,11 @@ export class BGTRuntime {
       const got = await sha256Hex(buf);
       if (got && got !== expect) throw new RuntimeFailure('asset', `integrity check failed for ${label}`);
     };
-    const wasmP = this.fetchBytes(base + manifest.wasm.url, 'game.wasm', tick).then(async (b) => {
-      await verify(b, manifest.wasm.sha256, 'game.wasm');
-      return b;
-    });
+    const wasmP = fetch(base + manifest.wasm.url).then((res) => compileVerifiedWasm(res,manifest.wasm,tick)).then((result) => {
+      this.wasmLoadMs = result.downloadCompileVerifyMs;
+      this.wasmStreaming = result.streaming;
+      return result.module;
+    }).catch((e: unknown) => { throw new RuntimeFailure('asset', `game.wasm: ${(e as Error).message}`); });
     // Chunked preload with bounded concurrency.
     const queue = [...manifest.assets];
     const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
@@ -734,6 +742,9 @@ export class BGTRuntime {
         renderMs: host?.timings.renderMs ?? 0,
         decodeMs: host?.timings.decodeMs ?? 0,
         gpuSubmitMs: r?.stats.submitMs ?? 0,
+        wasmDownloadCompileVerifyMs: this.wasmLoadMs,
+        wasmInstantiateMs: host?.instantiateMs ?? 0,
+        wasmStreaming: this.wasmStreaming,
       },
       lastFrame: { ...this.lastFrameStats },
       commandErrors: { count: host?.commandErrorCount ?? 0, recent: [...(host?.commandErrors ?? [])] },

@@ -25,18 +25,22 @@ def main():
     def compile_one(o):
         temp = o['out'] + '.%d.tmp' % os.getpid()
         try:
-            command(o['args'] + ['-o', temp])
+            elapsed = command(o['args'] + ['-o', temp])
             os.replace(temp, o['out'])
+            return {'object': o['out'], 'compile_ms': elapsed}
         finally:
             if os.path.exists(temp): os.unlink(temp)
     start = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(compile_one, pending))
-    if cfg.get('link'): command(cfg['link'])
+        timings = list(pool.map(compile_one, pending))
+    compile_ms = round((time.monotonic()-start)*1000, 3)
+    link_ms = command(cfg['link']) if cfg.get('link') else 0
     rss = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
     # macOS reports bytes, Linux KiB. This is max single child RSS, NOT total concurrent RSS.
     peak = int(rss if sys.platform == 'darwin' else rss * 1024)
     print(json.dumps({'duration_ms': round((time.monotonic()-start)*1000, 3), 'peak_child_rss_bytes': peak,
+                      'compile_ms': compile_ms, 'link_ms': link_ms, 'object_timings': timings,
+                      'parallel_rss_upper_bound_bytes': peak * jobs,
                       'objects_compiled': len(pending), 'objects_cached': len(cfg.get('objects', []))-len(pending), 'jobs':jobs}))
 
 
