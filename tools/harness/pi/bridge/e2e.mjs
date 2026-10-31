@@ -96,7 +96,7 @@ try {
   const [waitCode] = await waiting;
   await completion;
   assert.equal(waitCode, 0);
-  assert.equal(waitOut, 'fixture finished\n');
+  assert.equal(waitOut, 'fixture finished exit=0\n');
   assert(store.state.lanes.fixture.steps >= 2);
   assert(store.state.lanes.fixture.context?.tokens > 0);
   assert(store.state.lanes.fixture.context?.percent > 0);

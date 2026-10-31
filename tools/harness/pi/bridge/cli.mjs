@@ -30,7 +30,8 @@ export function formatStatus(status, now = Date.now()) {
   const percent = ctx?.percent == null ? '?' : ctx.percent.toFixed(1);
   const errors = status.errors ?? [];
   return `${status.lane} ${status.phase ?? 'starting'} steps=${status.steps ?? 0} ctx=${context} (${percent}%) ` +
-    `cost=$${Number(status.cost ?? 0).toFixed(4)} model=${compact(status.model, 80)}\n` +
+    `cost=$${Number(status.cost ?? 0).toFixed(4)} model=${compact(status.model, 80)}` +
+    `${status.driverExit == null ? '' : ` exit=${status.driverExit}`}\n` +
     `  idle=${Math.max(0, Math.floor((now - status.lastTurnAt) / 1000))}s ` +
     `commit=${compact(status.commit, 12)} tools=${compact((status.tools ?? []).map(t => t.name).join(','), 80)} ` +
     `errors=${errors.length}${errors.length ? ` ${compact(errors.at(-1)?.message ?? errors.at(-1), 100)}` : ''}`;
@@ -143,16 +144,13 @@ export async function main(args, output = console.log) {
       output(eventSummary(event));
       break;
     }
-    // Driver-only exit notification also covers crashes/timeouts before an extension can settle.
-    case 'ended': {
-      if (!opts.lane) throw new Error('ended requires --lane');
-      const code = Number(words[0]);
-      const state = await request('/state');
-      const previous = state.lanes[opts.lane];
-      const phase = code === 0 && previous?.phase !== 'error' ? 'finished' : 'error';
-      await request('/status', { lane: opts.lane, phase,
-        ...(code === 0 ? {} : { errors: [...(previous?.errors ?? []),
-          { at: Date.now(), message: `pi driver exit ${code}` }].slice(-10) }) });
+    // Only process owners report lifecycle, never agent hooks.
+    case 'started':
+    case 'ended':
+    case 'supervisor-started':
+    case 'supervisor-ended': {
+      await request('/lifecycle', { action: command, lane: opts.lane,
+        runId: process.env.PI_BRIDGE_RUN_ID, code: words.length ? Number(words[0]) : undefined });
       break;
     }
     default: throw new Error('usage: bridge status|ask|answers|questions|answer|wait');
