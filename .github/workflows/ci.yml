@@ -44,7 +44,8 @@ jobs:
         run: npm run build:examples
       - run: npm test
       - name: Browser E2E (WebGL 2 fallback, software rendering)
-        run: BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
+        # Keep boot, fallback, guest/lifting/logic assertions; annotate skipped strict pixels.
+        run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -67,4 +68,13 @@ jobs:
         with:
           version: 0.13.0
       - run: npm ci && npx playwright install chromium
+      # Required device: includes shared scenes, all comparisons and both smoke renderers.
       - run: npm run test:e2e:webgpu
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgpu-e2e-report
+          path: |
+            reports/e2e-results.json
+            reports/e2e-html/
+          retention-days: 7

@@ -1,6 +1,7 @@
 import {
   test, expect, openGame, step, debugState, diagnostics, readPixels, stateHash,
 } from './fixtures';
+import { hardwarePixels } from './fixtures';
 import type { Page } from '@playwright/test';
 
 test.beforeEach(async ({ collector }) => { void collector; });
@@ -30,6 +31,7 @@ async function sample(page: Page, x: number, y: number): Promise<number[]> {
   return [...p.data.subarray((dy*p.width+dx)*4, (dy*p.width+dx)*4+4)];
 }
 function near(actual: number[], expected: number[], tolerance = 2): void {
+  if (!hardwarePixels()) return;
   for (let c = 0; c < expected.length; c++) expect(Math.abs(actual[c]-expected[c])).toBeLessThanOrEqual(tolerance);
 }
 function requestPixel(s: State): number[] { return [s.pixel&255, (s.pixel>>>8)&255, (s.pixel>>>16)&255, s.pixel>>>24]; }

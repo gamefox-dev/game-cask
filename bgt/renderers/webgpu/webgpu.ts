@@ -4,6 +4,7 @@ import { BLEND_ADD, BLEND_ALPHA, BLEND_INVERT, BLEND_MULTIPLY, BLEND_OPAQUE, BLE
 import type { Frame, TextureTable } from '../../runtime/commands';
 import { GPU_OP } from '../../runtime/abi';
 import { WebGPUCommands } from './gpu';
+import { acquireWebGPU, checkWebGPUDevice } from './probe';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const SHADER = /* wgsl */ `
@@ -103,7 +104,8 @@ export class WebGPURenderer implements Renderer {
   private constructor(
     readonly canvas: HTMLCanvasElement,
     private readonly ctx: GPUCanvasContext,
-    readonly adapter: GPUAdapter,
+    public adapter: GPUAdapter,
+    private readonly api: GPU,
     private readonly format: GPUTextureFormat,
     readonly opts: WebGPUOptions,
   ) {}
@@ -111,17 +113,22 @@ export class WebGPURenderer implements Renderer {
   /** Returns null when WebGPU is unavailable; throws on unexpected init failures. */
   static async create(canvas: HTMLCanvasElement, opts: WebGPUOptions = {}): Promise<WebGPURenderer | null> {
     if (typeof navigator === 'undefined' || !navigator.gpu) return null;
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) return null;
-    const ctx = canvas.getContext('webgpu');
-    if (!ctx) return null;
-    const r = new WebGPURenderer(canvas, ctx, adapter, navigator.gpu.getPreferredCanvasFormat(), opts);
-    await r.initDevice(adapter);
-    return r;
+    const { gpu, adapter, device } = await acquireWebGPU();
+    let r: WebGPURenderer | undefined;
+    try {
+      const ctx = canvas.getContext('webgpu');
+      if (!ctx) { device.destroy(); return null; }
+      r = new WebGPURenderer(canvas, ctx, adapter, gpu, gpu.getPreferredCanvasFormat(), opts);
+      await r.initDevice(device);
+      return r;
+    } catch (e) {
+      r?.destroy();
+      device.destroy();
+      throw e;
+    }
   }
 
-  private async initDevice(adapter: GPUAdapter): Promise<void> {
-    const device = await adapter.requestDevice();
+  private async initDevice(device: GPUDevice): Promise<void> {
     this.maxTextureSize = device.limits.maxTextureDimension2D;
     this.ctx.configure({
       device,
@@ -133,8 +140,6 @@ export class WebGPURenderer implements Renderer {
       const msg = (ev as GPUUncapturedErrorEvent).error.message;
       for (const cb of this.errorCbs) cb(`WebGPU: ${msg}`);
     });
-    void device.lost.then((info) => this.handleLost(info));
-
     const module = device.createShaderModule({ code: SHADER });
     const uLayout = device.createBindGroupLayout({
       entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }],
@@ -199,6 +204,9 @@ export class WebGPURenderer implements Renderer {
     this.textures.clear();
     this.targets.clear();
     this.bindGroups.clear();
+    // Do not publish or wire loss recovery for a renderer that never became usable.
+    await checkWebGPUDevice(device);
+    void device.lost.then((info) => this.handleLost(info));
   }
 
   private async handleLost(info: GPUDeviceLostInfo): Promise<void> {
@@ -211,9 +219,11 @@ export class WebGPURenderer implements Renderer {
       // A lost adapter cannot hand out new devices; request a fresh one. Some
       // stacks (e.g. headless Linux) never answer, hence the timeout.
       const recover = async () => {
-        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-        if (!adapter) throw new Error('no WebGPU adapter after device loss');
-        await this.initDevice(adapter);
+        const { adapter, device } = await acquireWebGPU(this.api);
+        if (this.destroyed) { device.destroy(); return; }
+        this.adapter = adapter;
+        try { await this.initDevice(device); }
+        catch (e) { device.destroy(); throw e; }
       };
       await Promise.race([recover(), new Promise((_, rej) => setTimeout(() => rej(new Error('recovery timed out')), 3000))]);
       if (this.destroyed) return;

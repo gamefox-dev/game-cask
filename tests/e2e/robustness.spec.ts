@@ -1,6 +1,6 @@
 import { CommandEncoder, rgba } from '../../bgt/runtime/commands';
 import { CMD_MAGIC, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_UNSUPPORTED, OP } from '../../bgt/runtime/abi';
-import { test, expect, openGame, assertBackend, diagnostics, step, input, readPixels, findColor, attachScreenshot, PLAYER_CYAN, WALL_BLUE, debugState } from './fixtures';
+import { test, expect, openGame, assertBackend, diagnostics, step, input, readPixels, findColor, attachScreenshot, PLAYER_CYAN, WALL_BLUE, debugState, hardwarePixels } from './fixtures';
 
 const b64 = (u: Uint8Array) => Buffer.from(u).toString('base64');
 
@@ -101,7 +101,7 @@ test('GPU device/context loss is recovered and textures are restored', async ({ 
   await expect.poll(async () => (await diagnostics(page)).deviceResets, { timeout: 10_000 }).toBe(1);
   await step(page, 2);
   const after = await readPixels(page);
-  expect(findColor(after, WALL_BLUE, 4).count).toBe(before); // atlas re-uploaded from shadow copy
+  if (hardwarePixels()) expect(findColor(after, WALL_BLUE, 4).count).toBe(before); // atlas re-uploaded from shadow copy
   expect(findColor(after, PLAYER_CYAN, 4).count).toBeGreaterThan(200);
   const d = await diagnostics(page);
   expect(d.errors.map((e) => e.kind)).toEqual(['device-lost']);
@@ -128,7 +128,7 @@ test('unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing',
   expect(after.state).toBe('playing');
   expect(after.player.x).toBeGreaterThan(before.player.x);
   const px = await readPixels(page);
-  expect(findColor(px, WALL_BLUE, 4).count).toBe(walls); // atlas restored from shadow copy
+  if (hardwarePixels()) expect(findColor(px, WALL_BLUE, 4).count).toBe(walls); // atlas restored from shadow copy
   const d = await diagnostics(page);
   expect(d.failed).toBe(false);
   expect(d.deviceResets).toBe(1);

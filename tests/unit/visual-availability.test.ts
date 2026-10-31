@@ -1,6 +1,8 @@
 // Regression: conformance must not turn canvas/device initialization failures into hardware
 // skips after requestAdapter succeeded. Exercise the actual registered browser-test callbacks.
 import { afterEach, expect, it, vi } from 'vitest';
+import { webGPUProbeReason } from '../../bgt/renderers/webgpu/probe';
+import { fakeWebGPU, stubWebGPUConstants } from './webgpu-device';
 
 const h = vi.hoisted(() => ({ cases: new Map<string, (...args: any[]) => Promise<void>>(), info: undefined as any,
   skipped: new Error('test skipped'), skip: vi.fn() }));
@@ -23,10 +25,11 @@ for (const name of [
   'WebGPU and WebGL 2 produce matching images (conformance scene and sample title)',
 ]) it(`adapter-present conformance failure is not a skip: ${name}`, async () => {
   vi.stubEnv('BGT_REQUIRE_WEBGPU', '0');
-  vi.stubGlobal('navigator', { gpu: { requestAdapter: async () => ({}) } });
+  stubWebGPUConstants();
+  vi.stubGlobal('navigator', { gpu: fakeWebGPU().gpu });
   const page = { context: () => ({ browser: () => null }),
     route: vi.fn(), unroute: vi.fn(), goto: vi.fn(), waitForFunction: vi.fn(),
-    evaluate: vi.fn().mockImplementationOnce((fn: () => unknown) => fn())
+    evaluate: vi.fn().mockImplementationOnce(() => webGPUProbeReason())
       .mockResolvedValueOnce({ done: true, backend: 'webgpu', unavailable: true }) };
   h.info = { project: { use: { baseURL: 'http://127.0.0.1:5195/' } },
     skip: () => { throw new Error('preflight must not skip with adapter'); } };
@@ -45,15 +48,16 @@ for (const [name, requestAdapter] of [
   const context = { newPage: vi.fn(), close: vi.fn() };
   const browser = { newContext: vi.fn(async () => context) };
   const conf = { width: 1, height: 1, base64: Buffer.from([0, 0, 0, 255]).toString('base64') };
-  vi.stubGlobal('navigator', { gpu: { requestAdapter: async () => ({}) } });
+  stubWebGPUConstants();
+  vi.stubGlobal('navigator', { gpu: fakeWebGPU().gpu });
   const page = { context: () => ({ browser: () => browser }), route: vi.fn(), unroute: vi.fn(),
     goto: vi.fn(), waitForFunction: vi.fn(), evaluate: vi.fn()
-      .mockImplementationOnce((fn: () => unknown) => fn())
+      .mockImplementationOnce(() => webGPUProbeReason())
       .mockResolvedValueOnce(conf).mockResolvedValueOnce(conf) };
   const titlePage = { context: () => ({ browser: () => browser }), route: vi.fn(), unroute: vi.fn(),
-    goto: vi.fn(), evaluate: vi.fn((fn: () => unknown) => {
+    goto: vi.fn(), evaluate: vi.fn(() => {
       vi.stubGlobal('navigator', { gpu: requestAdapter ? { requestAdapter } : undefined });
-      return fn();
+      return webGPUProbeReason();
     }) };
   context.newPage.mockResolvedValue(titlePage);
   h.info = { project: { use: { baseURL: 'http://127.0.0.1:5195/' } },

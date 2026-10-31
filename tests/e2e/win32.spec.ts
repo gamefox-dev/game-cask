@@ -1,6 +1,7 @@
 // The Win32 pipeline example in a real browser: lifted x86 code + Win32 profile drawing through
 // BGT render targets on WebGPU and WebGL 2.
 import { test, expect, openGame, assertBackend, diagnostics, step, input, readPixels, findColor, attachScreenshot, Pixels } from './fixtures';
+import { hardwarePixels } from './fixtures';
 import type { Page } from '@playwright/test';
 
 const RED: [number, number, number] = [220, 40, 40];
@@ -50,7 +51,7 @@ test.describe('win32-hello (systematic pipeline)', () => {
     await input(page, [{ type: 'pointer', x: 20, y: 19 + 42, buttons: 0 }]);
     await step(page, 2);
     const after = await at(page, await readPixels(page), 20, 19 + 42);
-    for (let c = 0; c < 3; c++) expect(Math.abs(after[c] - (255 - before[c]))).toBeLessThanOrEqual(2);
+    if (hardwarePixels()) for (let c = 0; c < 3; c++) expect(Math.abs(after[c] - (255 - before[c]))).toBeLessThanOrEqual(2);
     await step(page, 70);
     expect((await metrics(page)).timers_fired).toBeGreaterThanOrEqual(2);
     await attachScreenshot(page, testInfo, 'win32-hello-selected.png');

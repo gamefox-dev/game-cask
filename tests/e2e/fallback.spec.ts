@@ -1,5 +1,6 @@
 import { test, expect, openGame, diagnostics, step, readPixels, findColor, WALL_BLUE } from './fixtures';
 import { noWebGPU } from './browser-options';
+import { injectBrokenWebGPU } from './broken-webgpu';
 
 test('no-WebGPU reproduction really has no adapter and still renders on WebGL 2', async ({ page, collector }) => {
   void collector;
@@ -12,6 +13,22 @@ test('no-WebGPU reproduction really has no adapter and still renders on WebGL 2'
   await step(page, 2);
   expect(findColor(await readPixels(page), WALL_BLUE, 4).count).toBeGreaterThan(5000);
 });
+
+for (const mode of ['device', 'submission', 'lost'] as const)
+  test(`present-but-broken WebGPU (${mode}): auto falls back before guest startup and still renders`, async ({ page, collector }) => {
+    void collector;
+    await injectBrokenWebGPU(page, mode);
+    expect(await openGame(page, 'auto')).toBe('ready');
+    const d = await diagnostics(page);
+    expect(d.backend).toBe('webgl2');
+    expect(d.backendNotes.join(' ')).toMatch(mode === 'device' ? /requestDevice.*OperationError.*injected/ : mode === 'lost' ? /device lost.*destroyed.*injected/ : /submission\/readback.*OperationError.*injected/);
+    // No guest device-loss/recovery error may leak out of rejected startup.
+    expect(d.errors).toEqual([]); expect(d.deviceResets).toBe(0);
+    expect(await page.evaluate(() => (window as any).__BROKEN_GPU__.devices)).toBe(1);
+    await step(page, 2);
+    expect(findColor(await readPixels(page), WALL_BLUE, 4).count).toBeGreaterThan(5000);
+    expect((await diagnostics(page)).errors).toEqual([]);
+  });
 
 test('intentional WebGPU failure falls back to WebGL 2 and still plays', async ({ page, collector }) => {
   void collector;
