@@ -1,0 +1,34 @@
+{
+  "schema": "game-cask/scale-measurement/1",
+  "fixture": {"id":"x64-scale","functions":12078,"instructions":1609529,"generatedFunctions":12000,"nativeChecksum":"31c9ceb2","optimization":"-O2","normalCrt":true},
+  "host": {"os":"macOS arm64","node":"24.19.0","zig":"0.13.0","jobs":2},
+  "firstColdPass": {
+    "before": {"analysis_ms":3080,"liftIncludingAnalysis_ms":4530,"generated_c_bytes":194606868,"generated_loc":2082280,"compileLink_ms":372278.989,"peak_compiler_linker_child_bytes":4887150592,"wholeBuild_ms":617550.615,"wasm_bytes":50325400,"payload_raw_bytes":62933950,"payload_gzip_bytes":8296957,"objects_compiled":31,"objects_cached":0,"asyncify_cached":false},
+    "after": {"analysis_ms":3236.440958,"liftIncludingRepeatedAnalysis_ms":109495.622,"lift_peak_child_bytes":22249472,"generated_c_bytes":195353217,"largest_chunk_bytes":3954702,"chunks":50,"generated_loc":2106783,"compile_ms":130330.018,"link_ms":437.786,"peak_compiler_linker_child_bytes":404226048,"parallel_rss_upper_bound_bytes":808452096,"wholeBuild_ms":419729.562,"external_time_l_max_child_bytes":1118158848,"wasm_bytes":38817816,"payload_raw_bytes":51426366,"payload_gzip_bytes":8269479,"objects_compiled":51,"objects_cached":30,"asyncify_cached":false}
+  },
+  "repeatColdLiftedObjectPass": {
+    "before": {"compile_ms":514664.816,"link_ms":425.027,"wholeBuild_ms":526983.695,"peak_child_bytes":5089067008,"objects_compiled":2,"objects_cached":29,"asyncify_cached":true},
+    "after": {"compile_ms":149933.4,"link_ms":641.032,"wholeBuild_ms":152383.063,"peak_child_bytes":404275200,"objects_compiled":51,"objects_cached":30,"asyncify_cached":true,"chunks_cached":50}
+  },
+  "warmFinal": {"wholeBuild_ms":2452.757,"objects_compiled":0,"chunks_cached":50,"analysis_cached":true,"asyncify_cached":true},
+  "diskSample": {
+    "before": {"initial_bytes":2301824720,"peak_bytes":2710033615,"growth_bytes":408208895,"final_bytes":2701785450},
+    "after": {"initial_bytes":2711319450,"peak_bytes":2711319450,"growth_bytes":0,"final_bytes":2693431839},
+    "scope":"250ms sampled logical bytes: kit cache/output and explicitly configured Zig caches. Retained unrelated fixtures included; baseline comparison copies and temporary lint directories excluded. Not block allocation, exact sub-sample high-water, or an isolated cold disk comparison. Cache budgets are 512 MiB each for objects/Asyncify, except active leases."
+  },
+  "browserFreshProcesses": {
+    "method":"Three fresh Chromium processes per byte compile phase and three per runtime phase. Loopback WebGL2 SwiftShader. Compile excludes fetch. Runtime includes asset loading/integrity/startup. Buffered baseline uses MIME fallback on current runtime, not historical runtime. No streaming-only speedup claim.",
+    "beforeBuffered": [
+      {"compile_ms":22.88,"instantiate_ms":1.46,"first_frame_ms":686.45,"download_compile_verify_ms":59.82},
+      {"compile_ms":18.99,"instantiate_ms":1.48,"first_frame_ms":610.67,"download_compile_verify_ms":64.61},
+      {"compile_ms":25.295,"instantiate_ms":1.285,"first_frame_ms":634.43,"download_compile_verify_ms":63.59}
+    ],
+    "afterStreaming": [
+      {"compile_ms":16.095,"instantiate_ms":1.305,"first_frame_ms":361.85,"download_compile_verify_ms":92.35},
+      {"compile_ms":23.575,"instantiate_ms":1.925,"first_frame_ms":359.905,"download_compile_verify_ms":89.91},
+      {"compile_ms":26.76,"instantiate_ms":1.83,"first_frame_ms":471.175,"download_compile_verify_ms":116.85}
+    ]
+  },
+  "identity": {"before_wasm_sha256":"b36f16e3cd11fc5f90f0402e8a48c124d47d0df7417e2635fa53c2a231458a38","after_wasm_sha256":"d769a66e3b0db6ae3a2fa711ea9e8d06619ccbb47b39c67257d35f6181535490"},
+  "extrapolation": {"target_instructions":7084076,"instruction_ratio":4.4013348004291935,"linear_cold_minutes":30.7895,"quadratic_lift_plus_linear_remainder_minutes":58.1094,"generated_c_bytes_linear":859814912,"raw_payload_bytes_linear":226344654,"gzip_payload_bytes_linear":36396746,"note":"Estimates, not a 7.1M build. Cold selected-chunk lifting repeats full analysis, so linear lift scaling is optimistic. Largest-function, whole-module linking/Asyncify and global Zig-cache growth are not bounded by the instruction chunk budget."}
+}
