@@ -1,4 +1,7 @@
-# The conversion pipeline (kit v0.2)
+# The conversion pipeline
+
+Current merged v0.3 scope and verification: [v03-status.md](v03-status.md). Historical Task 1 measurements below
+remain bounded fixture evidence; K1/K2/K3 and scale/harness additions do not imply unrestricted game compatibility.
 
 A port is a `game.json` that tells the pipeline which original files to convert, plus at most a few
 hand-written exceptions. Everything else is generated reproducibly from the original binary.
@@ -120,8 +123,9 @@ Windows executable is run natively. Fixtures are original CC0 source. `SPEC.md` 
 `x86_simd.c` implement scalar integer/SSE/SSE2 semantics, including arithmetic/comparisons/conversions/logic/shuffles/
 unpacks, MOVD/Q/APS/UPS/SS/SD, CMOV/SET, BT/BSF/BSR, sign/zero extension, multiply forms, REX.W strings and single-thread
 LOCK operations (including CMPXCHG8B/16B). CPUID advertises implemented baseline paths only: no AVX/XSAVE/AES/BMI/CX16
-feature dispatch. RDTSC is a deterministic instruction clock, not wall time. General x87/80-bit arithmetic is not
-implemented; FNINIT/FNCLEX and the binary32/64 load/store/exchange/FSCALE subset used by MinGW ldexp are supported.
+feature dispatch. RDTSC is a deterministic instruction clock, not wall time. K3 now supplies shared software ext80
+basic arithmetic/storage/control and bounded transcendental semantics for both widths. Exact basic arithmetic is
+not a claim of exact ext80 transcendentals or general Windows FP SEH: see [X87.md](../platforms/x86/X87.md).
 
 The correctness-first AMD64 lifter emits **predecoded instructions in labelled C basic blocks**, with an entry switch
 for each instruction address (including compiler landing pads). It calls the shared semantic core; that increments
@@ -185,9 +189,11 @@ constructor included); tls callbacks=1, jump=23, static/dynamic TLS plus indepen
 PASS, click/key move the green box. `manifest.pipeline` records instructions/functions/build_ms/wasm bytes per insn.
 Byte/insn includes the profile and Asyncify: tiny fixtures have high fixed overhead; not a scale improvement claim.
 
-Real-world limits beyond this finish line: AVX and newer extensions, x87 arithmetic, multi-threading, wider flat-memory
-configuration, dynamic function table registration, MSVC C++ personality formats, arbitrary collided/foreign exception
-cases, all CRT/Win32 APIs, and precise MXCSR FP traps/FTZ/DAZ or nondefault arithmetic rounding. Integer conversions honor
+Real-world limits beyond this Task 1 finish line include AVX/newer extensions, unrestricted Windows FP exception
+handling, dynamic function table registration, MSVC C++ personality formats, arbitrary collided/foreign exception
+cases, all CRT/Win32 APIs, and precise MXCSR FP traps/FTZ/DAZ or nondefault SSE arithmetic rounding.
+Later lanes add [bounded cooperative threads](../platforms/win32/THREADS.md), a configurable 1–2 GiB flat window
+and [bounded x87](../platforms/x86/X87.md); those are not universal compatibility. Integer conversions honor
 MXCSR rounding. Unknown instructions/APIs fault explicitly; do not work around them with game-specific overrides.
 
 ## v0.3 development: build scale
@@ -197,8 +203,11 @@ cache under `node_modules/.cache/bgt/objects`. `BGT_BUILD_JOBS` defaults to 2, c
 version/flags and paths invalidate the cache. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
-experimental opt-in: `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. No register-local
-or flat-memory optimization is claimed yet. `node tools/bench/lift-scale.mjs 1024` writes `reports/scale.json` from an
+available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane F adds
+register-local AMD64 emission and guarded spans; non-default protection disables unchecked block spans before
+local mutation. LSC adds bounded chunk/cache/writer lifetimes and verified streaming loads; measured 1.6M synthetic
+instruction results and 7.1M extrapolation caveats are in [the scale handoff](handoff/scale.md), not a real-game claim.
+`node tools/bench/lift-scale.mjs 1024` writes `reports/scale.json` from an
 original generated CC0 fixture. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
 regression) and outstanding scale/GL/threading work.
 
@@ -243,14 +252,15 @@ Copy the final snapshot to `reports/slice-runtime.json` before `trial:record`; g
 metrics are copied to trial.json along with manifest packaging/pipeline metrics. Missing evidence is null, not zero.
 
 Current limitation: conservative virtual PE section bytes are retained, not the mathematically minimum loader data.
-Code remains a single wasm module, no lazy code chunks. GL/threads remain gaps; AMD64 correctness does not establish
-multi-million-instruction scale. Coverage is function entries,
+Code remains a single wasm module, no lazy code chunks (LSC's compile-time translation-unit chunks are not lazy
+runtime modules). Bounded GL and cooperative threads are implemented; the 1.6M synthetic scale fixture does not
+certify a 7.1M game. Coverage is function entries,
 not a guarantee against jumping into an unrecorded basic block within a covered function.
 
 ## Known execution limits (kit gaps, not port work)
-- **x86:** i386 and baseline AMD64 modes; SSE/SSE2 semantics are currently enabled for AMD64 profile builds. No general
-  general x87 arithmetic, AVX or self-modifying code. Flat AMD64 memory defaults to 1 GiB, configurable to 2 GiB;
-  images remain 16–64 MiB.
+- **x86:** i386 and baseline AMD64 modes; SSE/SSE2 semantics are currently enabled for AMD64 profile builds.
+  Shared x87 follows the explicit [precision/exception model](../platforms/x86/X87.md); no AVX or self-modifying code.
+  Flat AMD64 memory defaults to 1 GiB, configurable to 2 GiB; images remain 16–64 MiB.
 - **Profiles:** Win32 only; DOS/consoles need new profiles.
 - **GDI:** pixel reads come from CPU replay (exact for every recorded op; a surface drawn before replay was enabled,
   e.g. when `GetPixel` is only found through `GetProcAddress` late, is unknown until overdrawn). Window DC visible
@@ -258,7 +268,9 @@ not a guarantee against jumping into an unrecorded basic block within a covered 
   up to 1024); explicit GDI region objects remain rect-only.
   Bitwise raster ops beyond the mapped set are approximated (counted). No copying within one surface. Drawing into a
   DIB section does not update its guest bits. `GetDIBits` writes 24/32-bpp `BI_RGB` only.
-- **Win32:** no threads, no file writes, no COM, MENUEX templates unsupported.
+- **Win32:** bounded cooperative threads/COM and process-local writable CRT files are implemented; not general
+  host threading/COM marshaling or persistent kernel filesystem writes. MENUEX templates remain unsupported.
+  Existing-DLL failure-only and unavailable contracts: [CONTRACTS.md](../platforms/win32/CONTRACTS.md).
 
 
 ## Task 2a — shared Win64 CRT and demand-grown memory
