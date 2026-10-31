@@ -33,6 +33,7 @@ static void fs_init(void) {
 }
 /* Shared metadata query: no kernel/CRT file or search slot is consumed. */
 int w32_fs_query(const char *raw,uint32_t *attrs) {
+    if(!raw[0])return 0;
     fs_init();char path[512];w32_fs_normalize(raw,path);
     if(!path[0]){if(attrs)*attrs=0x10;return 1;} /* virtual C:\\GAME root */
     fs_node_t *n=fs_lookup(path);if(!n)return 0;

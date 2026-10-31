@@ -35,6 +35,7 @@ void entry(void) {
 #endif
  exists_fn exists=(exists_fn)GetProcAddress(LoadLibraryA("shlwapi.dll"),"PathFileExistsW");
  CHECK(exists!=0);if(!exists)ExitProcess(1);
+ CHECK(!exists(L""));
  CHECK(exists(L"probe.exe") && exists(L"nested") && exists(L"NESTED\\seed.txt"));
  CHECK(CreateDirectoryW(L"writable",0));
  SetLastError(1234);CHECK(exists(L"C:\\GAME\\WRITABLE\\"));CHECK(GetLastError()==1234);
