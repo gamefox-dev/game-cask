@@ -388,6 +388,23 @@ can use this API too. Poll/read/close with §12 request functions after yielding
 Legacy asset_read on a streamed handle returns E_STATE: it never loads the whole file implicitly. Legacy asset_size
 is i32, so use size64 for large files.
 
+Additive FILE buffering imports (existing requests are unchanged):
+- `asset_read_ahead(handle,offset_lo,offset_hi,bytes)` has the same deferred request lifetime, but clamps the
+  result to the current 64 KiB boundary and, for streamed files, the current manifest chunk boundary. Even cached
+  or eager data is invisible until the next update. Speculation never crosses into a subsequent omitted chunk.
+  The starting chunk must exist; an omitted starting chunk still stops outside the slice. Returned bytes are
+  recorded in `readAhead` / `crtReadAheadBytes`, **not** consumed `files` coverage.
+- `asset_consumed(handle,offset_lo,offset_hi,bytes)` records delivered source bytes without I/O or a yield.
+  It returns OK, E_NOT_FOUND for a closed/unknown handle, or E_INVALID for an unsafe offset. EOF truncates the
+  recorded length. `crtConsumedBytes` counts source bytes (CRLF consumes two; re-reading a source range counts
+  again; returning `ungetc` data does not). Packaging `files` coverage expands consumption only to its actual
+  manifest chunks (64 KiB for eager assets); read-ahead alone never adds adjacent packaging chunks. Zero-byte
+  records, including reads at/beyond EOF, add no coverage.
+- `asset_observed(handle,offset_lo,offset_hi,bytes)` has the same validation/coverage rules as `asset_consumed`,
+  but increments `crtObservedBytes` rather than the consumed-byte count. Use it for actual inspected dependencies
+  not delivered to the caller, e.g. a non-LF byte inspected after CR. Such a byte is necessary for deterministic
+  replay and packaging, unlike untouched speculative bytes. The CRT records this dependency even across chunks.
+
 Manifest `streams` entries: `{path,size,chunkSize,chunks:[{offset,size,url,sha256}]}`. Paths use the existing safe VFS
 rules; chunks must exactly cover the file in order (zero-size file has no chunks), each 4 KiB–1 MiB maximum configured
 chunk size, final chunk may be short. Fetches are **chunked ranges**, not HTTP Range headers. The runtime fetches only
@@ -400,7 +417,8 @@ as a streamed `modules/<name>` file and makes a separate compact loader image co
 virtually mapped bytes. This keeps overlays out of the eager loader asset; original file offsets are retained by
 the streamed self-open view. `GetModuleFileNameW` → `CreateFileW` resolves that original view, not the compact image.
 The Win32 profile implements read-only OPEN_EXISTING, ReadFile, GetFileSize(Ex), SetFilePointer(Ex), CloseHandle,
-EOF, negative-seek errors and missing files. Overlapped reads, writes and CRT FILE APIs are not implemented yet.
+EOF, negative-seek errors and missing files. Overlapped reads and kernel file writes remain unavailable.
+The Win64 CRT FILE layer adds bounded read-ahead and process-local writable files; see `platforms/win32/CONTRACTS.md`.
 
 While a range promise is outstanding, browser simulation updates are held; rendering/input delivery resume when
 settled. Deterministic test stepping awaits pending I/O before advancing a frame, as does the oracle. Wall-clock

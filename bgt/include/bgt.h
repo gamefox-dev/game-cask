@@ -222,6 +222,10 @@ BGT_IMPORT(slice_missing) void bgt_slice_missing(uint32_t kind, uint32_t address
  * asset_size64 writes a little-endian u64; range returns a request ID (or error), not byte data. */
 BGT_IMPORT(asset_size64) int32_t bgt_asset_size64(uint32_t handle, uint64_t *size);
 BGT_IMPORT(asset_range_request) int32_t bgt_asset_range_request(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
+/* Speculative bounded request, no consumed coverage; record only delivered source bytes. */
+BGT_IMPORT(asset_read_ahead) int32_t bgt_asset_read_ahead(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
+BGT_IMPORT(asset_consumed) int32_t bgt_asset_consumed(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
+BGT_IMPORT(asset_observed) int32_t bgt_asset_observed(uint32_t handle, uint32_t offset_lo, uint32_t offset_hi, uint32_t bytes);
 
 typedef struct bgt_gpu_limits {
     uint32_t byte_size, max_texture_dimension, max_texture_handles, texture_budget_bytes;

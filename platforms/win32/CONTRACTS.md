@@ -34,7 +34,35 @@ Added descriptor bridges `_read`, `_write`, `_close`, `_fdopen`, `_fileno`, `_ge
 `_vsnprintf_s`, `_ultoa`, `strcpy_s`, `wcscpy_s`, `_memicmp`, `wcsftime`; `_getpid`, `_beginthread`, `_lock`,
 `_unlock`. The shared CRT registry covers msvcrt/ucrt/API-set aliases on AMD64, not a second per-DLL FILE model.
 
-Descriptor and FILE aliases share position; closing/reopening invalidates aliases. Reopening standard output
+FILE buffering (K5b): default immutable input read-ahead is **16 KiB per backend**, allocated lazily and freed on
+close/reopen. Refills retain deferred request/update visibility, including cached source chunks. `setvbuf` accepts
+Windows `_IOFBF=0`, `_IOLBF=0x40` (Windows treats it as full buffering) and `_IONBF=4`; caller-owned buffers are
+actually used. Configured buffers are 2..65536 bytes (rounded down to even, as MSVCRT does); larger otherwise valid
+sizes fail ENOMEM at the profile's per-stream resource bound rather than silently ignoring the requested buffer.
+Invalid modes/sizes fail EINVAL. `setbuf` uses Windows BUFSIZ=512, NULL disables buffering. Explicit output buffering flushes on
+full buffer, fflush, seek, close, normal exit or direction changes; default output is write-through. Mutable input
+uses the same owned-buffer/position machinery without asynchronous requests. Partial fread elements, sticky EOF,
+error/clearerr, one pushback, 64-bit positions, relative/end seeks and rewind preserve logical physical positions
+rather than exposing the read-ahead cursor. Seek discards pushback and EOF; rewind additionally clears errors.
+
+Binary streams preserve bytes. Text mode translates CRLF to LF, LF output to CRLF, and recognizes control-Z input;
+positions are physical byte cookies suitable for fgetpos/fsetpos and absolute seek. The locale remains C/ASCII:
+wide text I/O rejects non-ASCII with EILSEQ; binary fgetwc/fputwc/fwprintf use UTF-16LE units. Unicode `ccs=` modes
+and `_O_U8TEXT`/`_O_U16TEXT` are not implemented; `_setmode` supports `_O_TEXT` and `_O_BINARY` only.
+Input/output switches at an explicit positioning operation/fflush obey update-stream rules; automatic internal
+synchronization also prevents speculative bytes from corrupting mutable writes. Callers must still follow C's
+position/flush requirements when switching directions or mixing FILE and descriptor I/O. Low-level `_read`
+requests a source-byte quota and then translates it; it does not refill to the translated destination quota.
+
+Existing scheduler boundary: operations on **different** FILEs may yield/schedule normally; concurrent access to
+the **same** FILE/backend is not internally serialized. Callers must serialize such access. Adding a blocking
+FILE mutex alone can deadlock the scheduler's LIFO native continuations and is not claimed as Windows thread-safe
+stdio. General parked-native continuation switching plus FILE locks is separate scheduler/CRT work.
+
+Descriptor and FILE aliases share position; closing/reopening invalidates aliases. `_read`/`_lseek`/`_lseeki64`
+use the underlying physical descriptor cursor, which can be ahead of ftell after read-ahead. `fflush(FILE*)`
+synchronizes it to the logical position; raw operations invalidate buffered FILE bytes. `_fileno` itself does not
+flush. Tests cover both an unsynchronized physical cursor and synchronized defined interleaving. Reopening standard output
 redirects fputs/puts/printf/putchar through its new backend. FILE error/EOF flags are reflected in guest records.
 Read failure is -1, not apparent EOF; invalid descriptor is EBADF. Wide time formatting counts UTF-16 units,
 including surrogate pairs. Secure copies clear the destination on range failure. `_vsnprintf_s` supports

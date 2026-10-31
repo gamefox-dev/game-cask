@@ -52,19 +52,21 @@ export class RangeFiles {
     this.pending.set(key,promise);
     try{return await promise;}finally{this.pending.delete(key);}
   }
-  async read(path: string, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>> {
+  async read(path: string, offset: number, length: number, ahead = false): Promise<Uint8Array<ArrayBuffer>> {
     const file=this.files.get(path);if(!file)throw new Error('unknown streamed path');
     if(!Number.isSafeInteger(offset)||offset<0||!Number.isInteger(length)||length<0||length>8*1024*1024)throw new Error('invalid streamed range');
-    const size=Math.max(0,Math.min(length,file.size-offset)),out=new Uint8Array(size);let n=0;
+    let size=Math.max(0,Math.min(length,file.size-offset));const out=new Uint8Array(size);let n=0;
     // Binary search the first overlapping chunk, avoiding a linear scan of a multi-GB file.
     let lo=0,hi=file.chunks.length;
     while(lo<hi){const m=(lo+hi)>>>1;if(file.chunks[m].offset+file.chunks[m].size<=offset)lo=m+1;else hi=m;}
+    // Speculation never crosses even a small manifest chunk / omitted slice boundary.
+    if(ahead && lo<file.chunks.length)size=Math.min(size,file.chunks[lo].offset+file.chunks[lo].size-offset);
     for(let i=lo;i<file.chunks.length&&n<size;i++) {
-      const c=file.chunks[i];this.reads.set(`${path}:${c.offset}`,{path,offset:c.offset,length:c.size});
+      const c=file.chunks[i];if(!ahead)this.reads.set(`${path}:${c.offset}`,{path,offset:c.offset,length:c.size});
       if(c.missing)throw new OutsideDataRange(path,c.offset,c.size);
       const b=await this.chunk(c),start=Math.max(0,offset-c.offset),count=Math.min(b.length-start,size-n);
       out.set(b.subarray(start,start+count),n);n+=count;
     }
-    return out;
+    return out.subarray(0,n);
   }
 }
