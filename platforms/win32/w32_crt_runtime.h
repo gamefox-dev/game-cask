@@ -70,7 +70,7 @@ static uint64_t c_qsort(void) {
         crt_errno(22); return 0;
     }
     if (!n || !size) return 0;
-    cmem(base, n * size);
+    cwmem(base, n * size);
     for (uint32_t i = n / 2; i > 0 && !X.transfer; i--) sift_guest(base, i - 1, n, size, cmp);
     for (uint32_t i = n; i > 1 && !X.transfer; i--) {
         swap_guest(base, base + (i - 1) * size, size);
@@ -127,7 +127,7 @@ static uint64_t c_exit(void) {
 static uint64_t c_fast_exit(void) { w32_exit_guest(ARG(0)); return 0; }
 static uint64_t c_abort(void) { x86_fault("guest CRT abort", X.eip); }
 static uint64_t c_onexit_init(void) {
-    memset(cmem(ARG(0), 24), 0, 24);
+    memset(cwmem(ARG(0), 24), 0, 24);
     return 0;
 }
 static uint64_t c_onexit_register(void) {
@@ -153,7 +153,7 @@ static uint64_t c_onexit_execute(void) {
         if (X.transfer) return 0;
     }
     w32_heap_free(begin);
-    memset(cmem(t, 24), 0, 24);
+    memset(cwmem(t, 24), 0, 24);
     return 0;
 }
 static uint64_t init_term(int check) {
@@ -326,7 +326,7 @@ static uint64_t c_gmtime32_s(void) { return time_break(32, 1); }
 static uint64_t c_strftime(void) {
     struct tm t = tm_from_guest(ARG(3));
     if (!ARG(1)) return 0;
-    return strftime(cmem(ARG(0), ARG(1)), ARG(1), cstr(ARG(2)), &t);
+    return strftime(cwmem(ARG(0), ARG(1)), ARG(1), cstr(ARG(2)), &t);
 }
 static uint64_t c_mktime64(void) {
     struct tm t = tm_from_guest(ARG(0));

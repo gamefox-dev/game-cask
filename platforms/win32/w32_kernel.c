@@ -216,16 +216,23 @@ static uint32_t k_LocalFree(void) { w32_heap_free(ARG(0)); return 0; }
 static uint32_t k_LocalReAlloc(void) { return w32_heap_realloc(ARG(0), ARG(1)); }
 static uint32_t k_Lock(void) { return ARG(0); }
 static uint32_t k_Size(void) { return w32_heap_size(ARG(0)); }
+static int memory_protection(uint32_t p) { return p==1||p==2||p==4||p==0x10||p==0x20||p==0x40; }
 static uint32_t k_VirtualAlloc(void) {
-    uint32_t want = ARG(0), size = ARG(1);
-#ifdef X86_FLAT_GUEST
-    if (want) return w32_virtual_map(want, size);
-#else
-    if (want && x86_mapped(want, size)) return want;
-#endif
-    return w32_heap_alloc(size, 1); /* contents zeroed as committed pages are */
+    uint64_t want64=ARG64(0),size64=ARG64(1);uint32_t flags=ARG(2),prot=ARG(3);
+    if(want64>UINT32_MAX||!size64||size64>UINT32_MAX||!memory_protection(prot)||flags&~0x3000u||!(flags&0x1000)){
+        last_error=87;return 0; /* reserve-only needs reservation metadata, not fake commitment */
+    }
+    uint32_t want=(uint32_t)want64,size=(uint32_t)size64;
+    uint32_t p=want?w32_virtual_map(want,size,prot):w32_virtual_allocate(size,prot);
+    if(!p){last_error=want?487:8;return 0;}
+    uint64_t end=((uint64_t)p+size+4095)&~4095ull;
+    for(uint32_t i=p>>12;i<end>>12;i++)x86_protection[i]=(uint8_t)prot;
+    return p;
 }
-static uint32_t k_VirtualFree(void) { return 1; }
+static uint32_t k_VirtualFree(void) {
+    if(ARG64(1)||ARG(2)!=0x8000){last_error=87;return 0;}
+    if(!w32_virtual_release(ARG(0))){last_error=487;return 0;}return 1;
+}
 static uint32_t k_lstrlen(int wide) { uint32_t p = ARG(0), n = 0; if (!p) return 0; while ((wide ? x86_rd16(p + 2 * n) : x86_rd8(p + n)) && n < 1u << 20) n++; return n; }
 static uint32_t k_lstrlenA(void) { return k_lstrlen(0); }
 static uint32_t k_lstrlenW(void) { return k_lstrlen(1); }
@@ -405,7 +412,7 @@ static uint32_t k_ReadFile(void){
     uint32_t i=file_index(ARG(0)),dst=ARG(1),want=ARG(2),got=0,out=ARG(3);
     if(out)x86_wr32(out,0);
     if(!i||ARG(4)){last_error=i?87:6;return 0;}
-    if((uint64_t)dst+want>0x100000000ull || !x86_mapped(dst,want)){last_error=998;return 0;}
+    if((uint64_t)dst+want>0x100000000ull || !x86_accessible(dst,want,2)){last_error=998;return 0;}
     static uint8_t buffer[65536];
     while(got<want && files[i].pos<files[i].size){
         uint32_t n=want-got;if(n>sizeof buffer)n=sizeof buffer;
@@ -655,12 +662,39 @@ uint32_t w32_data_import(const char *name) {
 static uint32_t s_ShellAboutA(void) { return w32_shell_about(0); }
 static uint32_t s_ShellAboutW(void) { return w32_shell_about(1); }
 
+#include "w32_fs.h"
+#include "w32_kernel_extra.h"
+#include "w32_kernel_more.h"
 #define API(n, a, f) {n, a, 0, f}
+#define FAPI(n, a, f) API(n, a, f) /* registered, tested failure-only contract */
 #define CAPI(n, f) {n, 0, 1, f}
 #define STUB(n, a) {n, a, 0, 0}
 #define CSTUB(n) {n, 0, 1, 0}
 #define DATAI(n) {n, DATA, 1, 0}
 const w32_api_t w32_api_kernel[] = {
+    API("CommandLineToArgvW",2,s_CommandLineToArgvW),
+    API("DuplicateHandle",7,k_DuplicateHandle), API("GetHandleInformation",2,k_GetHandleInformation), API("SetHandleInformation",3,k_SetHandleInformation),
+    API("FindFirstFileW",2,k_FindFirstFileW), API("FindFirstFileExW",6,k_FindFirstFileExW), API("FindNextFileW",2,k_FindNextFileW), API("FindClose",1,k_FindClose),
+    API("FormatMessageW",7,k_FormatMessageW), API("GetTempFileNameW",4,k_GetTempFileNameW),
+    API("GetProcessAffinityMask",3,k_GetProcessAffinityMask), API("SetProcessAffinityMask",2,k_SetProcessAffinityMask), API("SetPriorityClass",2,k_SetPriorityClass),
+    FAPI("GetDiskFreeSpaceExA",4,k_no_process), FAPI("GetVolumeInformationW",8,k_no_process),
+    FAPI("AddVectoredExceptionHandler",2,k_no_process), FAPI("RemoveVectoredExceptionHandler",1,k_zero),
+    API("VirtualProtect",4,k_VirtualProtect), API("VirtualQuery",3,k_VirtualQuery),
+    FAPI("AttachConsole",1,k_no_console), FAPI("GetConsoleScreenBufferInfo",2,k_no_console),
+    FAPI("SetConsoleCtrlHandler",2,k_no_console), FAPI("SetConsoleMode",2,k_no_console), FAPI("SetConsoleTextAttribute",2,k_no_console),
+    API("CreateDirectoryW",2,k_CreateDirectoryW), API("DeleteFileW",1,k_DeleteFileW), FAPI("ReplaceFileW",6,k_readonly_volume),
+    FAPI("CreatePipe",4,k_no_process), FAPI("CreateProcessW",10,k_no_process), FAPI("OpenProcess",3,k_OpenProcess), API("GetExitCodeProcess",2,k_GetExitCodeProcess),
+    API("GetCurrentDirectoryW",2,k_GetCurrentDirectoryW), API("SetCurrentDirectoryW",1,k_SetCurrentDirectoryW),
+    API("GetEnvironmentVariableW",3,k_GetEnvironmentVariableW), API("SetEnvironmentVariableW",2,k_SetEnvironmentVariableW),
+    API("GetLogicalDrives",0,k_GetLogicalDrives), API("GetUserDefaultUILanguage",0,k_GetUserDefaultUILanguage),
+    API("GetLocaleInfoEx",4,k_GetLocaleInfoEx), API("LCIDToLocaleName",4,k_LCIDToLocaleName), API("IsDBCSLeadByteEx",2,k_IsDBCSLeadByteEx),
+    API("GetSystemPowerStatus",1,k_GetSystemPowerStatus), API("GetTimeZoneInformation",1,k_GetTimeZoneInformation), API("SystemTimeToFileTime",2,k_SystemTimeToFileTime),
+    FAPI("GetCurrentHwProfileA",1,k_GetCurrentHwProfileA),
+    FAPI("ShellExecuteW",6,s_ShellExecuteW), FAPI("SHGetKnownFolderPath",4,s_SHGetKnownFolderPath), FAPI("SHFileOperationW",1,s_SHFileOperationW),
+    API("DragAcceptFiles",2,s_DragAcceptFiles), FAPI("DragQueryFileW",4,s_DragQueryFileW),
+    API("midiInGetNumDevs",0,m_midiInGetNumDevs), FAPI("midiInOpen",5,m_midiInOpen), FAPI("midiInGetDevCapsA",3,m_midiInGetDevCapsA),
+    FAPI("midiInClose",1,m_midi_invalid), FAPI("midiInStart",1,m_midi_invalid), FAPI("midiInStop",1,m_midi_invalid), FAPI("midiInGetID",2,m_midi_invalid),
+    API("midiInGetErrorTextA",3,m_midiInGetErrorTextA), API("timeBeginPeriod",1,m_timeBeginPeriod), API("timeEndPeriod",1,m_timeEndPeriod),
     API("GetModuleHandleA", 1, k_GetModuleHandleA), API("GetModuleHandleW", 1, k_GetModuleHandleW),
     API("LoadLibraryA", 1, k_LoadLibraryA), API("LoadLibraryW", 1, k_LoadLibraryW),
     API("LoadLibraryExA", 3, k_LoadLibraryA), API("LoadLibraryExW", 3, k_LoadLibraryW), API("FreeLibrary", 1, k_FreeLibrary),

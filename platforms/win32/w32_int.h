@@ -97,10 +97,14 @@ uint32_t w32_heap_alloc(uint32_t n, int zero);
 void w32_heap_free(uint32_t a);
 uint32_t w32_heap_size(uint32_t a);
 uint32_t w32_heap_realloc(uint32_t a, uint32_t n);
-uint32_t w32_virtual_map(uint32_t addr, uint32_t size);
+uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot);
+uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot);
+int w32_virtual_release(uint32_t addr);
+int w32_memory_region(uint32_t addr,uint32_t *base,uint64_t *end,uint32_t *type,uint32_t *initial_prot);
 
 /* time */
 uint32_t w32_now_ms(void);
+uint64_t w32_now_ms64(void);
 void w32_sleep_ms(uint32_t ms);
 uint32_t w32_shell_about(int wide);
 
@@ -146,6 +150,9 @@ const w32_crt_entry_t *w32_find_crt(const char *name);
 uint32_t w32_crt_data(const char *name);
 
 /* Profile file access shared with CRT FILE* I/O */
+void w32_fs_normalize(const char *raw,char *out);
+void w32_fs_update(const char *raw,uint64_t size);
+void w32_fs_remove(const char *raw);
 uint32_t w32_file_open_str(const char *raw, int wide);
 int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got);
 int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_out);
@@ -197,6 +204,9 @@ uint32_t w32_gdi_make_font(int32_t height, int32_t weight);
 void w32_chrome_select_font(uint32_t font);
 
 /* ------------------------------------------------------------------ GDI recorder (deferred BGT commands) */
+uint32_t w32_CreateIconIndirect(void);
+uint32_t w32_DestroyIcon(void);
+uint32_t w32_GetIconInfo(void);
 void w32_gdi_init(void);
 /* screen render target (desktop): created/resized when the main window is sized */
 void w32_gdi_screen(int32_t w, int32_t h);

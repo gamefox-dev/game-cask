@@ -38,12 +38,12 @@ static uint64_t c_aligned_free(void) {
 }
 static uint64_t c_memset(void) {
     if (ARG64(2) > UINT32_MAX) x86_fault("CRT memory size overflow", X.eip);
-    if (ARG(2)) memset(cmem(ARG(0), ARG(2)), (int)ARG(1), ARG(2));
+    if (ARG(2)) memset(cwmem(ARG(0), ARG(2)), (int)ARG(1), ARG(2));
     return ARG64(0);
 }
 static uint64_t c_memcpy(void) {
     if (ARG64(2) > UINT32_MAX) x86_fault("CRT memory size overflow", X.eip);
-    if (ARG(2)) memmove(cmem(ARG(0), ARG(2)), cmem(ARG(1), ARG(2)), ARG(2));
+    if (ARG(2)) memmove(cwmem(ARG(0), ARG(2)), cmem(ARG(1), ARG(2)), ARG(2));
     return ARG64(0);
 }
 static uint64_t c_memcmp(void) {
@@ -140,18 +140,18 @@ STRING_FUNCS(wcs, 1)
 #undef STRING_FUNCS
 static uint64_t c_strdup(void) {
     uint32_t n = slen(ARG(0), 0) + 1, p = w32_heap_alloc(n, 0);
-    if (p) memcpy(cmem(p, n), cmem(ARG(0), n), n); else crt_errno(12);
+    if (p) memcpy(cwmem(p, n), cmem(ARG(0), n), n); else crt_errno(12);
     return p;
 }
 static uint64_t c_wcsdup(void) {
     uint32_t n = 2 * (slen(ARG(0), 1) + 1), p = w32_heap_alloc(n, 0);
-    if (p) memcpy(cmem(p, n), cmem(ARG(0), n), n); else crt_errno(12);
+    if (p) memcpy(cwmem(p, n), cmem(ARG(0), n), n); else crt_errno(12);
     return p;
 }
 static uint64_t c_wmemcpy(void) {
     uint64_t n = ARG64(2) * 2;
     if (n > UINT32_MAX) x86_fault("CRT wide memory size overflow", X.eip);
-    if (n) memmove(cmem(ARG(0), (uint32_t)n), cmem(ARG(1), (uint32_t)n), (size_t)n);
+    if (n) memmove(cwmem(ARG(0), (uint32_t)n), cmem(ARG(1), (uint32_t)n), (size_t)n);
     return ARG64(0);
 }
 static uint64_t c_wmemset(void) {

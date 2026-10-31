@@ -39,6 +39,8 @@ typedef struct {
     uint8_t extra[128];
     int is_dialog, dlg_ended, checked, pressed;
     uint32_t dlgproc, dlg_result, msgresult;
+    uint32_t tracking,hover_ms,hover_since;
+    int32_t hover_x,hover_y;
 } wnd_t;
 typedef struct { uint32_t hwnd, msg; uint64_t wp, lp; uint32_t time; int32_t x, y; } msg_t;
 typedef struct { int used; uint32_t hwnd, id, ms, proc, due; } timer_t;
@@ -1387,6 +1389,7 @@ static void mouse_msg(uint32_t msg, int32_t px, int32_t py, uint32_t buttons) {
     }
     post(hwnd_of(w), msg, mk_flags(buttons), lp);
 }
+static void mouse_tracking(int32_t px,int32_t py,uint32_t buttons,int inside);
 void w32_user_pump_input(void) {
     bgt_io_t *io = w32_io;
     int32_t px = io->pointer_x, py = io->pointer_y;
@@ -1421,6 +1424,7 @@ void w32_user_pump_input(void) {
     int moved = px != last_px || py != last_py;
     uint32_t down = b & ~last_pbuttons, up = last_pbuttons & ~b;
     last_px = px; last_py = py;
+    mouse_tracking(px,py,b,io->pointer_inside);
     if (mb_active) { if (up & 1u) mb_click(px, py); last_pbuttons = b; return; }
     if ((down & 1u) && menu_click(px, py, 1)) { last_pbuttons = b; return; }
     if ((up & 1u) && menu_open >= 0 && menu_click(px, py, 0)) { last_pbuttons = b; return; }
@@ -1553,10 +1557,23 @@ void w32_user_init(void) {
     classes[0].used = 1; /* index 0 reserved */
 }
 
+#include "w32_user_extra.h"
 #define API(n, a, f) {n, a, 0, f}
+#define FAPI(n, a, f) API(n, a, f)
 #define CAPI(n, f) {n, 0, 1, f}
 #define STUB(n, a) {n, a, 0, 0}
 const w32_api_t w32_api_user[] = {
+    API("ActivateKeyboardLayout",2,u_ActivateKeyboardLayout), API("AllowSetForegroundWindow",1,u_AllowSetForegroundWindow),
+    API("GetKeyboardLayout",1,u_GetKeyboardLayout), API("GetKeyboardLayoutList",2,u_GetKeyboardLayoutList), API("GetKeyboardLayoutNameA",1,u_GetKeyboardLayoutNameA),
+    API("GetMessageExtraInfo",0,u_GetMessageExtraInfo), API("GetMonitorInfoW",2,u_GetMonitorInfoW),
+    API("MonitorFromPoint",W32_64?2:3,u_MonitorFromPoint), API("MonitorFromWindow",2,u_MonitorFromWindow),
+    API("EnumDisplayMonitors",4,u_EnumDisplayMonitors), API("EnumDisplaySettingsW",3,u_EnumDisplaySettingsW),
+    API("OpenClipboard",1,u_OpenClipboard), API("CloseClipboard",0,u_CloseClipboard), API("EmptyClipboard",0,u_EmptyClipboard),
+    API("GetClipboardData",1,u_GetClipboardData), API("SetClipboardData",2,u_SetClipboardData), API("IsClipboardFormatAvailable",1,u_IsClipboardFormatAvailable),
+    API("MapVirtualKeyA",2,u_MapVirtualKeyA), API("MapVirtualKeyExA",3,u_MapVirtualKeyA),
+    FAPI("RegisterTouchWindow",2,u_unsupported), FAPI("GetTouchInputInfo",4,u_invalid_touch), FAPI("CloseTouchInputHandle",1,u_invalid_touch),
+    FAPI("CreateIconFromResource",4,u_unsupported), API("CreateIconIndirect",1,w32_CreateIconIndirect), API("GetIconInfo",2,w32_GetIconInfo), FAPI("FlashWindowEx",1,u_unsupported),
+    FAPI("SetWindowRgn",3,u_unsupported), API("TrackMouseEvent",1,u_TrackMouseEvent),
     API("RegisterClassA", 1, u_RegisterClassA), API("RegisterClassW", 1, u_RegisterClassW),
     API("RegisterClassExA", 1, u_RegisterClassExA), API("RegisterClassExW", 1, u_RegisterClassExW),
     API("CreateWindowExA", 12, u_CreateWindowExA), API("CreateWindowExW", 12, u_CreateWindowExW),
@@ -1595,7 +1612,7 @@ const w32_api_t w32_api_user[] = {
     API("LoadCursorA", 2, u_LoadCursor), API("LoadCursorW", 2, u_LoadCursor), API("LoadIconA", 2, u_LoadIcon), API("LoadIconW", 2, u_LoadIcon),
     API("LoadImageA", 6, u_LoadImageA), API("LoadImageW", 6, u_LoadImageW),
     API("SetCursor", 1, u_SetCursor), API("ShowCursor", 1, u_ShowCursor), API("GetCursorPos", 1, u_GetCursorPos), API("SetCursorPos", 2, u_one),
-    API("ClipCursor", 1, u_one), API("DestroyIcon", 1, u_one), API("DestroyCursor", 1, u_one),
+    API("ClipCursor", 1, u_one), API("DestroyIcon", 1, w32_DestroyIcon), API("DestroyCursor", 1, w32_DestroyIcon),
     /* LANE-E */ API("GetKeyboardState", 1, u_GetKeyboardState),
     API("GetKeyState", 1, u_GetKeyState), API("GetAsyncKeyState", 1, u_GetAsyncKeyState),
     API("RegisterWindowMessageA", 1, u_RegisterWindowMessage), API("RegisterWindowMessageW", 1, u_RegisterWindowMessage),

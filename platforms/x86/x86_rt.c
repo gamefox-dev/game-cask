@@ -12,6 +12,7 @@ void x86_exec_insn(const x86_insn_t *in);
 
 x86_cpu_t X;
 uint8_t *x86_pages[1u << 20];
+uint8_t x86_protection[1u << 20];
 x86_metrics_t x86_metrics;
 int x86_force_interp;
 const x86_insn_t *x86_lift_pending;
@@ -146,6 +147,7 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 }
 
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
+    if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
     if (x86_force_interp) return 0;
     /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
     uint32_t lo = 0, hi = nlifted;
@@ -173,6 +175,7 @@ typedef struct { uint32_t addr; x86_insn_t in; } dc_entry_t;
 static dc_entry_t *dcache;
 
 static const x86_insn_t *decode_at(uint32_t eip) {
+    x86_check_access(eip,1,4);
     if (!dcache) {
         dcache = (dc_entry_t *)x86_alloc(DC_SIZE * sizeof(dc_entry_t));
         if (!dcache) x86_fault("out of memory (decode cache)", eip);

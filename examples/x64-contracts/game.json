@@ -1,0 +1,11 @@
+{
+  "id": "x64-contracts",
+  "name": "CC0 Win64 process and CRT contract fixture",
+  "assets": "assets",
+  "streams": [{ "from": "./streamed.txt", "path": "streamed.txt", "chunkSize": 4096 }],
+  "pipeline": {
+    "platform": "win32", "width": 320, "height": 200,
+    "fixture": { "target": "x86_64-windows-gnu", "crt": true, "out": "contracts.exe", "sources": ["contracts.c"] },
+    "modules": [{ "from": "./build/contracts.exe", "main": true }]
+  }
+}

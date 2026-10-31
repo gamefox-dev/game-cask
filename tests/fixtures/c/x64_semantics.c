@@ -4,6 +4,7 @@
 #include "bgt.h"
 x86_cpu_t X;
 uint8_t *x86_pages[1u<<20];
+uint8_t x86_protection[1u<<20];
 static uint8_t ram[65536],code[32];
 uint32_t x86_address(uint64_t a){if(a>65535)__builtin_trap();return (uint32_t)a;}
 void x86_fault(const char *m,uint32_t a){(void)m;(void)a;__builtin_trap();}

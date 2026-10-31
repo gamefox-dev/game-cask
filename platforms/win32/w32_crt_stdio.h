@@ -8,7 +8,7 @@ static crt_node_t *file_nodes;
 typedef struct {
     uint32_t handle, pos;
     crt_node_t *node;
-    int open, read, write, append, eof, error, pushback, temporary;
+    int open, read, write, append, eof, error, pushback, temporary, owner;
 } crt_file_t;
 static crt_file_t cfiles[64];
 static uint32_t iob_base;
@@ -17,17 +17,34 @@ static unsigned stdout_n;
 uint32_t crt_iob_base(void) {
     if (!iob_base) {
         iob_base = w32_misc_alloc(64 * 48);
-        for (unsigned i = 0; i < 3; i++) { cfiles[i].open = 1; cfiles[i].pushback = -1; }
+        for (unsigned i = 0; i < 3; i++) {
+            cfiles[i].open = 1; cfiles[i].pushback = -1;
+            x86_wr32(iob_base + i * 48 + 24, i ? 2 : 1);
+            x86_wr32(iob_base + i * 48 + 28, i);
+        }
         cfiles[0].read = 1; cfiles[1].write = cfiles[2].write = 1;
     }
     return iob_base;
 }
 uint64_t crt_iob(void) { return ARG(0) < 3 ? crt_iob_base() + ARG(0) * 48 : 0; }
+static void cfile_sync(crt_file_t *f) {
+    if(!f || f<cfiles || f>=cfiles+64)return;
+    uint32_t token=iob_base+(uint32_t)(f-cfiles)*48;
+    x86_wr32(token+24,(f->read?1u:0u)|(f->write?2u:0u)|(f->eof?0x10u:0u)|(f->error?0x20u:0u));
+}
 static crt_file_t *cfile(uint32_t token) {
     uint32_t base = crt_iob_base();
     if (token < base || token >= base + 64 * 48 || (token - base) % 48) return 0;
     crt_file_t *f = &cfiles[(token - base) / 48];
-    return f->open ? f : 0;
+    return f->open && (!f->owner || cfiles[f->owner-1].open) ? f : 0;
+}
+static crt_file_t *file_backend(crt_file_t *f) { return f && f->owner ? &cfiles[f->owner-1] : f; }
+static void file_close_backend(crt_file_t *f) {
+    f=file_backend(f);int descriptor=(int)(f-cfiles)+1;
+    if(f->handle)w32_file_close_h(f->handle);
+    if(f->temporary&&f->node){w32_heap_free(f->node->data);free(f->node);}
+    for(unsigned i=0;i<64;i++)if(cfiles[i].owner==descriptor)memset(&cfiles[i],0,sizeof cfiles[i]);
+    memset(f,0,sizeof *f);
 }
 static void flush_stdout(void) {
     if (stdout_n) { stdout_line[stdout_n] = 0; w32_logf2("guest CRT stdout: ", stdout_line); stdout_n = 0; }
@@ -44,8 +61,10 @@ static void log_bytes(const char *s, uint32_t n) {
 }
 static uint32_t file_write(crt_file_t *f, const uint8_t *src, uint32_t n) {
     if (!f) { crt_errno(9); return 0; }
-    if (f == &cfiles[1] || f == &cfiles[2]) { log_bytes((const char *)src, n); return n; }
-    if (!f->write || !f->node) { f->error = 1; crt_errno(13); return 0; }
+    if(!f->write){f->error=1;cfile_sync(f);crt_errno(9);return 0;}
+    f=file_backend(f);
+    if (!f->node && !f->handle && (f == &cfiles[1] || f == &cfiles[2])) { log_bytes((const char *)src, n); return n; }
+    if (!f->write || !f->node) { f->error = 1; cfile_sync(f); crt_errno(13); return 0; }
     crt_node_t *node = f->node;
     if (f->append) f->pos = node->size;
     if ((uint64_t)f->pos + n > UINT32_MAX - 16) { f->error = 1; crt_errno(27); return 0; }
@@ -56,15 +75,17 @@ static uint32_t file_write(crt_file_t *f, const uint8_t *src, uint32_t n) {
         if (!data) { f->error = 1; crt_errno(12); return 0; }
         node->data = data; node->capacity = capacity;
     }
-    if (f->pos > node->size) memset(cmem(node->data + node->size, f->pos - node->size), 0, f->pos - node->size);
-    if (n) memcpy(cmem(node->data + f->pos, n), src, n);
+    if (f->pos > node->size) memset(cwmem(node->data + node->size, f->pos - node->size), 0, f->pos - node->size);
+    if (n) memcpy(cwmem(node->data + f->pos, n), src, n);
     f->pos = end;
     if (node->size < end) node->size = end;
+    if(!f->temporary)w32_fs_update(node->name,node->size);
     return n;
 }
 static uint32_t file_read(crt_file_t *f, uint8_t *dst, uint32_t n) {
     if (!f) { crt_errno(9); return 0; }
-    if (!f->read) { f->error = 1; crt_errno(13); return 0; }
+    if (!f->read) { f->error = 1; cfile_sync(f); crt_errno(13); return 0; }
+    crt_file_t *stream=f;f=file_backend(f);
     uint32_t got = 0;
     if (n && f->pushback >= 0) { *dst++ = (uint8_t)f->pushback; f->pushback = -1; got++; }
     if (f->handle) {
@@ -78,13 +99,14 @@ static uint32_t file_read(crt_file_t *f, uint8_t *dst, uint32_t n) {
         f->pos += count; got += count;
     }
     if (got < n) f->eof = 1;
-    return got;
+    stream->eof=f->eof;stream->error=f->error;cfile_sync(stream);return got;
 }
 static uint64_t file_open(int wide, int temporary) {
     crt_iob_base();
     char name[512] = "", mode[32] = "w+b";
     if (!temporary) {
         w32_gstr(ARG(0), wide, name, sizeof name); w32_gstr(ARG(1), wide, mode, sizeof mode);
+        w32_fs_normalize(name,name);
     }
     int write = mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+') != 0;
     if (mode[0] != 'r' && mode[0] != 'w' && mode[0] != 'a') { crt_errno(22); return 0; }
@@ -112,6 +134,9 @@ static uint64_t file_open(int wide, int temporary) {
     f->read = mode[0] == 'r' || strchr(mode, '+') != 0;
     f->append = mode[0] == 'a'; f->pushback = -1; f->temporary = temporary;
     f->pos = f->append && node ? node->size : 0;
+    if(node&&!temporary)w32_fs_update(name,node->size);
+    x86_wr32(iob_base + slot * 48 + 24, f->read ? 1 : 2);
+    x86_wr32(iob_base + slot * 48 + 28, slot);
     return iob_base + slot * 48;
 }
 static uint64_t c_fopen(void) { return file_open(0, 0); }
@@ -121,10 +146,7 @@ static uint64_t c_fclose(void) {
     crt_file_t *f = cfile(ARG(0));
     if (!f) { crt_errno(9); return UINT64_MAX; }
     flush_stdout();
-    if (f->handle) w32_file_close_h(f->handle);
-    f->handle = 0; f->open = 0;
-    if (f->temporary && f->node) { w32_heap_free(f->node->data); free(f->node); }
-    memset(f, 0, sizeof *f);
+    file_close_backend(f);
     return 0;
 }
 static uint64_t c_fflush(void) { flush_stdout(); return 0; }
@@ -140,28 +162,30 @@ static uint64_t c_fread(void) {
     if (!size || !count) return 0;
     if (size > UINT32_MAX / count) { crt_errno(22); return 0; }
     uint32_t n = (uint32_t)(size * count);
-    return file_read(cfile(ARG(3)), cmem(ARG(0), n), n) / size;
+    return file_read(cfile(ARG(3)), cwmem(ARG(0), n), n) / size;
 }
 static uint64_t c_fputc(void) {
     uint8_t c = (uint8_t)ARG(0);
     return file_write(cfile(ARG(1)), &c, 1) ? c : UINT64_MAX;
 }
 static uint64_t c_putchar(void) {
-    uint8_t c = (uint8_t)ARG(0); crt_iob_base(); file_write(&cfiles[1], &c, 1); return c;
+    uint8_t c = (uint8_t)ARG(0); crt_iob_base(); return file_write(&cfiles[1], &c, 1)==1?c:UINT64_MAX;
 }
 static uint64_t c_fputs(void) {
     char *s = cstr(ARG(0)); uint32_t n = (uint32_t)strlen(s);
     return file_write(cfile(ARG(1)), (const uint8_t *)s, n) == n ? 0 : UINT64_MAX;
 }
 static uint64_t c_puts(void) {
-    crt_iob_base(); char *s = cstr(ARG(0)); log_bytes(s, (uint32_t)strlen(s)); log_bytes("\n", 1); return 0;
+    crt_iob_base(); char *s = cstr(ARG(0));uint32_t n=(uint32_t)strlen(s);
+    if(file_write(&cfiles[1],(const uint8_t *)s,n)!=n||file_write(&cfiles[1],(const uint8_t *)"\n",1)!=1)return UINT64_MAX;
+    return 0;
 }
 static uint64_t c_fgetc(void) {
     uint8_t c;
     return file_read(cfile(ARG(0)), &c, 1) == 1 ? c : UINT64_MAX;
 }
 static uint64_t c_ungetc(void) {
-    crt_file_t *f = cfile(ARG(1));
+    crt_file_t *f = file_backend(cfile(ARG(1)));
     if (!f || f->pushback >= 0 || ARG(0) == UINT32_MAX) return UINT64_MAX;
     f->pushback = (int)(ARG(0) & 255); f->eof = 0; return (uint64_t)f->pushback;
 }
@@ -181,11 +205,11 @@ static uint64_t c_fgets(void) {
 static uint64_t c_feof(void) { crt_file_t *f = cfile(ARG(0)); return f ? (uint64_t)f->eof : 0; }
 static uint64_t c_ferror(void) { crt_file_t *f = cfile(ARG(0)); return f ? (uint64_t)f->error : 1; }
 static uint64_t c_clearerr(void) {
-    crt_file_t *f = cfile(ARG(0)); if (f) f->eof = f->error = 0; return 0;
+    crt_file_t *f = cfile(ARG(0)); if (f) { f->eof = f->error = 0; cfile_sync(f); } return 0;
 }
 static uint64_t file_tell(crt_file_t *f) {
     if (!f) { crt_errno(9); return UINT64_MAX; }
-    uint64_t pos = f->pos;
+    f=file_backend(f);uint64_t pos = f->pos;
     if (f->handle && !w32_file_seek_pos(f->handle, 0, 1, &pos)) return UINT64_MAX;
     if (f->pushback >= 0 && pos) pos--;
     return pos;
@@ -193,6 +217,7 @@ static uint64_t file_tell(crt_file_t *f) {
 static uint64_t c_ftell(void) { return file_tell(cfile(ARG(0))); }
 static int file_seek(crt_file_t *f, int64_t delta, uint32_t method) {
     if (!f || method > 2) { crt_errno(22); return -1; }
+    crt_file_t *stream=f;f=file_backend(f);
     if (f->handle) {
         if (method == 1 && f->pushback >= 0) delta--;
         if (!w32_file_seek_pos(f->handle, delta, method, 0)) { crt_errno(22); return -1; }
@@ -202,7 +227,7 @@ static int file_seek(crt_file_t *f, int64_t delta, uint32_t method) {
             (delta >= 0 && (uint64_t)delta + base > UINT32_MAX)) { crt_errno(22); return -1; }
         f->pos = (uint32_t)(base + (uint64_t)delta);
     }
-    f->eof = 0; f->pushback = -1; return 0;
+    f->eof = 0; f->pushback = -1;stream->eof=0;stream->pushback=-1;cfile_sync(stream);return 0;
 }
 static uint64_t c_fseek(void) { return (uint64_t)file_seek(cfile(ARG(0)), (int32_t)ARG(1), ARG(2)); }
 static uint64_t c_fseeki64(void) { return (uint64_t)file_seek(cfile(ARG(0)), (int64_t)ARG64(1), ARG(2)); }
@@ -396,7 +421,7 @@ uint64_t crt_vformat(uint32_t dst, uint64_t cap, uint32_t fmt, uint32_t va, int 
     uint64_t count = wide ? utf16_units(o.bytes, o.n) : o.n;
     uint64_t copied = count < cap ? count : legacy ? cap : cap ? cap - 1 : 0;
     if (dst && cap) {
-        if (!wide) { if (copied) memcpy(cmem(dst, (uint32_t)copied), o.bytes, (size_t)copied); }
+        if (!wide) { if (copied) memcpy(cwmem(dst, (uint32_t)copied), o.bytes, (size_t)copied); }
         else {
             size_t at = 0; uint32_t written = 0;
             while (at < o.n && written < copied) {
@@ -452,7 +477,7 @@ static uint64_t c_fgetwc(void) {
     return c;
 }
 static uint64_t c_ungetwc(void) {
-    crt_file_t *f = cfile(ARG(1));
+    crt_file_t *f = file_backend(cfile(ARG(1)));
     if (!f || f->pushback >= 0 || ARG(0) > 127) return 65535;
     f->pushback = (int)ARG(0); f->eof = 0; return ARG(0);
 }
@@ -514,8 +539,8 @@ uint64_t crt_vscan(uint32_t src, uint64_t len, uint32_t fmt, uint32_t va, int wi
             strcpy(spec + n, "lf%n");
             result = sscanf(s, spec, &real, &used);
             if (result == 1 && dst) {
-                if (length == 'l' || size == 8) memcpy(cmem(dst, 8), &real, 8);
-                else { float v = (float)real; memcpy(cmem(dst, 4), &v, 4); }
+                if (length == 'l' || size == 8) memcpy(cwmem(dst, 8), &real, 8);
+                else { float v = (float)real; memcpy(cwmem(dst, 4), &v, 4); }
             }
         } else if (c == 's' || c == 'c' || c == '[') {
             size_t available = strlen(s);
@@ -563,7 +588,7 @@ static uint64_t scan_file(uint32_t token, uint32_t fmt, uint32_t va) {
     if (input.error) { free(input.bytes); crt_errno(12); return UINT64_MAX; }
     uint32_t guest = w32_heap_alloc((uint32_t)input.n + 1, 0);
     if (!guest) { free(input.bytes); crt_errno(12); return UINT64_MAX; }
-    if (input.n) memcpy(cmem(guest, (uint32_t)input.n), input.bytes, input.n);
+    if (input.n) memcpy(cwmem(guest, (uint32_t)input.n), input.bytes, input.n);
     x86_wr8(guest + (uint32_t)input.n, 0);
     uint64_t result = crt_vscan(guest, input.n, fmt, va, 0);
     file_seek(f, (int64_t)(pos + scan_consumed), 0);
