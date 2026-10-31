@@ -122,7 +122,8 @@ describe('trial brief and work queue', () => {
     const base = { game: 'g', achieved_level: 'L3', target_level: 'L3', steps: [], next: 'x' };
     const ok = { id: 'Q1', symptom: 's', evidence: ['test x'], layer: 'platform-profile', status: 'iteration-request', next: 'n' };
     expect(validateProgress({ ...base, queue: [ok] })).toEqual([]);
-    const errs = validateProgress({ ...base, queue: [ok, { ...ok, id: 'Q1' }, { ...ok, id: 'Q2', status: 'unverified' }, { ...ok, id: 'Q3', status: 'authentic' }, { ...ok, id: 'Q4', evidence: [] }, { ...ok, id: 'Q5', layer: 'test', status: 'iteration-request' }] });
+    expect(validateProgress({ ...base, queue: [{ ...ok, layer: 'test' }] })).toEqual([]);
+    const errs = validateProgress({ ...base, queue: [ok, { ...ok, id: 'Q1' }, { ...ok, id: 'Q2', status: 'unverified' }, { ...ok, id: 'Q3', status: 'authentic' }, { ...ok, id: 'Q4', evidence: [] }, { ...ok, id: 'Q5', layer: 'bogus', status: 'iteration-request' }] });
     expect(errs.join('\n')).toMatch(/duplicate id/);
     expect(errs.join('\n')).toMatch(/Q2.*invalid "status"/);
     expect(errs.join('\n')).toMatch(/Q3.*requires layer "game"/);
