@@ -69,10 +69,30 @@ Current-directory/environment size-query/short-buffer/case-insensitive variable 
 C: drive mask, single-CPU affinity, virtual-clock GetTickCount64, UTC timezone/calendar conversion, unknown battery
 status, US language/locale subset, DBCS lead-byte classification and system FormatMessageW messages are implemented.
 FormatMessage supports allocate-buffer ownership through LocalFree, not arbitrary module/string-format insertion.
-GetHandleInformation reports ordinary file-handle flags; SetHandleInformation cannot enable inheritance/protect-close
-and returns ERROR_NOT_SUPPORTED. DuplicateHandle validates the source then fails ERROR_NOT_SUPPORTED; no fake alias.
-GetExitCodeProcess accepts the current process pseudo-handle and reports STILL_ACTIVE. Other process handles are
-not fabricated. GetTempFileNameW supports nonzero-unique name construction only; automatic file creation fails access
+Kernel objects use the shared scheduler-owned handle table: threads, the current process, events, mutexes,
+semaphores, read-only asset files, standard output/error endpoints and opened registry keys. Same-process
+DuplicateHandle converts full-width current-process/current-thread pseudo-handles into distinct owned handles,
+retains shared object identity/file position, honors SAME_ACCESS, CLOSE_SOURCE (including close-only NULL target),
+desired access and independent inheritance flags. A valid owned source is closed on a failed duplication when
+CLOSE_SOURCE is requested and the caller has source-process duplicate rights. Get/SetHandleInformation preserve
+per-handle INHERIT/PROTECT_FROM_CLOSE; a protected ordinary close fails ERROR_ACCESS_DENIED. Invalid or stale
+handles fail ERROR_INVALID_HANDLE without truncating AMD64 high bits; inaccessible output spans fail
+ERROR_INVALID_PARAMETER without a write. A NULL DuplicateHandle output has Windows' legacy leaked-handle behavior.
+OpenProcess supports this process (PID 1), OpenThread accepts scheduler thread IDs (not handles), and
+GetProcessId/GetThreadId, priorities, suspend/resume, exit-code queries and waits resolve aliases to the same object
+with access checks. Query-limited rights are supported; no impersonation/ACL or cross-process backend is claimed.
+GetExitCodeProcess reports STILL_ACTIVE while running; TerminateProcess validates PROCESS_TERMINATE and uses its
+second argument as the exit code. Closed thread aliases never destroy a running scheduler task. Live threads retain
+identity without handles; a terminated thread cannot be reopened after its last handle is gone. Mixed waits retain
+thread/process/event/semaphore/mutex/file semantics; registry keys are nonwaitable and require RegCloseKey
+(CloseHandle has Windows' documented ineffective-success registry exception). Registry value access checks respect
+alias query/set rights; registry paths remain process-local. File rights cannot be escalated beyond an opened
+read-only asset; unsupported writes fail access denied. Standard endpoints are profile log/input endpoints, not
+host Windows consoles. Named cross-process objects, mappings and pipes remain unavailable. The table retains the
+profile's bounded **1023 concurrent handles and object identities**, separate from **64 lifetime scheduler threads**.
+Closed slots and unreferenced disposable objects are reclaimed. Running thread identities survive zero handles;
+completed unreferenced threads are reclaimed. As on Windows, a closed numeric handle may later be reused.
+See [THREADS.md](THREADS.md). GetTempFileNameW supports nonzero-unique name construction only; automatic file creation fails access
 denied. Hardware-profile/physical-volume data and external processes/pipes/vectored handlers do not exist here.
 
 ## USER/GDI and shell/WinMM
@@ -97,7 +117,6 @@ status but adds `capability:"failure-only"`, distinct from null-handler `stub` a
 | RemoveVectoredExceptionHandler | zero: no valid registration exists |
 | AttachConsole; GetConsoleScreenBufferInfo; SetConsoleCtrlHandler/Mode/TextAttribute | FALSE, ERROR_INVALID_HANDLE: no attached Windows console |
 | CreatePipe/CreateProcessW | FALSE, ERROR_NOT_SUPPORTED: no external process/pipe backend |
-| OpenProcess | NULL, ERROR_INVALID_PARAMETER for absent PID; current PID unsupported |
 | ReplaceFileW | FALSE, ERROR_ACCESS_DENIED: no kernel writable replacement operation |
 | GetThreadContext/SetThreadContext | FALSE, ERROR_NOT_SUPPORTED: no asynchronous context backend |
 | ShellExecuteW | SE_ERR_NOASSOC (31), ERROR_NO_ASSOCIATION: no shell association/launcher |

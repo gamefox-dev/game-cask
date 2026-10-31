@@ -41,7 +41,7 @@ static uint64_t c_filelengthi64(void) { return file_length(cfd(ARG(0))); }
 static uint64_t c_get_osfhandle(void) {
     crt_file_t *f=cfd(ARG(0));if(!f)return UINT64_MAX;
     if(f->handle)return f->handle;
-    if(ARG(0)<3)return ARG(0)==0?0x1f6:ARG(0)==1?0x1f5:0x1f4;
+    if(ARG(0)<3)return w32_standard_handle(3-ARG(0));
     crt_errno(9);return UINT64_MAX; /* process-memory temp files have no kernel handle */
 }
 static uint64_t c_getpid(void) { return 1; }

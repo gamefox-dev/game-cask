@@ -2,6 +2,7 @@
  * No host workers, wall-clock sleeps, or engine-specific paths. See THREADS.md. */
 #include "w32_int.h"
 #include "w32_thread.h"
+#include "w32_handles.h"
 #define OBJECTS 1024u
 #define LOCKS 512u
 #define H_SYNC 0x00100000u
@@ -9,25 +10,30 @@
 #define TIMEOUT 258u
 #define FAILED 0xffffffffu
 
-enum { THREAD = 1, EVENT, MUTEX, SEMAPHORE };
+enum { THREAD = 1, EVENT, MUTEX, SEMAPHORE, PROCESS, FILE_OBJECT, CONSOLE, KEY_OBJECT };
 enum { NONE, SLEEPING, OBJECT_WAIT, LOCK_WAIT, COND_WAIT, ADDRESS_WAIT };
 typedef struct {
     uint32_t kind, value, limit, owner, recursion, thread, abandoned;
-    int manual, closed;
+    int manual;
+    uint32_t refs;
 } object_t;
 typedef struct { uint32_t addr, owner, recursion, readers, critical; } lock_t;
 typedef struct {
     uint64_t tls[64], fls[128];
     uint32_t error, teb, stack, code, object, kind, start_ms, timeout_ms, finite, suspended;
-    uint32_t handles[64], count, all, lock, shared, recursive, cv, notified, address, size, deferred;
+    uint64_t handles[64];
+    uint32_t count, all, lock, shared, recursive, cv, notified, address, size, deferred;
     uint64_t compare;
+    uint32_t object_serial;
     int fresh, crt_auto_close;
     int32_t priority;
 } thread_t;
 static thread_t threads[X86_THREADS];
 static object_t objects[OBJECTS];
 static lock_t locks[LOCKS];
-static uint32_t nobjects, nlocks, nthreads = 1;
+static struct { uint32_t root, access, flags, serial; } handles[OBJECTS];
+static uint32_t handle_serial;
+static uint32_t nobjects, nhandles, nlocks, nthreads = 1;
 static int yield_requested, scheduling, pumping;
 static uint64_t tls_mask, fls_mask[2], fls_callbacks[128];
 static thread_t *self(void) { return &threads[x86_current]; }
@@ -37,16 +43,130 @@ static uint32_t *error_cell(thread_t *t) {
 }
 uint32_t *w32_thread_error(void) { return error_cell(self()); }
 static uint32_t fail(uint32_t error) { self()->error = error; return FAILED; }
-static object_t *object(uint32_t h) {
-    uint32_t i = h - H_SYNC;
-    return i && i <= nobjects && !objects[i].closed ? &objects[i] : 0;
+static uint32_t handle_error(uint32_t error) {
+    self()->error=error;*error_cell(self())=error;return 0;
+}
+static int pseudo(uint64_t h, uint32_t low) {
+    return h == (W32_64 ? UINT64_MAX - (0xffffffffu - low) : low);
+}
+static uint32_t handle_index(uint64_t h) {
+    return h > H_SYNC && h <= H_SYNC + nhandles && handles[h-H_SYNC].root ? (uint32_t)h-H_SYNC : 0;
+}
+static uint32_t all_access(uint32_t kind) {
+    return kind == THREAD || kind == PROCESS ? 0x1fffffu :
+        kind == FILE_OBJECT || kind == CONSOLE ? 0x1f01ffu : kind == KEY_OBJECT ? 0xf003fu : kind == MUTEX ? 0x1f0001u : 0x1f0003u;
+}
+static uint32_t map_access(uint32_t kind, uint32_t access) {
+    uint32_t out = access & 0x0fffffffu;
+    if (access & 0x10000000u) out |= all_access(kind);
+    if(kind==KEY_OBJECT){
+        if(access&0x80000000u)out|=0x20019u;
+        if(access&0x40000000u)out|=0x20006u;
+        if(access&0x20000000u)out|=0x20019u;
+    } else if (kind == FILE_OBJECT || kind == CONSOLE) {
+        if (access & 0x80000000u) out |= 0x120089u;
+        if (access & 0x40000000u) out |= 0x120116u;
+        if (access & 0x20000000u) out |= 0x1200a0u;
+    } else {
+        if (access & 0x80000000u) out |= 0x20000u | (kind == THREAD ? 0x48u : kind == PROCESS ? 0x410u : 1u);
+        if (access & 0x40000000u) out |= 0x20000u | (kind == THREAD ? 0x37u : kind == PROCESS ? 0x3ebu : kind == MUTEX ? 1u : 2u);
+        if (access & 0x20000000u) out |= 0x120000u;
+    }
+    return out;
+}
+static object_t *allocate_object(uint32_t kind) {
+    uint32_t i=1;while(i<=nobjects&&objects[i].kind)i++;
+    if(i>=OBJECTS){handle_error(8);return 0;}
+    if(i>nobjects)nobjects=i;
+    objects[i]=(object_t){.kind=kind,.owner=INFINITE};return &objects[i];
+}
+static object_t *object(uint64_t h) {
+    uint32_t i = handle_index(h);
+    if (i) return &objects[handles[i].root];
+    uint32_t kind = pseudo(h,0xfffffffeu) ? THREAD : pseudo(h,0xffffffffu) ? PROCESS : 0;
+    if (!kind) return 0;
+    for (i=1;i<=nobjects;i++) if(objects[i].kind==kind && (kind!=THREAD || objects[i].thread==x86_current)) return &objects[i];
+    object_t *o=allocate_object(kind);if(o)o->thread=x86_current;
+    return o;
+}
+static uint32_t new_handle(object_t *o, uint32_t access, uint32_t flags) {
+    uint32_t i=1;while(i<=nhandles&&handles[i].root)i++;
+    if(i>=OBJECTS)return handle_error(8);
+    if(i>nhandles)nhandles=i;
+    handles[i].root=(uint32_t)(o-objects);handles[i].access=access;handles[i].flags=flags;handles[i].serial=++handle_serial;
+    o->refs++;return H_SYNC+i;
 }
 static uint32_t new_object(uint32_t kind) {
-    if (nobjects + 1 >= OBJECTS) { self()->error = 8; return 0; }
-    uint32_t i = ++nobjects;
-    objects[i].kind = kind;
-    objects[i].owner = INFINITE;
-    return H_SYNC + i;
+    object_t *o=allocate_object(kind);if(!o)return 0;
+    uint32_t h=new_handle(o,all_access(kind),0);if(!h)*o=(object_t){0};return h;
+}
+int w32_handle_access(uint64_t h, uint32_t rights) {
+    object_t *o=object(h);uint32_t i=handle_index(h);
+    if(!o)return handle_error(6);
+    if(i && (handles[i].access & rights)!=rights)return handle_error(5);
+    return 1;
+}
+int w32_handle_any_access(uint64_t h,uint32_t rights) {
+    uint32_t i=handle_index(h);if(!object(h))return handle_error(6);
+    return !i || (handles[i].access&rights) ? 1 : (int)handle_error(5);
+}
+static int close_handle(uint64_t h, int force) {
+    uint32_t i=handle_index(h);
+    if(!i)return handle_error(6);
+    if(!force && (handles[i].flags&2))return handle_error(5);
+    object_t *o=&objects[handles[i].root];handles[i].root=0;
+    if(!--o->refs){
+        if(o->kind==FILE_OBJECT)w32_file_destroy(o->value);
+        if(o->kind!=PROCESS && (o->kind!=THREAD || !x86_tasks[o->thread].live))*o=(object_t){0};
+    }
+    return 1;
+}
+int w32_thread_close_handle(uint64_t h) { return close_handle(h,0); }
+void w32_thread_inherit_handle(uint64_t h, int inherit) {
+    uint32_t i=handle_index(h);if(i)handles[i].flags=inherit?1:0;
+}
+uint32_t w32_handle_key_new(uint32_t slot,uint32_t access) {
+    access=map_access(KEY_OBJECT,access)&~0x300u; /* one registry view, no separate WOW64 namespace */
+    if(access&0x02000000u)access=(access&~0x02000000u)|all_access(KEY_OBJECT);
+    if(access&~all_access(KEY_OBJECT))return handle_error(5);
+    uint32_t h=new_object(KEY_OBJECT);if(h){object(h)->value=slot;handles[h-H_SYNC].access=access;}
+    return h;
+}
+uint32_t w32_handle_key(uint64_t h) {
+    object_t *o=object(h);return o&&o->kind==KEY_OBJECT?o->value:0;
+}
+uint32_t w32_handle_file_new(uint32_t slot) {
+    uint32_t h=new_object(FILE_OBJECT);
+    if(h){object(h)->value=slot;handles[h-H_SYNC].access=0x120089u;}
+    return h;
+}
+void w32_handle_file_access(uint64_t h,uint32_t access) {
+    uint32_t i=handle_index(h);if(i)handles[i].access=map_access(FILE_OBJECT,access)|0x100080u;
+}
+uint32_t w32_handle_file(uint64_t h) {
+    object_t *o=object(h);return o&&o->kind==FILE_OBJECT?o->value:0;
+}
+uint32_t w32_handle_console(uint32_t channel) {
+    uint32_t h=new_object(CONSOLE);if(h)object(h)->value=channel;return h;
+}
+uint32_t w32_handle_console_channel(uint64_t h) {
+    object_t *o=object(h);return o&&o->kind==CONSOLE?o->value:0;
+}
+uint32_t w32_standard_handle(uint32_t channel) {
+    static uint32_t standard[3];if(channel<1||channel>3)return 0;
+    if(!standard[channel-1])standard[channel-1]=w32_handle_console(channel);
+    return standard[channel-1];
+}
+static int inherit_from_sa(uint64_t sa) {
+    if(!sa)return 0;
+    if(sa>UINT32_MAX||!x86_accessible((uint32_t)sa,W32_64?24:12,1)||x86_rd32((uint32_t)sa)!=(W32_64?24u:12u)){self()->error=87;return -1;}
+    return x86_rd32((uint32_t)sa+(W32_64?16:8))!=0;
+}
+static uint32_t thread_id(uint64_t h) {
+    object_t *o=object(h);return o&&o->kind==THREAD?o->thread:X86_THREADS;
+}
+static int output(uint64_t p,uint32_t bytes) {
+    return p && p<=UINT32_MAX && x86_accessible((uint32_t)p,bytes,2);
 }
 static lock_t *lock_at(uint32_t addr) {
     if (!addr) x86_fault("null thread lock", addr);
@@ -84,6 +204,8 @@ int w32_thread_pending(void) {
 }
 static int available(object_t *o, uint32_t tid) {
     if (o->kind == THREAD) return !x86_tasks[o->thread].live;
+    if (o->kind == PROCESS) return 0;
+    if (o->kind == FILE_OBJECT) return 1;
     if (o->kind == MUTEX) return o->owner == INFINITE || o->owner == tid;
     return o->value != 0;
 }
@@ -244,8 +366,10 @@ void w32_thread_return(uint32_t code) {
     }
     if (x86_current) tls_notify(3);
     t->code = code;
-    if (t->crt_auto_close && t->object) objects[t->object-H_SYNC].closed=1;
+    uint32_t hi=handle_index(t->object);
+    if (t->crt_auto_close && hi && handles[hi].serial==t->object_serial && objects[handles[hi].root].kind==THREAD && objects[handles[hi].root].thread==x86_current) close_handle(t->object,1);
     x86_tasks[x86_current].live = x86_tasks[x86_current].ready = 0;
+    for(uint32_t i=1;i<=nobjects;i++)if(objects[i].kind==THREAD&&objects[i].thread==x86_current&&!objects[i].refs)objects[i]=(object_t){0};
     for (uint32_t i = 1; i <= nobjects; i++) if (objects[i].kind == MUTEX && objects[i].owner == x86_current) {
         objects[i].owner = INFINITE; objects[i].recursion = 0; objects[i].abandoned = 1;
     }
@@ -300,15 +424,20 @@ static uint32_t create_thread(int begin) {
     if (nthreads == X86_THREADS) { self()->error = 8; return 0; }
     uint32_t flags = begin==2?0:ARG(4);
     if (flags & ~4u) { self()->error = 87; return 0; }
+    int inherit=begin==2?0:inherit_from_sa(ARG64(0));if(inherit<0)return 0;
+    if(begin!=2 && ARG64(5) && !output(ARG64(5),4)){self()->error=87;return 0;}
+    uint64_t requested_stack=ARG64(1);
+    if(requested_stack>0x1000000u){self()->error=8;return 0;}
+    uint32_t stack_size=(uint32_t)requested_stack;
+    if (stack_size < 0x100000) stack_size = 0x100000;
     uint32_t h = new_object(THREAD);
     if (!h) return 0;
-    uint32_t i = nthreads++, stack_size = ARG(1);
-    if (stack_size < 0x100000) stack_size = 0x100000;
-    if (stack_size > 0x1000000) { objects[h - H_SYNC].closed = 1; self()->error = 8; return 0; }
+    w32_thread_inherit_handle(h,inherit);
+    uint32_t i = nthreads++;
     thread_t *t = &threads[i];
     t->stack = w32_heap_alloc(stack_size, 1); t->teb = w32_heap_alloc(8192, 1);
     if (!t->stack || !t->teb) x86_fault("thread allocation failed", X.eip);
-    t->object = h; t->fresh = 1; t->code = 259;
+    t->object = h; t->object_serial=handles[h-H_SYNC].serial; t->fresh = 1; t->code = 259;
     uint32_t top = (t->stack + stack_size - 64) & ~15u;
     w32_wrptr(t->teb + w32_ptr_size(), top);
     w32_wrptr(t->teb + 2 * w32_ptr_size(), t->stack);
@@ -330,7 +459,7 @@ static uint32_t create_thread(int begin) {
     w32_wrptr((uint32_t)cpu->r[ESP], X86_THREAD_RETURN);
     t->suspended = !!(flags & 4);
     x86_tasks[i].live = 1; x86_tasks[i].ready = !t->suspended;
-    objects[h - H_SYNC].thread = i;
+    object(h)->thread = i;
     if (idptr) x86_wr32(idptr, i + 1);
     (void)begin;
     return h;
@@ -341,9 +470,13 @@ static uint32_t wait_objects(int multiple) {
     uint32_t ms = multiple ? ARG(3) : ARG(1);
     if (!t->count || t->count > 64) return fail(87);
     for (uint32_t i = 0; i < t->count; i++) {
-        t->handles[i] = multiple ? (uint32_t)w32_rdptr(ARG(1) + i * w32_ptr_size()) : ARG(0);
-        if (!object(t->handles[i])) return fail(6);
-        for (uint32_t j = 0; j < i; j++) if (t->handles[j] == t->handles[i]) return fail(87);
+        if(multiple && (ARG64(1)>UINT32_MAX || !x86_accessible(ARG(1),t->count*w32_ptr_size(),1)))return fail(87);
+        t->handles[i] = multiple ? w32_rdptr(ARG(1) + i * w32_ptr_size()) : ARG64(0);
+        if (!w32_handle_access(t->handles[i],0x100000u)) return FAILED;
+        object_t *o=object(t->handles[i]);
+        if(o->kind==CONSOLE)return fail(50);
+        if(o->kind==KEY_OBJECT)return fail(6);
+        for (uint32_t j = 0; j < i; j++) if (t->handles[j] == t->handles[i] || (t->all && object(t->handles[j])==o)) return fail(87);
     }
     uint32_t result = try_objects(t, x86_current);
     if (result != TIMEOUT || !ms) return result;
@@ -378,6 +511,9 @@ static void notify(uint32_t addr, int all, int address) {
 #define TF(n,a) T(n,a)
 #define T64(n, a32, a64) {n, W32_64 ? a64 : a32, 0, 0}
 static const w32_api_t api[] = {
+    T("GetStdHandle",1), T("DuplicateHandle",7), T("CloseHandle",1), T("GetHandleInformation",2), T("SetHandleInformation",3),
+    T("OpenThread",3), T("GetThreadId",1), T("GetProcessId",1), T("OpenProcess",3),
+    T("TerminateProcess",2), T("GetExitCodeProcess",2), T("GetProcessAffinityMask",3), T("SetProcessAffinityMask",2), T("SetPriorityClass",2),
     T("CreateThread",6), C("_beginthreadex",6), C("_beginthread",3), C("_endthread",0), C("_lock",1), C("_unlock",1),
     T("GetTickCount64",0), T("GetThreadPriority",1), T("SetThreadPriority",2), T("SuspendThread",1), TF("GetThreadContext",2), TF("SetThreadContext",2),
     T("ExitThread",1), C("_endthreadex",1),
@@ -414,6 +550,86 @@ const w32_api_t *w32_thread_find(const char *name) {
 static uint64_t thread_api(const char *name) {
     thread_t *t = self();
     uint32_t p = ARG(0), v = ARG(1);
+    if(IS("GetStdHandle")) {
+        uint32_t n=p+12u;if(n>2){t->error=87;return W32_64?UINT64_MAX:FAILED;}
+        return w32_standard_handle(n+1);
+    }
+    if(IS("CloseHandle")) {
+        object_t *o=object(ARG64(0));
+        /* Documented CloseHandle exception: registry keys require RegCloseKey. */
+        if(o&&o->kind==KEY_OBJECT)return 1;
+        return close_handle(ARG64(0),0);
+    }
+    if(IS("GetHandleInformation") || IS("SetHandleInformation")) {
+        uint32_t i=handle_index(ARG64(0));if(!i){t->error=6;return 0;}
+        if(IS("GetHandleInformation")) {
+            if(!output(ARG64(1),4)){t->error=87;return 0;}
+            x86_wr32(v,handles[i].flags);return 1;
+        }
+        if(v&~3u){t->error=87;return 0;}
+        handles[i].flags=(handles[i].flags&~v)|(ARG(2)&v);return 1;
+    }
+    if(IS("DuplicateHandle")) {
+        uint64_t source=ARG64(1);uint32_t options=ARG(6),result=0,error=0;
+        object_t *o=object(source),*sp=object(ARG64(0)),*tp=object(ARG64(2));
+        uint32_t si=handle_index(source),access=ARG(4);
+        if(!ARG64(2) && (options&1) && !(options&~3u) && sp && sp->kind==PROCESS && o) {
+            if(!w32_handle_access(ARG64(0),0x40))return 0;
+            return si?close_handle(source,1):1;
+        }
+        if(!sp || sp->kind!=PROCESS || !tp || tp->kind!=PROCESS || !o)error=6;
+        else if(!w32_handle_access(ARG64(0),0x40)||!w32_handle_access(ARG64(2),0x40))error=t->error;
+        else if(options&~3u)error=87;
+        else if(ARG64(3) && !output(ARG64(3),w32_ptr_size()))error=87;
+        else {
+            access=options&2 ? (si?handles[si].access:all_access(o->kind)) : map_access(o->kind,access);
+            if(access&0x02000000u)access=(access&~0x02000000u)|all_access(o->kind);
+            if((access&~all_access(o->kind)) || (o->kind==FILE_OBJECT && (access&~(si?handles[si].access:0u))))error=5;
+            else {result=new_handle(o,access,ARG(5)?1:0);if(!result)error=t->error;}
+        }
+        /* Windows closes a valid real source even if duplication fails. Pseudo handles are not owned. */
+        if((options&1)&&si&&sp&&sp->kind==PROCESS&&w32_handle_access(ARG64(0),0x40))close_handle(source,1);
+        if(error){t->error=error;return 0;}
+        if(ARG64(3))w32_wrptr(ARG(3),result);
+        return 1;
+    }
+    if(IS("OpenThread") || IS("OpenProcess")) {
+        (void)object(W32_64?UINT64_MAX-1:0xfffffffeu);
+        uint32_t id=ARG(2),kind=IS("OpenThread")?THREAD:PROCESS;
+        if(!id || (kind==THREAD?id>nthreads:id!=1)){t->error=87;return 0;}
+        uint32_t access=map_access(kind,p);if(access&0x02000000u)access=(access&~0x02000000u)|all_access(kind);
+        if(access&~all_access(kind)){t->error=5;return 0;}
+        object_t *o=0;
+        for(uint32_t i=1;i<=nobjects;i++)if(objects[i].kind==kind&&(kind!=THREAD||(objects[i].thread==id-1&&(objects[i].refs||x86_tasks[id-1].live)))){o=&objects[i];break;}
+        if(!o && kind==PROCESS)o=object(W32_64?UINT64_MAX:0xffffffffu);
+        if(!o){t->error=87;return 0;}
+        return new_handle(o,access,v?1:0);
+    }
+    if(IS("TerminateProcess")) {
+        object_t *o=object(ARG64(0));if(!o||o->kind!=PROCESS){t->error=6;return 0;}
+        if(!w32_handle_access(ARG64(0),1))return 0;
+        w32_exit_guest(v);return 1;
+    }
+    if(IS("GetProcessId") || IS("GetExitCodeProcess") || IS("GetProcessAffinityMask") || IS("SetProcessAffinityMask") || IS("SetPriorityClass")) {
+        object_t *o=object(ARG64(0));if(!o||o->kind!=PROCESS){t->error=6;return 0;}
+        uint32_t right=IS("SetPriorityClass")||IS("SetProcessAffinityMask")?0x200u:0x400u;
+        uint32_t i=handle_index(ARG64(0));
+        if(i && !(handles[i].access&right) && !((IS("GetProcessId")||IS("GetExitCodeProcess")||IS("GetProcessAffinityMask"))&&(handles[i].access&0x1000u))){t->error=5;return 0;}
+        if(IS("GetProcessId"))return 1;
+        if(IS("GetExitCodeProcess")){if(!output(ARG64(1),4)){t->error=87;return 0;}x86_wr32(v,259);return 1;}
+        if(IS("GetProcessAffinityMask")){
+            if(!output(ARG64(1),w32_ptr_size())||!output(ARG64(2),w32_ptr_size())){t->error=87;return 0;}
+            w32_wrptr(v,1);w32_wrptr(ARG(2),1);return 1;
+        }
+        if(IS("SetProcessAffinityMask")){if(ARG64(1)!=1){t->error=87;return 0;}return 1;}
+        if(v!=0x20){t->error=50;return 0;}return 1;
+    }
+    if(IS("GetThreadId")) {
+        uint32_t tid=thread_id(ARG64(0)),i=handle_index(ARG64(0));
+        if(tid==X86_THREADS){t->error=6;return 0;}
+        if(i&&!(handles[i].access&(0x40u|0x800u))){t->error=5;return 0;}
+        return tid+1;
+    }
     if (IS("CreateThread") || IS("_beginthreadex") || IS("_beginthread")) {
         uint32_t h=create_thread(IS("_beginthread")?2:IS("_beginthreadex"));
         return !h&&IS("_beginthread")?(W32_64?UINT64_MAX:FAILED):h;
@@ -430,8 +646,11 @@ static uint64_t thread_api(const char *name) {
         return block(LOCK_WAIT,INFINITE);
     }
     if(IS("GetThreadPriority") || IS("SetThreadPriority") || IS("SuspendThread") || IS("GetThreadContext") || IS("SetThreadContext")) {
-        object_t *o=object(p);uint32_t tid=p==0xfffffffeu?x86_current:o&&o->kind==THREAD?o->thread:X86_THREADS;
+        uint32_t tid=thread_id(ARG64(0));
         if(tid==X86_THREADS){t->error=6;return IS("GetThreadPriority")?0x7fffffffu:IS("SuspendThread")?FAILED:0;}
+        uint32_t right=IS("GetThreadPriority")?0x40u:IS("SetThreadPriority")?0x20u:IS("SuspendThread")?2u:IS("GetThreadContext")?8u:16u;
+        uint32_t hi=handle_index(ARG64(0));
+        if(hi && !(handles[hi].access&right) && !((IS("GetThreadPriority")&&(handles[hi].access&0x800u)) || (IS("SetThreadPriority")&&(handles[hi].access&0x400u)))){t->error=5;return IS("GetThreadPriority")?0x7fffffffu:IS("SuspendThread")?FAILED:0;}
         if(IS("GetThreadPriority"))return (uint64_t)(int64_t)threads[tid].priority;
         if(IS("SetThreadPriority")){
             int32_t priority=(int32_t)v;
@@ -443,6 +662,7 @@ static uint64_t thread_api(const char *name) {
             threads[tid].priority=priority;return 1;
         }
         if(IS("SuspendThread")){
+            if(!x86_tasks[tid].live){t->error=5;return FAILED;}
             uint32_t old=threads[tid].suspended;
             if(old==127){t->error=298;return FAILED;}
             threads[tid].suspended++;x86_tasks[tid].ready=0;
@@ -457,15 +677,15 @@ static uint64_t thread_api(const char *name) {
     if (IS("GetLastError")) return t->error;
     if (IS("SetLastError")) { t->error = p; return 0; }
     if (IS("GetExitCodeThread") || IS("ResumeThread")) {
-        uint32_t tid = x86_current;
-        if (ARG64(0) != (W32_64 ? UINT64_MAX - 1 : 0xfffffffeu)) {
-            object_t *o = object(p);
-            if (!o || o->kind != THREAD) { fail(6); return IS("ResumeThread") ? FAILED : 0; }
-            tid = o->thread;
-        }
+        uint32_t tid=thread_id(ARG64(0)),hi=handle_index(ARG64(0));
+        if(tid==X86_THREADS){fail(6);return IS("ResumeThread")?FAILED:0;}
+        uint32_t rights=IS("ResumeThread")?2u:0x840u;
+        if(hi && !(handles[hi].access&rights)){fail(5);return IS("ResumeThread")?FAILED:0;}
         if (IS("GetExitCodeThread")) {
+            if(!output(ARG64(1),4)){t->error=87;return 0;}
             x86_wr32(v, x86_tasks[tid].live ? 259 : threads[tid].code); return 1;
         }
+        if(!x86_tasks[tid].live){t->error=5;return FAILED;}
         uint32_t old = threads[tid].suspended;
         if (old) { threads[tid].suspended--; if(!threads[tid].suspended && threads[tid].kind==NONE)x86_tasks[tid].ready = 1; }
         return old;
@@ -486,8 +706,10 @@ static uint64_t thread_api(const char *name) {
             t->error = 50; return 0; /* Named cross-process namespaces are outside this profile. */
         }
         if (!event && !mutex && ((int32_t)v < 0 || (int32_t)ARG(2) <= 0 || v > ARG(2))) { t->error = 87; return 0; }
+        int inherit=inherit_from_sa(ARG64(0));if(inherit<0)return 0;
         uint32_t h = new_object(event ? EVENT : mutex ? MUTEX : SEMAPHORE);
         if (!h) return 0;
+        w32_thread_inherit_handle(h,inherit);
         object_t *o = object(h);
         if (event) { o->manual = !!v; o->value = !!ARG(2); }
         else if (mutex) { if (v) { o->owner = x86_current; o->recursion = 1; } }
@@ -495,9 +717,9 @@ static uint64_t thread_api(const char *name) {
         return h;
     }
     if (IS("SetEvent") || IS("ResetEvent") || IS("ReleaseMutex") || IS("ReleaseSemaphore") || IS("CloseHandle")) {
-        object_t *o = object(p);
+        object_t *o = object(ARG64(0));
         if (!o) { t->error = 6; return 0; }
-        if (IS("CloseHandle")) { o->closed = 1; return 1; }
+        if(!w32_handle_access(ARG64(0),IS("ReleaseMutex")?1:2))return 0;
         if (IS("SetEvent") || IS("ResetEvent")) {
             if (o->kind != EVENT) { t->error = 6; return 0; }
             o->value = IS("SetEvent"); wake_waiters(); return 1;
