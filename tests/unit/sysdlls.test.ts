@@ -20,13 +20,13 @@ const cases = [
   'ime-absent','ime-disassociate','ime-invalid-context','ime-release','ime-composition','ime-window',
   'ip-wide-pointer','ip-adapters','ip-empty-list','ip-family','ip-size-pointer','ip-route','ip-route-family','path-wide-pointer','path-self','path-missing',
   'di-version','di-create','di-identity','di-refcount','di-interface','di-callback','di-enumerate','di-no-forcefeedback','di-keyboard','di-mouse','di-device-identity',
-  'di-ansi','di-release','di-pad-absent','di-pad-discovery','di-caps','di-info','di-cooperative','di-exclusive','di-format-axis-mode','di-format-missing-object','di-format','di-not-acquired','di-acquire','di-acquire-again','di-state-size','di-format-acquired',
+  'di-ansi','di-release','di-pad-absent','di-pad-discovery','di-caps','di-info','di-cooperative','di-exclusive','di-format-axis-mode','di-format-missing-object','di-format-reserved-type','di-format','di-not-acquired','di-acquire','di-acquire-again','di-state-size','di-format-acquired',
   'di-wide-pointer','di-file-unsupported','di-poll','di-unsupported','di-status','di-unacquire','di-live-keyboard','di-live-mouse',
-  'wsa-wide-pointer','wsa-restart','wsa-not-started','wsa-version-reject','wsa-v1-layout','wsa-v2-layout','wsa-nesting','wsa-cleanup',
+  'wsa-wide-pointer','wsa-restart','wsa-not-started','wsa-version-reject','wsa-v1-layout','wsa-v2-layout','wsa-v21-negotiation','wsa-nesting','wsa-cleanup',
   'socket-family','socket-type','socket-handle','socket-byte-order','socket-inet-addr','socket-connect','socket-wsaconnect',
   'socket-bind-nonlocal','socket-bind','socket-name','socket-listen','socket-nonblocking','socket-accept','socket-option','socket-send','socket-recv',
   'socket-sendto','socket-datagram-sendto','socket-recvfrom','socket-fdset','socket-select','socket-close','socket-datagram-bind','socket-offline-blocking','socket-datagram-nonblocking',
-  'socket-wide-pointer','socket-ephemeral-collision','socket-cooperative-worker','socket-ipv6','socket-invalid-address','socket-addrinfo','socket-nameinfo','socket-freeaddr','socket-no-dns',
+  'socket-wide-pointer','socket-ephemeral-collision','socket-cooperative-worker','socket-ipv6','socket-invalid-address','socket-addrinfo','socket-addrinfo-list','socket-nameinfo','socket-freeaddr','socket-no-dns',
 ];
 it.each(cases)('%s contract: catches wrong result/error/output or layout', name => {
   expect(h.logs, h.logs.join('\n')).toContain(`guest: sysdlls PASS ${name}`);
@@ -49,6 +49,8 @@ it('DirectInput gamepad discovery, data format and disconnected-device errors', 
   expect(h.logs).toContain('guest: sysdlls PASS di-pad-subset');
   expect(h.logs).toContain('guest: sysdlls subset y=24575');
   expect(h.logs).toContain('guest: sysdlls pad x=49151 y=24575 button=128 pov=4500 absent=4294967295');
+  h.input.gamepads[0].axes=[32767,-32767,0,0];await h.stepAsync(2);
+  expect(h.logs).toContain('guest: sysdlls pad x=65535 y=0 button=128 pov=4500 absent=4294967295');
   h.input.gamepads[0].connected=false;await h.stepAsync(2);
   expect(h.logs).toContain('guest: sysdlls PASS di-pad-disconnect');
 });

@@ -12,7 +12,7 @@ static uint32_t adapters(void) {
 static uint32_t best(void) {
     if (!w32_sys_span(ARG64(0),2) || !w32_sys_span(ARG64(1),4)) return 87;
     uint32_t family = x86_rd16(ARG(0));
-    if (family != 2 && family != 23) return 10047;
+    if (family != 2 && family != 23) return 87; /* ERROR_INVALID_PARAMETER (IP Helper, not Winsock) */
     if (!w32_sys_span(ARG64(0),family==2?16:28)) return 87;
     return 1231; /* ERROR_NETWORK_UNREACHABLE; output untouched */
 }

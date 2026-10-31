@@ -23,7 +23,7 @@ static uint32_t startup(void) {
     if (major<1) return 10092;
     uint32_t n=W32_64?408:400;
     for(uint32_t i=0;i<n;i++) x86_wr8(p+i,0);
-    uint32_t selected=major==1 ? (minor?0x101:1) : (major==2 && minor==0 ? 2 : 0x202);
+    uint32_t selected=major==1 ? (minor?0x101:1) : (major==2 && minor<2 ? (minor<<8)|2 : 0x202);
     x86_wr16(p,selected); x86_wr16(p+2,0x202);
     w32_pstr(p+(W32_64?16:4),257,0,"BGT isolated Winsock");
     w32_pstr(p+(W32_64?273:261),129,0,"Offline");
@@ -244,6 +244,7 @@ static uint32_t getaddr(void) {
     if(type&&type!=1&&type!=2)return gai_error(10044);
     if(protocol&&protocol!=6&&protocol!=17)return gai_error(10043);
     if((type==1&&protocol==17)||(type==2&&protocol==6))return gai_error(10043);
+    uint32_t both=!type&&!protocol;
     if(!type)type=protocol==17?2:1;
     if(!protocol)protocol=type==1?6:17;
     uint32_t port=0;
@@ -260,12 +261,21 @@ static uint32_t getaddr(void) {
     uint32_t slot;for(slot=0;slot<64;slot++)if(!results[slot].p)break;
     if(slot==64)return gai_error(8);
     uint32_t size=W32_64?48:32, alen=family==2?16:28;
-    uint32_t p=w32_heap_alloc(size+alen+256,1);if(!p)return gai_error(8);results[slot].p=p;
+    uint32_t stride=size+alen+256;
+    uint32_t p=w32_heap_alloc(stride*(both?2:1),1);if(!p)return gai_error(8);results[slot].p=p;
     x86_wr32(p,flags);x86_wr32(p+4,family);x86_wr32(p+8,type);x86_wr32(p+12,protocol);
     w32_wrptr(p+16,alen);w32_wrptr(p+(W32_64?32:24),p+size);
     if((flags&2)&&ARG(0)){w32_wrptr(p+(W32_64?24:20),p+size+alen);w32_pstr(p+size+alen,256,0,node);}
     x86_wr16(p+size,family);x86_wr16(p+size+2,swap16(port));
     for(uint32_t i=0;i<(family==2?4u:16u);i++)x86_wr8(p+size+(family==2?4:8)+i,b[i]);
+    if(both) {
+        uint32_t q=p+stride;
+        for(uint32_t i=0;i<size+alen;i++)x86_wr8(q+i,x86_rd8(p+i));
+        x86_wr32(q+8,2);x86_wr32(q+12,17);
+        w32_wrptr(q+(W32_64?24:20),0); /* canonical name belongs to the first result */
+        w32_wrptr(q+(W32_64?32:24),q+size);
+        w32_wrptr(p+(W32_64?40:28),q);
+    }
     w32_wrptr(ARG(3),p);return 0;
 }
 static uint32_t freeaddr(void) {

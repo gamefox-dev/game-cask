@@ -83,7 +83,7 @@ static void desktop(void) {
     size=123;CHECK(GetAdaptersAddresses(0,0,0,0,HIGH(&size))==ERROR_INVALID_PARAMETER&&size==123,"ip-wide-pointer");
     struct sockaddr_in addr={0};addr.sin_family=AF_INET;DWORD index=999;
     CHECK(GetBestInterfaceEx((void*)&addr,&index)==ERROR_NETWORK_UNREACHABLE&&index==999,"ip-route");
-    addr.sin_family=999;CHECK(GetBestInterfaceEx((void*)&addr,&index)==WSAEAFNOSUPPORT,"ip-route-family");
+    addr.sin_family=999;CHECK(GetBestInterfaceEx((void*)&addr,&index)==ERROR_INVALID_PARAMETER,"ip-route-family");
     WCHAR path[512];GetModuleFileNameW(0,path,512);
     CHECK(PathFileExistsW(path),"path-self");
     CHECK(!PathFileExistsW(HIGH(path)),"path-wide-pointer");
@@ -126,6 +126,8 @@ static void directinput(void) {
     DIOBJECTDATAFORMAT unsupported={&GUID_Slider,0,DIDFT_ABSAXIS|DIDFT_ANYINSTANCE,0};
     format=(DIDATAFORMAT){sizeof format,sizeof unsupported,DIDF_RELAXIS,4,1,&unsupported};
     CHECK(IDirectInputDevice8_SetDataFormat(mouse,&format)==DIERR_OBJECTNOTFOUND,"di-format-missing-object");
+    unsupported=(DIOBJECTDATAFORMAT){0,0,0x4000000c,0};format.dwDataSize=1;
+    CHECK(IDirectInputDevice8_SetDataFormat(mouse,&format)==DIERR_INVALIDPARAM,"di-format-reserved-type");
     CHECK(IDirectInputDevice8_SetDataFormat(keyboard,&c_dfDIKeyboard)==S_OK&&IDirectInputDevice8_SetDataFormat(mouse,&c_dfDIMouse)==S_OK,"di-format");
     BYTE keys[256];CHECK(IDirectInputDevice8_GetDeviceState(keyboard,sizeof keys,keys)==DIERR_NOTACQUIRED,"di-not-acquired");
     CHECK(IDirectInputDevice8_Acquire(keyboard)==S_OK&&IDirectInputDevice8_Acquire(mouse)==S_OK,"di-acquire");
@@ -155,6 +157,7 @@ static void networking(void) {
     CHECK(WSAStartup(MAKEWORD(1,1),&data)==0&&data.wVersion==MAKEWORD(1,1)&&data.wHighVersion==MAKEWORD(2,2)&&data.szDescription[0],"wsa-v1-layout");
     CHECK(WSAStartup(MAKEWORD(2,2),&data)==0&&data.wVersion==MAKEWORD(2,2),"wsa-v2-layout");
     CHECK(WSACleanup()==0,"wsa-nesting");
+    CHECK(WSAStartup(MAKEWORD(2,1),&data)==0&&data.wVersion==MAKEWORD(2,1)&&WSACleanup()==0,"wsa-v21-negotiation");
     CHECK(socket(999,SOCK_STREAM,0)==INVALID_SOCKET&&WSAGetLastError()==WSAEAFNOSUPPORT,"socket-family");
     CHECK(socket(AF_INET,999,0)==INVALID_SOCKET&&WSAGetLastError()==WSAESOCKTNOSUPPORT,"socket-type");
     SOCKET s=socket(AF_INET,SOCK_STREAM,0);CHECK(s!=INVALID_SOCKET,"socket-handle");
@@ -191,6 +194,9 @@ static void networking(void) {
     char host[64],service[16];
     CHECK(getnameinfo(result->ai_addr,(socklen_t)result->ai_addrlen,host,sizeof host,service,sizeof service,NI_NUMERICHOST|NI_NUMERICSERV)==0&&!strcmp(host,"192.0.2.1")&&!strcmp(service,"443"),"socket-nameinfo");
     freeaddrinfo(result);
+    hints.ai_socktype=0;
+    CHECK(getaddrinfo("192.0.2.1","443",&hints,&result)==0&&result&&result->ai_socktype==SOCK_STREAM&&result->ai_next&&result->ai_next->ai_socktype==SOCK_DGRAM&&result->ai_next->ai_protocol==IPPROTO_UDP&&!result->ai_next->ai_next,"socket-addrinfo-list");
+    freeaddrinfo(result);hints.ai_socktype=SOCK_STREAM;
     int freed=1;
     for(int i=0;i<80;i++) {result=0;if(getaddrinfo("192.0.2.1","443",&hints,&result)||!result){freed=0;break;}freeaddrinfo(result);}
     CHECK(freed,"socket-freeaddr");

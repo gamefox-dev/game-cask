@@ -86,7 +86,9 @@ static uint32_t setformat(void) {
     if((o->kind==2&&x86_rd32(p+8)!=2)||(o->kind>=3&&x86_rd32(p+8)!=1))return 0x80004001u;
     for(uint32_t i=0;i<count;i++) {
         uint32_t q=list+i*obj,off=x86_rd32(q+w32_ptr_size()),type=x86_rd32(q+w32_ptr_size()+4),n=(type&12)?1:4;
-        if(off>size||n>size-off||(w32_rdptr(q)&&!w32_sys_span(w32_rdptr(q),16)))return 0x80070057u;
+        uint32_t base=type&255;
+        if((type&~0x80ffff1fu)||(base!=1&&base!=2&&base!=3&&base!=4&&base!=8&&base!=12&&base!=16)||
+            off>size||n>size-off||(w32_rdptr(q)&&!w32_sys_span(w32_rdptr(q),16)))return 0x80070057u;
     }
     uint32_t copy=w32_heap_alloc(count*obj+8,0);if(!copy)return 0x8007000eu;
     for(uint32_t i=0;i<count*obj;i++)x86_wr8(copy+i,x86_rd8(list+i));
@@ -149,7 +151,7 @@ static uint32_t state(void) {
         if(!type)continue;
         if(type&0x40000000u){x86_wr32(ARG(2)+off,~0u);continue;}
         if(type&12) {uint32_t v=o->kind==1?keys[id&255]:o->kind==2?(id<3?((w32_io->pointer_buttons>>id)&1)*128:0):(id<16?((pad.buttons>>id)&1)*128:0);x86_wr8(ARG(2)+off,v);}
-        else {int32_t v=0;if(o->kind==2)v=id==0?w32_io->pointer_x-o->x:id==1?w32_io->pointer_y-o->y:0;else if(o->kind>=3)v=(type&16)?pov_angle(pad.buttons):id<4?32767+pad.axes[id]:id<6?pad.triggers[id-4]:0;x86_wr32(ARG(2)+off,(uint32_t)v);}
+        else {int32_t v=0;if(o->kind==2)v=id==0?w32_io->pointer_x-o->x:id==1?w32_io->pointer_y-o->y:0;else if(o->kind>=3)v=(type&16)?pov_angle(pad.buttons):id<4?(int32_t)(((int64_t)32767+pad.axes[id])*65535/65534):id<6?pad.triggers[id-4]:0;x86_wr32(ARG(2)+off,(uint32_t)v);}
     }o->x=w32_io->pointer_x;o->y=w32_io->pointer_y;return 0;
 }
 static uint32_t cooperative(void) {
