@@ -18,6 +18,7 @@ import { existsSync, readFileSync, readdirSync, lstatSync, readlinkSync } from '
 import { join, relative, sep, resolve, isAbsolute } from 'node:path';
 import { ROOT as KIT_ROOT } from '../build/toolchain.mjs';
 import { SECRET_PATTERNS } from './redact.mjs';
+import { hasSecret } from './scan.mjs';
 
 const BINARY_EXT = /\.(exe|com|dll|ovl|drv|bin|img|iso|cue|mdf|nrg|ccd|chd|rom|gba|gb|gbc|nes|sfc|smc|fig|n64|z64|v64|gen|smd|sms|gg|pce|nds|3ds|xci|nsp|wad|grp|pak|dat|arc|lib|sav|state)$/i;
 const MAX_BINARY = 1024 * 1024;
@@ -136,7 +137,7 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
       if (buf.length > MAX_BINARY) add(`binary file over ${MAX_BINARY} bytes`);
     } else {
       const text = buf.toString('utf8');
-      for (const s of SECRET_PATTERNS) if (s.re.test(text)) add(`possible ${s.name}`);
+      for (const s of SECRET_PATTERNS) if (hasSecret(text, s)) add(`possible ${s.name}`);
     }
     if (/(^|\/)\.env(\.|$)/.test(p) && !p.endsWith('.env.example')) add('.env file');
   }
