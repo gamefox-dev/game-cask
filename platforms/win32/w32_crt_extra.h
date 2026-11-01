@@ -101,42 +101,6 @@ static uint64_t c_get_osfhandle(void) {
 }
 static uint64_t c_getpid(void) { return 1; }
 static uint64_t c_wfsopen(void) { if(ARG(2)!=0x10&&ARG(2)!=0x20&&ARG(2)!=0x30&&ARG(2)!=0x40){crt_errno(22);return 0;}if(ARG(2)!=0x40){crt_errno(13);return 0;}return file_open(1,0); }
-static uint64_t stat_file(crt_file_t *f,uint32_t out) {
-    if(!f)return UINT64_MAX;if(!out){crt_errno(22);return UINT64_MAX;}
-    memset(cwmem(out,56),0,56);
-    x86_wr16(out+6,((f->node||f->handle)?0x8000:0x2000)|((f->node||f->handle||f->read)?0x100:0)|((f->node||f->write)?0x80:0));x86_wr16(out+8,1);
-    x86_wr64(out+24,file_length(f));return 0;
-}
-static uint64_t c_fstat64(void) { return stat_file(cfd(ARG(0)),ARG(1)); }
-static uint64_t c_wstat64(void) {
-    char name[512];w32_gstr(ARG(0),1,name,sizeof name);w32_fs_normalize(name,name);
-    for(crt_node_t *n=file_nodes;n;n=n->next)if(!strcmp(n->name,name)){crt_file_t f={0};f.node=n;return stat_file(&f,ARG(1));}
-    uint32_t handle=w32_file_open_str(name,0);if(!handle){crt_errno(2);return UINT64_MAX;}
-    crt_file_t f={0};f.handle=handle;uint64_t result=stat_file(&f,ARG(1));w32_file_close_h(handle);return result;
-}
-static uint64_t remove_file(int wide) {
-    char name[512];w32_gstr(ARG(0),wide,name,sizeof name);w32_fs_normalize(name,name);
-    for(crt_node_t **p=&file_nodes;*p;p=&(*p)->next)if(!strcmp((*p)->name,name)){
-        crt_node_t *n=*p;for(unsigned i=0;i<64;i++)if(cfiles[i].open&&cfiles[i].node==n){crt_errno(13);return UINT64_MAX;}
-        *p=n->next;w32_fs_remove(name);w32_heap_free(n->data);free(n);return 0;
-    }
-    uint32_t h=w32_file_open_str(name,0);if(h){w32_file_close_h(h);crt_errno(13);}else crt_errno(2);return UINT64_MAX;
-}
-static uint64_t c_remove(void) { return remove_file(0); }
-static uint64_t c_wunlink(void) { return remove_file(1); }
-static uint64_t c_wrename(void) {
-    char a[512],b[512];w32_gstr(ARG(0),1,a,sizeof a);w32_gstr(ARG(1),1,b,sizeof b);w32_fs_normalize(a,a);w32_fs_normalize(b,b);
-    for(crt_node_t *n=file_nodes;n;n=n->next)if(!strcmp(n->name,b)){crt_errno(17);return UINT64_MAX;}
-    uint32_t h=w32_file_open_str(b,0);if(h){w32_file_close_h(h);crt_errno(17);return UINT64_MAX;}
-    for(crt_node_t *n=file_nodes;n;n=n->next)if(!strcmp(n->name,a)){w32_fs_remove(a);strcpy(n->name,b);w32_fs_update(b,n->size);return 0;}
-    h=w32_file_open_str(a,0);if(h){w32_file_close_h(h);crt_errno(13);}else crt_errno(2);return UINT64_MAX;
-}
-static uint64_t c_wchdir(void) {
-    char name[512];w32_gstr(ARG(0),1,name,sizeof name);
-    if(w32_streqi(name,"C:\\GAME")||w32_streqi(name,"C:\\GAME\\")||!strcmp(name,"."))return 0;
-    crt_errno(2);return UINT64_MAX;
-}
-static uint64_t c_wrmdir(void) { crt_errno(13);return UINT64_MAX; } /* shipped volume readonly */
 static uint64_t c_freopen_s(void) {
     uint32_t out=ARG(0);if(!out)return 22;x86_wr64(out,0);
     crt_file_t *old=cfile(ARG(3));if(!old||!ARG(1)||!ARG(2)){crt_errno(22);return 22;}
@@ -199,4 +163,36 @@ static uint64_t c_perror(void) {
     const char *s=errstr(x86_rd32(crt_errno_cell()));
     if(*prefix){file_write(&cfiles[2],(const uint8_t *)prefix,(uint32_t)strlen(prefix));file_write(&cfiles[2],(const uint8_t *)": ",2);}
     file_write(&cfiles[2],(const uint8_t *)s,(uint32_t)strlen(s));file_write(&cfiles[2],(const uint8_t *)"\n",1);return 0;
+}
+
+/* Hooks used by the shared VFS operations (rename/remove/rmdir/fstat) to reach CRT-owned mutable data. */
+static int crt_key_under(const char *key,const char *root,int subtree) {
+    size_t n=strlen(root);
+    if(strncmp(key,root,n))return 0;
+    return key[n]==0||(subtree&&key[n]=='/');
+}
+int w32_crt_files_busy(const char *key,int subtree) {
+    for(unsigned i=0;i<64;i++)if(cfiles[i].open&&cfiles[i].node&&crt_key_under(cfiles[i].node->name,key,subtree))return 1;
+    return 0;
+}
+void w32_crt_files_drop(const char *key) {
+    for(crt_node_t **p=&file_nodes;*p;p=&(*p)->next)if(!strcmp((*p)->name,key)){
+        crt_node_t *n=*p;*p=n->next;w32_heap_free(n->data);free(n);return;
+    }
+}
+void w32_crt_files_rename(const char *from,const char *to) {
+    size_t n=strlen(from);
+    for(crt_node_t *c=file_nodes;c;c=c->next)if(crt_key_under(c->name,from,1)){
+        char moved[512];strcpy(moved,to);strcat(moved,c->name+n);strcpy(c->name,moved);
+    }
+}
+int w32_crt_fd_stat(int fd,w32_fs_info_t *info,int *chr) {
+    crt_file_t *f=cfd((uint32_t)fd);if(!f)return 0;
+    memset(info,0,sizeof *info);*chr=0;
+    if(!f->node&&!f->handle){*chr=1;return 1;}
+    if(f->node&&!w32_fs_key_info(f->node->name,info)){ /* anonymous tmpfile: no index entry */
+        info->attrs=0x20;info->created=f->node->created;info->accessed=f->node->accessed;info->written=f->node->written;
+    }
+    if(f->handle){info->attrs=0x21;info->shipped=1;info->created=info->accessed=info->written=w32_fs_origin();}
+    info->size=file_length(f);return 1;
 }

@@ -127,7 +127,7 @@ int main(void) {
     CHECK("Find-wildcard",find!=INVALID_HANDLE_VALUE&&!wcscmp(fd.cFileName,L"contracts.exe"));K("FindClose",find,0,0,0,0,0);
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"nested/*.*",&fd,0,0,0,0);unsigned enumerated=0;
     if(find!=INVALID_HANDLE_VALUE){do{enumerated++;}while(K("FindNextFileW",find,&fd,0,0,0,0));K("FindClose",find,0,0,0,0,0);}
-    CHECK("Find-shipped-directory",enumerated==2);
+    CHECK("Find-shipped-directory",enumerated==4); /* ".", ".." and the two shipped files: non-root directories list dot entries as on Windows */
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"streamed.?xt",&fd,0,0,0,0);
     CHECK("Find-streamed-file",find!=INVALID_HANDLE_VALUE&&fd.nFileSizeLow>0);K("FindClose",find,0,0,0,0,0);
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"writable",&fd,0,0,0,0);
@@ -182,8 +182,8 @@ int main(void) {
     CHECK("_fdopen-owner-closed",fgetc(alias)==EOF);
     CHECK("_wrename",C("_wrename",L"scratch",L"renamed",0,0,0,0)==0);
     CHECK("_wunlink",C("_wunlink",L"renamed",0,0,0,0,0)==0);
-    CHECK("_wchdir",C("_wchdir",L".",0,0,0,0,0)==0&&C("_wchdir",L"missing",0,0,0,0,0)==UINT64_MAX);
-    CHECK("_wrmdir",C("_wrmdir",L"C:\\GAME",0,0,0,0,0)==UINT64_MAX);
+    CHECK("_wchdir",C("_wchdir",L".",0,0,0,0,0)==0&&neg(C("_wchdir",L"missing",0,0,0,0,0))==-1);
+    CHECK("_wrmdir",neg(C("_wrmdir",L"C:\\GAME",0,0,0,0,0))==-1);
     file=fopen("again","w+");FILE *reopened=0;
     CHECK("freopen_s",C("freopen_s",&reopened,"again","r",file,0,0)==0&&reopened==file);fclose(file);
     CHECK("remove",C("remove","again",0,0,0,0,0)==0);

@@ -3,16 +3,6 @@ static uint32_t k_fail(uint32_t error) { last_error = error; return 0; }
 static uint32_t k_no_console(void) { return k_fail(6); }
 static uint32_t k_no_process(void) { return k_fail(50); }
 static uint32_t k_readonly_volume(void) { return k_fail(5); }
-static uint32_t k_GetCurrentDirectoryW(void) {
-    const char *s = "C:\\GAME"; uint32_t n = 7;
-    if (ARG(0) <= n) return n + 1;
-    w32_pstr(ARG(1), ARG(0), 1, s); return n;
-}
-static uint32_t k_SetCurrentDirectoryW(void) {
-    char s[512]; w32_gstr(ARG(0), 1, s, sizeof s);
-    if (w32_streqi(s,"C:\\GAME") || w32_streqi(s,"C:\\GAME\\") || w32_streqi(s,".")) return 1;
-    return k_fail(3);
-}
 static struct { char name[128]; uint32_t value; } env_vars[64];
 static uint32_t k_GetEnvironmentVariableW(void) {
     char name[128]; w32_gstr(ARG(0), 1, name, sizeof name);
