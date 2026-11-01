@@ -13,6 +13,8 @@ import { buildGame } from '../../tools/build/build.mjs';
 import { leaseCache, pruneCache } from '../../tools/build/cache.mjs';
 // @ts-expect-error ESM tool
 import { withBuildWriters } from '../../tools/build/exec.mjs';
+// @ts-expect-error CC0 native reference build tool
+import { nativeScale } from '../../tools/build/native-scale.mjs';
 // @ts-expect-error CC0 source generator
 import { generate } from '../../examples/x64-scale/generate.mjs';
 
@@ -42,11 +44,9 @@ it('generator is deterministic and native checksum equals the fully lifted large
   try {
     const tiny=generate(dir,8),one=readFileSync(join(dir,tiny[0]));
     generate(dir,8);expect(readFileSync(join(dir,tiny[0]))).toEqual(one);
-    const generated=join(ROOT,'node_modules/.cache/bgt/pipeline/x64-scale/fixture/generated');
-    const sources=JSON.parse(readFileSync(join(generated,'sources.json'),'utf8')) as string[];
-    const exe=join(dir,'native');
-    execFileSync('cc',['-O2',...sources.map((f)=>join(generated,f)),'-o',exe]);
-    const native=execFileSync(exe,[],{encoding:'utf8'}).trim();
+    // CI prebuilds this exact reference outside the test deadline. Local runs
+    // reuse per-TU native objects; compiler/flags/source/header changes invalidate it.
+    const native=execFileSync(nativeScale(),[],{encoding:'utf8'}).trim();
     const h=await loadHeadless('x64-scale');await h.stepAsync(300);
     expect(h.logs.some((s)=>s.includes(native)),h.logs.join('\n')).toBe(true);
     expect(h.logs.some((s)=>s.includes('scale tick 240'))).toBe(true);

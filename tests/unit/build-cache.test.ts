@@ -64,6 +64,20 @@ it('real compiler dependencies invalidate exactly affected objects, including tr
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 30_000);
 
+it('native host reference objects use the same dependency cache without a zig-only cc prefix', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-native-cache-'));
+  try {
+    const file = join(dir, 'reference.c'); writeFileSync(file, 'int reference(void){return 42;}\n');
+    const cfg = { sources: [file], flags: ['-O2'], includes: [], compiler: { path: 'cc', prefix: [], version: 'native-test' }, cache: join(dir, 'objects'), root: dir };
+    const first = prepareObjects(cfg);
+    expect((await compile({ objects: first })).objects_compiled).toBe(1);
+    expect((await compile({ objects: prepareObjects(cfg) })).objects_cached).toBe(1);
+    writeFileSync(file, 'int reference(void){return 43;}\n');
+    const changed = prepareObjects(cfg); expect(changed[0].out).not.toBe(first[0].out);
+    expect((await compile({ objects: changed })).objects_compiled).toBe(1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 it('clone-neutral keys and compiler prefix maps share objects without changing __FILE__ bytes', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-clones-'));
   try {

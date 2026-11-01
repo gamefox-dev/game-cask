@@ -64,7 +64,9 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
   const hash = (f) => { if (!hashes.has(f)) hashes.set(f, digest(readFileSync(f))); return hashes.get(f); };
   const executable = compiler.path.includes(sep) ? compiler.path : process.env.PATH.split(':').map((p) => join(p, compiler.path)).find(existsSync);
   if (!executable) throw new Error(`compiler not found: ${compiler.path}`);
+  const prefix = compiler.prefix ?? ['cc'];
   const identity = [compiler.version, hash(realpathSync(executable))];
+  if (compiler.prefix) identity.push(prefix);
   flags = portableFlags(flags, root);
   // Addition/removal can change include resolution even if every old dependency is unchanged.
   // Contents are deliberately NOT included here: unrelated profile headers cannot invalidate lift objects.
@@ -95,7 +97,7 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
           previous.dependencies.every(([f, h]) => existsSync(f) && hash(f) === h)) deps = previous.dependencies;
     } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
     if (!deps) {
-      const make = execFileSync(compiler.path, ['cc', ...flags, '-M', '-MT', 'bgt', file], {
+      const make = execFileSync(compiler.path, [...prefix, ...flags, '-M', '-MT', 'bgt', file], {
         cwd: root, encoding: 'utf8', maxBuffer: 16 << 20, stdio: ['ignore', 'pipe', 'inherit'],
       });
       deps = [...new Set([file, ...parseDependencies(make).map((f) => resolve(root, f))])].sort().map((f) => [f, hash(f)]);
@@ -103,6 +105,6 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       writeFileSync(temp, JSON.stringify({ inventory, sourceHash, dependencies: deps })); renameSync(temp, manifest);
     }
     const key = objectKey({ compiler: identity, flags, file, dependencies: deps, root });
-    return { out: join(cache, key + '.o'), args: [compiler.path, 'cc', ...flags, '-c', file] };
+    return { out: join(cache, key + '.o'), args: [compiler.path, ...prefix, ...flags, '-c', file] };
   });
 }

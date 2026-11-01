@@ -36,7 +36,8 @@ products, dependency manifests, packages and reports remain local: this is **not
 Do not share between untrusted users or publish this directory: compiled objects can contain private program data.
 Network filesystems without reliable POSIX locking/atomic rename are not supported.
 
-Each class is mtime-LRU bounded to its budget after collection (up to 1 GiB combined by default). Reads refresh LRU.
+Each shared payload class is mtime-LRU bounded to its budget after collection (up to 1 GiB combined by default).
+The CC0 scale fixture's clone-local native reference has an additional 64 MiB object budget. Reads refresh LRU.
 Live leases pin all inputs through linking/copying; concurrent builds' active working sets can temporarily exceed
 budgets. The existing generation guardian drains orphaned subprocess writers before expiring leases. Unique temp
 files and atomic rename publish only completed payloads. A bounded 256 kernel-lock stripes per class coordinate
@@ -83,6 +84,10 @@ always honors the explicit target. Both paths use the exact same object and Asyn
 The normal required CI job sets `BGT_CI_LIGHT=1`: it omits only `tests/unit/build-chunks.test.ts`, the scale browser
 spec and the scale example from bulk builds. A second unconditional required `scale` job runs the original scale
 unit file (including native checksum/chunk/cache tests), original WebGL2 browser spec and 300-frame differential
-oracle, and explicitly check-builds the scale fixture. No assertions are removed in aggregate. Each job has a
-45-minute ceiling for margin; timing estimates and actual CI evidence are recorded in the handoff. The optional
+oracle, and explicitly check-builds the scale fixture. No assertions are removed in aggregate. The functional job has a
+60-minute ceiling (margin over the measured 38m32s), and scale has 45 minutes. Two bounded file workers overlap pure
+unit files. Check-builds and packages already share objects: the measured CI bulk package build after lint was only
+18 seconds; per-example stdout now reports compile/cache/link/Asyncify phases explicitly. The scale native reference
+uses per-TU compiler dependency caching and bounded jobs. Setup prebuilds it outside the test timer; all checksum
+assertions and the original 120-second deadline remain. Timings and actual CI evidence are recorded in the handoff. The optional
 WebGPU hardware job remains a full run, not a substitute for either required job.

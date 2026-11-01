@@ -17,7 +17,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     # LANE-K7i: required functional job; scale coverage lives in the required job below.
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       BGT_CI_LIGHT: '1'
     steps:
@@ -45,7 +45,9 @@ jobs:
       - run: npm run lint
       - name: Wasm sample build
         run: npm run build:examples
-      - run: npm test -- --maxWorkers=1
+      # Pipeline objects/Asyncify are already warm from lint's check-builds.
+      # Two file workers bound build concurrency but overlap pure unit files.
+      - run: npm test -- --maxWorkers=2
       - name: Browser E2E (WebGL 2 fallback, software rendering)
         # Keep boot, fallback, guest/lifting/logic assertions; annotate skipped strict pixels.
         run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
@@ -76,6 +78,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Scale check-build (same object cache as package builds)
         run: node tools/build/build.mjs examples/x64-scale --check
+      - name: Native reference compilation (outside the unchanged 120s test deadline)
+        run: node tools/build/native-scale.mjs
       - name: Scale native checksum and unchanged chunk/cache unit assertions
         run: npm test -- tests/unit/build-chunks.test.ts --maxWorkers=1
       - name: Scale browser assertions (software WebGL 2)
