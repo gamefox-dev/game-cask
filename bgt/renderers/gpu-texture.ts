@@ -97,3 +97,23 @@ export function downsampleBox(format: number, src: Uint8Array, sw: number, sh: n
   }
   return out;
 }
+
+/** Recovery shadows for generated levels, derived only from uploads (rendered contents are lost on recovery).
+ * Keep these current so a later partial upload does not restore stale pre-generation bytes around its region. */
+export function generatedMipShadows(t: CanonicalTexture, base: number, data: Uint8Array<ArrayBuffer>):
+  Array<{ mip: number; data: Uint8Array<ArrayBuffer> }> {
+  const levels: Array<{ mip: number; data: Uint8Array<ArrayBuffer> }> = [];
+  let prev = data, e = mipExtent(t, base);
+  for (let mip = base + 1; mip < t.mips; mip++) {
+    const n = mipExtent(t, mip);
+    let next: Uint8Array<ArrayBuffer>;
+    if (t.dimension === 2) {
+      const stride = e.width * e.height * TEXEL_BYTES[t.format], outStride = n.width * n.height * TEXEL_BYTES[t.format];
+      next = new Uint8Array(outStride * t.depth);
+      for (let layer = 0; layer < t.depth; layer++) next.set(downsampleBox(t.format,
+        prev.subarray(layer * stride, (layer + 1) * stride), e.width, e.height, 1, n.width, n.height, 1), layer * outStride);
+    } else next = downsampleBox(t.format, prev, e.width, e.height, e.depth, n.width, n.height, n.depth);
+    levels.push({ mip, data: next }); prev = next; e = n;
+  }
+  return levels;
+}

@@ -3,7 +3,7 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
-import { TEXEL_BYTES, canonicalize, downsampleBox, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
+import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
 const formats: GPUTextureFormat[] = [
@@ -28,7 +28,8 @@ const vertexFormats: GPUVertexFormat[] = [
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer> }
 interface TextureResource {
-  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; generated?: number;
+  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[];
+  generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[] }
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
@@ -93,10 +94,12 @@ export class WebGPUCommands implements GpuBackend {
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
-      for (const item of t.uploads) this.execute(item);
-      if (t.generated !== undefined && t.desc.dimension !== 1) {
-        this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated] });
+      if (t.generated && t.desc.dimension !== 1) {
+        this.execute(t.generated.source);
+        this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated.base] });
       }
+      for (const item of t.uploads) if (!t.generated || t.desc.dimension === 1 ||
+        item.words[1] < t.generated.base || t.generated.overridden.has(item.words[1])) this.execute(item);
     }
     for (const [, s] of samplers) this.execute({ kind: 'gpu', op: OP.SAMPLER_CREATE_EX, words: s.words });
     for (const [, s] of shaders) this.execute({ ...s.item, complete: undefined });
@@ -113,12 +116,14 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   execute(item: GpuItem): number {
-    if (this.inactive) { item.complete?.(E_IO, 'WebGPU device is lost'); return E_IO; }
+    if (this.inactive) {
+      item.complete?.(E_IO, 'WebGPU device is lost'); item.readback?.(undefined, E_IO); return E_IO;
+    }
     try { this.run(item); return 0; }
     catch (e) {
       const message = `GPU opcode 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.SHADER_CREATE) this.failedShaders.set(item.words[0], item);
-      item.complete?.(E_IO, message);
+      item.complete?.(E_IO, message); item.readback?.(undefined, E_IO);
       if (item.op !== OP.SHADER_CREATE) this.error(message);
       return E_IO;
     }
@@ -173,6 +178,7 @@ export class WebGPUCommands implements GpuBackend {
       case OP.TEXTURE_UPDATE_EX: {
         const t = this.textures.get(h)!, bpp = TEXEL_BYTES[t.desc.format];
         const [, mip, x, y, z, width, height, depth] = w;
+        t.generated?.overridden.add(mip);
         d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
           { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
@@ -295,11 +301,13 @@ export class WebGPUCommands implements GpuBackend {
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
     const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
-    t.generated = base;
+    const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
+    const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
+    const source: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, base, 0, 0, 0,
+      extent.width, extent.height, extent.depth, 0, data.length], data };
+    t.generated = { base, source, overridden: new Set() };
     if (desc.dimension === 1) {
-      const source = t.uploads.find(u => u.words[1] === base);
-      if (!source) return;
-      let prev = source.data!, e = mipExtent(desc, base);
+      let prev = data, e = extent;
       for (let k = base + 1; k < desc.mips; k++) {
         const n = mipExtent(desc, k), data = downsampleBox(desc.format, prev, e.width, e.height, e.depth,
           n.width, n.height, n.depth);
@@ -338,6 +346,12 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
       pass.draw(3); pass.end();
     }
     d.queue.submit([encoder.finish()]);
+    for (const level of generatedMipShadows(desc, base, data)) {
+      const e = mipExtent(desc, level.mip), previous = t.uploads.findIndex(u => u.words[1] === level.mip);
+      const shadow: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, level.mip, 0, 0, 0,
+        e.width, e.height, e.depth, 0, level.data.length], data: level.data };
+      if (previous < 0) t.uploads.push(shadow); else t.uploads[previous] = shadow;
+    }
   }
 
   /** §13.7 TEXTURE_READBACK: copy in stream order, map later; exact stored texels, rows top-first. */
@@ -352,8 +366,9 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
     d.queue.submit([encoder.finish()]);
     this.readbacks.add(item);
     const finish = (data?: Uint8Array<ArrayBuffer>, error?: number) => {
-      if (!this.readbacks.delete(item)) return;
-      buffer.destroy(); item.readback?.(data, error);
+      const deliver = this.readbacks.delete(item);
+      buffer.destroy(); // loss may already have completed the request, but the staging buffer still needs release
+      if (deliver) item.readback?.(data, error);
     };
     void buffer.mapAsync(GPUMapMode.READ).then(() => {
       const mapped = new Uint8Array(buffer.getMappedRange()), out = new Uint8Array(row * height * depth);

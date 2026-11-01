@@ -2,7 +2,7 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
-import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, isDepthFormat, mipExtent, toCanonicalTexture,
+import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
 
 interface IndexedBlend {
@@ -14,7 +14,8 @@ interface IndexedBlend {
 }
 interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer> }
 interface TextureObject {
-  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[]; generated?: number;
+  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[];
+  generated?: { base: number; data: Uint8Array<ArrayBuffer>; overridden: Set<number> };
 }
 interface ShaderObject { object: WebGLShader; words: number[]; source: string }
 interface PipelineObject {
@@ -126,9 +127,11 @@ export class WebGL2Gpu implements GpuBackend {
   execute(item: GpuItem): number {
     if (this.gl.isContextLost()) {
       item.complete?.(-6, 'WebGL context lost');
+      item.readback?.(undefined, -6);
       // A shader failed by device loss remains a CPU-side failed handle, never a live native module.
       // Recompiling that failed source on restore could abort before its queued deletion is reached.
-      if (item.op <= OP.PIPELINE_DELETE && item.op !== OP.SHADER_CREATE) {
+      if ((item.op <= OP.PIPELINE_DELETE || item.op >= OP.TEXTURE_CREATE_EX) &&
+        item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK) {
         this.deferred.push({ ...item, complete: undefined });
       }
       return -6;
@@ -136,17 +139,20 @@ export class WebGL2Gpu implements GpuBackend {
     try {
       // Defer compilation completion until native error checking is done: exactly one callback.
       let compilation: [number, string?] | undefined;
-      this.dispatch(item.op === OP.SHADER_CREATE ? {
-        ...item, complete: (code, log) => { compilation = [code, log]; },
-      } : item);
+      let pixels: [Uint8Array<ArrayBuffer> | undefined, number?] | undefined;
+      this.dispatch({ ...item,
+        complete: item.complete ? (code, log) => { compilation = [code, log]; } : undefined,
+        readback: item.readback ? (data, code) => { pixels = [data, code]; } : undefined,
+      });
       const code = this.gl.getError();
       if (code !== this.gl.NO_ERROR) throw new Error(`GL error 0x${code.toString(16)}`);
       if (compilation) item.complete?.(...compilation);
+      if (pixels) item.readback?.(...pixels);
       return 0;
     } catch (e) {
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.SHADER_CREATE) item.complete?.(-6, message);
-      else this.error(message);
+      else { item.readback?.(undefined, -6); this.error(message); }
       return -6;
     }
   }
@@ -196,6 +202,7 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.TEXTURE_UPDATE_EX: {
         const t = this.textures.get(h)!, format = this.format(t.desc.format), bpp = format[3];
         const [, mip, x, y, z, width, height, depth] = w, level = mipExtent(t.desc, mip);
+        t.generated?.overridden.add(mip);
         for (let d = 0; d < depth; d++) for (let row = 0; row < height; row++) {
           const source = ((d * height) + row) * width * bpp;
           t.levels[mip].set(item.data!.subarray(source, source + width * bpp),
@@ -213,7 +220,10 @@ export class WebGL2Gpu implements GpuBackend {
         const t = this.textures.get(h)!, target = this.target(t.desc.dimension);
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, t.object);
         g.texParameteri(target, g.TEXTURE_BASE_LEVEL, w[1]); g.generateMipmap(target);
-        g.texParameteri(target, g.TEXTURE_BASE_LEVEL, 0); t.generated = w[1]; break;
+        g.texParameteri(target, g.TEXTURE_BASE_LEVEL, 0);
+        t.generated = { base: w[1], data: t.levels[w[1]].slice(), overridden: new Set() };
+        for (const level of generatedMipShadows(t.desc, w[1], t.generated.data)) t.levels[level.mip] = level.data;
+        break;
       }
       case OP.TEXTURE_DELETE: g.deleteTexture(this.textures.get(h)!.object); this.textures.delete(h); break;
       case OP.SAMPLER_CREATE_EX: {
@@ -572,13 +582,19 @@ export class WebGL2Gpu implements GpuBackend {
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });
     for (const [h, t] of textures) {
       replay({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
-      if (!isDepthFormat(t.desc.format)) for (let mip = 0; mip < t.levels.length; mip++) {
+      const upload = (mip: number, data: Uint8Array<ArrayBuffer>) => {
         const e = mipExtent(t.desc, mip);
         replay({ kind: 'gpu', op: OP.TEXTURE_UPDATE_EX,
-          words: [h, mip, 0, 0, 0, e.width, e.height, e.depth, 0, t.levels[mip].length], data: t.levels[mip] });
+          words: [h, mip, 0, 0, 0, e.width, e.height, e.depth, 0, data.length], data });
+      };
+      // Restore generation at its place in upload order, not after later explicit mip/base updates.
+      if (t.generated) {
+        upload(t.generated.base, t.generated.data);
+        replay({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [h, t.generated.base] });
       }
-      // Generated levels are recomputed from the restored uploads; rendered contents are lost, as documented.
-      if (t.generated !== undefined) replay({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [h, t.generated] });
+      if (!isDepthFormat(t.desc.format)) for (let mip = 0; mip < t.levels.length; mip++) {
+        if (!t.generated || mip < t.generated.base || t.generated.overridden.has(mip)) upload(mip, t.levels[mip]);
+      }
     }
     for (const [, s] of samplers) replay({ kind: 'gpu', op: OP.SAMPLER_CREATE_EX, words: s.words });
     for (const [, s] of shaders) replay({ kind: 'gpu', op: OP.SHADER_CREATE, words: s.words, source: s.source });

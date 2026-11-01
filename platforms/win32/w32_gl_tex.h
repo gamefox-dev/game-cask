@@ -102,9 +102,12 @@ static uint64_t pix_offset(const Pix *st, uint32_t format, uint32_t type, uint32
 static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uint32_t y, uint32_t z,
         uint32_t w, uint32_t h, uint32_t d, uint32_t format, uint32_t type, uint32_t src, int null_fill) {
     uint32_t bpp = storage_bytes(t->gfmt), mh = lvl_h(t, lvl), gfmt = t->gfmt;
+    Pix store = unpack_st; if (t->kind1 == 1) store.skip_images = store.image_height = 0;
     int legacy = t->kind1 == 1 && gfmt <= 6;
     uint32_t comps = format_comps(format);
-    int fast = src && type == T_UBYTE && (gfmt == 0 || gfmt == 1) && (format == 0x1908 || format == 0x1907) ;
+    const Fmt *logical = find_fmt(t->lv[lvl].internal);
+    int fast = src && type == T_UBYTE && (gfmt == 0 || gfmt == 1) &&
+        (format == 0x1907 || (format == 0x1908 && logical && logical->chans == 4));
     int fast1 = src && type == T_UBYTE && gfmt == 2 && format == 0x1903;
     int fast2 = src && type == T_UBYTE && gfmt == 3 && format == 0x8227;
     uint32_t bh = (1u << 20) / (w * bpp); if (!bh) bh = 1;
@@ -112,7 +115,7 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
         uint32_t rows = h - yo < bh ? h - yo : bh; uint8_t *buf = scratch(w * rows * bpp); if (!buf) return;
         for (uint32_t r = 0; r < rows; r++) {
             uint8_t *dst = buf + (uint64_t)(rows - 1 - r) * w * bpp;
-            uint32_t base = src ? src + (uint32_t)pix_offset(&unpack_st, format, type, w, h, 0, yo + r, zi) : 0;
+            uint32_t base = src ? src + (uint32_t)pix_offset(&store, format, type, w, h, 0, yo + r, zi) : 0;
             if (fast || fast1 || fast2) {
                 if (fast && comps == 4) for (uint32_t i = 0; i < w; i++) put32(dst + i * 4, x86_rd32(base + i * 4));
                 else if (fast) for (uint32_t i = 0; i < w; i++) {
@@ -125,6 +128,7 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
                 float v[4] = {0, 0, 0, 1};
                 if (src) decode_pixel(base + i * pixel_bytes(format, type), format, type, v);
                 else if (!null_fill) continue;
+                if (logical && logical->chans == 3) v[3] = 1;
                 encode_texel(dst + i * bpp, gfmt, v);
             }
         }
@@ -160,10 +164,13 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
     if (level >= MAXLV || w < 0 || h < 0 || d < 0 || border) { fail(BAD_VALUE); return; }
     uint32_t e = transfer_error(format, type); if (e) { fail(e); return; }
     int depth_format = format == 0x1902 || format == 0x84f9;
-    if (depth_format != (f->kind != K_COLOR) || integer_format(format)) { fail(BAD_OP); return; }
+    if (depth_format != (f->kind != K_COLOR) || (f->kind == K_DEPTH && format != 0x1902) ||
+        (f->kind == K_DS && format != 0x84f9) || integer_format(format)) { fail(BAD_OP); return; }
     if (f->kind != K_COLOR && dim != 0) { approximate("depth 3D/array textures"); fail(BAD_OP); return; }
-    uint32_t dmax = dim == 0 ? 1 : 256; if (dim == 0) d = 1;
-    int too_big = (uint32_t)w > max_dim(dim) || (uint32_t)h > max_dim(dim) || (uint32_t)d > dmax;
+    uint32_t edge = max_dim(dim) >> level, dmax = dim == 0 ? 1 : dim == 1 ? 256u >> level : 256;
+    if (!edge || !dmax) { fail(BAD_VALUE); return; }
+    if (dim == 0) d = 1;
+    int too_big = (uint32_t)w > edge || (uint32_t)h > edge || (uint32_t)d > dmax;
     if (proxy) {
         Level *l = &proxy_level[dim]; zero(l, sizeof *l);
         if (!too_big && w && h && d) { l->w = (uint32_t)w; l->h = (uint32_t)h; l->d = (uint32_t)d; l->internal = internal; }
@@ -222,7 +229,8 @@ static void tex_sub_image(uint32_t dim, uint32_t level, int32_t x, int32_t y, in
     Level *lv = &t->lv[level]; if (!lv->w) { fail(BAD_OP); return; }
     const Fmt *f = find_fmt(lv->internal);
     int depth_format = format == 0x1902 || format == 0x84f9;
-    if (!f || depth_format != (f->kind != K_COLOR) || integer_format(format)) { fail(BAD_OP); return; }
+    if (!f || depth_format != (f->kind != K_COLOR) || (f->kind == K_DEPTH && format != 0x1902) ||
+        (f->kind == K_DS && format != 0x84f9) || integer_format(format)) { fail(BAD_OP); return; }
     if (x < 0 || y < 0 || z < 0 || w < 0 || h < 0 || d < 0 || (uint64_t)x + (uint32_t)w > lv->w ||
         (uint64_t)y + (uint32_t)h > lv->h || (uint64_t)z + (uint32_t)d > lv->d) { fail(BAD_VALUE); return; }
     if (!w || !h || !d || !pixels) return;
@@ -499,7 +507,7 @@ static uint32_t request_id_next(void) { return ++request_id; }
 static int fetch_texels(uint32_t gpu, uint32_t lvl, uint32_t x, uint32_t y, uint32_t z, uint32_t w, uint32_t h,
         uint32_t bgt, void (*sink)(void *, uint32_t row0, uint32_t rows, const uint8_t *), void *ctx) {
     uint32_t bpp = storage_bytes(bgt), bh = (1u << 21) / (w * bpp); if (!bh) bh = 1;
-    uint8_t *buf = x86_alloc(w * bh * bpp); if (!buf) { fail(OOM); return 0; }
+    uint8_t *buf = scratch(w * (h < bh ? h : bh) * bpp); if (!buf) return 0;
     for (uint32_t yo = 0; yo < h; yo += bh) {
         uint32_t rows = h - yo < bh ? h - yo : bh, req = request_id_next();
         SEND(0x5c, gpu, lvl, x, y + yo, z, w, rows, 1, req);
@@ -536,8 +544,9 @@ static uint32_t api_GetTexImage(void) {
     if (!f || f->kind != K_COLOR || integer_format(format) || format == 0x1902 || format == 0x84f9 || format == 0x1901) {
         approximate("glGetTexImage of depth/stencil or integer data"); fail(BAD_OP); return 0; }
     if (!t->gpu || level >= t->gmips || f->bgt != t->gfmt) { fail(BAD_OP); return 0; }
+    Pix store = pack_st; if (dim == 0) store.skip_images = store.image_height = 0;
     for (uint32_t zi = 0; zi < lv->d; zi++) {
-        ReadCtx r = {t->gfmt, format, type, ARG(4), lv->w, lv->h, zi, lv->h, 0, &pack_st};
+        ReadCtx r = {t->gfmt, format, type, ARG(4), lv->w, lv->h, zi, lv->h, 0, &store};
         if (!fetch_texels(t->gpu, level, 0, 0, zi, lv->w, lv->h, t->gfmt, sink_external, &r)) return 0;
     }
     return 0;

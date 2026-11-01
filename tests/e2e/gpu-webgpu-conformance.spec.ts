@@ -4,7 +4,7 @@ import { CommandEncoder } from '../../bgt/runtime/commands';
 import { resolve } from 'node:path';
 const browserModule = (file: string) => `/@fs${resolve('bgt', file)}`;
 
-test('WebGPU §13 all 25 opcodes execute, including deletion and handle reuse',
+test('WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse',
   async ({ page, backendParam, collector }, info) => {
     void collector;
     test.skip(backendParam !== 'webgpu');
@@ -20,7 +20,20 @@ test('WebGPU §13 all 25 opcodes execute, including deletion and handle reuse',
       expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
       for (const [op, count] of Object.entries(d.coverage.ops)) if (count > 0) seen.add(Number(op));
     }
-    expect([...seen].filter(op => op >= 0x40 && op <= 0x58).sort()).toEqual(Object.values(GPU_OP).sort());
+    // The original native scenes cover §13; the texture/FBO fixture executes all five additive §13.7 ops.
+    await openGame(page, backendParam, { game: 'x64-gl-fbo' });
+    await assertBackend(page, backendParam, info);
+    for (let i = 0; i < 120; i++) {
+      await step(page, 1); await page.waitForTimeout(10);
+      if ((await diagnostics(page)).logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0'))) break;
+    }
+    await step(page, 3);
+    const extended = await diagnostics(page);
+    expect(extended.errors).toEqual([]); expect(extended.commandErrors.count).toBe(0);
+    expect(extended.logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0'))).toBe(true);
+    for (const [op, count] of Object.entries(extended.coverage.ops)) if (count > 0) seen.add(Number(op));
+    const expected = Object.values(GPU_OP).filter(op => typeof op === 'number' && op >= 0x40 && op <= 0x5d) as number[];
+    expect([...seen].filter(op => op >= 0x40 && op <= 0x5d).sort()).toEqual(expected.sort());
   });
 
 test('WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330',

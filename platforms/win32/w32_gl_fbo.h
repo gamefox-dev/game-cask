@@ -63,7 +63,8 @@ static uint32_t api_DeleteRenderbuffers(void) {
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
         if (id && id < N) { if (rbos[id].gpu) SEND(0x45, rbos[id].gpu);
             zero(&rbos[id], sizeof(Rbo)); if (rbo == id) rbo = 0;
-            if (fbo) { Fbo *f = &fbos[fbo];
+            uint32_t bound[2] = {fbo, fbo_read};
+            for (uint32_t b = 0; b < 2; b++) if (bound[b]) { Fbo *f = &fbos[bound[b]];
                 for (uint32_t k = 0; k < 4; k++) if (f->color[k].type == 2 && f->color[k].name == id) zero(&f->color[k], sizeof(Attach));
                 if (f->depth.type == 2 && f->depth.name == id) zero(&f->depth, sizeof(Attach));
                 if (f->stencil.type == 2 && f->stencil.name == id) zero(&f->stencil, sizeof(Attach)); } } }
@@ -174,8 +175,8 @@ static uint32_t resolve_fbo(uint32_t id, int for_read, Target *tg) {
         hs = 1;
     }
     if (hd && hs && !same_attach(&f->depth, &f->stencil)) return tg->status = 0x8cdd;
-    for (uint32_t i = 0; i < 4; i++) if (!for_read && f->draw[i] && !have[f->draw[i] - 0x8ce0]) return tg->status = 0x8cdb;
-    if (for_read && f->read && !have[f->read - 0x8ce0]) return tg->status = 0x8cdc;
+    for (uint32_t i = 0; i < 4; i++) if (f->draw[i] && !have[f->draw[i] - 0x8ce0]) return tg->status = 0x8cdb;
+    if (f->read && !have[f->read - 0x8ce0]) return tg->status = 0x8cdc;
     uint32_t w = 0, h = 0; int mismatch = 0;
     for (uint32_t i = 0; i < 4; i++) if (have[i]) { if (w && (w != color[i].w || h != color[i].h)) mismatch = 1; w = color[i].w; h = color[i].h; }
     if (hd) { if (w && (w != depth.w || h != depth.h)) mismatch = 1; w = depth.w; h = depth.h; }
@@ -198,10 +199,13 @@ static uint32_t api_CheckFramebufferStatus(void) {
     Target tg; return resolve_fbo(t == FB_READ ? fbo_read : fbo, t == FB_READ, &tg);
 }
 static uint32_t buffer_mode_ok(uint32_t mode, int fbo_bound, int draw) {
-    (void)draw;
     if (mode == 0) return 0;
     if (mode >= 0x8ce0 && mode <= 0x8cef) { if (!fbo_bound) return BAD_OP; return mode - 0x8ce0 >= 4 ? BAD_OP : 0; }
-    if (mode >= 0x400 && mode <= 0x408) { if (fbo_bound) return BAD_OP; return mode == 0x401 || mode == 0x403 || mode == 0x407 ? BAD_OP : 0; }
+    if (mode >= 0x400 && mode <= 0x408) {
+        if (!draw && mode == 0x408) return BAD_ENUM;
+        if (fbo_bound) return BAD_OP;
+        return mode == 0x401 || mode == 0x403 || mode == 0x407 ? BAD_OP : 0;
+    }
     return BAD_ENUM;
 }
 static uint32_t api_DrawBuffer(void) {
@@ -214,12 +218,19 @@ static uint32_t api_DrawBuffers(void) {
     if (n < 0 || n > 4) { fail(BAD_VALUE); return 0; }
     uint32_t bufs[4] = {0, 0, 0, 0};
     for (int32_t i = 0; i < n; i++) {
-        bufs[i] = x86_rd32(ARG(1) + 4 * i); uint32_t e = buffer_mode_ok(bufs[i], fbo != 0, 1);
+        bufs[i] = x86_rd32(ARG(1) + 4 * i);
+        /* DrawBuffers permits individual default images, not DrawBuffer's aggregate FRONT/BACK/LEFT enums. */
+        if (!fbo && bufs[i] && (bufs[i] < 0x400 || bufs[i] > 0x403)) { fail(BAD_ENUM); return 0; }
+        uint32_t e = buffer_mode_ok(bufs[i], fbo != 0, 1);
         if (e) { fail(e); return 0; }
-        if (!fbo && n > 1) { fail(BAD_OP); return 0; }
         for (int32_t j = 0; j < i; j++) if (bufs[i] && bufs[i] == bufs[j]) { fail(BAD_OP); return 0; }
     }
-    if (!fbo) { dfb_draw = n ? bufs[0] : 0; return 0; }
+    if (!fbo) {
+        dfb_draw = 0; uint32_t selected = 0;
+        for (int32_t i = 0; i < n; i++) if (bufs[i]) { dfb_draw = bufs[i]; selected++; }
+        if (selected > 1) approximate("default front/back draw images share the logical surface");
+        return 0;
+    }
     Fbo *f = &fbos[fbo]; for (uint32_t i = 0; i < 4; i++) f->draw[i] = bufs[i]; return 0;
 }
 static uint32_t api_ReadBuffer(void) {

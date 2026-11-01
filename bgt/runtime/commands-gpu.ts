@@ -149,7 +149,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (w[1] > 1 || w[2] > 1 || w[3] > 2 || w[4] > 2 || w[5] > 2 || !bool(w[6]) || w[7] > 7) {
         return E_INVALID;
       }
-      g.samplers.set(h, [h, w[1], w[2], w[3], w[4], w[5], 0, w[6], w[7], 0, 1000]); return emit();
+      g.samplers.set(h, [h, w[1], w[2], w[3], w[4], w[5], 0, w[6], w[7], 0, 0x447a0000]); return emit();
     }
     case GPU_OP.TEXTURE_CREATE_EX: {
       const e = fresh(g.textures); if (e) return e;

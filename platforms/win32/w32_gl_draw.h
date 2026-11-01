@@ -85,17 +85,18 @@ static float finite_f(float f) { return f != f ? 0 : f > 3e38f ? 3e38f : f < -3e
 static uint32_t api_ClearColor(void) { for (uint32_t i = 0; i < 4; i++) clear_color[i] = finite_f(argf(i)); return 0; }
 static uint32_t api_ClearDepth(void) { clear_depth = clamp((float)argd(0)); return 0; }
 static uint32_t api_ClearStencil(void) { clear_stencil = ARG(0) & 255; return 0; }
-static uint32_t dummy_w, dummy_h;
+static uint32_t dummy_w[4], dummy_h[4];
 static void ensure_screen_depth(void) {
     if (!screen_depth) { SEND(0x43, depth_handle, width(), height(), 1, 5, 2); screen_depth = 1; }
 }
 /* Scratch colour target for colour outputs whose draw buffer is GL_NONE; sized to the pass. */
-static uint32_t dummy_color(uint32_t w, uint32_t h) {
-    if (dummy_w != w || dummy_h != h) {
-        if (dummy_w) SEND(0x45, 904);
-        SEND(0x43, 904, w, h, 1, 0, 2); dummy_w = w; dummy_h = h;
+static uint32_t dummy_color(uint32_t w, uint32_t h, uint32_t slot) {
+    uint32_t id = 904 + slot * 2; /* distinct images: §13 forbids duplicate attachments */
+    if (dummy_w[slot] != w || dummy_h[slot] != h) {
+        if (dummy_w[slot]) SEND(0x45, id);
+        SEND(0x43, id, w, h, 1, 0, 2); dummy_w[slot] = w; dummy_h[slot] = h;
     }
-    return 904;
+    return id;
 }
 static int rgb_only(const Fmt *f) { return f && f->kind == K_COLOR && f->chans == 3; }
 static uint32_t pass_words(const Target *tg, uint32_t clear, uint32_t *w) {
@@ -106,7 +107,7 @@ static uint32_t pass_words(const Target *tg, uint32_t clear, uint32_t *w) {
     w[5] = bits(clear_depth); w[6] = clear_stencil;
     for (uint32_t i = 0; i < tg->ncolor; i++) {
         uint32_t j = 7 + i * 7;
-        w[j] = tg->gap[i] ? dummy_color(tg->w, tg->h) : tg->color[i].gpu; w[j + 1] = tg->gap[i] ? 0 : tg->color[i].mip;
+        w[j] = tg->gap[i] ? dummy_color(tg->w, tg->h, i) : tg->color[i].gpu; w[j + 1] = tg->gap[i] ? 0 : tg->color[i].mip;
         w[j + 2] = !!(clear & 0x4000);
         for (uint32_t k = 0; k < 4; k++) w[j + 3 + k] = bits(clear_color[k]);
         if (rgb_only(tg->color[i].fmt)) w[j + 6] = bits(1);
@@ -138,7 +139,10 @@ static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint3
     uint32_t min = p->min, mip = min == 0x2600 || min == 0x2601 ? 0 : min == 0x2700 || min == 0x2701 ? 1 : 2;
     uint32_t last = t->gmips ? t->gmips - 1 : 0; if (t->maxl < last) last = t->maxl;
     float lo = (float)t->base + p->min_lod, hi = (float)t->base + p->max_lod;
-    if (lo < 0) lo = 0; if (hi > (float)last) hi = 1000; if (hi < lo) hi = lo;
+    if (lo < (float)t->base) lo = (float)t->base;
+    if (lo > (float)last) lo = (float)last;
+    if (hi > (float)last) hi = last + 1 == t->gmips ? 1000 : (float)last;
+    if (hi < lo) hi = lo;
     if (!mip) hi = lo;
     if (lo <= 0) lo = 0;
     uint32_t w[12] = {0, min == 0x2601 || min == 0x2701 || min == 0x2703, p->mag == 0x2601, mip, wrap(p->ws),
@@ -158,7 +162,7 @@ static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint3
 static int tex_complete(const Texture *t, const Sampler *s, int shadow) {
     if (!t->used || !t->gpu || t->base >= MAXLV) return 0;
     const Level *b = &t->lv[t->base]; const Fmt *bf = b->w ? find_fmt(b->internal) : 0;
-    if (!bf || t->base >= t->gmips || bf->bgt != t->gfmt) return 0;
+    if (!bf || t->base > t->maxl || t->base >= t->gmips || bf->bgt != t->gfmt) return 0;
     if (shadow && bf->kind == K_COLOR) return 0;
     if (b->w != lvl_w(t, t->base) || b->h != lvl_h(t, t->base) || b->d != lvl_d(t, t->base)) return 0;
     uint32_t min = (s ? &s->p : &t->p)->min;
@@ -360,12 +364,15 @@ static uint32_t api_ReadPixels(void) {
     if (fbo_read ? !fbos[fbo_read].read : dfb_read == 0) { fail(BAD_OP); return 0; }
     if (!w || !h) return 0;
     /* Pixels outside the framebuffer are unspecified in GL; leave those client bytes untouched. */
-    int32_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y, x1 = x + w > (int32_t)tg.w ? (int32_t)tg.w : x + w,
-        y1 = y + h > (int32_t)tg.h ? (int32_t)tg.h : y + h;
+    int64_t end_x = (int64_t)x + w, end_y = (int64_t)y + h;
+    int32_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y, x1 = end_x > tg.w ? (int32_t)tg.w : (int32_t)end_x,
+        y1 = end_y > tg.h ? (int32_t)tg.h : (int32_t)end_y;
     if (x1 <= x0 || y1 <= y0) return 0;
     uint32_t rw = (uint32_t)(x1 - x0), rh = (uint32_t)(y1 - y0);
     /* The clipped region is written at its place inside the requested client rectangle. */
-    Pix st = pack_st; st.skip_pixels += (uint32_t)(x0 - x); st.skip_rows += (uint32_t)(y0 - y);
+    Pix st = pack_st; st.skip_images = st.image_height = 0;
+    if (!st.row_length) st.row_length = (uint32_t)w; /* clipping never changes the requested row stride */
+    st.skip_pixels += (uint32_t)(x0 - x); st.skip_rows += (uint32_t)(y0 - y);
     ReadCtx r = {0, format, type, dst, rw, rh, 0, 0, 0, &st};
     if (!fbo_read) {
         uint32_t req = request_id_next(); begin(); bgt_cmd_readback(&cmd, req, 0, (uint32_t)x0, tg.h - (uint32_t)y1, rw, rh);

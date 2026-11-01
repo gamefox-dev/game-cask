@@ -201,6 +201,16 @@ int main(void) {
     glGetTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &fv); note("wrap_s float query", fv == (float)GL_REPEAT);
     glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, &iv); note("wrap_r default", iv == GL_REPEAT);
     glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, &iv); note("compare func default", iv == GL_LEQUAL);
+    /* Legal but approximated parameters must be queryable and must not produce GL errors. */
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (float)GL_CLAMP_TO_BORDER);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &iv);
+    note("border wrap retained for query", iv == GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, 0.75f);
+    glGetTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, &fv);
+    note("LOD bias retained for query", fv == 0.75f);
+    expect_error(GL_NO_ERROR, "legal approximated parameters");
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, 0.0f);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, 0x1234); expect_error(GL_INVALID_ENUM, "bad min filter");
     glTexParameteri(GL_TEXTURE_2D, 0x1234, 1); expect_error(GL_INVALID_ENUM, "bad pname");
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, -1); expect_error(GL_INVALID_VALUE, "negative base level");
@@ -214,7 +224,7 @@ int main(void) {
     glGenTextures(1, &volume); glBindTexture(GL_TEXTURE_3D, volume);
     glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 2, 2, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, voxels);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, (float)GL_MIRRORED_REPEAT);
     const unsigned char white[2 * 2 * 4] = {255,255,255,255, 255,255,255,255, 255,255,255,255, 255,255,255,255};
     glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 2, 2, 2, 1, GL_RGBA, GL_UNSIGNED_BYTE, white);
     expect_error(GL_NO_ERROR, "3D upload");
@@ -257,7 +267,7 @@ int main(void) {
     glTexImage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, l1);
     glTexImage2D(GL_TEXTURE_2D, 2, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, l2);
     expect_error(GL_NO_ERROR, "explicit mip levels");
-    unsigned char mip_back[4]; glGetTexImage(GL_TEXTURE_2D, 1, GL_RGBA, GL_UNSIGNED_BYTE, mip_back);
+    unsigned char mip_back[16]; glGetTexImage(GL_TEXTURE_2D, 1, GL_RGBA, GL_UNSIGNED_BYTE, mip_back);
     note("level 1 reads back as uploaded", mip_back[0] == 0 && mip_back[1] == 255 && mip_back[2] == 0);
     glGetTexImage(GL_TEXTURE_2D, 2, GL_RGBA, GL_UNSIGNED_BYTE, mip_back);
     note("level 2 reads back as uploaded", mip_back[0] == 0 && mip_back[1] == 0 && mip_back[2] == 255);
@@ -323,10 +333,23 @@ int main(void) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, odd_tex, 0); expect_error(GL_INVALID_OPERATION, "attach to default framebuffer");
 
+    {   const GLenum back = GL_BACK, back_left = GL_BACK_LEFT;
+        glDrawBuffers(1, &back); expect_error(GL_INVALID_ENUM, "DrawBuffers rejects aggregate BACK");
+        glReadBuffer(GL_FRONT_AND_BACK); expect_error(GL_INVALID_ENUM, "ReadBuffer rejects FRONT_AND_BACK");
+        glDrawBuffers(1, &back_left); expect_error(GL_NO_ERROR, "DrawBuffers accepts BACK_LEFT");
+        glDrawBuffer(GL_BACK);
+    }
+
     /* ---- Texture image errors ---- */
     glBindTexture(GL_TEXTURE_2D, odd_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_OPERATION, "colour data for depth format");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0); expect_error(GL_INVALID_OPERATION, "depth data for colour format");
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, 4, 4, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, 0);
+    expect_error(GL_NO_ERROR, "null depth-stencil texture storage");
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, 4, 4, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, 0);
+    expect_error(GL_INVALID_OPERATION, "depth-only data for depth-stencil storage");
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 4, 4, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, 0);
+    expect_error(GL_INVALID_OPERATION, "depth-stencil data for depth-only storage");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_6_5, 0); expect_error(GL_INVALID_OPERATION, "packed type with RGBA");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, 0xffff, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_ENUM, "bad format");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_RGBA, 0xffff, 0); expect_error(GL_INVALID_ENUM, "bad type");
@@ -340,6 +363,30 @@ int main(void) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); glGetError();
     glTexSubImage2D(GL_TEXTURE_2D, 0, 2, 2, 4, 4, GL_RGBA, GL_UNSIGNED_BYTE, l0); expect_error(GL_INVALID_VALUE, "sub-image beyond level");
     glTexSubImage2D(GL_TEXTURE_2D, 3, 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, l0); expect_error(GL_INVALID_OPERATION, "sub-image of undefined level");
+    glTexImage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 4096, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    expect_error(GL_INVALID_VALUE, "mip size over level limit");
+    {   /* Pixel-store strides/skips, row orientation, and RGB's implicit alpha=1. */
+        unsigned char source[24] = {0}, result[24];
+        source[16] = 51; source[17] = 102; source[18] = 153; source[19] = 7;
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 3); glPixelStorei(GL_UNPACK_SKIP_ROWS, 1);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 1);
+        glPixelStorei(GL_UNPACK_SKIP_IMAGES, 7); glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, 9); /* ignored for 2D */
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+        glPixelStorei(GL_UNPACK_SKIP_IMAGES, 0); glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, 0);
+        memset(result, 0xcc, sizeof result);
+        glPixelStorei(GL_PACK_ROW_LENGTH, 3); glPixelStorei(GL_PACK_SKIP_ROWS, 1);
+        glPixelStorei(GL_PACK_SKIP_PIXELS, 1);
+        glPixelStorei(GL_PACK_SKIP_IMAGES, 7); glPixelStorei(GL_PACK_IMAGE_HEIGHT, 9); /* ignored for 2D */
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, result);
+        glPixelStorei(GL_PACK_ROW_LENGTH, 0); glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+        glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+        glPixelStorei(GL_PACK_SKIP_IMAGES, 0); glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
+        note("pixel-store skips and RGB alpha", result[16] == 51 && result[17] == 102 && result[18] == 153 &&
+            result[19] == 255 && result[15] == 0xcc && result[20] == 0xcc);
+        expect_error(GL_NO_ERROR, "pixel-store round trip");
+    }
     glBindTexture(GL_TEXTURE_2D, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); expect_error(GL_INVALID_OPERATION, "parameter on texture 0");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_OPERATION, "image on texture 0");
@@ -351,7 +398,7 @@ int main(void) {
         /* Offscreen: depth texture gets two quads, nearer on the left half. */
         glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo); glViewport(0, 0, 64, 64);
         glClearDepth(1.0); glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); glClear(GL_DEPTH_BUFFER_BIT);
-        glUseProgram(p_flat); set_tint(1, 1, 1, 1); tint_loc = tint_flat; set_tint(1, 1, 1, 1);
+        glUseProgram(p_flat); tint_loc = tint_flat; set_tint(1, 1, 1, 1);
         glBindTexture(GL_TEXTURE_2D, 0);
         quad(3, 0, 0, 1, 1, 0.5f, 1, 1);
         quad(3, -0.5f, 0, 0.5f, 1, -0.5f, 1, 1);
@@ -369,6 +416,11 @@ int main(void) {
         /* Two colour attachments. */
         glBindFramebuffer(GL_FRAMEBUFFER, mrt_fbo); glViewport(0, 0, 16, 16); glDrawBuffers(2, both);
         glUseProgram(p_mrt); quad(4, 0, 0, 1, 1, 0, 1, 1);
+        if (frame == 0) {
+            const GLenum none[] = {GL_NONE, GL_NONE}; glDrawBuffers(2, none);
+            quad(4, 0, 0, 1, 1, 0, 1, 1); /* two discarded outputs need distinct §13 scratch attachments */
+            expect_error(GL_NO_ERROR, "two disabled draw buffers"); glDrawBuffers(2, both);
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         if (frame == 0) {
@@ -378,6 +430,10 @@ int main(void) {
             unsigned char px[4];
             glBindFramebuffer(GL_READ_FRAMEBUFFER, ds_fbo); glReadPixels(8, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
             note("stencil-marked half is green", px[0] == 0 && px[1] == 255 && px[2] == 0);
+            unsigned char clipped[24]; memset(clipped, 0xcc, sizeof clipped);
+            glReadPixels(-1, 31, 3, 2, GL_RGBA, GL_UNSIGNED_BYTE, clipped);
+            note("clipped read preserves requested row stride", clipped[0] == 0xcc && clipped[12] == 0xcc &&
+                clipped[5] == 255 && clipped[9] == 255 && clipped[17] == 255 && clipped[21] == 255);
             glReadPixels(56, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
             note("unmarked half keeps clear colour", px[0] == 0 && px[1] == 0 && near_byte(px[2], 153, 1));
             glBindFramebuffer(GL_READ_FRAMEBUFFER, mrt_fbo); glReadBuffer(GL_COLOR_ATTACHMENT1); glReadPixels(4, 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
@@ -405,7 +461,14 @@ int main(void) {
         tile(0); glBindTexture(GL_TEXTURE_2D, depth_tex); quad(0, 0, 0, 1, 1, 0, 1, 1);
         tile(1); glBindTexture(GL_TEXTURE_2D, ds_color); quad(0, 0, 0, 1, 1, 0, 1, 1);
         tile(2); glBindTexture(GL_TEXTURE_2D, wrap_tex); quad(0, 0, 0, 1, 1, 0, 2, 1);
-        tile(5); glBindTexture(GL_TEXTURE_2D, mips); glUniform4f(zsel_tex, 0, 1, 0, 0); quad(0, 0, 0, 1, 1, 0, 1, 1);
+        tile(5); glBindTexture(GL_TEXTURE_2D, mips); glUniform4f(zsel_tex, 0, 1, 0, 0); quad(0, -0.6666667f, 0, 0.3333333f, 1, 0, 1, 1);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1); glUniform4f(zsel_tex, 0, 2, 0, 0);
+        quad(0, 0, 0, 0.3333333f, 1, 0, 1, 1); /* explicit LOD cannot exceed MAX_LEVEL */
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 1);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glUniform4f(zsel_tex, 0, 0, 0, 0);
+        quad(0, 0.6666667f, 0, 0.3333333f, 1, 0, 1, 1); /* base-level-only sampling starts at BASE_LEVEL */
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
         glUniform4f(zsel_tex, 0, 0, 0, 0);
         tile(6); glBindTexture(GL_TEXTURE_2D, packed_tex); quad(0, -0.5f, 0, 0.5f, 1, 0, 1, 1);
         glBindTexture(GL_TEXTURE_2D, half_tex); set_tint(0.5f, 0.5f, 0.5f, 1); quad(0, 0.5f, 0, 0.5f, 1, 0, 1, 1);

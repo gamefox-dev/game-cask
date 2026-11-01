@@ -21,6 +21,8 @@ const probes = [
   { name: '2D array layer 0', x: 20, y: 150, rgb: [255, 0, 0], tolerance: 2 },
   { name: '2D array layer 1', x: 60, y: 150, rgb: [0, 255, 0], tolerance: 2 },
   { name: 'explicit mip level 1 selected by textureLod', x: 100, y: 150, rgb: [0, 255, 0], tolerance: 2 },
+  { name: 'MAX_LEVEL clamps explicit LOD to level 1', x: 120, y: 150, rgb: [0, 255, 0], tolerance: 2 },
+  { name: 'BASE_LEVEL 1 with non-mip min filter', x: 147, y: 150, rgb: [0, 255, 0], tolerance: 2 },
   { name: 'RGB10_A2 packed upload', x: 170, y: 150, rgb: [255, 128, 0], tolerance: 2 },
   { name: 'RGBA16F target above one, modulated', x: 230, y: 150, rgb: [191, 32, 0], tolerance: 3 },
   { name: 'colour attachment 0', x: 260, y: 150, rgb: [255, 0, 0], tolerance: 2 },
@@ -36,17 +38,18 @@ for (const cross of [false, true])
         expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
         for (let i = 0; i < 100; i++) {
           await step(p, 1); await p.waitForTimeout(10);
-          if ((await diagnostics(p)).logs.some(l => /x64-gl-fbo (PASS|FAIL)/.test(l.message))) break;
+          if ((await diagnostics(p)).logs.some(l => /x64-gl-fbo (PASS|FAIL) failures=/.test(l.message))) break;
         }
         await step(p, 3);
         const d = await diagnostics(p), m = d.metrics as Record<string, any>;
         expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
         const failures = d.logs.filter(l => l.message.includes('x64-gl-fbo FAIL')).map(l => l.message);
-        expect(failures).toEqual([]);
+        expect(failures, JSON.stringify(d.logs)).toEqual([]);
+        expect(d.logs.filter(l => l.message.includes('x64-gl-fbo unexpected GL error'))).toEqual([]);
         expect(d.logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0')), JSON.stringify(d.logs)).toBe(true);
         expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
         expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
-        expect(m.gl_approximations).toBe(2);
+        expect(m.gl_approximations).toBe(4);
         const px = await readPixels(p);
         if (hardwarePixels()) for (const probe of probes) {
           const x = Math.floor(d.letterbox.x + (probe.x + .5) * d.letterbox.w / 320);

@@ -385,8 +385,9 @@ describe('GPU command validation', () => {
       const bare = setup(); bare.ctx.gpu = undefined;
       expect(bare.send(O.TEXTURE_GENERATE_MIPS, [1, 0]).status).toBe(A.E_UNSUPPORTED);
       // A legacy comparison sampler is still rejected on color textures after normalization.
-      t.send(O.TEXTURE_CREATE_EX, create(8, 0, 4, 4, 1, 1, A.GPU.FORMAT_R16F, 3));
-      t.send(O.SAMPLER_CREATE, [8, 0, 0, 0, 0, 0, 1, 3]);
+      expect(t.send(O.TEXTURE_CREATE_EX, create(8, 0, 4, 4, 1, 1, A.GPU.FORMAT_R16F, 3)).status).toBe(0);
+      expect(t.send(O.SAMPLER_CREATE, [8, 0, 0, 0, 0, 0, 1, 3]).status).toBe(0);
+      expect(t.ctx.gpu!.samplers.get(8)).toEqual([8, 0, 0, 0, 0, 0, 0, 1, 3, F(0), F(1000)]);
       expect(t.inPass(O.TEXTURE, [0, 8, 8]).status).toBe(A.E_INVALID);
     });
   });
