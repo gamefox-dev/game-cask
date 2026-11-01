@@ -73,7 +73,7 @@ static uint32_t api_ShaderSource(void) {
     for (int32_t i = 0; i < count; i++) {
         uint32_t a = (uint32_t)w32_rdptr(ARG(2) + i * w32_ptr_size());
         int32_t len = ARG(3) ? (int32_t)x86_rd32(ARG(3) + i * 4) : -1;
-        if (len < 0) { len = 0; while (x86_rd8(a + (uint32_t)len)) len++; }
+        if (len < 0) { len = 0; while (len < 1048576 && x86_rd8(a + (uint32_t)len)) len++; }
         for (int32_t j = 0; j < len; j++) source[at++] = (char)x86_rd8(a + j);
         lens[i] = (uint32_t)len;
     }

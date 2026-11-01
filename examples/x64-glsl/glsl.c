@@ -98,6 +98,11 @@ int main(void) {
     link_program(good_vs, mm2, 0, "different types", 0);
     const char *unsup[] = {"#version 330 core\nuniform sampler3D volume;\nout vec4 c;\nvoid main(){c=texture(volume, vec3(0.5));}\n"};
     compile(GL_FRAGMENT_SHADER, 1, unsup, 0, "not supported");   /* active sampler3D: BGT has only 2D textures */
+    /* Concatenation precedes tokenization, including across directives/comments/macro calls. */
+    const char *joined[] = {"#ver", "sion 330 core\n#define F(x) vec4(x)\n#define L 40\n#line L 5\n"
+        "#if __LINE__ != 40 || __FILE__ != 5 || !(1 || 1/0)\n#error wrong source position\n#endif\n",
+        "/* split", " comment */ out vec4 c;\nvoid main(){c=F(", "1.0);", "}\n"};
+    compile(GL_FRAGMENT_SHADER, 6, joined, 1, 0);
     OutputDebugStringA("x64-glsl diagnostics ok");
 
     /* ---- the tile programs */
@@ -174,6 +179,20 @@ int main(void) {
     glGetProgramiv(p3, GL_ACTIVE_UNIFORMS, &count); expect_uniform(p3, "pair[0]", GL_SAMPLER_2D, 2);
     check(glGetUniformLocation(p3, "ghost") == -1, "inactive sampler");
     { GLint mx = 0; glGetProgramiv(p0, GL_ACTIVE_UNIFORM_MAX_LENGTH, &mx); check(mx == 17, "max uniform name length (lights[0].weight)"); }
+    /* Blocks without an instance expose bare member names, not Block.member. Unreachable functions
+     * must disappear with their inactive uniforms, or both native backends reject the canonical source. */
+    const char *bare_vs[] = {"#version 330 core\nvoid main(){gl_Position=vec4(0.0);}\n"};
+    const char *bare_fs[] = {"#version 330 core\nlayout(std140) uniform Bare { vec4 bare_color; float unused_member; };\n"
+        "uniform float dead_value;\nfloat unreachable(){return dead_value;}\nout vec4 c;\nvoid main(){c=bare_color;}\n"};
+    GLuint bv = compile(GL_VERTEX_SHADER, 1, bare_vs, 1, 0), bf = compile(GL_FRAGMENT_SHADER, 1, bare_fs, 1, 0);
+    GLuint bp = link_program(bv, bf, 1, 0, 0);
+    expect_uniform(bp, "bare_color", GL_FLOAT_VEC4, 1);
+    expect_uniform(bp, "unused_member", GL_FLOAT, 1); /* all std140 members remain active */
+    check(glGetUniformLocation(bp, "dead_value") == -1, "unreachable uniform must be inactive");
+    { const char *bn[] = {"bare_color", "Bare.bare_color"}; GLuint bi[2];
+      glGetUniformIndices(bp, 2, bn, bi);
+      check(bi[0] != GL_INVALID_INDEX && bi[1] == GL_INVALID_INDEX, "unnamed block member names"); }
+    glDeleteProgram(bp); glDeleteShader(bv); glDeleteShader(bf);
     OutputDebugStringA("x64-glsl reflection ok");
 
     /* ---- geometry: position (x, y) and uv, interleaved */

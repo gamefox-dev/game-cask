@@ -37,6 +37,10 @@ CAT3(i, n, t) joined; x EMPTY y
     expect(r.pp).toMatch(/int joined;/);
     expect(r.pp).toMatch(/x\s+y/);
   });
+  it('rescans function-macro aliases against following tokens and accepts whitespace in empty parameter lists', () => {
+    const r = preprocess('#version 330 core\n#define F(x) ((x)+1)\n#define ALIAS F\n#define ID(x) x\n#define ZERO( ) 0\nALIAS(2) ID(F)(3) ALIAS(4) ZERO()\n');
+    expect(r.ok, r.log).toBe(true); expect(compact(r.pp)).toBe('((2)+1)((3)+1)((4)+1)0');
+  });
   it('never re-expands a macro inside its own expansion', () => {
     const r = preprocess('#version 330 core\n#define A B\n#define B A\n#define F(x) F(x) + x\nA B\nF(1)\n');
     expect(r.ok, r.log).toBe(true);
@@ -118,6 +122,24 @@ J
     expect(preprocess('x\n').pp).toBe('x\n');
     expect(preprocess('/* open').ok).toBe(false);
   });
+  it('concatenates source strings before tokenization, including directives, comments and macro invocations', () => {
+    const r = preprocess('#ver', 'sion 330 core\n#define VALUE 7\nVAL', 'UE __FILE__ __LINE__\n/* split', ' comment */ VALUE\n#define F(x) ((x)+1)\nF(', '2)\n');
+    expect(r.ok, r.log).toBe(true);
+    expect(lines(r.pp)).toEqual(['7 2 1', '7', '((2)+1)']);
+    expect(lines(preprocess('#version 330 core\n// hidden', ' still hidden\nvisible\n').pp)).toEqual(['visible']);
+  });
+  it('expands #line arguments and short-circuits conditional expressions', () => {
+    const r = preprocess('#version 330 core\n#define L 40\n#define S 3\n#line L S\n#if (1 || 1/0) && !(0 && 1/0) && (1 ? 7 : 1/0) == 7\n__LINE__ __FILE__\n#endif\n');
+    expect(r.ok, r.log).toBe(true); expect(lines(r.pp)).toEqual(['41 3']);
+  });
+  it('bounds expression and macro-argument recursion instead of overflowing the stack', () => {
+    expect(preprocess(`#version 330 core\n#if ${'('.repeat(2000)}1${')'.repeat(2000)}\n#endif\n`).log).toContain('nesting too deep');
+    expect(preprocess(`#version 330 core\n#define F(x) x\n${'F('.repeat(2000)}1${')'.repeat(2000)}\n`).log).toContain('nesting too deep');
+  });
+  it('evaluates negative integer arithmetic without host signed-shift traps', () => {
+    const r = preprocess('#version 330 core\n#if (-1 << 3) == -8 && -7 / 2 == -3 && -7 % 2 == -1\narithmetic\n#endif\n');
+    expect(r.ok, r.log).toBe(true); expect(lines(r.pp)).toEqual(['arithmetic']);
+  });
   it('handles #extension, #pragma and warnings for undefined identifiers', () => {
     const r = preprocess('#version 330 core\n#extension GL_ARB_explicit_attrib_location : require\n#extension GL_FOO_bar : enable\n#pragma optimize(on)\n#if UNDEF == 0\nzero\n#endif\n');
     expect(r.ok, r.log).toBe(true);
@@ -158,8 +180,10 @@ describe('GL 3.3 reflection', () => {
     expect(r.linked, r.linkLog).toBe(true);
     for (const [t, gl] of samplers) expect(find(r, `s_${t}`).type, t).toBe(gl);
     // Without reflection-only mode the BGT texture layer refuses everything except sampler2D / sampler2DShadow.
-    const strict = link([VS], [`#version 330 core\nuniform sampler2DArray a;\nout vec4 c;\nvoid main(){c=texture(a,vec3(0.0));}`]);
-    expect(strict.fs!.ok).toBe(false); expect(strict.fs!.log).toContain('not supported by the BGT texture layer');
+    for (const type of ['sampler3D', 'sampler2DArray', 'samplerCube', 'samplerCubeShadow', 'isampler2D']) {
+      const strict = link([VS], [`#version 330 core\nuniform ${type} a;\nout vec4 c;\nvoid main(){c=vec4(textureSize(a,0).x);}`]);
+      expect(strict.fs!.ok, type).toBe(false); expect(strict.fs!.log).toContain('not supported by the BGT texture layer');
+    }
   });
   it('lays out std140 blocks, arrays, nested structures, bools and matrices by the GL rules', () => {
     const fs = `#version 330 core
@@ -216,7 +240,9 @@ void main(){
   float local = 1.0; c.x += local;
 }`;
     const r = link([VS], [fs]);
-    expect(names(r)).toEqual(['used_in_main', 'via_macro', 'in_called', 'Live.live', 'Named.member']);
+    expect(names(r)).toEqual(['used_in_main', 'via_macro', 'in_called', 'live', 'Named.member']);
+    expect(r.fsOut).not.toContain('float dead()');
+    expect(r.fsOut).not.toContain('only_in_dead');
     expect(r.blocks!.map(b => b.name)).toEqual(['Live', 'Named']);
     expect(r.usize).toBe(16 + 3 * 4 + 4); // meta + three floats, rounded up to 16 bytes
   });
@@ -257,6 +283,10 @@ void main(){ c2 = vec4(0.0); b1 = vec4(1.0); auto0 = vec4(2.0); f3 = 1.0; }`;
     expectLink(VS, '#version 330 core\nout vec4 c;\nvoid notmain(){}\n', 'does not define main');
     expectLink('#version 330 core\nint out_of_main;\nvoid main(){ }\n', FS.replace('void main', 'void main2'), 'does not define main');
     expectLink(VS, '#version 330 core\nlayout(location=0) out vec4 a; layout(location=0) out vec4 b;\nvoid main(){a=b=vec4(1.0);}\n', 'already in use');
+  });
+  it('bounds declaration constant-expression nesting', () => {
+    const r = link([VS], [`#version 330 core\nuniform float a[${'('.repeat(2000)}1${')'.repeat(2000)}];\nvoid main(){}\n`]);
+    expect(r.fs!.ok).toBe(false); expect(r.fs!.log).toContain('constant expression nesting too deep');
   });
   it('rejects constructs outside the BGT subset with explanatory compile logs, not silent translation', () => {
     const bad = (src: string, text: string) => { const r = link([VS], [src]); expect(r.fs!.ok, text).toBe(false); expect(r.fs!.log).toContain(text); };
@@ -320,6 +350,16 @@ describe('canonical BGT output', () => {
     expect(r.fsOut).toContain('} params;');
     expect(r.vsOut).not.toContain('bgt_u1');
     expect(find(r, 'selector').location).toBe(0);
+  });
+  it('bounds the merged stage-uniform table without corrupting memory', () => {
+    const stage = (prefix: string, vertex: boolean) => `#version 330 core\n${Array.from({ length: 192 }, (_, i) => `uniform float ${prefix}${i};`).join('\n')}\n${vertex ? '' : 'out vec4 c;'}\nvoid main(){${vertex ? 'gl_Position' : 'c'}=vec4(${Array.from({ length: 192 }, (_, i) => `${prefix}${i}`).join('+')});}`;
+    const r = link([stage('v', true)], [stage('f', false)]);
+    // The declaration cap includes the fragment output; 191+192 distinct uniforms still exceed one stage's cap.
+    const fs = stage('f', false).replace('uniform float f191;', '').replace('+f191', '');
+    const merged = link([stage('v', true)], [fs]);
+    expect(r.fs!.ok).toBe(false);
+    expect(merged.linked, merged.linkLog).toBe(true);
+    expect(merged.uniforms).toHaveLength(383);
   });
   it('stays inside the ordinary uniform storage bound', () => {
     const fs = `#version 330 core\nuniform vec4 big[2000];\nout vec4 c;\nvoid main(){c=big[1999];}\n`;

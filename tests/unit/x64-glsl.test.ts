@@ -12,7 +12,9 @@ it('x64-glsl: lifted guest asserts GL 3.3 reflection and diagnostics; every tran
   buildGame('examples/x64-glsl', { quiet: true });
   const stream = glStream();
   const h = await loadHeadless('x64-glsl', stream);
-  await h.stepAsync(45);
+  for (let frame = 0; frame < 100 && !h.logs.some(s => s.includes('x64-glsl PASS tiles=8')); frame++)
+    await h.stepAsync(1);
+  await h.stepAsync(4); // Four complete draw frames after shader/reflection startup, not a fixed boot-frame guess.
   expect(h.logs.filter((s) => /command error|unexpected|failed|incomplete|wrong|missing|unexpectedly/.test(s))).toEqual([]);
   expect(h.host.commandErrorCount).toBe(0);
   for (const text of ['x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
@@ -22,8 +24,9 @@ it('x64-glsl: lifted guest asserts GL 3.3 reflection and diagnostics; every tran
   expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
   expect(m.gl_pipelines).toBe(8); expect(m.gl_draws).toBeGreaterThanOrEqual(8 * 4);
   const sources = stream.items.filter((it) => it.op === O.SHADER_CREATE).map((it) => ({ stage: it.words[1], source: it.source! }));
-  // 12 provisional per-shader compiles plus the link-time modules of the eight linked programs (2 stages each).
-  expect(sources.length).toBe(12 + 16);
+  // 15 provisional compiles (including split-source and unnamed-block probes), eight tile links,
+  // and the two modules of the temporary unnamed-block reflection program.
+  expect(sources.length).toBe(15 + 16 + 2);
   const varyings = [...new Set(sources.flatMap((s) => glslVaryings(s.source, s.stage)))].sort();
   for (const { stage, source } of sources) {
     expect(source.startsWith('#version 330 core\n')).toBe(true);

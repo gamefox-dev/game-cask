@@ -53,7 +53,8 @@ static void gs_diag(GsLog *l, int error, uint32_t str, uint32_t line, uint32_t c
 
 /* ----------------------------------------------------------------------------- preprocessor
  * Stage 1 strips comments and line continuations (line counts are preserved by deferring the newlines)
- * and marks source-string boundaries with \x01. Stage 2 interprets directives and expands macros. */
+ * with a per-character source map. Strings are concatenated before lexing (even inside tokens/comments).
+ * Stage 2 interprets directives and expands macros. */
 #define PP_MACROS 384
 #define PP_POOL 98304
 #define PP_PARAMS 16
@@ -66,7 +67,9 @@ typedef struct {
     char *a; uint32_t alen, acap;       /* expansion arena (stack discipline) */
     char *out; uint32_t olen, ocap;
     GsLog *log; uint32_t str, line, col; int failed;
-    const char *act[32]; uint32_t nact;
+    const char *act[32]; uint32_t nact, expand_depth;
+    const char *clean; const uint32_t *map; uint32_t clen, physical_str;
+    int64_t line_bias; int str_override;
 } Pp;
 
 typedef struct {
@@ -112,10 +115,25 @@ static void pp_oput(Pp *p, const char *s, uint32_t n) {
 
 static void pp_number_u32(char *b, uint32_t v) {
     char t[12]; uint32_t k = 0, n = 0; do { t[k++] = (char)('0' + v % 10); v /= 10; } while (v);
-    while (k) b[n++] = t[--k]; b[n] = 0;
+    while (k) b[n++] = t[--k];
+    b[n] = 0;
 }
 
-static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if);
+/* Source positions: 11 string bits, 21 line bits; source is at most 1 MiB. */
+#define PP_LINE_MASK 0x1fffffu
+static void pp_position(Pp *p, const char *s) {
+    uintptr_t at = (uintptr_t)s, base = (uintptr_t)p->clean;
+    if (at < base || at - base >= p->clen) return; /* macro bodies retain invocation position */
+    uint32_t pos = p->map[at - base], str = pos >> 21;
+    if (str != p->physical_str) { p->physical_str = str; p->line_bias = 0; p->str_override = 0; }
+    p->line = (uint32_t)((int64_t)(pos & PP_LINE_MASK) + p->line_bias);
+    if (!p->str_override) p->str = str;
+}
+static void pp_expand_inner(Pp *p, const char *s, uint32_t n, int in_if);
+static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if) {
+    if (p->expand_depth == 64) { pp_err(p, "macro expansion nesting too deep", 0); return; }
+    p->expand_depth++; pp_expand_inner(p, s, n, in_if); p->expand_depth--;
+}
 
 /* Collect function-like macro arguments starting at s[i] == '('. Returns index after ')' or 0 on failure. */
 static uint32_t pp_args(const char *s, uint32_t n, uint32_t i, uint32_t *a0, uint32_t *a1, uint32_t *count,
@@ -143,10 +161,34 @@ static uint32_t pp_skip_ws(const char *s, uint32_t n, uint32_t i, uint32_t *nl) 
     return i;
 }
 
+/* Rescan an expansion ending in a function-macro name with an invocation supplied by following source.
+ * Keep the enclosing macro disabled until this rescan ends (the usual recursive-expansion hide set). */
+static void pp_rescan_tail(Pp *p, uint32_t mark, const char *s, uint32_t n, uint32_t *next, int in_if) {
+    while (!p->failed) {
+        uint32_t end = p->alen, idend = end;
+        while (idend > mark && (gs_space(p->a[idend - 1]) || p->a[idend - 1] == '\n')) idend--;
+        uint32_t id = idend; while (id > mark && gs_idc(p->a[id - 1])) id--;
+        if (id == idend || !gs_alpha(p->a[id])) return;
+        PpMacro *m = pp_find(p, p->a + id, idend - id);
+        if (!m || m->params < 0) return;
+        for (uint32_t k = 0; k < p->nact; k++) if (gs_eq(p->pool + m->name, p->act[k])) return;
+        uint32_t open = pp_skip_ws(s, n, *next, 0);
+        if (open >= n || s[open] != '(') return;
+        uint32_t a0[PP_PARAMS], a1[PP_PARAMS], cnt, nl = 0;
+        uint32_t after = pp_args(s, n, open, a0, a1, &cnt, &nl);
+        if (!after) { pp_err(p, "unterminated or oversized macro argument list", p->pool + m->name); return; }
+        pp_aput(p, s + *next, after - *next); uint32_t input_end = p->alen;
+        pp_expand(p, p->a + id, input_end - id, in_if);
+        uint32_t size = p->alen - input_end;
+        gs_copy(p->a + id, p->a + input_end, size); p->alen = id + size; *next = after;
+    }
+}
+
 /* Expand macros in s[0..n) appending to the arena. Newlines inside consumed invocations are re-emitted. */
-static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if) {
+static void pp_expand_inner(Pp *p, const char *s, uint32_t n, int in_if) {
     uint32_t i = 0;
     while (i < n && !p->failed) {
+        pp_position(p, s + i);
         char c = s[i];
         if (c == '\n') { p->line++; pp_aputc(p, c); i++; continue; }
         if (gs_digit(c) || (c == '.' && i + 1 < n && gs_digit(s[i + 1]))) {
@@ -186,6 +228,7 @@ static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if) {
                 pp_expand(p, p->a + b0, b1 - b0, in_if);       /* result appended after b1 */
                 uint32_t r = p->alen - b1;
                 gs_copy(p->a + mark, p->a + b1, r); p->alen = mark + r;
+                pp_rescan_tail(p, mark, s, n, &j, in_if);
                 p->nact--;
             }
             i = j; continue;
@@ -246,9 +289,10 @@ static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if) {
         uint32_t b1 = p->alen;
         p->act[p->nact++] = p->pool + m->name;
         pp_expand(p, p->a + b0, b1 - b0, in_if);
-        p->nact--;
         uint32_t r = p->alen - b1;
         gs_copy(p->a + mark, p->a + b1, r); p->alen = mark + r;
+        pp_rescan_tail(p, mark, s, n, &end, in_if);
+        p->nact--;
         for (uint32_t q = 0; q < newlines; q++) pp_aputc(p, '\n');
         p->line = saved_line + newlines;
         i = end;
@@ -256,16 +300,23 @@ static void pp_expand(Pp *p, const char *s, uint32_t n, int in_if) {
 }
 
 /* ---------------------------------------------------------------- #if expression evaluation */
-typedef struct { const char *s; uint32_t i, n; Pp *p; int err; } PpEval;
+typedef struct { const char *s; uint32_t i, n; Pp *p; int err, depth, suppress; } PpEval;
 static void ev_ws(PpEval *e) { while (e->i < e->n && (gs_space(e->s[e->i]) || e->s[e->i] == '\n')) e->i++; }
 static int64_t ev_expr(PpEval *e, int prec);
+static int64_t ev_unary_inner(PpEval *e);
 static int64_t ev_unary(PpEval *e) {
+    if (e->depth == 128) {
+        pp_err(e->p, "expression nesting too deep", 0); e->err = 1; e->i = e->n; return 0;
+    }
+    e->depth++; int64_t v = ev_unary_inner(e); e->depth--; return v;
+}
+static int64_t ev_unary_inner(PpEval *e) {
     ev_ws(e);
     if (e->i >= e->n) { e->err = 1; return 0; }
     char c = e->s[e->i];
     if (c == '(') { e->i++; int64_t v = ev_expr(e, 0); ev_ws(e);
         if (e->i < e->n && e->s[e->i] == ')') e->i++; else e->err = 1; return v; }
-    if (c == '-') { e->i++; return -ev_unary(e); }
+    if (c == '-') { e->i++; return (int64_t)(0u - (uint64_t)ev_unary(e)); }
     if (c == '+') { e->i++; return ev_unary(e); }
     if (c == '~') { e->i++; return ~ev_unary(e); }
     if (c == '!') { e->i++; return !ev_unary(e); }
@@ -278,7 +329,7 @@ static int64_t ev_unary(PpEval *e) {
             if (gs_digit(d)) x = d - '0'; else if (d >= 'a' && d <= 'f') x = 10 + d - 'a';
             else if (d >= 'A' && d <= 'F') x = 10 + d - 'A'; else if (d == 'u' || d == 'U') continue; else { e->err = 1; return 0; }
             if (x >= (int64_t)base) { e->err = 1; return 0; }
-            v = v * base + x;
+            v = (int64_t)((uint64_t)v * base + (uint64_t)x);
         }
         return v;
     }
@@ -312,17 +363,35 @@ static int64_t ev_expr(PpEval *e, int minp) {
         int prec, len, op = ev_op(e, &prec, &len);
         if (!op || prec < minp) break;
         e->i += (uint32_t)len;
+        int skip = (op == 1 && l) || (op == 2 && !l);
+        e->suppress += skip;
         int64_t r = ev_expr(e, prec + 1);
+        e->suppress -= skip;
+        if (e->suppress) { l = 0; continue; }
         switch (op) {
         case 1: l = l || r; break; case 2: l = l && r; break; case 3: l = l == r; break; case 4: l = l != r; break;
-        case 5: l = l <= r; break; case 6: l = l >= r; break; case 7: l = (r < 0 || r > 62) ? 0 : l << r; break;
+        case 5: l = l <= r; break; case 6: l = l >= r; break; case 7: l = (r < 0 || r > 63) ? 0 : (int64_t)((uint64_t)l << r); break;
         case 8: l = (r < 0 || r > 62) ? 0 : l >> r; break; case 9: l |= r; break; case 10: l ^= r; break;
-        case 11: l &= r; break; case 12: l = l < r; break; case 13: l = l > r; break; case 14: l += r; break;
-        case 15: l -= r; break; case 16: l *= r; break;
+        case 11: l &= r; break; case 12: l = l < r; break; case 13: l = l > r; break; case 14: l = (int64_t)((uint64_t)l + (uint64_t)r); break;
+        case 15: l = (int64_t)((uint64_t)l - (uint64_t)r); break;
+        case 16: l = (int64_t)((uint64_t)l * (uint64_t)r); break;
         case 17: case 18:
             if (!r) { pp_err(e->p, "division by zero in preprocessor expression", 0); e->err = 1; return 0; }
-            l = op == 17 ? l / r : l % r; break;
+            if (l == INT64_MIN && r == -1) l = op == 17 ? INT64_MIN : 0;
+            else l = op == 17 ? l / r : l % r;
+            break;
         }
+    }
+    ev_ws(e);
+    if (!minp && e->i < e->n && e->s[e->i] == '?') {
+        if (e->depth == 128) { pp_err(e->p, "expression nesting too deep", 0); e->err = 1; e->i = e->n; return 0; }
+        e->depth++; e->i++; e->suppress += !l;
+        int64_t yes = ev_expr(e, 0); e->suppress -= !l;
+        ev_ws(e);
+        if (e->i >= e->n || e->s[e->i] != ':') { e->err = 1; e->depth--; return 0; }
+        e->i++; e->suppress += !!l;
+        int64_t no = ev_expr(e, 0); e->suppress -= !!l; e->depth--;
+        l = l ? yes : no;
     }
     return l;
 }
@@ -348,48 +417,57 @@ static int pp_if_value(Pp *p, const char *line, uint32_t n) {
     }
     uint32_t b1 = p->alen;
     pp_expand(p, p->a + b0, b1 - b0, 1);
-    PpEval e = {p->a + b1, 0, p->alen - b1, p, 0};
+    PpEval e = {p->a + b1, 0, p->alen - b1, p, 0, 0, 0};
     int64_t v = ev_expr(&e, 0); ev_ws(&e);
     if (!p->failed && (e.err || e.i < e.n)) { pp_err(p, "syntax error in preprocessor expression", 0); v = 0; }
     p->alen = mark; return v != 0;
 }
 
 /* ------------------------------------------------------------------------------- stage 1 */
-static int pp_strip(const char *const *str, const int32_t *lens, int count, char *dst, uint32_t cap, uint32_t *out_len,
-    GsLog *log) {
-    uint32_t n = 0, defer = 0; int ok = 1, bol = 1, directive = 0;
+static int pp_strip(const char *const *str, const int32_t *lens, int count, char *dst, uint32_t *map,
+    uint32_t cap, uint32_t *out_len, GsLog *log) {
+    char *raw = (char *)GS_ALLOC(cap);
+    if (!raw) { gs_diag(log, 1, 0, 0, 0, "out of memory", 0); return 0; }
+    uint32_t len = 0;
     for (int si = 0; si < count; si++) {
-        const char *s = str[si]; uint32_t len = lens && lens[si] >= 0 ? (uint32_t)lens[si] : gs_len(s);
-        if (si && n + 1 < cap) dst[n++] = '\x01';
-        for (uint32_t i = 0; i < len; i++) {
-            char c = s[i];
-            if (n + defer + 4 >= cap) { gs_diag(log, 1, 0, 0, 0, "shader source too large", 0); return 0; }
-            if (c == 0) { gs_diag(log, 1, (uint32_t)si, 0, 0, "source contains a NUL character", 0); ok = 0; continue; }
-            if (c == '\\' && i + 1 < len && (s[i + 1] == '\n' || (s[i + 1] == '\r' && i + 2 < len && s[i + 2] == '\n'))) {
-                i += s[i + 1] == '\r' ? 2 : 1; defer++; continue;
-            }
-            if (c == '/' && i + 1 < len && s[i + 1] == '/') {
-                while (i < len && s[i] != '\n') i++;
-                i--; dst[n++] = ' '; continue;
-            }
-            if (c == '/' && i + 1 < len && s[i + 1] == '*') {
-                uint32_t j = i + 2; int closed = 0;
-                dst[n++] = ' ';
-                while (j + 1 < len) {
-                    if (s[j] == '*' && s[j + 1] == '/') { closed = 1; break; }
-                    if (s[j] == '\n') { if (directive) defer++; else if (n + defer + 4 < cap) dst[n++] = '\n'; }
-                    j++;
-                }
-                if (!closed) { gs_diag(log, 1, (uint32_t)si, 0, 0, "unterminated comment", 0); ok = 0; i = len; continue; }
-                i = j + 1; continue;
-            }
-            if (c == '\n') { bol = 1; directive = 0; } else if (bol && !gs_space(c)) { bol = 0; directive = c == '#'; }
-            dst[n++] = c;
-            if (c == '\n') while (defer) { dst[n++] = '\n'; defer--; }
+        uint32_t size = lens && lens[si] >= 0 ? (uint32_t)lens[si] : gs_len(str[si]), line = 1;
+        for (uint32_t j = 0; j < size; j++) {
+            char c = str[si][j]; raw[len] = c; map[len++] = ((uint32_t)si << 21) | line;
+            if (c == '\n') line++;
         }
     }
-    while (defer && n + 1 < cap) { dst[n++] = '\n'; defer--; }
-    dst[n] = 0; *out_len = n; return ok;
+    uint32_t n = 0, defer = 0, last = 1; int ok = 1, bol = 1, directive = 0;
+    /* n never overtakes i, so the raw source map can be compacted in place. */
+    for (uint32_t i = 0; i < len; i++) {
+        char c = raw[i]; uint32_t loc = map[i]; last = loc;
+        if (c == 0) { gs_diag(log, 1, loc >> 21, loc & PP_LINE_MASK, 1, "source contains a NUL character", 0); ok = 0; continue; }
+        if (c == '\\' && i + 1 < len && (raw[i + 1] == '\n' || (raw[i + 1] == '\r' && i + 2 < len && raw[i + 2] == '\n'))) {
+            i += raw[i + 1] == '\r' ? 2 : 1; defer++; continue;
+        }
+        if (c == '/' && i + 1 < len && raw[i + 1] == '/') {
+            while (i < len && raw[i] != '\n') i++;
+            i--; dst[n] = ' '; map[n++] = loc; continue;
+        }
+        if (c == '/' && i + 1 < len && raw[i + 1] == '*') {
+            uint32_t j = i + 2; int closed = 0;
+            dst[n] = ' '; map[n++] = loc;
+            while (j + 1 < len) {
+                if (raw[j] == '*' && raw[j + 1] == '/') { closed = 1; break; }
+                if (raw[j] == '\n') {
+                    if (directive) defer++;
+                    else { dst[n] = '\n'; map[n++] = map[j]; bol = 1; }
+                }
+                j++;
+            }
+            if (!closed) { gs_diag(log, 1, loc >> 21, loc & PP_LINE_MASK, 1, "unterminated comment", 0); ok = 0; break; }
+            i = j + 1; continue;
+        }
+        if (c == '\n') { bol = 1; directive = 0; } else if (bol && !gs_space(c)) { bol = 0; directive = c == '#'; }
+        dst[n] = c; map[n++] = loc;
+        if (c == '\n') while (defer) { dst[n] = '\n'; map[n++] = loc; defer--; }
+    }
+    while (defer) { dst[n] = '\n'; map[n++] = last; defer--; }
+    dst[n] = 0; *out_len = n; GS_FREE(raw, cap); return ok;
 }
 
 /* ------------------------------------------------------------------------------- stage 2 */
@@ -400,32 +478,43 @@ static int pp_ext_supported(const char *name, uint32_t n) {
 
 static int gs_preprocess(const char *const *str, const int32_t *lens, int count, GsPreprocessed *res, GsLog *log) {
     gs_zero(res, sizeof *res);
-    uint32_t total = 0; for (int i = 0; i < count; i++) total += lens && lens[i] >= 0 ? (uint32_t)lens[i] : gs_len(str[i]);
-    if (total > GS_MAX_SOURCE) { gs_diag(log, 1, 0, 0, 0, "shader source exceeds 1 MiB", 0); return 0; }
-    uint32_t cap = total + (uint32_t)count + 8, clen = 0;
-    char *clean = (char *)GS_ALLOC(cap);
+    if (count < 0 || count > 1024) { gs_diag(log, 1, 0, 0, 0, "too many source strings (max 1024)", 0); return 0; }
+    uint32_t total = 0;
+    for (int i = 0; i < count; i++) {
+        uint32_t n = lens && lens[i] >= 0 ? (uint32_t)lens[i] : gs_len(str[i]);
+        if (n > GS_MAX_SOURCE - total) { gs_diag(log, 1, 0, 0, 0, "shader source exceeds 1 MiB", 0); return 0; }
+        total += n;
+    }
+    uint32_t cap = total + 8, clen = 0;
+    char *clean = (char *)GS_ALLOC(cap); uint32_t *map = (uint32_t *)GS_ALLOC(cap * 4);
     Pp *p = (Pp *)GS_ALLOC(sizeof(Pp));
-    if (!clean || !p) { if (clean) GS_FREE(clean, cap); if (p) GS_FREE(p, sizeof(Pp)); gs_diag(log, 1, 0, 0, 0, "out of memory", 0); return 0; }
-    int ok = pp_strip(str, lens, count, clean, cap, &clen, log);
-    p->log = log;
+    if (!clean || !p || !map) {
+        if (clean) GS_FREE(clean, cap);
+        if (p) GS_FREE(p, sizeof(Pp));
+        if (map) GS_FREE(map, cap * 4);
+        gs_diag(log, 1, 0, 0, 0, "out of memory", 0); return 0;
+    }
+    int ok = pp_strip(str, lens, count, clean, map, cap, &clen, log);
+    p->log = log; p->clean = clean; p->map = map; p->clen = clen;
     p->acap = total * 4 + 65536; if (p->acap > PP_ARENA) p->acap = PP_ARENA;
     p->ocap = total * 4 + 65536; if (p->ocap > GS_MAX_SOURCE) p->ocap = GS_MAX_SOURCE;
     p->a = (char *)GS_ALLOC(p->acap); p->out = (char *)GS_ALLOC(p->ocap);
     if (!p->a || !p->out) {
-        if (p->a) GS_FREE(p->a, p->acap); if (p->out) GS_FREE(p->out, p->ocap);
-        GS_FREE(clean, cap); GS_FREE(p, sizeof(Pp)); gs_diag(log, 1, 0, 0, 0, "out of memory", 0); return 0;
+        if (p->a) GS_FREE(p->a, p->acap);
+        if (p->out) GS_FREE(p->out, p->ocap);
+        GS_FREE(map, cap * 4); GS_FREE(clean, cap); GS_FREE(p, sizeof(Pp)); gs_diag(log, 1, 0, 0, 0, "out of memory", 0); return 0;
     }
     p->failed = !ok; p->line = 1;
     pp_define(p, "__LINE__", "", 0); p->m[p->nm - 1].builtin = 1;
     pp_define(p, "__FILE__", "", 0); p->m[p->nm - 1].builtin = 2;
-    uint8_t group_active[PP_COND], group_taken[PP_COND], group_else[PP_COND];
+    uint8_t group_taken[PP_COND], group_else[PP_COND];
     uint32_t depth = 0, skip = 0;          /* skip: depth of the first inactive group (0 = active) */
     int seen_text = 0, version_seen = 0;
     uint32_t version = 110; int es = 0, core = 0; uint32_t ext_mask = 0;
     uint32_t i = 0;
     while (i < clen && !(p->failed && log && log->errors > 20)) {
-        if (clean[i] == '\x01') { p->str++; p->line = 1; i++; continue; }
-        uint32_t ls = i, le = i; while (le < clen && clean[le] != '\n' && clean[le] != '\x01') le++;
+        pp_position(p, clean + i);
+        uint32_t ls = i, le = i; while (le < clen && clean[le] != '\n') le++;
         uint32_t k = ls; while (k < le && gs_space(clean[k])) k++;
         p->col = k - ls + 1;
         if (k < le && clean[k] == '#') {
@@ -445,8 +534,8 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
                             if (!e) pp_err(p, "macro name missing", dn); else take = (pp_find(p, rest, e) != 0) == is_ifdef; }
                     }
                     group_else[depth] = 0;
-                    if (skip) { group_active[depth] = 0; group_taken[depth] = 1; }
-                    else { group_active[depth] = (uint8_t)take; group_taken[depth] = (uint8_t)take; if (!take) skip = depth + 1; }
+                    if (skip) group_taken[depth] = 1;
+                    else { group_taken[depth] = (uint8_t)take; if (!take) skip = depth + 1; }
                     depth++;
                 }
             } else if (gs_eqn(dn, dl, "elif") || gs_eqn(dn, dl, "else")) {
@@ -460,7 +549,7 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
                     else if (!skip) { skip = depth; }               /* previous branch was taken: now inactive */
                     else if (!group_taken[g]) {
                         int take = is_else ? 1 : pp_if_value(p, rest, rl);
-                        if (take) { skip = 0; group_taken[g] = 1; group_active[g] = 1; }
+                        if (take) { skip = 0; group_taken[g] = 1; }
                     }
                 }
             } else if (gs_eqn(dn, dl, "endif")) {
@@ -503,6 +592,7 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
                         uint32_t name_end = q, b = q;
                         if (q < rl && rest[q] == '(') {
                             int ps = 0; b = q + 1; nm.params = 0;
+                            while (b < rl && gs_space(rest[b])) b++;
                             while (b < rl && rest[b] != ')' && !ps) {
                                 while (b < rl && gs_space(rest[b])) b++;
                                 uint32_t e = b; while (e < rl && gs_idc(rest[e])) e++;
@@ -559,12 +649,21 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
                         else if (!gs_eqn(beh, bl, "disable")) pp_warn(p, "extension is not supported", nm);
                     } else if (gs_eqn(beh, bl, "require") || gs_eqn(beh, bl, "enable")) ext_mask |= 1u << (known - 1);
                 } else if (gs_eqn(dn, dl, "line")) {
+                    p->alen = 0; pp_expand(p, rest, rl, 0);
+                    const char *args = p->a; uint32_t al = p->alen;
                     uint32_t q = 0, v = 0, sn = p->str; int have = 0;
-                    while (q < rl && gs_digit(rest[q])) { v = v * 10 + (uint32_t)(rest[q++] - '0'); have = 1; }
-                    while (q < rl && gs_space(rest[q])) q++;
-                    if (q < rl && gs_digit(rest[q])) { sn = 0; while (q < rl && gs_digit(rest[q])) sn = sn * 10 + (uint32_t)(rest[q++] - '0'); }
-                    if (!have || q < rl) pp_err(p, "#line requires a line number and an optional source string number", 0);
-                    else { p->line = v - 1; p->str = sn; }
+                    while (q < al && gs_space(args[q])) q++;
+                    while (q < al && gs_digit(args[q])) { v = v * 10 + (uint32_t)(args[q++] - '0'); have = 1; }
+                    while (q < al && gs_space(args[q])) q++;
+                    if (q < al && gs_digit(args[q])) { sn = 0; while (q < al && gs_digit(args[q])) sn = sn * 10 + (uint32_t)(args[q++] - '0'); }
+                    while (q < al && gs_space(args[q])) q++;
+                    if (!have || q < al || v > 0x7fffffffu || sn > 0x7fffffffu)
+                        pp_err(p, "#line requires a line number and an optional source string number", 0);
+                    else {
+                        uint32_t pos = map[le < clen ? le : le - 1];
+                        p->physical_str = pos >> 21; p->line_bias = (int64_t)v - (pos & PP_LINE_MASK) - 1;
+                        p->str_override = 1; p->line = v - 1; p->str = sn;
+                    }
                 } else { char nm[GS_NAME]; uint32_t nl = dl < GS_NAME - 1 ? dl : GS_NAME - 1; gs_copy(nm, dn, nl); nm[nl] = 0;
                     pp_err(p, "unknown preprocessor directive", nm); }
                 if (!version_seen && !gs_eqn(dn, dl, "version") && dl && !gs_eqn(dn, dl, "extension") &&
@@ -577,11 +676,11 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
         /* text run: consecutive non-directive lines expand together (macro calls may span lines) */
         uint32_t re = ls;
         for (;;) {
-            uint32_t e = re; while (e < clen && clean[e] != '\n' && clean[e] != '\x01') e++;
+            uint32_t e = re; while (e < clen && clean[e] != '\n') e++;
             uint32_t t = re; while (t < e && gs_space(clean[t])) t++;
             if (re != ls && t < e && clean[t] == '#') break;
             re = e < clen && clean[e] == '\n' ? e + 1 : e;
-            if (e >= clen || clean[e] == '\x01') break;
+            if (e >= clen) break;
         }
         int blank = 1; for (uint32_t q = ls; q < re; q++) if (!gs_space(clean[q]) && clean[q] != '\n') blank = 0;
         if (!blank) seen_text = 1;
@@ -607,7 +706,7 @@ static int gs_preprocess(const char *const *str, const int32_t *lens, int count,
             res->has_version = version_seen; res->extensions = ext_mask;
         }
     }
-    GS_FREE(p->a, p->acap); GS_FREE(p->out, p->ocap); GS_FREE(clean, cap); GS_FREE(p, sizeof(Pp));
+    GS_FREE(p->a, p->acap); GS_FREE(p->out, p->ocap); GS_FREE(map, cap * 4); GS_FREE(clean, cap); GS_FREE(p, sizeof(Pp));
     return success;
 }
 
@@ -662,7 +761,7 @@ enum { GS_NONE, GS_UNIFORM, GS_IN, GS_OUT };
 enum { GI_SMOOTH, GI_FLAT, GI_NOPERSP };
 typedef struct { char name[GS_NAME]; uint16_t type, arr; uint8_t storage, interp, used, line; int32_t loc; uint32_t decl_line; } GsVar;
 typedef struct { char name[GS_NAME], inst[GS_NAME]; uint16_t first, count; uint8_t used; uint32_t size, align, decl_line; } GsBlock;
-typedef struct { char name[GS_NAME]; uint32_t b0, b1; uint8_t reach, scanned; } GsFunc;
+typedef struct { char name[GS_NAME]; uint32_t b0, b1, s0, s1; uint8_t reach, scanned; } GsFunc;
 typedef struct { uint32_t a, b; } GsSpan;
 typedef struct { char name[GS_NAME]; int64_t v; } GsConst;
 typedef struct {
@@ -739,7 +838,7 @@ static Tk lx_peek(const Lx *l) { Lx c = *l; return lx_next(&c); }
 static int tk_is(const Tk *t, const char *s) { return t->kind && gs_eqn(t->p, t->len, s); }
 static void tk_copy(const Tk *t, char *dst) { uint32_t n = t->len < GS_NAME - 1 ? t->len : GS_NAME - 1; gs_copy(dst, t->p, n); dst[n] = 0; }
 
-typedef struct { GsUnit *u; GsLog *log; int failed; } GsPs;
+typedef struct { GsUnit *u; GsLog *log; int failed, expr_depth; } GsPs;
 static void ps_err(GsPs *ps, const Tk *t, const char *msg, const char *arg) {
     if (!ps->failed) gs_diag(ps->log, 1, 0, t ? t->line : 0, 1, msg, arg);
     ps->failed = 1;
@@ -751,7 +850,12 @@ static void ps_errt(GsPs *ps, const Tk *t, const char *msg) {
 
 /* Constant integer expression over tokens; stops at ',' ')' ']' ';' '}' ':' at depth 0. */
 static int64_t cx_expr(GsPs *ps, Lx *l, int minp, int *ok);
+static int64_t cx_unary_inner(GsPs *ps, Lx *l, int *ok);
 static int64_t cx_unary(GsPs *ps, Lx *l, int *ok) {
+    if (ps->expr_depth == 128) { ps_err(ps, 0, "constant expression nesting too deep", 0); *ok = 0; l->pos = l->end; return 0; }
+    ps->expr_depth++; int64_t v = cx_unary_inner(ps, l, ok); ps->expr_depth--; return v;
+}
+static int64_t cx_unary_inner(GsPs *ps, Lx *l, int *ok) {
     Tk t = lx_next(l);
     if (t.kind == 'n') {
         int64_t v = 0; uint32_t i = 0, base = 10;
@@ -762,12 +866,13 @@ static int64_t cx_unary(GsPs *ps, Lx *l, int *ok) {
             else if (base == 16 && d >= 'A' && d <= 'F') x = 10 + d - 'A'; else if ((d == 'u' || d == 'U') && i == t.len - 1) break;
             else { *ok = 0; return 0; }
             if (x >= (int64_t)base) { *ok = 0; return 0; }
-            v = v * base + x;
+            v = (int64_t)((uint64_t)v * base + (uint64_t)x);
         }
         return v;
     }
     if (t.kind == 'i') {
-        if (tk_is(&t, "true")) return 1; if (tk_is(&t, "false")) return 0;
+        if (tk_is(&t, "true")) return 1;
+        if (tk_is(&t, "false")) return 0;
         for (uint32_t i = 0; i < ps->u->nconsts; i++) if (gs_eqn(t.p, t.len, ps->u->consts[i].name)) return ps->u->consts[i].v;
         Tk n = lx_peek(l);
         if ((tk_is(&t, "int") || tk_is(&t, "uint")) && tk_is(&n, "(")) {
@@ -776,7 +881,7 @@ static int64_t cx_unary(GsPs *ps, Lx *l, int *ok) {
         *ok = 0; return 0;
     }
     if (tk_is(&t, "(")) { int64_t v = cx_expr(ps, l, 0, ok); Tk c = lx_next(l); if (!tk_is(&c, ")")) *ok = 0; return v; }
-    if (tk_is(&t, "-")) return -cx_unary(ps, l, ok);
+    if (tk_is(&t, "-")) return (int64_t)(0u - (uint64_t)cx_unary(ps, l, ok));
     if (tk_is(&t, "+")) return cx_unary(ps, l, ok);
     if (tk_is(&t, "~")) return ~cx_unary(ps, l, ok);
     if (tk_is(&t, "!")) return !cx_unary(ps, l, ok);
@@ -798,9 +903,16 @@ static int64_t cx_expr(GsPs *ps, Lx *l, int minp, int *ok) {
         else if (tk_is(&t, "^")) a ^= b; else if (tk_is(&t, "&")) a &= b; else if (tk_is(&t, "==")) a = a == b;
         else if (tk_is(&t, "!=")) a = a != b; else if (tk_is(&t, "<")) a = a < b; else if (tk_is(&t, ">")) a = a > b;
         else if (tk_is(&t, "<=")) a = a <= b; else if (tk_is(&t, ">=")) a = a >= b;
-        else if (tk_is(&t, "<<")) a = b < 0 || b > 62 ? 0 : a << b; else if (tk_is(&t, ">>")) a = b < 0 || b > 62 ? 0 : a >> b;
-        else if (tk_is(&t, "+")) a += b; else if (tk_is(&t, "-")) a -= b; else if (tk_is(&t, "*")) a *= b;
-        else { if (!b) { *ok = 0; return 0; } a = tk_is(&t, "/") ? a / b : a % b; }
+        else if (tk_is(&t, "<<")) a = b < 0 || b > 63 ? 0 : (int64_t)((uint64_t)a << b);
+        else if (tk_is(&t, ">>")) a = b < 0 || b > 63 ? 0 : a >> b;
+        else if (tk_is(&t, "+")) a = (int64_t)((uint64_t)a + (uint64_t)b);
+        else if (tk_is(&t, "-")) a = (int64_t)((uint64_t)a - (uint64_t)b);
+        else if (tk_is(&t, "*")) a = (int64_t)((uint64_t)a * (uint64_t)b);
+        else {
+            if (!b) { *ok = 0; return 0; }
+            if (a == INT64_MIN && b == -1) a = tk_is(&t, "/") ? INT64_MIN : 0;
+            else a = tk_is(&t, "/") ? a / b : a % b;
+        }
     }
     return a;
 }
@@ -1056,6 +1168,7 @@ static int ps_global(GsPs *ps, Lx *l) {
         if (!ps_skip_group(l, '{', '}')) { ps_err(ps, &nm, "unterminated function body", 0); return 0; }
         if (u->nfuncs == GS_MAX_FUNCS) { ps_err(ps, &nm, "too many functions", 0); return 0; }
         GsFunc *f = &u->funcs[u->nfuncs++]; gs_zero(f, sizeof *f); tk_copy(&nm, f->name); f->b0 = b0; f->b1 = l->pos - 1;
+        f->s0 = stmt0; f->s1 = l->pos;
         if (gs_eq(f->name, "main")) u->has_main = 1;
         return 1;
     }
@@ -1064,7 +1177,7 @@ static int ps_global(GsPs *ps, Lx *l) {
 
 static int gs_parse(GsUnit *u, uint32_t stage, const char *src, uint32_t n, GsLog *log) {
     gs_zero(u, sizeof *u); u->stage = stage; u->src = src; u->srclen = n;
-    GsPs ps = {u, log, 0}; Lx l = {src, 0, n, 1};
+    GsPs ps = {u, log, 0, 0}; Lx l = {src, 0, n, 1};
     for (;;) {
         int r = ps_global(&ps, &l);
         if (r == 2) break;
@@ -1134,6 +1247,15 @@ static void gs_analyze(GsUnit *u) {
 /* ============================================================================ program linking */
 /* Reflection-only mode (host tests): report every GL type without enforcing the BGT backend subset. */
 static int gs_reflect_only;
+/* K6a integration point: §13.7 adds 3D/2D-array textures. Enable those here only once canonical
+ * emission and sampler bindings carry their dimensions. Cube maps remain unsupported. */
+static int gs_sampler_capability(const GsVar *v, GsLog *log) {
+    const GsType *t = &gs_types[v->type];
+    if (gs_reflect_only || (t->dim == GD_2D && t->kind == 'f')) return 1;
+    gs_diag(log, 1, 0, v->decl_line, 1,
+        "sampler type is not supported by the BGT texture layer (only sampler2D and sampler2DShadow)", v->name);
+    return 0;
+}
 #define GP_MAX_UNIFORMS 512
 #define GP_NAMES 24576
 #define GP_MAX_BINDINGS 16
@@ -1145,7 +1267,7 @@ typedef struct { uint8_t stage, var; uint32_t offset, slot; } GpVar;
 typedef struct { char name[GS_NAME]; uint32_t loc; } GpBinding;
 typedef struct {
     uint32_t nu, nb, na, no, nloc, usize, nslots, ndv, names_len, name_max;
-    GpUniform u[GP_MAX_UNIFORMS]; GpBlock b[7]; GpAttrib a[16]; GpAttrib o[8]; GpVar dv[GS_MAX_VARS];
+    GpUniform u[GP_MAX_UNIFORMS]; GpBlock b[7]; GpAttrib a[16]; GpAttrib o[8]; GpVar dv[GS_MAX_VARS * 2];
     uint8_t slot_shadow[8]; char names[GP_NAMES];
     uint32_t attr_max, uniform_max, block_max;
 } Gp;
@@ -1234,9 +1356,7 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
         uint32_t a, sz; gs_std140(un[s], v->type, v->arr, &a, &sz, 0);
         GpVar *d = &g->dv[g->ndv++]; d->stage = (uint8_t)s; d->var = (uint8_t)i;
         if (v->type < GS_STRUCT_BASE && gs_types[v->type].dim) {
-            const GsType *t = &gs_types[v->type];
-            if (!(t->dim == GD_2D && t->kind == 'f') && !gs_reflect_only) {
-                gs_diag(log, 1, 0, v->decl_line, 1, "sampler type is not supported by the BGT texture layer (only sampler2D and sampler2DShadow)", v->name); ok = 0; break; }
+            if (!gs_sampler_capability(v, log)) { ok = 0; break; }
             d->offset = 0;
         } else {
             cursor = gs_roundup(cursor, a); d->offset = cursor; cursor += sz;
@@ -1273,7 +1393,9 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
         for (uint32_t m = 0; m < b->count; m++) {
             GsMember *mm = &un[s]->members[b->first + m]; uint32_t a, sz; gs_std140(un[s], mm->type, mm->arr, &a, &sz, 0);
             off = gs_roundup(off, a);
-            char nm[160]; nm[0] = 0; gp_cat(nm, sizeof nm, b->name); gp_cat(nm, sizeof nm, "."); gp_cat(nm, sizeof nm, mm->name);
+            char nm[160]; nm[0] = 0;
+            if (b->inst[0]) { gp_cat(nm, sizeof nm, b->name); gp_cat(nm, sizeof nm, "."); }
+            gp_cat(nm, sizeof nm, mm->name);
             if (!gp_flatten(g, log, un[s], nm, mm->type, mm->arr, off, (int)(g->nb - 1), 3)) { ok = 0; break; }
             off += sz;
         }
@@ -1362,7 +1484,7 @@ static int gs_policy(GsUnit *u, GsLog *log) {
             if (!t || t->dim || t->kind == 'b' || t->cols > 1 || v->arr) { gs_diag(log, 1, 0, v->decl_line, 1, "varying type is not supported by the BGT shader translation (scalars and vectors only; no arrays or matrices)", v->name); ok = 0; }
             else if (t->kind != 'f' && v->interp != GI_FLAT) { gs_diag(log, 1, 0, v->decl_line, 1, "integer varyings must be declared flat", v->name); ok = 0; }
         } else if (v->storage == GS_UNIFORM && v->used && t && t->dim) {
-            if (!(t->dim == GD_2D && t->kind == 'f')) { gs_diag(log, 1, 0, v->decl_line, 1, "sampler type is not supported by the BGT texture layer (only sampler2D and sampler2DShadow)", v->name); ok = 0; }
+            if (!gs_sampler_capability(v, log)) ok = 0;
         }
     }
     return ok;
@@ -1380,7 +1502,7 @@ static void eb_num(Eb *e, uint32_t v) { char b[12]; pp_number_u32(b, v); eb_str(
 typedef struct { GsUnit *unit; uint32_t idx; } EmStruct;
 typedef struct {
     GsUnit *u; GsUnit *un[2]; Gp *g; Eb out; GsLog *log; int failed, stage;
-    GsSpan spans[GS_MAX_SPANS + GS_MAX_STRUCTS]; uint32_t nspans;
+    GsSpan spans[GS_MAX_SPANS + GS_MAX_STRUCTS + GS_MAX_FUNCS]; uint32_t nspans;
     EmStruct hs[GS_MAX_STRUCTS]; uint32_t nhs;
 } Em;
 static void em_err(Em *em, uint32_t pos, const char *msg, const char *arg) {
@@ -1405,7 +1527,7 @@ static void em_decl(Em *em, GsUnit *unit, uint32_t type, const char *name, uint3
     if (arr) { eb_str(&em->out, "["); eb_num(&em->out, arr); eb_str(&em->out, "]"); }
     eb_str(&em->out, ";");
 }
-static void em_add_span(Em *em, uint32_t a, uint32_t b) { if (em->nspans < GS_MAX_SPANS + GS_MAX_STRUCTS) { em->spans[em->nspans].a = a; em->spans[em->nspans++].b = b; } }
+static void em_add_span(Em *em, uint32_t a, uint32_t b) { if (em->nspans < GS_MAX_SPANS + GS_MAX_STRUCTS + GS_MAX_FUNCS) { em->spans[em->nspans].a = a; em->spans[em->nspans++].b = b; } }
 
 static const char *const gs_unsupported_tex[] = {"textureProj", "textureProjLod", "textureProjGrad", "textureOffset", "textureProjOffset",
     "textureLodOffset", "textureGradOffset", "texelFetchOffset", "textureGather", "textureGatherOffset", "textureQueryLod",
@@ -1421,7 +1543,7 @@ static int em_sampler(Em *em, uint32_t a, uint32_t b, uint32_t limit, int *slot,
         if (v->arr) {
             uint32_t q = e; while (q < limit && (gs_space(s[q]) || s[q] == '\n')) q++;
             if (q >= limit || s[q] != '[') { em_err(em, a, "sampler arrays must be indexed with a constant expression", v->name); return 0; }
-            Lx l = {s, q + 1, limit, 1}; GsPs ps = {em->u, em->log, 0}; int ok = 1;
+            Lx l = {s, q + 1, limit, 1}; GsPs ps = {em->u, em->log, 0, 0}; int ok = 1;
             int64_t iv = cx_expr(&ps, &l, 0, &ok); Tk c = lx_next(&l);
             if (!ok || !tk_is(&c, "]")) { em_err(em, a, "dynamic sampler-array indexing is not supported by the BGT shader translation", v->name); return 0; }
             if (iv < 0 || iv >= v->arr) { em_err(em, a, "sampler array index out of range", v->name); return 0; }
@@ -1529,6 +1651,9 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
     char *buf = (char *)GS_ALLOC(c); if (!buf) { GS_FREE(em, sizeof *em); return 0; }
     em->out.p = buf; em->out.cap = c;
     for (uint32_t i = 0; i < u->nspans; i++) em_add_span(em, u->spans[i].a, u->spans[i].b);
+    /* Inactive uniforms are omitted; omit unreachable users too, rather than leaving undeclared names. */
+    for (uint32_t i = 0; i < u->nfuncs; i++)
+        if (!u->funcs[i].reach) em_add_span(em, u->funcs[i].s0, u->funcs[i].s1);
     /* structures required by program uniforms and this stage's blocks */
     for (uint32_t k = 0; k < g->ndv && !em->failed; k++) em_hoist(em, em->un[g->dv[k].stage], em->un[g->dv[k].stage]->vars[g->dv[k].var].type);
     for (uint32_t k = 0; k < g->nb && !em->failed; k++) if (g->b[k].unit[sidx] >= 0) {
