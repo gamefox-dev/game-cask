@@ -53,6 +53,42 @@ void main() { gl_Position = p + vec4(float(bgt_vertex_index + bgt_instance_index
     expect(glslVaryings(source, 1)).toEqual(['a', 'z']);
     expect(translateGLSL(source, 1, 1, ['a', 'unused', 'z'])).toContain('@location(2) z: vec4f');
   });
+  it('lowers boolean mix selectors to typed WGSL select without changing numeric mix', () => {
+    const source = `#version 330 core
+layout(location=0) out vec4 c;
+void main() {
+  float sf = mix(-1.0, 2.0, true);
+  vec2 vf = mix(vec2(1.0, 2.0), vec2(3.0, 4.0), bvec2(false, true));
+  ivec3 vi = mix(ivec3(1, 2, 3), ivec3(4, 5, 6), bvec3(true, false, true));
+  uvec2 vu = mix(uvec2(1u, 2u), uvec2(3u, 4u), bvec2(false, true));
+  bvec4 vb = mix(bvec4(false, true, false, true), bvec4(true, false, true, false),
+    bvec4(true, true, false, false));
+  c = vec4(sf + vf.x, float(vi.y + int(vu.x)), vb.z ? 1.0 : 0.0, mix(0.0, 1.0, 0.25));
+}`;
+    const code = translateGLSL(source, 2, 1);
+    expect(code).toContain('select((-1.0), 2.0, true)');
+    expect(code).toContain('select(vec2f(1.0, 2.0), vec2f(3.0, 4.0), vec2<bool>(false, true))');
+    expect(code).toContain('select(vec3i(1i, 2i, 3i), vec3i(4i, 5i, 6i), vec3<bool>(true, false, true))');
+    expect(code).toContain('mix(0.0, 1.0, 0.25)');
+    expect(code).not.toContain("mix(vec2f(1.0, 2.0), vec2f(3.0, 4.0), vec2<bool>");
+  });
+  it('retains bool type after indexing/swizzling comparison results used as mix selectors', () => {
+    const code = translateGLSL(`#version 330 core
+layout(location=0) out vec4 c;
+void main() { bvec3 b=lessThan(vec3(1.0), vec3(2.0));
+c=vec4(mix(1.0, 2.0, b[0]), mix(vec2(1.0), vec2(2.0), b.yx), mix(0.0, 1.0, 0.25)); }`, 2, 1);
+    expect(code).toContain('select(1.0, 2.0, b[0i])');
+    expect(code).toContain('select(vec2f(1.0), vec2f(2.0), b.yx)');
+    expect(code).toContain('mix(0.0, 1.0, 0.25)');
+  });
+  it.each([
+    'mix(vec2(1.0), vec2(2.0), true)',
+    'mix(1, 2u, true)',
+    'mix(vec3(1.0), vec3(2.0), bvec2(true))',
+  ])('rejects mismatched boolean selector types: %s', expression => {
+    expect(() => translateGLSL(`#version 330 core\nvoid main(){${expression};}`, 2, 1))
+      .toThrow('mix boolean selector requires matching');
+  });
   it('translates loops, helper calls and explicit LOD', () => {
     const source = `#version 330 core
 uniform sampler2D bgt_t0; layout(location=0) out vec4 c;

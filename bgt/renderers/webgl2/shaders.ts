@@ -29,6 +29,28 @@ export function fragmentOutputs(source: string): { name: string; type: string; a
   return result;
 }
 
+// ES 3.00 has float-selector mix and float/bool-selector mix, but not the integer/bool value overloads.
+// Supply those exact typed overloads for the portable frontend; do not round integers through float or use
+// interpolation (the unselected component is allowed to contain an invalid floating-point value).
+function selectorMixOverloads(source: string): string {
+  const definitions: string[] = [], declared = new Set<string>();
+  // A user overload remains authoritative. Do not inject a duplicate definition for a legal GLSL function.
+  for (const m of source.matchAll(/\b(?:int|uint|bool|[iub]vec[234])\s+mix\s*\(([^()]*)\)\s*(?:\{|;)/g)) {
+    declared.add(m[1].split(',').map(p => p.trim().split(/\s+/)
+      .filter(t => !['const', 'in', 'out', 'inout', 'highp', 'mediump', 'lowp'].includes(t))[0]).join(','));
+  }
+  for (const component of ['int', 'uint', 'bool']) for (const n of [1, 2, 3, 4]) {
+    const type = n === 1 ? component : `${{ int: 'i', uint: 'u', bool: 'b' }[component]}vec${n}`;
+    const selector = n === 1 ? 'bool' : `bvec${n}`;
+    if (declared.has(`${type},${type},${selector}`)) continue;
+    const value = n === 1 ? 'a ? y : x' : `${type}(${Array.from({ length: n }, (_, i) => {
+      const c = 'xyzw'[i]; return `a.${c} ? y.${c} : x.${c}`;
+    }).join(', ')})`;
+    definitions.push(`${type} mix(${type} x, ${type} y, ${selector} a) { return ${value}; }`);
+  }
+  return definitions.join('\n') + '\n';
+}
+
 export function translateShader(source: string, stage: number, language: number): string {
   if (language !== 1 && language !== 2) throw new Error('WGSL requires WebGPU');
   const clean = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, comment => comment.replace(/[^\n]/g, ' '));
@@ -83,7 +105,8 @@ export function translateShader(source: string, stage: number, language: number)
   const linearFragment = linear.map(v => `  ${v.name} = bgt_internal_np_${v.name} / bgt_internal_q;\n`).join('');
   const header = '#version 300 es\nprecision highp float;\nprecision highp int;\n'+
     'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp usampler2D;\n'+
-    'precision highp sampler3D;\nprecision highp sampler2DArray;\n';
+    'precision highp sampler3D;\nprecision highp sampler2DArray;\n' +
+    (/\bmix\s*\(/.test(body) ? selectorMixOverloads(body) : '');
   if (stage === 1) return header + `
 uniform vec4 bgt_internal_view_transform;
 out vec3 bgt_internal_clip;
