@@ -144,8 +144,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         (uint64_t)viewport[0] + viewport[2] > target_width() ||
         (uint64_t)viewport[1] + viewport[3] > target_height()) { fail(BAD_VALUE); return 0; }
     Program *p = &programs[program]; uint32_t smask = 0, umask = 1, sampler_ids[8] = {0};
-    for (uint32_t i = 0; i < p->nu; i++) if (p->u[i].sampler) {
-        uint32_t unit = p->u[i].unit, slot = p->u[i].sampler - 1, id = tex[unit];
+    for (uint32_t slot = 0; slot < p->nslots; slot++) { /* LANE-K6b: slot -> texture unit map */
+        uint32_t unit = p->slot_unit[slot], id = tex[unit];
         if (!id || !textures[id].gpu || (fbo && id == fbos[fbo].color)) { fail(BAD_OP); return 0; }
         sampler_ids[slot] = sampler_for(&textures[id], samp[unit] ? &samplers[samp[unit]] : 0); smask |= 1 << slot;
     }
@@ -221,7 +221,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }
     (void)target_depth(); float h = (float)target_height(); copy(p->values, &h, 4);
-    SEND(0x41, p->ubuf, 0, PTR(p->values), 4096); p->dirty = 0;
+    SEND(0x41, p->ubuf, 0, PTR(p->values), p->usize); p->dirty = 0;
     begin(); pass(0); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
     uint32_t vp[] = {bits((float)viewport[0]), bits(h - viewport[1] - viewport[3]), bits((float)viewport[2]),
         bits((float)viewport[3]), bits(range_min), bits(range_max)}; op(0x4f, vp, 6);
@@ -239,12 +239,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
-    uint32_t ub[] = {0, p->ubuf, 0, 4096}; op(0x55, ub, 4);
+    uint32_t ub[] = {0, p->ubuf, 0, p->usize}; op(0x55, ub, 4);
     for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
         uint32_t b[] = {i + 1, buffers[ubo[s]].gpu, ubo_offset[s], ubo_size[s]}; op(0x55, b, 4);
     }
-    for (uint32_t i = 0; i < p->nu; i++) if (p->u[i].sampler) {
-        uint32_t slot = p->u[i].sampler - 1, unit = p->u[i].unit;
+    for (uint32_t slot = 0; slot < p->nslots; slot++) {
+        uint32_t unit = p->slot_unit[slot];
         uint32_t t[] = {slot, textures[tex[unit]].gpu, sampler_ids[slot]}; op(0x56, t, 3);
     }
     if (index_type) {

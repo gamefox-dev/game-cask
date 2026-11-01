@@ -37,10 +37,19 @@ requested by lane WG; clip z remains BGT [0,w], not legacy GL [-w,w]. GLSL mat2 
 std140 padding and are reconstructed on use. Separate shader modules are relinked with one shared varying
 location map on pipeline creation.
 
-This is not an unrestricted desktop GLSL compiler: preprocessing beyond #version, user structs,
-out/inout helper parameters, implicit ordinary uniforms, sampler arrays, and unsupported syntax produce
-readable compilation failures, never guessed WGSL. Profiles already have to flatten API uniform locations
-and rewrite their bindings per §13.5. Extend this general frontend rather than adding per-engine patterns.
+K6b extensions: user `struct` declarations (locals, parameters, returns, constructors, arrays of structs),
+std140 uniform members of every kind with GL's offsets (bool, mat2, scalar/vec2 arrays and structures are stored in
+padded host-shareable forms, `*_u` structs plus load helpers, and converted when read; no explicit padding
+by the guest is required), `out`/`inout` parameters on local variables (WGSL pointers), `in` parameters that the
+body may modify, function prototypes, multiple declarators, constant array sizes (`const int` expressions),
+`.length()`, vector relational built-ins and `gl_PointSize` (accepted, no point sprites in §13). Preprocessing,
+ordinary-uniform flattening and reflection are the GL profile's job (`platforms/win32/w32_glsl.h`); this frontend
+receives the canonical source it emits.
+
+This is not an unrestricted desktop GLSL compiler: `#` directives other than `#version`, bool vectors in uniform
+storage, non-square matrices other than mat2x3/mat2x4/mat3x4/mat4x3, `switch`/`do`, out arguments that are not
+local lvalues, and unsupported syntax produce readable compilation failures, never guessed WGSL. Extend this
+general frontend rather than adding per-engine patterns.
 
 `depth.ts` handles WebGPU's ban on non-comparison filtering of depth textures. GLSL sampler2D bindings
 are specialized to their bound depth format, and depth sampling is lowered to textureLoad with the

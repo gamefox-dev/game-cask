@@ -19,6 +19,10 @@ desktop-only GLSL constructs fail with a compilation request log, rather than si
 validates block names, masks, texture uniforms, input scalar/vector types and linked output locations (including
 arrays). Interface declarations must be explicit, not hidden in preprocessor macros. Uniforms use
 std140 `bgt_u0..7`; sampler uniforms use `bgt_t0..7`. Native/private builtin access is rejected.
+GLSL ES 3.00 has no `noperspective`: the vertex wrapper forwards `value * w` and `w` through the ordinary
+perspective-correct varying path and the fragment wrapper divides them, which gives exact screen-linear
+interpolation. ES has no implicit int-to-float conversions and the GL profile cannot type-check function bodies,
+so desktop shaders relying on them fail with the native ES compiler's log (WebGPU's frontend is more tolerant).
 
 **WGSL is WebGPU-only.** This backend does not ship an npm WGSL translator and does not advertise the WGSL bit.
 No dependency was added or fetched. A WGSL fixture is therefore not claimed here; WebGPU is a separate lane.

@@ -77,11 +77,11 @@ int main(void) {
         glDeleteShader(recycled); check(!glIsShader(recycled), "deleted shader remains live");
     }
     GLuint bad = glCreateShader(GL_FRAGMENT_SHADER);
-    const char *bad_source = "#version 330 core\nuniform vec4 unsupported[2]; void main(){}";
+    const char *bad_source = "#version 330 core\nuniform nosuchtype unsupported[2]; void main(){}";
     glShaderSource(bad, 1, &bad_source, 0); glCompileShader(bad);
     GLint compiled = 1; char bad_log[128]; glGetShaderiv(bad, GL_COMPILE_STATUS, &compiled);
     glGetShaderInfoLog(bad, sizeof bad_log, 0, bad_log);
-    check(!compiled && bad_log[0], "unsupported uniform layout must have a compile log"); glDeleteShader(bad);
+    check(!compiled && bad_log[0], "invalid declaration must have a compile log"); glDeleteShader(bad);
     GLuint p = make_program(); glUseProgram(p);
     GLint tint = glGetUniformLocation(p, "tint"), image = glGetUniformLocation(p, "image");
     check(tint >= 0 && image >= 0, "uniform locations missing");

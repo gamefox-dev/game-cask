@@ -97,13 +97,7 @@ typedef struct { uint32_t used, gpu, w, h, mips, format, min, mag, u, v; uint8_t
 typedef struct { uint32_t used, gpu, min, mag, u, v; } Sampler;
 typedef struct { uint32_t used, color, mip, depth, renderbuffer; } Fbo;
 typedef struct { uint32_t used, gpu, w, h, format; } Rbo;
-typedef struct { uint32_t used, type, compiled, gpu, deleted; char *source; char log[4096]; } Shader;
-typedef struct { char name[64], type[32]; uint32_t offset, size, sampler, unit; } Uniform;
-typedef struct { char name[64]; uint32_t binding; } Block;
-typedef struct {
-    uint32_t used, linked, vs, fs, vgpu, fgpu, nu, nb, ubuf, dirty;
-    Uniform u[64]; Block block[7]; uint8_t values[4096]; char log[4096];
-} Program;
+#include "w32_gl_program.h" /* LANE-K6b: Shader / Program objects and the GLSL front end */
 static Buffer buffers[N]; static Vao vaos[N]; static Texture textures[N]; static Sampler samplers[N];
 static Fbo fbos[N]; static Rbo rbos[N]; static Shader shaders[N]; static Program programs[N];
 static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, tex[8], samp[8];
