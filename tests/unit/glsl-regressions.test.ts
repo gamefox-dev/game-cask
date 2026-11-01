@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: CC0-1.0
+// @bgt-examples: x64-glsl
 import { describe, expect, it } from 'vitest';
 import { translateGLSL } from '../../bgt/renderers/webgpu/shaders';
 import { translateShader } from '../../bgt/renderers/webgl2/shaders';
