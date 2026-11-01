@@ -357,7 +357,7 @@ describe('GPU command validation', () => {
       expect(t.send(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 2, 2, 2, 16384, 31]).status).toBe(A.E_INVALID);
       expect(t.send(O.TEXTURE_UPDATE_EX, [1, 2, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_INVALID);
       expect(t.send(O.TEXTURE_UPDATE_EX, [1, 1, 0, 0, 0, 1, 1, 3, 16384, 12]).status).toBe(A.E_BOUNDS); // mip 1 depth is 2
-      expect(t.send(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_UNSUPPORTED);
+      expect(t.send(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(0);
       expect(t.send(O.TEXTURE_UPDATE_EX, [9, 0, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_NOT_FOUND);
       expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 3, 0, 7, F(0), F(1)]).status).toBe(A.E_INVALID);
       expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(2), F(1)]).status).toBe(A.E_INVALID);
@@ -366,7 +366,8 @@ describe('GPU command validation', () => {
       expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(0), F(1001)]).status).toBe(A.E_INVALID);
       expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 1, 7, F(0), F(1)]).status).toBe(0);
       expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(0), F(1)]).status).toBe(A.E_STATE);
-      expect(t.send(O.TEXTURE_READBACK, [2, 0, 0, 0, 0, 1, 1, 1, 3]).status).toBe(A.E_UNSUPPORTED);
+      expect(t.send(O.TEXTURE_READBACK, [2, 0, 0, 0, 0, 1, 1, 1, 8]).status).toBe(0);
+      expect(t.requests.close(8)).toBe(0);
       expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 3, 2, 1, 3]).status).toBe(A.E_BOUNDS);
       expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 0, 2, 1, 3]).status).toBe(A.E_INVALID);
       expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 2, 2, 1, 0]).status).toBe(A.E_INVALID); // request id 0

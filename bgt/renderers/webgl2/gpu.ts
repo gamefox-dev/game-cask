@@ -215,7 +215,11 @@ export class WebGL2Gpu implements GpuBackend {
         const target = this.target(t.desc.dimension);
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, t.object); g.pixelStorei(g.UNPACK_ALIGNMENT, 1);
         const data = this.view(t.desc.format, item.data!);
-        if (t.desc.dimension === 0) g.texSubImage2D(target, mip, x, y, width, height, format[1], format[2], data);
+        if (isDepthFormat(t.desc.format)) {
+          if (t.desc.dimension !== 0 || mip >= t.allocatedMips) throw new Error('Invalid depth texture update');
+          if (t.desc.format === 5) g.texSubImage2D(target, mip, x, y, width, height, g.DEPTH_STENCIL, g.UNSIGNED_INT_24_8, data);
+          else g.texSubImage2D(target, mip, x, y, width, height, g.DEPTH_COMPONENT, g.FLOAT, data);
+        } else if (t.desc.dimension === 0) g.texSubImage2D(target, mip, x, y, width, height, format[1], format[2], data);
         else g.texSubImage3D(target, mip, x, y, z, width, height, depth, format[1], format[2], data);
         break;
       }
@@ -372,6 +376,24 @@ export class WebGL2Gpu implements GpuBackend {
   private readback(item: GpuItem, w: number[]): void {
     const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     const format = t.desc.format, components = TEXEL_COMPONENTS[format], bytes = TEXEL_BYTES[format];
+    if (isDepthFormat(format)) {
+      if (t.desc.dimension !== 0 || mip >= t.allocatedMips) throw new Error('Depth texture is not readable');
+      const out = new Uint8Array(width * height * depth * bytes), read = g.createFramebuffer()!;
+      g.bindFramebuffer(g.FRAMEBUFFER, read);
+      const attachment = format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT;
+      g.framebufferTexture2D(g.FRAMEBUFFER, attachment, g.TEXTURE_2D, t.object, mip);
+      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth texture not readable');
+      if (format === 5) {
+        const pixels = new Uint32Array(width * height * depth);
+        g.readPixels(x, y, width, height, g.DEPTH_STENCIL, g.UNSIGNED_INT_24_8, pixels);
+        out.set(new Uint8Array(pixels.buffer));
+      } else {
+        const pixels = new Float32Array(width * height * depth);
+        g.readPixels(x, y, width, height, g.DEPTH_COMPONENT, g.FLOAT, pixels);
+        out.set(new Uint8Array(pixels.buffer));
+      }
+      g.bindFramebuffer(g.FRAMEBUFFER, null); g.deleteFramebuffer(read); item.readback?.(out); return;
+    }
     const target = this.target(t.desc.dimension), out = new Uint8Array(width * height * depth * bytes);
     const packed = format === 7, bytesNormalized = format <= 3;
     const wide = packed ? new Uint32Array(width * height) : bytesNormalized ?

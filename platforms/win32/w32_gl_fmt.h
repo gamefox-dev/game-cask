@@ -135,6 +135,8 @@ static uint32_t format_comps(uint32_t f) {
 /* Returns 0 if (format,type) is a legal combination, else the GL error to raise. */
 static uint32_t transfer_error(uint32_t format, uint32_t type) {
     if (!valid_format(format) || !valid_type(type)) return BAD_ENUM;
+    if (format == 0x1902) return type == T_USHORT || type == T_UINT || type == T_FLOAT ? 0 : BAD_OP;
+    if (format == 0x84f9) return type == 0x84fa ? 0 : BAD_OP;
     if (type == 0x8c3b || type == 0x8c3e) return BAD_ENUM; /* packed-float transfers: documented limit */
     int rgbaf = format == 0x1908 || format == 0x80e1 || format == 0x8d99 || format == 0x8d9b;
     int rgbf = format == 0x1907 || format == 0x80e0 || format == 0x8d98 || format == 0x8d9a;
@@ -170,6 +172,7 @@ static void decode_pixel(uint32_t a, uint32_t format, uint32_t type, float *out)
             raw[3] = unorm_f(v & 3, 2); break;
         case 0x8368: for (int i = 0; i < 3; i++) raw[i] = unorm_f((v >> (10 * i)) & 1023, 10);
             raw[3] = unorm_f(v >> 30, 2); break;
+        case 0x84fa: raw[0] = unorm_f(v >> 8, 24); raw[1] = unorm_f(v & 255, 8); break;
         default: break;
         }
     } else for (uint32_t i = 0; i < comps; i++) {
@@ -210,6 +213,9 @@ static void encode_texel(uint8_t *p, uint32_t bgt, const float *v) {
     case 2: p[0] = to_u8(v[0]); break;
     case 3: p[0] = to_u8(v[0]); p[1] = to_u8(v[1]); break;
     case 4: for (int i = 0; i < 4; i++) put16(p + i * 2, f2h(v[i])); break;
+    case 5: put32(p, ((uint32_t)(clamp01(v[0]) * 16777215.0f + 0.5f) << 8) |
+        (uint32_t)(clamp01(v[1]) * 255.0f + 0.5f)); break;
+    case 6: put32(p, bits(clamp01(v[0]))); break;
     case 7: put32(p, (uint32_t)(clamp01(v[0]) * 1023.0f + 0.5f) | (uint32_t)(clamp01(v[1]) * 1023.0f + 0.5f) << 10 |
         (uint32_t)(clamp01(v[2]) * 1023.0f + 0.5f) << 20 | (uint32_t)(clamp01(v[3]) * 3.0f + 0.5f) << 30); break;
     case 8: put16(p, f2h(v[0])); break;
@@ -227,6 +233,9 @@ static void decode_texel(const uint8_t *p, uint32_t bgt, float *v) {
     case 2: v[0] = (float)p[0] / 255.0f; break;
     case 3: v[0] = (float)p[0] / 255.0f; v[1] = (float)p[1] / 255.0f; break;
     case 4: for (int i = 0; i < 4; i++) v[i] = h2f(p[i * 2] | p[i * 2 + 1] << 8); break;
+    case 5: { uint32_t u = p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
+        v[0] = (float)(u >> 8) / 16777215.0f; v[1] = (float)(u & 255) / 255.0f; break; }
+    case 6: { union { uint32_t u; float f; } w = {p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24}; v[0] = w.f; break; }
     case 7: { uint32_t u = p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
         v[0] = (float)(u & 1023) / 1023.0f; v[1] = (float)((u >> 10) & 1023) / 1023.0f;
         v[2] = (float)((u >> 20) & 1023) / 1023.0f; v[3] = (float)(u >> 30) / 3.0f; break; }

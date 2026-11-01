@@ -623,10 +623,11 @@ At mip L dimensions are max(1,floor(width/2^L)), max(1,floor(height/2^L)). No im
 | NONE | 0xffffffff | — | pipeline with no depth attachment (not a texture format) |
 
 All listed formats are part of CAP_GPU; a backend lacking native attachment support must implement it or leave the
-capability unset. TEXTURE_UPDATE accepts color formats only (depth formats → E_UNSUPPORTED); rows tightly packed,
-top-to-bottom, data_len exactly width*height*bytes_per_texel. Region must fit the selected mip. Coordinates and
-normalized sampling origin are top-left; no upload flip is guest-visible. Depth textures can be sampled (depth aspect
-only; stencil sampling is absent). Attachment writes are stored; there is no discard/store option.
+capability unset. TEXTURE_UPDATE accepts tightly packed color data and 2D depth data; 3D/array depth remains E_UNSUPPORTED.
+For DEPTH32F the bytes are little-endian float depth; for DEPTH24_STENCIL8 they are little-endian 24-bit depth in the
+high three bytes plus stencil in the low byte. `data_len` is exactly width*height*bytes_per_texel. Region must fit the
+selected mip. Coordinates and normalized sampling origin are top-left; no upload flip is guest-visible. Depth textures
+can be sampled (depth aspect only; stencil sampling is absent). Attachment writes are stored; there is no discard/store option.
 
 Sampler filters: min/mag NEAREST=0, LINEAR=1; mip NONE=0 (base level only), NEAREST=1, LINEAR=2 (trilinear).
 Wrap CLAMP=0 (edge), REPEAT=1, MIRROR=2. Compare enable is boolean; compare uses the enum below. Comparison samplers
@@ -876,7 +877,7 @@ extents: width/height halve (min 1); 3D depth halves (min 1); array layers are c
 reserves level 0; an explicit update/readback/attachment use of a higher level grows through that level, and generation
 grows through the logical mip count. Budget counts only allocated texels. Textures start zero (depth 1 / stencil 0 for depth formats).
 
-**TEXTURE_UPDATE_EX.** Color formats only (`E_UNSUPPORTED` for depth). The region `[x,x+width) × [y,y+height) × [z,z+depth)`
+**TEXTURE_UPDATE_EX.** Color formats and 2D depth formats are accepted. The region `[x,x+width) × [y,y+height) × [z,z+depth)`
 must fit the selected mip (`E_BOUNDS`; `z` is a slice for 3D and a layer for arrays, always 0/1 for 2D).
 `data_len` is exactly `width*height*depth*bytes_per_texel`, rows tightly packed top-to-bottom, slices in order.
 
@@ -889,7 +890,7 @@ Texture dimension must match what the shader declares for the slot (`sampler2D`/
 extended with `sampler3D`, `sampler2DArray` (WGSL `texture_3d<f32>`, `texture_2d_array<f32>`). BGT has no LOD bias,
 border colour or swizzle; profiles that expose those GL features must approximate and say so.
 
-**TEXTURE_READBACK.** Color formats only (`E_UNSUPPORTED` for depth; `E_LIMIT` above 8 MiB result). Reserves `request`
+**TEXTURE_READBACK.** Color and DEPTH32F formats are accepted (`DEPTH24_STENCIL8` stencil readback is unavailable where the backend cannot sample its stencil aspect; such a request returns `E_UNSUPPORTED`; `E_LIMIT` above 8 MiB result). Reserves `request`
 from the §12 allocator and, in stream order, returns the stored texels of the region as `width*height*depth*bytes`
 tightly packed bytes (rows top-first, slices in order, storage layout of the format; sRGB bytes are the encoded values,
 floats are exact binary16/binary32). Ordinary request visibility rules apply (visible after a later update boundary).

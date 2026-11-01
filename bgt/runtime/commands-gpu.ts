@@ -144,7 +144,6 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.TEXTURE_UPDATE: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
-      if (isDepth(t.format)) return E_UNSUPPORTED; // depth uploads deliberately excluded
       if (t.dimension !== 0) return E_STATE; // use TEXTURE_UPDATE_EX for volumes and arrays
       if (w[1] >= t.mips || !w[4] || !w[5]) return E_INVALID;
       const s = textureSize(t, w[1]);
@@ -186,7 +185,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.TEXTURE_UPDATE_EX: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
-      if (isDepth(t.format)) return E_UNSUPPORTED;
+      if (t.dimension !== 0 && isDepth(t.format)) return E_UNSUPPORTED;
       const [, mip, x, y, z, width, height, depth, , length] = w;
       if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
       if (mip >= t.allocatedMips) {
@@ -210,7 +209,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.TEXTURE_READBACK: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
-      if (isDepth(t.format)) return E_UNSUPPORTED;
+      if (t.dimension !== 0 && isDepth(t.format)) return E_UNSUPPORTED;
       const [, mip, x, y, z, width, height, depth] = w;
       if (mip >= t.mips || mip >= t.allocatedMips || !width || !height || !depth) return E_INVALID;
       const s = textureSize(t, mip);

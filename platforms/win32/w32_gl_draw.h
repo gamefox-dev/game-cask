@@ -392,8 +392,24 @@ static uint32_t api_ReadPixels(void) {
     uint32_t e = transfer_error(format, type); if (e) { fail(e); return 0; }
     if (w < 0 || h < 0) { fail(BAD_VALUE); return 0; }
     Target tg; if (resolve_fbo(fbo_read, 1, &tg) != 0x8cd5) { fail(0x506); return 0; }
-    if (format == 0x1902 || format == 0x84f9 || format == 0x1901 || integer_format(format)) {
-        approximate("glReadPixels of depth/stencil or integer data"); fail(BAD_OP); return 0;
+    if (format == 0x1902 || format == 0x84f9) {
+        if ((format == 0x1902 && !tg.has_depth) || (format == 0x84f9 && (!tg.has_depth || !tg.has_stencil)) ||
+            (fbo_read ? !fbos[fbo_read].read : dfb_read == 0)) { fail(BAD_OP); return 0; }
+        if (!w || !h) return 0;
+        int64_t end_x = (int64_t)x + w, end_y = (int64_t)y + h;
+        int32_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y, x1 = end_x > tg.w ? (int32_t)tg.w : (int32_t)end_x,
+            y1 = end_y > tg.h ? (int32_t)tg.h : (int32_t)end_y;
+        if (x1 <= x0 || y1 <= y0) return 0;
+        uint32_t rw = (uint32_t)(x1 - x0), rh = (uint32_t)(y1 - y0);
+        Pix st = pack_st; st.skip_images = st.image_height = 0;
+        if (!st.row_length) st.row_length = (uint32_t)w;
+        st.skip_pixels += (uint32_t)(x0 - x); st.skip_rows += (uint32_t)(y0 - y);
+        ReadCtx r = {tg.ds.bgt, format, type, dst, rw, rh, 0, 0, 0, &st};
+        fetch_texels(tg.ds.gpu, tg.ds.mip, (uint32_t)x0, tg.h - (uint32_t)y1, 0, rw, rh, tg.ds.bgt, sink_external, &r);
+        return 0;
+    }
+    if (format == 0x1901 || integer_format(format)) {
+        approximate("glReadPixels of stencil or integer data"); fail(BAD_OP); return 0;
     }
     if (fbo_read ? !fbos[fbo_read].read : dfb_read == 0) { fail(BAD_OP); return 0; }
     if (!w || !h) return 0;

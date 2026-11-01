@@ -180,7 +180,6 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
     }
     if (too_big) { fail(BAD_VALUE); return; }
     uint32_t id = tex_bind[dim][active_unit]; if (!id) { fail(BAD_OP); return; }
-    if (pixels && f->kind != K_COLOR) { approximate("depth/stencil pixel upload"); fail(BAD_OP); return; }
     Texture *t = &textures[id];
     uint32_t lw = (uint32_t)w, lh = (uint32_t)h, ld = (uint32_t)d;
     int reallocate = 0;
@@ -242,7 +241,6 @@ static void tex_sub_image(uint32_t dim, uint32_t level, int32_t x, int32_t y, in
     if (x < 0 || y < 0 || z < 0 || w < 0 || h < 0 || d < 0 || (uint64_t)x + (uint32_t)w > lv->w ||
         (uint64_t)y + (uint32_t)h > lv->h || (uint64_t)z + (uint32_t)d > lv->d) { fail(BAD_VALUE); return; }
     if (!w || !h || !d || !pixels) return;
-    if (f->kind != K_COLOR) { approximate("depth/stencil pixel upload"); fail(BAD_OP); return; }
     if (!t->gpu || f->bgt != t->gfmt || level >= t->galloc) { fail(BAD_OP); return; }
     upload_region(t, id, level, (uint32_t)x, (uint32_t)y, (uint32_t)z, (uint32_t)w, (uint32_t)h, (uint32_t)d,
         format, type, pixels, 0);
@@ -480,6 +478,10 @@ static void encode_external(uint32_t a, uint32_t format, uint32_t type, const fl
     uint32_t comps = format_comps(format); int bgr = format == 0x80e0 || format == 0x80e1;
     float c[4] = {v[0], v[1], v[2], v[3]};
     if (bgr) { c[0] = v[2]; c[2] = v[0]; }
+    if (format == 0x84f9 && type == 0x84fa) {
+        uint32_t depth = (uint32_t)(clamp01(v[0]) * 16777215.0f + 0.5f), stencil = (uint32_t)(clamp01(v[1]) * 255.0f + 0.5f);
+        x86_wr32(a, (depth << 8) | stencil); return;
+    }
     if (is_packed(type)) {
         static const struct { uint32_t type; uint8_t n, w[4], rev, size; } pk[] = {
             {0x8032, 3, {3, 3, 2, 0}, 0, 1}, {0x8362, 3, {3, 3, 2, 0}, 1, 1}, {0x8363, 3, {5, 6, 5, 0}, 0, 2},
@@ -552,8 +554,9 @@ static uint32_t api_GetTexImage(void) {
     Texture *t = &textures[id]; Level *lv = &t->lv[level];
     if (!lv->w) return 0;
     const Fmt *f = find_fmt(lv->internal);
-    if (!f || f->kind != K_COLOR || integer_format(format) || format == 0x1902 || format == 0x84f9 || format == 0x1901) {
-        approximate("glGetTexImage of depth/stencil or integer data"); fail(BAD_OP); return 0; }
+    if (!f || (f->kind == K_COLOR && (integer_format(format) || format == 0x1902 || format == 0x84f9 || format == 0x1901)) ||
+        (f->kind == K_DEPTH && format != 0x1902) || (f->kind == K_DS && format != 0x84f9) || f->kind == K_STENCIL) {
+        fail(BAD_OP); return 0; }
     if (!t->gpu || level >= t->galloc || f->bgt != t->gfmt) { fail(BAD_OP); return 0; }
     Pix store = pack_st; if (dim == 0) store.skip_images = store.image_height = 0;
     for (uint32_t zi = 0; zi < lv->d; zi++) {
