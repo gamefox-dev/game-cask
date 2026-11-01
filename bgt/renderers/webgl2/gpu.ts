@@ -2,7 +2,7 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
-import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture,
+import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
 
 interface IndexedBlend {
@@ -14,7 +14,7 @@ interface IndexedBlend {
 }
 interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer> }
 interface TextureObject {
-  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[];
+  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[]; allocatedMips: number;
   generated?: { base: number; data: Uint8Array<ArrayBuffer>; overridden: Set<number> };
 }
 interface ShaderObject { object: WebGLShader; words: number[]; source: string }
@@ -101,6 +101,15 @@ export class WebGL2Gpu implements GpuBackend {
       [g.RGB10_A2, g.RGBA, g.UNSIGNED_INT_2_10_10_10_REV, 4], [g.R16F, g.RED, g.HALF_FLOAT, 2],
       [g.RG16F, g.RG, g.HALF_FLOAT, 4], [g.R32F, g.RED, g.FLOAT, 4], [g.RG32F, g.RG, g.FLOAT, 8],
       [g.RGBA32F, g.RGBA, g.FLOAT, 16],
+      [g.R8UI, g.RED_INTEGER, g.UNSIGNED_BYTE, 1], [g.R8I, g.RED_INTEGER, g.BYTE, 1],
+      [g.R16UI, g.RED_INTEGER, g.UNSIGNED_SHORT, 2], [g.R16I, g.RED_INTEGER, g.SHORT, 2],
+      [g.R32UI, g.RED_INTEGER, g.UNSIGNED_INT, 4], [g.R32I, g.RED_INTEGER, g.INT, 4],
+      [g.RG8UI, g.RG_INTEGER, g.UNSIGNED_BYTE, 2], [g.RG8I, g.RG_INTEGER, g.BYTE, 2],
+      [g.RG16UI, g.RG_INTEGER, g.UNSIGNED_SHORT, 4], [g.RG16I, g.RG_INTEGER, g.SHORT, 4],
+      [g.RG32UI, g.RG_INTEGER, g.UNSIGNED_INT, 8], [g.RG32I, g.RG_INTEGER, g.INT, 8],
+      [g.RGBA8UI, g.RGBA_INTEGER, g.UNSIGNED_BYTE, 4], [g.RGBA8I, g.RGBA_INTEGER, g.BYTE, 4],
+      [g.RGBA16UI, g.RGBA_INTEGER, g.UNSIGNED_SHORT, 8], [g.RGBA16I, g.RGBA_INTEGER, g.SHORT, 8],
+      [g.RGBA32UI, g.RGBA_INTEGER, g.UNSIGNED_INT, 16], [g.RGBA32I, g.RGBA_INTEGER, g.INT, 16],
     ][format] as [number, number, number, number];
   }
   private target(dimension: number): number {
@@ -112,7 +121,11 @@ export class WebGL2Gpu implements GpuBackend {
     const type = this.format(format)[2], g = this.gl;
     if (type === g.HALF_FLOAT) return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     if (type === g.FLOAT) return new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
-    if (type === g.UNSIGNED_INT_2_10_10_10_REV) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.UNSIGNED_INT_2_10_10_10_REV || type === g.UNSIGNED_INT_24_8 || type === g.UNSIGNED_INT) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.BYTE) return new Int8Array(data.buffer, data.byteOffset, data.byteLength);
+    if (type === g.SHORT) return new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
+    if (type === g.INT) return new Int32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.UNSIGNED_SHORT) return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     return data;
   }
   private compare(value: number): number {
@@ -130,7 +143,7 @@ export class WebGL2Gpu implements GpuBackend {
       item.readback?.(undefined, -6);
       // A shader failed by device loss remains a CPU-side failed handle, never a live native module.
       // Recompiling that failed source on restore could abort before its queued deletion is reached.
-      if ((item.op <= OP.PIPELINE_DELETE || item.op >= OP.TEXTURE_CREATE_EX) &&
+      if ((item.op <= OP.PIPELINE_DELETE || (item.op >= OP.TEXTURE_CREATE_EX && item.op !== OP.CLEAR_BUFFER)) &&
         item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK) {
         this.deferred.push({ ...item, complete: undefined });
       }
@@ -179,10 +192,10 @@ export class WebGL2Gpu implements GpuBackend {
           throw new Error('32-bit float textures need EXT_color_buffer_float');
         }
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, object);
-        if (desc.dimension === 0) g.texStorage2D(target, desc.mips, format[0], desc.width, desc.height);
+        if (desc.dimension === 0) g.texStorage2D(target, 1, format[0], desc.width, desc.height);
         else g.texStorage3D(target, desc.mips, format[0], desc.width, desc.height, desc.depth);
-        g.texParameteri(target, g.TEXTURE_MAX_LEVEL, desc.mips - 1);
-        for (let mip = 0; mip < desc.mips; mip++) {
+        g.texParameteri(target, g.TEXTURE_MAX_LEVEL, desc.dimension === 0 ? 0 : desc.mips - 1);
+        for (let mip = 0; mip < (desc.dimension === 0 ? 1 : desc.mips); mip++) {
           const e = mipExtent(desc, mip);
           levels.push(new Uint8Array(e.width * e.height * e.depth * format[3]));
           if (isDepthFormat(desc.format)) {
@@ -197,7 +210,13 @@ export class WebGL2Gpu implements GpuBackend {
             g.deleteFramebuffer(initialization);
           }
         }
-        this.textures.set(h, { object, words: w, desc, levels }); break;
+        this.textures.set(h, { object, words: w, desc, levels, allocatedMips: desc.dimension === 0 ? 1 : desc.mips });
+        if (item.op === OP.TEXTURE_CREATE && desc.mips > 1) this.growTexture(h, desc.mips);
+        break;
+      }
+      case OP.TEXTURE_ALLOCATE_MIPS: {
+        this.growTexture(w[0], w[1]);
+        break;
       }
       case OP.TEXTURE_UPDATE_EX: {
         const t = this.textures.get(h)!, format = this.format(t.desc.format), bpp = format[3];
@@ -211,13 +230,18 @@ export class WebGL2Gpu implements GpuBackend {
         const target = this.target(t.desc.dimension);
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, t.object); g.pixelStorei(g.UNPACK_ALIGNMENT, 1);
         const data = this.view(t.desc.format, item.data!);
-        if (t.desc.dimension === 0) g.texSubImage2D(target, mip, x, y, width, height, format[1], format[2], data);
+        if (isDepthFormat(t.desc.format)) {
+          if (t.desc.dimension !== 0 || mip >= t.allocatedMips) throw new Error('Invalid depth texture update');
+          if (t.desc.format === 5) g.texSubImage2D(target, mip, x, y, width, height, g.DEPTH_STENCIL, g.UNSIGNED_INT_24_8, data);
+          else g.texSubImage2D(target, mip, x, y, width, height, g.DEPTH_COMPONENT, g.FLOAT, data);
+        } else if (t.desc.dimension === 0) g.texSubImage2D(target, mip, x, y, width, height, format[1], format[2], data);
         else g.texSubImage3D(target, mip, x, y, z, width, height, depth, format[1], format[2], data);
         break;
       }
       case OP.TEXTURE_READBACK: this.readback(item, w); break;
       case OP.TEXTURE_GENERATE_MIPS: {
-        const t = this.textures.get(h)!, target = this.target(t.desc.dimension);
+        const t = this.textures.get(h)!; this.growTexture(h, t.desc.mips);
+        const target = this.target(t.desc.dimension);
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, t.object);
         g.texParameteri(target, g.TEXTURE_BASE_LEVEL, w[1]); g.generateMipmap(target);
         g.texParameteri(target, g.TEXTURE_BASE_LEVEL, 0);
@@ -260,6 +284,24 @@ export class WebGL2Gpu implements GpuBackend {
       }
       case OP.PASS_BEGIN: this.beginPass(w); break;
       case OP.PASS_END: this.endPass(); break;
+      case OP.CLEAR_BUFFER: {
+        const kind = h & 3, cls = (h >>> 2) & 3, mask = (h >>> 4) & 15;
+        if (kind === 0) {
+          this.indexed!.colorMaskiOES(w[1], !!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8));
+          if (cls === 0) g.clearBufferfv(g.COLOR, w[1], w.slice(2).map(float));
+          else if (cls === 1) g.clearBufferiv(g.COLOR, w[1], w.slice(2).map(v => v | 0));
+          else g.clearBufferuiv(g.COLOR, w[1], w.slice(2));
+          this.indexed!.colorMaskiOES(w[1], true, true, true, true);
+        } else {
+          g.depthMask(!!(h & 16)); g.stencilMask((h >>> 8) & 255);
+          if (kind === 1) g.clearBufferfv(g.DEPTH, 0, [float(w[2])]);
+          else if (kind === 2) g.clearBufferiv(g.STENCIL, 0, [w[2]]);
+          else g.clearBufferfi(g.DEPTH_STENCIL, 0, float(w[2]), w[3]);
+          g.depthMask(true); g.stencilMask(255);
+        }
+        if (this.pipeline) this.applyPipeline();
+        break;
+      }
       case OP.PIPELINE: this.pipeline = this.pipelines.get(h)!; this.applyPipeline(); break;
       case OP.VIEWPORT:
         this.viewport = w.slice(0, 4).map(float);
@@ -296,8 +338,10 @@ export class WebGL2Gpu implements GpuBackend {
         const location = g.getUniformLocation(object, u.name);
         if (!location || u.name.startsWith('bgt_internal_')) continue;
         const match = /^bgt_t([0-7])$/.exec(u.name);
-        const kind = u.type === g.SAMPLER_2D ? 0 : u.type === g.SAMPLER_2D_SHADOW ? 0 :
-          u.type === g.SAMPLER_3D ? 1 : u.type === g.SAMPLER_2D_ARRAY ? 2 : -1;
+        const kind = u.type === g.SAMPLER_2D || u.type === g.SAMPLER_2D_SHADOW ||
+          u.type === 0x8dca || u.type === 0x8dd2 ? 0 :
+          u.type === g.SAMPLER_3D || u.type === 0x8dcb || u.type === 0x8dd3 ? 1 :
+          u.type === g.SAMPLER_2D_ARRAY || u.type === 0x8dcf || u.type === 0x8dd7 ? 2 : -1;
         if (!match || u.size !== 1 || !(w[22] & (1 << +match[1])) || kind < 0) throw new Error(`Illegal uniform ${u.name}`);
         kinds.set(+match[1], { dimension: kind, shadow: u.type === g.SAMPLER_2D_SHADOW });
         g.uniform1i(location, +match[1]);
@@ -320,22 +364,128 @@ export class WebGL2Gpu implements GpuBackend {
           (_, i) => `${output.name}[${i}]`) : [output.name];
         for (const name of names) {
           const location = g.getFragDataLocation(object, name);
-          if (location >= 0 && (location >= w[25] || !/^(float|vec[234])$/.test(output.type))) {
-            throw new Error('Color output mismatch');
-          }
+          const integer = location >= 0 && w[26 + w[23] * 2 + w[24] * 4 + location * 9] >= 13;
+          const fmt = w[26 + w[23] * 2 + w[24] * 4 + location * 9];
+          const valid = integer ? (fmt & 1 ? /^(?:uint|uvec[234])$/ : /^(?:int|ivec[234])$/).test(output.type) : /^(float|vec[234])$/.test(output.type);
+          if (location >= 0 && (location >= w[25] || !valid)) throw new Error('Color output mismatch');
         }
       }
       this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds });
     } catch (e) { g.deleteProgram(object); throw e; }
   }
 
+  /** Grow immutable storage while copying every already allocated level, including rendered contents. */
+  private growTexture(handle: number, allocatedMips: number): void {
+    const g = this.gl, t = this.textures.get(handle)!;
+    if (allocatedMips <= t.allocatedMips) return;
+    if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
+    if (t.desc.dimension !== 0) throw new Error('layered mip growth is unavailable');
+    const format = this.format(t.desc.format), target = g.TEXTURE_2D;
+    g.activeTexture(g.TEXTURE0);
+    const next = g.createTexture()!; g.bindTexture(target, next);
+    g.texStorage2D(target, allocatedMips, format[0], t.desc.width, t.desc.height);
+    g.texParameteri(target, g.TEXTURE_MAX_LEVEL, allocatedMips - 1);
+    const read = g.createFramebuffer()!, draw = g.createFramebuffer()!;
+    g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw);
+    g.disable(g.SCISSOR_TEST);
+    const mask = isDepthFormat(t.desc.format) ? (t.desc.format === 5 ? g.DEPTH_BUFFER_BIT | g.STENCIL_BUFFER_BIT : g.DEPTH_BUFFER_BIT) : g.COLOR_BUFFER_BIT;
+    for (let mip = 0; mip < t.allocatedMips; mip++) {
+      if (isDepthFormat(t.desc.format)) {
+        g.readBuffer(g.NONE); g.drawBuffers([g.NONE]);
+        g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.framebufferTexture2D(g.READ_FRAMEBUFFER,
+          t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, t.object, mip);
+        g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw); g.framebufferTexture2D(g.DRAW_FRAMEBUFFER,
+          t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, next, mip);
+      } else {
+        g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.framebufferTexture2D(g.READ_FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, t.object, mip);
+        g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw); g.framebufferTexture2D(g.DRAW_FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, next, mip);
+        g.readBuffer(g.COLOR_ATTACHMENT0); g.drawBuffers([g.COLOR_ATTACHMENT0]);
+      }
+      const e = mipExtent(t.desc, mip);
+      if (g.checkFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
+        g.checkFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
+      g.blitFramebuffer(0, 0, e.width, e.height, 0, 0, e.width, e.height, mask, g.NEAREST);
+    }
+    for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
+      const e = mipExtent(t.desc, mip); t.levels[mip] = new Uint8Array(e.width * e.height * e.depth * format[3]);
+      if (isDepthFormat(t.desc.format)) {
+        g.framebufferTexture2D(g.DRAW_FRAMEBUFFER, t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, next, mip);
+        g.depthMask(true); g.stencilMask(255);
+        if (t.desc.format === 5) g.clearBufferfi(g.DEPTH_STENCIL, 0, 1, 0); else g.clearBufferfv(g.DEPTH, 0, [1]);
+      }
+    }
+    g.bindFramebuffer(g.FRAMEBUFFER, null); g.deleteFramebuffer(read); g.deleteFramebuffer(draw);
+    g.deleteTexture(t.object); t.object = next; t.allocatedMips = allocatedMips;
+  }
+
+  /** WebGL forbids depth readPixels. Sample depth into a float color target in stream order.
+   * Packed stencil is recovered by equality tests against the real attachment, not an upload shadow. */
+  private readDepthback(item: GpuItem, w: number[]): void {
+    const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    if (t.desc.dimension !== 0 || z || depth !== 1 || mip >= t.allocatedMips) throw new Error('Depth readback is 2D only');
+    const e = mipExtent(t.desc, mip), tw = t.desc.format === 5 ? e.width : width, th = t.desc.format === 5 ? e.height : height;
+    const target = g.createTexture()!, fb = g.createFramebuffer()!, vao = g.createVertexArray()!;
+    const programs: WebGLProgram[] = [], shaders: WebGLShader[] = [];
+    const program = (body: string) => {
+      const p = g.createProgram()!; programs.push(p);
+      for (const [stage, code] of [[g.VERTEX_SHADER, `#version 300 es\nvoid main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexID],0,1);}`],
+        [g.FRAGMENT_SHADER, '#version 300 es\nprecision highp float;precision highp int;'+body]] as const) {
+        const s = g.createShader(stage)!; shaders.push(s); g.shaderSource(s, code); g.compileShader(s);
+        if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s) ?? 'Depth conversion shader failed');
+        g.attachShader(p, s);
+      }
+      g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p) ?? 'Depth conversion link failed');
+      return p;
+    };
+    try {
+      g.activeTexture(g.TEXTURE0); g.bindSampler(0, null); g.bindTexture(g.TEXTURE_2D, target);
+      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, tw, th);
+      g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, target, 0);
+      g.drawBuffers([g.COLOR_ATTACHMENT0]); g.readBuffer(g.COLOR_ATTACHMENT0);
+      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
+      g.bindVertexArray(vao); g.viewport(0, 0, tw, th);
+      g.disable(g.SCISSOR_TEST); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.CULL_FACE); g.disable(g.BLEND);
+      this.indexed!.disableiOES(g.BLEND, 0); this.indexed!.colorMaskiOES(0, true, true, true, true);
+      const p = program(`uniform highp sampler2D src;layout(location=0) out vec4 o;void main(){o=vec4(texelFetch(src,ivec2(gl_FragCoord.xy)+ivec2(${t.desc.format === 5 ? 0 : x},${t.desc.format === 5 ? 0 : y}),${mip}).r,0,0,1);}`);
+      g.useProgram(p); g.bindTexture(g.TEXTURE_2D, t.object);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
+      g.uniform1i(g.getUniformLocation(p, 'src'), 0); g.drawArrays(g.TRIANGLES, 0, 3);
+      if (t.desc.format === 5) {
+        g.bindTexture(g.TEXTURE_2D, null);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.DEPTH_STENCIL_ATTACHMENT, g.TEXTURE_2D, t.object, mip);
+        const s = program('uniform float ref;layout(location=0) out vec4 o;void main(){o=vec4(0,ref,0,1);}');
+        g.useProgram(s); g.enable(g.STENCIL_TEST); g.stencilMask(0); g.stencilOp(g.KEEP, g.KEEP, g.KEEP);
+        this.indexed!.colorMaskiOES(0, false, true, false, false);
+        const ref = g.getUniformLocation(s, 'ref');
+        for (let value = 0; value < 256; value++) {
+          g.stencilFunc(g.EQUAL, value, 255); g.uniform1f(ref, value); g.drawArrays(g.TRIANGLES, 0, 3);
+        }
+      }
+      const pixels = new Float32Array(width * height * 4); g.pixelStorei(g.PACK_ALIGNMENT, 1);
+      g.readPixels(t.desc.format === 5 ? x : 0, t.desc.format === 5 ? y : 0, width, height, g.RGBA, g.FLOAT, pixels);
+      const out = new Uint8Array(width * height * 4), dv = new DataView(out.buffer);
+      for (let i = 0; i < width * height; i++) {
+        if (t.desc.format === 5) dv.setUint32(i * 4, ((Math.round(pixels[i * 4] * 0xffffff) << 8) | Math.round(pixels[i * 4 + 1])) >>> 0, true);
+        else dv.setFloat32(i * 4, pixels[i * 4], true);
+      }
+      item.readback?.(out);
+    } finally {
+      g.bindFramebuffer(g.FRAMEBUFFER, null); g.bindVertexArray(null); g.disable(g.STENCIL_TEST);
+      this.indexed!.colorMaskiOES(0, true, true, true, true);
+      g.deleteTexture(target); g.deleteFramebuffer(fb); g.deleteVertexArray(vao);
+      programs.forEach(p => g.deleteProgram(p)); shaders.forEach(s => g.deleteShader(s));
+    }
+  }
+
   /** §13.7 TEXTURE_READBACK: exact stored texels, rows top-first, slices in order. */
   private readback(item: GpuItem, w: number[]): void {
     const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     const format = t.desc.format, components = TEXEL_COMPONENTS[format], bytes = TEXEL_BYTES[format];
+    if (isDepthFormat(format)) { this.readDepthback(item, w); return; }
     const target = this.target(t.desc.dimension), out = new Uint8Array(width * height * depth * bytes);
-    const packed = format === 7, bytesNormalized = format <= 3;
-    const wide = packed ? new Uint32Array(width * height) : bytesNormalized ?
+    const packed = format === 7, bytesNormalized = format <= 3, integer = isIntegerFormat(format), cb = bytes / components;
+    const wide = packed ? new Uint32Array(width * height) : integer ?
+      (format & 1 ? new Uint32Array(width * height * 4) : new Int32Array(width * height * 4)) : bytesNormalized ?
       new Uint8Array(width * height * 4) : new Float32Array(width * height * 4);
     const read = g.createFramebuffer()!;
     g.pixelStorei(g.PACK_ALIGNMENT, 1);
@@ -346,8 +496,8 @@ export class WebGL2Gpu implements GpuBackend {
         else g.framebufferTextureLayer(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, t.object, mip, z + d);
         g.readBuffer(g.COLOR_ATTACHMENT0);
         if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
-        g.readPixels(x, y, width, height, g.RGBA, packed ? g.UNSIGNED_INT_2_10_10_10_REV :
-          bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
+        g.readPixels(x, y, width, height, integer ? g.RGBA_INTEGER : g.RGBA,
+          integer ? (format & 1 ? g.UNSIGNED_INT : g.INT) : packed ? this.format(format)[2] : bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
         const base = d * width * height * bytes, view = new DataView(out.buffer);
         for (let i = 0; i < width * height; i++) {
           const o = base + i * bytes;
@@ -355,7 +505,11 @@ export class WebGL2Gpu implements GpuBackend {
           else for (let c = 0; c < components; c++) {
             const v = wide[i * 4 + c];
             if (bytesNormalized) out[o + c] = v;
-            else if (format === 4 || format === 8 || format === 9) view.setUint16(o + c * 2, halfBits(v), true);
+            else if (integer) {
+              if (cb === 1) view.setUint8(o + c, Number(v));
+              else if (cb === 2) view.setUint16(o + c * 2, Number(v), true);
+              else view.setUint32(o + c * 4, Number(v), true);
+            } else if (format === 4 || format === 8 || format === 9) view.setUint16(o + c * 2, halfBits(v), true);
             else view.setFloat32(o + c * 4, v, true);
           }
         }
@@ -407,7 +561,14 @@ export class WebGL2Gpu implements GpuBackend {
     }
     for (let i = 0; i < w[0]; i++) {
       const base = 7+i*7;
-      if (w[base+2]) g.clearBufferfv(g.COLOR, i, w.slice(base+3, base+7).map(float));
+      if (w[base+2]) {
+        const format = this.screenPass ? 0 : this.textures.get(w[base])!.desc.format;
+        if (isIntegerFormat(format)) {
+          const values = w.slice(base + 3, base + 7).map(v => Math.trunc(float(v)));
+          if (format & 1) g.clearBufferuiv(g.COLOR, i, values.map(v => Math.max(0, Math.min(0xffffffff, v))));
+          else g.clearBufferiv(g.COLOR, i, values.map(v => Math.max(-0x80000000, Math.min(0x7fffffff, v))));
+        } else g.clearBufferfv(g.COLOR, i, w.slice(base+3, base+7).map(float));
+      }
     }
     if (w[1] && w[3]) g.clearBufferfv(g.DEPTH, 0, [float(w[5])]);
     if (w[1] && w[4]) g.clearBufferiv(g.STENCIL, 0, [w[6]]);
@@ -582,6 +743,8 @@ export class WebGL2Gpu implements GpuBackend {
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });
     for (const [h, t] of textures) {
       replay({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
+      if (t.allocatedMips > 1) replay({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
+        words: [h, t.allocatedMips] });
       const upload = (mip: number, data: Uint8Array<ArrayBuffer>) => {
         const e = mipExtent(t.desc, mip);
         replay({ kind: 'gpu', op: OP.TEXTURE_UPDATE_EX,

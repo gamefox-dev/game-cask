@@ -12,9 +12,12 @@ const types: Record<string, string> = {
 // Block/struct member in std140 terms; `kind` says how the WGSL host-shareable form differs from the GLSL value.
 type Field = { name: string; base: string; arr: number; kind: 'plain' | 'bool' | 'mat2' | 'struct' | 'pad'; comps: number };
 interface StructInfo { name: string; fields: Field[]; host?: string }
-const scalar = (t: string) => t.endsWith('u') || t === 'u32' ? 'u32' : t.endsWith('i') || t === 'i32' ? 'i32' : 'f32';
-const vector = (n: number, t: string) => n === 1 ? scalar(t) : `vec${n}${scalar(t)[0]}`;
+const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool' :
+  t.endsWith('u') || t === 'u32' ? 'u32' : t.endsWith('i') || t === 'i32' ? 'i32' : 'f32';
+const vector = (n: number, t: string) => n === 1 ? scalar(t) :
+  scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
+const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast'].includes(text) ? `bgt_internal_glsl_${text}` : text;
 
 function lex(source: string): Token[] {
   const result: Token[] = [];
@@ -31,7 +34,10 @@ function lex(source: string): Token[] {
     const m = re.exec(source);
     if (!m) throw new Error(`GLSL line ${line}: unexpected character ${JSON.stringify(source[offset])}`);
     const text = m[0];
-    if (!/^\s|^\/\//.test(text) && !text.startsWith('/*')) result.push({ text, line });
+    if (!/^\s|^\/\//.test(text) && !text.startsWith('/*')) {
+      // These are legal GLSL names but WGSL keywords. Rename at token level, including member/function uses.
+      result.push({ text: glslName(text), line });
+    }
     line += (text.match(/\n/g) ?? []).length; offset = re.lastIndex;
   }
   return result;
@@ -59,8 +65,9 @@ class GLSL {
 
   private varyings: string[];
   constructor(source: string, private stage: number, language: number, varyingNames?: string[],
-    private depthSlots: ReadonlySet<number> = new Set()) {
-    this.varyings = varyingNames ?? glslVaryings(source, stage);
+    private depthSlots: ReadonlySet<number> = new Set(),
+    private integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()) {
+    this.varyings = (varyingNames ?? glslVaryings(source, stage)).map(glslName);
     const version = language === 1 ? /^\s*#version\s+330\s+core\s*(?:\r?\n|$)/ :
       /^\s*#version\s+300\s+es\s*(?:\r?\n|$)/;
     const match = source.match(version);
@@ -241,6 +248,13 @@ class GLSL {
       this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: ${volume ? 'texture_3d<f32>' : 'texture_2d_array<f32>'};`,
         `@group(1) @binding(${2 * s + 1}) var ${n}_sampler: sampler;`);
       this.variables.set(n, { code: n, type: volume ? 'texture3d' : 'texture2darray' }); return;
+    }
+    if (name === 'isampler2D' || name === 'usampler2D') {
+      const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
+      this.need(';'); const s = Number(slot[1]), integer = name === 'isampler2D';
+      this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: texture_2d<${integer ? 'i32' : 'u32'}>;`,
+        `@group(1) @binding(${2 * s + 1}) var ${n}_sampler: sampler;`);
+      this.variables.set(n, { code: n, type: integer ? 'textureI' : 'textureU' }); return;
     }
     if (name === 'sampler2D' || name === 'sampler2DShadow') {
       const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
@@ -602,7 +616,7 @@ class GLSL {
     }
     if (['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(name)) {
       const [t, uv, lod] = args;
-      if (!t || !['texture', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
+      if (!t || !['texture', 'textureI', 'textureU', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
         this.fail('texture requires bgt_tS');
       }
       if (t.type === 'texture3d') {
@@ -635,6 +649,26 @@ class GLSL {
         return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
       }
       if (name === 'textureSize') return { code: `vec2i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec2i' };
+      if (t.type === 'textureI' || t.type === 'textureU') {
+        const result = t.type === 'textureI' ? 'vec4i' : 'vec4u';
+        if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: result };
+        const slot = Number(t.code.match(/bgt_t([0-7])/)![1]);
+        const s = this.integerSamplers.get(slot) ?? [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0];
+        const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
+        const literal = (n: number) => Number.isInteger(n) ? `${n}.0` : String(n);
+        const helper = `bgt_internal_integer_sample_${this.temporary++}`;
+        const wrap = (axis: string, mode: number) => mode === 0 ? `clamp(p.${axis},0,size.${axis}-1)` : mode === 1 ?
+          `((p.${axis}%size.${axis})+size.${axis})%size.${axis}` :
+          `min(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2),size.${axis}*2-1-(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2)))`;
+        this.helpers.push(`fn ${helper}(c:vec2f,l:f32)->${result} { let level=${s[3] === 0 ? `min(${Math.floor(f(s[9]))},i32(textureNumLevels(${t.code}))-1)` : `i32(clamp(floor(clamp(l,${literal(f(s[9]))},${literal(f(s[10]))})+0.5),0.0,f32(textureNumLevels(${t.code})-1u)))`}; let size=vec2i(textureDimensions(${t.code},level)); let p=vec2i(floor(c*vec2f(size))); return textureLoad(${t.code},vec2i(${wrap('x',s[4])},${wrap('y',s[5])}),level); }`.replace(/(\d+)\.0\.0/g, '$1.0'));
+        let lodExpr = '0.0';
+        if (name === 'textureLod') lodExpr = args[2].code;
+        else if (name === 'textureGrad') lodExpr = `log2(max(length(${args[2].code}*vec2f(textureDimensions(${t.code}))),length(${args[3].code}*vec2f(textureDimensions(${t.code})))))`;
+        else if (this.stage === 2) lodExpr = `log2(max(length(dpdx(${uv.code})*vec2f(textureDimensions(${t.code}))),length(dpdy(${uv.code})*vec2f(textureDimensions(${t.code})))))`;
+        if (name === 'texture' && args.length === 3) lodExpr = `(${lodExpr}+${args[2].code})`;
+        if (!s[3]) lodExpr = `${Math.floor(f(s[9]))}.0`;
+        return { code: `${helper}(${uv.code},${lodExpr})`, type: result };
+      }
       if (name === 'texelFetch') {
         const code = `textureLoad(${t.code}, ${uv.code}, ${lod.code})`;
         return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
@@ -650,6 +684,19 @@ class GLSL {
         name === 'textureGrad' ? 'textureSampleGrad' : args.length === 3 ? 'textureSampleBias' : 'textureSample';
       const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`;
       return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
+    }
+    const userSignature = this.signatures.get(name);
+    const userOverload = userSignature?.length === args.length && userSignature.every((p, i) => p.type === args[i].type);
+    if (name === 'mix' && !userOverload && args.length === 3 && scalar(args[2].type) === 'bool') {
+      const [x, y, condition] = args;
+      // GLSL's selector overload copies y where true and x where false; it is not interpolation.
+      // Keep exact integer/bool types (not f32, which loses uint precision), and preserve unselected NaNs.
+      const shape = /^vec[234]/.test(x.type) ? vector(Number(x.type[3]), 'bool') : 'bool';
+      if (x.type !== y.type || condition.type !== shape ||
+        !/^(f32|i32|u32|bool|vec[234](?:[fiu]|<bool>))$/.test(x.type)) {
+        this.fail('mix boolean selector requires matching scalar/vector operand and selector shapes');
+      }
+      return { code: `select(${x.code}, ${y.code}, ${condition.code})`, type: x.type };
     }
     if (['min', 'max', 'clamp', 'step', 'smoothstep', 'mod'].includes(name)) {
       const type = args.find(a => /^vec[234]/.test(a.type))?.type;
@@ -695,13 +742,13 @@ export function glslVaryings(source: string, stage: number): string[] {
 }
 
 export function translateGLSL(source: string, stage: number, language: number, varyingNames?: string[],
-  depthSlots?: ReadonlySet<number>): string {
-  return validateWGSL(new GLSL(source, stage, language, varyingNames, depthSlots).compile(), stage, true);
+  depthSlots?: ReadonlySet<number>, integerSamplers?: ReadonlyMap<number, readonly number[]>): string {
+  return validateWGSL(new GLSL(source, stage, language, varyingNames, depthSlots, integerSamplers).compile(), stage, true);
 }
 
 export interface ShaderBinding {
   group: number; binding: number;
-  type: 'uniform' | 'texture' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray';
+  type: 'uniform' | 'texture' | 'textureI' | 'textureU' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray';
 }
 export function shaderBindings(source: string, activeOnly = false): ShaderBinding[] {
   const clean = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
@@ -715,12 +762,13 @@ export function shaderBindings(source: string, activeOnly = false): ShaderBindin
     const g = Number(group[1]), b = Number(binding[1]);
     const type = m[2]?.trim() === 'uniform' ? 'uniform' : m[3].trim() === 'texture_depth_2d' ? 'depth' :
       /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' :
+      /^texture_2d\s*<\s*i32\s*>$/.test(m[3].trim()) ? 'textureI' :
+      /^texture_2d\s*<\s*u32\s*>$/.test(m[3].trim()) ? 'textureU' :
       /^texture_3d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture3d' :
       /^texture_2d_array\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture2darray' : m[3].trim() === 'sampler' ? 'sampler' :
       m[3].trim() === 'sampler_comparison' ? 'comparison' : undefined;
     if (!type || (g === 0 ? type !== 'uniform' || b > 7 : g !== 1 || b > 15 ||
-      ((type === 'texture' || type === 'depth' || type === 'texture3d' || type === 'texture2darray') ? b % 2 !== 0 :
-        (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
+      ((type === 'texture' || type === 'textureI' || type === 'textureU' || type === 'depth' || type === 'texture3d' || type === 'texture2darray') ? b % 2 !== 0 :        (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
       throw new Error(`WGSL binding @group(${g}) @binding(${b}) violates §13.5`);
     const name = /var\s*(?:<[^>]+>\s*)?(\w+)/.exec(m[0])![1];
     if (!activeOnly || new RegExp(`\\b${name}\\b`).test(clean.replace(m[0], '')))

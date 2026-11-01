@@ -171,8 +171,8 @@ static uint32_t xc_fullpath(int wide) {
     char raw[520], out[560]; uint64_t max = ARG64(2);
     if (!ARG(1)) { char t[560]; uint32_t n = w32_fs_cwd_text(t); return xc_result_string(t, n, ARG(0), max, wide); }
     if (!xc_path(ARG(1), wide, raw, sizeof raw)) { xc_set(34); return 0; }
-    uint32_t n = w32_fs_fullpath(raw, out, sizeof out);
-    if (!n) { xc_set(34); return 0; }
+    uint32_t error, n = w32_fs_fullpath(raw, out, sizeof out, &error);
+    if (!n) { xc_set(error ? w32_errno_from_win32(error) : 34); return 0; }
     return xc_result_string(out, n, ARG(0), max, wide);
 }
 static uint32_t xc_getdrive(void) { return 3; }

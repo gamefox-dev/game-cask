@@ -9,7 +9,7 @@ typedef struct {
 } Params;
 typedef struct { uint32_t w, h, d, internal; } Level;
 typedef struct {
-    uint32_t used, kind1, gpu, gw, gh, gd, gmips, gfmt, base, maxl; Params p; Level lv[MAXLV];
+    uint32_t used, kind1, gpu, gw, gh, gd, gmips, galloc, gfmt, base, maxl; Params p; Level lv[MAXLV];
 } Texture;
 typedef struct { uint32_t used; Params p; } Sampler;
 typedef struct { uint32_t align, row_length, skip_rows, skip_pixels, image_height, skip_images, swap, lsb; } Pix;
@@ -125,11 +125,18 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
                 continue;
             }
             for (uint32_t i = 0; i < w; i++) {
-                float v[4] = {0, 0, 0, 1};
-                if (src) decode_pixel(base + i * pixel_bytes(format, type), format, type, v);
-                else if (!null_fill) continue;
-                if (logical && logical->chans == 3) v[3] = 1;
-                encode_texel(dst + i * bpp, gfmt, v);
+                if (integer_internal(logical)) {
+                    int64_t iv[4] = {0, 0, 0, 0};
+                    if (src) { iv[3] = 1; decode_integer_pixel(base + i * pixel_bytes(format, type), format, type, iv); }
+                    else if (!null_fill) continue;
+                    encode_integer_texel(dst + i * bpp, gfmt, iv);
+                } else {
+                    float v[4] = {0, 0, 0, 1};
+                    if (src) decode_pixel(base + i * pixel_bytes(format, type), format, type, v);
+                    else if (!null_fill) continue;
+                    if (logical && logical->chans == 3) v[3] = 1;
+                    encode_texel(dst + i * bpp, gfmt, v);
+                }
             }
         }
         uint32_t by = mh - (y + yo + rows);
@@ -137,14 +144,16 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
         else SEND(0x5a, id, lvl, x, by, z + zi, w, rows, 1, PTR(buf), w * rows * bpp);
     }
 }
-static void gpu_create(Texture *t, uint32_t id, uint32_t dim, uint32_t w, uint32_t h, uint32_t d, uint32_t bgt) {
-    t->gpu = id; t->gw = w; t->gh = h; t->gd = d; t->gfmt = bgt; t->gmips = chain_len(dim, w, h, d);
-    if (dim == 0 && bgt <= 6) SEND(0x43, id, w, h, t->gmips, bgt, 3);
-    else SEND(0x59, id, dim, w, h, dim == 0 ? 1 : d, t->gmips, bgt, dim == 0 ? 3 : 1);
+static int gpu_create(Texture *t, uint32_t id, uint32_t dim, uint32_t w, uint32_t h, uint32_t d, uint32_t bgt) {
+    uint32_t mips = chain_len(dim, w, h, d);
+    int ok = send(0x59, (uint32_t[]){id, dim, w, h, dim == 0 ? 1 : d, mips, bgt, dim == 0 ? 3 : 1}, 8);
+    if (!ok) return 0;
+    t->gpu = id; t->gw = w; t->gh = h; t->gd = d; t->gfmt = bgt; t->gmips = mips; t->galloc = 1;
+    return 1;
 }
 static void gpu_destroy(Texture *t) { if (t->gpu) SEND(0x45, t->gpu); t->gpu = 0; }
 static void init_alpha_2d(Texture *t, uint32_t id) {
-    for (uint32_t mip = 0; mip < t->gmips; mip++) {
+    for (uint32_t mip = 0; mip < t->galloc; mip++) {
         begin(); uint32_t w[14] = {1, 0, 0, 0, 0, 0, 0, id, mip, 1, 0, 0, 0, bits(1)}; op(0x4c, w, 14); op(0x4d, 0, 0);
         submit();
     }
@@ -165,7 +174,7 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
     uint32_t e = transfer_error(format, type); if (e) { fail(e); return; }
     int depth_format = format == 0x1902 || format == 0x84f9;
     if (depth_format != (f->kind != K_COLOR) || (f->kind == K_DEPTH && format != 0x1902) ||
-        (f->kind == K_DS && format != 0x84f9) || integer_format(format)) { fail(BAD_OP); return; }
+        (f->kind == K_DS && format != 0x84f9) || integer_internal(f) != integer_format(format)) { fail(BAD_OP); return; }
     if (f->kind != K_COLOR && dim != 0) { approximate("depth 3D/array textures"); fail(BAD_OP); return; }
     uint32_t edge = max_dim(dim) >> level, dmax = dim == 0 ? 1 : dim == 1 ? 256u >> level : 256;
     if (!edge || !dmax) { fail(BAD_VALUE); return; }
@@ -178,7 +187,6 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
     }
     if (too_big) { fail(BAD_VALUE); return; }
     uint32_t id = tex_bind[dim][active_unit]; if (!id) { fail(BAD_OP); return; }
-    if (pixels && f->kind != K_COLOR) { approximate("depth/stencil pixel upload"); fail(BAD_OP); return; }
     Texture *t = &textures[id];
     uint32_t lw = (uint32_t)w, lh = (uint32_t)h, ld = (uint32_t)d;
     int reallocate = 0;
@@ -186,11 +194,13 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
         reallocate = !t->gpu || t->gw != lw || t->gh != lh || (dim && t->gd != ld) || t->gfmt != f->bgt;
         if (reallocate && t->gpu) { gpu_destroy(t); for (uint32_t n = 1; n < MAXLV; n++) t->lv[n].w = 0; }
         if (reallocate && lw && lh && ld) {
-            gpu_create(t, id, dim, lw, lh, ld, f->bgt); reallocate = 1;
+            if (!gpu_create(t, id, dim, lw, lh, ld, f->bgt)) return;
+            reallocate = 1;
         }
     } else if (!t->gpu && lw && lh && ld) {
         /* Level defined before level 0: allocate from this level's implied base size. */
-        gpu_create(t, id, dim, lw << level, lh << level, dim == 1 ? ld << level : ld, f->bgt); reallocate = 1;
+        if (!gpu_create(t, id, dim, lw << level, lh << level, dim == 1 ? ld << level : ld, f->bgt)) return;
+        reallocate = 1;
     }
     Level *lv = &t->lv[level];
     int same = lv->w == lw && lv->h == lh && lv->d == ld && lv->internal == internal;
@@ -200,6 +210,10 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
         f->bgt == t->gfmt && level < t->gmips;
     if (!fits) { approximate("texture level not representable (inconsistent mip chain)"); return; }
     int rgb_only = f->kind == K_COLOR && f->chans == 3 && (f->bgt == 0 || f->bgt == 1 || f->bgt == 4 || f->bgt == 7 || f->bgt == 12);
+    if (level >= t->galloc) {
+        if (!send(0x5e, (uint32_t[]){id, level + 1}, 2)) return;
+        t->galloc = level + 1;
+    }
     if (pixels) upload_region(t, id, level, 0, 0, 0, lw, lh, ld, format, type, pixels, 1);
     else if (rgb_only && (reallocate || !same)) {
         if (dim == 0) { if (level == 0) init_alpha_2d(t, id); else { begin(); uint32_t pw[14] = {1, 0, 0, 0, 0, 0, 0, id, level, 1, 0, 0, 0, bits(1)};
@@ -230,12 +244,11 @@ static void tex_sub_image(uint32_t dim, uint32_t level, int32_t x, int32_t y, in
     const Fmt *f = find_fmt(lv->internal);
     int depth_format = format == 0x1902 || format == 0x84f9;
     if (!f || depth_format != (f->kind != K_COLOR) || (f->kind == K_DEPTH && format != 0x1902) ||
-        (f->kind == K_DS && format != 0x84f9) || integer_format(format)) { fail(BAD_OP); return; }
+        (f->kind == K_DS && format != 0x84f9) || integer_internal(f) != integer_format(format)) { fail(BAD_OP); return; }
     if (x < 0 || y < 0 || z < 0 || w < 0 || h < 0 || d < 0 || (uint64_t)x + (uint32_t)w > lv->w ||
         (uint64_t)y + (uint32_t)h > lv->h || (uint64_t)z + (uint32_t)d > lv->d) { fail(BAD_VALUE); return; }
     if (!w || !h || !d || !pixels) return;
-    if (f->kind != K_COLOR) { approximate("depth/stencil pixel upload"); fail(BAD_OP); return; }
-    if (!t->gpu || f->bgt != t->gfmt || level >= t->gmips) { fail(BAD_OP); return; }
+    if (!t->gpu || f->bgt != t->gfmt || level >= t->galloc) { fail(BAD_OP); return; }
     upload_region(t, id, level, (uint32_t)x, (uint32_t)y, (uint32_t)z, (uint32_t)w, (uint32_t)h, (uint32_t)d,
         format, type, pixels, 0);
 }
@@ -258,7 +271,11 @@ static uint32_t api_GenerateMipmap(void) {
     Texture *t = &textures[id]; uint32_t b = t->base;
     if (b >= MAXLV || !t->lv[b].w || !t->gpu) { fail(BAD_OP); return 0; }
     const Fmt *f = find_fmt(t->lv[b].internal);
-    if (!f || f->kind != K_COLOR || b >= t->gmips) { fail(BAD_OP); return 0; }
+    if (!f || f->kind != K_COLOR || integer_internal(f) || b >= t->gmips) { fail(BAD_OP); return 0; }
+    if (t->galloc < t->gmips) {
+        if (!send(0x5e, (uint32_t[]){id, t->gmips}, 2)) return 0;
+        t->galloc = t->gmips;
+    }
     SEND(0x5d, id, b);
     for (uint32_t n = b + 1; n < t->gmips; n++) {
         t->lv[n].w = lvl_w(t, n); t->lv[n].h = lvl_h(t, n); t->lv[n].d = lvl_d(t, n);
@@ -293,7 +310,7 @@ static void param_set(Params *p, Texture *t, uint32_t pname, const float *f, con
         case 0x2801: p->min = v; break; case 0x2800: p->mag = v; break; case 0x2802: p->ws = v; break;
         case 0x2803: p->wt = v; break; case 0x8072: p->wr = v; break; case 0x884c: p->cmp_mode = v; break;
         case 0x884d: p->cmp_func = v; break;
-        default: p->swz[pname - 0x8e42] = v; if (v != (uint32_t)(0x1903 + pname - 0x8e42)) approximate("GL_TEXTURE_SWIZZLE ignored");
+        default: p->swz[pname - 0x8e42] = v;
         }
         return;
     }
@@ -313,7 +330,6 @@ static void param_set(Params *p, Texture *t, uint32_t pname, const float *f, con
         }
         for (int k = 0; k < 4; k++) {
             p->swz[k] = is_float ? (uint32_t)f[k] : (uint32_t)i[k];
-            if (p->swz[k] != (uint32_t)(0x1903 + k)) approximate("GL_TEXTURE_SWIZZLE ignored");
         }
         return;
     case 0x813c: case 0x813d:
@@ -433,7 +449,8 @@ static uint32_t api_GetSamplerParameterIiv(void) { return sampler_get(0); }
 static uint32_t api_GetSamplerParameterIuiv(void) { return sampler_get(0); }
 static uint32_t comp_type(const Fmt *f, uint32_t channel) {
     /* TEXTURE_*_TYPE: GL_NONE, UNSIGNED_NORMALIZED 0x8c17 or FLOAT 0x1406 */
-    if (f->kind == K_COLOR) return channel < 4 && f->bits[channel] ? (f->flt ? 0x1406u : 0x8c17u) : 0;
+    if (f->kind == K_COLOR) return channel < 4 && f->bits[channel] ?
+        (integer_internal(f) ? (integer_unsigned(f) ? T_UINT : T_INT) : f->flt ? 0x1406u : 0x8c17u) : 0;
     if (channel == 4) return f->bits[4] ? (f->flt ? 0x1406u : 0x8c17u) : 0;
     return 0;
 }
@@ -469,6 +486,10 @@ static void encode_external(uint32_t a, uint32_t format, uint32_t type, const fl
     uint32_t comps = format_comps(format); int bgr = format == 0x80e0 || format == 0x80e1;
     float c[4] = {v[0], v[1], v[2], v[3]};
     if (bgr) { c[0] = v[2]; c[2] = v[0]; }
+    if (format == 0x84f9 && type == 0x84fa) {
+        uint32_t depth = (uint32_t)(clamp01(v[0]) * 16777215.0f + 0.5f), stencil = (uint32_t)(clamp01(v[1]) * 255.0f + 0.5f);
+        x86_wr32(a, (depth << 8) | stencil); return;
+    }
     if (is_packed(type)) {
         static const struct { uint32_t type; uint8_t n, w[4], rev, size; } pk[] = {
             {0x8032, 3, {3, 3, 2, 0}, 0, 1}, {0x8362, 3, {3, 3, 2, 0}, 1, 1}, {0x8363, 3, {5, 6, 5, 0}, 0, 2},
@@ -519,15 +540,24 @@ static int fetch_texels(uint32_t gpu, uint32_t lvl, uint32_t x, uint32_t y, uint
     return 1;
 }
 typedef struct { uint32_t bgt, format, type, dst, w, h, d_index, mh, y0; const Pix *st; } ReadCtx;
+static void encode_integer_external(uint32_t a, uint32_t format, uint32_t type, const int64_t *v) {
+    uint32_t n = format_comps(format), b = type_bytes(type);
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t q = (uint32_t)clamp_integer(v[i], b, !integer_type_signed(type));
+        if (b == 1) x86_wr8(a + i, q); else if (b == 2) x86_wr16(a + i * 2, q); else x86_wr32(a + i * 4, q);
+    }
+}
 static void sink_external(void *c, uint32_t row0, uint32_t rows, const uint8_t *data) {
     ReadCtx *r = (ReadCtx *)c; uint32_t bpp = storage_bytes(r->bgt);
     for (uint32_t j = 0; j < rows; j++) {
         /* BGT row (row0+j) from the top maps to GL row (h-1-(row0+j)) from the bottom of the read region. */
         uint32_t glrow = r->h - 1 - (row0 + j);
         for (uint32_t i = 0; i < r->w; i++) {
-            float v[4]; decode_texel(data + (j * r->w + i) * bpp, r->bgt, v);
-            encode_external(r->dst + (uint32_t)pix_offset(r->st, r->format, r->type, r->w, r->h, i, glrow, r->d_index),
-                r->format, r->type, v);
+            uint32_t at = r->dst + (uint32_t)pix_offset(r->st, r->format, r->type, r->w, r->h, i, glrow, r->d_index);
+            if (integer_format(r->format)) {
+                int64_t iv[4]; decode_integer_texel(data + (j * r->w + i) * bpp, r->bgt, iv);
+                encode_integer_external(at, r->format, r->type, iv);
+            } else { float v[4]; decode_texel(data + (j * r->w + i) * bpp, r->bgt, v); encode_external(at, r->format, r->type, v); }
         }
     }
 }
@@ -541,9 +571,10 @@ static uint32_t api_GetTexImage(void) {
     Texture *t = &textures[id]; Level *lv = &t->lv[level];
     if (!lv->w) return 0;
     const Fmt *f = find_fmt(lv->internal);
-    if (!f || f->kind != K_COLOR || integer_format(format) || format == 0x1902 || format == 0x84f9 || format == 0x1901) {
-        approximate("glGetTexImage of depth/stencil or integer data"); fail(BAD_OP); return 0; }
-    if (!t->gpu || level >= t->gmips || f->bgt != t->gfmt) { fail(BAD_OP); return 0; }
+    if (!f || (f->kind == K_COLOR && (integer_internal(f) != integer_format(format) || format == 0x1902 || format == 0x84f9 || format == 0x1901)) ||
+        (f->kind == K_DEPTH && format != 0x1902) || (f->kind == K_DS && format != 0x84f9) || f->kind == K_STENCIL) {
+        fail(BAD_OP); return 0; }
+    if (!t->gpu || level >= t->galloc || f->bgt != t->gfmt) { fail(BAD_OP); return 0; }
     Pix store = pack_st; if (dim == 0) store.skip_images = store.image_height = 0;
     for (uint32_t zi = 0; zi < lv->d; zi++) {
         ReadCtx r = {t->gfmt, format, type, ARG(4), lv->w, lv->h, zi, lv->h, 0, &store};

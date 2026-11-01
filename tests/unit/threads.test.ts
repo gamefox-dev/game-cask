@@ -1,5 +1,6 @@
 // Breakages caught: recursive worker deadlocks, lost CV wakes, shared TLS, corrupt guest stacks,
 // wrong thread exit codes, non-deterministic arbitration and interpreting lifted continuations.
+// @bgt-examples: x64-threads x86-threads
 import { it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

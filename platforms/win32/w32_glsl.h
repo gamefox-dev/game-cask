@@ -1253,11 +1253,10 @@ static int gs_sampler_capability(const GsVar *v, GsLog *log) {
     const GsType *t = &gs_types[v->type];
     /* §13.7 supplies floating 2D, 3D and array textures. Cube/rectangle/integer/
      * multisample and array-shadow samplers remain intentionally unsupported. */
-    if (gs_reflect_only || (t->kind == 'f' &&
-        (t->dim == GD_2D || t->dim == GD_3D || t->dim == GD_2DA) &&
-        (!t->shadow || t->dim == GD_2D))) return 1;
+    if (gs_reflect_only || (t->kind == 'f' && (t->dim == GD_2D || t->dim == GD_3D || t->dim == GD_2DA) &&
+        (!t->shadow || t->dim == GD_2D)) || ((t->kind == 'i' || t->kind == 'u') && t->dim == GD_2D)) return 1;
     gs_diag(log, 1, 0, v->decl_line, 1,
-        "sampler type is not supported by the BGT texture layer (sampler2D, sampler3D and sampler2DArray only)", v->name);
+        "sampler type is not supported by the BGT texture layer (2D/3D/array float and integer samplers only)", v->name);
     return 0;
 }
 #define GP_MAX_UNIFORMS 512
@@ -1272,7 +1271,7 @@ typedef struct { char name[GS_NAME]; uint32_t loc; } GpBinding;
 typedef struct {
     uint32_t nu, nb, na, no, nloc, usize, nslots, ndv, names_len, name_max;
     GpUniform u[GP_MAX_UNIFORMS]; GpBlock b[7]; GpAttrib a[16]; GpAttrib o[8]; GpVar dv[GS_MAX_VARS * 2];
-    uint8_t slot_shadow[8], slot_dim[8]; char names[GP_NAMES];
+    uint8_t slot_shadow[8], slot_dim[8], slot_kind[8]; char names[GP_NAMES];
     uint32_t attr_max, uniform_max, block_max;
 } Gp;
 
@@ -1307,6 +1306,7 @@ static int gp_leaf(Gp *g, GsLog *log, GsUnit *u, const char *name, uint32_t type
             if (g->nslots == 8 && !gs_reflect_only) { gs_diag(log, 1, 0, 0, 0, "too many active texture samplers (BGT supports 8 slots)", name); return 0; }
             if (g->nslots < 8) {
                 g->slot_shadow[g->nslots] = t->shadow;
+                g->slot_kind[g->nslots] = (uint8_t)t->kind;
                 g->slot_dim[g->nslots++] = t->dim == GD_3D ? 1 : t->dim == GD_2DA ? 2 : 0;
             }
         }
@@ -1374,7 +1374,7 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
         if (!gp_flatten(g, log, un[s], v->name, v->type, v->arr, d->offset, -1, (uint32_t)stages)) { ok = 0; break; }
     }
     if (!ok) return 0;
-    g->usize = gs_roundup(cursor, 16);
+    g->usize = gs_roundup(cursor, 16) + 16 * g->nslots; /* per-slot swizzles follow ordinary uniforms */
     /* ---- uniform blocks */
     for (int s = 0; s < 2 && ok; s++) if (un[s]) for (uint32_t i = 0; i < un[s]->nblocks && ok; i++) {
         GsBlock *b = &un[s]->blocks[i]; int o = 1 - s; GsBlock *w = 0;
@@ -1486,7 +1486,8 @@ static int gs_policy(GsUnit *u, GsLog *log) {
         if (v->storage == GS_IN && u->stage == 1 && v->used) {
             if (!t || t->dim || t->kind == 'b' || t->cols > 1 || v->arr) { gs_diag(log, 1, 0, v->decl_line, 1, "vertex input type is not supported by the BGT vertex layout (scalars and vectors of float/int/uint only)", v->name); ok = 0; }
         } else if (v->storage == GS_OUT && u->stage == 2) {
-            if (!t || t->dim || t->kind != 'f' || t->cols > 1 || v->arr) { gs_diag(log, 1, 0, v->decl_line, 1, "fragment output must be float or a float vector (no arrays or matrices)", v->name); ok = 0; }
+            if (!t || t->dim || (t->kind != 'f' && t->kind != 'i' && t->kind != 'u') || t->cols > 1 || v->arr) {
+                gs_diag(log, 1, 0, v->decl_line, 1, "fragment output must be a numeric scalar/vector (no arrays or matrices)", v->name); ok = 0; }
         } else if ((v->storage == GS_OUT && u->stage == 1) || (v->storage == GS_IN && u->stage == 2 && v->used)) {
             if (!t || t->dim || t->kind == 'b' || t->cols > 1 || v->arr) { gs_diag(log, 1, 0, v->decl_line, 1, "varying type is not supported by the BGT shader translation (scalars and vectors only; no arrays or matrices)", v->name); ok = 0; }
             else if (t->kind != 'f' && v->interp != GI_FLAT) { gs_diag(log, 1, 0, v->decl_line, 1, "integer varyings must be declared flat", v->name); ok = 0; }
@@ -1622,6 +1623,8 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                 while (t1 > t0 && (gs_space(s[t1 - 1]) || s[t1 - 1] == '\n')) t1--;
                 int slot = 0, shadow = 0; uint32_t end = 0, id1 = t0; while (id1 < t1 && gs_idc(s[id1])) id1++;
                 if (cnt >= 2 && id1 > t0 && em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && end == t1) {
+                    int swizzle = !shadow && !gs_eqn(s + i, len, "textureSize");
+                    if (swizzle) { eb_str(&em->out, "bgt_gl_sw"); eb_num(&em->out, (uint32_t)slot); eb_str(&em->out, "("); }
                     eb_put(&em->out, s + i, len); eb_str(&em->out, "(");
                     eb_put(&em->out, s + a0[0], t0 - a0[0]); eb_str(&em->out, "bgt_t"); eb_num(&em->out, (uint32_t)slot);
                     eb_put(&em->out, s + t1, a1[0] - t1);
@@ -1639,7 +1642,7 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                             eb_str(&em->out, "))");
                         } else em_range(em, a0[x], a1[x], 0);
                     }
-                    eb_str(&em->out, ")"); i = close + 1; continue;
+                    eb_str(&em->out, swizzle ? "))" : ")"); i = close + 1; continue;
                 }
                 if (cnt >= 1 && id1 > t0 && !em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && em->failed) return;
             }
@@ -1692,13 +1695,32 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
             if (v->type < GS_STRUCT_BASE && gs_types[v->type].dim) continue;
             em_decl(em, pu, v->type, v->name, v->arr); eb_str(o, " ");
         }
+        for (uint32_t k = 0; k < g->nslots; k++) { eb_str(o, "ivec4 bgt_gl_swz"); eb_num(o, k); eb_str(o, "; "); }
         eb_str(o, "}; ");
         for (uint32_t k = 0; k < g->nslots; k++) {
             if (g->slot_shadow[k]) eb_str(o, "uniform sampler2DShadow bgt_t");
+            else if (g->slot_kind[k] == 'i') eb_str(o, g->slot_dim[k] == 1 ? "uniform isampler3D bgt_t" :
+                g->slot_dim[k] == 2 ? "uniform isampler2DArray bgt_t" : "uniform isampler2D bgt_t");
+            else if (g->slot_kind[k] == 'u') eb_str(o, g->slot_dim[k] == 1 ? "uniform usampler3D bgt_t" :
+                g->slot_dim[k] == 2 ? "uniform usampler2DArray bgt_t" : "uniform usampler2D bgt_t");
             else if (g->slot_dim[k] == 1) eb_str(o, "uniform sampler3D bgt_t");
             else if (g->slot_dim[k] == 2) eb_str(o, "uniform sampler2DArray bgt_t");
             else eb_str(o, "uniform sampler2D bgt_t");
-            eb_num(o, k); eb_str(o, "; "); }
+            eb_num(o, k); eb_str(o, "; ");
+        }
+        for (uint32_t k = 0; k < g->nslots; k++) {
+            if (!g->slot_shadow[k]) {
+                const char *scalar = g->slot_kind[k] == 'u' ? "uint" : g->slot_kind[k] == 'i' ? "int" : "float";
+                const char *vec = g->slot_kind[k] == 'u' ? "uvec4" : g->slot_kind[k] == 'i' ? "ivec4" : "vec4";
+                eb_str(o, scalar); eb_str(o, " bgt_gl_sc"); eb_num(o, k); eb_str(o, "("); eb_str(o, vec);
+                eb_str(o, " v,int i){if(i==4)return "); eb_str(o, scalar); eb_str(o, "(0);if(i==5)return ");
+                eb_str(o, scalar); eb_str(o, "(1);return v[i];} "); eb_str(o, vec); eb_str(o, " bgt_gl_sw");
+                eb_num(o, k); eb_str(o, "("); eb_str(o, vec); eb_str(o, " v){return "); eb_str(o, vec); eb_str(o, "(");
+                for (uint32_t c = 0; c < 4; c++) { if (c) eb_str(o, ","); eb_str(o, "bgt_gl_sc"); eb_num(o, k);
+                    eb_str(o, "(v,bgt_gl_swz"); eb_num(o, k); eb_str(o, "["); eb_num(o, c); eb_str(o, "])"); }
+                eb_str(o, ");} ");
+            }
+        }
         for (uint32_t k = 0; k < g->nb; k++) if (g->b[k].unit[sidx] >= 0) {
             GsBlock *b = &u->blocks[g->b[k].unit[sidx]];
             eb_str(o, "layout(std140) uniform bgt_u"); eb_num(o, k + 1); eb_str(o, " { ");

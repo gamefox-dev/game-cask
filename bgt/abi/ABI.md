@@ -623,10 +623,11 @@ At mip L dimensions are max(1,floor(width/2^L)), max(1,floor(height/2^L)). No im
 | NONE | 0xffffffff | — | pipeline with no depth attachment (not a texture format) |
 
 All listed formats are part of CAP_GPU; a backend lacking native attachment support must implement it or leave the
-capability unset. TEXTURE_UPDATE accepts color formats only (depth formats → E_UNSUPPORTED); rows tightly packed,
-top-to-bottom, data_len exactly width*height*bytes_per_texel. Region must fit the selected mip. Coordinates and
-normalized sampling origin are top-left; no upload flip is guest-visible. Depth textures can be sampled (depth aspect
-only; stencil sampling is absent). Attachment writes are stored; there is no discard/store option.
+capability unset. TEXTURE_UPDATE accepts tightly packed color data and 2D depth data; 3D/array depth remains E_UNSUPPORTED.
+For DEPTH32F the bytes are little-endian float depth; for DEPTH24_STENCIL8 they are little-endian 24-bit depth in the
+high three bytes plus stencil in the low byte. `data_len` is exactly width*height*bytes_per_texel. Region must fit the
+selected mip. Coordinates and normalized sampling origin are top-left; no upload flip is guest-visible. Depth textures
+can be sampled (depth aspect only; stencil sampling is absent). Attachment writes are stored; there is no discard/store option.
 
 Sampler filters: min/mag NEAREST=0, LINEAR=1; mip NONE=0 (base level only), NEAREST=1, LINEAR=2 (trilinear).
 Wrap CLAMP=0 (edge), REPEAT=1, MIRROR=2. Compare enable is boolean; compare uses the enum below. Comparison samplers
@@ -811,9 +812,11 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 76 | reserved | 0 |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
-supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each GPU
+supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
-alignment overhead is charged. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
+alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
+not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
+16 MiB through 0xffffffff. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
 their separate frozen budgets. Queued GPU upload/source copies additionally total at most 256 MiB per frame;
 exceeding this → E_LIMIT. All existing submit/command/2D frame limits still apply. Resource updates are ordered, not
 coalesced across draws or passes. No backend may reorder a deletion ahead of earlier commands using that resource.
@@ -840,7 +843,7 @@ structure/ranges/handles/state/ordering/shader results using a recording backend
 unchanged v0.2 module regression and deferred request tests. Browser GPU rendering tests are the backend lanes'
 responsibility; this section alone does not claim GPU pixels or an OpenGL 3.3 profile are implemented.
 
-### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5d)
+### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5e)
 
 Added by lane K6a for GL 3.3 texture/framebuffer semantics. They need `CAP_GPU` exactly like §13 (otherwise
 `E_UNSUPPORTED` after framing validation) and are implemented by both the WebGL 2 and WebGPU backends. Existing
@@ -857,6 +860,7 @@ LOD range [0, 1000]). Handles share the existing texture/sampler namespaces. C l
 | 0x5b | SAMPLER_CREATE_EX | 44 | handle, min_filter, mag_filter, mip_filter, wrap_u, wrap_v, wrap_w, compare_enable, compare, f32 min_lod, f32 max_lod |
 | 0x5c | TEXTURE_READBACK | 36 | handle, mip, x, y, z, width, height, depth, request |
 | 0x5d | TEXTURE_GENERATE_MIPS | 8 | handle, base_level |
+| 0x5e | TEXTURE_ALLOCATE_MIPS | 8 | handle, allocated_mips (grow native storage through this exclusive level) |
 
 **New formats** (valid only through `TEXTURE_CREATE_EX`; the legacy op still rejects them): RGB10A2=7 (unorm 10/10/10/2,
 LE u32 `r | g<<10 | b<<20 | a<<30`, 4 B), R16F=8 (2 B), RG16F=9 (4 B), R32F=10 (4 B), RG32F=11 (8 B), RGBA32F=12
@@ -869,10 +873,11 @@ the native capability (WebGL 2 `OES_texture_float_linear`/`EXT_float_blend`, Web
 and array layers are <=256 (`E_LIMIT`; fixed portable ceilings, array width/height remain <=4096). 3D and array textures
 are color-only and SAMPLED-only: depth formats or ATTACHMENT usage → `E_UNSUPPORTED` (no layered attachments). Mip
 extents: width/height halve (min 1); 3D depth halves (min 1); array layers are constant. `mips` is
-`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Budget counts every texel of every mip. Textures
-start zero (depth 1 / stencil 0 for depth formats).
+`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Native storage is allocated lazily: creation
+reserves level 0; an explicit update/readback/attachment use of a higher level grows through that level, and generation
+grows through the logical mip count. Budget counts only allocated texels. Textures start zero (depth 1 / stencil 0 for depth formats).
 
-**TEXTURE_UPDATE_EX.** Color formats only (`E_UNSUPPORTED` for depth). The region `[x,x+width) × [y,y+height) × [z,z+depth)`
+**TEXTURE_UPDATE_EX.** Color formats and 2D depth formats are accepted. The region `[x,x+width) × [y,y+height) × [z,z+depth)`
 must fit the selected mip (`E_BOUNDS`; `z` is a slice for 3D and a layer for arrays, always 0/1 for 2D).
 `data_len` is exactly `width*height*depth*bytes_per_texel`, rows tightly packed top-to-bottom, slices in order.
 
@@ -885,18 +890,80 @@ Texture dimension must match what the shader declares for the slot (`sampler2D`/
 extended with `sampler3D`, `sampler2DArray` (WGSL `texture_3d<f32>`, `texture_2d_array<f32>`). BGT has no LOD bias,
 border colour or swizzle; profiles that expose those GL features must approximate and say so.
 
-**TEXTURE_READBACK.** Color formats only (`E_UNSUPPORTED` for depth; `E_LIMIT` above 8 MiB result). Reserves `request`
+**TEXTURE_READBACK.** Color and DEPTH32F formats are accepted (`DEPTH24_STENCIL8` stencil readback is unavailable where the backend cannot sample its stencil aspect; such a request returns `E_UNSUPPORTED`; `E_LIMIT` above 8 MiB result). Reserves `request`
 from the §12 allocator and, in stream order, returns the stored texels of the region as `width*height*depth*bytes`
 tightly packed bytes (rows top-first, slices in order, storage layout of the format; sRGB bytes are the encoded values,
 floats are exact binary16/binary32). Ordinary request visibility rules apply (visible after a later update boundary).
 It observes all earlier passes and updates. This replaces the old "no GPU texture read-back" rule for textures only; the
 legacy screen READBACK is unchanged.
 
+**TEXTURE_ALLOCATE_MIPS.** Grows native storage to contain levels `[0, allocated_mips)`, monotonically, preserving all previously allocated
+contents including rendered contents. Only newly represented levels consume budget; failed growth leaves resource state and
+accounting unchanged.
+
 **TEXTURE_GENERATE_MIPS.** Regenerates levels `base_level+1 .. mips-1` from level `base_level` by 2×2(×2) box filtering
 (sRGB averaged in linear space; odd extents are implementation rounded). Color formats only. WebGL 2 uses
 `generateMipmap`; WebGPU uses render passes (2D/array) or a CPU box filter over its upload shadow (3D, which can never be
 a render target). On device restoration, generated levels are recomputed from the restored uploads; rendered contents are
 lost as for all attachments.
+
+### 13.8 Integer texture formats (additive v0.3)
+
+`TEXTURE_CREATE_EX` additionally accepts these exact little-endian integer color formats. Existing format values,
+command payloads and the legacy `TEXTURE_CREATE` format ceiling (6) are unchanged.
+
+| Format | Values unsigned / signed | Bytes per texel |
+|---|---|---|
+| R8UI / R8I | 13 / 14 | 1 |
+| R16UI / R16I | 15 / 16 | 2 |
+| R32UI / R32I | 17 / 18 | 4 |
+| RG8UI / RG8I | 19 / 20 | 2 |
+| RG16UI / RG16I | 21 / 22 | 4 |
+| RG32UI / RG32I | 23 / 24 | 8 |
+| RGBA8UI / RGBA8I | 25 / 26 | 4 |
+| RGBA16UI / RGBA16I | 27 / 28 | 8 |
+| RGBA32UI / RGBA32I | 29 / 30 | 16 |
+
+Uploads/readbacks are exact integer bytes, never float-normalized. Missing sampled components are `(0,0,0,1)`.
+Integer 2D GLSL bindings use `isampler2D` / `usampler2D`; WGSL uses `texture_2d<i32>` / `texture_2d<u32>`.
+The GL frontend retains integer signedness, swizzles and full-width uniform values. WebGPU nearest sampling lowers
+to textureLoad with immutable wrap/LOD selection; fetches and reads preserve full 32-bit values. Integer filtering
+requires NEAREST min/mag and NONE/NEAREST mip selection; LINEAR is rejected. Integer mip generation is unsupported.
+The profile currently accepts integer samplers only for 2D (not 3D/array); unsupported sampler types fail compilation.
+Integer render attachments require matching signed/unsigned output classes. GL blending is ignored for integer
+attachments; profile pipelines disable it. ReadPixels/GetTexImage require integer external formats for integer storage,
+and reject normalized/integer class mixing with GL_INVALID_OPERATION. Integer transfer values are clamped to the
+internal representable range on upload and to the external range on readback without passing through float.
+
+**Named native boundary: out-of-range integer fragment outputs.** GL 3.3 does not define a portable result when the
+fragment output exceeds a narrower integer attachment range. WebGL currently shows native narrowing/intermediate
+signed-conversion behavior (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); WebGPU saturates (255/-128).
+No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range raster values and
+full-width 32-bit outputs, and separately pins each backend's current overflow behavior. All 18 formats have exact
+upload/sample/render/readback coverage in `x64-gl-integer`; this is not general unrestricted GL 3.3 compatibility.
+
+### 13.9 Indexed clear-buffer operation (additive v0.3, opcode 0x5f)
+
+`CLEAR_BUFFER` is a 24-byte, pass-local operation: `kind_class_masks, index, value[4]` (six u32 words).
+Bits 0..1 select COLOR=0, DEPTH=1, STENCIL=2, DEPTH_STENCIL=3. Bits 2..3 select FLOAT=0, SIGNED=1,
+UNSIGNED=2, DEPTH_STENCIL=3. Color write-mask bits R/G/B/A occupy bits 4..7. Depth write-enable is bit 4;
+stencil write-mask occupies bits 8..15. All other bits are zero. `index` addresses the GPU pass's color attachment;
+non-color forms require index zero. Float values use their f32 bit patterns; signed/unsigned colors retain exact
+32-bit integers. Depth is finite [0,1] in value[0]; stencil is 0..255 in value[0] (STENCIL) or value[1] (DS).
+Unused value words and irrelevant mask fields are zero. COLOR requires the attachment's matching value class;
+DEPTH uses FLOAT, STENCIL SIGNED, DS the DS class. Invalid classes/indices/fields return E_INVALID; outside a pass,
+E_STATE. Clear ignores viewport, blending and depth/stencil comparisons, honors active SCISSOR, and preserves
+masked channels/bits and dynamic pipeline/binding state. Zero masks/empty scissor have no effect. No clear state
+is stored or modified by this operation.
+
+The GL profile resolves the GL draw-buffer index through glDrawBuffers before encoding; a GL_NONE mapping is a
+no-op even with no value pointer. Invalid buffer enums/forms give GL_INVALID_ENUM, invalid index GL_INVALID_VALUE,
+and format-class mixing GL_INVALID_OPERATION without sending a command. Absent depth/stencil aspects are no-ops.
+GLColorMaski is per draw-buffer index (ColorMask sets all four), and GLboolean arguments consume only their low byte
+per the Windows ABI. WebGL executes native clearBufferfv/iv/uiv/fi with explicit masks. WebGPU executes ordered
+fullscreen draws with scissor and immutable write masks, restoring viewport/stencil reference afterwards; it never
+uses a whole-attachment load clear for a masked/scissored operation. Pipelines are bounded/cached by format/masks,
+not clear values; exact value bits use per-operation uniform snapshots.
 
 Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
 accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented

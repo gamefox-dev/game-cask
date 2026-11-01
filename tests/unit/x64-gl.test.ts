@@ -1,3 +1,4 @@
+// @bgt-examples: x64-gl
 import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,7 +12,6 @@ import { buildGame } from '../../tools/build/build.mjs';
 import { importStatus } from '../../tools/x86/imports-coverage.mjs';
 
 it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portable binding slots', async () => {
-  buildGame('examples/x64-gl', { quiet: true });
   const stream = glStream();
   const h = await loadHeadless('x64-gl', stream);
   await h.stepAsync(45);

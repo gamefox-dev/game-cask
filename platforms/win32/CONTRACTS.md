@@ -163,6 +163,23 @@ midiInGetNumDevs truthfully returns zero; midiInGetErrorTextA validates codes/bu
 validate 1..1000ms and balance per-period references (invalid/unmatched: TIMERR_NOCANDO); these are virtual timer
 requests, not host scheduling promises. Every requested name has a named fixture check, including rejection paths.
 
+## COM endpoint notifications (K8c/Q23)
+
+`IMMDeviceEnumerator` slots 6/7 implement process-local Register/UnregisterEndpointNotificationCallback.
+NULL callbacks return `E_POINTER`. Registration validates readable guest object/vtable and eight executable guest
+method pointers before any mutation (`E_POINTER` for inaccessible addresses), then calls the client's **guest**
+IUnknown::AddRef through the i386 stdcall/Win64 callback ABI. A registration owns one reference. Unregister removes
+the pair before calling guest Release; a missing pair returns `E_NOTFOUND` (`0x80070490`). Exhaustion of the bounded
+64-registration process pool returns `E_OUTOFMEMORY` without AddRef; unregister/destruction recycles slots.
+**INFERRED, reviewer-approved:** duplicate enumerator/client pointer pairs return idempotent `S_OK` without another
+AddRef; different enumerators own independent registrations; final enumerator Release drops its registrations.
+Destruction retires the COM object slot before guest Release can reenter COM. No native Windows parity run.
+
+The model has a fixed single render endpoint: registration and audio Start/Stop are **not** device/default-role
+transitions, so no OnDevice*/OnDefaultDeviceChanged/OnPropertyValueChanged calls are fabricated. Guest ownership
+calls are exercised by the original normal-CRT x64-audio fixture while its event-driven audio worker submits a
+1 kHz stereo tone. There is no capture, hotplug simulation, general COM marshaling or physical listening claim.
+
 ## Import census
 
 `tools/x86/imports-coverage.mjs` expands the runtime tables with the C preprocessor, using the actual ordered
@@ -226,6 +243,18 @@ other drives do not exist. Search patterns ending in a separator fail with Win32
 mapping; FindFirstFile forbids trailing separators). Moving a regular file to a separator-terminated destination
 fails before mutation with Win32 error 3 / `ENOENT` (INFERRED). NULL-output CRT path allocations validate the full
 `size_t` count before narrowing/multiplying and return `ENOMEM` if that allocation cannot be represented/satisfied.
+
+**DOS namespace prefixes (K8c/Q24).** Absolute `\\?\C:\...` and filesystem `\\.\C:\...` names are resolved
+before wildcard/colon checks by the same helper as ordinary DOS, drive-relative, root-relative and relative names.
+Kernel32 Create/RemoveDirectory, CreateFile, GetFileAttributes[Ex], FindFirstFile[Ex], rename/cwd/fullpath and CRT
+stat/open/mkdir/find/rename/cwd/fullpath therefore share identity, existing-name (183/`EEXIST`) and missing-parent
+(3/`ENOENT`) behavior. CreateFile's read-only OPEN_EXISTING boundary is unchanged, but invalid/missing-parent
+names now preserve the shared resolver's errors rather than becoming a generic missing file.
+Ordinary and extended UNC fail offline with `ERROR_BAD_NETPATH` (53)/`ENOENT`; unsupported devices (pipes,
+PhysicalDrive, GLOBALROOT, volume GUIDs) and malformed/relative extended names fail `ERROR_INVALID_NAME`
+(123)/`EINVAL`, never alias local files. Stat retains its existing all-lookup-failures `ENOENT` mapping.
+These offline/unsupported error choices are **INFERRED**, reviewer-approved, not native Windows parity evidence.
+This is bounded DOS normalization, **not** full extended Win32 verbatim dot/space, long-path or NT-device semantics.
 
 **Registry.** `RegDeleteValueA/W` delete from the profile's registry store: the BGT ABI v0.2 has no storage delete, so a
 value is replaced by a zero-length record, which `RegQueryValueEx` reports as `ERROR_FILE_NOT_FOUND` exactly like a

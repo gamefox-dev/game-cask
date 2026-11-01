@@ -391,7 +391,7 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
   const i = (o: number) => dv.getInt32(p + o, true);
   const f = (o: number) => dv.getFloat32(p + o, true);
 
-  if (op >= GPU_OP.BUFFER_CREATE && op <= GPU_OP.TEXTURE_GENERATE_MIPS) {
+  if (op >= GPU_OP.BUFFER_CREATE && op <= GPU_OP.CLEAR_BUFFER) {
     return executeGpu(op, dv, p, n, mem, ctx);
   }
   if (ctx.gpu?.pass) return E_STATE; // No legacy operation may interrupt an explicit GPU pass.

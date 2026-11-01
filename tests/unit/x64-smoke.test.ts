@@ -1,3 +1,4 @@
+// @bgt-examples: x64-smoke
 import { it, expect } from 'vitest';
 import { loadHeadless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
@@ -6,7 +7,6 @@ import { oracle } from '../oracle/oracle';
 import { buildGame } from '../../tools/build/build.mjs';
 
 it('x64-smoke: fully lifted 600-frame GL/worker/WASAPI/XInput/file loop and identical semantic oracle', async () => {
-  buildGame('examples/x64-smoke', { quiet:true });
   const h = await loadHeadless('x64-smoke',glStream()); await h.stepAsync(620);
   expect(h.logs.some(l => /x64-smoke PASS frames=600 worker=8599ce32 files=2 pad=0 buttons=0 audio=joined/.test(l)),
     h.logs.join('\n')).toBe(true);

@@ -13,6 +13,7 @@ static void check(HRESULT hr) {
         OutputDebugStringA(text); ExitProcess(1);
     }
 }
+#include "notifications.h"
 /* Integration regression: audio must wake scheduler-owned events on a different guest thread. */
 static DWORD WINAPI audio_waiter(void *event) {
     void *missing = (void *)1;
@@ -59,6 +60,7 @@ DWORD WINAPI audio_main(void *unused) {
         &IID_IUnknown, &missing) != REGDB_E_CLASSNOTREG || missing) ExitProcess(8);
     check(CoCreateInstance(&CLSID_MMDeviceEnumerator, 0, CLSCTX_INPROC_SERVER,
         &IID_IMMDeviceEnumerator, (void **)&enumerator));
+    test_notifications(enumerator);
     IUnknown *identity;
     check(IMMDeviceEnumerator_QueryInterface(enumerator, &IID_IUnknown, (void **)&identity));
     if ((void *)identity != (void *)enumerator) ExitProcess(4);
@@ -139,6 +141,9 @@ DWORD WINAPI audio_main(void *unused) {
     }
     CoTaskMemFree(format);
     IMMDevice_Release(device); IMMDeviceEnumerator_Release(enumerator);
+    notification_expect(endpoint_listener.refs == 1 && endpoint_listener.changes == 0 &&
+        endpoint_listener.adds == endpoint_listener.releases, "x64-audio notification final ownership FAIL");
+    OutputDebugStringA("x64-audio notification no unsolicited changes PASS");
     CloseHandle(event); CoUninitialize(); CoUninitialize();
 #ifdef AUDIO_LONG_STREAM
     OutputDebugStringA("x64-audio PASS float32=240000 int16=120000 stereo 1000Hz duration=10000ms");

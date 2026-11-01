@@ -18,6 +18,9 @@ import {
   E_NOT_FOUND,
   E_IO,
   E_STATE,
+  GPU_BUDGET_MAX,
+  GPU_BUDGET_MIN,
+  GPU_LIMITS,
   IO,
   LIMITS,
   MAX_TOUCHES,
@@ -39,7 +42,7 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 
 export interface AudioSink {
@@ -78,6 +81,8 @@ export interface HostConfig {
   arg1: number;
   maxTextureDimension?: number;
   /* LANE-S1 */ gpuBackend?: GpuBackend;
+  /** Reservation/accounting limit; not measured physical VRAM. */
+  gpuBudgetBytes?: number;
   sliceCode?: number[];
   sliceCodeRanges?: {addr:number;end:number}[];
 }
@@ -230,7 +235,14 @@ export class GameHost {
     else config.caps &= ~CAP_ENTROPY;
     if (config.sliceCode) this.allowedCode = new Set(config.sliceCode);
     /* LANE-S1: a caller cannot advertise an absent/unsupported GPU implementation. */
-    if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) this.gpu = new GpuState(config.gpuBackend);
+    if (config.gpuBudgetBytes !== undefined) {
+      if (!Number.isSafeInteger(config.gpuBudgetBytes) || config.gpuBudgetBytes < GPU_BUDGET_MIN || config.gpuBudgetBytes > GPU_BUDGET_MAX) {
+        throw new HostError(`invalid gpuBudgetBytes; expected integer in [${GPU_BUDGET_MIN}, ${GPU_BUDGET_MAX}]`);
+      }
+    } else config.gpuBudgetBytes = GPU_LIMITS.budget;
+    if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) {
+      this.gpu = new GpuState(config.gpuBackend, config.gpuBudgetBytes);
+    }
     else config.caps &= ~CAP_GPU;
   }
 
@@ -427,7 +439,7 @@ export class GameHost {
           const values = [size, this.config.maxTextureDimension ?? LIMITS.textureDim,
             LIMITS.textures - 1, LIMITS.textureBytes];
           if (size === GPU_LIMITS_SIZE) values.push(
-            this.gpu ? 1 : 0, GPU_LIMITS.handles, GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
+            this.gpu ? 1 : 0, GPU_LIMITS.handles, this.config.gpuBudgetBytes ?? GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
             GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
             GPU_LIMITS.uniformAlignment, GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
             this.gpu?.backend.languages ?? 0, 13, 65535, 0,
@@ -610,6 +622,12 @@ export class GameHost {
       gpu.shaders.size || gpu.pipelines.size || gpu.pass)) || this.frame.items.some((it) => it.kind === 'gpu');
   }
 
+  get gpuMetrics(): { budgetBytes: number; reservedBytes: number; peakReservedBytes: number; largestAllocationBytes: number } | null {
+    const gpu = this.gpu;
+    return gpu ? { budgetBytes: gpu.budget, reservedBytes: gpu.bytes,
+      peakReservedBytes: gpu.peakBytes, largestAllocationBytes: gpu.largestAllocation } : null;
+  }
+
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
   setBackend(backend: number, gpuBackend?: GpuBackend): void {
     if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
@@ -617,7 +635,7 @@ export class GameHost {
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;
-    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend); }
+    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes); }
     else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);

@@ -6,6 +6,9 @@ import { prepareSlice } from '../support/slice-fixture';
 import { ROOT } from '../support/headless';
 
 export default async function globalSetup(): Promise<void> {
+  // LANE-K7i: the dedicated required scale job selects only x64-scale.spec.ts,
+  // which never consumes strict-slice fixtures. The default/full run is unchanged.
+  if (process.env.BGT_E2E_SCALE_ONLY === '1') return;
   const prepared: Record<string, { id: string }> = {};
   for (const example of ['win32-hello', 'win32-conformance']) {
     const started = performance.now();

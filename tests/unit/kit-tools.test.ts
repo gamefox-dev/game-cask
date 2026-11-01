@@ -1,3 +1,4 @@
+// @bgt-examples: win32-hello
 // Kit v0.2.1 tools: analyzer data seeds (E3), static imports of unknown DLLs, inspect --strings with UTF-16 and PE
 // resource text (E7), leakcheck reference metadata, the trial brief, the work-queue schema and probe mode.
 import { execFileSync } from 'node:child_process';

@@ -252,7 +252,7 @@ describe('machine-wide heavy gate', () => {
     expect(readFileSync(trace, 'utf8')).toBe('called\n');
   });
   it('serializes heavy npm/npx, nested calls pass through, and real exit 75 is never retried', async () => {
-    const dir = mkdtempSync('/private/tmp/bgt-gate-test-'); dirs.push(dir);
+    const dir = mkdtempSync(process.platform === 'darwin' ? '/private/tmp/bgt-gate-test-' : '/tmp/bgt-gate-test-'); dirs.push(dir);
     const real = script(join(dir, 'real'), `
 case "$*" in *nested*) echo nested; exit 0;; esac
 mkdir "$HEAVY_TEST_DIR/held" || exit 99
@@ -278,7 +278,7 @@ exit 75`);
 
 describe('heavy gate FIFO and matching (LANE-K6e)', () => {
   const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-  const gateDir = () => { const dir = mkdtempSync('/private/tmp/bgt-gate-test-'); dirs.push(dir); return dir; };
+  const gateDir = () => { const dir = mkdtempSync(process.platform === 'darwin' ? '/private/tmp/bgt-gate-test-' : '/tmp/bgt-gate-test-'); dirs.push(dir); return dir; };
   const gateEnv = (dir: string, real: string, patch: NodeJS.ProcessEnv = {}) => env({ BGT_REAL_NPM: real, BGT_REAL_NPX: real,
     BGT_HEAVY_SLOTS: '1', BGT_HEAVY_HELD: '', BGT_HEAVY_LOCK_PREFIX: join(dir, 'gate'), HEAVY_TEST_DIR: dir, ...patch });
   const launch = (dir: string, real: string, name: string, tag: string, patch: NodeJS.ProcessEnv = {}) => {
@@ -322,7 +322,8 @@ describe('heavy gate FIFO and matching (LANE-K6e)', () => {
     expect(trace(dir)).toEqual(['x', 'end x']);
     expect(readdirSync(queue)).toEqual([]);
     // a genuinely live older waiter keeps its place
-    const { stdout } = await exec('ps', ['-o', 'lstart=', '-p', String(process.pid)]);
+    // LANE-K7i: use kernel incarnation identity; ps is denied in the kit sandbox.
+    const { stdout } = await exec('python3', ['-I', join(here, 'process-start.py'), String(process.pid)]);
     const live = join(queue, `0000000003.000000-${process.pid}`);
     writeFileSync(live, stdout.trim());
     const blocked = launch(dir, real, 'y', 'y');

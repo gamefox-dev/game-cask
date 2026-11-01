@@ -1,4 +1,5 @@
 /* LANE-K1: behavioral assertions run normally compiled Windows guest code, not API mocks. */
+// @bgt-examples: x64-sysdlls
 import { beforeAll, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,7 +11,6 @@ import { buildGame } from '../../tools/build/build.mjs';
 import { importsCoverage } from '../../tools/x86/imports-coverage.mjs';
 let h: Headless;
 beforeAll(async () => {
-  buildGame('examples/x64-sysdlls', { quiet: true });
   h = await loadHeadless('x64-sysdlls'); await h.stepAsync(80);
 }, 120_000);
 const cases = [

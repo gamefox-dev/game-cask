@@ -177,16 +177,17 @@ its old queue format is `LANE|PORT|BRIEF`, auto paths `NEW_RUN/lane-LANE`, `NEW_
 
 The supervisor prepends `tools/harness/pi/shim` to PATH. `npm`/`npx` wrap commands whose arguments include test,
 build, oracle, playwright, lint, bench or probe. Up to `BGT_HEAVY_SLOTS=2` run simultaneously across lanes/processes,
-using BSD `/usr/bin/lockf -k` slots under **/private/tmp/bgt-heavy-v1-slot-N.lock**. Slot files are kept (never unlink
-an in-use lock inode). Use the **same slot count and namespace machine-wide**. Nested commands inherit
-`BGT_HEAVY_HELD=1` and pass through; light commands pass through without holding a slot. A real command exit 75
-is returned, not mistaken for lock contention. Missing lockf fails closed for heavy commands; Linux needs an
-operator-provided compatible lockf, no automatic ungated fallback. Direct node/zig/browser invocations are not
+using Python stdlib `fcntl.flock` slots under **/private/tmp/bgt-heavy-v1-slot-N.lock** on macOS, `/tmp/` on Linux
+(LANE-K7i: one tested locking path, no system install). Slot files are kept (never unlink an in-use lock inode).
+Use the **same slot count and namespace machine-wide**. Nested commands inherit `BGT_HEAVY_HELD=1` and pass through;
+light commands pass through without holding a slot. A real command exit 75 is returned, not mistaken for lock
+contention. Missing Python or unavailable kernel locks fail closed, never run ungated. Kernel process start identities
+(libproc on macOS, `/proc` on Linux) preserve stale/reused-PID detection without sandbox-denied `ps`. Direct node/zig/browser invocations are not
 intercepted: lanes must invoke heavy kit tasks through npm/npx. This is scheduling, not a security boundary.
 
 `BGT_REAL_NPM`/`BGT_REAL_NPX` may name installed executables; the supervisor resolves them before adding the shim.
 Standalone wrappers search PATH excluding themselves. Do not point these back at the kit shim. Test isolation can
-set `BGT_HEAVY_LOCK_PREFIX` (must remain under `/private/tmp`); production lanes must share the default namespace.
+set `BGT_HEAVY_LOCK_PREFIX` (must remain under `/private/tmp` or `/tmp`); production lanes must share the default namespace.
 
 ```sh
 # Only after commits are integrated into the named local target branch:
