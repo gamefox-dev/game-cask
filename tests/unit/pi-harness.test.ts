@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 // @ts-expect-error plain ESM
@@ -262,7 +262,8 @@ sleep 0.2
 exit 75`);
     const e = env({ PATH: join(here, 'shim') + ':' + process.env.PATH, BGT_REAL_NPM: real, BGT_REAL_NPX: real,
       BGT_HEAVY_SLOTS: '1', BGT_HEAVY_HELD: '', BGT_HEAVY_LOCK_PREFIX: join(dir, 'gate'), HEAVY_TEST_DIR: dir });
-    const run = async (name: string) => { try { await exec(join(here, `shim/${name}`), ['run', 'test'], { env: e, timeout: 3000 }); return 0;
+    // LANE-K6e: matching is now by parsed subcommand/executable, so npx needs a genuinely heavy executable (`npx run test` is not one)
+    const run = async (name: string) => { try { await exec(join(here, `shim/${name}`), name === 'npx' ? ['vitest', 'run'] : ['run', 'test'], { env: e, timeout: 3000 }); return 0;
     } catch (error: any) { return error.code; } };
     expect(await Promise.all([run('npm'), run('npx'), run('npm')])).toEqual([75, 75, 75]);
     expect(existsSync(join(dir, 'held'))).toBe(false);
@@ -272,6 +273,90 @@ exit 75`);
     const e = env({ BGT_REAL_NPM: real, BGT_HEAVY_SLOTS: '0', BGT_HEAVY_HELD: '' });
     expect((await exec(join(here, 'shim/npm'), ['--version'], { env: e })).stdout).toBe('not-held');
     await expect(exec(join(here, 'shim/npm'), ['test'], { env: e })).rejects.toThrow('invalid BGT_HEAVY_SLOTS');
+  });
+});
+
+describe('heavy gate FIFO and matching (LANE-K6e)', () => {
+  const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+  const gateDir = () => { const dir = mkdtempSync('/private/tmp/bgt-gate-test-'); dirs.push(dir); return dir; };
+  const gateEnv = (dir: string, real: string, patch: NodeJS.ProcessEnv = {}) => env({ BGT_REAL_NPM: real, BGT_REAL_NPX: real,
+    BGT_HEAVY_SLOTS: '1', BGT_HEAVY_HELD: '', BGT_HEAVY_LOCK_PREFIX: join(dir, 'gate'), HEAVY_TEST_DIR: dir, ...patch });
+  const launch = (dir: string, real: string, name: string, tag: string, patch: NodeJS.ProcessEnv = {}) => {
+    const child = spawn(join(here, 'shim/npm'), ['run', 'test', tag], { env: gateEnv(dir, real, patch), stdio: 'ignore' });
+    children.push(child);
+    return once(child, 'close').then(([code]) => ({ name, code, child }));
+  };
+  const holdScript = (dir: string, hold: string) => script(join(dir, 'real'), `echo "$3" >> "$HEAVY_TEST_DIR/trace"; sleep ${hold}; echo "end $3" >> "$HEAVY_TEST_DIR/trace"`);
+  const trace = (dir: string) => readFileSync(join(dir, 'trace'), 'utf8').trim().split('\n');
+  const classify = async (tool: string, args: string[]) => (await exec(join(here, `shim/${tool}`), args,
+    { env: env({ BGT_HEAVY_CLASSIFY: '1', BGT_REAL_NPM: '/bin/echo', BGT_REAL_NPX: '/bin/echo' }) })).stdout.trim();
+
+  it('classifies by subcommand, script and executable, not by substrings of arbitrary arguments', async () => {
+    const heavy: [string, string[]][] = [['npm', ['test']], ['npm', ['t']], ['npm', ['run', 'test:e2e']], ['npm', ['run', '--silent', 'build:port']],
+      ['npm', ['--prefix', 'x', 'run', 'oracle', '--', 'port', '300']], ['npm', ['run', '-w', 'pkg', 'test']], ['npm', ['run', 'lint']], ['npm', ['run', 'bench']],
+      ['npm', ['run', 'probe', '--', 'x']], ['npm', ['exec', '--', 'playwright', 'test']], ['npm', ['exec', '--yes', 'vitest', 'run']],
+      ['npx', ['playwright', 'test']], ['npx', ['-y', 'vitest', 'run']], ['npx', ['-p', 'pkg', 'eslint', '.']]];
+    const light: [string, string[]][] = [['npm', ['install', 'vitest']], ['npm', ['view', '@playwright/test', 'version']], ['npm', ['run', 'typecheck']],
+      ['npm', ['pkg', 'get', 'scripts.test']], ['npm', ['ls']], ['npm', ['--version']], ['npm', ['run', 'docs', '--', 'build']], ['npm', ['run', 'buildinfo']],
+      ['npm', ['run', 'dev', '--', '--host', 'testing']], ['npm', ['config', 'get', 'cache']], ['npx', ['tsc', '-p', '.']], ['npx', ['cowsay', 'test']], ['npm', []]];
+    for (const [tool, args] of heavy) expect(await classify(tool, args), `${tool} ${args.join(' ')}`).toBe('heavy');
+    for (const [tool, args] of light) expect(await classify(tool, args), `${tool} ${args.join(' ')}`).toBe('light');
+  });
+
+  it('serves waiters strictly oldest first and never overlaps beyond the slot count', async () => {
+    const dir = gateDir(), real = holdScript(dir, '0.35');
+    const runs = [];
+    for (const tag of ['a', 'b', 'c', 'd', 'e']) { runs.push(launch(dir, real, tag, tag)); await sleep(120); }
+    expect((await Promise.all(runs)).map(r => r.code)).toEqual([0, 0, 0, 0, 0]);
+    expect(trace(dir)).toEqual(['a', 'end a', 'b', 'end b', 'c', 'end c', 'd', 'end d', 'e', 'end e']);
+    expect(existsSync(join(dir, 'gate-queue')) ? readdirSync(join(dir, 'gate-queue')) : []).toEqual([]);
+  });
+
+  it('drops tickets of dead waiters and of reused pids, but a live older ticket still blocks until removed', async () => {
+    const dir = gateDir(), real = holdScript(dir, '0.1'), queue = join(dir, 'gate-queue');
+    mkdirSync(queue);
+    const dead = spawn('true'); await once(dead, 'close');
+    writeFileSync(join(queue, `0000000001.000000-${dead.pid}`), '');
+    writeFileSync(join(queue, `0000000002.000000-${process.pid}`), 'Thu Jan  1 00:00:00 1970'); // live pid, different start time = reuse
+    await expect(launch(dir, real, 'x', 'x').then(r => r.code)).resolves.toBe(0);
+    expect(trace(dir)).toEqual(['x', 'end x']);
+    expect(readdirSync(queue)).toEqual([]);
+    // a genuinely live older waiter keeps its place
+    const { stdout } = await exec('ps', ['-o', 'lstart=', '-p', String(process.pid)]);
+    const live = join(queue, `0000000003.000000-${process.pid}`);
+    writeFileSync(live, stdout.trim());
+    const blocked = launch(dir, real, 'y', 'y');
+    await sleep(900);
+    expect(existsSync(join(dir, 'trace')) ? trace(dir).includes('y') : false).toBe(false);
+    rmSync(live);
+    expect((await blocked).code).toBe(0);
+    expect(trace(dir)).toContain('y');
+  });
+
+  it('re-reads the slot count every loop, so a waiter starts when the operator raises it', async () => {
+    const dir = gateDir(), real = holdScript(dir, '2.5'), slotsFile = join(dir, 'gate-slots');
+    writeFileSync(slotsFile, '1\n');
+    const first = launch(dir, real, 'a', 'a'); await sleep(500);
+    const second = launch(dir, real, 'b', 'b'); await sleep(700);
+    expect(trace(dir)).toEqual(['a']); // b waits behind the single slot
+    writeFileSync(slotsFile, '2\n');
+    await until(() => trace(dir).includes('b'));
+    expect(trace(dir)).not.toContain('end a'); // b started while a was still running
+    expect([(await first).code, (await second).code]).toEqual([0, 0]);
+    writeFileSync(slotsFile, '0\n');
+    await expect(exec(join(here, 'shim/npm'), ['test'], { env: gateEnv(dir, real) })).rejects.toThrow('invalid BGT_HEAVY_SLOTS');
+  });
+
+  it('removes its ticket when terminated while waiting', async () => {
+    const dir = gateDir(), real = holdScript(dir, '1.5'), queue = join(dir, 'gate-queue');
+    const holder = launch(dir, real, 'a', 'a'); await sleep(400);
+    const waiter = launch(dir, real, 'w', 'w'); await sleep(400);
+    expect(readdirSync(queue)).toHaveLength(1);
+    for (const child of children) if (child.spawnargs.includes('w')) child.kill('SIGTERM');
+    expect((await waiter).code).toBe(143);
+    expect(readdirSync(queue)).toEqual([]);
+    expect((await holder).code).toBe(0);
+    expect(trace(dir)).not.toContain('w');
   });
 });
 
