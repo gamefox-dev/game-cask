@@ -57,7 +57,10 @@ export async function acquireWebGPU(gpu: GPU | undefined = navigator.gpu, timeou
       if (!adapter) throw new WebGPUUnavailable('requestAdapter returned null');
       if (cancelled) throw new WebGPUUnavailable('probe cancelled');
       stage = 'requestDevice';
-      device = await adapter.requestDevice();
+      // §13.7 float32 color textures need filtering/blending semantics; request them when the adapter has them.
+      const optional = (['float32-filterable', 'float32-blendable'] as const)
+        .filter(feature => adapter.features?.has(feature));
+      device = await adapter.requestDevice(optional.length ? { requiredFeatures: optional } : undefined);
       if (cancelled) { device.destroy(); throw new WebGPUUnavailable('probe cancelled'); }
       stage = 'submission/readback';
       await checkWebGPUDevice(device, timeoutMs);

@@ -3,11 +3,13 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
+import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
+  from '../gpu-texture';
 
 const formats: GPUTextureFormat[] = [
   'rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'depth24plus-stencil8', 'depth32float',
+  'rgb10a2unorm', 'r16float', 'rg16float', 'r32float', 'rg32float', 'rgba32float',
 ];
-const texelBytes = [4, 4, 1, 2, 8, 4, 4];
 const compare: GPUCompareFunction[] = [
   'never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always',
 ];
@@ -25,7 +27,10 @@ const vertexFormats: GPUVertexFormat[] = [
 ];
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer> }
-interface TextureResource { native: GPUTexture; words: readonly number[]; uploads: GpuItem[] }
+interface TextureResource {
+  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[];
+  generated?: { base: number; source: GpuItem; overridden: Set<number> };
+}
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[] }
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
 interface PipelineResource {
@@ -52,6 +57,7 @@ export class WebGPUCommands implements GpuBackend {
   private inactive = false;
   private pending = new Set<ShaderResource>();
   private failedShaders = new Map<number, GpuItem>();
+  private readbacks = new Set<GpuItem>();
 
   constructor(private device: GPUDevice, private error: (message: string) => void) {}
 
@@ -74,6 +80,8 @@ export class WebGPUCommands implements GpuBackend {
       s.item.complete?.(E_IO, 'WebGPU device lost while compiling shader');
     }
     this.pending.clear();
+    for (const r of this.readbacks) r.readback?.(undefined, E_IO);
+    this.readbacks.clear();
   }
 
   async restore(device: GPUDevice): Promise<void> {
@@ -82,12 +90,18 @@ export class WebGPUCommands implements GpuBackend {
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
+    this.blits.clear(); this.blitSampler = undefined;
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
-      this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE, words: t.words });
-      for (const item of t.uploads) this.execute(item);
+      this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
+      if (t.generated && t.desc.dimension !== 1) {
+        this.execute(t.generated.source);
+        this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated.base] });
+      }
+      for (const item of t.uploads) if (!t.generated || t.desc.dimension === 1 ||
+        item.words[1] < t.generated.base || t.generated.overridden.has(item.words[1])) this.execute(item);
     }
-    for (const [, s] of samplers) this.execute({ kind: 'gpu', op: OP.SAMPLER_CREATE, words: s.words });
+    for (const [, s] of samplers) this.execute({ kind: 'gpu', op: OP.SAMPLER_CREATE_EX, words: s.words });
     for (const [, s] of shaders) this.execute({ ...s.item, complete: undefined });
     const info = await Promise.all([...this.shaders.values()].map(s => s.native.getCompilationInfo()));
     const used = new Set(pipelines.flatMap(([, p]) => [p.words[1], p.words[2]]));
@@ -102,20 +116,22 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   execute(item: GpuItem): number {
-    if (this.inactive) { item.complete?.(E_IO, 'WebGPU device is lost'); return E_IO; }
+    if (this.inactive) {
+      item.complete?.(E_IO, 'WebGPU device is lost'); item.readback?.(undefined, E_IO); return E_IO;
+    }
     try { this.run(item); return 0; }
     catch (e) {
       const message = `GPU opcode 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.SHADER_CREATE) this.failedShaders.set(item.words[0], item);
-      item.complete?.(E_IO, message);
+      item.complete?.(E_IO, message); item.readback?.(undefined, E_IO);
       if (item.op !== OP.SHADER_CREATE) this.error(message);
       return E_IO;
     }
   }
 
   private run(item: GpuItem): void {
-    const w = item.words, h = w[0], d = this.device;
-    switch (item.op) {
+    const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
+    switch (op) {
       case OP.BUFFER_CREATE: {
         const native = d.createBuffer({ size: Math.ceil(w[2] / 4) * 4,
           usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
@@ -134,49 +150,65 @@ export class WebGPUCommands implements GpuBackend {
         break;
       }
       case OP.BUFFER_DELETE: this.buffers.get(h)!.native.destroy(); this.buffers.delete(h); break;
-      case OP.TEXTURE_CREATE: {
-        const native = d.createTexture({ size: [w[1], w[2]], mipLevelCount: w[3], format: formats[w[4]],
+      case OP.TEXTURE_CREATE_EX: {
+        const desc = toCanonicalTexture(w), depthFormat = isDepthFormat(desc.format);
+        if (desc.format >= 10 && !d.features.has('float32-filterable')) {
+          throw new Error('32-bit float textures need the float32-filterable WebGPU feature');
+        }
+        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: desc.mips,
+          dimension: desc.dimension === 1 ? '3d' : '2d', format: formats[desc.format],
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-            (w[4] < 5 ? GPUTextureUsage.COPY_DST : 0) });
-        this.textures.set(h, { native, words: w, uploads: [] });
+            (depthFormat ? 0 : GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC) });
+        this.textures.set(h, { native, words: w, desc, uploads: [] });
         // WebGPU zero-initializes color/stencil, but BGT initializes depth to one.
-        if (w[4] >= 5) {
+        if (depthFormat) {
           const encoder = d.createCommandEncoder();
-          for (let mip = 0; mip < w[3]; mip++) {
+          for (let mip = 0; mip < desc.mips; mip++) {
             const a: GPURenderPassDepthStencilAttachment = {
               view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
               depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
             };
-            if (w[4] === 5) Object.assign(a, { stencilLoadOp: 'clear', stencilStoreOp: 'store', stencilClearValue: 0 });
+            if (desc.format === 5) Object.assign(a, { stencilLoadOp: 'clear', stencilStoreOp: 'store', stencilClearValue: 0 });
             encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: a }).end();
           }
           d.queue.submit([encoder.finish()]);
         }
         break;
       }
-      case OP.TEXTURE_UPDATE: {
-        const t = this.textures.get(h)!;
-        d.queue.writeTexture({ texture: t.native, mipLevel: w[1], origin: [w[2], w[3]] }, item.data!,
-          { bytesPerRow: w[4] * texelBytes[t.words[4]], rowsPerImage: w[5] }, [w[4], w[5]]);
+      case OP.TEXTURE_UPDATE_EX: {
+        const t = this.textures.get(h)!, bpp = TEXEL_BYTES[t.desc.format];
+        const [, mip, x, y, z, width, height, depth] = w;
+        t.generated?.overridden.add(mip);
+        d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
+          { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
-        let full = t.uploads.find(i => i.words[1] === w[1]);
-        const width = Math.max(1, t.words[1] >> w[1]), height = Math.max(1, t.words[2] >> w[1]);
-        const bpp = texelBytes[t.words[4]];
+        const level = mipExtent(t.desc, mip);
+        let full = t.uploads.find(i => i.words[1] === mip);
         if (!full) {
-          full = { kind: 'gpu', op: OP.TEXTURE_UPDATE, words: [h, w[1], 0, 0, width, height, 0, width * height * bpp],
-            data: new Uint8Array(width * height * bpp) };
+          full = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [h, mip, 0, 0, 0, level.width, level.height,
+            level.depth, 0, level.width * level.height * level.depth * bpp],
+            data: new Uint8Array(level.width * level.height * level.depth * bpp) };
           t.uploads.push(full);
         }
-        for (let y = 0; y < w[5]; y++) full.data!.set(item.data!.subarray(y * w[4] * bpp, (y + 1) * w[4] * bpp),
-          ((y + w[3]) * width + w[2]) * bpp);
+        for (let slice = 0; slice < depth; slice++) for (let row = 0; row < height; row++) {
+          const source = (slice * height + row) * width * bpp;
+          full.data!.set(item.data!.subarray(source, source + width * bpp),
+            (((z + slice) * level.height + y + row) * level.width + x) * bpp);
+        }
         break;
       }
+      case OP.TEXTURE_READBACK: this.readback(item, w); break;
+      case OP.TEXTURE_GENERATE_MIPS: this.generateMips(w[0], w[1]); break;
       case OP.TEXTURE_DELETE: this.textures.get(h)!.native.destroy(); this.textures.delete(h); break;
-      case OP.SAMPLER_CREATE: {
+      case OP.SAMPLER_CREATE_EX: {
         const filter = ['nearest', 'linear'] as const, wrap = ['clamp-to-edge', 'repeat', 'mirror-repeat'] as const;
+        // mip_filter NONE reads exactly level floor(min_lod).
+        const none = w[3] === 0, lo = f(w[9]), hi = f(w[10]);
         const native = d.createSampler({ minFilter: filter[w[1]], magFilter: filter[w[2]],
-          mipmapFilter: w[3] === 2 ? 'linear' : 'nearest', lodMinClamp: 0, lodMaxClamp: w[3] ? 32 : 0,
-          addressModeU: wrap[w[4]], addressModeV: wrap[w[5]], compare: w[6] ? compare[w[7]] : undefined });
+          mipmapFilter: w[3] === 2 ? 'linear' : 'nearest', lodMinClamp: none ? Math.floor(lo) : lo,
+          lodMaxClamp: none ? Math.floor(lo) : hi,
+          addressModeU: wrap[w[4]], addressModeV: wrap[w[5]], addressModeW: wrap[w[6]],
+          compare: w[7] ? compare[w[8]] : undefined });
         this.samplers.set(h, { native, words: w }); break;
       }
       case OP.SAMPLER_DELETE: this.samplers.delete(h); break;
@@ -221,7 +253,7 @@ export class WebGPUCommands implements GpuBackend {
           width = Math.max(1, t.native.width >> w[2]); height = Math.max(1, t.native.height >> w[2]);
           depth = { view: t.native.createView({ baseMipLevel: w[2], mipLevelCount: 1 }),
             depthLoadOp: w[3] ? 'clear' : 'load', depthStoreOp: 'store', depthClearValue: f(w[5]) };
-          if (t.words[4] === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
+          if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
             stencilStoreOp: 'store', stencilClearValue: w[6] });
         }
         this.pass = this.encoder.beginRenderPass({ colorAttachments: colors, depthStencilAttachment: depth });
@@ -262,6 +294,89 @@ export class WebGPUCommands implements GpuBackend {
     }
   }
 
+  private blits = new Map<number, GPURenderPipeline>();
+  private blitSampler?: GPUSampler;
+
+  /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
+   * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
+  private generateMips(handle: number, base: number): void {
+    const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
+    const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
+    const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
+    const source: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, base, 0, 0, 0,
+      extent.width, extent.height, extent.depth, 0, data.length], data };
+    t.generated = { base, source, overridden: new Set() };
+    if (desc.dimension === 1) {
+      let prev = data, e = extent;
+      for (let k = base + 1; k < desc.mips; k++) {
+        const n = mipExtent(desc, k), data = downsampleBox(desc.format, prev, e.width, e.height, e.depth,
+          n.width, n.height, n.depth);
+        this.run({ kind: 'gpu', op: OP.TEXTURE_UPDATE_EX,
+          words: [handle, k, 0, 0, 0, n.width, n.height, n.depth, 0, data.length], data });
+        prev = data; e = n;
+      }
+      return;
+    }
+    let pipeline = this.blits.get(desc.format);
+    if (!pipeline) {
+      const module = d.createShaderModule({ code: `
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var smp: sampler;
+struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
+  var p = array<vec2f, 3>(vec2f(-1, -1), vec2f(3, -1), vec2f(-1, 3));
+  var o: VO; o.pos = vec4f(p[i], 0, 1); o.uv = vec2f((p[i].x + 1) / 2, (1 - p[i].y) / 2); return o;
+}
+@fragment fn fs(v: VO) -> @location(0) vec4f { return textureSampleLevel(src, smp, v.uv, 0.0); }` });
+      pipeline = d.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+        fragment: { module, entryPoint: 'fs', targets: [{ format: formats[desc.format] }] },
+        primitive: { topology: 'triangle-list' } });
+      this.blits.set(desc.format, pipeline);
+    }
+    this.blitSampler ??= d.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+    const encoder = d.createCommandEncoder();
+    for (let layer = 0; layer < desc.depth; layer++) for (let k = base + 1; k < desc.mips; k++) {
+      const view = (mip: number) => t.native.createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1,
+        baseArrayLayer: layer, arrayLayerCount: 1 });
+      const pass = encoder.beginRenderPass({ colorAttachments: [{ view: view(k), loadOp: 'clear', storeOp: 'store',
+        clearValue: [0, 0, 0, 0] }] });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, d.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: view(k - 1) }, { binding: 1, resource: this.blitSampler }] }));
+      pass.draw(3); pass.end();
+    }
+    d.queue.submit([encoder.finish()]);
+    for (const level of generatedMipShadows(desc, base, data)) {
+      const e = mipExtent(desc, level.mip), previous = t.uploads.findIndex(u => u.words[1] === level.mip);
+      const shadow: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, level.mip, 0, 0, 0,
+        e.width, e.height, e.depth, 0, level.data.length], data: level.data };
+      if (previous < 0) t.uploads.push(shadow); else t.uploads[previous] = shadow;
+    }
+  }
+
+  /** §13.7 TEXTURE_READBACK: copy in stream order, map later; exact stored texels, rows top-first. */
+  private readback(item: GpuItem, w: number[]): void {
+    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    const bpp = TEXEL_BYTES[t.desc.format], row = width * bpp, aligned = Math.ceil(row / 256) * 256;
+    const buffer = d.createBuffer({ size: aligned * height * depth,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    const encoder = d.createCommandEncoder();
+    encoder.copyTextureToBuffer({ texture: t.native, mipLevel: mip, origin: [x, y, z] },
+      { buffer, bytesPerRow: aligned, rowsPerImage: height }, [width, height, depth]);
+    d.queue.submit([encoder.finish()]);
+    this.readbacks.add(item);
+    const finish = (data?: Uint8Array<ArrayBuffer>, error?: number) => {
+      const deliver = this.readbacks.delete(item);
+      buffer.destroy(); // loss may already have completed the request, but the staging buffer still needs release
+      if (deliver) item.readback?.(data, error);
+    };
+    void buffer.mapAsync(GPUMapMode.READ).then(() => {
+      const mapped = new Uint8Array(buffer.getMappedRange()), out = new Uint8Array(row * height * depth);
+      for (let i = 0; i < height * depth; i++) out.set(mapped.subarray(i * aligned, i * aligned + row), i * row);
+      finish(out);
+    }).catch(() => finish(undefined, E_IO));
+  }
+
   private writeBuffer(buffer: GPUBuffer, offset: number, data: Uint8Array<ArrayBuffer>): void {
     const aligned = new Uint8Array(Math.ceil(data.length / 4) * 4); aligned.set(data);
     this.device.queue.writeBuffer(buffer, offset, aligned);
@@ -293,9 +408,14 @@ export class WebGPUCommands implements GpuBackend {
     const component = (src: number, dst: number, op: number): GPUBlendComponent => ({
       operation: blendOps[op], srcFactor: op >= 3 ? 'one' : factors[src], dstFactor: op >= 3 ? 'one' : factors[dst],
     });
-    for (let i = 0; i < w[25]; i++, j += 9) targets.push({ format: formats[w[j]], writeMask: w[j + 8],
-      blend: w[j + 1] ? { color: component(w[j + 2], w[j + 3], w[j + 4]),
-        alpha: component(w[j + 5], w[j + 6], w[j + 7]) } : undefined });
+    for (let i = 0; i < w[25]; i++, j += 9) {
+      if (w[j] >= 10 && w[j + 1] && !d.features.has('float32-blendable')) {
+        throw new Error('Blending 32-bit float targets needs the float32-blendable WebGPU feature');
+      }
+      targets.push({ format: formats[w[j]], writeMask: w[j + 8],
+        blend: w[j + 1] ? { color: component(w[j + 2], w[j + 3], w[j + 4]),
+          alpha: component(w[j + 5], w[j + 6], w[j + 7]) } : undefined });
+    }
     const face = (i: number): GPUStencilFaceState => ({ compare: compare[w[i]], failOp: stencil[w[i + 1]],
       depthFailOp: stencil[w[i + 2]], passOp: stencil[w[i + 3]] });
     const depthStencil: GPUDepthStencilState | undefined = w[6] === 0xffffffff ? undefined : {
@@ -318,8 +438,10 @@ export class WebGPUCommands implements GpuBackend {
       .filter(b => b.group === group).map(b => ({ binding: b.binding,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         ...(b.type === 'uniform' ? { buffer: { type: 'uniform' as const } } :
-          b.type === 'texture' || b.type === 'depth' ?
-            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : 'float' as const } } :
+          b.type === 'texture' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
+            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : 'float' as const,
+              viewDimension: b.type === 'texture3d' ? '3d' as const :
+                b.type === 'texture2darray' ? '2d-array' as const : '2d' as const } } :
             { sampler: { type: b.type === 'comparison' ? 'comparison' as const :
               b.type === 'nonfiltering' ? 'non-filtering' as const : 'filtering' as const } }),
       })) }));
@@ -349,7 +471,7 @@ export class WebGPUCommands implements GpuBackend {
     const d = this.device;
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
-      .map(b => b.binding >> 1).filter(slot => this.textures.get(this.sampled.get(slot)![1])!.words[4] >= 5));
+      .map(b => b.binding >> 1).filter(slot => isDepthFormat(this.textures.get(this.sampled.get(slot)![1])!.desc.format)));
     const sampling = [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
       b.group === 1 && b.type !== 'comparison')).map(slot => ({ binding: slot * 2,
       sampler: this.samplers.get(this.sampled.get(slot)![2])!.words }));
@@ -391,7 +513,8 @@ export class WebGPUCommands implements GpuBackend {
         if (b.type === 'nonfiltering') sampler.nonfilter ??= d.createSampler();
         textures.push({ binding: b.binding, resource: b.binding % 2 ?
           (b.type === 'nonfiltering' ? sampler.nonfilter! : sampler.native) :
-          t.native.createView({ aspect: t.words[4] >= 5 ? 'depth-only' : 'all' }) });
+          t.native.createView({ aspect: isDepthFormat(t.desc.format) ? 'depth-only' : 'all',
+            dimension: t.desc.dimension === 1 ? '3d' : t.desc.dimension === 2 ? '2d-array' : '2d' }) });
       }
     }
     // Explicit layouts include only declared bindings, not extra bound guest slots.

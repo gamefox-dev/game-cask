@@ -7,7 +7,11 @@ import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
 
 type BufferEntry = { usage: number; shadow: Uint8Array<ArrayBuffer> };
-type TextureEntry = { width: number; height: number; mips: number; format: number; usage: number; bytes: number };
+type TextureEntry = {
+  width: number; height: number; depth: number; dimension: number; mips: number; format: number; usage: number;
+  bytes: number;
+};
+const isDepth = (format: number) => format === 5 || format === 6;
 type ShaderEntry = { stage: number; language: number; ready: boolean; bytes: number };
 type PipelineEntry = {
   words: number[]; buffers: number[][]; attrs: number[][]; colors: number[][];
@@ -23,6 +27,7 @@ type Pass = {
 export class GpuState {
   readonly buffers = new Map<number, BufferEntry>();
   readonly textures = new Map<number, TextureEntry>();
+  /** Normalized to the §13.7 SAMPLER_CREATE_EX word order: wrap_w, compare_enable, compare, then LOD bits. */
   readonly samplers = new Map<number, number[]>();
   readonly shaders = new Map<number, ShaderEntry>();
   readonly pipelines = new Map<number, PipelineEntry>();
@@ -35,14 +40,17 @@ const fixedSizes = new Map<number, number>(Object.entries(GPU_OP)
   .filter(([name]) => name !== 'PIPELINE_CREATE' && name !== 'PASS_BEGIN')
   .map(([name, op]) => [op, name === 'PASS_END' ? 0 : GPU_LAYOUT[name.toLowerCase() as keyof typeof GPU_LAYOUT]]));
 const vertexSizes = [4, 8, 12, 16, 4, 4, 8, 12, 16, 4, 8, 12, 16];
-const pixelSizes = [4, 4, 1, 2, 8, 4, 4];
+const pixelSizes = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16];
 const validHandle = (h: number) => h > 0 && h <= GPU_LIMITS.handles;
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
 const bool = (v: number) => v <= 1;
 const textureSize = (t: TextureEntry, mip: number) => ({
   width: Math.max(1, Math.floor(t.width / 2 ** mip)),
   height: Math.max(1, Math.floor(t.height / 2 ** mip)),
+  // 3D depth halves per level; array layers are constant; 2D has one slice.
+  depth: t.dimension === 1 ? Math.max(1, Math.floor(t.depth / 2 ** mip)) : t.depth,
 });
+const mipCount = (...dims: number[]) => 1 + Math.floor(Math.log2(Math.max(...dims)));
 
 /** Gate first: old hosts/modules must keep reporting formerly unknown GPU opcodes as unsupported. */
 export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: Uint8Array,
@@ -76,8 +84,9 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     return new Uint8Array(mem.subarray(ptr, ptr + len));
   };
   // All resource operations are outside passes. Dynamic/binding/draw operations are inside.
-  if (op <= GPU_OP.PIPELINE_DELETE && g.pass) return E_STATE;
-  if (op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
+  const resourceOp = op <= GPU_OP.PIPELINE_DELETE || op >= GPU_OP.TEXTURE_CREATE_EX;
+  if (resourceOp && g.pass) return E_STATE;
+  if (!resourceOp && op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
   const fresh = (map: Map<number, unknown>) => !validHandle(h) ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
   const budget = (bytes: number) => g.bytes + bytes <= GPU_LIMITS.budget;
   switch (op) {
@@ -110,7 +119,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (w[1] > GPU_LIMITS.textureDimension || w[2] > GPU_LIMITS.textureDimension) return E_LIMIT;
       if (w[3] > 1 + Math.floor(Math.log2(Math.max(w[1], w[2])))) return E_INVALID;
       let bytes = 0;
-      const t = { width: w[1], height: w[2], mips: w[3], format: w[4], usage: w[5], bytes: 0 };
+      const t = { width: w[1], height: w[2], depth: 1, dimension: 0, mips: w[3], format: w[4], usage: w[5], bytes: 0 };
       for (let mip = 0; mip < w[3]; mip++) {
         const s = textureSize(t, mip); bytes += s.width * s.height * pixelSizes[w[4]];
       }
@@ -119,7 +128,8 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.TEXTURE_UPDATE: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
-      if (t.format >= 5) return E_UNSUPPORTED; // depth uploads deliberately excluded
+      if (isDepth(t.format)) return E_UNSUPPORTED; // depth uploads deliberately excluded
+      if (t.dimension !== 0) return E_STATE; // use TEXTURE_UPDATE_EX for volumes and arrays
       if (w[1] >= t.mips || !w[4] || !w[5]) return E_INVALID;
       const s = textureSize(t, w[1]);
       if (w[2] + w[4] > s.width || w[3] + w[5] > s.height) return E_BOUNDS;
@@ -139,7 +149,63 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (w[1] > 1 || w[2] > 1 || w[3] > 2 || w[4] > 2 || w[5] > 2 || !bool(w[6]) || w[7] > 7) {
         return E_INVALID;
       }
+      g.samplers.set(h, [h, w[1], w[2], w[3], w[4], w[5], 0, w[6], w[7], 0, 0x447a0000]); return emit();
+    }
+    case GPU_OP.TEXTURE_CREATE_EX: {
+      const e = fresh(g.textures); if (e) return e;
+      const [, dim, width, height, depth, mips, format, usage] = w;
+      if (dim > 2 || !width || !height || !depth || !mips || format > 12 || !usage || (usage & ~3)) return E_INVALID;
+      if (dim === 0 && depth !== 1) return E_INVALID;
+      if (dim !== 0 && isDepth(format)) return E_UNSUPPORTED; // depth is 2D only
+      if (dim !== 0 && (usage & 2)) return E_UNSUPPORTED; // no layered/sliced attachments
+      if (width > GPU_LIMITS.textureDimension || height > GPU_LIMITS.textureDimension) return E_LIMIT;
+      if (dim === 1 && (width > GPU_LIMITS.volumeDimension || height > GPU_LIMITS.volumeDimension
+        || depth > GPU_LIMITS.volumeDimension)) return E_LIMIT;
+      if (dim === 2 && depth > GPU_LIMITS.arrayLayers) return E_LIMIT;
+      if (mips > (dim === 1 ? mipCount(width, height, depth) : mipCount(width, height))) return E_INVALID;
+      const t: TextureEntry = { width, height, depth, dimension: dim, mips, format, usage, bytes: 0 };
+      let bytes = 0;
+      for (let mip = 0; mip < mips; mip++) {
+        const s = textureSize(t, mip); bytes += s.width * s.height * s.depth * pixelSizes[format];
+      }
+      if (!budget(bytes)) return E_LIMIT;
+      t.bytes = bytes; g.bytes += bytes; g.textures.set(h, t); return emit();
+    }
+    case GPU_OP.TEXTURE_UPDATE_EX: {
+      const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
+      if (isDepth(t.format)) return E_UNSUPPORTED;
+      const [, mip, x, y, z, width, height, depth, , length] = w;
+      if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
+      const s = textureSize(t, mip);
+      if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
+      if (length !== width * height * depth * pixelSizes[t.format]) return E_INVALID;
+      const data = copy(w[8], length); if (typeof data === 'number') return data;
+      item.data = data; return emit();
+    }
+    case GPU_OP.SAMPLER_CREATE_EX: {
+      const e = fresh(g.samplers); if (e) return e;
+      const lo = float(w[9]), hi = float(w[10]);
+      if (w[1] > 1 || w[2] > 1 || w[3] > 2 || w[4] > 2 || w[5] > 2 || w[6] > 2 || !bool(w[7]) || w[8] > 7
+        || !Number.isFinite(lo) || !Number.isFinite(hi) || lo < 0 || hi > 1000 || lo > hi) return E_INVALID;
       g.samplers.set(h, w); return emit();
+    }
+    case GPU_OP.TEXTURE_READBACK: {
+      const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
+      if (isDepth(t.format)) return E_UNSUPPORTED;
+      const [, mip, x, y, z, width, height, depth] = w;
+      if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
+      const s = textureSize(t, mip);
+      if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
+      if (width * height * depth * pixelSizes[t.format] > 8 * 1024 * 1024) return E_LIMIT;
+      if (!ctx.gpuRequest) return E_UNSUPPORTED;
+      const complete = ctx.gpuRequest(w[8]); if (typeof complete === 'number') return complete;
+      item.readback = complete; return emit();
+    }
+    case GPU_OP.TEXTURE_GENERATE_MIPS: {
+      const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
+      if (isDepth(t.format)) return E_UNSUPPORTED;
+      if (w[1] >= t.mips) return E_INVALID;
+      return emit();
     }
     case GPU_OP.SAMPLER_DELETE:
       if (!g.samplers.delete(h)) return E_NOT_FOUND;
@@ -200,7 +266,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         locations.add(location);
       }
       for (const c of colors) {
-        if (c[0] > 4 || !bool(c[1]) || c[2] > 11 || c[3] > 11 || c[4] > 4
+        if (c[0] > 4 && !(c[0] >= 7 && c[0] <= 12) || !bool(c[1]) || c[2] > 11 || c[3] > 11 || c[4] > 4
           || c[5] > 11 || c[6] > 11 || c[7] > 4 || c[8] > 15) return E_INVALID;
       }
       g.pipelines.set(h, { words: w, buffers, attrs, colors }); return emit();
@@ -224,7 +290,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
           tw = ctx.frame.logicalW; th = ctx.frame.logicalH; format = 0;
         } else {
           const t = g.textures.get(handle); if (!t) return E_NOT_FOUND;
-          if (!(t.usage & 2) || (t.format >= 5) !== depth || mip >= t.mips) return E_INVALID;
+          if (!(t.usage & 2) || isDepth(t.format) !== depth || mip >= t.mips) return E_INVALID;
           const s = textureSize(t, mip); tw = s.width; th = s.height; format = t.format;
         }
         if (width && (width !== tw || height !== th)) return E_INVALID;
@@ -297,7 +363,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (h >= 8) return E_INVALID;
       const t = g.textures.get(w[1]), s = g.samplers.get(w[2]);
       if (!t || !s) return E_NOT_FOUND;
-      if (!(t.usage & 1) || (s[6] && t.format < 5)) return E_INVALID;
+      if (!(t.usage & 1) || (s[7] && !isDepth(t.format))) return E_INVALID;
       if (pass.attachments.has(w[1])) return E_STATE;
       pass.textures.add(h); return emit();
     }

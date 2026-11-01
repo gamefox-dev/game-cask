@@ -117,9 +117,17 @@ describe('v0.3 GPU ABI layout', () => {
       36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100, A.GPU_LAYOUT.vertex_layout, 0, 4,
       A.GPU_LAYOUT.attribute, 0, 4, 8, 12, A.GPU_LAYOUT.color_target, 0, 4, 8, 12, 16, 20, 24, 28, 32,
       A.GPU_LAYOUT.pass_begin, 0, 4, 8, 12, 16, 20, 24, A.GPU_LAYOUT.color_attachment, 0, 4, 8, 12, 16, 20, 24,
+      A.GPU_LAYOUT.texture_create_ex, 0, 4, 8, 12, 16, 20, 24, 28,
+      A.GPU_LAYOUT.texture_update_ex, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36,
+      A.GPU_LAYOUT.sampler_create_ex, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40,
+      A.GPU_LAYOUT.texture_readback, 0, 4, 8, 12, 16, 20, 24, 28, 32,
+      A.GPU_LAYOUT.texture_generate_mips, 0, 4,
       A.GPU.BUFFER_VERTEX, A.GPU.BUFFER_INDEX, A.GPU.BUFFER_UNIFORM, A.GPU.TEXTURE_SAMPLED,
       A.GPU.TEXTURE_ATTACHMENT, A.GPU.FORMAT_RGBA8, A.GPU.FORMAT_RGBA8_SRGB, A.GPU.FORMAT_R8, A.GPU.FORMAT_RG8,
-      A.GPU.FORMAT_RGBA16F, A.GPU.FORMAT_DEPTH24_STENCIL8, A.GPU.FORMAT_DEPTH32F, A.GPU.FORMAT_NONE,
+      A.GPU.FORMAT_RGBA16F, A.GPU.FORMAT_DEPTH24_STENCIL8, A.GPU.FORMAT_DEPTH32F,
+      A.GPU.FORMAT_RGB10A2, A.GPU.FORMAT_R16F, A.GPU.FORMAT_RG16F, A.GPU.FORMAT_R32F, A.GPU.FORMAT_RG32F,
+      A.GPU.FORMAT_RGBA32F, A.GPU.DIM_2D, A.GPU.DIM_3D, A.GPU.DIM_2D_ARRAY, A.GPU_LIMITS.volumeDimension,
+      A.GPU_LIMITS.arrayLayers, A.GPU.FORMAT_NONE,
       A.GPU.FILTER_NEAREST, A.GPU.FILTER_LINEAR, A.GPU.MIP_NONE, A.GPU.MIP_NEAREST, A.GPU.MIP_LINEAR,
       A.GPU.WRAP_CLAMP, A.GPU.WRAP_REPEAT, A.GPU.WRAP_MIRROR, A.GPU.COMPARE_NEVER, A.GPU.COMPARE_LESS,
       A.GPU.COMPARE_EQUAL, A.GPU.COMPARE_LEQUAL, A.GPU.COMPARE_GREATER, A.GPU.COMPARE_NOT_EQUAL,
@@ -143,9 +151,11 @@ describe('v0.3 GPU ABI layout', () => {
       A.GPU_OP.PIPELINE_DELETE, A.GPU_OP.PASS_BEGIN, A.GPU_OP.PASS_END, A.GPU_OP.PIPELINE, A.GPU_OP.VIEWPORT,
       A.GPU_OP.SCISSOR, A.GPU_OP.STENCIL_REF, A.GPU_OP.BLEND_CONSTANT, A.GPU_OP.VERTEX_BUFFER,
       A.GPU_OP.INDEX_BUFFER, A.GPU_OP.UNIFORM_BUFFER, A.GPU_OP.TEXTURE, A.GPU_OP.DRAW, A.GPU_OP.DRAW_INDEXED,
+      A.GPU_OP.TEXTURE_CREATE_EX, A.GPU_OP.TEXTURE_UPDATE_EX, A.GPU_OP.SAMPLER_CREATE_EX,
+      A.GPU_OP.TEXTURE_READBACK, A.GPU_OP.TEXTURE_GENERATE_MIPS,
     ]);
   });
-  it('all 25 C GPU encoders exactly match the TS wire-word encoder', () => {
+  it('all 30 C GPU encoders exactly match the TS wire-word encoder', () => {
     expect(gpu.gpu_encode()).toBe(0);
     const expected = new CommandEncoder()
       .gpu(A.GPU_OP.BUFFER_CREATE, [1,2,3,4,5])
@@ -174,6 +184,11 @@ describe('v0.3 GPU ABI layout', () => {
       .gpu(A.GPU_OP.TEXTURE, [1,2,3])
       .gpu(A.GPU_OP.DRAW, [1,2,3,4])
       .gpu(A.GPU_OP.DRAW_INDEXED, [1,2,3,4,5])
+      .gpu(A.GPU_OP.TEXTURE_CREATE_EX, [1,2,3,4,5,6,7,8])
+      .gpu(A.GPU_OP.TEXTURE_UPDATE_EX, [1,2,3,4,5,6,7,8,9,10])
+      .gpu(A.GPU_OP.SAMPLER_CREATE_EX, [1,2,3,4,5,6,7,8,9,10,11])
+      .gpu(A.GPU_OP.TEXTURE_READBACK, [1,2,3,4,5,6,7,8,9])
+      .gpu(A.GPU_OP.TEXTURE_GENERATE_MIPS, [1,2])
       .finish();
     expect(submitted).toEqual(expected);
   });
