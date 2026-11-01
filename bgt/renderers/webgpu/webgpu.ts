@@ -525,6 +525,8 @@ export class WebGPURenderer implements Renderer {
 
   async simulateLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
     this.failRecovery = !!opts.unrecoverable;
+    // destroy() resolves device.lost asynchronously; close the render/consume window immediately.
+    this.lost = true;
     const done = new Promise<void>((resolve) => {
       this.restoredCbs.push(() => resolve());
       this.unrecoverableCbs.push(() => resolve());

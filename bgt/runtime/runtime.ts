@@ -606,7 +606,7 @@ export class BGTRuntime {
     const started=performance.now();
     const host = this.host;
     const r = this.renderer;
-    if (!host || !r || this.failed) return null;
+    if (!host || !r || this.failed || r.lost) return null;
     if(this.outsideSlice)return null;
     const frame = this.guard(() => host.render());
     if (!frame) return null;
@@ -617,6 +617,8 @@ export class BGTRuntime {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
     }
+    // A loss callback can run during an asynchronous draw/readback. Keep queued GPU work as fallback evidence.
+    if (r.lost || this.failed || r !== this.renderer) return null;
     this.lastFrameStats = {
       drawCalls: r.stats.drawCalls,
       passes: r.stats.passes,
