@@ -464,10 +464,14 @@ QueryInterface/AddRef/Release and task-memory ownership; unsupported classes/int
 PropVariantClear/Copy handle scalar, LPSTR/LPWSTR, CLSID and profile IUnknown ownership (BSTR/arrays unsupported);
 InitPropVariantFromString creates an owned LPWSTR variant.
 No COM marshaling, aggregation or cross-apartment threads. WASAPI exposes default render endpoint/device/IAudioClient/
-IAudioRenderClient with shared stereo float32/int16 PCM, 8–192kHz; other formats/exclusive mode return errors.
-GetMixFormat allocates 48kHz float32 stereo. Initialize accepts up to 19,200 source frames (minimum 10ms); buffering,
+IAudioRenderClient with shared-mode PCM 8/16/24/32-bit and float32, mono/stereo, 8–192kHz (K6c: validated as Windows
+does: non-mix formats need AUTOCONVERTPCM, a float32 stereo format at another rate needs RATEADJUST, periodicity must
+be 0, durations 0–10s, loopback/exclusive/unknown flags return their HRESULTs); GetService adds IAudioClock,
+IAudioClockAdjustment (RATEADJUST), IAudioStreamVolume and ISimpleAudioVolume; see docs/handoff/K6c.md.
+GetMixFormat allocates float32 stereo at the sink rate (48kHz). Initialize accepts durations up to 10s (minimum one 10ms period); buffering,
 GetCurrentPadding, Start/Stop/Reset and GetBuffer/ReleaseBuffer use an owned ring. Conversion clips float to int16
-and uses deterministic phase-accumulator sample repetition/decimation for rate conversion (not a bandlimited filter).
+and uses deterministic phase-accumulator rate conversion (sample repetition/decimation; linear interpolation for
+RATEADJUST or SRC_DEFAULT_QUALITY streams; neither is a bandlimited filter).
 SILENT buffers produce zeroes. The virtual clock drains source frames; locked/full BGT output may drop audio but does
 not stall the simulated endpoint. Event streams signal every 10 virtual ms, coalesced at frame/poll boundaries.
 Main-thread CreateEvent/SetEvent/ResetEvent/WaitForSingleObject supplies polling now; **no guest threads** are created.
