@@ -163,6 +163,8 @@ static int tex_complete(const Texture *t, const Sampler *s, int shadow) {
     if (!t->used || !t->gpu || t->base >= MAXLV) return 0;
     const Level *b = &t->lv[t->base]; const Fmt *bf = b->w ? find_fmt(b->internal) : 0;
     if (!bf || t->base > t->maxl || t->base >= t->gmips || bf->bgt != t->gfmt) return 0;
+    const Params *params = s ? &s->p : &t->p;
+    if (integer_internal(bf) && ((params->min != 0x2600 && params->min != 0x2700) || params->mag != 0x2600)) return 0;
     if (shadow && bf->kind == K_COLOR) return 0;
     if (b->w != lvl_w(t, t->base) || b->h != lvl_h(t, t->base) || b->d != lvl_d(t, t->base)) return 0;
     uint32_t min = (s ? &s->p : &t->p)->min;
@@ -176,6 +178,16 @@ static int tex_complete(const Texture *t, const Sampler *s, int shadow) {
 }
 static uint32_t fallback_ready;
 /* Incomplete or unbound textures sample (0,0,0,1) in GL; bind an equivalent private texture. */
+static uint32_t integer_fallback_ready;
+static uint32_t integer_fallback_texture(int is_unsigned) {
+    uint32_t id = is_unsigned ? 921 : 920, bit = is_unsigned ? 2 : 1;
+    if (!(integer_fallback_ready & bit)) {
+        static const uint32_t black[4] = {0, 0, 0, 1};
+        if (!send(0x59, (uint32_t[]){id, 0, 1, 1, 1, 1, is_unsigned ? 29u : 30u, 1}, 8)) return 0;
+        SEND(0x5a, id, 0, 0, 0, 0, 1, 1, 1, PTR(black), 16); integer_fallback_ready |= bit;
+    }
+    return id;
+}
 static uint32_t fallback_texture(uint32_t dim, int shadow) {
     uint32_t id = shadow ? 905 : 901 + dim, bit = 1u << (id - 901);
     if (!(fallback_ready & bit)) {
@@ -215,14 +227,22 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t unit = p->slot_unit[slot], dim = p->info->slot_dim[slot], shadow = p->info->slot_shadow[slot];
         /* Different sampler types must not alias the same GL texture unit. */
         for (uint32_t j = 0; j < slot; j++) if (p->slot_unit[j] == unit &&
-            (p->info->slot_dim[j] != dim || p->info->slot_shadow[j] != shadow)) { fail(BAD_OP); return 0; }
+            (p->info->slot_dim[j] != dim || p->info->slot_shadow[j] != shadow || p->info->slot_kind[j] != p->info->slot_kind[slot])) { fail(BAD_OP); return 0; }
         uint32_t id = tex_bind[dim][unit]; const Sampler *so = samp[unit] ? &samplers[samp[unit]] : 0;
         if (id && tex_complete(&textures[id], so, shadow)) {
             Texture *t = &textures[id];
+            const Fmt *sample_fmt = find_fmt(t->lv[t->base].internal);
+            char sk = p->info->slot_kind[slot];
+            if ((sk == 'i' || sk == 'u') != integer_internal(sample_fmt) ||
+                (integer_internal(sample_fmt) && ((sk == 'u') != integer_unsigned(sample_fmt)))) { fail(BAD_OP); return 0; }
             if (t->gpu == tg.ds.gpu && (tg.has_depth || tg.has_stencil)) { fail(BAD_OP); return 0; }
             for (uint32_t c = 0; c < tg.ncolor; c++) if (!tg.gap[c] && tg.color[c].gpu == t->gpu && tg.color[c].gpu) { fail(BAD_OP); return 0; }
             bound[slot] = t->gpu; sampler_ids[slot] = sampler_id(t, so, shadow, dim);
-        } else { bound[slot] = fallback_texture(dim, shadow); sampler_ids[slot] = fallback_sampler(shadow, dim); }
+        } else {
+            uint32_t k = p->info->slot_kind[slot];
+            bound[slot] = k == 'u' || k == 'i' ? integer_fallback_texture(k == 'u') : fallback_texture(dim, shadow);
+            sampler_ids[slot] = fallback_sampler(shadow, dim);
+        }
         smask |= 1 << slot;
     }
     for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
@@ -285,7 +305,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t mask = color_mask; if (rgb_only(tg.color[c].fmt)) mask &= 7;
         if (tg.gap[c] || (!fbo && dfb_draw == 0)) mask = 0;
         uint32_t fmt = tg.gap[c] ? 0 : tg.color[c].bgt;
-        uint32_t color[] = {fmt, blend, src_rgb, dst_rgb, blend_op_rgb, src_alpha, dst_alpha, blend_op_alpha, mask};
+        uint32_t color[] = {fmt, fmt >= 13 ? 0 : blend, src_rgb, dst_rgb, blend_op_rgb, src_alpha, dst_alpha, blend_op_alpha, mask};
         copy(w + at, color, sizeof color); at += 9;
     }
     uint32_t pipe = 0, hash = 2166136261u;
@@ -393,8 +413,8 @@ static uint32_t api_ReadPixels(void) {
     if (w < 0 || h < 0) { fail(BAD_VALUE); return 0; }
     Target tg; if (resolve_fbo(fbo_read, 1, &tg) != 0x8cd5) { fail(0x506); return 0; }
     if (format == 0x1902 || format == 0x84f9) {
-        if ((format == 0x1902 && !tg.has_depth) || (format == 0x84f9 && (!tg.has_depth || !tg.has_stencil)) ||
-            (fbo_read ? !fbos[fbo_read].read : dfb_read == 0)) { fail(BAD_OP); return 0; }
+        if ((format == 0x1902 && !tg.has_depth) || (format == 0x84f9 && (!tg.has_depth || !tg.has_stencil))) { fail(BAD_OP); return 0; }
+        if (!fbo_read) ensure_screen_depth();
         if (!w || !h) return 0;
         int64_t end_x = (int64_t)x + w, end_y = (int64_t)y + h;
         int32_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y, x1 = end_x > tg.w ? (int32_t)tg.w : (int32_t)end_x,
@@ -408,9 +428,8 @@ static uint32_t api_ReadPixels(void) {
         fetch_texels(tg.ds.gpu, tg.ds.mip, (uint32_t)x0, tg.h - (uint32_t)y1, 0, rw, rh, tg.ds.bgt, sink_external, &r);
         return 0;
     }
-    if (format == 0x1901 || integer_format(format)) {
-        approximate("glReadPixels of stencil or integer data"); fail(BAD_OP); return 0;
-    }
+    if (format == 0x1901) { approximate("glReadPixels of stencil data"); fail(BAD_OP); return 0; }
+    if (integer_format(format) != (fbo_read && integer_internal(tg.color[0].fmt))) { fail(BAD_OP); return 0; }
     if (fbo_read ? !fbos[fbo_read].read : dfb_read == 0) { fail(BAD_OP); return 0; }
     if (!w || !h) return 0;
     /* Pixels outside the framebuffer are unspecified in GL; leave those client bytes untouched. */

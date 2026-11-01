@@ -2,7 +2,7 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
-import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture,
+import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
 
 interface IndexedBlend {
@@ -101,6 +101,15 @@ export class WebGL2Gpu implements GpuBackend {
       [g.RGB10_A2, g.RGBA, g.UNSIGNED_INT_2_10_10_10_REV, 4], [g.R16F, g.RED, g.HALF_FLOAT, 2],
       [g.RG16F, g.RG, g.HALF_FLOAT, 4], [g.R32F, g.RED, g.FLOAT, 4], [g.RG32F, g.RG, g.FLOAT, 8],
       [g.RGBA32F, g.RGBA, g.FLOAT, 16],
+      [g.R8UI, g.RED_INTEGER, g.UNSIGNED_BYTE, 1], [g.R8I, g.RED_INTEGER, g.BYTE, 1],
+      [g.R16UI, g.RED_INTEGER, g.UNSIGNED_SHORT, 2], [g.R16I, g.RED_INTEGER, g.SHORT, 2],
+      [g.R32UI, g.RED_INTEGER, g.UNSIGNED_INT, 4], [g.R32I, g.RED_INTEGER, g.INT, 4],
+      [g.RG8UI, g.RG_INTEGER, g.UNSIGNED_BYTE, 2], [g.RG8I, g.RG_INTEGER, g.BYTE, 2],
+      [g.RG16UI, g.RG_INTEGER, g.UNSIGNED_SHORT, 4], [g.RG16I, g.RG_INTEGER, g.SHORT, 4],
+      [g.RG32UI, g.RG_INTEGER, g.UNSIGNED_INT, 8], [g.RG32I, g.RG_INTEGER, g.INT, 8],
+      [g.RGBA8UI, g.RGBA_INTEGER, g.UNSIGNED_BYTE, 4], [g.RGBA8I, g.RGBA_INTEGER, g.BYTE, 4],
+      [g.RGBA16UI, g.RGBA_INTEGER, g.UNSIGNED_SHORT, 8], [g.RGBA16I, g.RGBA_INTEGER, g.SHORT, 8],
+      [g.RGBA32UI, g.RGBA_INTEGER, g.UNSIGNED_INT, 16], [g.RGBA32I, g.RGBA_INTEGER, g.INT, 16],
     ][format] as [number, number, number, number];
   }
   private target(dimension: number): number {
@@ -112,7 +121,11 @@ export class WebGL2Gpu implements GpuBackend {
     const type = this.format(format)[2], g = this.gl;
     if (type === g.HALF_FLOAT) return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     if (type === g.FLOAT) return new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
-    if (type === g.UNSIGNED_INT_2_10_10_10_REV || type === g.UNSIGNED_INT_24_8) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.UNSIGNED_INT_2_10_10_10_REV || type === g.UNSIGNED_INT_24_8 || type === g.UNSIGNED_INT) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.BYTE) return new Int8Array(data.buffer, data.byteOffset, data.byteLength);
+    if (type === g.SHORT) return new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
+    if (type === g.INT) return new Int32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.UNSIGNED_SHORT) return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     return data;
   }
   private compare(value: number): number {
@@ -305,8 +318,10 @@ export class WebGL2Gpu implements GpuBackend {
         const location = g.getUniformLocation(object, u.name);
         if (!location || u.name.startsWith('bgt_internal_')) continue;
         const match = /^bgt_t([0-7])$/.exec(u.name);
-        const kind = u.type === g.SAMPLER_2D ? 0 : u.type === g.SAMPLER_2D_SHADOW ? 0 :
-          u.type === g.SAMPLER_3D ? 1 : u.type === g.SAMPLER_2D_ARRAY ? 2 : -1;
+        const kind = u.type === g.SAMPLER_2D || u.type === g.SAMPLER_2D_SHADOW ||
+          u.type === 0x8dca || u.type === 0x8dd2 ? 0 :
+          u.type === g.SAMPLER_3D || u.type === 0x8dcb || u.type === 0x8dd3 ? 1 :
+          u.type === g.SAMPLER_2D_ARRAY || u.type === 0x8dcf || u.type === 0x8dd7 ? 2 : -1;
         if (!match || u.size !== 1 || !(w[22] & (1 << +match[1])) || kind < 0) throw new Error(`Illegal uniform ${u.name}`);
         kinds.set(+match[1], { dimension: kind, shadow: u.type === g.SAMPLER_2D_SHADOW });
         g.uniform1i(location, +match[1]);
@@ -329,9 +344,10 @@ export class WebGL2Gpu implements GpuBackend {
           (_, i) => `${output.name}[${i}]`) : [output.name];
         for (const name of names) {
           const location = g.getFragDataLocation(object, name);
-          if (location >= 0 && (location >= w[25] || !/^(float|vec[234])$/.test(output.type))) {
-            throw new Error('Color output mismatch');
-          }
+          const integer = location >= 0 && w[26 + w[23] * 2 + w[24] * 4 + location * 9] >= 13;
+          const fmt = w[26 + w[23] * 2 + w[24] * 4 + location * 9];
+          const valid = integer ? (fmt & 1 ? /^(?:uint|uvec[234])$/ : /^(?:int|ivec[234])$/).test(output.type) : /^(float|vec[234])$/.test(output.type);
+          if (location >= 0 && (location >= w[25] || !valid)) throw new Error('Color output mismatch');
         }
       }
       this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds });
@@ -436,8 +452,9 @@ export class WebGL2Gpu implements GpuBackend {
     const format = t.desc.format, components = TEXEL_COMPONENTS[format], bytes = TEXEL_BYTES[format];
     if (isDepthFormat(format)) { this.readDepthback(item, w); return; }
     const target = this.target(t.desc.dimension), out = new Uint8Array(width * height * depth * bytes);
-    const packed = format === 7, bytesNormalized = format <= 3;
-    const wide = packed ? new Uint32Array(width * height) : bytesNormalized ?
+    const packed = format === 7, bytesNormalized = format <= 3, integer = isIntegerFormat(format), cb = bytes / components;
+    const wide = packed ? new Uint32Array(width * height) : integer ?
+      (format & 1 ? new Uint32Array(width * height * 4) : new Int32Array(width * height * 4)) : bytesNormalized ?
       new Uint8Array(width * height * 4) : new Float32Array(width * height * 4);
     const read = g.createFramebuffer()!;
     g.pixelStorei(g.PACK_ALIGNMENT, 1);
@@ -448,8 +465,8 @@ export class WebGL2Gpu implements GpuBackend {
         else g.framebufferTextureLayer(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, t.object, mip, z + d);
         g.readBuffer(g.COLOR_ATTACHMENT0);
         if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
-        g.readPixels(x, y, width, height, g.RGBA, packed ? g.UNSIGNED_INT_2_10_10_10_REV :
-          bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
+        g.readPixels(x, y, width, height, integer ? g.RGBA_INTEGER : g.RGBA,
+          integer ? (format & 1 ? g.UNSIGNED_INT : g.INT) : packed ? this.format(format)[2] : bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
         const base = d * width * height * bytes, view = new DataView(out.buffer);
         for (let i = 0; i < width * height; i++) {
           const o = base + i * bytes;
@@ -457,7 +474,11 @@ export class WebGL2Gpu implements GpuBackend {
           else for (let c = 0; c < components; c++) {
             const v = wide[i * 4 + c];
             if (bytesNormalized) out[o + c] = v;
-            else if (format === 4 || format === 8 || format === 9) view.setUint16(o + c * 2, halfBits(v), true);
+            else if (integer) {
+              if (cb === 1) view.setUint8(o + c, Number(v));
+              else if (cb === 2) view.setUint16(o + c * 2, Number(v), true);
+              else view.setUint32(o + c * 4, Number(v), true);
+            } else if (format === 4 || format === 8 || format === 9) view.setUint16(o + c * 2, halfBits(v), true);
             else view.setFloat32(o + c * 4, v, true);
           }
         }
@@ -509,7 +530,14 @@ export class WebGL2Gpu implements GpuBackend {
     }
     for (let i = 0; i < w[0]; i++) {
       const base = 7+i*7;
-      if (w[base+2]) g.clearBufferfv(g.COLOR, i, w.slice(base+3, base+7).map(float));
+      if (w[base+2]) {
+        const format = this.screenPass ? 0 : this.textures.get(w[base])!.desc.format;
+        if (isIntegerFormat(format)) {
+          const values = w.slice(base + 3, base + 7).map(v => Math.trunc(float(v)));
+          if (format & 1) g.clearBufferuiv(g.COLOR, i, values.map(v => Math.max(0, Math.min(0xffffffff, v))));
+          else g.clearBufferiv(g.COLOR, i, values.map(v => Math.max(-0x80000000, Math.min(0x7fffffff, v))));
+        } else g.clearBufferfv(g.COLOR, i, w.slice(base+3, base+7).map(float));
+      }
     }
     if (w[1] && w[3]) g.clearBufferfv(g.DEPTH, 0, [float(w[5])]);
     if (w[1] && w[4]) g.clearBufferiv(g.STENCIL, 0, [w[6]]);

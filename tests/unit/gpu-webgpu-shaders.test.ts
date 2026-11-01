@@ -16,6 +16,13 @@ void main() {
 }`;
 
 describe('WebGPU engine-independent GLSL frontend and ABI reflection', () => {
+  it('retains integer sampler signedness and renames GLSL identifiers reserved by WGSL', () => {
+    for (const [sampler, scalar] of [['isampler2D', 'i32'], ['usampler2D', 'u32']]) {
+      const code = translateGLSL(`#version 330 core\nuniform ${sampler} bgt_t0;layout(location=0) out vec4 o;void main(){${scalar === 'i32' ? 'ivec4' : 'uvec4'} ref=texelFetch(bgt_t0,ivec2(0),0);o=vec4(ref);}`, 2, 1);
+      expect(code).toContain(`texture_2d<${scalar}>`); expect(code).toContain('textureLoad(');
+      expect(code).toContain('bgt_internal_glsl_ref');
+    }
+  });
   it('lowers fixed-size vector array constructors with typed elements and rejects wrong lengths', () => {
     const code=translateGLSL(`#version 330 core
 void main(){ vec2 p[3]=vec2[3](vec2(-1,1),vec2(-1,-1),vec2(1,-1));

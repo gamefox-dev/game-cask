@@ -907,6 +907,41 @@ accounting unchanged.
 a render target). On device restoration, generated levels are recomputed from the restored uploads; rendered contents are
 lost as for all attachments.
 
+### 13.8 Integer texture formats (additive v0.3)
+
+`TEXTURE_CREATE_EX` additionally accepts these exact little-endian integer color formats. Existing format values,
+command payloads and the legacy `TEXTURE_CREATE` format ceiling (6) are unchanged.
+
+| Format | Values unsigned / signed | Bytes per texel |
+|---|---|---|
+| R8UI / R8I | 13 / 14 | 1 |
+| R16UI / R16I | 15 / 16 | 2 |
+| R32UI / R32I | 17 / 18 | 4 |
+| RG8UI / RG8I | 19 / 20 | 2 |
+| RG16UI / RG16I | 21 / 22 | 4 |
+| RG32UI / RG32I | 23 / 24 | 8 |
+| RGBA8UI / RGBA8I | 25 / 26 | 4 |
+| RGBA16UI / RGBA16I | 27 / 28 | 8 |
+| RGBA32UI / RGBA32I | 29 / 30 | 16 |
+
+Uploads/readbacks are exact integer bytes, never float-normalized. Missing sampled components are `(0,0,0,1)`.
+Integer 2D GLSL bindings use `isampler2D` / `usampler2D`; WGSL uses `texture_2d<i32>` / `texture_2d<u32>`.
+The GL frontend retains integer signedness, swizzles and full-width uniform values. WebGPU nearest sampling lowers
+to textureLoad with immutable wrap/LOD selection; fetches and reads preserve full 32-bit values. Integer filtering
+requires NEAREST min/mag and NONE/NEAREST mip selection; LINEAR is rejected. Integer mip generation is unsupported.
+The profile currently accepts integer samplers only for 2D (not 3D/array); unsupported sampler types fail compilation.
+Integer render attachments require matching signed/unsigned output classes. GL blending is ignored for integer
+attachments; profile pipelines disable it. ReadPixels/GetTexImage require integer external formats for integer storage,
+and reject normalized/integer class mixing with GL_INVALID_OPERATION. Integer transfer values are clamped to the
+internal representable range on upload and to the external range on readback without passing through float.
+
+**Named native boundary: out-of-range integer fragment outputs.** GL 3.3 does not define a portable result when the
+fragment output exceeds a narrower integer attachment range. WebGL currently shows native narrowing/intermediate
+signed-conversion behavior (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); WebGPU saturates (255/-128).
+No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range raster values and
+full-width 32-bit outputs, and separately pins each backend's current overflow behavior. All 18 formats have exact
+upload/sample/render/readback coverage in `x64-gl-integer`; this is not general unrestricted GL 3.3 compatibility.
+
 Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
 accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
 cross-backend tolerance, see `docs/handoff/K6a.md`).

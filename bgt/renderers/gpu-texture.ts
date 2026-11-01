@@ -2,10 +2,14 @@
 // 3D / 2D-array textures and the extended formats share one code path per renderer.
 import { GPU_OP as OP } from '../runtime/abi';
 
-export const TEXEL_BYTES = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16] as const;
+export const TEXEL_BYTES = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16,
+  1, 1, 2, 2, 4, 4, 2, 2, 4, 4, 8, 8, 4, 4, 8, 8, 16, 16] as const;
 /** Components of each color format (depth formats: 1). Used by readback packing. */
-export const TEXEL_COMPONENTS = [4, 4, 1, 2, 4, 1, 1, 4, 1, 2, 1, 2, 4] as const;
+export const TEXEL_COMPONENTS = [4, 4, 1, 2, 4, 1, 1, 4, 1, 2, 1, 2, 4,
+  1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4] as const;
 export const isDepthFormat = (format: number) => format === 5 || format === 6;
+export const isIntegerFormat = (format: number) => format >= 13 && format <= 30;
+export const isUnsignedIntegerFormat = (format: number) => isIntegerFormat(format) && (format & 1) === 1;
 export const bitsOf = (v: number) => new Uint32Array(new Float32Array([v]).buffer)[0];
 
 export interface CanonicalTexture {

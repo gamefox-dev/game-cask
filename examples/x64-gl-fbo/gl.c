@@ -383,7 +383,7 @@ int main(void) {
     glTexImage2D(GL_TEXTURE_2D, 99, GL_RGBA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_VALUE, "level too large");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8192, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_VALUE, "width over limit");
     glTexImage2D(GL_TEXTURE_2D, 0, 0x8235 /* GL_R32I */, 4, 4, 0, 0x8d94, GL_INT, 0);
-    {   GLenum e = glGetError(); note("unsupported integer format is a GL error", e != GL_NO_ERROR); }
+    expect_error(GL_NO_ERROR, "integer format allocation");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); glGetError();
     glTexSubImage2D(GL_TEXTURE_2D, 0, 2, 2, 4, 4, GL_RGBA, GL_UNSIGNED_BYTE, l0); expect_error(GL_INVALID_VALUE, "sub-image beyond level");
     glTexSubImage2D(GL_TEXTURE_2D, 3, 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, l0); expect_error(GL_INVALID_OPERATION, "sub-image of undefined level");

@@ -14,6 +14,7 @@ type TextureEntry = {
   bytes: number;
 };
 const isDepth = (format: number) => format === 5 || format === 6;
+const isInteger = (format: number) => format >= 13 && format <= 30;
 type ShaderEntry = { stage: number; language: number; ready: boolean; bytes: number };
 type PipelineEntry = {
   words: number[]; buffers: number[][]; attrs: number[][]; colors: number[][];
@@ -47,7 +48,8 @@ const fixedSizes = new Map<number, number>(Object.entries(GPU_OP)
   .filter(([name]) => name !== 'PIPELINE_CREATE' && name !== 'PASS_BEGIN')
   .map(([name, op]) => [op, name === 'PASS_END' ? 0 : GPU_LAYOUT[name.toLowerCase() as keyof typeof GPU_LAYOUT]]));
 const vertexSizes = [4, 8, 12, 16, 4, 4, 8, 12, 16, 4, 8, 12, 16];
-const pixelSizes = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16];
+const pixelSizes = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16,
+  1, 1, 2, 2, 4, 4, 2, 2, 4, 4, 8, 8, 4, 4, 8, 8, 16, 16];
 const validHandle = (h: number) => h > 0 && h <= GPU_LIMITS.handles;
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
 const bool = (v: number) => v <= 1;
@@ -169,7 +171,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     case GPU_OP.TEXTURE_CREATE_EX: {
       const e = fresh(g.textures); if (e) return e;
       const [, dim, width, height, depth, mips, format, usage] = w;
-      if (dim > 2 || !width || !height || !depth || !mips || format > 12 || !usage || (usage & ~3)) return E_INVALID;
+      if (dim > 2 || !width || !height || !depth || !mips || format > 30 || !usage || (usage & ~3)) return E_INVALID;
       if (dim === 0 && depth !== 1) return E_INVALID;
       if (dim !== 0 && isDepth(format)) return E_UNSUPPORTED; // depth is 2D only
       if (dim !== 0 && (usage & 2)) return E_UNSUPPORTED; // no layered/sliced attachments
@@ -228,7 +230,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.TEXTURE_GENERATE_MIPS: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
-      if (isDepth(t.format)) return E_UNSUPPORTED;
+      if (isDepth(t.format) || isInteger(t.format)) return E_UNSUPPORTED;
       if (w[1] >= t.mips) return E_INVALID;
       const extra = mipBytes(t, t.allocatedMips, t.mips);
       if (!budget(extra)) return E_LIMIT;
@@ -294,7 +296,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         locations.add(location);
       }
       for (const c of colors) {
-        if (c[0] > 4 && !(c[0] >= 7 && c[0] <= 12) || !bool(c[1]) || c[2] > 11 || c[3] > 11 || c[4] > 4
+        if ((c[0] > 4 && c[0] !== 7 && !(c[0] >= 8 && c[0] <= 30)) || c[0] === 5 || c[0] === 6 || !bool(c[1]) || c[2] > 11 || c[3] > 11 || c[4] > 4
           || c[5] > 11 || c[6] > 11 || c[7] > 4 || c[8] > 15) return E_INVALID;
       }
       g.pipelines.set(h, { words: w, buffers, attrs, colors }); return emit();
@@ -392,6 +394,8 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const t = g.textures.get(w[1]), s = g.samplers.get(w[2]);
       if (!t || !s) return E_NOT_FOUND;
       if (!(t.usage & 1) || (s[7] && !isDepth(t.format))) return E_INVALID;
+      // Integer textures have no filtered sampling in GL/WebGPU; reject rather than normalize or interpolate.
+      if (isInteger(t.format) && (s[1] || s[2] || s[3] === 2)) return E_INVALID;
       if (pass.attachments.has(w[1])) return E_STATE;
       pass.textures.add(h); return emit();
     }

@@ -59,6 +59,20 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it.each(Array.from({ length: 18 }, (_, i) => i + 13))('integer format %i has exact byte accounting and rejects filtering/generation', format => {
+    const t = setup(), components = format < 19 ? 1 : format < 25 ? 2 : 4;
+    const bpp = components * (1 << Math.floor(((format - 13) % 6) / 2));
+    expect(t.send(O.TEXTURE_CREATE_EX, [1, 0, 2, 2, 1, 2, format, 3]).status).toBe(0);
+    expect(t.ctx.gpu!.bytes).toBe(4 * bpp);
+    expect(t.send(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 2, 2, 1, 16384, 4 * bpp]).status).toBe(0);
+    expect(t.frame.items.at(-1)?.kind).toBe('gpu');
+    expect(t.send(O.TEXTURE_GENERATE_MIPS, [1, 0]).status).toBe(A.E_UNSUPPORTED);
+    expect(t.ctx.gpu!.bytes).toBe(4 * bpp);
+    expect(t.send(O.SAMPLER_CREATE, [1, 1, 0, 0, 0, 0, 0, 7]).status).toBe(0);
+    expect(t.inPass(O.TEXTURE, [0, 1, 1]).status).toBe(A.E_INVALID);
+    expect(t.send(O.SAMPLER_CREATE, [2, 0, 0, 0, 0, 0, 0, 7]).status).toBe(0);
+    expect(t.inPass(O.TEXTURE, [0, 1, 2]).status).toBe(0);
+  });
   it('accepts every GPU op, preserves exact 2D/GPU ordering, copies uploads and sends validated backend items', () => {
     const t = setup(); t.resources();
     expect(t.run(new CommandEncoder().clear(0xff112233)
@@ -336,7 +350,7 @@ describe('GPU command validation', () => {
     it.each([
       ['dimension', [1, 3, 4, 4, 1, 1, 0, 1], A.E_INVALID],
       ['2D with depth', [1, 0, 4, 4, 2, 1, 0, 1], A.E_INVALID],
-      ['format', [1, 0, 4, 4, 1, 1, 13, 1], A.E_INVALID],
+      ['format', [1, 0, 4, 4, 1, 1, 31, 1], A.E_INVALID],
       ['volume edge', [1, 1, 4, 4, 257, 1, 0, 1], A.E_LIMIT],
       ['array layers', [1, 2, 4, 4, 257, 1, 0, 1], A.E_LIMIT],
       ['3D mips', [1, 1, 4, 4, 4, 4, 0, 1], A.E_INVALID],

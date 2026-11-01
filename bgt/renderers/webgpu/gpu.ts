@@ -3,12 +3,15 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
-import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
+import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
 const formats: GPUTextureFormat[] = [
   'rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'depth24plus-stencil8', 'depth32float',
   'rgb10a2unorm', 'r16float', 'rg16float', 'r32float', 'rg32float', 'rgba32float',
+  'r8uint', 'r8sint', 'r16uint', 'r16sint', 'r32uint', 'r32sint',
+  'rg8uint', 'rg8sint', 'rg16uint', 'rg16sint', 'rg32uint', 'rg32sint',
+  'rgba8uint', 'rgba8sint', 'rgba16uint', 'rgba16sint', 'rgba32uint', 'rgba32sint',
 ];
 const compare: GPUCompareFunction[] = [
   'never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always',
@@ -154,7 +157,7 @@ export class WebGPUCommands implements GpuBackend {
       case OP.BUFFER_DELETE: this.buffers.get(h)!.native.destroy(); this.buffers.delete(h); break;
       case OP.TEXTURE_CREATE_EX: {
         const desc = toCanonicalTexture(w), depthFormat = isDepthFormat(desc.format);
-        if (desc.format >= 10 && !d.features.has('float32-filterable')) {
+        if (desc.format >= 10 && desc.format <= 12 && !d.features.has('float32-filterable')) {
           throw new Error('32-bit float textures need the float32-filterable WebGPU feature');
         }
         const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: 1,
@@ -497,7 +500,7 @@ struct VO { @builtin(position) pos: vec4f };
   }
 
   private pipeline(w: readonly number[], depthSlots: ReadonlySet<number> = new Set(),
-    sampling: readonly DepthSampling[] = []): PipelineResource {
+    sampling: readonly DepthSampling[] = [], integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()): PipelineResource {
     const d = this.device, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
     const repack: Repack[] = [];
     let j = 26;
@@ -523,7 +526,8 @@ struct VO { @builtin(position) pos: vec4f };
       operation: blendOps[op], srcFactor: op >= 3 ? 'one' : factors[src], dstFactor: op >= 3 ? 'one' : factors[dst],
     });
     for (let i = 0; i < w[25]; i++, j += 9) {
-      if (w[j] >= 10 && w[j + 1] && !d.features.has('float32-blendable')) {
+      if (isIntegerFormat(w[j]) && w[j + 1]) throw new Error('Integer render targets cannot be blended');
+      if (w[j] >= 10 && w[j] <= 12 && w[j + 1] && !d.features.has('float32-blendable')) {
         throw new Error('Blending 32-bit float targets needs the float32-blendable WebGPU feature');
       }
       targets.push({ format: formats[w[j]], writeMask: w[j + 8],
@@ -552,8 +556,8 @@ struct VO { @builtin(position) pos: vec4f };
       .filter(b => b.group === group).map(b => ({ binding: b.binding,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         ...(b.type === 'uniform' ? { buffer: { type: 'uniform' as const } } :
-          b.type === 'texture' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
-            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : 'float' as const,
+          b.type === 'texture' || b.type === 'textureI' || b.type === 'textureU' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
+            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : b.type === 'textureI' ? 'sint' as const : b.type === 'textureU' ? 'uint' as const : 'float' as const,
               viewDimension: b.type === 'texture3d' ? '3d' as const :
                 b.type === 'texture2darray' ? '2d-array' as const : '2d' as const } } :
             { sampler: { type: b.type === 'comparison' ? 'comparison' as const :
@@ -567,7 +571,7 @@ struct VO { @builtin(position) pos: vec4f };
     const linked = (s: ShaderResource) => {
       if (!s.item.words[2] && !sampling.length) return s.native;
       const source = s.item.words[2] ?
-        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots) : s.item.source!;
+        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots, integerSamplers) : s.item.source!;
       return d.createShaderModule({ code: lowerDepthSampling(source, sampling) });
     };
     const native = d.createRenderPipeline({ layout: d.createPipelineLayout({ bindGroupLayouts: layouts }),
@@ -590,11 +594,13 @@ struct VO { @builtin(position) pos: vec4f };
     const sampling = glsl ? [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
       b.group === 1 && b.type !== 'comparison')).map(slot => ({ binding: slot * 2,
       sampler: this.samplers.get(this.sampled.get(slot)![2])!.words })) : [];
-    if (sampling.length || (depthSlots.size && glsl)) {
-      const key = JSON.stringify([[...depthSlots], sampling]);
+    const integerSamplers = new Map(p.bindings.filter(b => b.type === 'textureI' || b.type === 'textureU')
+      .map(b => [b.binding >> 1, this.samplers.get(this.sampled.get(b.binding >> 1)![2])!.words] as const));
+    if (sampling.length || (glsl && (depthSlots.size || integerSamplers.size))) {
+      const key = JSON.stringify([[...depthSlots], sampling, [...integerSamplers]]);
       let variant = p.variants.get(key);
       if (!variant) {
-        variant = this.pipeline(p.words, depthSlots, sampling);
+        variant = this.pipeline(p.words, depthSlots, sampling, integerSamplers);
         if (p.variants.size >= 64) p.variants.delete(p.variants.keys().next().value!);
         p.variants.set(key, variant);
       }

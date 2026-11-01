@@ -179,14 +179,18 @@ describe('GL 3.3 reflection', () => {
     const r = link([VS], [fs], { reflectOnly: true });
     expect(r.linked, r.linkLog).toBe(true);
     for (const [t, gl] of samplers) expect(find(r, `s_${t}`).type, t).toBe(gl);
-    // §13.7 enables floating 3D and 2D-array samplers end to end; cube and integer samplers remain rejected.
+    // §13.7 enables floating 3D/array and integer 2D samplers end to end; cube samplers remain rejected.
     for (const type of ['sampler3D', 'sampler2DArray']) {
       const strict = link([VS], [`#version 330 core\nuniform ${type} a;\nout vec4 c;\nvoid main(){c=vec4(textureSize(a,0).x);}`]);
       expect(strict.fs!.ok, type).toBe(true);
     }
-    for (const type of ['samplerCube', 'samplerCubeShadow', 'isampler2D']) {
+    for (const type of ['samplerCube', 'samplerCubeShadow']) {
       const strict = link([VS], [`#version 330 core\nuniform ${type} a;\nout vec4 c;\nvoid main(){c=vec4(textureSize(a,0).x);}`]);
       expect(strict.fs!.ok, type).toBe(false); expect(strict.fs!.log).toContain('not supported by the BGT texture layer');
+    }
+    for (const type of ['isampler2D', 'usampler2D']) {
+      const strict = link([VS], [`#version 330 core\nuniform ${type} bgt_t0;\nout vec4 c;\nvoid main(){c=vec4(texture(bgt_t0,vec2(0)));}`]);
+      expect(strict.fs!.ok, type).toBe(true);
     }
   });
   it('lays out std140 blocks, arrays, nested structures, bools and matrices by the GL rules', () => {

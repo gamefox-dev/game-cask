@@ -35,6 +35,25 @@
 #define BGT_GPU_FORMAT_R32F 10u
 #define BGT_GPU_FORMAT_RG32F 11u
 #define BGT_GPU_FORMAT_RGBA32F 12u
+/* Integer color formats: exact signed/unsigned texel storage, nearest sampling only. */
+#define BGT_GPU_FORMAT_R8UI 13u
+#define BGT_GPU_FORMAT_R8I 14u
+#define BGT_GPU_FORMAT_R16UI 15u
+#define BGT_GPU_FORMAT_R16I 16u
+#define BGT_GPU_FORMAT_R32UI 17u
+#define BGT_GPU_FORMAT_R32I 18u
+#define BGT_GPU_FORMAT_RG8UI 19u
+#define BGT_GPU_FORMAT_RG8I 20u
+#define BGT_GPU_FORMAT_RG16UI 21u
+#define BGT_GPU_FORMAT_RG16I 22u
+#define BGT_GPU_FORMAT_RG32UI 23u
+#define BGT_GPU_FORMAT_RG32I 24u
+#define BGT_GPU_FORMAT_RGBA8UI 25u
+#define BGT_GPU_FORMAT_RGBA8I 26u
+#define BGT_GPU_FORMAT_RGBA16UI 27u
+#define BGT_GPU_FORMAT_RGBA16I 28u
+#define BGT_GPU_FORMAT_RGBA32UI 29u
+#define BGT_GPU_FORMAT_RGBA32I 30u
 #define BGT_GPU_DIM_2D 0u
 #define BGT_GPU_DIM_3D 1u
 #define BGT_GPU_DIM_2D_ARRAY 2u
