@@ -464,19 +464,24 @@ QueryInterface/AddRef/Release and task-memory ownership; unsupported classes/int
 PropVariantClear/Copy handle scalar, LPSTR/LPWSTR, CLSID and profile IUnknown ownership (BSTR/arrays unsupported);
 InitPropVariantFromString creates an owned LPWSTR variant.
 No COM marshaling, aggregation or cross-apartment threads. WASAPI exposes default render endpoint/device/IAudioClient/
-IAudioRenderClient with shared-mode PCM 8/16/24/32-bit and float32, mono/stereo, 8–192kHz (K6c: validated as Windows
-does: non-mix formats need AUTOCONVERTPCM, a float32 stereo format at another rate needs RATEADJUST, periodicity must
-be 0, durations 0–10s, loopback/exclusive/unknown flags return their HRESULTs); GetService adds IAudioClock,
-IAudioClockAdjustment (RATEADJUST), IAudioStreamVolume and ISimpleAudioVolume; see docs/handoff/K6c.md.
-GetMixFormat allocates float32 stereo at the sink rate (48kHz). Initialize accepts durations up to 10s (minimum one 10ms period); buffering,
+IAudioRenderClient with shared-mode PCM 8/16/24/32-bit and float32, mono/stereo, 8–192kHz. K6c validates non-mix
+formats with AUTOCONVERTPCM; a float32 stereo format at another rate needs RATEADJUST or AUTOCONVERTPCM. Periodicity
+must be 0; negative durations and loopback/exclusive/unknown flags return HRESULT failures. GetService adds
+IAudioClock, IAudioClockAdjustment (RATEADJUST), IAudioStreamVolume and ISimpleAudioVolume. Exact HRESULTs and
+INFERRED choices without native-Windows evidence are listed in docs/handoff/K6c.md.
+GetMixFormat allocates float32 stereo at the sink rate (48kHz). Initialize accepts non-negative durations (minimum one
+10ms period; zero selects 100ms), limited by checked UINT32 byte sizes and available guest heap, not an arbitrary
+time ceiling. Unrepresentable sizes or failed allocation return E_OUTOFMEMORY. EXTENSIBLE validates valid bits,
+sub-format and channel masks (zero, center mono or front stereo; other well-formed layouts unsupported). Buffering,
 GetCurrentPadding, Start/Stop/Reset and GetBuffer/ReleaseBuffer use an owned ring. Conversion clips float to int16
 and uses deterministic phase-accumulator rate conversion (sample repetition/decimation; linear interpolation for
-RATEADJUST or SRC_DEFAULT_QUALITY streams; neither is a bandlimited filter).
+RATEADJUST or AUTOCONVERTPCM|SRC_DEFAULT_QUALITY streams; neither is a bandlimited filter). Standalone
+SRC_DEFAULT_QUALITY is accepted as a no-op (INFERRED).
 SILENT buffers produce zeroes. The virtual clock drains source frames; locked/full BGT output may drop audio but does
 not stall the simulated endpoint. Event streams signal every 10 virtual ms, coalesced at frame/poll boundaries.
-Main-thread CreateEvent/SetEvent/ResetEvent/WaitForSingleObject supplies polling now; **no guest threads** are created.
-The threads lane should replace that event adapter, call `w32_audio_pump` at virtual scheduling boundaries, and route
-`w32_audio_signal_event` through scheduler wakeups. Audio pumping never invokes a guest callback or uses wall time.
+CreateEvent/SetEvent/ResetEvent/WaitForSingleObject use scheduler-owned handles and wakeups; the scheduler calls
+`w32_audio_pump` at virtual scheduling boundaries. Fixtures render from a guest worker thread. Audio pumping
+never invokes a guest callback or uses wall time.
 WinMM waveOut and capture/endpoint enumeration/session control are not supplied by this addition.
 
 Conformance: `examples/x64-audio` generates a 1kHz two-channel tone through public COM vtables (float32/48kHz then

@@ -40,7 +40,6 @@
 #define DEFAULT_PERIOD 100000       /* 10 ms engine period, REFERENCE_TIME */
 #define MIN_PERIOD 30000            /* 3 ms */
 #define DEFAULT_DURATION 1000000    /* 100 ms when the caller passes 0 */
-#define MAX_DURATION 100000000      /* 10 s: bounded profile limit (INFERRED; Windows documents none) */
 #define MIN_RATE 8000u
 #define MAX_RATE 192000u
 typedef struct { uint32_t used, refs, guid[4], mute; float master; } session_t;
@@ -100,7 +99,9 @@ static void pump_one(audio_t *a, uint32_t now, uint32_t out_rate) {
     session_t *s = session_of(a);
     float master = s && !s->mute ? s->master : s ? 0.0f : 1.0f;
     float gl = master * a->chan[0], gr = master * a->chan[a->channels > 1 ? 1 : 0];
-    int linear = (a->flags & (SF_SRC_DEFAULT | SF_RATEADJUST)) != 0; /* interpolating SRC; otherwise sample hold */
+    int linear = (a->flags & SF_RATEADJUST) ||
+        ((a->flags & (SF_SRC_DEFAULT | SF_AUTOCONVERT)) == (SF_SRC_DEFAULT | SF_AUTOCONVERT));
+    /* Standalone SRC_DEFAULT_QUALITY is accepted but has no effect (INFERRED). */
     int16_t out[4096]; uint32_t count = 0;
     for (uint32_t f = 0; f < n; f++) {
         uint32_t p = a->ring + a->head * 4;
@@ -188,6 +189,12 @@ static int parse_format(uint32_t p, fmt_t *f) {
         if (x86_rd32(p + 28) != 0x00100000u || x86_rd32(p + 32) != 0xaa000080u ||
             x86_rd32(p + 36) != 0x719b3800u) return F_UNKNOWN;
         sub = x86_rd32(p + 24);
+        if (sub == 3 && x86_rd16(p + 18) != bits) return F_INVALID;
+        uint32_t mask = x86_rd32(p + 20), count = 0;
+        for (uint32_t m = mask; m; m &= m - 1) count++;
+        if (mask && ((mask & ~0x3ffffu) || count != ch)) return F_INVALID;
+        /* The converter implements center mono (duplicated) and front-left/right stereo only. */
+        if (mask && !((ch == 1 && mask == 4) || (ch == 2 && mask == 3))) return F_UNCONVERTIBLE;
     }
     if (sub != 1 && sub != 3) return F_UNKNOWN;
     if (!ch || !rate || !bits) return F_INVALID;
@@ -239,12 +246,17 @@ static uint32_t initialize(void) {
     int mix = is_mix_layout(&f) && f.rate == mix_rate();
     int rate_only = is_mix_layout(&f) && (flags & SF_RATEADJUST);
     if (!mix && !rate_only && !(flags & SF_AUTOCONVERT)) return UNSUPPORTED_FORMAT;
-    if (duration < 0 || duration > MAX_DURATION) return BUFFER_SIZE_ERROR;
+    if (duration < 0) return BUFFER_SIZE_ERROR;
     if (flags & SF_LOOPBACK) return ENDPOINT_CREATE_FAILED; /* no capture/loopback path on this endpoint */
     if (!duration) duration = DEFAULT_DURATION;
-    uint64_t frames = ((uint64_t)duration * f.rate + 9999999) / 10000000;
+    /* Split seconds from the fractional part: duration * rate can overflow even uint64_t for
+     * a valid positive REFERENCE_TIME. UINT32 frame counts and guest byte lengths must both fit. */
+    uint64_t frames = (uint64_t)(duration / 10000000) * f.rate +
+        ((uint64_t)(duration % 10000000) * f.rate + 9999999) / 10000000;
     uint64_t floor_frames = ((uint64_t)DEFAULT_PERIOD * f.rate + 9999999) / 10000000; /* at least one period */
     if (frames < floor_frames) frames = floor_frames;
+    uint32_t align = f.channels * f.bytes;
+    if (frames > UINT32_MAX / align || frames > UINT32_MAX / 4u) return E_OUTOFMEMORY;
     uint32_t sess = 0;
     /* Streams naming the same session GUID (NULL = process default) share ISimpleAudioVolume state. */
     uint32_t g[4] = {0, 0, 0, 0};
@@ -256,7 +268,7 @@ static uint32_t initialize(void) {
         sess = i + 1;
     }
     if (!sess) return E_OUTOFMEMORY;
-    uint32_t buffer = w32_heap_alloc((uint32_t)frames * f.channels * f.bytes, 1);
+    uint32_t buffer = w32_heap_alloc((uint32_t)frames * align, 1);
     uint32_t ring = buffer ? w32_heap_alloc((uint32_t)frames * 4, 1) : 0;
     if (!ring) {
         w32_heap_free(buffer);
@@ -450,7 +462,7 @@ static uint32_t pvol_get(void) {
 }
 static uint32_t pvol_setmute(void) {
     audio_t *a = client(); if (!a || !a->initialized) return NOT_INIT;
-    session_of(a)->mute = (ARG(1) & 0xffu) != 0; return 0;
+    session_of(a)->mute = ARG(1) != 0; return 0;
 }
 static uint32_t pvol_getmute(void) {
     audio_t *a = client(); if (!a || !a->initialized) return NOT_INIT;

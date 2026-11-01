@@ -42,6 +42,25 @@ const cycles = (v: number[]) => v.slice(1).filter((x, i) => v[i] < 0 && x >= 0).
 /** frequency check tolerant of one partial cycle at the segment edges */
 const expectHz = (v: number[], f: number) => expect(Math.abs(cycles(v) - (v.length / 48000) * f)).toBeLessThanOrEqual(1);
 
+// Independent output-time reference: each sink-frame crossing lies between two source-frame ends.
+// Compare every sample, not just extrema/crossings (which would miss phase or interpolation errors).
+function referenceTone(frames: number, rate: number, half: number, left: number, right: number, rightGain = 1) {
+  const values: number[] = [];
+  const sign = (i: number) => Math.floor(Math.max(0, i) / half) % 2 ? -1 : 1;
+  const rounded = (n: number, d: number) => Math.trunc((n + (n < 0 ? -d / 2 : d / 2)) / d);
+  for (let j = 0; j < frames; j++) {
+    const time = (j + 1) * rate, index = Math.ceil(time / 48000) - 1;
+    const fraction = time - index * 48000;
+    const sample = (level: number) => {
+      const prev = sign(index - 1) * level, cur = sign(index) * level;
+      return prev + rounded((cur - prev) * fraction, 48000);
+    };
+    const r = sample(right) * rightGain;
+    values.push(sample(left), r >= 0 ? Math.floor(r + 0.5) : Math.ceil(r - 0.5));
+  }
+  return values;
+}
+
 it('WASAPI init contracts: flags, formats, durations, COM lifetime, clock, volume and resampled samples', async () => {
   const { host, samples, logs } = await run();
   expect(logs.filter((s) => s.includes('FAIL')), logs.join('\n')).toEqual([]);
@@ -60,12 +79,17 @@ it('WASAPI init contracts: flags, formats, durations, COM lifetime, clock, volum
   expect(l.some((x) => Math.abs(x) > 0 && Math.abs(x) < 16384)).toBe(true); // interpolation, not repetition
   expect(r.every((x, i) => Math.abs(x * 4 + l[i]) <= 4)).toBe(true); // opposite polarity at 1/4 level
 
+  expect(samples.slice(seg[0] * 2, (seg[0] + SEGMENTS[0]) * 2))
+    .toEqual(referenceTone(4800, 44100, 22, 16384, -8192, 0.5));
+
   // 2: 24 kHz int16 with SetSampleRate 24000 / 48000 / 12000: 6000 + 3000 + 12000 sink frames, pitch x1, x2, x0.5.
   const lens = [6000, 3000, 12000], freq = [500, 1000, 250]; let o = seg[1];
   lens.forEach((n, k) => {
     l = chan(samples, o, n, 0); r = chan(samples, o, n, 1);
     expect(peak(l)).toEqual([-16384, 16384]); expect(peak(r)).toEqual([-8192, 8192]);
     expectHz(l, freq[k]);
+    expect(samples.slice(o * 2, (o + n) * 2))
+      .toEqual(referenceTone(n, [24000, 48000, 12000][k], 24, 16384, -8192));
     o += n;
   });
   l = chan(samples, seg[1] + 9000, 12000, 0); // 4x upsample: quarter-step interpolation values exist
@@ -75,6 +99,8 @@ it('WASAPI init contracts: flags, formats, durations, COM lifetime, clock, volum
   l = chan(samples, seg[2], SEGMENTS[2], 0); r = chan(samples, seg[2], SEGMENTS[2], 1);
   expect(r).toEqual(l); expect(peak(l)).toEqual([-20000, 20000]);
   expectHz(l, 450);
+  expect(samples.slice(seg[2] * 2, (seg[2] + SEGMENTS[2]) * 2))
+    .toEqual(referenceTone(4800, 44100, 49, 20000, 20000));
 
   // 4: EXTENSIBLE 24-bit PCM at the mix rate: exact amplitudes, no resampling.
   l = chan(samples, seg[3], SEGMENTS[3], 0); r = chan(samples, seg[3], SEGMENTS[3], 1);

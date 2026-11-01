@@ -109,7 +109,11 @@ static void part_init_errors(WAVEFORMATEX *mix) {
     HR(init(c, 0, 0, 1, mix), E_INVALIDARG, 27);            /* shared mode: periodicity must be 0 */
     HR(init(c, EV, 0, 100000, mix), E_INVALIDARG, 28);
     HR(init(c, 0, -1, 0, mix), AUDCLNT_E_BUFFER_SIZE_ERROR, 29);
-    HR(init(c, 0, 10 * HNS_S + 1, 0, mix), AUDCLNT_E_BUFFER_SIZE_ERROR, 30);
+    /* Huge durations must not wrap the intermediate duration*rate or the guest allocation size. */
+    HR(init(c, 0, 0x7fffffffffffffffLL, 0, mix), E_OUTOFMEMORY, 30);
+    HR(init(c, 0, 20000 * HNS_S, 0, mix), E_OUTOFMEMORY, 300); /* frames fit; stereo float bytes do not */
+    /* This size is representable, but exceeds the actual guest heap: fail allocation, not arithmetic. */
+    HR(init(c, 0, 5000 * HNS_S, 0, mix), E_OUTOFMEMORY, 301);
     HR(init(c, AUDCLNT_STREAMFLAGS_LOOPBACK, 0, 0, mix), AUDCLNT_E_ENDPOINT_CREATE_FAILED, 31);
     w = mkfmt(&f, 0, WAVE_FORMAT_IEEE_FLOAT, 2, 44100, 32);
     HR(init(c, 0, 0, 0, w), AUDCLNT_E_UNSUPPORTED_FORMAT, 32);   /* rate differs: needs RATEADJUST/AUTOCONVERT */
@@ -131,7 +135,17 @@ static void part_init_errors(WAVEFORMATEX *mix) {
     HR(init(c, AC, 0, 0, w), E_INVALIDARG, 41);
     w = mkfmt(&f, 0, WAVE_FORMAT_PCM, 2, 4000, 16);
     HR(init(c, AC, 0, 0, w), AUDCLNT_E_UNSUPPORTED_FORMAT, 42);  /* below the converter's rate range */
-    /* None of the failures initialised or poisoned the client. */
+    w = mkfmt(&f, 1, WAVE_FORMAT_IEEE_FLOAT, 2, 48000, 32); f.w.Samples.wValidBitsPerSample = 24;
+    HR(init(c, AC, 0, 0, w), E_INVALIDARG, 302);
+    w = mkfmt(&f, 1, WAVE_FORMAT_PCM, 2, 48000, 16); f.w.dwChannelMask = 4; /* one speaker for stereo */
+    HR(init(c, AC, 0, 0, w), E_INVALIDARG, 303);
+    f.w.dwChannelMask = 0x80000001u; /* reserved speaker bit */
+    HR(init(c, AC, 0, 0, w), E_INVALIDARG, 304);
+    f.w.dwChannelMask = 0x30; /* rear stereo: well formed, but not a supported converter layout */
+    HR(init(c, AC, 0, 0, w), AUDCLNT_E_UNSUPPORTED_FORMAT, 305);
+    w = mkfmt(&f, 1, WAVE_FORMAT_PCM, 2, 48000, 16); f.w.SubFormat.Data1 = 0x55;
+    HR(init(c, AC, 0, 0, w), AUDCLNT_E_UNSUPPORTED_FORMAT, 306);
+    /* None of the failures initialised or poisoned the client, including the allocation failure. */
     UINT32 n; void *p = (void *)1;
     HR(IAudioClient_GetBufferSize(c, &n), AUDCLNT_E_NOT_INITIALIZED, 43);
     HR(IAudioClient_GetService(c, &IID_IAudioRenderClient, &p), AUDCLNT_E_NOT_INITIALIZED, 44);
@@ -166,15 +180,20 @@ static void part_capacity(WAVEFORMATEX *mix) {
     c = fresh(); OK(init(c, 0, 12345678, 0, mix), 64);               /* rounds up to whole frames */
     EXPECT(capacity(c) == 59260, 65);
     IAudioClient_Release(c);
-    c = fresh(); OK(init(c, 0, 10 * HNS_S, 0, mix), 66);             /* the profile's ten-second bound */
-    EXPECT(capacity(c) == 480000, 67);
+    c = fresh(); OK(init(c, 0, 11 * HNS_S, 0, mix), 66);             /* no arbitrary ten-second ceiling */
+    EXPECT(capacity(c) == 528000, 67);
     IAudioClient_Release(c);
     w = mkfmt(&f, 0, WAVE_FORMAT_PCM, 2, 24000, 16);
     c = fresh(); OK(init(c, AC, 3 * HNS_S, 0, w), 68);
     EXPECT(capacity(c) == 72000, 69);
     IAudioClient_Release(c);
     c = fresh();                                                       /* other valid flags are accepted */
-    OK(init(c, AUDCLNT_STREAMFLAGS_CROSSPROCESS | AUDCLNT_STREAMFLAGS_NOPERSIST | 0x10000000u, 0, 0, mix), 70);
+    OK(init(c, AUDCLNT_STREAMFLAGS_CROSSPROCESS | AUDCLNT_STREAMFLAGS_NOPERSIST | 0x70000000u, 0, 0, mix), 70);
+    IAudioClient_Release(c);
+    c = fresh(); OK(init(c, SQ, 0, 0, mix), 307); /* standalone quality hint accepted (INFERRED no-op) */
+    IAudioClient_Release(c);
+    w = mkfmt(&f, 1, WAVE_FORMAT_IEEE_FLOAT, 2, 48000, 32); f.w.dwChannelMask = 0;
+    c = fresh(); OK(init(c, 0, 0, 0, w), 308); /* unspecified EXTENSIBLE mask is legal */
     IAudioClient_Release(c);
 }
 
@@ -407,7 +426,7 @@ static DWORD WINAPI audio_init_main(void *unused) {
     EXPECT(v == 0.5f, 243);                          /* same (default) session */
     tone_t t5 = {2, 4, 1, 24, 16384, 8192};
     render(c, r, ev, &t5, 2400, 1);
-    OK(ISimpleAudioVolume_SetMute(sav, TRUE, 0), 244);
+    OK(ISimpleAudioVolume_SetMute(sav, (BOOL)0x100, 0), 244); /* BOOL: every nonzero value is true */
     OK(ISimpleAudioVolume_GetMute((ISimpleAudioVolume *)opv, &mute), 245);
     EXPECT(mute, 246);
     render(c, r, ev, &t5, 2400, 0);

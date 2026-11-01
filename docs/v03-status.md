@@ -123,10 +123,11 @@ map to bounded endpoint weights, not host realtime. Repeated changes cannot repl
 peers. No APC delivery, asynchronous thread termination, fibers or general cyclic parked-native continuation switching. CPU rotation is deferred inside native callbacks;
 frame yields still occur. InitOnceExecuteOnce and broader CRT per-thread locale/errno remain bounded; K3's x87
 state is part of the whole saved CPU context.
-COM apartment initialization is thread-local; this is not general apartment marshaling. Audio has a 19,200-frame
-source ring and deterministic non-bandlimited resampling; locked/full browser queues may drop samples. No capture,
-endpoint notification/enumeration, exclusive/extensible formats, BSTR/variant arrays, raw wheel/full HID enumeration
-or low-bit async key latches. No physical actuator/listening or mobile fidelity claim.
+COM apartment initialization is thread-local; this is not general apartment marshaling. Audio has a guest-heap-owned
+source ring sized from the requested duration and deterministic non-bandlimited resampling; locked/full browser queues
+may drop samples. No capture, endpoint notification/enumeration, exclusive mode, unsupported EXTENSIBLE layouts,
+BSTR/variant arrays, raw wheel/full HID enumeration or low-bit async key latches. No physical actuator/listening or
+mobile fidelity claim.
 
 ### Existing general / packaging / hardware boundaries
 
