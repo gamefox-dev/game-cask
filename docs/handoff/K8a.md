@@ -2,12 +2,9 @@
 
 ## Acceptance / continuation boundary
 
-**Q21 is incomplete. Tier 1 is incomplete. This is a bounded, tested checkpoint, not the lane finish line.**
-The reviewer explicitly instructed: commit this checkpoint, then continue with (1) lazy mip allocation/configurable
-GPU budget, (2) depth uploads, (3) integer textures/samplers/render targets/readback, (4) indexed `glClearBuffer*`.
-The same instruction requires stopping for a fresh session when context exceeds about 60%. This session reached
-that boundary; no context compaction was used. The next session must implement those four items, with a commit and
-regressions after each, not treat them as accepted exclusions or claim the target's first frame was reached.
+**Historical checkpoint superseded by the Final Q21 completion section below.** The original continuation boundary
+recorded the reviewer-mandated order; all four implementation items are now delivered within the bounded GL/§13
+contract and the final tier-1 results are recorded below. No target game first-draw or playability claim is made.
 
 Branch `lane/K8a`, base `0838b00`; implementation checkpoint **`41c114d`**. All gates below were rerun after its
 independent-review corrections; the final handoff-only commit does not change executable sources. No push, game files, copied target evidence, system installs or dependencies.
@@ -55,7 +52,7 @@ unsupported); the extra instance buffer consumes one of eight ABI vertex slots. 
 vertex format and GL profile limitations are not expanded silently. No matrix/array current-attribute support is
 claimed. No physical iPhone/Safari/Firefox or game title/playability validation.
 
-## Actual gates on this checkpoint
+## Historical gates on the Q21 checkpoint
 
 | Check | Result |
 |---|---|
@@ -100,7 +97,47 @@ Final exact-implementation scratch logs `/tmp/k8a-final-{doctor,lint,typecheck,t
 `/tmp/k8a-final-oracle-<id>.log`, summary `/tmp/k8a-final-oracles.json`; machine-local files are not durable guarantees.
 Ignored `reports/e2e-results.json` and `reports/oracle-*.json` retain local results.
 
-## Remaining work — exact next steps (reviewer-mandated order)
+## Final Q21 completion (K8a continuation 3)
+
+Q21 is complete within the documented bounded GL/§13 subset. Commits: `c231e5e` depth conversion/readback and packed
+uploads, `732a19f` depth fixture, `e0d268f` integer storage/sampling/render/readback, `579bebd` indexed typed clears,
+`0b1e751` fixture declarations/census updates, `c8792f7` reviewer fixes (integer NONE LOD, reserved varying names,
+loss clear replay), and `872b112` shared device-loss render/consume race fix. No game files, pushes, web access, installs
+or dependencies were used. Independent fresh source review at `/tmp/k8a-independent-final.log`: PASS within bounded
+read-only scope; it ran 126 focused unit assertions, not Tier 1.
+
+Delivered and tested:
+- Depth16/24/32F and packed DEPTH24_STENCIL8 non-NULL uploads, partial updates, sampling and readback on WebGL2 and
+  WebGPU. WebGPU packed DS stencil readback returns truthful `E_UNSUPPORTED`; no stale shadow/fake bytes.
+- All 18 R/RG/RGBA 8/16/32 signed/unsigned integer formats, exact transfer/readback, 2D isampler/usampler lowering,
+  integer render outputs, nearest-only validation, integer swizzle and full-width values on both backends.
+- Additive `CLEAR_BUFFER` opcode `0x5f`: indexed format-class validation, GL_NONE no-op, signed/unsigned/float/DS
+  forms, scissor/write masks, preserved clear state, WebGL typed native calls and WebGPU ordered draw lowering.
+- Finish fixture `x64-gl-integer`: **228** guest checks per backend, including 18 integer formats, depth uploads,
+  indexed clears, current attributes, swizzle, large 4096² depth with 13 mip levels and preserved content. Browser
+  finish image probes pass on WebGL2/WebGPU; cross-backend comparison `different=0, unmatched=0`. The recorder oracle
+  intentionally reports 89 raster-dependent failures and validates transport/semantic bytes instead.
+
+Tier 1 evidence on final implementation:
+
+| Check | Result |
+|---|---|
+| doctor | pass, ready; original/ empty |
+| lint | pass, ESLint + clang + real GCC host checks + example check-builds |
+| typecheck | pass |
+| unit | **790 passed / 66 files / 0 failed** |
+| browser e2e | **218 passed / 51 intentional skips / 0 failed** |
+| leakcheck | pass, 535 committable files checked |
+| pipeline oracles | **25/25 × 300 frames = 7,500 identical pairs**, null errors, lifted `interp_insns=0`, `stubs=[]` |
+| independent review | PASS, bounded source review; no Tier 1 attribution |
+
+The prior five sandbox `ps` FIFO/liveness failures are gone after the merged K7i repair. WebGPU DS stencil readback
+remains an explicit ABI limitation. Out-of-range integer fragment output into narrower targets is an explicit native
+boundary: WebGL currently narrows/intermediate-converts and WebGPU saturates; the fixture pins behavior but excludes it
+from portable cross-backend equality. Integer sampling is currently 2D-only; integer mip generation is unsupported.
+The original game was not run here and no first-draw/title/playability claim is made.
+
+## Historical continuation plan (superseded by final completion)
 
 ### 1. Lazy mip allocation + configurable, truthful budget
 

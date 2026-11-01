@@ -1,5 +1,21 @@
 # v0.3 merged implementation status
 
+## K8a Q21 final completion
+
+Lane K8a continuation 3 completes the bounded Q21 GL contracts on top of `39c42d5`. The final implementation commits
+are `c231e5e`, `732a19f`, `e0d268f`, `579bebd`, `0b1e751`, `c8792f7`, `872b112` and the final documentation commit.
+Depth uploads/readback, all 18 integer texture formats and typed samplers/render targets, indexed typed clears, current
+attributes, swizzles, lazy depth mip growth and configurable budgeting are covered by actual WebGL2/WebGPU fixtures.
+WebGPU `DEPTH24_STENCIL8` stencil readback remains truthful `E_UNSUPPORTED`; integer out-of-range fragment output into
+narrower targets remains an explicit native boundary and is excluded from portable cross-backend equality.
+
+Final local tier-1 evidence: doctor ready; lint (ESLint, clang and real GCC) pass; typecheck pass; **790 unit tests / 66
+files pass**; **218 browser tests pass / 51 intentional skips / 0 failures**; leakcheck pass; **25 pipeline examples ×
+300 frames = 7,500 identical oracle pairs**, null errors, zero lifted interpretation and empty stub lists. The fresh
+independent review passed within bounded source-review scope and did not claim tier-1 attribution. No original game
+files were copied or run, and no first-draw/title/playability claim is made. See `docs/handoff/K8a.md` for fixture,
+coverage and limitation detail.
+
 Integration I6a on `integration/p1` merges **K8b** after K7i, then **K8c**, each with `--no-ff`. K8b adds typed
 GLSL boolean-selector `mix` lowering and translation regressions for WebGPU/WebGL 2; K8c adds process-local WASAPI
 endpoint-notification ownership and shared DOS `\\?\`/`\\.\` path normalization. K7i's separate compilation,
