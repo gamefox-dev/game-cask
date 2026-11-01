@@ -71,8 +71,9 @@ _TRUNCATE and bounded count. CRT buffer helpers honor successful memory protecti
 Shipped files remain read-only; mutable/temp files live in process memory. `_wfsopen` accepts _SH_DENYNO;
 deny modes fail EACCES rather than claiming unimplemented sharing. In-memory files without a kernel handle make
 `_get_osfhandle` fail EBADF. Missing paths fail ENOENT, shipped writes/removal fail EACCES, duplicate rename targets
-fail EEXIST. `_wrmdir` fails EACCES (directory deletion not supported). `_wchdir`/SetCurrentDirectoryW currently
-accept only the virtual C:\\GAME root. No persistent writable filesystem or complete text-mode/locale parity.
+fail EEXIST. CRT and KERNEL32 directory changes/removal now share the VFS operations described in
+[K6d](#crt-metadata-directories-and-paths-on-the-shared-vfs-k6d), including nested process-local directories.
+No persistent writable filesystem or complete text-mode/locale parity.
 The deterministic cooperative scheduler owns `_beginthread` lifetime/auto-close and recursive numbered CRT locks.
 Suspend counts are independent of sleep/event wait state. Kernel thread priorities -2..2 use K1's bounded
 scheduler weights 1..5; IDLE (-15) / TIME_CRITICAL (15) map to the endpoint weights, never host realtime.
@@ -90,8 +91,9 @@ process-created CRT files and process-created directories. Paths are case-insens
 patterns, exhaustion is ERROR_NO_MORE_FILES, invalid/closed handles ERROR_INVALID_HANDLE. FindFirstFileExW accepts
 standard/basic info with name matching, not directory-only/device searches. DOS short-name generation and full
 Unicode collation are not claimed. CreateDirectoryW creates process-local index entries; duplicate names fail
-ERROR_ALREADY_EXISTS, missing parents ERROR_PATH_NOT_FOUND. DeleteFileW cannot delete CRT-owned mutable nodes
-through the kernel handle layer and fails access denied (missing names: file not found); CRT removal is supported.
+ERROR_ALREADY_EXISTS, missing parents ERROR_PATH_NOT_FOUND. DeleteFileA/W and CRT removal delete closed
+process-local files through the same VFS operation; shipped files fail access denied, open mutable files fail
+sharing violation, and missing names fail file/path not found.
 
 Current-directory/environment size-query/short-buffer/case-insensitive variable update/delete contracts, virtual
 C: drive mask, single-CPU affinity, virtual-clock GetTickCount64, UTC timezone/calendar conversion, unknown battery
@@ -169,3 +171,71 @@ audio, Raw Input, GL and thread APIs are included. DLL registration is checked f
 shared symbol namespace across registered system DLLs, and the census intentionally mirrors it. Width-aware
 GetProcAddress probes cover every registry name and one genuinely absent name. Neither registration nor a matched
 oracle establishes universal semantic support, and failure-only annotations are not reported as successful stubs.
+
+## CRT metadata, directories and paths on the shared VFS (K6d)
+
+KERNEL32 and the CRT use **one** process-local index (`w32_fs.h`): shipped manifest entries are read-only, everything
+else is process memory. Both front ends call the same `w32_fs_*` operations and differ only in error translation
+(Win32 error -> UCRT errno) and guest struct layouts; there is no second CRT-private directory or file table.
+Registered once in the KERNEL table, so both guest widths and every DLL alias (msvcrt, ucrtbase, api-ms-win-crt-*)
+resolve the same implementation (`_errno`/`_get_errno`/`_set_errno` are added for i386, where the shared AMD64 CRT is
+absent). The old `crt.def` entries for `_fstat64`, `_wstat64`, `remove`, `_wunlink`, `_wrename`, `_wchdir`, `_wrmdir`
+were removed.
+
+| Area | Functions |
+|---|---|
+| stat | `_stat32/32i64/64i32/64`, `_wstat*`, `_fstat*`; msvcrt aliases `_stat/_stati64/_wstat/_wstati64/_fstat/_fstati64` |
+| find | `_findfirst/_findnext` and `_wfind*` in every variant (`""`, `i64`, `32`, `32i64`, `64i32`, `64`), `_findclose` |
+| directories/paths | `_mkdir/_wmkdir`, `_rmdir/_wrmdir`, `_chdir/_wchdir`, `_getcwd/_wgetcwd`, `_getdcwd/_wgetdcwd` (drive 0 or 3), `_fullpath/_wfullpath`, `_getdrive`, `_chdrive(3)` |
+| files | `remove/_wremove/_unlink/_wunlink`, `rename/_wrename`, `_access/_waccess/_access_s/_waccess_s` |
+| KERNEL32 (same operations) | `CreateDirectoryA/W`, `RemoveDirectoryA/W`, `DeleteFileA/W`, `MoveFileA/W`, `Get/SetCurrentDirectoryA/W`, `GetFullPathNameA/W`, `GetFileAttributesExA/W` (level 0), `GetFileAttributesA/W`, `FindFirstFileW/ExW`, `FindNextFileW`, `FindClose` |
+
+**Layouts** (identical for both widths; checked against zig/clang MinGW headers by `_Static_assert` in the fixture):
+`_stat32` 36 bytes, `_stat32i64` 48, `_stat64i32` 48, `_stat64` 56 (`st_dev`@0, `st_ino`@4, `st_mode`@6, `st_nlink`@8,
+`st_uid`@10, `st_gid`@12, `st_rdev`@16, then size and the three times); `_finddata*` 280/288/296/304 and `_wfinddata*`
+540/544/560/560. Legacy aliases: msvcrt.dll's `_stat/_fstat/_stati64` use the 32-bit-time layouts on i386 and the
+64-bit-time layouts on AMD64; UCRT has no plain `_stat` (its headers name `_stat32`/`_stat64i32`/...).
+
+**Values.** `st_mode` follows UCRT: directories `_S_IFDIR` 0x4000 + rwx, regular files `_S_IFREG` + read (+ write unless
+FILE_ATTRIBUTE_READONLY, + execute for `.exe/.com/.bat/.cmd`), with the user bits copied to group/other (writable file
+0100666 = 0x81b6; shipped read-only file 0100444 = 0x8124; directory 040777 = 0x41ff); character devices (fd 0..2)
+`_S_IFCHR` only. `st_dev = st_rdev = 2` (drive C), `st_nlink = 1`, `st_uid = st_gid = st_ino = 0`. Sizes are exact index
+sizes; creation/write/access times are the virtual clock (`filetime_now`, advanced by frames and `Sleep`), shipped entries
+carry the clock origin. Content writes update the file's `st_mtime`; directory-entry creation/removal/rename
+updates the parent's write time. Reads do not touch times. Anonymous temporary files retain their own stable
+creation/access/write timestamps across `_fstat` queries. Enumeration's `.` and `..` carry the directory's and
+its parent's respective timestamps. 32-bit time/size fields
+fail with `EOVERFLOW` instead of truncating. Original case is preserved in enumeration and `_fullpath` (lookup stays
+case-insensitive). Non-root directories enumerate `.` and `..` first; the volume root (`C:\GAME`, aliased by `C:\`) lists
+neither, as before. Order is index order (manifest order, then creation order), not collated.
+
+**errno** (Win32 error from the shared operation through the UCRT `_dosmaperr` table): missing file/parent `ENOENT`;
+`_mkdir` existing file or directory `EEXIST`; `_rmdir` non-empty `ENOTEMPTY`; shipped assets, directories passed to
+`remove`, the root, the current directory and files with open handles `EACCES` (open handles are a sharing violation,
+as CRT `fopen` shares read/write but not delete); `rename` onto an existing name `EEXIST`, into itself `EACCES`;
+`_access` mode bits other than 2/4 `EINVAL`, write on read-only `EACCES`; names with `<>"|` or wildcards and ERROR_DIRECTORY
+(`_rmdir`/`_chdir` on a file) `EINVAL` (the table has no entry: INFERRED); `_stat`/`_access` report every lookup failure
+as `ENOENT`. `fopen` now requires an existing parent directory (`ENOENT`) and fails `EACCES` on directories (previously
+it silently created the missing chain).
+
+**Current directory.** One `C:\GAME[\dir]` current directory is shared by `_chdir`, `SetCurrentDirectory`, `GetCurrentDirectory`,
+`_getcwd`, `_fullpath`, `GetFullPathName` and every relative path in kernel and CRT calls (including asset opens).
+Typed case and trailing separators are retained in fullpath results. `GetFullPathName` returns a NULL file-part
+pointer for a root or trailing-separator result. `..` above the root stays at the root; `C:\` aliases `C:\GAME`;
+other drives do not exist. Search patterns ending in a separator fail with Win32 error 2 / `ENOENT` (INFERRED error
+mapping; FindFirstFile forbids trailing separators). Moving a regular file to a separator-terminated destination
+fails before mutation with Win32 error 3 / `ENOENT` (INFERRED). NULL-output CRT path allocations validate the full
+`size_t` count before narrowing/multiplying and return `ENOMEM` if that allocation cannot be represented/satisfied.
+
+**Registry.** `RegDeleteValueA/W` delete from the profile's registry store: the BGT ABI v0.2 has no storage delete, so a
+value is replaced by a zero-length record, which `RegQueryValueEx` reports as `ERROR_FILE_NOT_FOUND` exactly like a
+never-set value (storage keeps an empty entry). NULL and empty value names both address the unnamed/default value,
+including across A/W set/query/delete calls. Missing values return 2, a read-only key handle 5, invalid handles 6,
+and denied or failed deletes change nothing. The census entry is `implemented` (no longer `stub`). `RegDeleteKey*`
+are not implemented (the store cannot enumerate subvalues) and remain unknown imports that fault by name.
+
+**Limits.** i386 has no FILE layer (`fopen`, `_open`, ...), so mutable files exist only for AMD64 guests; i386 fixtures
+create/stat/rename/remove directories and read shipped files. ASCII paths only (non-ASCII becomes `?`, a wildcard).
+Paths of 260 or more characters fail creation operations with `ENOENT`. No short names, no ADS, no hard links
+(`st_nlink` is always 1), no permissions beyond the read-only attribute, no `_chmod/_utime/_futime`. UCRT mappings
+marked INFERRED above were not verified against a native Windows run.

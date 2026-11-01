@@ -29,6 +29,17 @@ lists. Historical measurements remain in [verification.md](verification.md); lan
   bridge and host entropy/scheduler checks; **PASS within bounded scope**. Broad Tier 1 gates above are integrator
   evidence, not attributed to that reviewer. Earlier I1/I2 reviews remain in their historical handoffs.
 
+## K6d follow-up verification
+
+The Q24 CRT metadata follow-up is verified on top of I4 (`ca2cd17`): one VFS implementation now serves kernel32
+and both-width CRT stat/fstat/access/directory/find/cwd/fullpath/remove/rename families, plus implemented registry
+value deletion. Final gates: doctor, clang + GCC lint (**24 examples**), typecheck and leakcheck pass;
+**576 unit tests / 53 files**, **200 browser passes / 51 existing intentional skips**, both backends exercised;
+**20 pipeline oracles × 300 frames = 6,000 identical pairs**, null errors, zero lifted interpretation and empty
+stub lists. Both-width CRT fixtures add **251 i386 / 330 AMD64 checks**, lifted and interpreted, and complete
+**600-frame** identical oracles. These local bounded results supersede no historical native/hardware limits.
+Details, review findings, fixes and provenance: [K6d handoff](handoff/K6d.md).
+
 ## Delivered implementation
 
 | Area | Merged behavior / evidence | Explicit boundary |
@@ -46,6 +57,7 @@ lists. Historical measurements remain in [verification.md](verification.md); lan
 | Existing UI/files/slices | Phase 0 UI/font fixes, streamed read-only Win32 files, coverage-guided strict code/data slices and explicit outside-slice stops | Not minimum loader images, lazy wasm chunks or complete Win32 APIs |
 | K1 system DLLs | Nine DLL namespaces; 43 exercised exports, offline Winsock ownership/errors, DirectInput snapshots, Web Crypto entropy and bounded AVRT scheduler weights | No network/DNS transport, compositor, IME, adapters or fabricated unavailable hardware; [K1](handoff/K1.md) |
 | K2 existing DLLs / census | Width-aware complete ordered registry census with failure-only annotations; page protections, FILE/descriptors, mutable VFS enumeration, icons, clipboard and pointer tracking | 33 of 131 requested unique contracts are tested failure-only; process-local writes, bounded UI/memory/CRT; [contracts](../platforms/win32/CONTRACTS.md) |
+| K6d CRT filesystem / registry | Shared kernel/CRT metadata, stat/find layouts, nested directory/cwd/path/rename/remove operations, timestamps/errno and RegDeleteValueA/W tombstones; [handoff](handoff/K6d.md) | No i386 FILE layer, persistent writable kernel files, Unicode/extra drives/short names/chmod/utime, or RegDeleteKey; native error mappings remain INFERRED |
 | K3 x87 / analysis / metadata | Shared software ext80 basic arithmetic/control/state; retained-function census, conservative AMD64 NULL pruning and bounded unwind-table continuation | Binary64-accuracy transcendentals; explicit unmasked-exception faults, not general Windows FP SEH; [precision model](../platforms/x86/X87.md) |
 | LBR harness | Process-owned exits, queued isolated lanes, bounded session-fork retries, machine-wide heavy gate, verified cleanup; CI reviewer requests default 45 min | Same-user coordination, not authentication; nested seatbelt and Linux lockf availability not certified; [handoff](handoff/harness-hardening.md) |
 | LSC scale / loading | Bounded function-preserving chunks, content caches/writer leases, hash-verified streaming wasm loads; 1,609,529-insn fixture with native checksum + 300-frame oracle | Not a 7.1M game build, lazy modules, mobile performance or a full-workspace disk bound; [measurements/caveats](handoff/scale.md) |
@@ -75,8 +87,9 @@ Details: [GPU ABI](../bgt/abi/ABI.md#13-v03-gpu-layer-additive-interface),
    precedence and failure-only behavior. No lane-specific second inventory replaces runtime registrations.
 6. PathFileExistsW and GetFileAttributes share K2's shipped/mutable metadata index with enumeration. Queries do
    not consume kernel/CRT/search slots and preserve PathFileExistsW last error. Anonymous tmpfile remains unnamed;
-   named writable/temp paths, directories, rename and unlink are visible immediately. Directory deletion and
-   persistent kernel writes remain unavailable, rather than fabricated to satisfy metadata queries.
+   named writable/temp paths, directories, rename and unlink are visible immediately. K6d additionally implements
+   nested cwd, empty process-local directory deletion and closed mutable-file removal through both kernel/CRT
+   front ends; shipped assets remain read-only. Persistent kernel writes remain unavailable.
 7. Preserve K3's lifter/FPU changes and K2's per-page checks. A monotonic global protection flag disables unchecked
    whole-block span paths before any local mutation once non-default permissions are installed. Checked semantic
    boundaries retain legal read-only reads and precise protected-write faults; restoring RWX does not reset the flag.

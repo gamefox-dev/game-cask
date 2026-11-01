@@ -3,6 +3,7 @@ typedef struct crt_node {
     struct crt_node *next;
     char name[512];
     uint32_t data, capacity, size;
+    uint64_t created, accessed, written; /* anonymous files need stable metadata too */
 } crt_node_t;
 static crt_node_t *file_nodes;
 typedef struct {
@@ -85,23 +86,28 @@ static uint32_t file_write_raw(crt_file_t *f, const uint8_t *src, uint32_t n) {
     if (n) memcpy(cwmem(node->data + f->pos, n), src, n);
     f->pos = end;
     if (node->size < end) node->size = end;
-    if(!f->temporary)w32_fs_update(node->name,node->size);
+    node->written = w32_fs_now();
+    if(!f->temporary)w32_fs_update_key(node->name,node->size);
     return n;
 }
 #include "w32_crt_file.h"
 static uint64_t file_open(int wide, int temporary) {
     crt_iob_base();
-    char name[512] = "", mode[32] = "w+b";
+    char name[512] = "", typed[520] = "", mode[32] = "w+b";
     if (!temporary) {
-        w32_gstr(ARG(0), wide, name, sizeof name); w32_gstr(ARG(1), wide, mode, sizeof mode);
-        w32_fs_normalize(name,name);
+        if (!ARG(0) || !ARG(1)) { crt_errno(22); return 0; }
+        w32_gstr(ARG(0), wide, typed, sizeof typed); w32_gstr(ARG(1), wide, mode, sizeof mode);
     }
     int write = mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+') != 0;
     if ((mode[0] != 'r' && mode[0] != 'w' && mode[0] != 'a') || strstr(mode,"ccs=")) { crt_errno(22); return 0; }
+    if (!temporary) { /* the shared VFS index validates directories, parents and invalid names */
+        int exists = 0; uint32_t err = w32_fs_open_check(typed, name, &exists);
+        if (err) { crt_errno(w32_errno_from_win32(err)); return 0; }
+    }
     unsigned slot;
     for (slot = 3; slot < 64 && cfiles[slot].open; slot++) {}
     if (slot == 64) { crt_errno(24); return 0; }
-    crt_node_t *node = 0;
+    crt_node_t *node = 0; int created = 0;
     if (!temporary) for (crt_node_t *p = file_nodes; p; p = p->next) {
         if (!strcmp(p->name, name)) { node = p; break; }
     }
@@ -113,7 +119,9 @@ static uint64_t file_open(int wide, int temporary) {
         node = calloc(1, sizeof *node);
         if (!node) { crt_errno(12); return 0; }
         strcpy(node->name, name);
+        node->created = node->accessed = node->written = w32_fs_now();
         if (!temporary) { node->next = file_nodes; file_nodes = node; }
+        created = 1;
     }
     if (node && mode[0] == 'w') { node->size = 0; }
     crt_file_t *f = &cfiles[slot];
@@ -124,7 +132,8 @@ static uint64_t file_open(int wide, int temporary) {
     f->pos = f->append && node ? node->size : 0;
     f->binary = temporary || strchr(mode, 'b') != 0 || (!strchr(mode, 't') && x86_rd32(cell(0)) == 0x8000);
     f->capacity = 16384; /* default bounded input read-ahead; output is write-through */
-    if(node&&!temporary)w32_fs_update(name,node->size);
+    if(created&&!temporary)w32_fs_update(typed,0);
+    else if(node&&!temporary&&mode[0]=='w')w32_fs_update_key(name,0);
     x86_wr32(iob_base + slot * 48 + 24, f->read ? 1 : 2);
     x86_wr32(iob_base + slot * 48 + 28, slot);
     return iob_base + slot * 48;

@@ -188,6 +188,11 @@ static uint64_t filetime_now(void) {
     uint64_t unix = 1003968000ull + (uint64_t)(w32_io ? w32_io->seed : 0) * 86400ull + w32_now_ms() / 1000u;
     return (unix + 11644473600ull) * 10000000ull + (uint64_t)(w32_now_ms() % 1000u) * 10000ull;
 }
+/* The clock's frame-0 instant (shipped files carry it as their timestamp). */
+static uint64_t filetime_origin(void) {
+    uint64_t unix = 1003968000ull + (uint64_t)(w32_io ? w32_io->seed : 0) * 86400ull;
+    return (unix + 11644473600ull) * 10000000ull;
+}
 uint64_t w32_unix_time_secs(void) { return filetime_now() / 10000000ull - 11644473600ull; }
 static uint32_t k_GetSystemTimeAsFileTime(void) { uint64_t t = filetime_now(); x86_wr32(ARG(0), (uint32_t)t); x86_wr32(ARG(0) + 4, (uint32_t)(t >> 32)); return 0; }
 static void systemtime(uint32_t p) {
@@ -332,11 +337,13 @@ static uint32_t k_WriteFile(void) {
 }
 static struct { uint32_t asset; uint64_t pos, size; } files[64];
 static uint32_t file_index(uint64_t h) { return w32_handle_file(h); }
+static int32_t open_asset_key(const char *path);
 static int32_t open_asset_path(const char *raw) {
     char path[512];
-    const char *s=raw;
-    if ((s[0]=='C'||s[0]=='c') && s[1]==':' && (s[2]=='\\' || s[2]=='/')) { s+=3; if (w32_slen(s)>=5 && (s[0]=='G'||s[0]=='g')&&(s[1]=='A'||s[1]=='a')&&(s[2]=='M'||s[2]=='m')&&(s[3]=='E'||s[3]=='e')&&(s[4]=='\\'||s[4]=='/'))s+=5; }
-    uint32_t k=0;while(*s && k+1<sizeof path){char c=*s++;path[k++]=c=='\\'?'/':(c>='A'&&c<='Z'?c+32:c);}path[k]=0;
+    w32_fs_normalize(raw, path); /* same resolution (drive, C:\GAME root, current directory, dots) as every VFS query */
+    return open_asset_key(path);
+}
+static int32_t open_asset_key(const char *path) {
     int32_t asset=-5;
     for(uint32_t i=0;i<w32_nmods;i++)if(w32_streqi(path,w32_mods[i].name)){
         char module[272] = "modules/";
@@ -353,9 +360,9 @@ static int32_t open_file_asset(int wide) {
     w32_gstr(ARG(0), wide, raw, sizeof raw);
     return open_asset_path(raw);
 }
-uint32_t w32_file_open_str(const char *raw, int wide) {
+uint32_t w32_file_open_str(const char *key, int wide) { /* `key` is already a normalized VFS key */
     (void)wide;
-    int32_t asset = open_asset_path(raw);
+    int32_t asset = open_asset_key(key);
     if (asset < 0) return 0;
     for (uint32_t i = 1; i < 64; i++) if (!files[i].asset) {
         uint64_t size = 0;
@@ -501,7 +508,8 @@ static uint32_t k_SetFilePointerEx(void){
 }
 static uint32_t get_file_attributes(int wide) {
     char raw[512];uint32_t attrs;w32_gstr(ARG(0),wide,raw,sizeof raw);
-    if(!w32_fs_query(raw,&attrs)){last_error=2;return 0xffffffffu;}return attrs;
+    w32_fs_info_t info;uint32_t e=w32_fs_stat(raw,&info);
+    if(e){last_error=e;return 0xffffffffu;}attrs=info.attrs;return attrs;
 }
 static uint32_t k_GetFileAttributesA(void) { return get_file_attributes(0); }
 static uint32_t k_GetFileAttributesW(void) { return get_file_attributes(1); }
@@ -636,6 +644,21 @@ static uint32_t r_RegSetValueEx(int wide) {
 }
 static uint32_t r_RegSetValueExA(void) { return r_RegSetValueEx(0); }
 static uint32_t r_RegSetValueExW(void) { return r_RegSetValueEx(1); }
+/* ABI v0.2 has no storage delete: removal writes a zero-length value, which a query cannot distinguish
+ * from "never set" (values are stored as [u32 type][data], so any shorter record is absent). */
+static uint32_t r_RegDeleteValue(int wide) {
+    const char *kp = key_path(ARG64(0));
+    if (!kp) return 6;
+    if (w32_handle_key(ARG64(0)) && !w32_handle_access(ARG64(0), 2)) return 5;
+    char name[96], k[32]; uint8_t probe[8];
+    w32_gstr(ARG(1), wide, name, sizeof name);
+    storage_key(k, "reg", kp, name);
+    int32_t n = bgt_storage_read(k, w32_slen(k), probe, sizeof probe);
+    if (n < 4) return 2; /* ERROR_FILE_NOT_FOUND */
+    return bgt_storage_write(k, w32_slen(k), probe, 0) == BGT_OK ? 0 : 8;
+}
+static uint32_t r_RegDeleteValueA(void) { return r_RegDeleteValue(0); }
+static uint32_t r_RegDeleteValueW(void) { return r_RegDeleteValue(1); }
 
 /* ------------------------------------------------------------------ MSVC runtime (cdecl) */
 #define CARG(n) ARG(n)
@@ -709,6 +732,16 @@ static uint32_t c_p_fmode(void) { if (!fmode_cell) fmode_cell = w32_misc_alloc(4
 static uint32_t c_p_commode(void) { if (!commode_cell) commode_cell = w32_misc_alloc(4); return commode_cell; }
 static uint32_t c_p_argc(void) { if (!argc_cell) { argc_cell = w32_misc_alloc(4); x86_wr32(argc_cell, 1); } return argc_cell; }
 static uint32_t c_p_argv(void) { ensure_args(); uint32_t c = w32_misc_alloc(8); w32_wrptr(c, argv_cell); return c; }
+/* LANE-K6d: the remaining normal-CRT startup plumbing an i386 MinGW image calls before main (empty environment). */
+static uint32_t environ_cell;
+static uint32_t c_p_environ(void) {
+    if (!environ_cell) { environ_cell = w32_misc_alloc(8); uint32_t array = w32_misc_alloc(8); w32_wrptr(array, 0); w32_wrptr(environ_cell, array); }
+    return environ_cell;
+}
+static uint32_t invalid_parameter_handler;
+static uint32_t c_set_invalid_parameter_handler(void) { uint32_t old = invalid_parameter_handler; invalid_parameter_handler = CARG(0); return old; }
+static uint32_t c_set_new_mode(void) { return 0; } /* the previous mode (malloc failure does not call new handlers) */
+static uint32_t c_fpreset(void) { return 0; }
 static uint32_t c_controlfp(void) { return 0x9001fu; }
 static uint32_t c_except_handler(void) { return 1; } /* ExceptionContinueSearch */
 static uint32_t c_XcptFilter(void) { return 0; }  /* EXCEPTION_CONTINUE_SEARCH */
@@ -735,6 +768,7 @@ static uint32_t s_ShellAboutW(void) { return w32_shell_about(1); }
 #include "w32_fs.h"
 #include "w32_kernel_extra.h"
 #include "w32_kernel_more.h"
+#include "w32_crt_fs.h"
 #define API(n, a, f) {n, a, 0, f}
 #define FAPI(n, a, f) API(n, a, f) /* registered, tested failure-only contract */
 #define CAPI(n, f) {n, 0, 1, f}
@@ -750,9 +784,14 @@ const w32_api_t w32_api_kernel[] = {
     API("VirtualProtect",4,k_VirtualProtect), API("VirtualQuery",3,k_VirtualQuery),
     FAPI("AttachConsole",1,k_no_console), FAPI("GetConsoleScreenBufferInfo",2,k_no_console),
     FAPI("SetConsoleCtrlHandler",2,k_no_console), FAPI("SetConsoleMode",2,k_no_console), FAPI("SetConsoleTextAttribute",2,k_no_console),
-    API("CreateDirectoryW",2,k_CreateDirectoryW), API("DeleteFileW",1,k_DeleteFileW), FAPI("ReplaceFileW",6,k_readonly_volume),
+    API("CreateDirectoryW",2,k_CreateDirectoryW), API("CreateDirectoryA",2,k_CreateDirectoryA), API("DeleteFileW",1,k_DeleteFileW), API("DeleteFileA",1,k_DeleteFileA),
+    API("RemoveDirectoryW",1,k_RemoveDirectoryW), API("RemoveDirectoryA",1,k_RemoveDirectoryA), API("MoveFileW",2,k_MoveFileW), API("MoveFileA",2,k_MoveFileA),
+    API("GetFullPathNameW",4,k_GetFullPathNameW), API("GetFullPathNameA",4,k_GetFullPathNameA),
+    API("GetFileAttributesExW",3,k_GetFileAttributesExW), API("GetFileAttributesExA",3,k_GetFileAttributesExA),
+    FAPI("ReplaceFileW",6,k_readonly_volume),
     FAPI("CreatePipe",4,k_no_process), FAPI("CreateProcessW",10,k_no_process),
     API("GetCurrentDirectoryW",2,k_GetCurrentDirectoryW), API("SetCurrentDirectoryW",1,k_SetCurrentDirectoryW),
+    API("GetCurrentDirectoryA",2,k_GetCurrentDirectoryA), API("SetCurrentDirectoryA",1,k_SetCurrentDirectoryA),
     API("GetEnvironmentVariableW",3,k_GetEnvironmentVariableW), API("SetEnvironmentVariableW",2,k_SetEnvironmentVariableW),
     API("GetLogicalDrives",0,k_GetLogicalDrives), API("GetUserDefaultUILanguage",0,k_GetUserDefaultUILanguage),
     API("GetLocaleInfoEx",4,k_GetLocaleInfoEx), API("LCIDToLocaleName",4,k_LCIDToLocaleName), API("IsDBCSLeadByteEx",2,k_IsDBCSLeadByteEx),
@@ -811,8 +850,7 @@ const w32_api_t w32_api_kernel[] = {
     API("RegCloseKey", 1, r_RegCloseKey),
     API("RegQueryValueExA", 6, r_RegQueryValueExA), API("RegQueryValueExW", 6, r_RegQueryValueExW),
     API("RegSetValueExA", 6, r_RegSetValueExA), API("RegSetValueExW", 6, r_RegSetValueExW),
-    /* Legacy unavailable deletion is an explicit success stub, not an implemented contract. */
-    STUB("RegDeleteValueA", 2), STUB("RegDeleteValueW", 2),
+    API("RegDeleteValueA", 2, r_RegDeleteValueA), API("RegDeleteValueW", 2, r_RegDeleteValueW),
     /* SHELL32 / COMCTL32 */
     API("ShellAboutA", 4, s_ShellAboutA), API("ShellAboutW", 4, s_ShellAboutW),
     STUB("InitCommonControls", 0), API("InitCommonControlsEx", 1, k_one),
@@ -822,12 +860,34 @@ const w32_api_t w32_api_kernel[] = {
     CAPI("strlen", c_strlen), CAPI("wcslen", c_wcslen), CAPI("strcpy", c_strcpy), CAPI("wcscpy", c_wcscpy),
     CAPI("strcmp", c_strcmp), CAPI("strchr", c_strchr), CAPI("atoi", c_atoi), CAPI("abs", c_abs),
     CAPI("rand", c_rand), CAPI("srand", c_srand), CAPI("time", c_time), CAPI("_time32", c_time), CAPI("clock", c_clock),
+    /* CRT metadata/directory family (K6d): shared VFS index, both guest widths. */
+    CAPI("_stat32", xc_stat32), CAPI("_stat32i64", xc_stat32i64), CAPI("_stat64i32", xc_stat64i32), CAPI("_stat64", xc_stat64),
+    CAPI("_stat", xc_stat), CAPI("_stati64", xc_stati64), CAPI("_wstat32", xc_wstat32), CAPI("_wstat32i64", xc_wstat32i64),
+    CAPI("_wstat64i32", xc_wstat64i32), CAPI("_wstat64", xc_wstat64), CAPI("_wstat", xc_wstat), CAPI("_wstati64", xc_wstati64),
+    CAPI("_fstat32", xc_fstat32), CAPI("_fstat32i64", xc_fstat32i64), CAPI("_fstat64i32", xc_fstat64i32), CAPI("_fstat64", xc_fstat64),
+    CAPI("_fstat", xc_fstat), CAPI("_fstati64", xc_fstati64), CAPI("_findfirst32", xc_findfirst32), CAPI("_findfirst32i64", xc_findfirst32i64),
+    CAPI("_findfirst64i32", xc_findfirst64i32), CAPI("_findfirst64", xc_findfirst64), CAPI("_findfirst", xc_findfirst),
+    CAPI("_findfirsti64", xc_findfirsti64), CAPI("_findnext32", xc_findnext32), CAPI("_findnext32i64", xc_findnext32i64),
+    CAPI("_findnext64i32", xc_findnext64i32), CAPI("_findnext64", xc_findnext64), CAPI("_findnext", xc_findnext),
+    CAPI("_findnexti64", xc_findnexti64), CAPI("_wfindfirst32", xc_wfindfirst32), CAPI("_wfindfirst32i64", xc_wfindfirst32i64),
+    CAPI("_wfindfirst64i32", xc_wfindfirst64i32), CAPI("_wfindfirst64", xc_wfindfirst64), CAPI("_wfindfirst", xc_wfindfirst),
+    CAPI("_wfindfirsti64", xc_wfindfirsti64), CAPI("_wfindnext32", xc_wfindnext32), CAPI("_wfindnext32i64", xc_wfindnext32i64),
+    CAPI("_wfindnext64i32", xc_wfindnext64i32), CAPI("_wfindnext64", xc_wfindnext64), CAPI("_wfindnext", xc_wfindnext),
+    CAPI("_wfindnexti64", xc_wfindnexti64), CAPI("_findclose", xc_findclose), CAPI("_access", xc_access), CAPI("_waccess", xc_waccess),
+    CAPI("_access_s", xc_access_s), CAPI("_waccess_s", xc_waccess_s), CAPI("_mkdir", xc_mkdir), CAPI("_wmkdir", xc_wmkdir), CAPI("_rmdir", xc_rmdir),
+    CAPI("_wrmdir", xc_wrmdir), CAPI("_chdir", xc_chdir), CAPI("_wchdir", xc_wchdir), CAPI("remove", xc_remove), CAPI("_wremove", xc_wremove),
+    CAPI("_unlink", xc_remove), CAPI("_wunlink", xc_wremove), CAPI("rename", xc_rename_a), CAPI("_wrename", xc_rename_w),
+    CAPI("_getcwd", xc_getcwd_a), CAPI("_wgetcwd", xc_getcwd_w), CAPI("_getdcwd", xc_getdcwd_a), CAPI("_wgetdcwd", xc_getdcwd_w),
+    CAPI("_fullpath", xc_fullpath_a), CAPI("_wfullpath", xc_fullpath_w), CAPI("_getdrive", xc_getdrive), CAPI("_chdrive", xc_chdrive),
+    CAPI("_errno", xc_errno), CAPI("_get_errno", xc_get_errno), CAPI("_set_errno", xc_set_errno),
     CAPI("exit", c_exit), CAPI("_exit", c_exit), CSTUB("_cexit"), CSTUB("_c_exit"),
     CAPI("sprintf", c_sprintf), CAPI("swprintf", c_swprintf), CAPI("_snprintf", c_snprintf),
     CAPI("_initterm", c_initterm), CAPI("_initterm_e", c_initterm_e),
     CAPI("__getmainargs", c_getmainargs), CAPI("__wgetmainargs", c_getmainargs),
     CSTUB("__set_app_type"), CSTUB("_set_app_type"), CSTUB("__setusermatherr"), CSTUB("_setusermatherr"),
     CAPI("__p__fmode", c_p_fmode), CAPI("__p__commode", c_p_commode), CAPI("__p___argc", c_p_argc), CAPI("__p___argv", c_p_argv),
+    CAPI("__p__environ", c_p_environ), CAPI("__p__wenviron", c_p_environ), CAPI("_set_invalid_parameter_handler", c_set_invalid_parameter_handler),
+    CAPI("_set_new_mode", c_set_new_mode), CAPI("_fpreset", c_fpreset),
     CAPI("_controlfp", c_controlfp), CAPI("_controlfp_s", c_onexit_table), CAPI("_except_handler3", c_except_handler),
     CAPI("_except_handler4_common", c_except_handler), CAPI("_XcptFilter", c_XcptFilter), CAPI("_seh_filter_exe", c_XcptFilter),
     CAPI("_initialize_narrow_environment", c_onexit_table), CAPI("_configure_narrow_argv", c_onexit_table),
