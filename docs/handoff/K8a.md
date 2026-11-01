@@ -9,7 +9,8 @@ The same instruction requires stopping for a fresh session when context exceeds 
 that boundary; no context compaction was used. The next session must implement those four items, with a commit and
 regressions after each, not treat them as accepted exclusions or claim the target's first frame was reached.
 
-Branch `lane/K8a`, base `0838b00`. No push, game files, copied target evidence, system installs or dependencies.
+Branch `lane/K8a`, base `0838b00`; implementation checkpoint **`41c114d`**. All gates below were rerun after its
+independent-review corrections; the final handoff-only commit does not change executable sources. No push, game files, copied target evidence, system installs or dependencies.
 `docs/v03-status.md` is unchanged for integration ownership.
 
 ## Delivered
@@ -61,8 +62,8 @@ claimed. No physical iPhone/Safari/Firefox or game title/playability validation.
 | `npm run doctor` | ready, original/ empty |
 | `npm run lint` | pass: ESLint, clang + real GCC host checks, **28 example check-builds** |
 | `npm run typecheck` | pass |
-| `env -u PI_PROVIDER_EXTENSION npm test -- --maxWorkers=1` | **656 pass / 5 fail**, 60 files, no skips; 686.27 s |
-| `BGT_E2E_PORT=5218 BGT_REQUIRE_WEBGPU=1 npm run test:e2e` | **211 pass / 51 existing intentional skips / 0 failed / 0 flaky**, 5.6 min |
+| `env -u PI_PROVIDER_EXTENSION npm test -- --maxWorkers=1` | **656 pass / 5 fail**, 60 files, no skips; final 1,526.12 s |
+| `BGT_E2E_PORT=5218 BGT_REQUIRE_WEBGPU=1 npm run test:e2e` | **211 pass / 51 existing intentional skips / 0 failed / 0 flaky**, final 4.7 min |
 | `npm run leakcheck` | pass (rerun for staged commit) |
 | Every pipeline CLI oracle, explicit 300 frames | **24/24 identical, 7,200 pairs**, null errors, lifted interp=0, stubs=[] |
 
@@ -90,8 +91,13 @@ pixels. Both were fixed: fallback slots now receive identity selectors, clear di
 and the three instances have separate geometry/colors with additional left/right probes. Focused post-review
 checks: **44 unit tests / 2 files**, **3 browser tests**, cross-image equality. Its original source-review findings
 are in `/tmp/k8a-independent3.log`; it did not run tests or claim a Tier1 PASS. The author's gates are not delegated
-verification. Scratch logs `/tmp/k8a-{lint,typecheck,doctor-final,test2,e2e,leak}.log`, per-oracle
-`/tmp/k8a-oracle-<id>.log`, summary `/tmp/k8a-oracles.json`; those machine-local files are not durable guarantees.
+verification. A **fourth fresh independent session** subsequently reviewed **`41c114d`** and returned **PASS within
+read-only source-review scope**, explicitly verifying all three corrections and finding no remaining concrete defect
+in this checkpoint. It ran no builds/tests and did not certify Q21/Tier1 or first-frame/game compatibility. Result:
+`/tmp/k8a-independent-final.log`.
+
+Final exact-implementation scratch logs `/tmp/k8a-final-{doctor,lint,typecheck,test,e2e,leak}.log`, per-oracle
+`/tmp/k8a-final-oracle-<id>.log`, summary `/tmp/k8a-final-oracles.json`; machine-local files are not durable guarantees.
 Ignored `reports/e2e-results.json` and `reports/oracle-*.json` retain local results.
 
 ## Remaining work — exact next steps (reviewer-mandated order)
