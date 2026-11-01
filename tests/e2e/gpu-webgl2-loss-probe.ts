@@ -27,11 +27,19 @@ export async function lossProbe() {
   const pipe = [1, 1, 2, 3, 0, 0, 0xffffffff, 0, 0, 7, 0, 255, 255,
     7, 0, 0, 0, 7, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 15];
   op(OP.PIPELINE_CREATE, pipe);
+  op(OP.TEXTURE_CREATE_EX, [10,0,4,4,1,1,0,3]); op(OP.TEXTURE_CREATE_EX, [11,0,4,4,1,1,0,3]);
+  op(OP.TEXTURE_UPDATE_EX, [11,0,0,0,0,1,1,1,0,4], new Uint8Array([7,11,13,255]));
   const ext = gl.getExtension('WEBGL_lose_context')!;
   const lost = new Promise<void>(resolve => canvas.addEventListener('webglcontextlost', e => {
     e.preventDefault(); resolve();
   }, { once: true }));
   ext.loseContext(); await lost;
+  // A pass-local clear must not enter resource replay by virtue of its additive opcode number.
+  const clearCodes = [
+    gpu.execute({kind:'gpu',op:OP.PASS_BEGIN,words:[2,0,0,0,0,0,0,10,0,0,0,0,0,0,11,0,0,0,0,0,0]}),
+    gpu.execute({kind:'gpu',op:OP.CLEAR_BUFFER,words:[0xf0,1,0x3f800000,0,0,0x3f800000]}),
+    gpu.execute({kind:'gpu',op:OP.PASS_END,words:[]}),
+  ];
   let calls = 0, status = 0, log = '';
   gpu.execute({ kind: 'gpu', op: OP.SHADER_CREATE, words: [3, 1, 1, 0, vs.length, 3], source: vs,
     complete: (code, text) => { calls++; status = code; log = text ?? ''; } });
@@ -45,10 +53,12 @@ export async function lossProbe() {
     { once: true }));
   await new Promise(resolve => setTimeout(resolve, 50)); ext.restoreContext(); await restored;
   gpu.restore();
+  let restoredTexel: number[] = [];
+  gpu.execute({kind:'gpu',op:OP.TEXTURE_READBACK,words:[11,0,0,0,0,1,1,1,99],readback:data=>{restoredTexel=data?[...data]:[];}});
   gpu.beginFrame(4, 4, { x: 0, y: 0, w: 4, h: 4, scale: 1 });
   op(OP.PASS_BEGIN, [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
   op(OP.PIPELINE, [1]); op(OP.UNIFORM_BUFFER, [0, 1, 0, 16]); op(OP.DRAW, [3, 1, 0, 0]); op(OP.PASS_END);
   const pixel = new Uint8Array(4); gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
   ext.loseContext();
-  return { calls, failedCalls, status, log, update, errors, pixel: [...pixel] };
+  return { calls, failedCalls, status, log, update, clearCodes, restoredTexel, errors, pixel: [...pixel] };
 }

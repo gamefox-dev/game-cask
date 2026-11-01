@@ -17,6 +17,7 @@ const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool
 const vector = (n: number, t: string) => n === 1 ? scalar(t) :
   scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
+const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast'].includes(text) ? `bgt_internal_glsl_${text}` : text;
 
 function lex(source: string): Token[] {
   const result: Token[] = [];
@@ -35,8 +36,7 @@ function lex(source: string): Token[] {
     const text = m[0];
     if (!/^\s|^\/\//.test(text) && !text.startsWith('/*')) {
       // These are legal GLSL names but WGSL keywords. Rename at token level, including member/function uses.
-      const renamed = ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast'].includes(text);
-      result.push({ text: renamed ? `bgt_internal_glsl_${text}` : text, line });
+      result.push({ text: glslName(text), line });
     }
     line += (text.match(/\n/g) ?? []).length; offset = re.lastIndex;
   }
@@ -67,7 +67,7 @@ class GLSL {
   constructor(source: string, private stage: number, language: number, varyingNames?: string[],
     private depthSlots: ReadonlySet<number> = new Set(),
     private integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()) {
-    this.varyings = varyingNames ?? glslVaryings(source, stage);
+    this.varyings = (varyingNames ?? glslVaryings(source, stage)).map(glslName);
     const version = language === 1 ? /^\s*#version\s+330\s+core\s*(?:\r?\n|$)/ :
       /^\s*#version\s+300\s+es\s*(?:\r?\n|$)/;
     const match = source.match(version);
@@ -660,7 +660,7 @@ class GLSL {
         const wrap = (axis: string, mode: number) => mode === 0 ? `clamp(p.${axis},0,size.${axis}-1)` : mode === 1 ?
           `((p.${axis}%size.${axis})+size.${axis})%size.${axis}` :
           `min(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2),size.${axis}*2-1-(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2)))`;
-        this.helpers.push(`fn ${helper}(c:vec2f,l:f32)->${result} { let level=i32(clamp(floor(clamp(l,${literal(f(s[9]))},${literal(f(s[10]))})+0.5),0.0,f32(textureNumLevels(${t.code})-1u))); let size=vec2i(textureDimensions(${t.code},level)); let p=vec2i(floor(c*vec2f(size))); return textureLoad(${t.code},vec2i(${wrap('x',s[4])},${wrap('y',s[5])}),level); }`.replace(/(\d+)\.0\.0/g, '$1.0'));
+        this.helpers.push(`fn ${helper}(c:vec2f,l:f32)->${result} { let level=${s[3] === 0 ? `min(${Math.floor(f(s[9]))},i32(textureNumLevels(${t.code}))-1)` : `i32(clamp(floor(clamp(l,${literal(f(s[9]))},${literal(f(s[10]))})+0.5),0.0,f32(textureNumLevels(${t.code})-1u)))`}; let size=vec2i(textureDimensions(${t.code},level)); let p=vec2i(floor(c*vec2f(size))); return textureLoad(${t.code},vec2i(${wrap('x',s[4])},${wrap('y',s[5])}),level); }`.replace(/(\d+)\.0\.0/g, '$1.0'));
         let lodExpr = '0.0';
         if (name === 'textureLod') lodExpr = args[2].code;
         else if (name === 'textureGrad') lodExpr = `log2(max(length(${args[2].code}*vec2f(textureDimensions(${t.code}))),length(${args[3].code}*vec2f(textureDimensions(${t.code})))))`;

@@ -143,7 +143,7 @@ export class WebGL2Gpu implements GpuBackend {
       item.readback?.(undefined, -6);
       // A shader failed by device loss remains a CPU-side failed handle, never a live native module.
       // Recompiling that failed source on restore could abort before its queued deletion is reached.
-      if ((item.op <= OP.PIPELINE_DELETE || item.op >= OP.TEXTURE_CREATE_EX) &&
+      if ((item.op <= OP.PIPELINE_DELETE || (item.op >= OP.TEXTURE_CREATE_EX && item.op !== OP.CLEAR_BUFFER)) &&
         item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK) {
         this.deferred.push({ ...item, complete: undefined });
       }

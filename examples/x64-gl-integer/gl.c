@@ -6,7 +6,7 @@
 #define FUNCS \
  X(PFNGLGENTEXTURESPROC,glGenTextures) X(PFNGLDELETETEXTURESPROC,glDeleteTextures) \
  X(PFNGLBINDTEXTUREPROC,glBindTexture) X(PFNGLTEXIMAGE2DPROC,glTexImage2D) X(PFNGLTEXSUBIMAGE2DPROC,glTexSubImage2D) \
- X(PFNGLGETTEXIMAGEPROC,glGetTexImage) X(PFNGLTEXPARAMETERIPROC,glTexParameteri) X(PFNGLPIXELSTOREIPROC,glPixelStorei) \
+ X(PFNGLGETTEXIMAGEPROC,glGetTexImage) X(PFNGLTEXPARAMETERIPROC,glTexParameteri) X(PFNGLTEXPARAMETERFPROC,glTexParameterf) X(PFNGLPIXELSTOREIPROC,glPixelStorei) \
  X(PFNGLGETERRORPROC,glGetError) X(PFNGLCREATESHADERPROC,glCreateShader) X(PFNGLSHADERSOURCEPROC,glShaderSource) \
  X(PFNGLCOMPILESHADERPROC,glCompileShader) X(PFNGLGETSHADERIVPROC,glGetShaderiv) X(PFNGLGETSHADERINFOLOGPROC,glGetShaderInfoLog) \
  X(PFNGLCREATEPROGRAMPROC,glCreateProgram) X(PFNGLATTACHSHADERPROC,glAttachShader) X(PFNGLLINKPROGRAMPROC,glLinkProgram) \
@@ -139,7 +139,9 @@ int main(void) {
   int uns=!(i&1);unsigned n=i<6?1:i<12?2:4,bits=(i%6)<2?8:(i%6)<4?16:32;uint32_t exp[4],back[16]={0};expected(bits,n,uns,exp);
   GLenum ext=n==1?GL_RED_INTEGER:n==2?GL_RG_INTEGER:GL_RGBA_INTEGER,typ=uns?GL_UNSIGNED_INT:GL_INT;
   GLuint image;glGenTextures(1,&image);glActiveTexture(GL_TEXTURE5);glBindTexture(GL_TEXTURE_2D,image);
-  glTexImage2D(GL_TEXTURE_2D,0,fmts[i],2,2,0,ext,typ,0);err(GL_NO_ERROR,"integer allocation");
+  glTexImage2D(GL_TEXTURE_2D,0,fmts[i],2,2,0,ext,typ,0);
+  glTexImage2D(GL_TEXTURE_2D,1,fmts[i],1,1,0,ext,typ,0);err(GL_NO_ERROR,"integer allocation");
+  glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MIN_LOD,.75f); /* NONE must pin floor(.75)=0, not round to mip 1. */
   glTexSubImage2D(GL_TEXTURE_2D,0,1,0,1,1,GL_RGBA_INTEGER,typ,uns?(const void*)raw:(const void*)neg);err(GL_NO_ERROR,"integer conversion upload");
   glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA_INTEGER,typ,back);check("exact converted storage",equal4(back+4,exp));
   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
