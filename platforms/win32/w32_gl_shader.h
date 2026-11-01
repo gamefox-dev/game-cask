@@ -48,9 +48,11 @@ static int collect(Program *p, const char *src) {
         if (!eq(next, ";")) return 0;
         Uniform *u = &p->u[p->nu++]; copy(u->name, name, w32_slen(name) + 1);
         copy(u->type, type, w32_slen(type) + 1);
-        if (eq(type, "sampler2D") || eq(type, "sampler2DShadow")) {
+        if (eq(type, "sampler2D") || eq(type, "sampler2DShadow") || eq(type, "sampler3D") ||
+            eq(type, "sampler2DArray")) {
             uint32_t slot = 0; for (uint32_t j = 0; j < i; j++) if (p->u[j].sampler) slot++;
             if (slot == 8) return 0; u->sampler = slot + 1;
+            u->dim = eq(type, "sampler3D") ? 1 : eq(type, "sampler2DArray") ? 2 : 0; u->shadow = eq(type, "sampler2DShadow");
         } else {
             u->size = type_size(type); if (!u->size) return 0;
             uint32_t off = 16;
@@ -59,6 +61,21 @@ static int collect(Program *p, const char *src) {
             u->offset = (off + align - 1) & ~(align - 1); if (u->offset + u->size > 4096) return 0;
         }
     } return 1;
+}
+/* Number of fragment colour outputs (highest explicit layout location + 1). */
+static uint32_t fragment_outputs(const char *src) {
+    char t[128]; const char *s = src; uint32_t loc = 0xffffffffu, best = 0;
+    while (*s) {
+        s = token(s, t, sizeof t); if (!t[0]) break;
+        if (eq(t, ";") || eq(t, "{") || eq(t, "}")) loc = 0xffffffffu;
+        else if (eq(t, "location")) {
+            char eqs[8], num[16]; const char *r = token(s, eqs, sizeof eqs);
+            if (eq(eqs, "=")) { r = token(r, num, sizeof num); uint32_t v = 0;
+                for (const char *c = num; *c >= '0' && *c <= '9'; c++) v = v * 10 + (uint32_t)(*c - '0');
+                loc = v; s = r; }
+        } else if (eq(t, "out") && loc != 0xffffffffu) { if (loc + 1 > best) best = loc + 1; loc = 0xffffffffu; }
+    }
+    return best;
 }
 static char *translate(Program *p, Shader *shader) {
     char *out = x86_alloc(1048576); if (!out) return 0; uint32_t n = 0;
@@ -79,7 +96,8 @@ static char *translate(Program *p, Shader *shader) {
     /* Lower coordinates as an ordinary function: §13 GLSL need not implement preprocessing.
      * Unlike the former macros this also evaluates side-effecting UV expressions once. */
     text(out, &n, "vec2 bgt_gl_uv(vec2 uv){return vec2(uv.x,1.0-uv.y);}\n");
-    uint32_t depth = 0, sampling[128] = {0}, pending_sample = 0;
+    text(out, &n, "vec3 bgt_gl_uv3(vec3 uv){return vec3(uv.x,1.0-uv.y,uv.z);}\n");
+    uint32_t depth = 0, sampling[128] = {0}, pending_sample = 0; const char *helper[128];
     while (*s && (uint8_t)*s <= 32) s++;
     if (*s == '#') { while (*s && *s != '\n') s++; }
     while (*s) {
@@ -96,10 +114,10 @@ static char *translate(Program *p, Shader *shader) {
         if (!ident(*s)) {
             if (*s == '(') {
                 if (++depth >= 128) return 0;
-                sampling[depth] = pending_sample; pending_sample = 0;
+                sampling[depth] = pending_sample; pending_sample = 0; helper[depth] = "bgt_gl_uv";
             } else if (*s == ',' && depth && sampling[depth]) {
                 if (sampling[depth] == 1) {
-                    text(out, &n, ",bgt_gl_uv("); sampling[depth] = 2; s++; continue;
+                    text(out, &n, ","); text(out, &n, helper[depth]); text(out, &n, "("); sampling[depth] = 2; s++; continue;
                 }
                 if (sampling[depth] == 2) { text(out, &n, ")"); sampling[depth] = 3; }
             } else if (*s == ')' && depth) {
@@ -122,7 +140,10 @@ static char *translate(Program *p, Shader *shader) {
         else {
             int replaced = 0;
             for (uint32_t i = 0; i < p->nu; i++) if (p->u[i].sampler && eq(t, p->u[i].name)) {
-                text(out, &n, "bgt_t"); number(out, &n, p->u[i].sampler - 1); replaced = 1; break;
+                text(out, &n, "bgt_t"); number(out, &n, p->u[i].sampler - 1); replaced = 1;
+                if (depth && sampling[depth] == 1 && p->u[i].dim) helper[depth] = "bgt_gl_uv3";
+                if (depth && sampling[depth] == 1 && p->u[i].shadow) helper[depth] = "bgt_gl_uv3";
+                break;
             }
             for (uint32_t i = 0; !replaced && i < p->nb; i++) if (eq(t, p->block[i].name)) {
                 text(out, &n, "bgt_u"); number(out, &n, i + 1); replaced = 1;
@@ -221,7 +242,7 @@ static uint32_t api_LinkProgram(void) {
     if (!collect(p, shaders[p->vs].source) || !collect(p, shaders[p->fs].source)) {
         copy(p->log, "Unsupported or inconsistent uniform layout", 42); return 0;
     }
-    invalidate_pipelines();
+    invalidate_pipelines(); p->nout = fragment_outputs(shaders[p->fs].source);
     if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu); p->vgpu = p->fgpu = 0;
     if (!compile_module(p, &shaders[p->vs], &p->vgpu, p->log) ||
         !compile_module(p, &shaders[p->fs], &p->fgpu, p->log)) return 0;

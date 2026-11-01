@@ -861,6 +861,8 @@ const char *w32_metrics_json(void) {
     jkv("gl_pipelines", w32_gl_pipelines);
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
+    jkv("gl_approximations", w32_gl_approximations);
+    jput("\"gl_approximation_kinds\":"); jput(w32_gl_approximations_json()); jput(",");
     jkv("gdi_ops", w32_m.gdi_ops);
     jkv("chrome_ops", w32_m.chrome_ops);
     jkv("gdi_approx_rop", w32_m.gdi_approx_rop);

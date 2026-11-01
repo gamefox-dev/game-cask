@@ -25,15 +25,38 @@ static uint32_t query(uint32_t key, int32_t *v) {
     case 0x9126: v[0] = 1; break; case 0xd33: v[0] = 4096; break; case 0x8869: v[0] = 16; break;
     case 0x8b4d: case 0x8872: case 0x8a2f: v[0] = 8; break;
     case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = 65536; break;
-    case 0x8cdf: case 0x8824: v[0] = 1; break;
+    case 0x8cdf: case 0x8824: v[0] = 4; break;
+    case 0x8073: case 0x88ff: v[0] = 256; break; case 0x84e8: v[0] = 4096; break;
+    case 0x84fd: case 0x8d57: case 0x910e: case 0x910f: case 0x9110: v[0] = 0; break;
+    case 0x806a: v[0] = (int32_t)tex_bind[1][active_unit]; break;
+    case 0x8c1d: v[0] = (int32_t)tex_bind[2][active_unit]; break;
+    case 0x8caa: v[0] = (int32_t)fbo_read; break;
+    case 0xc01: v[0] = (int32_t)(fbo ? fbos[fbo].draw[0] : dfb_draw); break;
+    case 0x8825: case 0x8826: case 0x8827: case 0x8828:
+        v[0] = (int32_t)(fbo ? fbos[fbo].draw[key - 0x8825] : key == 0x8825 ? dfb_draw : 0); break;
+    case 0xc02: v[0] = (int32_t)(fbo_read ? fbos[fbo_read].read : dfb_read); break;
+    case 0xd52: case 0xd53: case 0xd54: case 0xd55: case 0xd56: case 0xd57: {
+        /* Bits of the currently bound draw framebuffer's buffers. */
+        Target tg; resolve_fbo(fbo, 0, &tg);
+        if (!fbo) { v[0] = key == 0xd56 ? 24 : key == 0xd57 ? 8 : 8; break; }
+        v[0] = 0;
+        if (tg.status == 0x8cd5 && key <= 0xd55 && tg.ncolor && tg.color[0].fmt) v[0] = tg.color[0].fmt->bits[key - 0xd52];
+        else if (tg.status == 0x8cd5 && key == 0xd56 && tg.has_depth && tg.ds.fmt) v[0] = tg.ds.fmt->bits[4];
+        else if (tg.status == 0x8cd5 && key == 0xd57 && tg.has_stencil && tg.ds.fmt) v[0] = tg.ds.fmt->bits[5];
+        break; }
     case 0x8b8d: v[0] = (int32_t)program; break; case 0x85b5: v[0] = (int32_t)vao; break;
     case 0x8894: v[0] = (int32_t)array; break; case 0x8895: v[0] = (int32_t)vaos[vao].element; break;
-    case 0x8a28: v[0] = (int32_t)uniform; break; case 0x8069: v[0] = (int32_t)tex[active_unit]; break;
+    case 0x8a28: v[0] = (int32_t)uniform; break; case 0x8069: v[0] = (int32_t)tex_bind[0][active_unit]; break;
     case 0x84e0: v[0] = (int32_t)active_unit + 0x84c0; break; case 0x8ca6: v[0] = (int32_t)fbo; break;
-    case 0x8ca7: v[0] = (int32_t)rbo; break; case 0xcf5: v[0] = (int32_t)unpack; break;
-    case 0xd05: v[0] = (int32_t)pack; break; case 0xcf2: v[0] = (int32_t)row_length; break;
+    case 0x8ca7: v[0] = (int32_t)rbo; break; case 0xcf5: v[0] = (int32_t)unpack_st.align; break;
+    case 0xd05: v[0] = (int32_t)pack_st.align; break; case 0xcf2: v[0] = (int32_t)unpack_st.row_length; break;
+    case 0xd02: v[0] = (int32_t)pack_st.row_length; break; case 0xd03: v[0] = (int32_t)pack_st.skip_rows; break;
+    case 0xd04: v[0] = (int32_t)pack_st.skip_pixels; break; case 0x806d: v[0] = (int32_t)unpack_st.skip_images; break;
+    case 0x806e: v[0] = (int32_t)unpack_st.image_height; break; case 0x806b: v[0] = (int32_t)pack_st.skip_images; break;
+    case 0x806c: v[0] = (int32_t)pack_st.image_height; break;
+    case 0xcf0: v[0] = (int32_t)unpack_st.swap; break; case 0xcf1: v[0] = (int32_t)unpack_st.lsb; break;
+    case 0xd00: v[0] = (int32_t)pack_st.swap; break; case 0xd01: v[0] = (int32_t)pack_st.lsb; break;
     case 0xba2: copy(v, viewport, 16); return 4; case 0xc10: copy(v, scissor, 16); return 4;
-    case 0xd56: v[0] = 24; break; case 0xd57: v[0] = 8; break;
     case 0xb74: v[0] = (int32_t)depth_compare + 0x200; break;
     case 0x80c9: case 0x80cb: {
         static const int32_t enums[] = {0,1,0x300,0x301,0x306,0x307,0x302,0x303,0x304,0x305,0x8001,0x8002};
@@ -41,7 +64,7 @@ static uint32_t query(uint32_t key, int32_t *v) {
     }
     case 0xb72: v[0] = (int32_t)depth_write; break;
     case 0xb91: v[0] = (int32_t)clear_stencil; break;
-    case 0xcf3: v[0] = (int32_t)skip_rows; break; case 0xcf4: v[0] = (int32_t)skip_pixels; break;
+    case 0xcf3: v[0] = (int32_t)unpack_st.skip_rows; break; case 0xcf4: v[0] = (int32_t)unpack_st.skip_pixels; break;
     default: { uint32_t *p = capability(key); if (!p) { fail(BAD_ENUM); return 0; } v[0] = (int32_t)*p; }
     } return 1;
 }
@@ -73,11 +96,11 @@ static uint32_t api_GetBufferSubData(void) {
     else for (uint32_t i = 0; i < ARG(2); i++) x86_wr8(ARG(3) + i, b->data[ARG(1) + i]); return 0;
 }
 static uint32_t api_IsBuffer(void) { return ARG(0) < N && buffers[ARG(0)].gpu != 0; }
-static uint32_t api_IsTexture(void) { return ARG(0) < N && textures[ARG(0)].gpu != 0; }
+static uint32_t api_IsTexture(void) { return ARG(0) && ARG(0) < N && textures[ARG(0)].kind1 != 0; }
 static uint32_t api_IsVertexArray(void) { return ARG(0) < N && vaos[ARG(0)].used != 0; }
 static uint32_t api_IsShader(void) { return ARG(0) < N && shaders[ARG(0)].used != 0; }
 static uint32_t api_IsProgram(void) { return ARG(0) < N && programs[ARG(0)].used != 0; }
-static uint32_t api_IsFramebuffer(void) { return ARG(0) < N && fbos[ARG(0)].used != 0; }
+static uint32_t api_IsFramebuffer(void) { return ARG(0) && ARG(0) < N && fbos[ARG(0)].used != 0; }
 static uint32_t api_IsRenderbuffer(void) { return ARG(0) < N && rbos[ARG(0)].used != 0; }
 static uint32_t api_IsSampler(void) { return ARG(0) < N && samplers[ARG(0)].used != 0; }
 static uint32_t api_ChoosePixelFormat(void) { return ARG(0) && ARG(1) ? 1 : 0; }

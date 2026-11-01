@@ -55,7 +55,7 @@ export function translateShader(source: string, stage: number, language: number)
   }
   const uniforms = /\buniform\s+(?:(?:lowp|mediump|highp)\s+)?(\w+)\s+([^;{]+);/g;
   for (const m of clean.matchAll(uniforms)) {
-    if (!/^(sampler2D|sampler2DShadow)$/.test(m[1]) || !/^bgt_t[0-7]$/.test(m[2].trim())) {
+    if (!/^(sampler2D|sampler2DShadow|sampler3D|sampler2DArray)$/.test(m[1]) || !/^bgt_t[0-7]$/.test(m[2].trim())) {
       throw new Error(`Illegal non-block uniform ${m[2]}`);
     }
   }
@@ -68,7 +68,8 @@ export function translateShader(source: string, stage: number, language: number)
   const body = clean.replace(/^\s*#version[^\n]*(?:\n|$)/, '')
     .replace(/\bmain\s*\(/g, 'bgt_internal_main(');
   const header = '#version 300 es\nprecision highp float;\nprecision highp int;\n'+
-    'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp usampler2D;\n';
+    'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp usampler2D;\n'+
+    'precision highp sampler3D;\nprecision highp sampler2DArray;\n';
   if (stage === 1) return header + `
 uniform vec4 bgt_internal_view_transform;
 out vec3 bgt_internal_clip;

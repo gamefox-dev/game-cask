@@ -549,7 +549,7 @@ They are distinct from legacy TEX_* handles: there is no implicit legacy/GPU tex
 Deleting allows immediate handle reuse; already queued commands still refer to the prior generation by stream order.
 CREATE of an invalid handle → E_INVALID; duplicate → E_STATE; missing resource on use/update/delete → E_NOT_FOUND.
 Resources persist across submits/frames. Buffers start zero; textures start color zero / depth 1 / stencil 0 at every
-mip. There is no mip generation, array/cube texture, multisampling, storage buffer or compute interface in this layer.
+mip. There is no cube texture, multisampling, storage buffer or compute interface in this layer. 3D / 2D-array textures, extra formats, LOD-aware samplers, texture read-back and GPU mip generation are the additive §13.7 operations.
 Profiles implement these only by general transformations or report unsupported; never silently reinterpret them.
 
 Framing validation is still all-or-nothing. Semantic failures skip **only** the failing command, preserve prior state,
@@ -563,7 +563,7 @@ bounds → E_BOUNDS (addition/multiplication is checked without u32 wrapping). D
 Known unsupported language or depth upload → E_UNSUPPORTED. Backend allocation/device errors → E_IO and diagnostic;
 shader errors use the request result below. A well-shaped but unsupported opcode still uses the legacy E_UNSUPPORTED.
 
-All resource operations (0x40..0x4b) are **outside** a GPU pass. Pipeline binding/dynamic state/buffer binding/draws
+All resource operations (0x40..0x4b and the §13.7 operations 0x59..0x5d) are **outside** a GPU pass. Pipeline binding/dynamic state/buffer binding/draws
 (0x4e..0x58) are **inside** a pass. No legacy command, including READBACK and 2D state/resource operations, may occur
 inside a GPU pass: E_STATE, no effect. Resource operations during a pass, nested begin, end outside a pass, draws
 without a pipeline/required bindings, attachment feedback, incompatible pipeline targets → E_STATE. A pass must end
@@ -830,3 +830,65 @@ all C encoder output, including inline tails. `tests/unit/gpu-commands.test.ts` 
 structure/ranges/handles/state/ordering/shader results using a recording backend. `requests.test.ts` retains the
 unchanged v0.2 module regression and deferred request tests. Browser GPU rendering tests are the backend lanes'
 responsibility; this section alone does not claim GPU pixels or an OpenGL 3.3 profile are implemented.
+
+### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5d)
+
+Added by lane K6a for GL 3.3 texture/framebuffer semantics. They need `CAP_GPU` exactly like §13 (otherwise
+`E_UNSUPPORTED` after framing validation) and are implemented by both the WebGL 2 and WebGPU backends. Existing
+opcodes, layouts, the 80-byte limits struct and all legacy behaviour are unchanged; legacy `TEXTURE_CREATE`,
+`TEXTURE_UPDATE` and `SAMPLER_CREATE` remain valid and behave as the matching extended form (2D, wrap_w = clamp,
+LOD range [0, 1000]). Handles share the existing texture/sampler namespaces. C layouts are
+`bgt_gpu_texture_create_ex_t` etc. in `bgt_gpu.h`, encoders `bgt_cmd_gpu_*` in `bgt_gpu_cmd.h`, TS mirrors in
+`GPU_OP`, `GPU_LAYOUT`, `GPU.DIM_*`, `GPU.FORMAT_*` and `GPU_LIMITS.volumeDimension/arrayLayers`.
+
+| Opcode | Name | Bytes | Payload, in order |
+|---|---|---:|---|
+| 0x59 | TEXTURE_CREATE_EX | 32 | handle, dimension, width, height, depth, mips, format, usage |
+| 0x5a | TEXTURE_UPDATE_EX | 40 | handle, mip, x, y, z, width, height, depth, data_ptr, data_len |
+| 0x5b | SAMPLER_CREATE_EX | 44 | handle, min_filter, mag_filter, mip_filter, wrap_u, wrap_v, wrap_w, compare_enable, compare, f32 min_lod, f32 max_lod |
+| 0x5c | TEXTURE_READBACK | 36 | handle, mip, x, y, z, width, height, depth, request |
+| 0x5d | TEXTURE_GENERATE_MIPS | 8 | handle, base_level |
+
+**New formats** (valid only through `TEXTURE_CREATE_EX`; the legacy op still rejects them): RGB10A2=7 (unorm 10/10/10/2,
+LE u32 `r | g<<10 | b<<20 | a<<30`, 4 B), R16F=8 (2 B), RG16F=9 (4 B), R32F=10 (4 B), RG32F=11 (8 B), RGBA32F=12
+(16 B). All are sampleable and color-attachable. R32F/RG32F/RGBA32F filter linearly and blend only where the backend has
+the native capability (WebGL 2 `OES_texture_float_linear`/`EXT_float_blend`, WebGPU `float32-filterable`/
+`float32-blendable`, requested best-effort at device creation); otherwise the offending create/binding/pipeline fails with
+`E_IO` and a diagnostic, never a silent fallback.
+
+**TEXTURE_CREATE_EX.** `dimension` 2D=0, 3D=1, 2D_ARRAY=2. For 2D `depth` must be 1 (`E_INVALID`). 3D width/height/depth
+and array layers are <=256 (`E_LIMIT`; fixed portable ceilings, array width/height remain <=4096). 3D and array textures
+are color-only and SAMPLED-only: depth formats or ATTACHMENT usage → `E_UNSUPPORTED` (no layered attachments). Mip
+extents: width/height halve (min 1); 3D depth halves (min 1); array layers are constant. `mips` is
+`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Budget counts every texel of every mip. Textures
+start zero (depth 1 / stencil 0 for depth formats).
+
+**TEXTURE_UPDATE_EX.** Color formats only (`E_UNSUPPORTED` for depth). The region `[x,x+width) × [y,y+height) × [z,z+depth)`
+must fit the selected mip (`E_BOUNDS`; `z` is a slice for 3D and a layer for arrays, always 0/1 for 2D).
+`data_len` is exactly `width*height*depth*bytes_per_texel`, rows tightly packed top-to-bottom, slices in order.
+
+**SAMPLER_CREATE_EX.** `wrap_w` applies to 3D textures. LOD values are finite, `0 <= min_lod <= max_lod <= 1000`.
+`mip_filter` NONE reads exactly level `floor(min_lod)` (level 0 for legacy samplers); otherwise the computed LOD
+is clamped to `[min_lod, max_lod]` and then to the allocated levels. Comparison samplers still require a depth texture.
+Texture dimension must match what the shader declares for the slot (`sampler2D`/`sampler2DShadow` → 2D, `sampler3D` → 3D,
+`sampler2DArray` → 2D_ARRAY); a mismatch is a backend error (diagnostic, draw skipped). Array coordinates are
+`vec3(u, v, layer)` with the layer rounded to nearest and clamped; the GLSL330/ES300 and WGSL conventions are in §13.5
+extended with `sampler3D`, `sampler2DArray` (WGSL `texture_3d<f32>`, `texture_2d_array<f32>`). BGT has no LOD bias,
+border colour or swizzle; profiles that expose those GL features must approximate and say so.
+
+**TEXTURE_READBACK.** Color formats only (`E_UNSUPPORTED` for depth; `E_LIMIT` above 8 MiB result). Reserves `request`
+from the §12 allocator and, in stream order, returns the stored texels of the region as `width*height*depth*bytes`
+tightly packed bytes (rows top-first, slices in order, storage layout of the format; sRGB bytes are the encoded values,
+floats are exact binary16/binary32). Ordinary request visibility rules apply (visible after a later update boundary).
+It observes all earlier passes and updates. This replaces the old "no GPU texture read-back" rule for textures only; the
+legacy screen READBACK is unchanged.
+
+**TEXTURE_GENERATE_MIPS.** Regenerates levels `base_level+1 .. mips-1` from level `base_level` by 2×2(×2) box filtering
+(sRGB averaged in linear space; odd extents are implementation rounded). Color formats only. WebGL 2 uses
+`generateMipmap`; WebGPU uses render passes (2D/array) or a CPU box filter over its upload shadow (3D, which can never be
+a render target). On device restoration, generated levels are recomputed from the restored uploads; rendered contents are
+lost as for all attachments.
+
+Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
+accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
+cross-backend tolerance, see `docs/handoff/K6a.md`).

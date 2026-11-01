@@ -195,6 +195,13 @@ class GLSL {
   private uniform(layout: Map<string, number>): void {
     if (layout.has('binding') || layout.has('set')) this.fail('native bindings are forbidden; use bgt_uS/bgt_tS');
     const name = this.name();
+    if (name === 'sampler3D' || name === 'sampler2DArray') {
+      const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
+      this.need(';'); const s = Number(slot[1]), volume = name === 'sampler3D';
+      this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: ${volume ? 'texture_3d<f32>' : 'texture_2d_array<f32>'};`,
+        `@group(1) @binding(${2 * s + 1}) var ${n}_sampler: sampler;`);
+      this.variables.set(n, { code: n, type: volume ? 'texture3d' : 'texture2darray' }); return;
+    }
     if (name === 'sampler2D' || name === 'sampler2DShadow') {
       const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
       this.need(';'); const s = Number(slot[1]), compare = name === 'sampler2DShadow';
@@ -422,7 +429,36 @@ class GLSL {
     }
     if (['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(name)) {
       const [t, uv, lod] = args;
-      if (!t || !['texture', 'depth', 'depthColor'].includes(t.type)) this.fail('texture requires bgt_tS');
+      if (!t || !['texture', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
+        this.fail('texture requires bgt_tS');
+      }
+      if (t.type === 'texture3d') {
+        if (name === 'textureSize') return { code: `vec3i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec3i' };
+        if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: 'vec4f' };
+        const fn3 = name === 'textureLod' ? 'textureSampleLevel' : name === 'textureGrad' ? 'textureSampleGrad' : 'textureSample';
+        return { code: `${fn3}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+      }
+      if (t.type === 'texture2darray') {
+        const helper = `bgt_internal_array_${this.temporary++}`, layer = `clamp(i32(floor(c.z + 0.5)), 0, i32(textureNumLayers(${t.code})) - 1)`;
+        if (name === 'textureSize') return { code: `vec3i(vec2i(textureDimensions(${t.code}, ${uv.code})), i32(textureNumLayers(${t.code})))`, type: 'vec3i' };
+        if (name === 'texelFetch') {
+          this.helpers.push(`fn ${helper}(p: vec3i, l: i32) -> vec4f { return textureLoad(${t.code}, p.xy, p.z, l); }`);
+          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
+        }
+        if (name === 'textureGrad') {
+          this.helpers.push(`fn ${helper}(c: vec3f, dx: vec2f, dy: vec2f) -> vec4f {` +
+            ` return textureSampleGrad(${t.code}, ${t.code}_sampler, c.xy, ${layer}, dx, dy); }`);
+          return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+        }
+        if (name === 'textureLod') {
+          this.helpers.push(`fn ${helper}(c: vec3f, l: f32) -> vec4f {` +
+            ` return textureSampleLevel(${t.code}, ${t.code}_sampler, c.xy, ${layer}, l); }`);
+          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
+        }
+        this.helpers.push(`fn ${helper}(c: vec3f) -> vec4f {` +
+          ` return textureSample(${t.code}, ${t.code}_sampler, c.xy, ${layer}); }`);
+        return { code: `${helper}(${uv.code})`, type: 'vec4f' };
+      }
       if (name === 'textureSize') return { code: `vec2i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec2i' };
       if (name === 'texelFetch') {
         const code = `textureLoad(${t.code}, ${uv.code}, ${lod.code})`;
@@ -478,7 +514,7 @@ export function translateGLSL(source: string, stage: number, language: number, v
 
 export interface ShaderBinding {
   group: number; binding: number;
-  type: 'uniform' | 'texture' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering';
+  type: 'uniform' | 'texture' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray';
 }
 export function shaderBindings(source: string, activeOnly = false): ShaderBinding[] {
   const clean = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
@@ -491,10 +527,12 @@ export function shaderBindings(source: string, activeOnly = false): ShaderBindin
     if (!group || !binding) throw new Error('WGSL: reflection requires literal @group and @binding numbers');
     const g = Number(group[1]), b = Number(binding[1]);
     const type = m[2]?.trim() === 'uniform' ? 'uniform' : m[3].trim() === 'texture_depth_2d' ? 'depth' :
-      /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' : m[3].trim() === 'sampler' ? 'sampler' :
+      /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' :
+      /^texture_3d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture3d' :
+      /^texture_2d_array\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture2darray' : m[3].trim() === 'sampler' ? 'sampler' :
       m[3].trim() === 'sampler_comparison' ? 'comparison' : undefined;
     if (!type || (g === 0 ? type !== 'uniform' || b > 7 : g !== 1 || b > 15 ||
-      ((type === 'texture' || type === 'depth') ? b % 2 !== 0 :
+      ((type === 'texture' || type === 'depth' || type === 'texture3d' || type === 'texture2darray') ? b % 2 !== 0 :
         (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
       throw new Error(`WGSL binding @group(${g}) @binding(${b}) violates §13.5`);
     const name = /var\s*(?:<[^>]+>\s*)?(\w+)/.exec(m[0])![1];

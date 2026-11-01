@@ -1,0 +1,10 @@
+{
+  "id": "x64-gl-fbo", "name": "OpenGL 3.3 texture and framebuffer contracts (CC0)", "private": false, "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86_64-windows-gnu", "crt": true, "sources": ["gl.c"], "out": "gl.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32"]},
+    "modules": [{"from": "./build/gl.exe", "name": "gl.exe", "main": true}], "width": 320, "height": 200
+  },
+  "touch": {"dpad": false, "buttons": []}
+}

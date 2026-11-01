@@ -69,6 +69,11 @@ describe('GPU command validation', () => {
       .gpu(O.BLEND_CONSTANT, [F(0.25), F(0.5), F(0.75), F(1)])
       .gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
       .gpu(O.PASS_END, []).clear(0xff223344)).errors).toEqual([]);
+    expect(t.run(new CommandEncoder() // §13.7 operations, all outside passes
+      .gpu(O.TEXTURE_CREATE_EX, [2, 0, 4, 4, 1, 1, 0, 1]).gpu(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4])
+      .gpu(O.SAMPLER_CREATE_EX, [2, 1, 1, 2, 0, 1, 0, 0, 7, F(0), F(4)]).gpu(O.TEXTURE_GENERATE_MIPS, [2, 0])
+      .gpu(O.TEXTURE_READBACK, [2, 0, 0, 0, 0, 1, 1, 1, 5]).gpu(O.TEXTURE_DELETE, [2]).gpu(O.SAMPLER_DELETE, [2])).errors)
+      .toEqual([]);
     expect(t.run(new CommandEncoder().gpu(O.PIPELINE_DELETE, [1])
       .gpu(O.SHADER_DELETE, [1]).gpu(O.SHADER_DELETE, [2]).gpu(O.SAMPLER_DELETE, [1])
       .gpu(O.TEXTURE_DELETE, [1]).gpu(O.BUFFER_DELETE, [1])).errors).toEqual([]);
@@ -298,5 +303,91 @@ describe('GPU command validation', () => {
     expect(t.send(O.SHADER_CREATE, [1, 1, 1, 16384, source.length, 1]).status).toBe(A.E_UNSUPPORTED);
     expect(t.ctx.gpu.shaders.size).toBe(0);
     expect(t.requests.status(1)).toBe(A.E_NOT_FOUND);
+  });
+
+  describe('§13.7 texture and sampler extensions', () => {
+    const create = (h: number, dim: number, w: number, hh: number, d: number, mips: number, format: number, usage = 1) =>
+      [h, dim, w, hh, d, mips, format, usage];
+    it('accepts 3D / 2D-array / new-format textures, extended samplers, mip generation and read-back', () => {
+      const t = setup();
+      expect(t.run(new CommandEncoder()
+        .gpu(O.TEXTURE_CREATE_EX, create(1, A.GPU.DIM_3D, 4, 4, 4, 3, A.GPU.FORMAT_RGBA8))
+        .gpu(O.TEXTURE_CREATE_EX, create(2, A.GPU.DIM_2D_ARRAY, 8, 8, 3, 4, A.GPU.FORMAT_R16F))
+        .gpu(O.TEXTURE_CREATE_EX, create(3, A.GPU.DIM_2D, 8, 8, 1, 1, A.GPU.FORMAT_RGB10A2, 3))
+        .gpu(O.TEXTURE_CREATE_EX, create(4, A.GPU.DIM_2D, 2, 2, 1, 2, A.GPU.FORMAT_RGBA32F))
+        .gpu(O.TEXTURE_UPDATE_EX, [1, 1, 0, 0, 1, 2, 2, 1, 16384, 16])
+        .gpu(O.TEXTURE_UPDATE_EX, [2, 0, 1, 1, 2, 2, 2, 1, 16384, 8])
+        .gpu(O.SAMPLER_CREATE_EX, [1, 1, 1, 2, 0, 1, 2, 0, 7, F(0.5), F(4)])
+        .gpu(O.TEXTURE_GENERATE_MIPS, [1, 0]).gpu(O.TEXTURE_GENERATE_MIPS, [2, 1])).errors).toEqual([]);
+      const bytes = t.ctx.gpu!.textures.get(1)!.bytes;
+      expect(bytes).toBe(4 * 4 * 4 * 4 + 2 * 2 * 2 * 4 + 1 * 1 * 1 * 4); // depth halves per mip for 3D
+      expect(t.ctx.gpu!.textures.get(2)!.bytes).toBe((64 + 16 + 4 + 1) * 3 * 2); // layers constant
+      // Read-back reserves the request and delivers exactly once through the §12 allocator.
+      const before = t.frame.items.length;
+      expect(t.run(new CommandEncoder().gpu(O.TEXTURE_READBACK, [1, 1, 0, 0, 0, 2, 2, 2, 9])).errors).toEqual([]);
+      const item = t.frame.items[before] as GpuItem;
+      expect(item.op).toBe(O.TEXTURE_READBACK);
+      item.readback!(new Uint8Array(2 * 2 * 2 * 4).fill(7));
+      t.requests.advance();
+      expect(t.requests.status(9)).toBe(1);
+      const out = new Uint8Array(64); expect(t.requests.read(9, out)).toBe(32); expect(out[0]).toBe(7);
+    });
+    it.each([
+      ['dimension', [1, 3, 4, 4, 1, 1, 0, 1], A.E_INVALID],
+      ['2D with depth', [1, 0, 4, 4, 2, 1, 0, 1], A.E_INVALID],
+      ['format', [1, 0, 4, 4, 1, 1, 13, 1], A.E_INVALID],
+      ['volume edge', [1, 1, 4, 4, 257, 1, 0, 1], A.E_LIMIT],
+      ['array layers', [1, 2, 4, 4, 257, 1, 0, 1], A.E_LIMIT],
+      ['3D mips', [1, 1, 4, 4, 4, 4, 0, 1], A.E_INVALID],
+      ['3D depth format', [1, 1, 4, 4, 4, 1, 6, 1], A.E_UNSUPPORTED],
+      ['layered attachment', [1, 2, 4, 4, 2, 1, 0, 3], A.E_UNSUPPORTED],
+      ['usage', [1, 0, 4, 4, 1, 1, 0, 4], A.E_INVALID],
+    ])('rejects TEXTURE_CREATE_EX %s', (_name, words, error) => {
+      expect(setup().send(O.TEXTURE_CREATE_EX, words as number[]).status).toBe(error);
+    });
+    it('rejects invalid updates, samplers, read-backs, mip generation and state', () => {
+      const t = setup();
+      expect(t.send(O.TEXTURE_CREATE, [5, 4, 4, 1, 0, 1]).status).toBe(0);
+      expect(t.send(O.TEXTURE_CREATE, [6, 4, 4, 1, A.GPU.FORMAT_R32F, 1]).status).toBe(A.E_INVALID); // legacy op rejects
+      t.send(O.TEXTURE_CREATE_EX, create(1, A.GPU.DIM_3D, 2, 2, 4, 2, 0));
+      t.send(O.TEXTURE_CREATE_EX, create(2, A.GPU.DIM_2D, 4, 4, 1, 1, A.GPU.FORMAT_DEPTH32F, 2));
+      expect(t.send(O.TEXTURE_UPDATE, [1, 0, 0, 0, 1, 1, 16384, 4]).status).toBe(A.E_STATE); // legacy on volume
+      expect(t.send(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 3, 2, 2, 2, 16384, 32]).status).toBe(A.E_BOUNDS);
+      expect(t.send(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 2, 2, 2, 16384, 31]).status).toBe(A.E_INVALID);
+      expect(t.send(O.TEXTURE_UPDATE_EX, [1, 2, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_INVALID);
+      expect(t.send(O.TEXTURE_UPDATE_EX, [1, 1, 0, 0, 0, 1, 1, 3, 16384, 12]).status).toBe(A.E_BOUNDS); // mip 1 depth is 2
+      expect(t.send(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_UNSUPPORTED);
+      expect(t.send(O.TEXTURE_UPDATE_EX, [9, 0, 0, 0, 0, 1, 1, 1, 16384, 4]).status).toBe(A.E_NOT_FOUND);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 3, 0, 7, F(0), F(1)]).status).toBe(A.E_INVALID);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(2), F(1)]).status).toBe(A.E_INVALID);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(NaN), F(1)]).status).toBe(A.E_INVALID);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(-1), F(1)]).status).toBe(A.E_INVALID);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(0), F(1001)]).status).toBe(A.E_INVALID);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 1, 7, F(0), F(1)]).status).toBe(0);
+      expect(t.send(O.SAMPLER_CREATE_EX, [1, 0, 0, 0, 0, 0, 0, 0, 7, F(0), F(1)]).status).toBe(A.E_STATE);
+      expect(t.send(O.TEXTURE_READBACK, [2, 0, 0, 0, 0, 1, 1, 1, 3]).status).toBe(A.E_UNSUPPORTED);
+      expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 3, 2, 1, 3]).status).toBe(A.E_BOUNDS);
+      expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 0, 2, 1, 3]).status).toBe(A.E_INVALID);
+      expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 2, 2, 1, 0]).status).toBe(A.E_INVALID); // request id 0
+      expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 2, 2, 1, 3]).status).toBe(0);
+      expect(t.send(O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 2, 2, 1, 3]).status).toBe(A.E_STATE); // duplicate request
+      expect(t.send(O.TEXTURE_GENERATE_MIPS, [1, 2]).status).toBe(A.E_INVALID);
+      expect(t.send(O.TEXTURE_GENERATE_MIPS, [2, 0]).status).toBe(A.E_UNSUPPORTED);
+      expect(t.send(O.TEXTURE_GENERATE_MIPS, [9, 0]).status).toBe(A.E_NOT_FOUND);
+    });
+    it('treats the new resource ops as outside passes and reports them E_UNSUPPORTED without a GPU', () => {
+      const t = setup(); t.resources();
+      for (const [op, words] of [[O.TEXTURE_CREATE_EX, create(7, 0, 4, 4, 1, 1, 0)],
+        [O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 1, 1, 1, 16384, 4]], [O.SAMPLER_CREATE_EX, [7, 0, 0, 0, 0, 0, 0, 0, 7, 0, F(1)]],
+        [O.TEXTURE_READBACK, [1, 0, 0, 0, 0, 1, 1, 1, 7]], [O.TEXTURE_GENERATE_MIPS, [1, 0]]] as [number, number[]][]) {
+        expect(t.inPass(op, words).status, String(op)).toBe(A.E_STATE);
+      }
+      const bare = setup(); bare.ctx.gpu = undefined;
+      expect(bare.send(O.TEXTURE_GENERATE_MIPS, [1, 0]).status).toBe(A.E_UNSUPPORTED);
+      // A legacy comparison sampler is still rejected on color textures after normalization.
+      t.send(O.TEXTURE_CREATE_EX, create(8, 0, 4, 4, 1, 1, A.GPU.FORMAT_R16F, 3));
+      t.send(O.SAMPLER_CREATE, [8, 0, 0, 0, 0, 0, 1, 3]);
+      expect(t.inPass(O.TEXTURE, [0, 8, 8]).status).toBe(A.E_INVALID);
+    });
   });
 });
