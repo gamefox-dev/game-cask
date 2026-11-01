@@ -151,7 +151,7 @@ describe('GPU command validation', () => {
     expect(t.send(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 8]).status).toBe(A.E_INVALID);
     expect(t.send(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 32767, 4]).status).toBe(A.E_BOUNDS);
     expect(t.send(O.TEXTURE_CREATE, [2, 8, 8, 1, 5, 2]).status).toBe(0);
-    expect(t.send(O.TEXTURE_UPDATE, [2, 0, 0, 0, 1, 1, 16384, 4]).status).toBe(A.E_UNSUPPORTED);
+    expect(t.send(O.TEXTURE_UPDATE, [2, 0, 0, 0, 1, 1, 16384, 4]).status).toBe(0);
     expect(t.send(O.SHADER_DELETE, [1]).status).toBe(A.E_STATE);
     expect(t.send(O.SHADER_CREATE, [3, 1, 0, 16384, source.length, 1]).status).toBe(A.E_STATE);
     expect(t.ctx.gpu!.shaders.has(3)).toBe(false);

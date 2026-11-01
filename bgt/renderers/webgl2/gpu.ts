@@ -112,7 +112,7 @@ export class WebGL2Gpu implements GpuBackend {
     const type = this.format(format)[2], g = this.gl;
     if (type === g.HALF_FLOAT) return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     if (type === g.FLOAT) return new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
-    if (type === g.UNSIGNED_INT_2_10_10_10_REV) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+    if (type === g.UNSIGNED_INT_2_10_10_10_REV || type === g.UNSIGNED_INT_24_8) return new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
     return data;
   }
   private compare(value: number): number {
@@ -372,28 +372,69 @@ export class WebGL2Gpu implements GpuBackend {
     g.deleteTexture(t.object); t.object = next; t.allocatedMips = allocatedMips;
   }
 
+  /** WebGL forbids depth readPixels. Sample depth into a float color target in stream order.
+   * Packed stencil is recovered by equality tests against the real attachment, not an upload shadow. */
+  private readDepthback(item: GpuItem, w: number[]): void {
+    const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    if (t.desc.dimension !== 0 || z || depth !== 1 || mip >= t.allocatedMips) throw new Error('Depth readback is 2D only');
+    const e = mipExtent(t.desc, mip), target = g.createTexture()!, fb = g.createFramebuffer()!, vao = g.createVertexArray()!;
+    const programs: WebGLProgram[] = [], shaders: WebGLShader[] = [];
+    const program = (body: string) => {
+      const p = g.createProgram()!; programs.push(p);
+      for (const [stage, code] of [[g.VERTEX_SHADER, `#version 300 es\nvoid main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexID],0,1);}`],
+        [g.FRAGMENT_SHADER, '#version 300 es\nprecision highp float;precision highp int;'+body]] as const) {
+        const s = g.createShader(stage)!; shaders.push(s); g.shaderSource(s, code); g.compileShader(s);
+        if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s) ?? 'Depth conversion shader failed');
+        g.attachShader(p, s);
+      }
+      g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p) ?? 'Depth conversion link failed');
+      return p;
+    };
+    try {
+      g.activeTexture(g.TEXTURE0); g.bindSampler(0, null); g.bindTexture(g.TEXTURE_2D, target);
+      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, e.width, e.height);
+      g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, target, 0);
+      g.drawBuffers([g.COLOR_ATTACHMENT0]); g.readBuffer(g.COLOR_ATTACHMENT0);
+      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
+      g.bindVertexArray(vao); g.viewport(0, 0, e.width, e.height);
+      g.disable(g.SCISSOR_TEST); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.CULL_FACE); g.disable(g.BLEND);
+      this.indexed!.disableiOES(g.BLEND, 0); this.indexed!.colorMaskiOES(0, true, true, true, true);
+      const p = program(`uniform highp sampler2D src;layout(location=0) out vec4 o;void main(){o=vec4(texelFetch(src,ivec2(gl_FragCoord.xy),${mip}).r,0,0,1);}`);
+      g.useProgram(p); g.bindTexture(g.TEXTURE_2D, t.object);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
+      g.uniform1i(g.getUniformLocation(p, 'src'), 0); g.drawArrays(g.TRIANGLES, 0, 3);
+      if (t.desc.format === 5) {
+        g.bindTexture(g.TEXTURE_2D, null);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.DEPTH_STENCIL_ATTACHMENT, g.TEXTURE_2D, t.object, mip);
+        const s = program('uniform float ref;layout(location=0) out vec4 o;void main(){o=vec4(0,ref,0,1);}');
+        g.useProgram(s); g.enable(g.STENCIL_TEST); g.stencilMask(0); g.stencilOp(g.KEEP, g.KEEP, g.KEEP);
+        this.indexed!.colorMaskiOES(0, false, true, false, false);
+        const ref = g.getUniformLocation(s, 'ref');
+        for (let value = 0; value < 256; value++) {
+          g.stencilFunc(g.EQUAL, value, 255); g.uniform1f(ref, value); g.drawArrays(g.TRIANGLES, 0, 3);
+        }
+      }
+      const pixels = new Float32Array(width * height * 4); g.pixelStorei(g.PACK_ALIGNMENT, 1);
+      g.readPixels(x, y, width, height, g.RGBA, g.FLOAT, pixels);
+      const out = new Uint8Array(width * height * 4), dv = new DataView(out.buffer);
+      for (let i = 0; i < width * height; i++) {
+        if (t.desc.format === 5) dv.setUint32(i * 4, ((Math.round(pixels[i * 4] * 0xffffff) << 8) | Math.round(pixels[i * 4 + 1])) >>> 0, true);
+        else dv.setFloat32(i * 4, pixels[i * 4], true);
+      }
+      item.readback?.(out);
+    } finally {
+      g.bindFramebuffer(g.FRAMEBUFFER, null); g.bindVertexArray(null); g.disable(g.STENCIL_TEST);
+      this.indexed!.colorMaskiOES(0, true, true, true, true);
+      g.deleteTexture(target); g.deleteFramebuffer(fb); g.deleteVertexArray(vao);
+      programs.forEach(p => g.deleteProgram(p)); shaders.forEach(s => g.deleteShader(s));
+    }
+  }
+
   /** §13.7 TEXTURE_READBACK: exact stored texels, rows top-first, slices in order. */
   private readback(item: GpuItem, w: number[]): void {
     const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     const format = t.desc.format, components = TEXEL_COMPONENTS[format], bytes = TEXEL_BYTES[format];
-    if (isDepthFormat(format)) {
-      if (t.desc.dimension !== 0 || mip >= t.allocatedMips) throw new Error('Depth texture is not readable');
-      const out = new Uint8Array(width * height * depth * bytes), read = g.createFramebuffer()!;
-      g.bindFramebuffer(g.FRAMEBUFFER, read);
-      const attachment = format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT;
-      g.framebufferTexture2D(g.FRAMEBUFFER, attachment, g.TEXTURE_2D, t.object, mip);
-      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth texture not readable');
-      if (format === 5) {
-        const pixels = new Uint32Array(width * height * depth);
-        g.readPixels(x, y, width, height, g.DEPTH_STENCIL, g.UNSIGNED_INT_24_8, pixels);
-        out.set(new Uint8Array(pixels.buffer));
-      } else {
-        const pixels = new Float32Array(width * height * depth);
-        g.readPixels(x, y, width, height, g.DEPTH_COMPONENT, g.FLOAT, pixels);
-        out.set(new Uint8Array(pixels.buffer));
-      }
-      g.bindFramebuffer(g.FRAMEBUFFER, null); g.deleteFramebuffer(read); item.readback?.(out); return;
-    }
+    if (isDepthFormat(format)) { this.readDepthback(item, w); return; }
     const target = this.target(t.desc.dimension), out = new Uint8Array(width * height * depth * bytes);
     const packed = format === 7, bytesNormalized = format <= 3;
     const wide = packed ? new Uint32Array(width * height) : bytesNormalized ?

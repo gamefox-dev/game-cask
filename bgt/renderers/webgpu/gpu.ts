@@ -90,7 +90,7 @@ export class WebGPUCommands implements GpuBackend {
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
-    this.blits.clear(); this.blitSampler = undefined;
+    this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear();
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
@@ -455,7 +455,7 @@ struct VO { @builtin(position) pos: vec4f };
       loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
     pass.setPipeline(pipeline); pass.setBindGroup(0, d.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: source }] })); pass.draw(3); pass.end();
-    const row = width * 4, aligned = Math.ceil(row / 256) * 256, buffer = d.createBuffer({ size: aligned * height,
+    const row = width * 16, aligned = Math.ceil(row / 256) * 256, buffer = d.createBuffer({ size: aligned * height,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: aligned, rowsPerImage: height }, [width, height, 1]);
     d.queue.submit([encoder.finish()]); target.destroy(); this.readbacks.add(item);
@@ -586,10 +586,11 @@ struct VO { @builtin(position) pos: vec4f };
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
       .map(b => b.binding >> 1).filter(slot => isDepthFormat(this.textures.get(this.sampled.get(slot)![1])!.desc.format)));
-    const sampling = [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
+    const glsl = !!this.shaders.get(p.words[1])!.item.words[2];
+    const sampling = glsl ? [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
       b.group === 1 && b.type !== 'comparison')).map(slot => ({ binding: slot * 2,
-      sampler: this.samplers.get(this.sampled.get(slot)![2])!.words }));
-    if (sampling.length || (depthSlots.size && this.shaders.get(p.words[1])!.item.words[2])) {
+      sampler: this.samplers.get(this.sampled.get(slot)![2])!.words })) : [];
+    if (sampling.length || (depthSlots.size && glsl)) {
       const key = JSON.stringify([[...depthSlots], sampling]);
       let variant = p.variants.get(key);
       if (!variant) {
