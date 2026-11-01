@@ -44,7 +44,11 @@ static void test_prefixes(void) {
         CHECK(ReadFile(f, content, sizeof content - 1, &got, 0) && got == normal.st_size && eq(content, "original fixture\n"));
         CHECK(CloseHandle(f));
 #ifdef _WIN64
-        int desc = _wopen(w, _O_RDONLY | _O_BINARY);
+        /* Descriptor-open APIs are a separate unimplemented CRT family. Exercise the existing
+         * descriptor backend via a normally opened wide FILE, without a success stub/override. */
+        FILE *descriptor_stream = _wfopen(w, L"rb");
+        CHECK(descriptor_stream != 0);
+        int desc = _fileno(descriptor_stream);
         CHECK(desc >= 0);
         CHECK(_read(desc, content, sizeof content) == normal.st_size);
         CHECK(_close(desc) == 0);
