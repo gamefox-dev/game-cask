@@ -1,3 +1,4 @@
+// @bgt-examples: x64-audio x64-input
 import { expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

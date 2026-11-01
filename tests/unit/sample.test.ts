@@ -1,3 +1,4 @@
+// @bgt-examples: bench sample2d
 // The sample game reaches L3 headless: boot -> play -> win, plus lose loop,
 // determinism and persistence. Browser coverage lives in tests/e2e.
 import { readFileSync } from 'node:fs';

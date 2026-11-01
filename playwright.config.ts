@@ -20,6 +20,8 @@ const PREFIX = process.env.BGT_RESULTS_PREFIX ?? 'e2e-adhoc';
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  // LANE-K7i: the required scale job runs the excluded spec, unchanged.
+  ...(process.env.BGT_CI_LIGHT === '1' ? { testIgnore: '**/x64-scale.spec.ts' } : {}),
   globalSetup: './tests/e2e/global-setup.ts',
   outputDir: `reports/${PREFIX}-artifacts`,
   timeout: 60_000,

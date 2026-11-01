@@ -10,7 +10,7 @@
 import { execFileSync, withBuildWriters } from './exec.mjs';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, requireZig } from './toolchain.mjs';
@@ -19,6 +19,8 @@ import { streamFile } from './files.mjs';
 import { libcNotices } from './libc-notices.mjs';
 import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
+import { cacheDirectory, prepareObjects } from './objects.mjs';
+import { selectExampleDirs } from './test-examples.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -43,7 +45,6 @@ export const WASM_OPT_FEATURES = ['--enable-bulk-memory', '--enable-bulk-memory-
 
 export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=1048576', '-Wl,--strip-debug'];
 
-const readFileSyncBuffer = (file) => readFileSync(file);
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
 function walk(dir) {
@@ -137,16 +138,11 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   let compileMetrics;
   try {
     if (cfg.pipeline) {
-      const cache = join(ROOT, 'node_modules/.cache/bgt/objects'); mkdirSync(cache, { recursive: true });
+      // Actual preprocessor dependencies keep lifted objects independent of profile headers.
+      const cache = cacheDirectory('objects'); mkdirSync(cache, { recursive: true });
       const compileFlags = [...compileBase, ...(cfg.cflags ?? []), ...includes.flatMap((i) => ['-I',join(ROOT,i)])];
-      const headerDirs = [...includes.map((d) => join(ROOT, d)), gameDir];
-      const headers = [...new Set(headerDirs.flatMap(walk).filter((f) => /\.(h|inc|def)$/.test(f)))].sort();
-      const common = Buffer.from(JSON.stringify([zig.path,zig.version,compileFlags,headers.map((f)=>[f,sha256(readFileSyncBuffer(f))]) ]));
       const allSources = [...sources, ...libcSources];
-      const objects = allSources.map((file) => {
-        const out = join(cache, sha256(Buffer.concat([common,Buffer.from(file),readFileSync(file)]))+'.o');
-        return { out, args:[zig.path,'cc',...compileFlags,'-c',file] };
-      });
+      const objects = prepareObjects({ sources: allSources, flags: compileFlags, includes: includes.map((i) => join(ROOT, i)), compiler: zig, cache });
       const link = [zig.path, 'cc', ...compileBase, ...objects.map((o) => o.out),
         ...linkBase, ...(cfg.ldflags ?? []), '-o', wasmPath];
       const budget = Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576;
@@ -169,14 +165,18 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
     const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from('O2/asyncify/bgt.yield/v1')]));
-    const postDir=join(ROOT,'node_modules/.cache/bgt/asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
+    const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
-      if(existsSync(cached)){cpSync(cached,wasmPath);asyncifyCached=true;}
-      else {
-        execFileSync(process.execPath, [wasmOpt, wasmPath, ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', wasmPath], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-        const temporary=cached+'.'+process.pid+'.tmp';cpSync(wasmPath,temporary);renameSync(temporary,cached);
-      }
+      // The same atomic per-key writer protocol is used for objects and whole-module
+      // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
+      const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
+        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, args: [process.execPath, wasmOpt, wasmPath,
+          ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield'] }], jobs: 1 }),
+        encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
+      }));
+      asyncifyCached = post.objects_cached === 1;
+      cpSync(cached, wasmPath);
     } catch {
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
     } finally { releasePost(); }
@@ -290,7 +290,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
-    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B`);
+    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, Asyncify ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'})`);
   }
   if (check) {
     rmSync(outDir, { recursive: true, force: true });
@@ -338,7 +338,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const si=argv.indexOf('--slice');
   const sliceCoverage=si>=0?argv.slice(si+1).flatMap((s)=>s.split(',')):null;
   if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
-  const targets = all || examples ? allGameDirs({ includePort: all }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
+  const targets = all || examples ? selectExampleDirs(allGameDirs({ includePort: all }), { check }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
   if (!targets.length) {
     console.error('usage: build.mjs <gameDir...> | --all | --examples [--check]');
     process.exit(1);

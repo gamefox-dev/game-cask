@@ -1,3 +1,4 @@
+// @bgt-examples: x64-basics x64-cpp x64-gui x64-tls
 import {it,expect} from 'vitest';
 import {loadHeadless,ROOT} from '../support/headless';
 import {oracle} from '../oracle/oracle';
