@@ -8,7 +8,6 @@ export default defineConfig({
     // runs this unchanged file's scale/native checksum/oracle assertions.
     ...(process.env.BGT_CI_LIGHT === '1' ? { exclude: ['tests/unit/build-chunks.test.ts'] } : {}),
     globalSetup: ['tests/unit/global-setup.ts'],
-    reporters: [['default'], ['./tests/unit/example-build-reporter.ts']],
     testTimeout: 60000,
   },
 });

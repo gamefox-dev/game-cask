@@ -68,9 +68,11 @@ No declaration (or `// @bgt-examples: none`) means no prebuilt example. Tests co
 still build it explicitly. IDs must name kit examples; `port/`, traversal and unknown IDs are rejected. These comments
 are read without importing test modules or executing their hooks.
 
-Vitest's reporter receives the **actual scheduled file specifications**, before global setup/test timers. The shared
-setup function builds their deduplicated declaration union. This handles file filters, exclusions, custom configs,
-API selections and watch reruns without parsing CLI arguments. A permanent inventory assertion checks that the complete
+Vitest global setup reads the **actual scheduled paths** already recorded by pinned Vitest 4.1.11, before test
+timers. Its `onTestsRerun` hook receives the precise specifications for watch reruns. The setup builds their deduplicated
+declaration union, independently of reporters. This handles file filters, exclusions, custom configs, API selections
+and watch reruns without parsing CLI arguments. A subprocess regression first builds a stale native fixture, changes
+its source, then runs a selected test with `--reporter=dot`: it must observe the new value and no unrelated example. A permanent inventory assertion checks that the complete
 suite's declarations cover every kit example, including native package/ABI tests. Thus the full suite builds every
 example once without any special build-all fallback; focused runs never silently fall back to `--examples`. The existing browser npm scripts still
 build every example and their slice setup is unchanged (except the explicit CI partition below). All assertions/timeouts/backend policies remain unchanged.

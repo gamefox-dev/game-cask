@@ -1,6 +1,7 @@
-// Kit fixtures only, never port/. Vitest's reporter records the ACTUAL scheduled
-// specifications (including CLI filters, sharding, --related and API selections).
+// Build before timed hooks using actual scheduled Vitest specifications. Never
+// import test modules or parse argv; reporters must not control artifact freshness.
 import { execFileSync } from 'node:child_process';
+import type { TestProject } from 'vitest/node';
 // @ts-expect-error plain ESM orchestration
 import { testExamples } from '../../tools/build/test-examples.mjs';
 // @ts-expect-error original CC0 native reference
@@ -10,9 +11,13 @@ export function buildTestExamples(files: string[]): void {
   const targets = testExamples(files);
   console.log(`Test examples: ${targets.length ? targets.join(', ') : 'none'}`);
   if (targets.length) execFileSync(process.execPath, ['tools/build/build.mjs', ...targets], { stdio: 'inherit' });
-  // Same principle as wasm fixture preparation: compile outside the test timer,
-  // then retain every native checksum assertion inside the unchanged deadline.
   if (targets.includes('examples/x64-scale')) nativeScale();
 }
-// Called by the reporter on every run (also watch reruns), before the test pool.
-export default function setup(): void {}
+
+export default function setup(project: TestProject): void {
+  // Pinned Vitest 4.1.11 populates pathsSet before initializeGlobalSetup. This
+  // includes CLI/API filters, exclusions and sharding, unlike globbing all files.
+  buildTestExamples([...project.vitest.state.pathsSet]);
+  // Global setup is initialized once; reruns supply their own exact spec list.
+  project.onTestsRerun((specifications) => buildTestExamples(specifications.map((s) => s.moduleId)));
+}
