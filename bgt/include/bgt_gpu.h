@@ -60,6 +60,8 @@
 #define BGT_GPU_LIMIT_VOLUME_DIMENSION 256u
 #define BGT_GPU_LIMIT_ARRAY_LAYERS 256u
 #define BGT_GPU_FORMAT_NONE 4294967295u
+/* CLEAR_BUFFER: kind bits 0..1, value class bits 2..3, color mask bits 4..7 (depth mask bit 4), stencil mask bits 8..15. */
+typedef struct { uint32_t kind_class_masks, index, value[4]; } bgt_gpu_clear_buffer_t;
 #define BGT_GPU_FILTER_NEAREST 0u
 #define BGT_GPU_FILTER_LINEAR 1u
 #define BGT_GPU_MIP_NONE 0u

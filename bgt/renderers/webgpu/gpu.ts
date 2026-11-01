@@ -50,6 +50,12 @@ export class WebGPUCommands implements GpuBackend {
   private pipelines = new Map<number, PipelineResource>();
   private encoder?: GPUCommandEncoder;
   private pass?: GPURenderPassEncoder;
+  private passFormats: number[] = [];
+  private passDepth = 0xffffffff;
+  private passSize = [1, 1];
+  private viewport = [0, 0, 1, 1, 0, 1];
+  private stencilRef = 0;
+  private clearPipelines = new Map<string, GPURenderPipeline>();
   private screen?: GPUTexture;
   private current?: PipelineResource;
   private uniforms = new Map<number, GPUBufferBinding>();
@@ -93,7 +99,7 @@ export class WebGPUCommands implements GpuBackend {
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
-    this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear();
+    this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear(); this.clearPipelines.clear();
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
@@ -178,6 +184,7 @@ export class WebGPUCommands implements GpuBackend {
           }
           d.queue.submit([encoder.finish()]);
         }
+        if (item.op === OP.TEXTURE_CREATE && desc.mips > 1) this.growTexture(h, desc.mips);
         break;
       }
       case OP.TEXTURE_ALLOCATE_MIPS: {
@@ -254,10 +261,12 @@ export class WebGPUCommands implements GpuBackend {
         this.index = undefined; this.current = undefined;
         this.encoder = d.createCommandEncoder();
         const colors: GPURenderPassColorAttachment[] = [];
+        this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
         let width = 0, height = 0;
         for (let i = 0; i < h; i++) {
           const j = 7 + i * 7, t = w[j] ? this.textures.get(w[j])!.native : this.screen!;
           width = Math.max(1, t.width >> w[j + 1]); height = Math.max(1, t.height >> w[j + 1]);
+          this.passFormats.push(w[j] ? this.textures.get(w[j])!.desc.format : 0);
           colors.push({ view: t.createView({ baseMipLevel: w[j + 1], mipLevelCount: 1 }),
             loadOp: w[j + 2] ? 'clear' : 'load', storeOp: 'store', clearValue: w.slice(j + 3, j + 7).map(f) });
         }
@@ -270,6 +279,7 @@ export class WebGPUCommands implements GpuBackend {
           if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
             stencilStoreOp: 'store', stencilClearValue: w[6] });
         }
+        this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
         this.pass = this.encoder.beginRenderPass({ colorAttachments: colors, depthStencilAttachment: depth });
         this.pass.setViewport(0, 0, width, height, 0, 1);
         this.pass.setScissorRect(0, 0, width, height);
@@ -277,6 +287,7 @@ export class WebGPUCommands implements GpuBackend {
         this.pass.setBlendConstant([0, 0, 0, 0]);
         break;
       }
+      case OP.CLEAR_BUFFER: this.clearBuffer(w); break;
       case OP.PASS_END:
         this.pass!.end(); d.queue.submit([this.encoder!.finish()]); this.pass = undefined; this.encoder = undefined;
         // Destruction is deferred until submissions using these buffers finish.
@@ -286,9 +297,10 @@ export class WebGPUCommands implements GpuBackend {
         }
         break;
       case OP.PIPELINE: this.current = this.pipelines.get(h)!; this.pass!.setPipeline(this.current.native); break;
-      case OP.VIEWPORT: this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
+      case OP.VIEWPORT:
+        this.viewport = w.map(f); this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
       case OP.SCISSOR: this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
-      case OP.STENCIL_REF: this.pass!.setStencilReference(h); break;
+      case OP.STENCIL_REF: this.stencilRef = h; this.pass!.setStencilReference(h); break;
       case OP.BLEND_CONSTANT: this.pass!.setBlendConstant(w.map(f)); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER:
@@ -306,6 +318,48 @@ export class WebGPUCommands implements GpuBackend {
       }
       default: throw new Error('Unknown §13 opcode');
     }
+  }
+
+  /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */
+  private clearBuffer(w: number[]): void {
+    const kind = w[0] & 3, cls = (w[0] >>> 2) & 3, mask = (w[0] >>> 4) & 15, smask = (w[0] >>> 8) & 255;
+    const key = JSON.stringify([this.passFormats, this.passDepth, kind, cls, mask, smask, w[1]]);
+    let pipeline = this.clearPipelines.get(key);
+    if (!pipeline) {
+      const colorType = (fmt: number) => !isIntegerFormat(fmt) ? 'vec4f' : fmt & 1 ? 'vec4u' : 'vec4i';
+      const fields = this.passFormats.map((fmt, i) => `@location(${i}) c${i}:${colorType(fmt)}`);
+      if (kind === 1 || kind === 3) fields.push('@builtin(frag_depth) depth:f32');
+      const assignments = this.passFormats.map((fmt, i) => `o.c${i}=${kind === 0 && w[1] === i ?
+        cls === 0 ? 'bitcast<vec4f>(v.value)' : cls === 1 ? 'bitcast<vec4i>(v.value)' : 'v.value' : `${colorType(fmt)}(0)`};`);
+      if (kind === 1 || kind === 3) assignments.push('o.depth=bitcast<f32>(v.value.x);');
+      const module = this.device.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
+@vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); return vec4f(p[i],0,1); }
+${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O;${assignments.join('')}return o;}` : '@fragment fn fs() {}'}` });
+      const stencilFace: GPUStencilFaceState = { compare: 'always', passOp: kind >= 2 ? 'replace' : 'keep' };
+      pipeline = this.device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+        fragment: { module, entryPoint: 'fs', targets: this.passFormats.map((fmt, i) => ({ format: formats[fmt],
+          writeMask: kind === 0 && i === w[1] ? mask : 0 })) },
+        depthStencil: this.passDepth === 0xffffffff ? undefined : { format: formats[this.passDepth],
+          depthWriteEnabled: (kind === 1 || kind === 3) && !!(w[0] & 16), depthCompare: 'always',
+          stencilFront: stencilFace, stencilBack: stencilFace, stencilWriteMask: kind >= 2 ? smask : 0 },
+        primitive: { topology: 'triangle-list' } });
+      if (this.clearPipelines.size >= 64) this.clearPipelines.delete(this.clearPipelines.keys().next().value!);
+      this.clearPipelines.set(key, pipeline);
+    }
+    this.pass!.setPipeline(pipeline);
+    // Stencil-only clears use no uniform binding. All other forms consume exact u32/f32 bit patterns.
+    if (kind !== 2) {
+      const uniform = this.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
+      new Uint32Array(uniform.getMappedRange()).set(w.slice(2)); uniform.unmap(); this.scratch.push(uniform);
+      this.pass!.setBindGroup(0, this.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: uniform } }] }));
+    }
+    this.pass!.setViewport(0, 0, this.passSize[0], this.passSize[1], 0, 1);
+    if (kind >= 2) this.pass!.setStencilReference(w[kind === 2 ? 2 : 3]);
+    this.pass!.draw(3);
+    const v = this.viewport; this.pass!.setViewport(v[0], v[1], v[2], v[3], v[4], v[5]);
+    this.pass!.setStencilReference(this.stencilRef);
+    if (this.current) this.pass!.setPipeline(this.current.native);
   }
 
   private blits = new Map<number, GPURenderPipeline>();
@@ -370,12 +424,18 @@ struct VO { @builtin(position) pos: vec4f };
     const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
       dimension: t.desc.dimension === 1 ? '3d' : '2d', format: formats[t.desc.format],
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-        (isDepthFormat(t.desc.format) ? 0 : GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC) });
+        GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC });
     const encoder = d.createCommandEncoder();
     for (let mip = 0; mip < t.allocatedMips; mip++) {
       const e = mipExtent(t.desc, mip);
       encoder.copyTextureToTexture({ texture: t.native, mipLevel: mip }, { texture: next, mipLevel: mip },
         [e.width, e.height, e.depth]);
+    }
+    if (isDepthFormat(t.desc.format)) for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
+      encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: {
+        view: next.createView({ baseMipLevel: mip, mipLevelCount: 1 }), depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
+        ...(t.desc.format === 5 ? { stencilLoadOp: 'clear' as const, stencilStoreOp: 'store' as const, stencilClearValue: 0 } : {}),
+      } }).end();
     }
     d.queue.submit([encoder.finish()]);
     const old = t.native; t.native = next; t.allocatedMips = allocatedMips;

@@ -210,7 +210,9 @@ export class WebGL2Gpu implements GpuBackend {
             g.deleteFramebuffer(initialization);
           }
         }
-        this.textures.set(h, { object, words: w, desc, levels, allocatedMips: desc.dimension === 0 ? 1 : desc.mips }); break;
+        this.textures.set(h, { object, words: w, desc, levels, allocatedMips: desc.dimension === 0 ? 1 : desc.mips });
+        if (item.op === OP.TEXTURE_CREATE && desc.mips > 1) this.growTexture(h, desc.mips);
+        break;
       }
       case OP.TEXTURE_ALLOCATE_MIPS: {
         this.growTexture(w[0], w[1]);
@@ -282,6 +284,24 @@ export class WebGL2Gpu implements GpuBackend {
       }
       case OP.PASS_BEGIN: this.beginPass(w); break;
       case OP.PASS_END: this.endPass(); break;
+      case OP.CLEAR_BUFFER: {
+        const kind = h & 3, cls = (h >>> 2) & 3, mask = (h >>> 4) & 15;
+        if (kind === 0) {
+          this.indexed!.colorMaskiOES(w[1], !!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8));
+          if (cls === 0) g.clearBufferfv(g.COLOR, w[1], w.slice(2).map(float));
+          else if (cls === 1) g.clearBufferiv(g.COLOR, w[1], w.slice(2).map(v => v | 0));
+          else g.clearBufferuiv(g.COLOR, w[1], w.slice(2));
+          this.indexed!.colorMaskiOES(w[1], true, true, true, true);
+        } else {
+          g.depthMask(!!(h & 16)); g.stencilMask((h >>> 8) & 255);
+          if (kind === 1) g.clearBufferfv(g.DEPTH, 0, [float(w[2])]);
+          else if (kind === 2) g.clearBufferiv(g.STENCIL, 0, [w[2]]);
+          else g.clearBufferfi(g.DEPTH_STENCIL, 0, float(w[2]), w[3]);
+          g.depthMask(true); g.stencilMask(255);
+        }
+        if (this.pipeline) this.applyPipeline();
+        break;
+      }
       case OP.PIPELINE: this.pipeline = this.pipelines.get(h)!; this.applyPipeline(); break;
       case OP.VIEWPORT:
         this.viewport = w.slice(0, 4).map(float);
@@ -367,9 +387,11 @@ export class WebGL2Gpu implements GpuBackend {
     g.texParameteri(target, g.TEXTURE_MAX_LEVEL, allocatedMips - 1);
     const read = g.createFramebuffer()!, draw = g.createFramebuffer()!;
     g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw);
+    g.disable(g.SCISSOR_TEST);
     const mask = isDepthFormat(t.desc.format) ? (t.desc.format === 5 ? g.DEPTH_BUFFER_BIT | g.STENCIL_BUFFER_BIT : g.DEPTH_BUFFER_BIT) : g.COLOR_BUFFER_BIT;
     for (let mip = 0; mip < t.allocatedMips; mip++) {
       if (isDepthFormat(t.desc.format)) {
+        g.readBuffer(g.NONE); g.drawBuffers([g.NONE]);
         g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.framebufferTexture2D(g.READ_FRAMEBUFFER,
           t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, t.object, mip);
         g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw); g.framebufferTexture2D(g.DRAW_FRAMEBUFFER,
@@ -384,6 +406,14 @@ export class WebGL2Gpu implements GpuBackend {
         g.checkFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
       g.blitFramebuffer(0, 0, e.width, e.height, 0, 0, e.width, e.height, mask, g.NEAREST);
     }
+    for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
+      const e = mipExtent(t.desc, mip); t.levels[mip] = new Uint8Array(e.width * e.height * e.depth * format[3]);
+      if (isDepthFormat(t.desc.format)) {
+        g.framebufferTexture2D(g.DRAW_FRAMEBUFFER, t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, next, mip);
+        g.depthMask(true); g.stencilMask(255);
+        if (t.desc.format === 5) g.clearBufferfi(g.DEPTH_STENCIL, 0, 1, 0); else g.clearBufferfv(g.DEPTH, 0, [1]);
+      }
+    }
     g.bindFramebuffer(g.FRAMEBUFFER, null); g.deleteFramebuffer(read); g.deleteFramebuffer(draw);
     g.deleteTexture(t.object); t.object = next; t.allocatedMips = allocatedMips;
   }
@@ -393,7 +423,8 @@ export class WebGL2Gpu implements GpuBackend {
   private readDepthback(item: GpuItem, w: number[]): void {
     const g = this.gl, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     if (t.desc.dimension !== 0 || z || depth !== 1 || mip >= t.allocatedMips) throw new Error('Depth readback is 2D only');
-    const e = mipExtent(t.desc, mip), target = g.createTexture()!, fb = g.createFramebuffer()!, vao = g.createVertexArray()!;
+    const e = mipExtent(t.desc, mip), tw = t.desc.format === 5 ? e.width : width, th = t.desc.format === 5 ? e.height : height;
+    const target = g.createTexture()!, fb = g.createFramebuffer()!, vao = g.createVertexArray()!;
     const programs: WebGLProgram[] = [], shaders: WebGLShader[] = [];
     const program = (body: string) => {
       const p = g.createProgram()!; programs.push(p);
@@ -408,14 +439,14 @@ export class WebGL2Gpu implements GpuBackend {
     };
     try {
       g.activeTexture(g.TEXTURE0); g.bindSampler(0, null); g.bindTexture(g.TEXTURE_2D, target);
-      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, e.width, e.height);
+      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, tw, th);
       g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, target, 0);
       g.drawBuffers([g.COLOR_ATTACHMENT0]); g.readBuffer(g.COLOR_ATTACHMENT0);
       if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
-      g.bindVertexArray(vao); g.viewport(0, 0, e.width, e.height);
+      g.bindVertexArray(vao); g.viewport(0, 0, tw, th);
       g.disable(g.SCISSOR_TEST); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.CULL_FACE); g.disable(g.BLEND);
       this.indexed!.disableiOES(g.BLEND, 0); this.indexed!.colorMaskiOES(0, true, true, true, true);
-      const p = program(`uniform highp sampler2D src;layout(location=0) out vec4 o;void main(){o=vec4(texelFetch(src,ivec2(gl_FragCoord.xy),${mip}).r,0,0,1);}`);
+      const p = program(`uniform highp sampler2D src;layout(location=0) out vec4 o;void main(){o=vec4(texelFetch(src,ivec2(gl_FragCoord.xy)+ivec2(${t.desc.format === 5 ? 0 : x},${t.desc.format === 5 ? 0 : y}),${mip}).r,0,0,1);}`);
       g.useProgram(p); g.bindTexture(g.TEXTURE_2D, t.object);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
       g.uniform1i(g.getUniformLocation(p, 'src'), 0); g.drawArrays(g.TRIANGLES, 0, 3);
@@ -431,7 +462,7 @@ export class WebGL2Gpu implements GpuBackend {
         }
       }
       const pixels = new Float32Array(width * height * 4); g.pixelStorei(g.PACK_ALIGNMENT, 1);
-      g.readPixels(x, y, width, height, g.RGBA, g.FLOAT, pixels);
+      g.readPixels(t.desc.format === 5 ? x : 0, t.desc.format === 5 ? y : 0, width, height, g.RGBA, g.FLOAT, pixels);
       const out = new Uint8Array(width * height * 4), dv = new DataView(out.buffer);
       for (let i = 0; i < width * height; i++) {
         if (t.desc.format === 5) dv.setUint32(i * 4, ((Math.round(pixels[i * 4] * 0xffffff) << 8) | Math.round(pixels[i * 4 + 1])) >>> 0, true);

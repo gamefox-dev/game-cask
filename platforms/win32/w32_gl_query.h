@@ -77,6 +77,8 @@ static uint32_t api_GetBooleanv(void) {
     return 0;
 }
 static uint32_t api_GetFloatv(void) {
+    if (ARG(0) == 0xc22) { for (uint32_t i = 0; i < 4; i++) x86_wr32(ARG(1) + i * 4, bits(clear_color[i])); return 0; }
+    if (ARG(0) == 0xb73) { x86_wr32(ARG(1), bits(clear_depth)); return 0; }
     int32_t v[4]; uint32_t n = query(ARG(0), v);
     for (uint32_t i = 0; i < n; i++) x86_wr32(ARG(1) + i * 4, bits((float)v[i])); return 0;
 }

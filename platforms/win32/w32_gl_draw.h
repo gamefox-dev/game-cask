@@ -48,13 +48,19 @@ static uint32_t api_BlendEquationSeparate(void) {
 static float clamp(float f) { return f != f || f < 0 ? 0 : f > 1 ? 1 : f; }
 static uint32_t api_BlendColor(void) { for (uint32_t i = 0; i < 4; i++) blend_color[i] = clamp(argf(i)); return 0; }
 static uint32_t api_DepthFunc(void) { uint32_t v = compare(ARG(0)); if (!error) depth_compare = v; return 0; }
-static uint32_t api_DepthMask(void) { depth_write = !!ARG(0); return 0; }
+static uint32_t api_DepthMask(void) { depth_write = !!(ARG(0) & 255); return 0; }
 static uint32_t api_DepthRange(void) {
     float a = clamp((float)argd(0)), b = clamp((float)argd(W32_64 ? 1 : 2));
     if (a > b) fail(BAD_VALUE); else { range_min = a; range_max = b; } return 0;
 }
 static uint32_t api_ColorMask(void) {
-    color_mask = (!!ARG(0)) | ((!!ARG(1)) << 1) | ((!!ARG(2)) << 2) | ((!!ARG(3)) << 3); return 0;
+    color_mask = (!!(ARG(0) & 255)) | ((!!(ARG(1) & 255)) << 1) | ((!!(ARG(2) & 255)) << 2) | ((!!(ARG(3) & 255)) << 3);
+    for (uint32_t i = 0; i < 4; i++) color_masks[i] = color_mask; return 0;
+}
+static uint32_t api_ColorMaski(void) {
+    uint32_t i = ARG(0); if (i >= 4) { fail(BAD_VALUE); return 0; }
+    color_masks[i] = (!!(ARG(1) & 255)) | ((!!(ARG(2) & 255)) << 1) | ((!!(ARG(3) & 255)) << 2) | ((!!(ARG(4) & 255)) << 3);
+    color_mask = color_masks[0]; return 0;
 }
 static uint32_t api_CullFace(void) {
     if (ARG(0) == 0x404) cull_face = 1; else if (ARG(0) == 0x405) cull_face = 2;
@@ -114,13 +120,60 @@ static uint32_t pass_words(const Target *tg, uint32_t clear, uint32_t *w) {
     }
     return 7 + tg->ncolor * 7;
 }
+static uint32_t clear_buffer(uint32_t cls) {
+    uint32_t buffer = ARG(0), index = ARG(1), kind;
+    if (buffer == 0x1800 && cls < 3) kind = 0;
+    else if (buffer == 0x1801 && cls == 0) kind = 1;
+    else if (buffer == 0x1802 && cls == 1) kind = 2;
+    else if (buffer == 0x84f9 && cls == 3) kind = 3;
+    else { fail(BAD_ENUM); return 0; }
+    if ((kind == 0 && index >= 4) || (kind != 0 && index)) { fail(BAD_VALUE); return 0; }
+    Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
+    Target selected; zero(&selected, sizeof selected); selected.w = tg.w; selected.h = tg.h;
+    if (kind == 0) {
+        if (index >= tg.ncolor || tg.gap[index] || (!fbo && !dfb_draw)) return 0;
+        const Fmt *fmt = tg.color[index].fmt; int integer = integer_internal(fmt);
+        if ((cls == 0) == integer || (integer && (cls == 2) != integer_unsigned(fmt))) { fail(BAD_OP); return 0; }
+        selected.ncolor = 1; selected.color[0] = tg.color[index];
+    } else {
+        if ((kind == 1 && !tg.has_depth) || (kind == 2 && !tg.has_stencil) || (kind == 3 && !tg.has_depth && !tg.has_stencil)) return 0;
+        selected.ds = tg.ds; selected.has_depth = tg.has_depth; selected.has_stencil = tg.has_stencil;
+    }
+    uint32_t values[4] = {0};
+    if (cls == 3) { values[0] = bits(clamp(argf(2))); values[1] = ARG(3) & 255; }
+    else for (uint32_t c = 0; c < (kind == 0 ? 4u : 1u); c++) values[c] = x86_rd32(ARG(2) + c * 4);
+    if (kind == 0 && cls == 0) for (uint32_t c = 0; c < 4; c++) { union {uint32_t u;float f;} v = {values[c]}; values[c] = bits(finite_f(v.f)); }
+    if (kind == 0 && rgb_only(selected.color[0].fmt)) values[3] = bits(1);
+    if (kind == 1) { union {uint32_t u;float f;} v = {values[0]}; values[0] = bits(clamp(v.f)); }
+    if (kind == 2) values[0] &= 255;
+    if (kind == 3 && !tg.has_stencil) { kind = 1; cls = 0; values[1] = 0; }
+    else if (kind == 3 && !tg.has_depth) { kind = 2; cls = 1; values[0] = values[1]; values[1] = 0; }
+    uint32_t masks = kind == 0 ? color_masks[index] << 4 :
+        ((kind == 1 || kind == 3) && depth_write ? 16u : 0u) | ((kind == 2 || kind == 3) ? stencil_write << 8 : 0u);
+    if ((kind == 0 && !color_masks[index]) || (kind != 0 && !masks)) return 0;
+    uint32_t pw[35], pn = pass_words(&selected, 0, pw);
+    begin(); op(0x4c, pw, pn);
+    if (scissor_enabled) {
+        int32_t x = imin((int32_t)tg.w, imax(0, scissor[0])), y = imin((int32_t)tg.h, imax(0, scissor[1]));
+        int64_t right = (int64_t)scissor[0] + scissor[2], top = (int64_t)scissor[1] + scissor[3];
+        int32_t rx = right > tg.w ? (int32_t)tg.w : (int32_t)right, ty = top > tg.h ? (int32_t)tg.h : (int32_t)top;
+        uint32_t sw = (uint32_t)imax(0, rx - x), sh = (uint32_t)imax(0, ty - y);
+        uint32_t sc[] = {(uint32_t)x, tg.h - (uint32_t)y - sh, sw, sh}; op(0x50, sc, 4);
+    }
+    uint32_t cw[] = {kind | (cls << 2) | masks, 0, values[0], values[1], values[2], values[3]};
+    op(0x5f, cw, 6); op(0x4d, 0, 0); submit(); return 0;
+}
+static uint32_t api_ClearBufferfv(void) { return clear_buffer(0); }
+static uint32_t api_ClearBufferiv(void) { return clear_buffer(1); }
+static uint32_t api_ClearBufferuiv(void) { return clear_buffer(2); }
+static uint32_t api_ClearBufferfi(void) { return clear_buffer(3); }
 static uint32_t api_Clear(void) {
     uint32_t mask = ARG(0);
     if (mask & ~(0x4000u | 0x100u | 0x400u)) { fail(BAD_VALUE); return 0; }
     Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
     if (!mask) return 0;
     /* §13 load clears are whole attachment. Partial/masked clears are not silently approximated. */
-    if (scissor_enabled || color_mask != 15 || ((mask & 0x100) && !depth_write) ||
+    if (scissor_enabled || color_masks[0] != 15 || color_masks[1] != 15 || color_masks[2] != 15 || color_masks[3] != 15 || ((mask & 0x100) && !depth_write) ||
         ((mask & 0x400) && stencil_write != 255)) { fail(BAD_OP); return 0; }
     if (!fbo && dfb_draw == 0) mask &= ~0x4000u;
     if (!tg.ncolor && !tg.has_depth && !tg.has_stencil) return 0;
@@ -302,7 +355,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         w[at++] = i; w[at++] = constant_slot; w[at++] = i * 16; w[at++] = attr_components[i] - 1;
     }
     for (uint32_t c = 0; c < tg.ncolor; c++) {
-        uint32_t mask = color_mask; if (rgb_only(tg.color[c].fmt)) mask &= 7;
+        uint32_t mask = color_masks[c]; if (rgb_only(tg.color[c].fmt)) mask &= 7;
         if (tg.gap[c] || (!fbo && dfb_draw == 0)) mask = 0;
         uint32_t fmt = tg.gap[c] ? 0 : tg.color[c].bgt;
         uint32_t color[] = {fmt, fmt >= 13 ? 0 : blend, src_rgb, dst_rgb, blend_op_rgb, src_alpha, dst_alpha, blend_op_alpha, mask};

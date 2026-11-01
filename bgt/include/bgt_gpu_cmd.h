@@ -35,6 +35,7 @@ enum {
     BGT_OP_GPU_TEXTURE_GENERATE_MIPS = 0x5d,
     /* Grow the native allocation to include levels [0, allocated_mips). */
     BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS = 0x5e,
+    BGT_OP_GPU_CLEAR_BUFFER = 0x5f,
 };
 static inline void bgt__gpu_copy(uint8_t *dst, const void *src, uint32_t bytes) {
     const uint8_t *s = (const uint8_t *)src;
@@ -124,6 +125,9 @@ static inline void bgt_cmd_gpu_texture_readback(bgt_cmdbuf_t *b, const bgt_gpu_t
 }
 static inline void bgt_cmd_gpu_texture_generate_mips(bgt_cmdbuf_t *b, const bgt_gpu_texture_generate_mips_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_GENERATE_MIPS, 8), v, 8);
+}
+static inline void bgt_cmd_gpu_clear_buffer(bgt_cmdbuf_t *b, const bgt_gpu_clear_buffer_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_CLEAR_BUFFER, 24), v, 24);
 }
 static inline void bgt_cmd_gpu_texture_allocate_mips(bgt_cmdbuf_t *b, const bgt_gpu_texture_allocate_mips_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS, 8), v, 8);

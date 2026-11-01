@@ -93,7 +93,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     return new Uint8Array(mem.subarray(ptr, ptr + len));
   };
   // All resource operations are outside passes. Dynamic/binding/draw operations are inside.
-  const resourceOp = op <= GPU_OP.PIPELINE_DELETE || op >= GPU_OP.TEXTURE_CREATE_EX;
+  const resourceOp = op <= GPU_OP.PIPELINE_DELETE || (op >= GPU_OP.TEXTURE_CREATE_EX && op !== GPU_OP.CLEAR_BUFFER);
   if (resourceOp && g.pass) return E_STATE;
   if (!resourceOp && op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
   const fresh = (map: Map<number, unknown>) => !validHandle(h) ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
@@ -190,16 +190,16 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (t.dimension !== 0 && isDepth(t.format)) return E_UNSUPPORTED;
       const [, mip, x, y, z, width, height, depth, , length] = w;
       if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
+      const s = textureSize(t, mip);
+      if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
+      if (length !== width * height * depth * pixelSizes[t.format]) return E_INVALID;
+      const data = copy(w[8], length); if (typeof data === 'number') return data;
       if (mip >= t.allocatedMips) {
         const next = mip + 1, extra = mipBytes(t, t.allocatedMips, next);
         if (!budget(extra)) return E_LIMIT;
         t.allocatedMips = next; t.bytes += extra; reserve(extra);
         ctx.frame.items.push({ kind: 'gpu', op: GPU_OP.TEXTURE_ALLOCATE_MIPS, words: [h, next] });
       }
-      const s = textureSize(t, mip);
-      if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
-      if (length !== width * height * depth * pixelSizes[t.format]) return E_INVALID;
-      const data = copy(w[8], length); if (typeof data === 'number') return data;
       item.data = data; return emit();
     }
     case GPU_OP.SAMPLER_CREATE_EX: {
@@ -348,6 +348,23 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
   }
   const pass = g.pass!;
   switch (op) {
+    case GPU_OP.CLEAR_BUFFER: {
+      const kind = h & 3, cls = (h >>> 2) & 3;
+      if (h & 0xffff0000) return E_INVALID;
+      if (kind === 0) {
+        if ((h & 0xff00) || w[1] >= pass.formats.length || cls > 2) return E_INVALID;
+        const fmt = pass.formats[w[1]];
+        if ((cls === 0) === isInteger(fmt) || (isInteger(fmt) && (cls === 2) !== !!(fmt & 1))) return E_INVALID;
+        if (cls === 0 && w.slice(2).some(v => !Number.isFinite(float(v)))) return E_INVALID;
+      } else {
+        if (w[1] || (h & 0xe0) || pass.depth === GPU.FORMAT_NONE) return E_INVALID;
+        if (kind === 1 && (cls !== 0 || (h & 0xff00) || w.slice(3).some(Boolean))) return E_INVALID;
+        if (kind === 2 && (cls !== 1 || pass.depth !== 5 || (h & 16) || w.slice(3).some(Boolean) || w[2] > 255)) return E_INVALID;
+        if (kind === 3 && (cls !== 3 || pass.depth !== 5 || w[3] > 255 || w.slice(4).some(Boolean))) return E_INVALID;
+        if (kind !== 2 && (!Number.isFinite(float(w[2])) || float(w[2]) < 0 || float(w[2]) > 1)) return E_INVALID;
+      }
+      return emit();
+    }
     case GPU_OP.PIPELINE: {
       const pipeline = g.pipelines.get(h); if (!pipeline) return E_NOT_FOUND;
       if (pipeline.words[6] !== pass.depth || pipeline.colors.length !== pass.formats.length

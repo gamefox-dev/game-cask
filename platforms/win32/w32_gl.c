@@ -128,7 +128,7 @@ static uint32_t blend, depth, stencil, cull, scissor_enabled;
 static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
 static uint32_t stencil_compare = 7, stencil_read = 255, stencil_write = 255, stencil_ref;
-static uint32_t stencil_fail, stencil_zfail, stencil_pass, color_mask = 15;
+static uint32_t stencil_fail, stencil_zfail, stencil_pass, color_mask = 15, color_masks[4] = {15, 15, 15, 15};
 static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t clear_stencil;
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
@@ -222,12 +222,12 @@ static uint32_t attribute(int integer) {
     if (a >= 16 || count < 1 || count > 4 || stride > 2048) { fail(BAD_VALUE); return 0; }
     if (!vao || !array) { fail(BAD_OP); return 0; }
     if (integer ? (type != U32 && type != 0x1404) :
-        (type != F32 && !(type == U8 && count == 4 && ARG(3)))) {
+        (type != F32 && !(type == U8 && count == 4 && (ARG(3) & 255)))) {
         /* Numeric conversion of other GL vertex formats needs expansion, never bit reinterpretation. */
         fail(BAD_ENUM); return 0;
     }
     Attribute *v = &vaos[vao].a[a]; v->buffer = array; v->count = count; v->type = type;
-    v->normalized = integer ? 0 : ARG(3); v->integer = integer;
+    v->normalized = integer ? 0 : (ARG(3) & 255); v->integer = integer;
     v->stride = stride ? stride : count * (type == U8 ? 1 : 4); v->offset = ARG(integer ? 4 : 5); return 0;
 }
 static uint32_t api_VertexAttribPointer(void) { return attribute(0); }

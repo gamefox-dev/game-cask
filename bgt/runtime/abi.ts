@@ -196,6 +196,7 @@ export const GPU_OP = {
   TEXTURE_GENERATE_MIPS: 0x5d,
   /** Grow the native allocation to include levels [0, allocated_mips). */
   TEXTURE_ALLOCATE_MIPS: 0x5e,
+  CLEAR_BUFFER: 0x5f,
 } as const;
 export const GPU = {
   BUFFER_VERTEX: 1,

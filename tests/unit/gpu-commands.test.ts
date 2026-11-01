@@ -59,6 +59,28 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it('typed indexed clears validate class, masks, finite depth and pass ordering without side effects', () => {
+    const t = setup();
+    expect(t.send(O.CLEAR_BUFFER, [0xf0,0,0,0,0,0]).status).toBe(A.E_STATE);
+    for (const [words, status] of [
+      [[0xf0,0,F(.25),F(.5),F(.75),F(1)],0], [[0,0,0,0,0,0],0],
+      [[0xf0,1,0,0,0,0],A.E_INVALID], [[0xf4,0,0,0,0,0],A.E_INVALID],
+      [[0xf0,0,F(NaN),0,0,0],A.E_INVALID], [[0x10000,0,0,0,0,0],A.E_INVALID],
+      [[0xfff0,0,0,0,0,0],A.E_INVALID], [[0x11,0,F(.5),0,0,0],A.E_INVALID],
+    ] as [number[],number][]) expect(t.inPass(O.CLEAR_BUFFER, words).status).toBe(status);
+    for (const [format, cls] of [[17,2],[18,1]]) {
+      const h = format; expect(t.send(O.TEXTURE_CREATE_EX,[h,0,8,8,1,1,format,3]).status).toBe(0);
+      const begin = [1,0,0,0,0,F(1),0,h,0,0,0,0,0,0];
+      expect(t.run(new CommandEncoder().gpu(O.PASS_BEGIN,begin).gpu(O.CLEAR_BUFFER,[0xf0|(cls<<2),0,0xffffffff,0x80000001,17,3]).gpu(O.PASS_END,[])).status).toBe(0);
+      expect(t.run(new CommandEncoder().gpu(O.PASS_BEGIN,begin).gpu(O.CLEAR_BUFFER,[0xf0|((3-cls)<<2),0,0,0,0,0]).gpu(O.PASS_END,[])).status).toBe(A.E_INVALID);
+    }
+    t.send(O.TEXTURE_CREATE,[2,8,8,1,5,3]);
+    for (const [words,status] of [
+      [[0x11,0,F(.5),0,0,0],0], [[0xff06,0,19,0,0,0],0], [[0xff1f,0,F(.5),19,0,0],0],
+      [[0xff1f,1,F(.5),19,0,0],A.E_INVALID], [[0x11,0,F(2),0,0,0],A.E_INVALID],
+      [[0xff06,0,256,0,0,0],A.E_INVALID], [[0xff1f,0,F(.5),19,1,0],A.E_INVALID],
+    ] as [number[],number][]) expect(t.run(new CommandEncoder().gpu(O.PASS_BEGIN,[0,2,0,0,0,F(1),0]).gpu(O.CLEAR_BUFFER,words).gpu(O.PASS_END,[])).status).toBe(status);
+  });
   it.each(Array.from({ length: 18 }, (_, i) => i + 13))('integer format %i has exact byte accounting and rejects filtering/generation', format => {
     const t = setup(), components = format < 19 ? 1 : format < 25 ? 2 : 4;
     const bpp = components * (1 << Math.floor(((format - 13) % 6) / 2));
@@ -79,7 +101,7 @@ describe('GPU command validation', () => {
       .gpu(O.BUFFER_UPDATE, [1, 1024, 16384, source.length])
       .gpu(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 4])).errors).toEqual([]);
     expect(t.run(t.bound().gpu(O.VIEWPORT, [0, 0, F(64), F(64), 0, F(1)])
-      .gpu(O.SCISSOR, [0, 0, 64, 64]).gpu(O.STENCIL_REF, [42])
+      .gpu(O.SCISSOR, [0, 0, 64, 64]).gpu(O.CLEAR_BUFFER, [0xf0, 0, F(.25), F(.5), F(.75), F(1)]).gpu(O.STENCIL_REF, [42])
       .gpu(O.BLEND_CONSTANT, [F(0.25), F(0.5), F(0.75), F(1)])
       .gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
       .gpu(O.PASS_END, []).clear(0xff223344)).errors).toEqual([]);

@@ -159,6 +159,7 @@ describe('v0.3 GPU ABI layout', () => {
       A.GPU_OP.INDEX_BUFFER, A.GPU_OP.UNIFORM_BUFFER, A.GPU_OP.TEXTURE, A.GPU_OP.DRAW, A.GPU_OP.DRAW_INDEXED,
       A.GPU_OP.TEXTURE_CREATE_EX, A.GPU_OP.TEXTURE_UPDATE_EX, A.GPU_OP.SAMPLER_CREATE_EX,
       A.GPU_OP.TEXTURE_READBACK, A.GPU_OP.TEXTURE_GENERATE_MIPS, A.GPU_OP.TEXTURE_ALLOCATE_MIPS,
+      A.GPU_OP.CLEAR_BUFFER, A.GPU_LAYOUT.clear_buffer, 0, 4, 8,
     ]);
   });
   it('all 30 C GPU encoders exactly match the TS wire-word encoder', () => {
@@ -196,6 +197,7 @@ describe('v0.3 GPU ABI layout', () => {
       .gpu(A.GPU_OP.TEXTURE_READBACK, [1,2,3,4,5,6,7,8,9])
       .gpu(A.GPU_OP.TEXTURE_GENERATE_MIPS, [1,2])
       .gpu(A.GPU_OP.TEXTURE_ALLOCATE_MIPS, [1,2])
+      .gpu(A.GPU_OP.CLEAR_BUFFER, [1,2,3,4,5,6])
       .finish();
     expect(submitted).toEqual(expected);
   });

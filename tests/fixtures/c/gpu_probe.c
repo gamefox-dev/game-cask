@@ -357,6 +357,8 @@ static const uint32_t layouts[] = {
     BGT_OP_GPU_DRAW_INDEXED,
     BGT_OP_GPU_TEXTURE_CREATE_EX, BGT_OP_GPU_TEXTURE_UPDATE_EX, BGT_OP_GPU_SAMPLER_CREATE_EX,
     BGT_OP_GPU_TEXTURE_READBACK, BGT_OP_GPU_TEXTURE_GENERATE_MIPS, BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS,
+    BGT_OP_GPU_CLEAR_BUFFER, sizeof(bgt_gpu_clear_buffer_t), offsetof(bgt_gpu_clear_buffer_t, kind_class_masks),
+    offsetof(bgt_gpu_clear_buffer_t, index), offsetof(bgt_gpu_clear_buffer_t, value),
 };
 BGT_EXPORT(gpu_layout) uint32_t gpu_layout(void) { return (uint32_t)(uintptr_t)layouts; }
 BGT_EXPORT(gpu_layout_count) uint32_t gpu_layout_count(void) { return sizeof layouts / 4; }
@@ -487,5 +489,6 @@ BGT_EXPORT(gpu_encode) int32_t gpu_encode(void) {
     uint32_t w_texture_allocate_mips[] = {1,2};
     bgt__gpu_copy((uint8_t *)&v_texture_allocate_mips, w_texture_allocate_mips, sizeof v_texture_allocate_mips);
     bgt_cmd_gpu_texture_allocate_mips(&cb, &v_texture_allocate_mips);
+    bgt_gpu_clear_buffer_t clear = {1,2,{3,4,5,6}}; bgt_cmd_gpu_clear_buffer(&cb, &clear);
     return bgt_cmd_submit(&cb);
 }

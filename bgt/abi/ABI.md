@@ -843,7 +843,7 @@ structure/ranges/handles/state/ordering/shader results using a recording backend
 unchanged v0.2 module regression and deferred request tests. Browser GPU rendering tests are the backend lanes'
 responsibility; this section alone does not claim GPU pixels or an OpenGL 3.3 profile are implemented.
 
-### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5d)
+### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5e)
 
 Added by lane K6a for GL 3.3 texture/framebuffer semantics. They need `CAP_GPU` exactly like §13 (otherwise
 `E_UNSUPPORTED` after framing validation) and are implemented by both the WebGL 2 and WebGPU backends. Existing
@@ -941,6 +941,29 @@ signed-conversion behavior (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); WebGP
 No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range raster values and
 full-width 32-bit outputs, and separately pins each backend's current overflow behavior. All 18 formats have exact
 upload/sample/render/readback coverage in `x64-gl-integer`; this is not general unrestricted GL 3.3 compatibility.
+
+### 13.9 Indexed clear-buffer operation (additive v0.3, opcode 0x5f)
+
+`CLEAR_BUFFER` is a 24-byte, pass-local operation: `kind_class_masks, index, value[4]` (six u32 words).
+Bits 0..1 select COLOR=0, DEPTH=1, STENCIL=2, DEPTH_STENCIL=3. Bits 2..3 select FLOAT=0, SIGNED=1,
+UNSIGNED=2, DEPTH_STENCIL=3. Color write-mask bits R/G/B/A occupy bits 4..7. Depth write-enable is bit 4;
+stencil write-mask occupies bits 8..15. All other bits are zero. `index` addresses the GPU pass's color attachment;
+non-color forms require index zero. Float values use their f32 bit patterns; signed/unsigned colors retain exact
+32-bit integers. Depth is finite [0,1] in value[0]; stencil is 0..255 in value[0] (STENCIL) or value[1] (DS).
+Unused value words and irrelevant mask fields are zero. COLOR requires the attachment's matching value class;
+DEPTH uses FLOAT, STENCIL SIGNED, DS the DS class. Invalid classes/indices/fields return E_INVALID; outside a pass,
+E_STATE. Clear ignores viewport, blending and depth/stencil comparisons, honors active SCISSOR, and preserves
+masked channels/bits and dynamic pipeline/binding state. Zero masks/empty scissor have no effect. No clear state
+is stored or modified by this operation.
+
+The GL profile resolves the GL draw-buffer index through glDrawBuffers before encoding; a GL_NONE mapping is a
+no-op even with no value pointer. Invalid buffer enums/forms give GL_INVALID_ENUM, invalid index GL_INVALID_VALUE,
+and format-class mixing GL_INVALID_OPERATION without sending a command. Absent depth/stencil aspects are no-ops.
+GLColorMaski is per draw-buffer index (ColorMask sets all four), and GLboolean arguments consume only their low byte
+per the Windows ABI. WebGL executes native clearBufferfv/iv/uiv/fi with explicit masks. WebGPU executes ordered
+fullscreen draws with scissor and immutable write masks, restoring viewport/stencil reference afterwards; it never
+uses a whole-attachment load clear for a masked/scissored operation. Pipelines are bounded/cached by format/masks,
+not clear values; exact value bits use per-operation uniform snapshots.
 
 Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
 accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
