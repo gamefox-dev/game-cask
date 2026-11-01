@@ -1,3 +1,4 @@
+// @bgt-examples: x64-gl-integer
 import { expect, it } from 'vitest';
 import { loadHeadless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
