@@ -67,7 +67,7 @@ Details, review findings, fixes and provenance: [K6d handoff](handoff/K6d.md).
 | WG WebGPU | All §13 commands; native WGSL plus kit GLSL330/ES300→WGSL frontend; formats, MRT, depth/stencil, indexed/base-vertex/instances, recovery and ordered 2D/GPU screen/readback | Practical frontend, not unrestricted GLSL; explicit errors for unsupported syntax; language mask 7 |
 | W2 WebGL 2 | All §13 commands; GLSL330/ES300 execution, portable IDs/strides, MRT/depth/stencil/mips, interleaving/readback and actual context-loss restoration | WGSL is **WebGPU-only**; mask 6; CAP_GPU requires extensions and portable limits |
 | GL OpenGL profile + K6a/K6b | WGL/GL 3.3→§13/§13.7; 360 names, 192 implemented / 168 explicit unsupported; textures/FBOs, preprocessing, active-uniform/block/attribute reflection, uniform arrays/structs; `x64-gl`, `x64-gl-fbo` and `x64-glsl` real-backend pixels | Bounded GL subset, not full GL 3.3; cube maps rejected; recording semantic oracle is separate from raster evidence |
-| E COM/audio/input | Class registry/identity/refcounts/task memory, WASAPI shared stereo float32/int16 + virtual clock, Raw Input, separate four-slot gamepads, XInput and best-effort rumble | No general COM marshaling, capture/exclusive audio, WinMM/DirectSound expansion, full HID or physical rumble verification |
+| E COM/audio/input + K8c | Class registry/identity/refcounts/task memory, WASAPI shared stereo float32/int16 + virtual clock, process-local endpoint notification ownership, Raw Input, separate four-slot gamepads, XInput and best-effort rumble | No general COM marshaling, capture/exclusive audio, WinMM/DirectSound expansion, full HID or physical rumble verification |
 | C threads | Deterministic cooperative i386/AMD64 workers, waits/events/mutexes/semaphores/CS/SRW/CV/address waits, TLS/FLS/TEBs/last error and instruction quantum | Bounded single process; native callback continuations are LIFO, not general native fibers |
 | F codegen | Register-local AMD64 integer/common SSE emission, conservative flag liveness, guarded flat-memory spans, cold semantic/quantum boundaries | Correctness gates green; literal x64-crt performance acceptance remains **unmet** |
 | G reviewer bridge | Workspace-only extension, persistent loopback queues/status/waits/live and no-tools fork questions, independent-clone launcher | Same-user coordination, not authentication/isolation; settled does not mean tests passed |
@@ -161,7 +161,8 @@ frame yields still occur. InitOnceExecuteOnce and broader CRT per-thread locale/
 state is part of the whole saved CPU context.
 COM apartment initialization is thread-local; this is not general apartment marshaling. Audio has a guest-heap-owned
 source ring sized from the requested duration and deterministic non-bandlimited resampling; locked/full browser queues
-may drop samples. No capture, endpoint notification/enumeration, exclusive mode, unsupported EXTENSIBLE layouts,
+may drop samples. K8c adds process-local endpoint notification registration/guest reference ownership (fixed topology, no
+unsolicited changes); endpoint collection enumeration remains unsupported. No capture, exclusive mode, unsupported EXTENSIBLE layouts,
 BSTR/variant arrays, raw wheel/full HID enumeration or low-bit async key latches. No physical actuator/listening or
 mobile fidelity claim.
 

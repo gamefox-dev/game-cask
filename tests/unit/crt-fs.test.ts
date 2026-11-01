@@ -16,6 +16,7 @@ for (const [machine, target] of [['i386', 'x86-windows-gnu'], ['x86-64', 'x86_64
     const dir = mkdtempSync(join(root, 'case-'));
     try {
       writeFileSync(join(dir, 'probe.c'), readFileSync(join(ROOT, 'tests/fixtures/c/crt_fs.c'), 'utf8'));
+      writeFileSync(join(dir, 'crt_fs_prefix.h'), readFileSync(join(ROOT, 'tests/fixtures/c/crt_fs_prefix.h'), 'utf8'));
       mkdirSync(join(dir, 'assets/nested'), { recursive: true });
       mkdirSync(join(dir, 'assets/Data'), { recursive: true });
       writeFileSync(join(dir, 'assets/nested/seed.txt'), 'original fixture\n');
@@ -35,7 +36,8 @@ for (const [machine, target] of [['i386', 'x86-windows-gnu'], ['x86-64', 'x86_64
         const done = h.logs.find((s) => s.includes('crtfs PASS'));
         expect(done, h.logs.join('\n')).toBeDefined();
         const checks = Number(done!.split('checks=')[1]);
-        expect(checks).toBeGreaterThan(machine === 'i386' ? 210 : 270);
+        expect(checks).toBeGreaterThan(machine === 'i386' ? 500 : 620);
+        expect(h.logs.some(s => s.includes('crtfs extended DOS prefixes PASS'))).toBe(true);
         const m = h.host.metrics() as any;
         expect(m.exited).toBe(1);
         /* The only counted stub is the pre-existing i386 startup notification _set_app_type (no profile effect). */

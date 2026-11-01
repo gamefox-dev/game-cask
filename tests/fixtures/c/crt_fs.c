@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <io.h>
+#include <fcntl.h>
 #include <direct.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -469,7 +470,9 @@ static __attribute__((noinline)) void section9(long long t0) {
 
 }
 
+#include "crt_fs_prefix.h"
 int main(void) {
+    test_prefixes();
     long long t0 = now_t();
     CHECK(t0 > 1000000000ll);
     section0(t0);

@@ -495,6 +495,8 @@ uint32_t w32_audio_method(uint32_t kind, uint32_t slot, uint32_t *nargs) {
     if ((kind == WCOM_ENUM && slot == 5) || (kind == WCOM_DEVICE && slot == 4))
         name = "BgtAudioUnsupported3";
     if (kind == WCOM_ENUM && slot == 4) name = "BgtAudioEndpoint";
+    if (kind == WCOM_ENUM && slot == 6) name = "BgtComRegisterNotify";
+    if (kind == WCOM_ENUM && slot == 7) name = "BgtComUnregisterNotify";
     if (kind == WCOM_DEVICE && slot == 3) name = "BgtAudioActivate";
     if (kind == WCOM_DEVICE && slot == 6) name = "BgtAudioState";
     if (kind == WCOM_AUDIO) {
