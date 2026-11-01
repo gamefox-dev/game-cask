@@ -2,9 +2,17 @@
 
 ## Delivery
 
-Engine-independent renderer changes, based on `0838b00`. No game sources, captured shader text, ABI changes,
-dependencies, system installs, network access or success stubs. All committed regression shaders are original
-**CC0-1.0**. No push. The captured sources and scratch checks stay outside the repository.
+Engine-independent renderer changes, based on `0838b00`; implementation commit **`5924d60`**. No game sources,
+captured shader text, ABI changes, repository dependency changes, system installs or success stubs. All committed
+regression shaders are original **CC0-1.0**. No push. Captured sources/scratch checks stay outside the repository.
+
+**Tooling provenance exception (disclosed and accepted by reviewer):** an early misconfigured external scratch
+Playwright config ran `npx vite` from the wrong working directory. It may have fetched **vite@8.3.5** into the
+scratch npm cache (network/tooling only, not game data or source); it failed with EPERM before serving tests.
+Nothing in the repository changed. Corrected scratch checks used `npx --no-install`, the proper worktree cwd
+and the repository's pinned Vite. Every reported passing check used the pinned repository tooling, not the
+accidental scratch install; that scratch install was removed. Do **not** read this handoff as a zero-network
+claim. Reviewer authorized finishing with this explicit disclosure; offline npm defaults are a harness follow-up.
 
 - **WGSL:** boolean-selector `mix(x, y, a)` becomes typed `select(x, y, a)` (true selects **y**), for scalar and
   vec2/3/4 float32, int32, uint32 and bool values. Reject mismatched selector/operand shapes. Numeric mix remains
@@ -70,7 +78,7 @@ Scratch evidence: `/Users/dev/projects/pi-work/scratch-K8b/audit-browser.log`, `
   preservation of a legal user-defined mix overload. Test output count is asserted, not just no-errors/boot.
 - Focused host suite: **159/159 tests in 3 files**, no skips.
 - Doctor **ready**; ESLint + clang + **real GCC** lint and **27/27** example check-builds **pass**;
-  typecheck and leakcheck **pass** (507 committable files before this handoff).
+  typecheck and leakcheck **pass** (508 committable files in the final offline rerun, including this handoff).
 - Full required-WebGPU `npm run test:e2e`: **210 passed / 51 existing intentional skips / 0 failed / 0 flaky**.
   WebGL2 **95/24**, WebGPU **107/26**, auto **8/1**. No assertion, tolerance or skip policy weakened.
 - **23/23 pipeline examples × 300 frames = 6,900 identical frame pairs**, exit 0, null errors, zero lifted
@@ -78,8 +86,16 @@ Scratch evidence: `/Users/dev/projects/pi-work/scratch-K8b/audit-browser.log`, `
 - Local `env -u PI_PROVIDER_EXTENSION npm test -- --maxWorkers=1`: **748 passed / 5 failed**, 60 files.
   The failures are precisely the already documented sandbox-denied ps/FIFO/liveness tests in
   `tests/unit/pi-harness.test.ts` (Q25/K7i), not shader failures. The provider environment is unset to isolate
-  inherited provider configuration, not to skip tests. No local all-green Tier 1 claim while this gate is open.
-  Initial inherited-provider full-suite attempt timed out; the clean-environment full run above is authoritative.
+  inherited provider configuration, not to skip tests. Initial inherited-provider full-suite attempt timed out;
+  the clean-environment full run above is authoritative.
+- **Reviewer external exact-tree gate on `5924d60`: 34/34 harness tests PASS outside the sandbox.** This verifies
+  the five local failures are the sandbox ps denial. Reviewer says K7i is already merged into integration;
+  no cherry-pick is needed here. All 753 unit cases have passing evidence across the local/external runs
+  (29 harness cases overlap), **not** a fabricated green local `npm test` result. Combined Tier 1 acceptance
+  is green with the external environment gate explicitly separated.
+- **Independent reviewer accepted `5924d60`:** reviewed the focused eight-file diff and verified zero shared
+  source lines with the captured shaders. This is reviewer-bridge review/validation, not developer reruns or
+  a claimed delegated subagent invocation. The final follow-up commit changes only this handoff.
 
 Logs: external scratch `doctor.log`, `lint.log`, `typecheck.log`, `focused.log`, `unit.log`, `e2e.log`,
 `leakcheck.log`, `oracle-*.log`; ignored repository `reports/e2e-results.json` and `reports/oracle-<id>.json`.
@@ -92,7 +108,8 @@ was reported by the operator; tests resumed only after space recovery.
 
 - Q22 captured compile/link finish line and original numerical regressions are met; no game draw/title or
   startup claim. Other Q21/Q23/Q24 blockers and inactive shader variants remain outside this lane.
-- Q25 needs K7i or exact-final-tree external harness validation. Reviewer bridge requests defaulted on explicit
-  timeouts to external validation rather than changing another lane's harness or weakening tests.
-- Independent validation requires a fresh session; do not infer it from this developer's own reruns.
+- Q25's local sandbox limitation remains visible above, but the reviewer-supplied exact-tree **34/34** external
+  validation closes this lane's acceptance gate. No harness tests changed, were skipped or weakened.
+- Reviewer bridge supplied the independent acceptance and external harness result; no separate additional
+  delegated validation session is claimed.
 - Desktop Chromium WebGL2/native WebGPU only, not iPhone/Safari/Firefox certification.
