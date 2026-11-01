@@ -1,3 +1,4 @@
+// @bgt-examples: win32-hello
 import { it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, cpSync } from 'node:fs';

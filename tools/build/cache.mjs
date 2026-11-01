@@ -38,16 +38,17 @@ export function pruneCache(dir, maxBytes) {
     } catch(e) {if(e.code!=='ENOENT')throw e;}
   }
   const files = [];
-  for (const name of readdirSync(dir).filter((s)=>/\.(o|wasm)$/.test(s))) {
+  for (const name of readdirSync(dir).filter((s)=>/\.(o|wasm)(\.[^.]+\.tmp)?$/.test(s))) {
     const path = join(dir,name);
-    try {const s=statSync(path);files.push({path,size:s.size,time:s.mtimeMs});} catch(e) {if(e.code!=='ENOENT')throw e;}
+    const payload = path.replace(/(\.(?:o|wasm))\.[^.]+\.tmp$/, '$1');
+    try {const s=statSync(path);files.push({path,size:s.size,time:s.mtimeMs,pinned:pinned.has(payload)});} catch(e) {if(e.code!=='ENOENT')throw e;}
   }
   files.sort((a,b)=>a.time-b.time || a.path.localeCompare(b.path));
   let bytes=files.reduce((s,f)=>s+f.size,0),removed=0;
-  for (const f of files) if (bytes>maxBytes && !pinned.has(f.path)) {
+  for (const f of files) if (bytes>maxBytes && !f.pinned) {
     rmSync(f.path,{force:true}); bytes-=f.size; removed+=f.size;
   }
-  return {bytes,removed,pinnedBytes:files.filter((f)=>pinned.has(f.path)).reduce((n,f)=>n+f.size,0)};
+  return {bytes,removed,pinnedBytes:files.filter((f)=>f.pinned).reduce((n,f)=>n+f.size,0)};
   });
 }
 

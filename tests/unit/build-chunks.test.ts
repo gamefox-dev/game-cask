@@ -1,3 +1,4 @@
+// @bgt-examples: x64-scale
 import { it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';

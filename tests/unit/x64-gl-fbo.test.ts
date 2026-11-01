@@ -1,9 +1,8 @@
+// @bgt-examples: x64-gl-fbo
 import { expect, it } from 'vitest';
 import { loadHeadless, type Headless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 import { GPU, GPU_OP as O } from '../../bgt/runtime/abi';
-// @ts-expect-error plain ESM
-import { buildGame } from '../../tools/build/build.mjs';
 
 // Content that depends on rasterization cannot be known to the recording backend; real pixels are asserted on
 // WebGL 2 and WebGPU in tests/e2e/x64-gl-fbo.spec.ts. Everything else is checked here, byte for byte.
@@ -24,7 +23,6 @@ async function startup(h: Headless) {
 }
 
 it('x64-gl-fbo: GL error codes, completeness statuses and upload round trips match GL 3.3', async () => {
-  buildGame('examples/x64-gl-fbo', { quiet: true });
   const stream = glStream(), h = await loadHeadless('x64-gl-fbo', stream);
   await startup(h);
   await h.stepAsync(3);

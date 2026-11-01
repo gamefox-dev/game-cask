@@ -1,3 +1,4 @@
+// @bgt-examples: x64-cpprt x64-crt x64-memory
 import { it, expect } from 'vitest';
 import { readFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

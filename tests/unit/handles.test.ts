@@ -1,4 +1,5 @@
 // Catches pseudo-handle truncation, alias lifetime/rights/flags bugs and scheduler-slot consumption.
+// @bgt-examples: x64-handles x86-handles
 import { it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

@@ -1,3 +1,4 @@
+// @bgt-examples: x64-contracts
 // Each fixture assertion states an API contract and checks output/error/ownership, not just lookup.
 import { it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';

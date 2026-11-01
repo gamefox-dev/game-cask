@@ -322,7 +322,8 @@ describe('heavy gate FIFO and matching (LANE-K6e)', () => {
     expect(trace(dir)).toEqual(['x', 'end x']);
     expect(readdirSync(queue)).toEqual([]);
     // a genuinely live older waiter keeps its place
-    const { stdout } = await exec('ps', ['-o', 'lstart=', '-p', String(process.pid)]);
+    // LANE-K7i: use kernel incarnation identity; ps is denied in the kit sandbox.
+    const { stdout } = await exec('python3', ['-I', join(here, 'process-start.py'), String(process.pid)]);
     const live = join(queue, `0000000003.000000-${process.pid}`);
     writeFileSync(live, stdout.trim());
     const blocked = launch(dir, real, 'y', 'y');

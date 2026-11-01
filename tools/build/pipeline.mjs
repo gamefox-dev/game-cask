@@ -111,7 +111,7 @@ export function buildFixture(gameDir, fx, outDir) {
     const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
     writeFileSync(join(outDir,'fixture-metrics.json'),JSON.stringify(metrics));
     const keep = new Set(objects.map((o)=>o.out));
-    for (const f of readdirSync(dir)) if (!keep.has(join(dir,f))) rmSync(join(dir,f),{force:true});
+    for (const f of readdirSync(dir)) if (f !== '.locks' && !keep.has(join(dir,f))) rmSync(join(dir,f),{force:true});
   } else execFileSync('zig', args, { stdio: 'inherit', cwd: gameDir });
   stripTimestamp(out);
   return out;
@@ -251,22 +251,22 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     }
     if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
-      const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
-      const measured = mode64 && p.chunkInstructions !== 0 ? analyzeCached(tool,file,id,base,work,identity) : null;
-      ownershipAnalysis = measured?.analysis;
+      const args = ['lift', file, '--name', id, '--base', base.toString(16)];
+      const measured = analyzeCached(tool,file,id,base,work,identity);
+      ownershipAnalysis = measured.analysis;
       let selectedSet = null;
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if(plan) {
         const identity=plan.modules.find((m)=>m.name===name);
         if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
-        const an=measured?.analysis ?? JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+        const an=measured.analysis;
         const selected=staticClosure(an,plan.code);
         selectedSet = new Set(selected);
         for(const a of selected)sliceCode.add(a);
         const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);
       }
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
-      if (measured && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
+      if (mode64 && p.chunkInstructions !== 0 && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
         const result = liftChunks({tool,file,id,base,work,analysis:measured.analysis,key:measured.key,
           selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,budget:p.chunkInstructions ?? 32768});
         // Remove the old monolithic intermediate after successful chunk publication.
@@ -275,11 +275,15 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         analysis = JSON.stringify(measured.analysis);
         scale = {...result.metrics,analysis_ms:measured.analysis_ms,analysis_cached:measured.analysis_cached};
       } else {
-        const started = performance.now();
-        analysis = execFileSync(tool, args, { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'inherit'] });
-        writeFileSync(join(work, `analysis_${id}.json`), analysis);
+        const key = sha256(JSON.stringify([measured.key, selectedSet ? [...selectedSet].sort((a,b)=>a-b) : null,
+          ov.addrs, p.flagLiveness === true, 'monolithic-v1']));
+        const metrics = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/lift.py')], {
+          input: JSON.stringify({ tasks: [{ out: lifted, key, args: [tool, ...args] }], jobs: 1 }),
+          encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
+        }));
+        analysis = JSON.stringify(measured.analysis);
         stats = JSON.parse(readFileSync(lifted + '.stats.json', 'utf8'));
-        scale = {lift_ms:performance.now()-started,generated_c_bytes:statSync(lifted).size,chunks:1};
+        scale = {...metrics,analysis_ms:measured.analysis_ms,analysis_cached:measured.analysis_cached,generated_c_bytes:statSync(lifted).size,chunks:1};
       }
     }
     ownershipAnalysis ??= analysis ? JSON.parse(analysis) : analyzeCached(tool,file,id,base,work,identity).analysis;

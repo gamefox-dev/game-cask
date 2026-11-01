@@ -95,7 +95,8 @@ QUEUE=$PREFIX-queue
 mkdir -p "$QUEUE" || exit 2
 
 now() { perl -MTime::HiRes=gettimeofday -e '($s,$u)=gettimeofday; printf "%010d.%06d", $s, $u' 2>/dev/null || printf '%010d.000000' "$(date +%s)"; }
-started() { ps -o lstart= -p "$1" 2>/dev/null | sed 's/^ *//; s/ *$//'; } # process start time, guards against pid reuse
+# LANE-K7i: ps is sandbox-denied. Kernel incarnation identity still guards PID reuse.
+started() { python3 -I "$HERE/../process-start.py" "$1" 2>/dev/null; }
 
 RESULT=$(mktemp /private/tmp/bgt-heavy-result.XXXXXX) || exit 2
 TICKET=$QUEUE/$(now)-$$
@@ -103,7 +104,8 @@ cleanup() { rm -f "$RESULT" "$TICKET"; }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
-started $$ > "$TICKET" || exit 2
+START=$(started $$) || { echo 'heavy gate cannot identify waiter; refusing ungated command' >&2; exit 2; }
+printf '%s\n' "$START" > "$TICKET" || exit 2
 
 # Remove tickets whose waiter is gone; print the oldest remaining ticket name.
 oldest() {
