@@ -58,8 +58,12 @@ static void begin(void) { bgt_cmd_init(&cmd, cmd_mem, sizeof cmd_mem); }
 static void op(uint32_t code, const uint32_t *w, uint32_t n) {
     bgt__gpu_copy(bgt_cmd_push(&cmd, (uint16_t)code, n * 4), w, n * 4);
 }
-static void submit(void) { if (bgt_cmd_submit(&cmd) < 0) fail(BAD_OP); }
-static void send(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code, w, n); submit(); }
+static int submit(void) {
+    int32_t rc = bgt_cmd_submit(&cmd);
+    if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
+    return 1;
+}
+static int send(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code, w, n); return submit(); }
 #define SEND(code, ...) do { \
     const uint32_t payload[] = {__VA_ARGS__}; send(code, payload, sizeof payload / 4); \
 } while (0)

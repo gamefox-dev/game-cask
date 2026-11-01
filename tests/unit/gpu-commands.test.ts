@@ -70,7 +70,8 @@ describe('GPU command validation', () => {
       .gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
       .gpu(O.PASS_END, []).clear(0xff223344)).errors).toEqual([]);
     expect(t.run(new CommandEncoder() // §13.7 operations, all outside passes
-      .gpu(O.TEXTURE_CREATE_EX, [2, 0, 4, 4, 1, 1, 0, 1]).gpu(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4])
+      .gpu(O.TEXTURE_CREATE_EX, [2, 0, 4, 4, 1, 2, 0, 1]).gpu(O.TEXTURE_ALLOCATE_MIPS, [2, 2])
+      .gpu(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4])
       .gpu(O.SAMPLER_CREATE_EX, [2, 1, 1, 2, 0, 1, 0, 0, 7, F(0), F(4)]).gpu(O.TEXTURE_GENERATE_MIPS, [2, 0])
       .gpu(O.TEXTURE_READBACK, [2, 0, 0, 0, 0, 1, 1, 1, 5]).gpu(O.TEXTURE_DELETE, [2]).gpu(O.SAMPLER_DELETE, [2])).errors)
       .toEqual([]);

@@ -28,7 +28,7 @@ const vertexFormats: GPUVertexFormat[] = [
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer> }
 interface TextureResource {
-  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[];
+  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[] }
@@ -94,6 +94,8 @@ export class WebGPUCommands implements GpuBackend {
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
+      if (t.allocatedMips > 1) this.execute({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
+        words: [t.words[0], t.allocatedMips] });
       if (t.generated && t.desc.dimension !== 1) {
         this.execute(t.generated.source);
         this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated.base] });
@@ -155,15 +157,15 @@ export class WebGPUCommands implements GpuBackend {
         if (desc.format >= 10 && !d.features.has('float32-filterable')) {
           throw new Error('32-bit float textures need the float32-filterable WebGPU feature');
         }
-        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: desc.mips,
+        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: 1,
           dimension: desc.dimension === 1 ? '3d' : '2d', format: formats[desc.format],
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
             (depthFormat ? 0 : GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC) });
-        this.textures.set(h, { native, words: w, desc, uploads: [] });
+        this.textures.set(h, { native, words: w, desc, uploads: [], allocatedMips: 1 });
         // WebGPU zero-initializes color/stencil, but BGT initializes depth to one.
         if (depthFormat) {
           const encoder = d.createCommandEncoder();
-          for (let mip = 0; mip < desc.mips; mip++) {
+          for (let mip = 0; mip < 1; mip++) {
             const a: GPURenderPassDepthStencilAttachment = {
               view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
               depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
@@ -173,6 +175,10 @@ export class WebGPUCommands implements GpuBackend {
           }
           d.queue.submit([encoder.finish()]);
         }
+        break;
+      }
+      case OP.TEXTURE_ALLOCATE_MIPS: {
+        this.growTexture(w[0], w[1]);
         break;
       }
       case OP.TEXTURE_UPDATE_EX: {
@@ -297,10 +303,31 @@ export class WebGPUCommands implements GpuBackend {
   private blits = new Map<number, GPURenderPipeline>();
   private blitSampler?: GPUSampler;
 
+  /** Grow an immutable WebGPU texture without losing already rendered/uploaded levels. */
+  private growTexture(handle: number, allocatedMips: number): void {
+    const d = this.device, t = this.textures.get(handle)!;
+    if (allocatedMips <= t.allocatedMips) return;
+    if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
+    const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
+      dimension: t.desc.dimension === 1 ? '3d' : '2d', format: formats[t.desc.format],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
+        (isDepthFormat(t.desc.format) ? 0 : GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC) });
+    const encoder = d.createCommandEncoder();
+    for (let mip = 0; mip < t.allocatedMips; mip++) {
+      const e = mipExtent(t.desc, mip);
+      encoder.copyTextureToTexture({ texture: t.native, mipLevel: mip }, { texture: next, mipLevel: mip },
+        [e.width, e.height, e.depth]);
+    }
+    d.queue.submit([encoder.finish()]);
+    const old = t.native; t.native = next; t.allocatedMips = allocatedMips;
+    old.destroy();
+  }
+
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
     const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
+    this.growTexture(handle, desc.mips);
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
     const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
     const source: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, base, 0, 0, 0,

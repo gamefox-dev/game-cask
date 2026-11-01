@@ -14,7 +14,7 @@ interface IndexedBlend {
 }
 interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer> }
 interface TextureObject {
-  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[];
+  object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[]; allocatedMips: number;
   generated?: { base: number; data: Uint8Array<ArrayBuffer>; overridden: Set<number> };
 }
 interface ShaderObject { object: WebGLShader; words: number[]; source: string }
@@ -179,10 +179,10 @@ export class WebGL2Gpu implements GpuBackend {
           throw new Error('32-bit float textures need EXT_color_buffer_float');
         }
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, object);
-        if (desc.dimension === 0) g.texStorage2D(target, desc.mips, format[0], desc.width, desc.height);
+        if (desc.dimension === 0) g.texStorage2D(target, 1, format[0], desc.width, desc.height);
         else g.texStorage3D(target, desc.mips, format[0], desc.width, desc.height, desc.depth);
-        g.texParameteri(target, g.TEXTURE_MAX_LEVEL, desc.mips - 1);
-        for (let mip = 0; mip < desc.mips; mip++) {
+        g.texParameteri(target, g.TEXTURE_MAX_LEVEL, desc.dimension === 0 ? 0 : desc.mips - 1);
+        for (let mip = 0; mip < (desc.dimension === 0 ? 1 : desc.mips); mip++) {
           const e = mipExtent(desc, mip);
           levels.push(new Uint8Array(e.width * e.height * e.depth * format[3]));
           if (isDepthFormat(desc.format)) {
@@ -197,7 +197,11 @@ export class WebGL2Gpu implements GpuBackend {
             g.deleteFramebuffer(initialization);
           }
         }
-        this.textures.set(h, { object, words: w, desc, levels }); break;
+        this.textures.set(h, { object, words: w, desc, levels, allocatedMips: desc.dimension === 0 ? 1 : desc.mips }); break;
+      }
+      case OP.TEXTURE_ALLOCATE_MIPS: {
+        this.growTexture(w[0], w[1]);
+        break;
       }
       case OP.TEXTURE_UPDATE_EX: {
         const t = this.textures.get(h)!, format = this.format(t.desc.format), bpp = format[3];
@@ -217,7 +221,8 @@ export class WebGL2Gpu implements GpuBackend {
       }
       case OP.TEXTURE_READBACK: this.readback(item, w); break;
       case OP.TEXTURE_GENERATE_MIPS: {
-        const t = this.textures.get(h)!, target = this.target(t.desc.dimension);
+        const t = this.textures.get(h)!; this.growTexture(h, t.desc.mips);
+        const target = this.target(t.desc.dimension);
         g.activeTexture(g.TEXTURE0); g.bindTexture(target, t.object);
         g.texParameteri(target, g.TEXTURE_BASE_LEVEL, w[1]); g.generateMipmap(target);
         g.texParameteri(target, g.TEXTURE_BASE_LEVEL, 0);
@@ -327,6 +332,40 @@ export class WebGL2Gpu implements GpuBackend {
       }
       this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds });
     } catch (e) { g.deleteProgram(object); throw e; }
+  }
+
+  /** Grow immutable storage while copying every already allocated level, including rendered contents. */
+  private growTexture(handle: number, allocatedMips: number): void {
+    const g = this.gl, t = this.textures.get(handle)!;
+    if (allocatedMips <= t.allocatedMips) return;
+    if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
+    if (t.desc.dimension !== 0) throw new Error('layered mip growth is unavailable');
+    const format = this.format(t.desc.format), target = g.TEXTURE_2D;
+    g.activeTexture(g.TEXTURE0);
+    const next = g.createTexture()!; g.bindTexture(target, next);
+    g.texStorage2D(target, allocatedMips, format[0], t.desc.width, t.desc.height);
+    g.texParameteri(target, g.TEXTURE_MAX_LEVEL, allocatedMips - 1);
+    const read = g.createFramebuffer()!, draw = g.createFramebuffer()!;
+    g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw);
+    const mask = isDepthFormat(t.desc.format) ? (t.desc.format === 5 ? g.DEPTH_BUFFER_BIT | g.STENCIL_BUFFER_BIT : g.DEPTH_BUFFER_BIT) : g.COLOR_BUFFER_BIT;
+    for (let mip = 0; mip < t.allocatedMips; mip++) {
+      if (isDepthFormat(t.desc.format)) {
+        g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.framebufferTexture2D(g.READ_FRAMEBUFFER,
+          t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, t.object, mip);
+        g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw); g.framebufferTexture2D(g.DRAW_FRAMEBUFFER,
+          t.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT, target, next, mip);
+      } else {
+        g.bindFramebuffer(g.READ_FRAMEBUFFER, read); g.framebufferTexture2D(g.READ_FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, t.object, mip);
+        g.bindFramebuffer(g.DRAW_FRAMEBUFFER, draw); g.framebufferTexture2D(g.DRAW_FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, next, mip);
+        g.readBuffer(g.COLOR_ATTACHMENT0); g.drawBuffers([g.COLOR_ATTACHMENT0]);
+      }
+      const e = mipExtent(t.desc, mip);
+      if (g.checkFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
+        g.checkFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
+      g.blitFramebuffer(0, 0, e.width, e.height, 0, 0, e.width, e.height, mask, g.NEAREST);
+    }
+    g.bindFramebuffer(g.FRAMEBUFFER, null); g.deleteFramebuffer(read); g.deleteFramebuffer(draw);
+    g.deleteTexture(t.object); t.object = next; t.allocatedMips = allocatedMips;
   }
 
   /** §13.7 TEXTURE_READBACK: exact stored texels, rows top-first, slices in order. */
@@ -582,6 +621,8 @@ export class WebGL2Gpu implements GpuBackend {
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });
     for (const [h, t] of textures) {
       replay({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
+      if (t.allocatedMips > 1) replay({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
+        words: [h, t.allocatedMips] });
       const upload = (mip: number, data: Uint8Array<ArrayBuffer>) => {
         const e = mipExtent(t.desc, mip);
         replay({ kind: 'gpu', op: OP.TEXTURE_UPDATE_EX,

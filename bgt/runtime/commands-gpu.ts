@@ -9,6 +9,8 @@ import type { GpuBackend, GpuItem } from '../renderers/types';
 type BufferEntry = { usage: number; shadow: Uint8Array<ArrayBuffer> };
 type TextureEntry = {
   width: number; height: number; depth: number; dimension: number; mips: number; format: number; usage: number;
+  /** Number of native mip levels currently reserved; logical mips remains the API maximum. */
+  allocatedMips: number;
   bytes: number;
 };
 const isDepth = (format: number) => format === 5 || format === 6;
@@ -27,13 +29,18 @@ type Pass = {
 export class GpuState {
   readonly buffers = new Map<number, BufferEntry>();
   readonly textures = new Map<number, TextureEntry>();
+  readonly budget: number;
+  peakBytes = 0;
+  largestAllocation = 0;
   /** Normalized to the §13.7 SAMPLER_CREATE_EX word order: wrap_w, compare_enable, compare, then LOD bits. */
   readonly samplers = new Map<number, number[]>();
   readonly shaders = new Map<number, ShaderEntry>();
   readonly pipelines = new Map<number, PipelineEntry>();
   bytes = 0;
   pass?: Pass;
-  constructor(readonly backend: GpuBackend) {}
+  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
+    this.budget = budget;
+  }
 }
 
 const fixedSizes = new Map<number, number>(Object.entries(GPU_OP)
@@ -80,7 +87,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
   };
   const copy = (ptr: number, len: number): Uint8Array<ArrayBuffer> | number => {
     if (ptr + len > mem.byteLength) return E_BOUNDS;
-    if (ctx.frame.gpuUploadBytes + len > GPU_LIMITS.budget) return E_LIMIT;
+    if (ctx.frame.gpuUploadBytes + len > g.budget) return E_LIMIT;
     return new Uint8Array(mem.subarray(ptr, ptr + len));
   };
   // All resource operations are outside passes. Dynamic/binding/draw operations are inside.
@@ -88,7 +95,17 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
   if (resourceOp && g.pass) return E_STATE;
   if (!resourceOp && op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
   const fresh = (map: Map<number, unknown>) => !validHandle(h) ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
-  const budget = (bytes: number) => g.bytes + bytes <= GPU_LIMITS.budget;
+  const budget = (bytes: number) => g.bytes + bytes <= g.budget;
+  const reserve = (bytes: number) => {
+    g.bytes += bytes; g.peakBytes = Math.max(g.peakBytes, g.bytes); g.largestAllocation = Math.max(g.largestAllocation, bytes);
+  };
+  const mipBytes = (t: TextureEntry, from: number, to: number) => {
+    let bytes = 0;
+    for (let mip = from; mip < to; mip++) {
+      const s = textureSize(t, mip); bytes += s.width * s.height * s.depth * pixelSizes[t.format];
+    }
+    return bytes;
+  };
   switch (op) {
     case GPU_OP.BUFFER_CREATE: {
       const e = fresh(g.buffers); if (e) return e;
@@ -98,7 +115,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const data = copy(w[3], w[4]); if (typeof data === 'number') return data;
       item.data = data;
       const shadow = new Uint8Array(w[2]); shadow.set(data);
-      g.buffers.set(h, { usage: w[1], shadow }); g.bytes += w[2];
+      g.buffers.set(h, { usage: w[1], shadow }); reserve(w[2]);
       return emit();
     }
     case GPU_OP.BUFFER_UPDATE: {
@@ -119,12 +136,11 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (w[1] > GPU_LIMITS.textureDimension || w[2] > GPU_LIMITS.textureDimension) return E_LIMIT;
       if (w[3] > 1 + Math.floor(Math.log2(Math.max(w[1], w[2])))) return E_INVALID;
       let bytes = 0;
-      const t = { width: w[1], height: w[2], depth: 1, dimension: 0, mips: w[3], format: w[4], usage: w[5], bytes: 0 };
-      for (let mip = 0; mip < w[3]; mip++) {
-        const s = textureSize(t, mip); bytes += s.width * s.height * pixelSizes[w[4]];
-      }
+      const t: TextureEntry = { width: w[1], height: w[2], depth: 1, dimension: 0, mips: w[3],
+        format: w[4], usage: w[5], allocatedMips: w[3], bytes: 0 };
+      bytes = mipBytes(t, 0, t.allocatedMips);
       if (!budget(bytes)) return E_LIMIT;
-      t.bytes = bytes; g.bytes += bytes; g.textures.set(h, t); return emit();
+      t.bytes = bytes; reserve(bytes); g.textures.set(h, t); return emit();
     }
     case GPU_OP.TEXTURE_UPDATE: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
@@ -163,19 +179,22 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         || depth > GPU_LIMITS.volumeDimension)) return E_LIMIT;
       if (dim === 2 && depth > GPU_LIMITS.arrayLayers) return E_LIMIT;
       if (mips > (dim === 1 ? mipCount(width, height, depth) : mipCount(width, height))) return E_INVALID;
-      const t: TextureEntry = { width, height, depth, dimension: dim, mips, format, usage, bytes: 0 };
-      let bytes = 0;
-      for (let mip = 0; mip < mips; mip++) {
-        const s = textureSize(t, mip); bytes += s.width * s.height * s.depth * pixelSizes[format];
-      }
+      const t: TextureEntry = { width, height, depth, dimension: dim, mips, format, usage, allocatedMips: 1, bytes: 0 };
+      const bytes = mipBytes(t, 0, t.allocatedMips);
       if (!budget(bytes)) return E_LIMIT;
-      t.bytes = bytes; g.bytes += bytes; g.textures.set(h, t); return emit();
+      t.bytes = bytes; reserve(bytes); g.textures.set(h, t); return emit();
     }
     case GPU_OP.TEXTURE_UPDATE_EX: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
       if (isDepth(t.format)) return E_UNSUPPORTED;
       const [, mip, x, y, z, width, height, depth, , length] = w;
       if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
+      if (mip >= t.allocatedMips) {
+        const next = mip + 1, extra = mipBytes(t, t.allocatedMips, next);
+        if (!budget(extra)) return E_LIMIT;
+        t.allocatedMips = next; t.bytes += extra; reserve(extra);
+        ctx.frame.items.push({ kind: 'gpu', op: GPU_OP.TEXTURE_ALLOCATE_MIPS, words: [h, next] });
+      }
       const s = textureSize(t, mip);
       if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
       if (length !== width * height * depth * pixelSizes[t.format]) return E_INVALID;
@@ -193,7 +212,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
       if (isDepth(t.format)) return E_UNSUPPORTED;
       const [, mip, x, y, z, width, height, depth] = w;
-      if (mip >= t.mips || !width || !height || !depth) return E_INVALID;
+      if (mip >= t.mips || mip >= t.allocatedMips || !width || !height || !depth) return E_INVALID;
       const s = textureSize(t, mip);
       if (x + width > s.width || y + height > s.height || z + depth > s.depth) return E_BOUNDS;
       if (width * height * depth * pixelSizes[t.format] > 8 * 1024 * 1024) return E_LIMIT;
@@ -201,10 +220,20 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const complete = ctx.gpuRequest(w[8]); if (typeof complete === 'number') return complete;
       item.readback = complete; return emit();
     }
+    case GPU_OP.TEXTURE_ALLOCATE_MIPS: {
+      const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
+      if (w[1] < t.allocatedMips || w[1] > t.mips || !w[1]) return E_INVALID;
+      const extra = mipBytes(t, t.allocatedMips, w[1]);
+      if (!budget(extra)) return E_LIMIT;
+      t.allocatedMips = w[1]; t.bytes += extra; reserve(extra); return emit();
+    }
     case GPU_OP.TEXTURE_GENERATE_MIPS: {
       const t = g.textures.get(h); if (!t) return E_NOT_FOUND;
       if (isDepth(t.format)) return E_UNSUPPORTED;
       if (w[1] >= t.mips) return E_INVALID;
+      const extra = mipBytes(t, t.allocatedMips, t.mips);
+      if (!budget(extra)) return E_LIMIT;
+      t.allocatedMips = t.mips; t.bytes += extra; reserve(extra);
       return emit();
     }
     case GPU_OP.SAMPLER_DELETE:
@@ -220,7 +249,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (item.source.includes('\0')) return E_INVALID;
       const complete = ctx.gpuRequest(w[5]); if (typeof complete === 'number') return complete;
       const shader = { stage: w[1], language: w[2], ready: false, bytes: w[4] };
-      g.shaders.set(h, shader); g.bytes += w[4];
+      g.shaders.set(h, shader); reserve(w[4]);
       let completed = false;
       item.complete = (code, log = '') => {
         if (completed) return;

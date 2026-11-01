@@ -194,6 +194,8 @@ export const GPU_OP = {
   SAMPLER_CREATE_EX: 0x5b,
   TEXTURE_READBACK: 0x5c,
   TEXTURE_GENERATE_MIPS: 0x5d,
+  /** Grow the native allocation to include levels [0, allocated_mips). */
+  TEXTURE_ALLOCATE_MIPS: 0x5e,
 } as const;
 export const GPU = {
   BUFFER_VERTEX: 1,
@@ -323,6 +325,7 @@ export const GPU_LAYOUT = {
   sampler_create_ex: 44,
   texture_readback: 36,
   texture_generate_mips: 8,
+  texture_allocate_mips: 8,
   pipeline_create: 104,
   vertex_layout: 8,
   attribute: 16,
@@ -364,6 +367,16 @@ export const GPU_LIMITS = {
   uniformAlignment: 256, uniformRange: 65536, stride: 2048, shaderBytes: 1024 * 1024,
   volumeDimension: 256, arrayLayers: 256,
 } as const;
+/** A reservation/accounting limit, never a claim about measured physical VRAM. */
+export const GPU_BUDGET_MIN = 16 * 1024 * 1024;
+export const GPU_BUDGET_MAX = 0xffffffff;
+export const normalizeGpuBudget = (value: number | undefined): number => {
+  const budget = value ?? GPU_LIMITS.budget;
+  if (!Number.isSafeInteger(budget) || budget < GPU_BUDGET_MIN || budget > GPU_BUDGET_MAX) {
+    throw new RangeError(`gpu budget must be an integer in [${GPU_BUDGET_MIN}, ${GPU_BUDGET_MAX}]`);
+  }
+  return budget;
+};
 export const GPU_LIMITS_SIZE = 80;
 export const GPU_LIMITS_OFFSETS = {
   gpu_supported: 16, max_gpu_handles: 20, gpu_budget_bytes: 24, max_buffer_bytes: 28,

@@ -277,6 +277,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
     ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
+    ...(cfg.gpu ? { gpu: cfg.gpu } : {}),
     packaging,
     ...(slice ? {slice} : {}),
     ...(streams.length ? {streams} : {}),

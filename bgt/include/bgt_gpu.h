@@ -360,6 +360,10 @@ typedef struct bgt_gpu_texture_generate_mips {
     uint32_t handle;
     uint32_t base_level;
 } bgt_gpu_texture_generate_mips_t; /* 8 bytes */
+typedef struct bgt_gpu_texture_allocate_mips {
+    uint32_t handle;
+    uint32_t allocated_mips;
+} bgt_gpu_texture_allocate_mips_t; /* 8 bytes */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(bgt_gpu_buffer_create_t) == 20, "GPU buffer_create layout");
 _Static_assert(sizeof(bgt_gpu_buffer_update_t) == 16, "GPU buffer_update layout");
@@ -394,6 +398,7 @@ _Static_assert(sizeof(bgt_gpu_texture_update_ex_t) == 40, "GPU texture_update_ex
 _Static_assert(sizeof(bgt_gpu_sampler_create_ex_t) == 44, "GPU sampler_create_ex layout");
 _Static_assert(sizeof(bgt_gpu_texture_readback_t) == 36, "GPU texture_readback layout");
 _Static_assert(sizeof(bgt_gpu_texture_generate_mips_t) == 8, "GPU texture_generate_mips layout");
+_Static_assert(sizeof(bgt_gpu_texture_allocate_mips_t) == 8, "GPU texture_allocate_mips layout");
 #endif
 
 #endif

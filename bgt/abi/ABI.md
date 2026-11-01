@@ -811,9 +811,11 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 76 | reserved | 0 |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
-supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each GPU
+supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
-alignment overhead is charged. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
+alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
+not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
+16 MiB through 0xffffffff. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
 their separate frozen budgets. Queued GPU upload/source copies additionally total at most 256 MiB per frame;
 exceeding this → E_LIMIT. All existing submit/command/2D frame limits still apply. Resource updates are ordered, not
 coalesced across draws or passes. No backend may reorder a deletion ahead of earlier commands using that resource.
@@ -857,6 +859,7 @@ LOD range [0, 1000]). Handles share the existing texture/sampler namespaces. C l
 | 0x5b | SAMPLER_CREATE_EX | 44 | handle, min_filter, mag_filter, mip_filter, wrap_u, wrap_v, wrap_w, compare_enable, compare, f32 min_lod, f32 max_lod |
 | 0x5c | TEXTURE_READBACK | 36 | handle, mip, x, y, z, width, height, depth, request |
 | 0x5d | TEXTURE_GENERATE_MIPS | 8 | handle, base_level |
+| 0x5e | TEXTURE_ALLOCATE_MIPS | 8 | handle, allocated_mips (grow native storage through this exclusive level) |
 
 **New formats** (valid only through `TEXTURE_CREATE_EX`; the legacy op still rejects them): RGB10A2=7 (unorm 10/10/10/2,
 LE u32 `r | g<<10 | b<<20 | a<<30`, 4 B), R16F=8 (2 B), RG16F=9 (4 B), R32F=10 (4 B), RG32F=11 (8 B), RGBA32F=12
@@ -869,8 +872,9 @@ the native capability (WebGL 2 `OES_texture_float_linear`/`EXT_float_blend`, Web
 and array layers are <=256 (`E_LIMIT`; fixed portable ceilings, array width/height remain <=4096). 3D and array textures
 are color-only and SAMPLED-only: depth formats or ATTACHMENT usage → `E_UNSUPPORTED` (no layered attachments). Mip
 extents: width/height halve (min 1); 3D depth halves (min 1); array layers are constant. `mips` is
-`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Budget counts every texel of every mip. Textures
-start zero (depth 1 / stencil 0 for depth formats).
+`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Native storage is allocated lazily: creation
+reserves level 0; an explicit update/readback/attachment use of a higher level grows through that level, and generation
+grows through the logical mip count. Budget counts only allocated texels. Textures start zero (depth 1 / stencil 0 for depth formats).
 
 **TEXTURE_UPDATE_EX.** Color formats only (`E_UNSUPPORTED` for depth). The region `[x,x+width) × [y,y+height) × [z,z+depth)`
 must fit the selected mip (`E_BOUNDS`; `z` is a slice for 3D and a layer for arrays, always 0/1 for 2D).
@@ -891,6 +895,10 @@ tightly packed bytes (rows top-first, slices in order, storage layout of the for
 floats are exact binary16/binary32). Ordinary request visibility rules apply (visible after a later update boundary).
 It observes all earlier passes and updates. This replaces the old "no GPU texture read-back" rule for textures only; the
 legacy screen READBACK is unchanged.
+
+**TEXTURE_ALLOCATE_MIPS.** Grows native storage to contain levels `[0, allocated_mips)`, monotonically, preserving all previously allocated
+contents including rendered contents. Only newly represented levels consume budget; failed growth leaves resource state and
+accounting unchanged.
 
 **TEXTURE_GENERATE_MIPS.** Regenerates levels `base_level+1 .. mips-1` from level `base_level` by 2×2(×2) box filtering
 (sRGB averaged in linear space; odd extents are implementation rounded). Color formats only. WebGL 2 uses

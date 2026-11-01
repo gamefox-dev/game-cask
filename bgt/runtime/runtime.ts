@@ -63,6 +63,7 @@ export interface Manifest {
   assets: Array<{ path: string; url: string; size: number; sha256: string }>;
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
+  gpu?: { budgetBytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
   input?: InputConfig;
@@ -91,6 +92,7 @@ export interface BGTDiagnostics {
   letterbox: Letterbox;
   wasmMemoryBytes: number;
   textures: { count: number; bytes: number };
+  gpu: { budgetBytes: number; reservedBytes: number; peakReservedBytes: number; largestAllocationBytes: number } | null;
   assets: { count: number; bytes: number; missing: string[] };
   timing: {
     frameIntervalMs: { last: number; avg: number; p95: number };
@@ -399,6 +401,7 @@ export class BGTRuntime {
           arg0: this.opts.arg0 ?? 0,
           arg1: this.opts.arg1 ?? 0,
           maxTextureDimension: this.renderer.maxTextureSize,
+          gpuBudgetBytes: manifest.gpu?.budgetBytes,
           sliceCode: manifest.slice?.code,
           sliceCodeRanges: manifest.slice?.codeRanges,
         },
@@ -735,6 +738,7 @@ export class BGTRuntime {
       letterbox: { ...this.letterbox },
       wasmMemoryBytes: host?.memoryBytes ?? 0,
       textures: { count: host?.textures.count ?? 0, bytes: host?.textures.totalBytes ?? 0 },
+      gpu: host?.gpuMetrics ?? null,
       assets: { count: this.vfs.fileCount, bytes: this.vfs.totalBytes, missing: [...this.vfs.missing] },
       timing: {
         frameIntervalMs: {
