@@ -76,8 +76,13 @@ DWORD WINAPI audio_main(void *unused) {
             format->wBitsPerSample = 16; format->nBlockAlign = 4; format->nAvgBytesPerSec = 96000;
         }
         if (IAudioClient_GetBufferSize(client, &capacity) != AUDCLNT_E_NOT_INITIALIZED) ExitProcess(10);
+        /* A 24 kHz int16 stream is not the mix format: shared mode needs the engine converter for it. */
+        if (pass && IAudioClient_Initialize(client, AUDCLNT_SHAREMODE_SHARED,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK, 1000000, 0, format, 0) != AUDCLNT_E_UNSUPPORTED_FORMAT)
+            ExitProcess(24);
         check(IAudioClient_Initialize(client, AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK, 1000000, 0, format, 0));
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK | (pass ? AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM : 0),
+            1000000, 0, format, 0));
         if (IAudioClient_Start(client) != AUDCLNT_E_EVENTHANDLE_NOT_SET) ExitProcess(11);
         check(IAudioClient_GetBufferSize(client, &capacity));
         if (capacity != format->nSamplesPerSec / 10) ExitProcess(12);

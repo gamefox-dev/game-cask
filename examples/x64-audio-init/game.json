@@ -1,0 +1,10 @@
+{
+  "id":"x64-audio-init", "name":"WASAPI shared-mode initialisation contracts (CC0)", "private":false, "license":"CC0-1.0",
+  "pipeline":{
+    "platform":"win32",
+    "fixture":{"target":"x86_64-windows-gnu", "crt":true, "sources":["audio_init.c"], "out":"audio_init.exe",
+      "libs":["kernel32", "ole32", "uuid"]},
+    "modules":[{"from":"./build/audio_init.exe", "name":"audio_init.exe", "main":true}], "width":320, "height":160
+  },
+  "touch":{"dpad":false,"buttons":[]}
+}

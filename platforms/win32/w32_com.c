@@ -8,11 +8,17 @@ const uint32_t w32_iid_enum[4] = {0xa95664d2, 0x4f359614, 0x8dde46a7, 0xe61736b6
 const uint32_t w32_iid_device[4] = {0xd666063f, 0x4e431587, 0x48b9f181, 0x3f3607e8};
 const uint32_t w32_iid_audio[4] = {0x1cb9ad4c, 0x4c32dbfa, 0xf5c278b1, 0xb203a768};
 const uint32_t w32_iid_render[4] = {0xf294acfc, 0x44833146, 0xdcadbfa7, 0xe260c2a7};
+/* IAudioClock, IAudioClockAdjustment, IAudioStreamVolume, ISimpleAudioVolume (little-endian GUID words). */
+const uint32_t w32_iid_clock[4] = {0xcd63314f, 0x4a1b3fba, 0x96ef2c81, 0xe7288735};
+const uint32_t w32_iid_adjust[4] = {0xf6e4c0a0, 0x4fb846d9, 0xa35721be, 0x6c622bef};
+const uint32_t w32_iid_streamvol[4] = {0x93014887, 0x4068242d, 0x5ecf158a, 0xe30fb993};
+const uint32_t w32_iid_sessionvol[4] = {0x87ce5498, 0x44e568d6, 0xa46d1592, 0xd883f87e};
 static const uint32_t iid_unknown[4] = {0, 0, 0x000000c0, 0x46000000};
 static const uint32_t clsid_enum[4] = {0xbcde0395, 0x467ce52f, 0x57c43d8e, 0x2e699192};
-static const uint32_t *const iids[] = {0, w32_iid_enum, w32_iid_device, w32_iid_audio, w32_iid_render};
+static const uint32_t *const iids[WCOM_KINDS] = {0, w32_iid_enum, w32_iid_device, w32_iid_audio, w32_iid_render,
+    w32_iid_clock, w32_iid_adjust, w32_iid_streamvol, w32_iid_sessionvol};
 static w32_com_object_t objects[64];
-static uint32_t tables[5];
+static uint32_t tables[WCOM_KINDS];
 /* LANE-E/C: CoInitialize nesting and mode belong to the calling guest thread. */
 static struct { uint32_t depth, flags; } apartments[X86_THREADS];
 #define apartment (apartments[x86_current].depth)
@@ -53,10 +59,11 @@ static uint32_t addref(void) {
 }
 static uint32_t release(void) { return w32_com_release(ARG(0)); }
 uint32_t w32_com_new(uint32_t kind, uint32_t state, uint32_t parent) {
-    if (kind < 1 || kind > 4) return 0;
+    if (kind < 1 || kind >= WCOM_KINDS) return 0;
     for (uint32_t i = 0; i < 64; i++) if (!objects[i].refs) {
         if (!tables[kind]) {
-            uint32_t count = kind == WCOM_ENUM ? 8 : kind == WCOM_DEVICE ? 7 : kind == WCOM_AUDIO ? 15 : 5;
+            static const uint32_t slots[WCOM_KINDS] = {0, 8, 7, 15, 5, 6, 4, 8, 7};
+            uint32_t count = slots[kind];
             tables[kind] = w32_misc_alloc(count * w32_ptr_size());
             for (uint32_t s = 0; s < count; s++) {
                 uint32_t nargs = 0, thunk;
