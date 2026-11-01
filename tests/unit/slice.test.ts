@@ -1,3 +1,4 @@
+// @bgt-examples: none
 import {it,expect} from 'vitest';
 import {readFileSync,writeFileSync,existsSync,mkdtempSync} from 'node:fs';
 import {join} from 'node:path';

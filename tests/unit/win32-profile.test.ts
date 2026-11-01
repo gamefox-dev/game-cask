@@ -1,3 +1,4 @@
+// @bgt-examples: win32-conformance win32-hello
 // Win32 profile conformance against the API contract, headless (no GPU): module loading (E1), pixel reads answered
 // by CPU replay of the recorded GDI ops (E2), the read-only test peek (E5) and the UI layout in debugState.
 // The browser test tests/e2e/win32-conformance.spec.ts compares the same reads with real GPU pixels.

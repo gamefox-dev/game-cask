@@ -1,3 +1,4 @@
+// @bgt-examples: win32-conformance
 import {it,expect} from 'vitest';
 import {createHash} from 'node:crypto';
 import {mkdtempSync,readFileSync,openSync,closeSync,ftruncateSync,writeFileSync} from 'node:fs';

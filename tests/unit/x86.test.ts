@@ -1,3 +1,4 @@
+// @bgt-examples: win32-hello
 // v0.2 x86 pipeline: decoder, deterministic lifting, the Win32 example running headless fully lifted, and the
 // differential oracle (lifted vs interpreted) agreeing frame by frame.
 import { execFileSync } from 'node:child_process';

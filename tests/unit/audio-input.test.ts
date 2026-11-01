@@ -1,3 +1,4 @@
+// @bgt-examples: x64-audio x64-input
 import { expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,6 +30,8 @@ it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and
   }
   expect(logs.some((s) => s.includes('x64-audio PASS')), logs.join('\n')).toBe(true);
   expect(logs.filter((s) => s.includes('x64-audio worker event PASS'))).toHaveLength(2);
+  expect(logs.some(s => s.includes('x64-audio notification lifetime/errors PASS'))).toBe(true);
+  expect(logs.some(s => s.includes('x64-audio notification no unsolicited changes PASS'))).toBe(true);
   expect(logs.some(s => s.includes('x64-audio audio thread joined PASS'))).toBe(true);
   expect(samples.length).toBe(48000 * 2);
   for (let pass = 0; pass < 2; pass++) {
@@ -37,6 +40,8 @@ it('WASAPI: exact stereo samples, frequency, amplitude, duration, conversion and
     expect(Math.max(...left)).toBe(16384); expect(Math.min(...left)).toBe(-16384);
     expect(Math.max(...right)).toBe(8192); expect(Math.min(...right)).toBe(-8192);
     expect(right.every((s, i) => s === -left[i] / 2)).toBe(true);
+    // Every output frame must contain the generated tone, not merely occasional nonzero extrema.
+    expect(left.every((s, i) => s === (Math.floor(i / 24) % 2 ? -16384 : 16384))).toBe(true);
     const crossings = left.slice(1).filter((s, i) => s > 0 && left[i] < 0).length;
     expect(crossings / 0.5).toBeCloseTo(1000, -1);
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Shared npm/npx gate. macOS/BSD lockf; fail closed for heavy work without lockf.
+# Shared npm/npx gate. LANE-K7i: Python kernel locks, one path on macOS/Linux.
 #
-# Heavy commands run at most N at a time (slot = one lockf lock file). Waiters are served strictly FIFO: each takes a
+# Heavy commands run at most N at a time (slot = one kernel lock file). Waiters are served strictly FIFO: each takes a
 # ticket (<seconds>.<microseconds>-<pid>) in "$PREFIX-queue", and only the oldest live ticket may try the slots. The
 # ticket is deleted by the command itself the moment it holds a slot, so the next waiter becomes head immediately.
 # Tickets of dead waiters (pid gone, or pid reused by a process with a different start time) are removed on every loop.
@@ -86,24 +86,28 @@ slots() { # current slot count: file override, else env, else 2; invalid -> exit
   case "$n" in ''|0*|*[!0-9]*) echo 'invalid BGT_HEAVY_SLOTS' >&2; return 1;; esac
   echo "$n"
 }
-PREFIX=${BGT_HEAVY_LOCK_PREFIX:-/private/tmp/bgt-heavy-v1}
-case "$PREFIX" in /private/tmp/*) ;; *) echo 'heavy locks must be under /private/tmp' >&2; exit 2;; esac
+TMP_ROOT=/tmp
+[ ! -d /private/tmp ] || TMP_ROOT=/private/tmp
+PREFIX=${BGT_HEAVY_LOCK_PREFIX:-$TMP_ROOT/bgt-heavy-v1}
+case "$PREFIX" in /private/tmp/*|/tmp/*) ;; *) echo 'heavy locks must be under /private/tmp or /tmp' >&2; exit 2;; esac
 SLOTS_FILE=${BGT_HEAVY_SLOTS_FILE:-$PREFIX-slots}
 slots > /dev/null || exit 2
-[ -x /usr/bin/lockf ] || { echo 'heavy gate requires /usr/bin/lockf; refusing ungated command' >&2; exit 2; }
+command -v python3 >/dev/null || { echo 'heavy gate requires python3; refusing ungated command' >&2; exit 2; }
 QUEUE=$PREFIX-queue
 mkdir -p "$QUEUE" || exit 2
 
 now() { perl -MTime::HiRes=gettimeofday -e '($s,$u)=gettimeofday; printf "%010d.%06d", $s, $u' 2>/dev/null || printf '%010d.000000' "$(date +%s)"; }
-started() { ps -o lstart= -p "$1" 2>/dev/null | sed 's/^ *//; s/ *$//'; } # process start time, guards against pid reuse
+# LANE-K7i: ps is sandbox-denied. Kernel incarnation identity still guards PID reuse.
+started() { python3 -I "$HERE/../process-start.py" "$1" 2>/dev/null; }
 
-RESULT=$(mktemp /private/tmp/bgt-heavy-result.XXXXXX) || exit 2
+RESULT=$(mktemp "$PREFIX-result.XXXXXX") || exit 2
 TICKET=$QUEUE/$(now)-$$
 cleanup() { rm -f "$RESULT" "$TICKET"; }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
-started $$ > "$TICKET" || exit 2
+START=$(started $$) || { echo 'heavy gate cannot identify waiter; refusing ungated command' >&2; exit 2; }
+printf '%s\n' "$START" > "$TICKET" || exit 2
 
 # Remove tickets whose waiter is gone; print the oldest remaining ticket name.
 oldest() {
@@ -123,7 +127,7 @@ while :; do
   if [ "$(oldest)" = "${TICKET##*/}" ]; then
     I=1
     while [ "$I" -le "$N" ]; do
-      BGT_HEAVY_TICKET=$TICKET /usr/bin/lockf -s -k -t 0 "$PREFIX-slot-$I.lock" bash "$HERE/heavy.sh" --execute "$RESULT" "$REAL" "$@"
+      BGT_HEAVY_TICKET=$TICKET python3 -I "$HERE/slot.py" "$PREFIX-slot-$I.lock" bash "$HERE/heavy.sh" --execute "$RESULT" "$REAL" "$@"
       RC=$?
       # EX_TEMPFAIL (75) can be the real command's exit too; only the marker disambiguates.
       if [ -s "$RESULT" ]; then read -r RC < "$RESULT"; exit "$RC"; fi

@@ -1,3 +1,4 @@
+// @bgt-examples: win32-hello
 // Probe ownership: an arbitrary HTTP 200 must never become permission to navigate.
 import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';

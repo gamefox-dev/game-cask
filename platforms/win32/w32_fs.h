@@ -21,6 +21,7 @@ typedef struct {
     char text[560]; /* typed-case full path, e.g. C:\GAME\Dir\file */
     unsigned key_parent, rel_last; /* length of the parent part of key / offset of the last rel component */
     int trailing, wildcard, invalid, toolong, foreign, maxpath, empty;
+    uint32_t namespace_error;
 } fs_path_t;
 typedef struct { char work[1100]; uint16_t off[160], len[160]; unsigned n, w; int toolong; } fs_walk_t;
 static fs_walk_t fs_scratch; /* resolution never yields, so one scratch walk is enough */
@@ -48,6 +49,24 @@ static void fs_resolve(const char *raw, fs_path_t *p) {
     p->empty = !raw[0];
     k->n = k->w = 0; k->toolong = 0;
     const char *s = raw; char drive = 'C';
+    /* Only DOS filesystem devices have a meaning in this one-volume VFS. Strip their namespace
+     * introducer before checking wildcards/colons. Never turn UNC, pipes, PhysicalDrive, GLOBALROOT,
+     * volume GUIDs or a malformed/relative extended name into a local file. The profile's bounded
+     * DOS resolver (including its root alias and dot handling) is shared by all front ends. */
+    if ((s[0] == '\\' || s[0] == '/') && (s[1] == '\\' || s[1] == '/')) {
+        unsigned n = w32_slen(s);
+        if (n >= 7 && s[0] == '\\' && s[1] == '\\' && (s[2] == '?' || s[2] == '.') && s[3] == '\\' &&
+            (s[4] | 32) >= 'a' && (s[4] | 32) <= 'z' && s[5] == ':' && s[6] == '\\') s += 4;
+        else {
+            /* INFERRED offline errors: UNC has no reachable network path; unsupported device and
+             * malformed namespace names are invalid. No name may fall back to a local asset. */
+            int introducer = n >= 4 && (s[2] == '?' || s[2] == '.') && s[3] == '\\';
+            int unc = introducer && n >= 8 && fs_lower(s[4]) == 'u' && fs_lower(s[5]) == 'n' &&
+                fs_lower(s[6]) == 'c' && s[7] == '\\';
+            p->namespace_error = unc || (n > 2 && s[2] != '?' && s[2] != '.') ? 53u : 123u;
+            return;
+        }
+    }
     if (((s[0] | 32) >= 'a' && (s[0] | 32) <= 'z') && s[1] == ':') { drive = (char)(s[0] & ~32); s += 2; }
     p->foreign = drive != 'C';
     int rooted = *s == '/' || *s == '\\';
@@ -182,6 +201,7 @@ static int fs_has_ext(const char *key, const char *ext) {
     return 1;
 }
 static uint32_t fs_stat_path(const fs_path_t *p, w32_fs_info_t *info) {
+    if (p->namespace_error) return p->namespace_error;
     if (p->toolong) return 206;
     if (p->invalid || p->wildcard) return 123;
     if (p->foreign) return 3;
@@ -229,6 +249,7 @@ uint32_t w32_fs_mkdir(const char *raw) {
     if (!raw[0]) return 3;
     fs_init(); fs_path_t pv, *p = &pv;
     fs_resolve(raw, p);
+    if (p->namespace_error) return p->namespace_error;
     if (p->toolong || p->maxpath) return 206;
     if (p->invalid || p->wildcard) return 123;
     if (p->foreign) return 3;
@@ -290,6 +311,7 @@ uint32_t w32_fs_move(const char *from, const char *to) {
     fs_init(); fs_path_t av, bv, *a = &av, *b = &bv;
     fs_resolve(from, a); fs_resolve(to, b);
     uint32_t e = fs_stat_path(a, 0); if (e) return e;
+    if (b->namespace_error) return b->namespace_error;
     if (b->toolong || b->maxpath) return 206;
     if (b->invalid || b->wildcard) return 123;
     if (b->foreign || !b->key[0]) return b->foreign ? 17 : 183;
@@ -340,6 +362,7 @@ uint32_t w32_fs_open_check(const char *raw, char *key_out, int *exists) {
     fs_resolve(raw, p);
     unsigned i = 0; do { key_out[i] = p->key[i]; } while (p->key[i++]);
     if (!raw[0]) return 2;
+    if (p->namespace_error) return p->namespace_error;
     if (p->toolong || p->maxpath) return 206;
     if (p->invalid || p->wildcard) return 123;
     if (p->foreign) return 3;
@@ -349,10 +372,13 @@ uint32_t w32_fs_open_check(const char *raw, char *key_out, int *exists) {
     if (n) return (n->attributes & 0x10) ? 5 : 0;
     return fs_parent_is_dir(p) ? 0 : 3;
 }
-uint32_t w32_fs_fullpath(const char *raw, char *out, unsigned cap) {
+uint32_t w32_fs_fullpath(const char *raw, char *out, unsigned cap, uint32_t *error) {
     fs_path_t pv, *p = &pv;
+    *error = 0;
     if (!raw[0]) { fs_cwd_text(out); } else {
-        fs_resolve(raw, p); if (p->toolong) return 0;
+        fs_resolve(raw, p);
+        if (p->namespace_error) { *error = p->namespace_error; return 0; }
+        if (p->toolong) return 0;
         unsigned i = 0; while (p->text[i]) i++;
         int append = p->trailing && i && p->text[i - 1] != '\\';
         if (i + (unsigned)append >= cap) return 0;
@@ -394,8 +420,8 @@ static uint32_t k_GetCurrentDirectoryA(void) { return k_current_directory(0); }
 static uint32_t k_full_path(int wide) {
     char raw[520], out[560]; w32_gstr(ARG(0), wide, raw, sizeof raw);
     if (!raw[0]) { last_error = 3; return 0; }
-    uint32_t n = w32_fs_fullpath(raw, out, sizeof out);
-    if (!n) { last_error = 206; return 0; }
+    uint32_t error, n = w32_fs_fullpath(raw, out, sizeof out, &error);
+    if (!n) { last_error = error ? error : 206; return 0; }
     if (ARG(1) <= n) return n + 1;
     w32_pstr(ARG(2), ARG(1), wide, out);
     if (ARG(3)) {
