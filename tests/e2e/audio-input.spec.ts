@@ -54,6 +54,8 @@ test('WASAPI tone reaches browser stereo audio after a real gesture',
     await expect.poll(async () => (await diagnostics(page)).audio.unlocked).toBe(true);
     await step(page, 70);
     expect(logs.some((s) => s.includes('x64-audio PASS')), logs.join('\n')).toBe(true);
+    expect(logs.some(s => s.includes('x64-audio notification lifetime/errors PASS'))).toBe(true);
+    expect(logs.some(s => s.includes('x64-audio notification no unsolicited changes PASS'))).toBe(true);
     const d = await diagnostics(page);
     expect(d.audio.playedFrames).toBeGreaterThan(0);
     expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);

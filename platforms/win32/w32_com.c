@@ -19,6 +19,49 @@ static const uint32_t *const iids[WCOM_KINDS] = {0, w32_iid_enum, w32_iid_device
     w32_iid_clock, w32_iid_adjust, w32_iid_streamvol, w32_iid_sessionvol};
 static w32_com_object_t objects[64];
 static uint32_t tables[WCOM_KINDS];
+/* Endpoint topology is fixed: registration does not report an initial/default-device change.
+ * INFERRED (no native parity run): duplicate pairs are idempotent S_OK; each enumerator owns its
+ * registrations until explicit unregistration or destruction. A bounded process-local list may
+ * return the documented E_OUTOFMEMORY. Guest clients are not profile COM objects. */
+static struct { uint32_t owner, client; } notifications[64];
+static int notification_valid(uint64_t addr) {
+    if (!addr || addr > UINT32_MAX || !x86_accessible((uint32_t)addr, w32_ptr_size(), 1)) return 0;
+    uint64_t vt = w32_rdptr((uint32_t)addr);
+    if (!vt || vt > UINT32_MAX || !x86_accessible((uint32_t)vt, 8 * w32_ptr_size(), 1)) return 0;
+    for (unsigned s = 0; s < 8; s++) {
+        uint64_t fn = w32_rdptr((uint32_t)vt + s * w32_ptr_size());
+        if (!fn || fn > UINT32_MAX || !x86_accessible((uint32_t)fn, 1, 4)) return 0;
+    }
+    return 1;
+}
+/* IMMNotificationClient vtable calls use the guest ABI, never host function pointers. Only
+ * IUnknown ownership calls are needed while no endpoint transitions are modelled. */
+static void notification_ref(uint32_t addr, unsigned slot) {
+    uint32_t fn = (uint32_t)w32_rdptr((uint32_t)w32_rdptr(addr) + slot * w32_ptr_size());
+    if (W32_64) { uint64_t arg = addr; x86_callback64(fn, 1, &arg); }
+    else x86_callback(fn, 1, &addr);
+}
+static uint32_t notification_register(void) {
+    uint64_t addr = ARG64(1); uint32_t owner = ARG(0);
+    if (!notification_valid(addr)) return E_POINTER;
+    for (unsigned i = 0; i < 64; i++)
+        if (notifications[i].owner == owner && notifications[i].client == addr) return 0;
+    for (unsigned i = 0; i < 64; i++) if (!notifications[i].owner) {
+        notifications[i].owner = owner; notifications[i].client = (uint32_t)addr;
+        notification_ref((uint32_t)addr, 1); return 0;
+    }
+    return 0x8007000eu;
+}
+static uint32_t notification_unregister(void) {
+    uint64_t addr = ARG64(1); uint32_t owner = ARG(0);
+    if (!addr) return E_POINTER;
+    /* Missing registrations are looked up by pointer, not dereferenced (including stale pointers). */
+    for (unsigned i = 0; i < 64; i++) if (notifications[i].owner == owner && notifications[i].client == addr) {
+        notifications[i].owner = notifications[i].client = 0;
+        notification_ref((uint32_t)addr, 2); return 0;
+    }
+    return 0x80070490u; /* E_NOTFOUND */
+}
 /* LANE-E/C: CoInitialize nesting and mode belong to the calling guest thread. */
 static struct { uint32_t depth, flags; } apartments[X86_THREADS];
 #define apartment (apartments[x86_current].depth)
@@ -36,10 +79,15 @@ uint32_t w32_com_release(uint32_t addr) {
     w32_com_object_t *o = w32_com_object(addr);
     if (!o) return 0;
     if (--o->refs) return o->refs;
-    if (o->kind == WCOM_AUDIO) w32_audio_destroy(o->state);
-    uint32_t parent = o->parent;
-    w32_heap_free(o->addr);
-    o->addr = 0;
+    uint32_t kind = o->kind, state = o->state, parent = o->parent;
+    *o = (w32_com_object_t){0}; /* guest Release may reenter COM and reuse this object slot */
+    if (kind == WCOM_ENUM) for (unsigned i = 0; i < 64; i++) if (notifications[i].owner == addr) {
+        uint32_t c = notifications[i].client;
+        notifications[i].owner = notifications[i].client = 0;
+        notification_ref(c, 2);
+    }
+    if (kind == WCOM_AUDIO) w32_audio_destroy(state);
+    w32_heap_free(addr);
     if (parent) w32_com_release(parent);
     return 0;
 }
@@ -172,6 +220,7 @@ static uint32_t propinit(void) {
 #define API(n, a, f) {n, a, 0, f}
 const w32_api_t w32_api_com[] = {
     API("BgtComQuery", 3, query), API("BgtComAddRef", 1, addref), API("BgtComRelease", 1, release),
+    API("BgtComRegisterNotify", 2, notification_register), API("BgtComUnregisterNotify", 2, notification_unregister),
     API("CoInitialize", 1, coinit_sta), API("CoInitializeEx", 2, coinit), API("CoUninitialize", 0, couninit),
     API("CoCreateInstance", 5, cocreate), API("CoTaskMemAlloc", 1, taskalloc),
     API("CoTaskMemRealloc", 2, taskrealloc), API("CoTaskMemFree", 1, taskfree),

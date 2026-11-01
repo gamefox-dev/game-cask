@@ -338,11 +338,6 @@ static uint32_t k_WriteFile(void) {
 static struct { uint32_t asset; uint64_t pos, size; } files[64];
 static uint32_t file_index(uint64_t h) { return w32_handle_file(h); }
 static int32_t open_asset_key(const char *path);
-static int32_t open_asset_path(const char *raw) {
-    char path[512];
-    w32_fs_normalize(raw, path); /* same resolution (drive, C:\GAME root, current directory, dots) as every VFS query */
-    return open_asset_key(path);
-}
 static int32_t open_asset_key(const char *path) {
     int32_t asset=-5;
     for(uint32_t i=0;i<w32_nmods;i++)if(w32_streqi(path,w32_mods[i].name)){
@@ -354,11 +349,6 @@ static int32_t open_asset_key(const char *path) {
     }
     if(asset<0)asset=bgt_asset_open(path,w32_slen(path));
     return asset;
-}
-static int32_t open_file_asset(int wide) {
-    char raw[512];
-    w32_gstr(ARG(0), wide, raw, sizeof raw);
-    return open_asset_path(raw);
 }
 uint32_t w32_file_open_str(const char *key, int wide) { /* `key` is already a normalized VFS key */
     (void)wide;
@@ -428,7 +418,11 @@ int w32_file_size_get(uint32_t h, uint64_t *size_out) {
 }
 static uint32_t create_file(int wide) {
     if ((ARG(1) & 0x500d0116u) || ARG(4) != 3) { last_error=5; return 0xffffffffu; } /* read-only OPEN_EXISTING */
-    int32_t asset=open_file_asset(wide);
+    char raw[520], key[512];
+    w32_gstr(ARG(0), wide, raw, sizeof raw);
+    uint32_t err = w32_fs_open_check(raw, key, 0);
+    if (err) { last_error = err; return 0xffffffffu; }
+    int32_t asset=open_asset_key(key);
     if(asset<0){last_error=2;return 0xffffffffu;}
     for(uint32_t i=1;i<64;i++)if(!files[i].asset){uint64_t size=0;if(bgt_asset_size64((uint32_t)asset,&size)<0)break;files[i].asset=(uint32_t)asset;files[i].size=size;files[i].pos=0;
         uint32_t h=w32_handle_file_new(i);if(!h){w32_file_destroy(i);return 0xffffffffu;}

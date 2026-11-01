@@ -107,6 +107,7 @@ static void find_write_w(const find_entry_t *e,uint32_t out) {
 static uint32_t find_begin(const char *raw,unsigned *slot_out,find_entry_t *first) {
     fs_init();if(!raw[0])return 3;
     fs_path_t pv,*p=&pv;fs_resolve(raw,p);
+    if(p->namespace_error)return p->namespace_error;
     if(p->toolong)return 206;if(p->invalid||p->foreign)return p->foreign?3:123;
     if(p->trailing)return 2; /* INFERRED error: FindFirstFile search names must not end in a separator */
     unsigned slot;for(slot=0;slot<64&&find_files[slot].open;slot++){}
