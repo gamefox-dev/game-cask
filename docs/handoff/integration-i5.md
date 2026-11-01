@@ -123,3 +123,8 @@ Private/local evidence: `/tmp/integration-i5/` command logs and exit markers, fi
 `review.md`, `recheck.md` and fresh-session transcripts; ignored `reports/e2e-results.json`, `reports/oracle-*.json` and
 `reports/integration-i5-oracles.json`. These machine-local paths are not a permanent artifact-retention promise.
 No physical iPhone, Safari/Firefox, remote CI or general real-game compatibility certification is claimed.
+
+## Reviewer external validation (2026-11-01 13:50)
+`tests/unit/pi-harness.test.ts` run **outside** the pi sandbox on exactly 8385dc7: **34/34 passed**. The 5 in-sandbox
+failures come only from the sandbox's `ps` denial, which lane K7i fixes (sandbox-safe liveness and portable locks).
+Tier 1 for I5 is therefore complete: 655 unit tests inside the sandbox plus this file externally.
