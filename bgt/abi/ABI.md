@@ -388,6 +388,23 @@ can use this API too. Poll/read/close with §12 request functions after yielding
 Legacy asset_read on a streamed handle returns E_STATE: it never loads the whole file implicitly. Legacy asset_size
 is i32, so use size64 for large files.
 
+Additive FILE buffering imports (existing requests are unchanged):
+- `asset_read_ahead(handle,offset_lo,offset_hi,bytes)` has the same deferred request lifetime, but clamps the
+  result to the current 64 KiB boundary and, for streamed files, the current manifest chunk boundary. Even cached
+  or eager data is invisible until the next update. Speculation never crosses into a subsequent omitted chunk.
+  The starting chunk must exist; an omitted starting chunk still stops outside the slice. Returned bytes are
+  recorded in `readAhead` / `crtReadAheadBytes`, **not** consumed `files` coverage.
+- `asset_consumed(handle,offset_lo,offset_hi,bytes)` records delivered source bytes without I/O or a yield.
+  It returns OK, E_NOT_FOUND for a closed/unknown handle, or E_INVALID for an unsafe offset. EOF truncates the
+  recorded length. `crtConsumedBytes` counts source bytes (CRLF consumes two; re-reading a source range counts
+  again; returning `ungetc` data does not). Packaging `files` coverage expands consumption only to its actual
+  manifest chunks (64 KiB for eager assets); read-ahead alone never adds adjacent packaging chunks. Zero-byte
+  records, including reads at/beyond EOF, add no coverage.
+- `asset_observed(handle,offset_lo,offset_hi,bytes)` has the same validation/coverage rules as `asset_consumed`,
+  but increments `crtObservedBytes` rather than the consumed-byte count. Use it for actual inspected dependencies
+  not delivered to the caller, e.g. a non-LF byte inspected after CR. Such a byte is necessary for deterministic
+  replay and packaging, unlike untouched speculative bytes. The CRT records this dependency even across chunks.
+
 Manifest `streams` entries: `{path,size,chunkSize,chunks:[{offset,size,url,sha256}]}`. Paths use the existing safe VFS
 rules; chunks must exactly cover the file in order (zero-size file has no chunks), each 4 KiB–1 MiB maximum configured
 chunk size, final chunk may be short. Fetches are **chunked ranges**, not HTTP Range headers. The runtime fetches only
@@ -400,7 +417,8 @@ as a streamed `modules/<name>` file and makes a separate compact loader image co
 virtually mapped bytes. This keeps overlays out of the eager loader asset; original file offsets are retained by
 the streamed self-open view. `GetModuleFileNameW` → `CreateFileW` resolves that original view, not the compact image.
 The Win32 profile implements read-only OPEN_EXISTING, ReadFile, GetFileSize(Ex), SetFilePointer(Ex), CloseHandle,
-EOF, negative-seek errors and missing files. Overlapped reads, writes and CRT FILE APIs are not implemented yet.
+EOF, negative-seek errors and missing files. Overlapped reads and kernel file writes remain unavailable.
+The Win64 CRT FILE layer adds bounded read-ahead and process-local writable files; see `platforms/win32/CONTRACTS.md`.
 
 While a range promise is outstanding, browser simulation updates are held; rendering/input delivery resume when
 settled. Deterministic test stepping awaits pending I/O before advancing a frame, as does the oracle. Wall-clock
@@ -446,15 +464,24 @@ QueryInterface/AddRef/Release and task-memory ownership; unsupported classes/int
 PropVariantClear/Copy handle scalar, LPSTR/LPWSTR, CLSID and profile IUnknown ownership (BSTR/arrays unsupported);
 InitPropVariantFromString creates an owned LPWSTR variant.
 No COM marshaling, aggregation or cross-apartment threads. WASAPI exposes default render endpoint/device/IAudioClient/
-IAudioRenderClient with shared stereo float32/int16 PCM, 8–192kHz; other formats/exclusive mode return errors.
-GetMixFormat allocates 48kHz float32 stereo. Initialize accepts up to 19,200 source frames (minimum 10ms); buffering,
+IAudioRenderClient with shared-mode PCM 8/16/24/32-bit and float32, mono/stereo, 8–192kHz. K6c validates non-mix
+formats with AUTOCONVERTPCM; a float32 stereo format at another rate needs RATEADJUST or AUTOCONVERTPCM. Periodicity
+must be 0; negative durations and loopback/exclusive/unknown flags return HRESULT failures. GetService adds
+IAudioClock, IAudioClockAdjustment (RATEADJUST), IAudioStreamVolume and ISimpleAudioVolume. Exact HRESULTs and
+INFERRED choices without native-Windows evidence are listed in docs/handoff/K6c.md.
+GetMixFormat allocates float32 stereo at the sink rate (48kHz). Initialize accepts non-negative durations (minimum one
+10ms period; zero selects 100ms), limited by checked UINT32 byte sizes and available guest heap, not an arbitrary
+time ceiling. Unrepresentable sizes or failed allocation return E_OUTOFMEMORY. EXTENSIBLE validates valid bits,
+sub-format and channel masks (zero, center mono or front stereo; other well-formed layouts unsupported). Buffering,
 GetCurrentPadding, Start/Stop/Reset and GetBuffer/ReleaseBuffer use an owned ring. Conversion clips float to int16
-and uses deterministic phase-accumulator sample repetition/decimation for rate conversion (not a bandlimited filter).
+and uses deterministic phase-accumulator rate conversion (sample repetition/decimation; linear interpolation for
+RATEADJUST or AUTOCONVERTPCM|SRC_DEFAULT_QUALITY streams; neither is a bandlimited filter). Standalone
+SRC_DEFAULT_QUALITY is accepted as a no-op (INFERRED).
 SILENT buffers produce zeroes. The virtual clock drains source frames; locked/full BGT output may drop audio but does
 not stall the simulated endpoint. Event streams signal every 10 virtual ms, coalesced at frame/poll boundaries.
-Main-thread CreateEvent/SetEvent/ResetEvent/WaitForSingleObject supplies polling now; **no guest threads** are created.
-The threads lane should replace that event adapter, call `w32_audio_pump` at virtual scheduling boundaries, and route
-`w32_audio_signal_event` through scheduler wakeups. Audio pumping never invokes a guest callback or uses wall time.
+CreateEvent/SetEvent/ResetEvent/WaitForSingleObject use scheduler-owned handles and wakeups; the scheduler calls
+`w32_audio_pump` at virtual scheduling boundaries. Fixtures render from a guest worker thread. Audio pumping
+never invokes a guest callback or uses wall time.
 WinMM waveOut and capture/endpoint enumeration/session control are not supplied by this addition.
 
 Conformance: `examples/x64-audio` generates a 1kHz two-channel tone through public COM vtables (float32/48kHz then
@@ -482,23 +509,28 @@ quota splitting, invalid ranges and provider failure; browser fixtures use real 
 
 ### Coverage and slice boundaries
 
-`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records an executed profile function entry (`kind=1`
-lifted, `2` interpreted). This is profile instrumentation, never a game-dependent branch. Host stores up to 65,536
-unique entries with ORed kind bits. Function entry coverage does not claim instruction/block coverage.
+`coverage_entry(u32 address,u32 kind)` / `bgt_coverage_entry` records profile function/block/continuation entries
+(`kind=1` lifted, `2` interpreted), not every decoded instruction. This is profile instrumentation, never a
+game-dependent branch. Host stores up to 1,048,576 unique addresses with ORed kind bits; rejected events increment
+`metrics.code_entries_dropped`, and any positive drop count rejects selective/strict builds. Recording entries does
+not claim instruction-level packaging or complete path coverage within a selected function.
 `slice_missing(u32 kind,u32 address)` / `bgt_slice_missing` stops at an explicitly missing dependency (1 code, 2 data).
 The runtime pauses and reports `outsideSlice` rather than a wasm trap; resumption requires a broader package/reload.
 No IO layout changes. These functions are present only for v0.3 modules; older modules do not import them.
 
 Debug/test API `coverage()` returns schema `game-cask/coverage/1`: game id, module names/bases/SHA-256, executed entries,
-file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. The probe and
-browser fixture save snapshots. Strict slice manifests carry `slice.code` (allowed entries) and per-chunk `missing`
-flags. An executed entry outside the set or a read of a missing chunk pauses visibly and records the dependency,
-without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
+file ranges at chunk granularity, errors/outside-slice count and measured render completion timings. Execution
+counters remain in `metrics.execution`; consumed/observed/read-ahead FILE byte counters remain separate, and
+`readAhead` ranges alone are not packaging evidence. The probe and browser fixture save snapshots. Strict slice
+manifests carry `slice.code` (allowed entries), `slice.codeRanges` (half-open owning function ranges) and per-chunk
+`missing` flags. An executed entry outside both allowed entries and owning ranges, or a read of a missing chunk,
+pauses visibly and records the dependency, without fetching absent bytes. A strict slice never silently enables the interpreter to bypass the allowed set.
 
 Coverage-guided nonslice builds keep all data and interpret unselected functions, recording kind=2 for the next build.
 The current loader image retains conservative virtual section bytes (including unlifted machine code/data), so this
-is **not** yet a minimum-image slice. Unknown indirect entry targets, self-modifying code and fine-grained basic block
-coverage remain unsupported; see docs/v03-status.md.
+is **not** yet a minimum-image slice. Discovery records unknown indirect entries, but unowned code may require
+analyzer improvements before selective convergence. Self-modifying code and instruction-level strict packaging
+remain unsupported; see [pipeline.md](../../docs/pipeline.md) for ownership/selection and exact counter definitions.
 
 ## 13. v0.3 GPU layer (additive interface)
 
@@ -526,7 +558,7 @@ They are distinct from legacy TEX_* handles: there is no implicit legacy/GPU tex
 Deleting allows immediate handle reuse; already queued commands still refer to the prior generation by stream order.
 CREATE of an invalid handle → E_INVALID; duplicate → E_STATE; missing resource on use/update/delete → E_NOT_FOUND.
 Resources persist across submits/frames. Buffers start zero; textures start color zero / depth 1 / stencil 0 at every
-mip. There is no mip generation, array/cube texture, multisampling, storage buffer or compute interface in this layer.
+mip. There is no cube texture, multisampling, storage buffer or compute interface in this layer. 3D / 2D-array textures, extra formats, LOD-aware samplers, texture read-back and GPU mip generation are the additive §13.7 operations.
 Profiles implement these only by general transformations or report unsupported; never silently reinterpret them.
 
 Framing validation is still all-or-nothing. Semantic failures skip **only** the failing command, preserve prior state,
@@ -540,7 +572,7 @@ bounds → E_BOUNDS (addition/multiplication is checked without u32 wrapping). D
 Known unsupported language or depth upload → E_UNSUPPORTED. Backend allocation/device errors → E_IO and diagnostic;
 shader errors use the request result below. A well-shaped but unsupported opcode still uses the legacy E_UNSUPPORTED.
 
-All resource operations (0x40..0x4b) are **outside** a GPU pass. Pipeline binding/dynamic state/buffer binding/draws
+All resource operations (0x40..0x4b and the §13.7 operations 0x59..0x5d) are **outside** a GPU pass. Pipeline binding/dynamic state/buffer binding/draws
 (0x4e..0x58) are **inside** a pass. No legacy command, including READBACK and 2D state/resource operations, may occur
 inside a GPU pass: E_STATE, no effect. Resource operations during a pass, nested begin, end outside a pass, draws
 without a pipeline/required bindings, attachment feedback, incompatible pipeline targets → E_STATE. A pass must end
@@ -807,3 +839,65 @@ all C encoder output, including inline tails. `tests/unit/gpu-commands.test.ts` 
 structure/ranges/handles/state/ordering/shader results using a recording backend. `requests.test.ts` retains the
 unchanged v0.2 module regression and deferred request tests. Browser GPU rendering tests are the backend lanes'
 responsibility; this section alone does not claim GPU pixels or an OpenGL 3.3 profile are implemented.
+
+### 13.7 Texture and sampler extensions (additive, opcodes 0x59..0x5d)
+
+Added by lane K6a for GL 3.3 texture/framebuffer semantics. They need `CAP_GPU` exactly like §13 (otherwise
+`E_UNSUPPORTED` after framing validation) and are implemented by both the WebGL 2 and WebGPU backends. Existing
+opcodes, layouts, the 80-byte limits struct and all legacy behaviour are unchanged; legacy `TEXTURE_CREATE`,
+`TEXTURE_UPDATE` and `SAMPLER_CREATE` remain valid and behave as the matching extended form (2D, wrap_w = clamp,
+LOD range [0, 1000]). Handles share the existing texture/sampler namespaces. C layouts are
+`bgt_gpu_texture_create_ex_t` etc. in `bgt_gpu.h`, encoders `bgt_cmd_gpu_*` in `bgt_gpu_cmd.h`, TS mirrors in
+`GPU_OP`, `GPU_LAYOUT`, `GPU.DIM_*`, `GPU.FORMAT_*` and `GPU_LIMITS.volumeDimension/arrayLayers`.
+
+| Opcode | Name | Bytes | Payload, in order |
+|---|---|---:|---|
+| 0x59 | TEXTURE_CREATE_EX | 32 | handle, dimension, width, height, depth, mips, format, usage |
+| 0x5a | TEXTURE_UPDATE_EX | 40 | handle, mip, x, y, z, width, height, depth, data_ptr, data_len |
+| 0x5b | SAMPLER_CREATE_EX | 44 | handle, min_filter, mag_filter, mip_filter, wrap_u, wrap_v, wrap_w, compare_enable, compare, f32 min_lod, f32 max_lod |
+| 0x5c | TEXTURE_READBACK | 36 | handle, mip, x, y, z, width, height, depth, request |
+| 0x5d | TEXTURE_GENERATE_MIPS | 8 | handle, base_level |
+
+**New formats** (valid only through `TEXTURE_CREATE_EX`; the legacy op still rejects them): RGB10A2=7 (unorm 10/10/10/2,
+LE u32 `r | g<<10 | b<<20 | a<<30`, 4 B), R16F=8 (2 B), RG16F=9 (4 B), R32F=10 (4 B), RG32F=11 (8 B), RGBA32F=12
+(16 B). All are sampleable and color-attachable. R32F/RG32F/RGBA32F filter linearly and blend only where the backend has
+the native capability (WebGL 2 `OES_texture_float_linear`/`EXT_float_blend`, WebGPU `float32-filterable`/
+`float32-blendable`, requested best-effort at device creation); otherwise the offending create/binding/pipeline fails with
+`E_IO` and a diagnostic, never a silent fallback.
+
+**TEXTURE_CREATE_EX.** `dimension` 2D=0, 3D=1, 2D_ARRAY=2. For 2D `depth` must be 1 (`E_INVALID`). 3D width/height/depth
+and array layers are <=256 (`E_LIMIT`; fixed portable ceilings, array width/height remain <=4096). 3D and array textures
+are color-only and SAMPLED-only: depth formats or ATTACHMENT usage → `E_UNSUPPORTED` (no layered attachments). Mip
+extents: width/height halve (min 1); 3D depth halves (min 1); array layers are constant. `mips` is
+`1+floor(log2(max(dims)))` at most, over the 2 (2D/array) or 3 (3D) extents. Budget counts every texel of every mip. Textures
+start zero (depth 1 / stencil 0 for depth formats).
+
+**TEXTURE_UPDATE_EX.** Color formats only (`E_UNSUPPORTED` for depth). The region `[x,x+width) × [y,y+height) × [z,z+depth)`
+must fit the selected mip (`E_BOUNDS`; `z` is a slice for 3D and a layer for arrays, always 0/1 for 2D).
+`data_len` is exactly `width*height*depth*bytes_per_texel`, rows tightly packed top-to-bottom, slices in order.
+
+**SAMPLER_CREATE_EX.** `wrap_w` applies to 3D textures. LOD values are finite, `0 <= min_lod <= max_lod <= 1000`.
+`mip_filter` NONE reads exactly level `floor(min_lod)` (level 0 for legacy samplers); otherwise the computed LOD
+is clamped to `[min_lod, max_lod]` and then to the allocated levels. Comparison samplers still require a depth texture.
+Texture dimension must match what the shader declares for the slot (`sampler2D`/`sampler2DShadow` → 2D, `sampler3D` → 3D,
+`sampler2DArray` → 2D_ARRAY); a mismatch is a backend error (diagnostic, draw skipped). Array coordinates are
+`vec3(u, v, layer)` with the layer rounded to nearest and clamped; the GLSL330/ES300 and WGSL conventions are in §13.5
+extended with `sampler3D`, `sampler2DArray` (WGSL `texture_3d<f32>`, `texture_2d_array<f32>`). BGT has no LOD bias,
+border colour or swizzle; profiles that expose those GL features must approximate and say so.
+
+**TEXTURE_READBACK.** Color formats only (`E_UNSUPPORTED` for depth; `E_LIMIT` above 8 MiB result). Reserves `request`
+from the §12 allocator and, in stream order, returns the stored texels of the region as `width*height*depth*bytes`
+tightly packed bytes (rows top-first, slices in order, storage layout of the format; sRGB bytes are the encoded values,
+floats are exact binary16/binary32). Ordinary request visibility rules apply (visible after a later update boundary).
+It observes all earlier passes and updates. This replaces the old "no GPU texture read-back" rule for textures only; the
+legacy screen READBACK is unchanged.
+
+**TEXTURE_GENERATE_MIPS.** Regenerates levels `base_level+1 .. mips-1` from level `base_level` by 2×2(×2) box filtering
+(sRGB averaged in linear space; odd extents are implementation rounded). Color formats only. WebGL 2 uses
+`generateMipmap`; WebGPU uses render passes (2D/array) or a CPU box filter over its upload shadow (3D, which can never be
+a render target). On device restoration, generated levels are recomputed from the restored uploads; rendered contents are
+lost as for all attachments.
+
+Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
+accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
+cross-backend tolerance, see `docs/handoff/K6a.md`).

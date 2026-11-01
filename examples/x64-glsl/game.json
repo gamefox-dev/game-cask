@@ -1,0 +1,11 @@
+{
+  "id": "x64-glsl", "name": "GLSL preprocessing, reflection and translation scenes (CC0)", "private": false, "license": "CC0-1.0",
+  "assets": "assets",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86_64-windows-gnu", "crt": true, "sources": ["glsl.c"], "out": "glsl.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32"]},
+    "modules": [{"from": "./build/glsl.exe", "name": "glsl.exe", "main": true}], "width": 320, "height": 200
+  },
+  "touch": {"dpad": false, "buttons": []}
+}

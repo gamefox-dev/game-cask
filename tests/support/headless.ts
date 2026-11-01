@@ -12,6 +12,7 @@ import { CAP_GPU, CAP_READBACK } from '../../bgt/runtime/abi';
 import type { GpuBackend } from '../../bgt/renderers/types';
 import type { Frame } from '../../bgt/runtime/commands';
 export interface StreamOptions {
+  onLog?: (message: string) => void;
   entropy?: (bytes: Uint8Array) => void; /* LANE-K1: explicit oracle replay only */
   gpuBackend?: GpuBackend;
   executeFrame?: (frame: Frame) => void;
@@ -44,7 +45,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
   const vfs = new Vfs();
   for (const a of manifest.assets) vfs.add(a.path, new Uint8Array(readFileSync(join(dir, 'assets', a.path))));
   const ranges = new RangeFiles('',async (url) => new Response(readFileSync(join(dir,String(url))))) ;
-  for(const s of manifest.streams ?? []) { ranges.add(s);vfs.addStream(s.path,s.size); }
+  for(const s of manifest.streams ?? []) { ranges.add(s);vfs.addStream(s.path,s.size,s.chunks); }
   const logs: string[] = [];
   const store = opts.storage ?? new Map<string, Uint8Array>();
   const storage: StorageSink = {
@@ -53,12 +54,12 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     write: (k, d) => (store.set(k, d), 0),
   };
   const host = await GameHost.create(readFileSync(join(dir, 'game.wasm')), {
-    log: (_l, m) => logs.push(m),
+    log: (_l, m) => { logs.push(m);opts.onLog?.(m); },
     vfs,
     storage,
     entropy: opts.entropy, /* LANE-K1 */
     now: () => performance.now(),
-    rangeRead:(path,offset,length)=>ranges.read(path,offset,length),
+    rangeRead:(path,offset,length,ahead)=>ranges.read(path,offset,length,ahead),
   }, {
     backend: BACKEND_HEADLESS,
     caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS |
@@ -70,6 +71,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     arg0: opts.arg0 ?? 0,
     arg1: opts.arg1 ?? 0,
     sliceCode:manifest.slice?.code,
+    sliceCodeRanges:manifest.slice?.codeRanges,
   });
   host.init();
   const input = emptyInput();

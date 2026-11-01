@@ -60,16 +60,16 @@ export function validateQueue(queue) {
     const w = `progress.json queue[${i}]${q?.id ? ` (${q.id})` : ''}`;
     req(q, 'id', w, errs);
     req(q, 'symptom', w, errs);
-    req(q, 'evidence', w, errs, (v) => Array.isArray(v) && v.length > 0);
+    req(q, 'evidence', w, errs, (v) => Array.isArray(v) && v.length > 0 && v.every((e) => typeof e === 'string' && e.trim().length > 0));
     req(q, 'layer', w, errs, (v) => QUEUE_LAYERS.includes(v));
     req(q, 'status', w, errs, (v) => QUEUE_STATUSES.includes(v));
-    req(q, 'next', w, errs);
+    req(q, 'next', w, errs, (v) => typeof v === 'string' && v.trim().length > 0);
     if (q?.id) {
       if (ids.has(q.id)) errs.push(`${w}: duplicate id`);
       ids.add(q.id);
     }
     if (q?.status === 'authentic' && q.layer !== 'game') errs.push(`${w}: status "authentic" requires layer "game" (the original program does this)`);
-    if (q?.status === 'iteration-request' && ['test', 'game'].includes(q.layer)) errs.push(`${w}: an iteration request needs a kit layer (lifter, semantics, platform-profile, renderer)`);
+    if (q?.status === 'iteration-request' && !QUEUE_LAYERS.filter((l) => l !== 'game').includes(q.layer)) errs.push(`${w}: an iteration request needs a kit layer (lifter, semantics, platform-profile, renderer, test)`);
     if (/unverified/i.test(String(q?.status ?? ''))) errs.push(`${w}: "unverified" is not a status; localize the item`);
   });
   return errs;

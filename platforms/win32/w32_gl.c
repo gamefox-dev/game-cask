@@ -19,7 +19,8 @@
 #define RGBA 0x1908u
 #define DEPTH_STENCIL 0x88f0u
 #define PTR(p) ((uint32_t)(uintptr_t)(p))
-uint64_t w32_gl_calls, w32_gl_draws, w32_gl_state_changes, w32_gl_pipelines, w32_gl_unimplemented;
+uint64_t w32_gl_calls, w32_gl_draws, w32_gl_state_changes, w32_gl_pipelines, w32_gl_unimplemented,
+    w32_gl_approximations;
 static uint32_t error, context, current, dc, pixel_format, interval = 1;
 static char stub_json[8192] = "[]";
 static uint32_t stub_len = 1;
@@ -93,22 +94,12 @@ static void missing(const char *name) {
 typedef struct { uint32_t used, size, gpu; uint8_t *data; } Buffer;
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
 typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
-typedef struct { uint32_t used, gpu, w, h, mips, format, min, mag, u, v; uint8_t *pixels; } Texture;
-typedef struct { uint32_t used, gpu, min, mag, u, v; } Sampler;
-typedef struct { uint32_t used, color, mip, depth, renderbuffer; } Fbo;
-typedef struct { uint32_t used, gpu, w, h, format; } Rbo;
-typedef struct { uint32_t used, type, compiled, gpu, deleted; char *source; char log[4096]; } Shader;
-typedef struct { char name[64], type[32]; uint32_t offset, size, sampler, unit; } Uniform;
-typedef struct { char name[64]; uint32_t binding; } Block;
-typedef struct {
-    uint32_t used, linked, vs, fs, vgpu, fgpu, nu, nb, ubuf, dirty;
-    Uniform u[64]; Block block[7]; uint8_t values[4096]; char log[4096];
-} Program;
-static Buffer buffers[N]; static Vao vaos[N]; static Texture textures[N]; static Sampler samplers[N];
-static Fbo fbos[N]; static Rbo rbos[N]; static Shader shaders[N]; static Program programs[N];
-static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, tex[8], samp[8];
+#include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
+static Buffer buffers[N]; static Vao vaos[N];
+static Shader shaders[N]; static Program programs[N];
+static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
 static uint32_t ubo_whole[8];
-static uint32_t fbo, rbo, program, unpack = 4, pack = 4, row_length, skip_rows, skip_pixels;
+static uint32_t program;
 static uint32_t blend, depth, stencil, cull, scissor_enabled;
 static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
@@ -230,215 +221,9 @@ static uint32_t api_VertexAttribDivisor(void) {
     else if (ARG(1) > 1) fail(BAD_VALUE); else vaos[vao].a[ARG(0)].divisor = ARG(1); return 0;
 }
 
-static uint32_t api_GenTextures(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) {
-        uint32_t id = alloc_name(textures, sizeof(Texture));
-        textures[id].min = 0x2702; textures[id].mag = 0x2601; textures[id].u = textures[id].v = 0x2901;
-        x86_wr32(ARG(1) + 4 * i, id);
-    } return 0;
-}
-static uint32_t api_ActiveTexture(void) {
-    if (ARG(0) < 0x84c0 || ARG(0) >= 0x84c8) fail(BAD_ENUM); else active_unit = ARG(0) - 0x84c0; return 0;
-}
-static uint32_t api_BindTexture(void) {
-    if (ARG(0) != TEXTURE_2D) fail(BAD_ENUM);
-    else if (ARG(1) >= N) fail(BAD_VALUE);
-    else { uint32_t id = ARG(1); tex[active_unit] = id;
-        if (id && !textures[id].used) { textures[id].used = 1; textures[id].min = 0x2702;
-            textures[id].mag = 0x2601; textures[id].u = textures[id].v = 0x2901; } } return 0;
-}
-static uint32_t api_PixelStorei(void) {
-    uint32_t key = ARG(0), value = ARG(1);
-    if (key == 0xcf5 || key == 0xd05) {
-        if (value != 1 && value != 2 && value != 4 && value != 8) fail(BAD_VALUE);
-        else if (key == 0xcf5) unpack = value; else pack = value;
-    } else if (key == 0xcf2 || key == 0xcf3 || key == 0xcf4) {
-        if ((int32_t)value < 0) fail(BAD_VALUE);
-        else if (key == 0xcf2) row_length = value; else if (key == 0xcf3) skip_rows = value;
-        else skip_pixels = value;
-    } else fail(BAD_ENUM); return 0;
-}
-static uint32_t levels(uint32_t w, uint32_t h) {
-    uint32_t n = 1; while (w > 1 || h > 1) { w >>= 1; h >>= 1; n++; } return n;
-}
-static uint32_t bytes_per(uint32_t format) { return format == 2 ? 1 : format == 3 ? 2 : format == 4 ? 8 : 4; }
-static int format_of(uint32_t f) {
-    if (f == RGBA || f == 0x8058) return 0; if (f == 0x8c43) return 1;
-    if (f == 0x8229 || f == 0x1903) return 2; if (f == 0x822b || f == 0x8227) return 3;
-    if (f == 0x881a) return 4; if (f == 0x88f0) return 5; if (f == 0x8cac) return 6;
-    return -1;
-}
-static uint8_t *pixel_data(uint32_t p, uint32_t w, uint32_t h, uint32_t components, uint32_t out_components) {
-    uint8_t *data = x86_alloc(w * h * out_components); if (!data) { fail(OOM); return 0; }
-    uint32_t row = ((row_length ? row_length : w) * components + unpack - 1) & ~(unpack - 1);
-    if (p) p += skip_rows * row + skip_pixels * components;
-    for (uint32_t y = 0; y < h; y++) for (uint32_t x = 0; x < w; x++)
-        for (uint32_t c = 0; c < out_components; c++)
-            data[((h - 1 - y) * w + x) * out_components + c] = !p ? 0 : c < components ?
-                x86_rd8(p + y * row + x * components + c) : 255;
-    return data;
-}
-static uint32_t api_TexImage2D(void) {
-    uint32_t id = tex[active_unit], mip = ARG(1), w = ARG(3), h = ARG(4), f = ARG(6);
-    int fmt = format_of(ARG(2));
-    if (ARG(0) != TEXTURE_2D) { fail(BAD_ENUM); return 0; }
-    if (!id) { fail(BAD_OP); return 0; }
-    if (!w || !h || w > 4096 || h > 4096 || mip > 12 || ARG(5)) { fail(BAD_VALUE); return 0; }
-    if (fmt < 0 || (ARG(7) != U8 && ARG(7) != 0x140b) ||
-        (f != RGBA && f != 0x1907 && f != 0x1903 && f != 0x8227)) { fail(BAD_ENUM); return 0; }
-    if (fmt >= 5 || (fmt == 4) != (ARG(7) == 0x140b)) { fail(BAD_OP); return 0; }
-    Texture *t = &textures[id];
-    if (!mip) {
-        if (t->gpu) SEND(0x45, id);
-        t->w = w; t->h = h; t->format = (uint32_t)fmt; t->mips = levels(w, h); t->gpu = id;
-        SEND(0x43, id, w, h, t->mips, t->format, 3);
-    } else if (!t->gpu || mip >= t->mips || w != (t->w >> mip ? t->w >> mip : 1) ||
-        h != (t->h >> mip ? t->h >> mip : 1) || t->format != (uint32_t)fmt) { fail(BAD_VALUE); return 0; }
-    uint32_t components = f == RGBA ? 4 : f == 0x1907 ? 3 : f == 0x8227 ? 2 : 1;
-    if (ARG(7) == 0x140b) components *= 2;
-    uint32_t bpp = bytes_per(t->format); uint8_t *data = pixel_data(ARG(8), w, h, components, bpp);
-    if (!data) return 0;
-    if (!mip) t->pixels = data;
-    SEND(0x44, id, mip, 0, 0, w, h, PTR(data), w * h * bpp); return 0;
-}
-static uint32_t api_TexSubImage2D(void) {
-    uint32_t id = tex[active_unit], mip = ARG(1), x = ARG(2), y = ARG(3), w = ARG(4), h = ARG(5);
-    if (ARG(0) != TEXTURE_2D || ARG(6) != RGBA || ARG(7) != U8) { fail(BAD_ENUM); return 0; }
-    Texture *t = &textures[id];
-    if (mip > 12) { fail(BAD_VALUE); return 0; }
-    uint32_t mw = t->w >> mip, mh = t->h >> mip;
-    if (!mw) mw = 1; if (!mh) mh = 1;
-    if (!id || !t->gpu) { fail(BAD_OP); return 0; }
-    if (mip >= t->mips || (uint64_t)x + w > mw || (uint64_t)y + h > mh) { fail(BAD_VALUE); return 0; }
-    if (!w || !h) return 0;
-    uint8_t *data = pixel_data(ARG(8), w, h, 4, 4); if (!data) return 0;
-    if (t->format > 1) { fail(BAD_OP); return 0; }
-    if (!mip && t->pixels) for (uint32_t row = 0; row < h; row++)
-        copy(t->pixels + ((mh - y - h + row) * t->w + x) * 4, data + row * w * 4, w * 4);
-    SEND(0x44, id, mip, x, mh - y - h, w, h, PTR(data), w * h * 4); return 0;
-}
-static uint32_t api_GenerateMipmap(void) {
-    uint32_t id = tex[active_unit]; Texture *t = &textures[id];
-    if (ARG(0) != TEXTURE_2D) { fail(BAD_ENUM); return 0; }
-    if (!id || !t->gpu || !t->pixels || t->format > 3) { fail(BAD_OP); return 0; }
-    uint32_t w = t->w, h = t->h, bpp = bytes_per(t->format); uint8_t *prev = t->pixels;
-    for (uint32_t mip = 1; mip < t->mips; mip++) {
-        uint32_t nw = w > 1 ? w / 2 : 1, nh = h > 1 ? h / 2 : 1; uint8_t *data = x86_alloc(nw * nh * bpp);
-        if (!data) { fail(OOM); return 0; }
-        for (uint32_t y = 0; y < nh; y++) for (uint32_t x = 0; x < nw; x++) for (uint32_t c = 0; c < bpp; c++) {
-            uint32_t sum = 0;
-            for (uint32_t j = 0; j < 2; j++) for (uint32_t i = 0; i < 2; i++) {
-                uint32_t sx = x * 2 + i, sy = y * 2 + j; if (sx >= w) sx = w - 1; if (sy >= h) sy = h - 1;
-                sum += prev[(sy * w + sx) * bpp + c];
-            }
-            data[(y * nw + x) * bpp + c] = (uint8_t)(sum / 4);
-        }
-        SEND(0x44, id, mip, 0, 0, nw, nh, PTR(data), nw * nh * bpp); prev = data; w = nw; h = nh;
-    } return 0;
-}
-static int parameter(uint32_t key, uint32_t v, uint32_t *min, uint32_t *mag, uint32_t *u, uint32_t *w) {
-    if (key == 0x2801 && (v == 0x2600 || v == 0x2601 || (v >= 0x2700 && v <= 0x2703))) *min = v;
-    else if (key == 0x2800 && (v == 0x2600 || v == 0x2601)) *mag = v;
-    else if ((key == 0x2802 || key == 0x2803) && (v == 0x812f || v == 0x2901 || v == 0x8370)) {
-        if (key == 0x2802) *u = v; else *w = v;
-    } else { fail(BAD_ENUM); return 0; } return 1;
-}
-static uint32_t api_TexParameteri(void) {
-    if (ARG(0) != TEXTURE_2D) fail(BAD_ENUM); else if (!tex[active_unit]) fail(BAD_OP);
-    else { Texture *t = &textures[tex[active_unit]]; parameter(ARG(1), ARG(2), &t->min, &t->mag, &t->u, &t->v); }
-    return 0;
-}
-static uint32_t api_GenSamplers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = alloc_name(samplers, sizeof(Sampler));
-        samplers[id].min = 0x2702; samplers[id].mag = 0x2601; samplers[id].u = samplers[id].v = 0x2901;
-        x86_wr32(ARG(1) + i * 4, id); } return 0;
-}
-static uint32_t api_BindSampler(void) {
-    if (ARG(0) >= 8 || ARG(1) >= N) fail(BAD_VALUE);
-    else if (ARG(1) && !samplers[ARG(1)].used) fail(BAD_OP); else samp[ARG(0)] = ARG(1); return 0;
-}
-static uint32_t api_SamplerParameteri(void) {
-    if (!ARG(0) || ARG(0) >= N || !samplers[ARG(0)].used) fail(BAD_OP);
-    else { Sampler *s = &samplers[ARG(0)]; parameter(ARG(1), ARG(2), &s->min, &s->mag, &s->u, &s->v); }
-    return 0;
-}
-static uint32_t api_DeleteSamplers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
-        if (id && id < N) { samplers[id].used = 0;
-            for (uint32_t j = 0; j < 8; j++) if (samp[j] == id) samp[j] = 0; } } return 0;
-}
-static uint32_t api_DeleteTextures(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
-        if (id && id < N) { if (textures[id].gpu) SEND(0x45, id); zero(&textures[id], sizeof(Texture));
-            for (uint32_t j = 0; j < 8; j++) if (tex[j] == id) tex[j] = 0; } } return 0;
-}
-
-static uint32_t api_GenFramebuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, alloc_name(fbos, sizeof(Fbo))); return 0;
-}
-static uint32_t api_BindFramebuffer(void) {
-    if (ARG(0) != FRAMEBUFFER) fail(BAD_ENUM); else if (ARG(1) >= N) fail(BAD_VALUE);
-    else { fbo = ARG(1); if (fbo) fbos[fbo].used = 1; } return 0;
-}
-static uint32_t api_FramebufferTexture2D(void) {
-    if (ARG(0) != FRAMEBUFFER || ARG(2) != TEXTURE_2D) fail(BAD_ENUM);
-    else if (!fbo) fail(BAD_OP); else if (ARG(3) >= N || ARG(4) > 12) fail(BAD_VALUE);
-    else if (ARG(1) == 0x8ce0) { fbos[fbo].color = ARG(3); fbos[fbo].mip = ARG(4); }
-    else if (ARG(1) == 0x821a || ARG(1) == 0x8d00) { fbos[fbo].depth = ARG(3); fbos[fbo].renderbuffer = 0; }
-    else fail(BAD_ENUM); return 0;
-}
-static uint32_t api_GenRenderbuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, alloc_name(rbos, sizeof(Rbo))); return 0;
-}
-static uint32_t api_BindRenderbuffer(void) {
-    if (ARG(0) != RENDERBUFFER) fail(BAD_ENUM); else if (ARG(1) >= N) fail(BAD_VALUE);
-    else { rbo = ARG(1); if (rbo) rbos[rbo].used = 1; } return 0;
-}
-static uint32_t api_RenderbufferStorage(void) {
-    int format = format_of(ARG(1));
-    if (ARG(0) != RENDERBUFFER || format < 5) fail(BAD_ENUM);
-    else if (!rbo) fail(BAD_OP);
-    else if (!ARG(2) || !ARG(3) || ARG(2) > 4096 || ARG(3) > 4096) fail(BAD_VALUE);
-    else { Rbo *r = &rbos[rbo]; if (r->gpu) SEND(0x45, r->gpu);
-        r->gpu = 256 + rbo; r->format = (uint32_t)format; r->w = ARG(2); r->h = ARG(3);
-        SEND(0x43, r->gpu, r->w, r->h, 1, r->format, 2); } return 0;
-}
-static uint32_t api_FramebufferRenderbuffer(void) {
-    if (ARG(0) != FRAMEBUFFER || ARG(2) != RENDERBUFFER || (ARG(1) != 0x821a && ARG(1) != 0x8d00))
-        fail(BAD_ENUM);
-    else if (!fbo) fail(BAD_OP); else if (ARG(3) >= N) fail(BAD_VALUE);
-    else { fbos[fbo].depth = ARG(3); fbos[fbo].renderbuffer = 1; } return 0;
-}
-static uint32_t framebuffer_status(void) {
-    if (!fbo) return 0x8cd5;
-    Fbo *f = &fbos[fbo]; Texture *t = &textures[f->color];
-    if (!f->color || !t->gpu) return 0x8cd7;
-    if (f->depth) {
-        uint32_t w = f->renderbuffer ? rbos[f->depth].w : textures[f->depth].w;
-        uint32_t h = f->renderbuffer ? rbos[f->depth].h : textures[f->depth].h;
-        if (w != (t->w >> f->mip) || h != (t->h >> f->mip)) return 0x8cd6;
-    } return 0x8cd5;
-}
-static uint32_t api_CheckFramebufferStatus(void) {
-    if (ARG(0) != FRAMEBUFFER) { fail(BAD_ENUM); return 0; } return framebuffer_status();
-}
-static uint32_t api_DeleteFramebuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
-        if (id && id < N) { zero(&fbos[id], sizeof(Fbo)); if (fbo == id) fbo = 0; } } return 0;
-}
-static uint32_t api_DeleteRenderbuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
-        if (id && id < N) { if (rbos[id].gpu) SEND(0x45, rbos[id].gpu);
-            zero(&rbos[id], sizeof(Rbo)); if (rbo == id) rbo = 0; } } return 0;
-}
+#include "w32_gl_fmt.h"
+#include "w32_gl_tex.h"
+#include "w32_gl_fbo.h"
 
 #include "w32_gl_shader.h"
 #include "w32_gl_draw.h"

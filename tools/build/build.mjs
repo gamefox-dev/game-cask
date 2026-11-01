@@ -263,7 +263,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       if(covered){kept.add(c.url);included+=c.size;}else c.missing=true;
     }
     for(const file of streams)for(const c of file.chunks)if(c.missing&&!kept.has(c.url))rmSync(join(outDir,c.url),{force:true});
-    slice={code:pipe.slicePlan.code,data:true,originalChunkBytes:total,fileChunkBytes:included};
+    slice={code:pipe.slicePlan.code,codeRanges:pipe.slicePlan.codeRanges,data:true,originalChunkBytes:total,fileChunkBytes:included};
   }
   const payloads=walk(outDir).filter((f)=>!f.endsWith('manifest.json'));
   const packaging={download_bytes_raw:0,download_bytes_gzip:0,wasm_bytes:wasm.length,file_chunk_bytes:0};

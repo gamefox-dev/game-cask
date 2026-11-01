@@ -1,13 +1,17 @@
 // Local, engine-independent GLSL 330/ES 300 frontend. Unsupported syntax is a compile error, never guessed.
 // Native WebGPU validates the resulting WGSL; errors retain the original token/line where possible.
 type Token = { text: string; line: number };
-type Expr = { code: string; type: string };
+type Expr = { code: string; type: string; view?: Field };
 const types: Record<string, string> = {
   void: 'void', float: 'f32', int: 'i32', uint: 'u32', bool: 'bool',
   vec2: 'vec2f', vec3: 'vec3f', vec4: 'vec4f', ivec2: 'vec2i', ivec3: 'vec3i', ivec4: 'vec4i',
   uvec2: 'vec2u', uvec3: 'vec3u', uvec4: 'vec4u', bvec2: 'vec2<bool>', bvec3: 'vec3<bool>', bvec4: 'vec4<bool>',
-  mat2: 'mat2x2f', mat3: 'mat3x3f', mat4: 'mat4x4f',
+  mat2: 'mat2x2f', mat3: 'mat3x3f', mat4: 'mat4x4f', mat2x2: 'mat2x2f', mat3x3: 'mat3x3f', mat4x4: 'mat4x4f',
+  mat2x3: 'mat2x3f', mat2x4: 'mat2x4f', mat3x4: 'mat3x4f', mat4x3: 'mat4x3f',
 };
+// Block/struct member in std140 terms; `kind` says how the WGSL host-shareable form differs from the GLSL value.
+type Field = { name: string; base: string; arr: number; kind: 'plain' | 'bool' | 'mat2' | 'struct' | 'pad'; comps: number };
+interface StructInfo { name: string; fields: Field[]; host?: string }
 const scalar = (t: string) => t.endsWith('u') || t === 'u32' ? 'u32' : t.endsWith('i') || t === 'i32' ? 'i32' : 'f32';
 const vector = (n: number, t: string) => n === 1 ? scalar(t) : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
@@ -48,6 +52,10 @@ class GLSL {
   private locals = new Set<string>();
   private helpers: string[] = [];
   private returnType = 'void';
+  private structs = new Map<string, StructInfo>();
+  private signatures = new Map<string, { type: string; mode: string }[]>();
+  private intConsts = new Map<string, number>();
+  private pointers = new Set<string>();
 
   private varyings: string[];
   constructor(source: string, private stage: number, language: number, varyingNames?: string[],
@@ -67,6 +75,7 @@ class GLSL {
     for (const n of ['bgt_frag_coord', 'gl_FragCoord'])
       this.variables.set(n, { code: 'bgt_frag_coord', type: 'vec4f' });
     this.variables.set('gl_FrontFacing', { code: 'bgt_internal_front', type: 'bool' });
+    if (stage === 1) this.variables.set('gl_PointSize', { code: 'bgt_internal_point_size', type: 'f32' }); // no point sprites in §13
   }
 
   private peek(n = 0): string { return this.tokens[this.i + n]?.text ?? ''; }
@@ -79,9 +88,13 @@ class GLSL {
   private name(): string {
     const n = this.take(); if (!/^[A-Za-z_]\w*$/.test(n)) this.fail(`expected identifier, found '${n}'`); return n;
   }
+  private isType(n: string): boolean { return !!types[n] || this.structs.has(n); }
   private type(): string {
     while (['highp', 'mediump', 'lowp'].includes(this.peek())) this.take();
-    const n = this.take(); if (!types[n]) this.fail(`unsupported type '${n}'`); return types[n];
+    const n = this.take();
+    if (this.structs.has(n)) return n;
+    if (!types[n]) this.fail(`unsupported type '${n}'`);
+    return types[n];
   }
   private layout(): Map<string, number> {
     const values = new Map<string, number>();
@@ -130,33 +143,59 @@ class GLSL {
         }
         continue;
       }
+      if (this.peek() === 'struct') { this.structDecl(); continue; }
       const constant = this.eat('const'), type = this.type(), name = this.name();
       if (this.eat('(')) {
-        const params: string[] = [];
+        const params: string[] = [], prologue: string[] = [], sig: { type: string; mode: string }[] = [];
         const saved = new Map(this.variables), savedLocals = this.locals, savedReturnType = this.returnType;
-        this.locals = new Set(); this.returnType = type;
+        const savedPointers = this.pointers;
+        this.locals = new Set(); this.returnType = type; this.pointers = new Set();
         if (!this.eat(')')) {
           if (this.peek() === 'void' && this.peek(1) === ')') { this.take(); this.take(); }
           else {
             do {
-              if (this.peek() === 'in') this.take();
-              if (['out', 'inout'].includes(this.peek())) this.fail('out/inout function parameters are unsupported');
-              const t = this.type(), n = this.name();
-              params.push(`${n}: ${t}`); this.variables.set(n, { code: n, type: t }); this.locals.add(n);
+              this.eat('const');
+              let mode = 'in';
+              if (['in', 'out', 'inout'].includes(this.peek())) mode = this.take();
+              const t = this.type(), n = this.name(), at = this.array(t);
+              sig.push({ type: at, mode });
+              if (mode === 'in') {
+                // GLSL `in` parameters are mutable copies; WGSL parameters are not.
+                params.push(`bgt_internal_p_${n}: ${at}`); prologue.push(`var ${n}: ${at} = bgt_internal_p_${n};`);
+                this.variables.set(n, { code: n, type: at });
+              } else {
+                params.push(`${n}: ptr<function, ${at}>`); this.pointers.add(n);
+                this.variables.set(n, { code: `(*${n})`, type: at });
+              }
+              this.locals.add(n);
             } while (this.eat(','));
             this.need(')');
           }
         }
-        this.functions.set(name, type);
-        const body = this.block(); this.variables = saved;
-        this.locals = savedLocals; this.returnType = savedReturnType;
+        this.functions.set(name, type); this.signatures.set(name, sig);
+        if (this.eat(';')) { // prototype: the definition supplies the WGSL function
+          this.variables = saved; this.locals = savedLocals; this.returnType = savedReturnType; this.pointers = savedPointers;
+          continue;
+        }
+        const body = this.block(prologue); this.variables = saved;
+        this.locals = savedLocals; this.returnType = savedReturnType; this.pointers = savedPointers;
         const signature = `fn ${name === 'main' ? 'bgt_internal_main' : name}(${params.join(', ')})`;
         bodies.push(`${signature}${type === 'void' ? '' : ` -> ${type}`} ${body}`);
       } else {
-        const suffix = this.array(type); this.variables.set(name, { code: name, type: suffix });
-        const init = this.eat('=') ? this.convert(this.expression(), suffix).code : undefined; this.need(';');
-        if (constant && !init) this.fail('const requires initializer');
-        this.declarations.push(`${constant ? 'const' : 'var<private>'} ${name}: ${suffix}${init ? ` = ${init}` : ''};`);
+        let current = name;
+        for (;;) {
+          const suffix = this.array(type); this.variables.set(current, { code: current, type: suffix });
+          const init = this.eat('=') ? this.expression() : undefined;
+          const code = init ? this.convert(init, suffix).code : undefined;
+          if (constant && !code) this.fail('const requires initializer');
+          if (constant && type === 'i32' && init) {
+            const value = this.constInt(init.code.replace(/(\d)[iu]\b/g, '$1').match(/\d+|[()*/%+-]|[A-Za-z_]\w*/g) ?? []);
+            if (value !== undefined) this.intConsts.set(current, value);
+          }
+          this.declarations.push(`${constant ? 'const' : 'var<private>'} ${current}: ${suffix}${code ? ` = ${code}` : ''};`);
+          if (this.eat(',')) { current = this.name(); continue; }
+          this.need(';'); break;
+        }
       }
     }
     if (!this.functions.has('main')) this.fail('missing main');
@@ -168,7 +207,8 @@ class GLSL {
       this.output.unshift('@builtin(position) bgt_internal_position: vec4f');
       this.outputs.unshift('bgt_internal_out.bgt_internal_position = bgt_internal_position;');
       this.declarations.push('var<private> bgt_internal_position: vec4f;',
-        'var<private> bgt_vertex_index: u32;', 'var<private> bgt_instance_index: u32;');
+        'var<private> bgt_vertex_index: u32;', 'var<private> bgt_instance_index: u32;',
+        'var<private> bgt_internal_point_size: f32;');
     } else {
       this.input.push('@builtin(position) bgt_frag_coord: vec4f', '@builtin(front_facing) bgt_internal_front: bool');
       this.inputs.push('bgt_frag_coord = bgt_internal_in.bgt_frag_coord;',
@@ -195,6 +235,13 @@ class GLSL {
   private uniform(layout: Map<string, number>): void {
     if (layout.has('binding') || layout.has('set')) this.fail('native bindings are forbidden; use bgt_uS/bgt_tS');
     const name = this.name();
+    if (name === 'sampler3D' || name === 'sampler2DArray') {
+      const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
+      this.need(';'); const s = Number(slot[1]), volume = name === 'sampler3D';
+      this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: ${volume ? 'texture_3d<f32>' : 'texture_2d_array<f32>'};`,
+        `@group(1) @binding(${2 * s + 1}) var ${n}_sampler: sampler;`);
+      this.variables.set(n, { code: n, type: volume ? 'texture3d' : 'texture2darray' }); return;
+    }
     if (name === 'sampler2D' || name === 'sampler2DShadow') {
       const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
       this.need(';'); const s = Number(slot[1]), compare = name === 'sampler2DShadow';
@@ -206,37 +253,136 @@ class GLSL {
     }
     const slot = /^bgt_u([0-7])$/.exec(name);
     if (!slot || !layout.has('std140')) this.fail('uniforms must be layout(std140) uniform bgt_u0..bgt_u7 blocks');
-    this.need('{'); const members: string[] = [], names: { name: string; type: string; matrix2: boolean }[] = [];
+    this.need('{'); const fields: Field[] = [];
     while (!this.eat('}')) {
-      const type = this.type(), n = this.name(), array = this.array(type); this.need(';');
-      if (array !== type && !/vec4|mat[34]/.test(type))
-        this.fail('std140 scalar/vec2/vec3 arrays require explicit vec4 padding');
-      const alignment = /vec[34]|mat|array/.test(array) ? 16 : /vec2/.test(type) ? 8 : 4;
-      members.push(`@align(${alignment}) ${n}: ${type === 'mat2x2f' ? 'mat2x4f' : array}`);
-      names.push({ name: n, type: array, matrix2: type === 'mat2x2f' });
+      while (['highp', 'mediump', 'lowp'].includes(this.peek())) this.take();
+      const glsl = this.peek(), base = this.type();
+      do { fields.push(this.field(this.name(), base, glsl, this.arrayLen())); } while (this.eat(','));
+      this.need(';');
     }
+    const members = fields.map(f => `@align(${this.alignment(f)}) ${f.name}: ${this.hostType(f)}`);
     const instance = this.peek() === ';' ? `bgt_internal_${name}` : this.name(); this.need(';');
     this.declarations.push(`struct ${name} { ${members.join(', ')} };`,
       `@group(0) @binding(${slot[1]}) var<uniform> ${instance}: ${name};`);
-    const read = (root: string, n: typeof names[number]) => n.matrix2 ?
-      `mat2x2f(${root}.${n.name}[0].xy, ${root}.${n.name}[1].xy)` : `${root}.${n.name}`;
-    if (instance.startsWith('bgt_internal_')) for (const n of names)
-      this.variables.set(n.name, { code: read(instance, n), type: n.type });
+    if (instance.startsWith('bgt_internal_')) for (const f of fields) this.variables.set(f.name, this.fieldExpr(instance, f));
     else {
       this.variables.set(instance, { code: instance, type: name });
-      for (const n of names) this.variables.set(`${name}.${n.name}`, { code: read('$', n), type: n.type });
+      for (const f of fields) this.variables.set(`${name}.${f.name}`, this.fieldExpr('$', f));
     }
   }
 
-  private array(type: string): string {
-    if (!this.eat('[')) return type;
-    const n = Number(this.take());
-    if (!Number.isInteger(n) || n < 1) this.fail('array requires positive constant length');
-    this.need(']'); return `array<${type}, ${n}>`;
+  // ---- std140 host-shareable forms. GLSL values and WGSL uniform storage differ for bool, mat2, scalar/vec2
+  // arrays and structs, so each is stored in a padded form and converted when read.
+  private field(name: string, base: string, glsl: string, arr: number): Field {
+    const kind = glsl === 'bool' ? 'bool' : base === 'mat2x2f' ? 'mat2' : this.structs.has(base) ? 'struct' :
+      arr && /^(f32|i32|u32|vec2[fiu])$/.test(base) ? 'pad' : 'plain';
+    return { name, base, arr, kind, comps: /^vec2/.test(base) ? 2 : 1 };
+  }
+  private alignment(f: Field): number {
+    return f.arr || f.kind === 'struct' || f.kind === 'mat2' || /vec[34]|mat/.test(f.base) ? 16 :
+      /vec2/.test(f.base) ? 8 : 4;
+  }
+  private hostType(f: Field): string {
+    const wrap = (t: string) => f.arr ? `array<${t}, ${f.arr}>` : t;
+    switch (f.kind) {
+      case 'bool': return f.arr ? `array<vec4<u32>, ${f.arr}>` : 'u32';
+      case 'mat2': return wrap('mat2x4f');
+      case 'struct': return wrap(this.hostStruct(f.base));
+      case 'pad': return `array<vec4<${scalar(f.base)}>, ${f.arr}>`;
+      default:
+        if (/bool/.test(f.base)) this.fail('bool vectors are not supported in uniform storage');
+        return wrap(f.base);
+    }
+  }
+  private element(code: string, f: Field): string {  // one element of a non-plain array, or the scalar form of a field
+    switch (f.kind) {
+      case 'bool': return `(${code}${f.arr ? '.x' : ''} != 0u)`;
+      case 'mat2': return `mat2x2f(${code}[0].xy, ${code}[1].xy)`;
+      case 'struct': return `bgt_internal_load_${f.base}(${code})`;
+      case 'pad': return `${code}.${f.comps === 2 ? 'xy' : 'x'}`;
+      default: return code;
+    }
+  }
+  private fieldExpr(root: string, f: Field): Expr {
+    const code = `${root}.${f.name}`, host = this.hostType(f);
+    if (f.arr) return f.kind === 'plain' ? { code, type: host } : { code, type: host, view: f };
+    return { code: f.kind === 'plain' ? code : this.element(code, f), type: f.kind === 'bool' ? 'bool' :
+      f.kind === 'struct' ? f.base : f.kind === 'mat2' ? 'mat2x2f' : f.base };
+  }
+  private hostStruct(name: string): string {
+    const info = this.structs.get(name)!;
+    if (info.host) return info.host;
+    info.host = `${name}_u`;
+    const members = info.fields.map((f, i) => `@align(${i === 0 ? 16 : this.alignment(f)}) ${f.name}: ${this.hostType(f)}`);
+    const loads = info.fields.map(f => {
+      if (!f.arr) return this.fieldExpr('x', f).code;
+      if (f.kind === 'plain') return `x.${f.name}`;
+      const items = Array.from({ length: f.arr }, (_, i) => this.element(`x.${f.name}[${i}]`, f));
+      return `array<${f.kind === 'bool' ? 'bool' : f.kind === 'mat2' ? 'mat2x2f' : f.kind === 'struct' ? f.base : f.base}, ${f.arr}>(${items.join(', ')})`;
+    });
+    this.declarations.push(`struct ${info.host} { ${members.join(', ')} };`,
+      `fn bgt_internal_load_${name}(x: ${info.host}) -> ${name} { return ${name}(${loads.join(', ')}); }`);
+    return info.host;
+  }
+  private structDecl(): void {
+    this.need('struct'); const name = this.name(); this.need('{');
+    if (this.structs.has(name) || types[name]) this.fail(`redefinition of '${name}'`);
+    const fields: Field[] = [];
+    while (!this.eat('}')) {
+      while (['highp', 'mediump', 'lowp'].includes(this.peek())) this.take();
+      const glsl = this.peek(), base = this.type();
+      do { fields.push(this.field(this.name(), base, glsl, this.arrayLen())); } while (this.eat(','));
+      this.need(';');
+    }
+    this.need(';');
+    this.structs.set(name, { name, fields });
+    this.declarations.push(`struct ${name} { ${fields.map(f => `${f.name}: ${f.arr ? `array<${f.base}, ${f.arr}>` : f.base}`).join(', ')} };`);
+    for (const f of fields) this.variables.set(`${name}.${f.name}`,
+      { code: `$.${f.name}`, type: f.arr ? `array<${f.base}, ${f.arr}>` : f.base });
   }
 
-  private block(): string {
-    this.need('{'); const statements: string[] = [], saved = new Map(this.variables);
+  private constInt(tokens: string[]): number | undefined {
+    let i = 0;
+    const atom = (): number | undefined => {
+      const t = tokens[i++];
+      if (t === '(') { const v = sum(); if (tokens[i++] !== ')') return undefined; return v; }
+      if (t === '-') { const v = atom(); return v === undefined ? v : -v; }
+      if (/^\d+[uU]?$/.test(t ?? '')) return parseInt(t, 10);
+      if (t !== undefined && this.intConsts.has(t)) return this.intConsts.get(t);
+      return undefined;
+    };
+    const product = (): number | undefined => {
+      let v = atom();
+      while (v !== undefined && ['*', '/', '%'].includes(tokens[i])) {
+        const op = tokens[i++], r = atom(); if (r === undefined || (op !== '*' && r === 0)) return undefined;
+        v = op === '*' ? v * r : op === '/' ? Math.trunc(v / r) : v % r;
+      }
+      return v;
+    };
+    const sum = (): number | undefined => {
+      let v = product();
+      while (v !== undefined && ['+', '-'].includes(tokens[i])) {
+        const op = tokens[i++], r = product(); if (r === undefined) return undefined; v = op === '+' ? v + r : v - r;
+      }
+      return v;
+    };
+    const v = sum(); return i === tokens.length ? v : undefined;
+  }
+  private arrayLen(): number {
+    if (!this.eat('[')) return 0;
+    const tokens: string[] = [];
+    while (this.peek() && this.peek() !== ']') tokens.push(this.take());
+    const n = this.constInt(tokens); this.need(']');
+    if (n === undefined || !Number.isInteger(n) || n < 1) this.fail('array requires positive constant length');
+    return n;
+  }
+
+  private array(type: string): string {
+    const n = this.arrayLen(); return n ? `array<${type}, ${n}>` : type;
+  }
+
+  private block(prologue: string[] = []): string {
+    this.need('{'); const statements: string[] = [...prologue], saved = new Map(this.variables);
     const savedLocals = new Set(this.locals);
     while (!this.eat('}')) statements.push(this.statement());
     this.variables = saved; this.locals = savedLocals;
@@ -276,13 +422,16 @@ class GLSL {
     }
     const constant = this.eat('const');
     let result: string;
-    if (types[this.peek()] || ['highp', 'mediump', 'lowp'].includes(this.peek())) {
-      const type = this.type(), n = this.name(), array = this.array(type);
-      this.variables.set(n, { code: n, type: array });
-      const init = this.eat('=') ? this.convert(this.expression(), array).code : undefined;
-      this.locals.add(n);
-      result = `${constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''}`;
-      if (this.peek() === ',') this.fail('split multiple variable declarations into separate statements');
+    if (this.isType(this.peek()) || ['highp', 'mediump', 'lowp'].includes(this.peek())) {
+      const type = this.type(), parts: string[] = [];
+      do {
+        const n = this.name(), array = this.array(type);
+        this.variables.set(n, { code: n, type: array });
+        const init = this.eat('=') ? this.convert(this.expression(), array).code : undefined;
+        this.locals.add(n);
+        parts.push(`${constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''}`);
+      } while (this.eat(','));
+      result = parts.join('; ');
     } else {
       const lhs = this.expression();
       if (['=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^='].includes(this.peek())) {
@@ -335,18 +484,32 @@ class GLSL {
     else if (this.peek() === '(') lhs = this.call(n);
     else {
       const v = this.variables.get(n); if (!v) this.fail(`unknown identifier '${n}'`); lhs = { ...v };
-      if (n.startsWith('gl_') && !['gl_Position', 'gl_FragCoord', 'gl_FrontFacing'].includes(n))
+      if (n.startsWith('gl_') && !['gl_Position', 'gl_FragCoord', 'gl_FrontFacing', 'gl_PointSize'].includes(n))
         this.fail(`unsupported builtin ${n}`);
     }
     while (true) {
       if (this.eat('.')) {
-        const member = this.name(), known = this.variables.get(`${lhs.type}.${member}`);
+        const member = this.name();
+        if (member === 'length' && this.peek() === '(') {
+          this.take(); this.need(')');
+          const n = lhs.view?.arr ?? Number(/, (\d+)>$/.exec(lhs.type)?.[1]);
+          if (!n) this.fail('length() requires an array'); lhs = { code: `${n}i`, type: 'i32' }; continue;
+        }
+        const known = this.variables.get(`${lhs.type}.${member}`);
         const type = known?.type ?? vector(member.length, lhs.type);
         const swizzle = member.replace(/[rgba]/g, c => ({ r: 'x', g: 'y', b: 'z', a: 'w' })[c]!);
-        lhs = { code: known ? known.code.replace(/\$/g, lhs.code) : `${lhs.code}.${swizzle}`, type }; continue;
+        lhs = { code: known ? known.code.replace(/\$/g, lhs.code) : `${lhs.code}.${swizzle}`, type, view: known?.view }; continue;
       }
       if (this.eat('[')) {
         const index = this.expression(); this.need(']');
+        if (lhs.view) {
+          const f = lhs.view, item = `${lhs.code}[${index.code}]`;
+          lhs = { code: f.kind === 'mat2' ? `bgt_internal_mat2(${item})` : this.element(item, f),
+            type: f.kind === 'bool' ? 'bool' : f.kind === 'mat2' ? 'mat2x2f' : f.base };
+          if (f.kind === 'mat2' && !this.helpers.some(h => h.startsWith('fn bgt_internal_mat2('))) this.helpers.push(
+            'fn bgt_internal_mat2(m: mat2x4f) -> mat2x2f { return mat2x2f(m[0].xy, m[1].xy); }');
+          continue;
+        }
         const type = /^array<(.+),/.exec(lhs.type)?.[1] ??
           (/^mat\d+x(\d)f$/.test(lhs.type) ? `vec${/^mat\d+x(\d)f$/.exec(lhs.type)![1]}f` : scalar(lhs.type));
         lhs = { code: `${lhs.code}[${index.code}]`, type }; continue;
@@ -393,10 +556,27 @@ class GLSL {
     return lhs;
   }
 
+  private pointerArgument(a: Expr): Expr {
+    const deref = /^\(\*(\w+)\)$/.exec(a.code);
+    if (deref) return { code: deref[1], type: a.type };
+    const root = /^([A-Za-z_]\w*)(?:\.\w+|\[[^\]]*\])*$/.exec(a.code)?.[1];
+    if (!root || !this.locals.has(root) || this.pointers.has(root)) {
+      this.fail('out/inout arguments must be local variables, members or elements');
+    }
+    return { code: `&${a.code}`, type: a.type };
+  }
+
   private call(name: string): Expr {
-    this.need('('); const args: Expr[] = [];
+    this.need('('); let args: Expr[] = [];
     if (!this.eat(')')) {
       do { args.push(this.expression()); } while (this.eat(',')); this.need(')');
+    }
+    const info = this.structs.get(name);
+    if (info) {
+      if (args.length !== info.fields.length) this.fail(`structure constructor '${name}' requires ${info.fields.length} arguments`);
+      const converted = args.map((a, i) => this.convert(a, info.fields[i].arr ?
+        `array<${info.fields[i].base}, ${info.fields[i].arr}>` : info.fields[i].base));
+      return { code: `${name}(${converted.map(a => a.code).join(', ')})`, type: name };
     }
     if (types[name]) {
       const matrix = /^mat([234])$/.exec(name);
@@ -422,7 +602,38 @@ class GLSL {
     }
     if (['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(name)) {
       const [t, uv, lod] = args;
-      if (!t || !['texture', 'depth', 'depthColor'].includes(t.type)) this.fail('texture requires bgt_tS');
+      if (!t || !['texture', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
+        this.fail('texture requires bgt_tS');
+      }
+      if (t.type === 'texture3d') {
+        if (name === 'textureSize') return { code: `vec3i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec3i' };
+        if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: 'vec4f' };
+        const fn3 = name === 'textureLod' ? 'textureSampleLevel' : name === 'textureGrad' ? 'textureSampleGrad' :
+          args.length === 3 ? 'textureSampleBias' : 'textureSample';
+        return { code: `${fn3}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+      }
+      if (t.type === 'texture2darray') {
+        const helper = `bgt_internal_array_${this.temporary++}`, layer = `clamp(i32(floor(c.z + 0.5)), 0, i32(textureNumLayers(${t.code})) - 1)`;
+        if (name === 'textureSize') return { code: `vec3i(vec2i(textureDimensions(${t.code}, ${uv.code})), i32(textureNumLayers(${t.code})))`, type: 'vec3i' };
+        if (name === 'texelFetch') {
+          this.helpers.push(`fn ${helper}(p: vec3i, l: i32) -> vec4f { return textureLoad(${t.code}, p.xy, p.z, l); }`);
+          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
+        }
+        if (name === 'textureGrad') {
+          this.helpers.push(`fn ${helper}(c: vec3f, dx: vec2f, dy: vec2f) -> vec4f {` +
+            ` return textureSampleGrad(${t.code}, ${t.code}_sampler, c.xy, ${layer}, dx, dy); }`);
+          return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+        }
+        if (name === 'textureLod') {
+          this.helpers.push(`fn ${helper}(c: vec3f, l: f32) -> vec4f {` +
+            ` return textureSampleLevel(${t.code}, ${t.code}_sampler, c.xy, ${layer}, l); }`);
+          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
+        }
+        const biased = args.length === 3;
+        this.helpers.push(`fn ${helper}(c: vec3f${biased ? ', b: f32' : ''}) -> vec4f {` +
+          ` return ${biased ? 'textureSampleBias' : 'textureSample'}(${t.code}, ${t.code}_sampler, c.xy, ${layer}${biased ? ', b' : ''}); }`);
+        return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+      }
       if (name === 'textureSize') return { code: `vec2i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec2i' };
       if (name === 'texelFetch') {
         const code = `textureLoad(${t.code}, ${uv.code}, ${lod.code})`;
@@ -436,7 +647,7 @@ class GLSL {
         return { code: `${helper}(${uv.code})`, type: 'f32' };
       }
       const fn = name === 'textureLod' ? 'textureSampleLevel' :
-        name === 'textureGrad' ? 'textureSampleGrad' : 'textureSample';
+        name === 'textureGrad' ? 'textureSampleGrad' : args.length === 3 ? 'textureSampleBias' : 'textureSample';
       const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`;
       return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
     }
@@ -447,7 +658,18 @@ class GLSL {
       }
     }
     const renamed: Record<string, string> = { dFdx: 'dpdx', dFdy: 'dpdy', inversesqrt: 'inverseSqrt',
-      fract: 'fract', atan: args.length === 2 ? 'atan2' : 'atan', mod: 'bgt_internal_mod' };
+      fract: 'fract', atan: args.length === 2 ? 'atan2' : 'atan', mod: 'bgt_internal_mod', roundEven: 'round',
+      faceforward: 'faceForward' };
+    const relational: Record<string, string> = { lessThan: '<', lessThanEqual: '<=', greaterThan: '>',
+      greaterThanEqual: '>=', equal: '==', notEqual: '!=' };
+    if (relational[name] && args.length === 2) {
+      return { code: `(${args[0].code} ${relational[name]} ${args[1].code})`, type: `vec${args[0].type[3]}<bool>` };
+    }
+    if (name === 'not' && args.length === 1) return { code: `(!${args[0].code})`, type: args[0].type };
+    const signature = this.signatures.get(name);
+    if (signature && signature.length === args.length) {
+      args = args.map((a, i) => signature[i].mode === 'in' ? this.convert(a, signature[i].type) : this.pointerArgument(a));
+    }
     if (name === 'mod') {
       const helper = `bgt_internal_mod_${this.temporary++}`, type = args[0].type;
       this.helpers.push(`fn ${helper}(x: ${type}, y: ${args[1].type}) -> ${type} { return x - y * floor(x / y); }`);
@@ -456,7 +678,8 @@ class GLSL {
     const builtins = ['abs', 'acos', 'asin', 'atan', 'ceil', 'clamp', 'cos', 'cross', 'degrees', 'distance', 'dot',
       'exp', 'exp2', 'floor', 'fract', 'fwidth', 'inversesqrt', 'length', 'log', 'log2', 'max', 'min', 'mix',
       'normalize', 'pow', 'radians', 'reflect', 'refract', 'round', 'sign', 'sin', 'smoothstep', 'sqrt', 'step',
-      'tan', 'transpose', 'trunc', 'dFdx', 'dFdy', 'determinant', 'all', 'any'];
+      'tan', 'transpose', 'trunc', 'dFdx', 'dFdy', 'determinant', 'all', 'any', 'sinh', 'cosh', 'tanh', 'asinh',
+      'acosh', 'atanh', 'roundEven', 'faceforward'];
     const type = this.functions.get(name) ?? (builtins.includes(name) ?
       ['dot', 'distance', 'length', 'determinant'].includes(name) ? 'f32' :
         ['all', 'any'].includes(name) ? 'bool' : args[0]?.type : '');
@@ -478,7 +701,7 @@ export function translateGLSL(source: string, stage: number, language: number, v
 
 export interface ShaderBinding {
   group: number; binding: number;
-  type: 'uniform' | 'texture' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering';
+  type: 'uniform' | 'texture' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray';
 }
 export function shaderBindings(source: string, activeOnly = false): ShaderBinding[] {
   const clean = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
@@ -491,10 +714,12 @@ export function shaderBindings(source: string, activeOnly = false): ShaderBindin
     if (!group || !binding) throw new Error('WGSL: reflection requires literal @group and @binding numbers');
     const g = Number(group[1]), b = Number(binding[1]);
     const type = m[2]?.trim() === 'uniform' ? 'uniform' : m[3].trim() === 'texture_depth_2d' ? 'depth' :
-      /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' : m[3].trim() === 'sampler' ? 'sampler' :
+      /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' :
+      /^texture_3d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture3d' :
+      /^texture_2d_array\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture2darray' : m[3].trim() === 'sampler' ? 'sampler' :
       m[3].trim() === 'sampler_comparison' ? 'comparison' : undefined;
     if (!type || (g === 0 ? type !== 'uniform' || b > 7 : g !== 1 || b > 15 ||
-      ((type === 'texture' || type === 'depth') ? b % 2 !== 0 :
+      ((type === 'texture' || type === 'depth' || type === 'texture3d' || type === 'texture2darray') ? b % 2 !== 0 :
         (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
       throw new Error(`WGSL binding @group(${g}) @binding(${b}) violates §13.5`);
     const name = /var\s*(?:<[^>]+>\s*)?(\w+)/.exec(m[0])![1];

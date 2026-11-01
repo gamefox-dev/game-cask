@@ -2,6 +2,7 @@
  * Floating math, decimal parsing, formatting and UTC calendar routines reuse Zig's WASI musl.
  * No guest pointer, va_list, FILE, wchar_t or Windows long is passed through as a host layout. */
 #include "w32_crt_internal.h"
+#include "w32_handles.h"
 #ifdef X86_FLAT_GUEST
 
 /* musl's allocator must never grow across the flat guest window. Host blocks live in x86_alloc's

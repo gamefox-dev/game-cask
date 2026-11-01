@@ -221,12 +221,19 @@ uint32_t x86_address(uint64_t a);
 extern uint8_t *x86_flat;
 #endif
 
+/* Analysis-owned half-open intervals (all modules, sorted and disjoint). owner is a
+ * dense function index, not a guest pointer. .pdata ownership wins over weak seeds. */
+typedef struct { uint32_t addr, end, owner; } x86_code_range_t;
+void x86_register_code_ranges(const x86_code_range_t *ranges, uint32_t count, uint32_t functions);
+
 /* ------------------------------------------------------------------ metrics */
 /* Names say what they count (kit v0.2.1; v0.2 had `interp_entries`, `exec_one`, `continues`). */
 typedef struct {
     uint64_t interp_insns;          /* guest instructions executed by the interpreter (0 = fully lifted) */
     uint64_t lifted_calls;          /* entries into lifted functions */
     uint64_t interp_code_entries;   /* entries into non-lifted guest code (the interpreter ran >= 1 instruction) */
+    uint64_t interp_functions;      /* distinct analyzed owners with >= 1 interpreted instruction */
+    uint64_t interp_unowned_entries; /* interpreter entry events outside analyzed owning ranges */
     uint64_t generic_insn_execs;    /* instructions executed through the shared semantic core inside lifted code */
     uint64_t tail_calls_lifted;     /* lifted jumps out of a function resolved straight to a lifted entry (tail calls) */
     uint64_t continues_interpreted; /* lifted frames that had to continue in the interpreter (unresolved jumps,

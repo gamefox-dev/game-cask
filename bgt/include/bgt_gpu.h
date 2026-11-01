@@ -29,6 +29,17 @@
 #define BGT_GPU_FORMAT_RGBA16F 4u
 #define BGT_GPU_FORMAT_DEPTH24_STENCIL8 5u
 #define BGT_GPU_FORMAT_DEPTH32F 6u
+#define BGT_GPU_FORMAT_RGB10A2 7u
+#define BGT_GPU_FORMAT_R16F 8u
+#define BGT_GPU_FORMAT_RG16F 9u
+#define BGT_GPU_FORMAT_R32F 10u
+#define BGT_GPU_FORMAT_RG32F 11u
+#define BGT_GPU_FORMAT_RGBA32F 12u
+#define BGT_GPU_DIM_2D 0u
+#define BGT_GPU_DIM_3D 1u
+#define BGT_GPU_DIM_2D_ARRAY 2u
+#define BGT_GPU_LIMIT_VOLUME_DIMENSION 256u
+#define BGT_GPU_LIMIT_ARRAY_LAYERS 256u
 #define BGT_GPU_FORMAT_NONE 4294967295u
 #define BGT_GPU_FILTER_NEAREST 0u
 #define BGT_GPU_FILTER_LINEAR 1u
@@ -299,6 +310,56 @@ typedef struct bgt_gpu_color_attachment {
     float b;
     float a;
 } bgt_gpu_color_attachment_t; /* 28 bytes */
+typedef struct bgt_gpu_texture_create_ex {
+    uint32_t handle;
+    uint32_t dimension;
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t mips;
+    uint32_t format;
+    uint32_t usage;
+} bgt_gpu_texture_create_ex_t; /* 32 bytes */
+typedef struct bgt_gpu_texture_update_ex {
+    uint32_t handle;
+    uint32_t mip;
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t data_ptr;
+    uint32_t data_len;
+} bgt_gpu_texture_update_ex_t; /* 40 bytes */
+typedef struct bgt_gpu_sampler_create_ex {
+    uint32_t handle;
+    uint32_t min_filter;
+    uint32_t mag_filter;
+    uint32_t mip_filter;
+    uint32_t wrap_u;
+    uint32_t wrap_v;
+    uint32_t wrap_w;
+    uint32_t compare_enable;
+    uint32_t compare;
+    float min_lod;
+    float max_lod;
+} bgt_gpu_sampler_create_ex_t; /* 44 bytes */
+typedef struct bgt_gpu_texture_readback {
+    uint32_t handle;
+    uint32_t mip;
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t request;
+} bgt_gpu_texture_readback_t; /* 36 bytes */
+typedef struct bgt_gpu_texture_generate_mips {
+    uint32_t handle;
+    uint32_t base_level;
+} bgt_gpu_texture_generate_mips_t; /* 8 bytes */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(bgt_gpu_buffer_create_t) == 20, "GPU buffer_create layout");
 _Static_assert(sizeof(bgt_gpu_buffer_update_t) == 16, "GPU buffer_update layout");
@@ -328,6 +389,11 @@ _Static_assert(sizeof(bgt_gpu_attribute_t) == 16, "GPU attribute layout");
 _Static_assert(sizeof(bgt_gpu_color_target_t) == 36, "GPU color_target layout");
 _Static_assert(sizeof(bgt_gpu_pass_begin_t) == 28, "GPU pass_begin layout");
 _Static_assert(sizeof(bgt_gpu_color_attachment_t) == 28, "GPU color_attachment layout");
+_Static_assert(sizeof(bgt_gpu_texture_create_ex_t) == 32, "GPU texture_create_ex layout");
+_Static_assert(sizeof(bgt_gpu_texture_update_ex_t) == 40, "GPU texture_update_ex layout");
+_Static_assert(sizeof(bgt_gpu_sampler_create_ex_t) == 44, "GPU sampler_create_ex layout");
+_Static_assert(sizeof(bgt_gpu_texture_readback_t) == 36, "GPU texture_readback layout");
+_Static_assert(sizeof(bgt_gpu_texture_generate_mips_t) == 8, "GPU texture_generate_mips layout");
 #endif
 
 #endif

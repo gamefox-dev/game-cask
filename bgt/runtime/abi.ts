@@ -189,6 +189,11 @@ export const GPU_OP = {
   TEXTURE: 0x56,
   DRAW: 0x57,
   DRAW_INDEXED: 0x58,
+  TEXTURE_CREATE_EX: 0x59,
+  TEXTURE_UPDATE_EX: 0x5a,
+  SAMPLER_CREATE_EX: 0x5b,
+  TEXTURE_READBACK: 0x5c,
+  TEXTURE_GENERATE_MIPS: 0x5d,
 } as const;
 export const GPU = {
   BUFFER_VERTEX: 1,
@@ -203,6 +208,15 @@ export const GPU = {
   FORMAT_RGBA16F: 4,
   FORMAT_DEPTH24_STENCIL8: 5,
   FORMAT_DEPTH32F: 6,
+  FORMAT_RGB10A2: 7,
+  FORMAT_R16F: 8,
+  FORMAT_RG16F: 9,
+  FORMAT_R32F: 10,
+  FORMAT_RG32F: 11,
+  FORMAT_RGBA32F: 12,
+  DIM_2D: 0,
+  DIM_3D: 1,
+  DIM_2D_ARRAY: 2,
   FORMAT_NONE: 4294967295,
   FILTER_NEAREST: 0,
   FILTER_LINEAR: 1,
@@ -304,6 +318,11 @@ export const GPU_LAYOUT = {
   texture: 12,
   draw: 16,
   draw_indexed: 20,
+  texture_create_ex: 32,
+  texture_update_ex: 40,
+  sampler_create_ex: 44,
+  texture_readback: 36,
+  texture_generate_mips: 8,
   pipeline_create: 104,
   vertex_layout: 8,
   attribute: 16,
@@ -343,6 +362,7 @@ export const GPU_LIMITS = {
   handles: 1023, budget: 256 * 1024 * 1024, bufferSize: 64 * 1024 * 1024,
   textureDimension: 4096, vertexBuffers: 8, attributes: 16, slots: 8, colorAttachments: 4,
   uniformAlignment: 256, uniformRange: 65536, stride: 2048, shaderBytes: 1024 * 1024,
+  volumeDimension: 256, arrayLayers: 256,
 } as const;
 export const GPU_LIMITS_SIZE = 80;
 export const GPU_LIMITS_OFFSETS = {

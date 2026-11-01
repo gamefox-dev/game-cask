@@ -264,9 +264,12 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "const x86_insn_t *pending=0;uint8_t *p;"
                    "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;\n");
         l64_sync(o, 1);
+        /* Record only entries actually handled by this region. An indirect jump
+         * may dispatch out to an import thunk or another owner; its real handler
+         * supplies coverage, not this region's unsuccessful lookup. */
         fprintf(o, "goto dispatch;\ndispatch:switch(pc){\n");
         for (uint32_t k = 0; k < f->insns.n; k++) if (starts[k])
-            fprintf(o, "case 0x%08xu:goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
+            fprintf(o, "case 0x%08xu:bgt_coverage_entry(pc,1);goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
         fprintf(o, "default:goto landing;}\n");
         uint32_t block_end = 0;
         for (uint32_t k = 0; k < f->insns.n; k++) {
@@ -398,7 +401,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "landing:\n");
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
-        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}count=1;action=1;\n", f->insns.n);
+        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}bgt_coverage_entry(pc,1);count=1;action=1;\n", f->insns.n);
         fprintf(o, "boundary:\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
@@ -414,7 +417,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;return;\n}\n");
         free(guarded); free(starts); free(live); free(ins);
         }
-        fprintf(o, "void F_%08x(void){bgt_coverage_entry(0x%08xu,1);\n", original->addr, original->addr);
+        fprintf(o, "void F_%08x(void){\n", original->addr);
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)
             fprintf(o, "R_%08x_%08x,", original->addr, original->insns.v[begin]);

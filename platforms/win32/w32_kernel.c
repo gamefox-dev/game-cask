@@ -12,6 +12,7 @@
 #define DATA 255 /* nargs marker: data import (IAT slot points at a variable, not a thunk) */
 /* LANE-C: errors from file/module APIs are private to the calling guest thread too. */
 #include "w32_thread.h"
+#include "w32_handles.h"
 #define last_error (*w32_thread_error())
 static uint32_t rng_state = 1;
 
@@ -187,6 +188,11 @@ static uint64_t filetime_now(void) {
     uint64_t unix = 1003968000ull + (uint64_t)(w32_io ? w32_io->seed : 0) * 86400ull + w32_now_ms() / 1000u;
     return (unix + 11644473600ull) * 10000000ull + (uint64_t)(w32_now_ms() % 1000u) * 10000ull;
 }
+/* The clock's frame-0 instant (shipped files carry it as their timestamp). */
+static uint64_t filetime_origin(void) {
+    uint64_t unix = 1003968000ull + (uint64_t)(w32_io ? w32_io->seed : 0) * 86400ull;
+    return (unix + 11644473600ull) * 10000000ull;
+}
 uint64_t w32_unix_time_secs(void) { return filetime_now() / 10000000ull - 11644473600ull; }
 static uint32_t k_GetSystemTimeAsFileTime(void) { uint64_t t = filetime_now(); x86_wr32(ARG(0), (uint32_t)t); x86_wr32(ARG(0) + 4, (uint32_t)(t >> 32)); return 0; }
 static void systemtime(uint32_t p) {
@@ -309,24 +315,35 @@ static uint32_t k_LoadResource(void) {
 }
 static uint32_t k_LockResource(void) { return ARG(0); }
 static uint32_t k_SizeofResource(void) { return ARG(1) ? x86_rd32(ARG(1) + 4) : 0; }
-static uint32_t k_GetStdHandle(void) { return 0x100u + (ARG(0) & 0xff); }
-static uint32_t k_WriteFile(void) {
-    if (ARG(0) != 0x1f5u && ARG(0) != 0x1f4u) { if(ARG(3))x86_wr32(ARG(3),0);last_error=ARG(0)>0x90000u&&ARG(0)<0x90040u?5:6;return 0; }
-    char b[256];
-    uint32_t n = ARG(2) < 255 ? ARG(2) : 255;
-    w32_gstrn(ARG(1), (int32_t)n, 0, b, sizeof b);
-    w32_logf2("guest stdout: ", b);
-    if (ARG(3)) x86_wr32(ARG(3), ARG(2));
-    return 1;
+static int file_span(uint64_t p,uint32_t bytes,int access) {
+    return p<=UINT32_MAX && (!bytes || (p && x86_accessible((uint32_t)p,bytes,(uint32_t)access)));
 }
-#define H_FILE 0x00090000u
+static uint32_t k_WriteFile(void) {
+    if(!ARG64(3)||!file_span(ARG64(3),4,2)){last_error=87;return 0;}
+    x86_wr32(ARG(3),0);
+    uint32_t channel=w32_handle_console_channel(ARG64(0));
+    if (!channel || channel==3) { last_error=w32_handle_file(ARG64(0))?5:6;return 0; }
+    if(!w32_handle_access(ARG64(0),2))return 0;
+    if(ARG64(4)){last_error=87;return 0;}
+    if(!file_span(ARG64(1),ARG(2),1)){last_error=998;return 0;}
+    /* BGT log is length-delimited: don't truncate binary data at NUL or 255 bytes. */
+    char b[270]="guest stdout: ";
+    for(uint32_t pos=0;pos<ARG(2);){
+        uint32_t n=ARG(2)-pos;if(n>256)n=256;
+        for(uint32_t i=0;i<n;i++)b[14+i]=(char)x86_rd8(ARG(1)+pos+i);
+        bgt_log(BGT_LOG_INFO,b,14+n);pos+=n;
+    }
+    x86_wr32(ARG(3),ARG(2));return 1;
+}
 static struct { uint32_t asset; uint64_t pos, size; } files[64];
-static uint32_t file_index(uint32_t h) { return h > H_FILE && h < H_FILE + 64 && files[h-H_FILE].asset ? h-H_FILE : 0; }
+static uint32_t file_index(uint64_t h) { return w32_handle_file(h); }
+static int32_t open_asset_key(const char *path);
 static int32_t open_asset_path(const char *raw) {
     char path[512];
-    const char *s=raw;
-    if ((s[0]=='C'||s[0]=='c') && s[1]==':' && (s[2]=='\\' || s[2]=='/')) { s+=3; if (w32_slen(s)>=5 && (s[0]=='G'||s[0]=='g')&&(s[1]=='A'||s[1]=='a')&&(s[2]=='M'||s[2]=='m')&&(s[3]=='E'||s[3]=='e')&&(s[4]=='\\'||s[4]=='/'))s+=5; }
-    uint32_t k=0;while(*s && k+1<sizeof path){char c=*s++;path[k++]=c=='\\'?'/':(c>='A'&&c<='Z'?c+32:c);}path[k]=0;
+    w32_fs_normalize(raw, path); /* same resolution (drive, C:\GAME root, current directory, dots) as every VFS query */
+    return open_asset_key(path);
+}
+static int32_t open_asset_key(const char *path) {
     int32_t asset=-5;
     for(uint32_t i=0;i<w32_nmods;i++)if(w32_streqi(path,w32_mods[i].name)){
         char module[272] = "modules/";
@@ -343,9 +360,9 @@ static int32_t open_file_asset(int wide) {
     w32_gstr(ARG(0), wide, raw, sizeof raw);
     return open_asset_path(raw);
 }
-uint32_t w32_file_open_str(const char *raw, int wide) {
+uint32_t w32_file_open_str(const char *key, int wide) { /* `key` is already a normalized VFS key */
     (void)wide;
-    int32_t asset = open_asset_path(raw);
+    int32_t asset = open_asset_key(key);
     if (asset < 0) return 0;
     for (uint32_t i = 1; i < 64; i++) if (!files[i].asset) {
         uint64_t size = 0;
@@ -353,19 +370,21 @@ uint32_t w32_file_open_str(const char *raw, int wide) {
         files[i].asset = (uint32_t)asset;
         files[i].size = size;
         files[i].pos = 0;
-        return H_FILE + i;
+        uint32_t h=w32_handle_file_new(i);
+        if(!h){bgt_asset_close(files[i].asset);files[i].asset=0;}
+        return h;
     }
     bgt_asset_close((uint32_t)asset);
     return 0;
 }
-int w32_file_close_h(uint32_t h) {
-    uint32_t i = file_index(h);
-    if (!i) return 0;
-    bgt_asset_close(files[i].asset);
-    files[i].asset = 0;
-    return 1;
+void w32_file_destroy(uint32_t i) {
+    bgt_asset_close(files[i].asset);files[i].asset=0;
 }
-int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
+int w32_file_close_h(uint32_t h) {
+    /* Internal CRT close must not replace the caller's guest arguments. */
+    return w32_thread_close_handle(h);
+}
+static int file_read_buffered(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got, int ahead) {
     uint32_t i = file_index(h);
     *got = 0;
     if (!i) return 0;
@@ -373,7 +392,7 @@ int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
         uint32_t n = want - *got;
         if (n > 65536) n = 65536;
         if (n > files[i].size - files[i].pos) n = (uint32_t)(files[i].size - files[i].pos);
-        int32_t r = bgt_asset_range_request(files[i].asset, (uint32_t)files[i].pos,
+        int32_t r = (ahead ? bgt_asset_read_ahead : bgt_asset_range_request)(files[i].asset, (uint32_t)files[i].pos,
                                           (uint32_t)(files[i].pos >> 32), n);
         if (r < 0) return 0;
         int32_t status;
@@ -383,9 +402,23 @@ int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got) {
         if (count < 0) return 0;
         *got += (uint32_t)count;
         files[i].pos += (uint32_t)count;
-        if (!count) break;
+        if (!count || ahead) break;
     }
     return 1;
+}
+int w32_file_read_buf(uint32_t h,uint8_t *dst,uint32_t want,uint32_t *got) {
+    return file_read_buffered(h,dst,want,got,0);
+}
+int w32_file_read_ahead(uint32_t h,uint8_t *dst,uint32_t want,uint32_t *got) {
+    return file_read_buffered(h,dst,want,got,1);
+}
+void w32_file_consumed(uint32_t h,uint64_t pos,uint32_t n) {
+    uint32_t i=file_index(h);
+    if(i)bgt_asset_consumed(files[i].asset,(uint32_t)pos,(uint32_t)(pos>>32),n);
+}
+void w32_file_observed(uint32_t h,uint64_t pos,uint32_t n) {
+    uint32_t i=file_index(h);
+    if(i)bgt_asset_observed(files[i].asset,(uint32_t)pos,(uint32_t)(pos>>32),n);
 }
 int w32_file_size_get(uint32_t h, uint64_t *size_out) {
     uint32_t i = file_index(h);
@@ -394,26 +427,28 @@ int w32_file_size_get(uint32_t h, uint64_t *size_out) {
     return 1;
 }
 static uint32_t create_file(int wide) {
-    if ((ARG(1) & 0x40000000u) || ARG(4) != 3) { last_error=5; return 0xffffffffu; } /* read-only OPEN_EXISTING */
+    if ((ARG(1) & 0x500d0116u) || ARG(4) != 3) { last_error=5; return 0xffffffffu; } /* read-only OPEN_EXISTING */
     int32_t asset=open_file_asset(wide);
     if(asset<0){last_error=2;return 0xffffffffu;}
-    for(uint32_t i=1;i<64;i++)if(!files[i].asset){uint64_t size=0;if(bgt_asset_size64((uint32_t)asset,&size)<0)break;files[i].asset=(uint32_t)asset;files[i].size=size;files[i].pos=0;last_error=0;return H_FILE+i;}
+    for(uint32_t i=1;i<64;i++)if(!files[i].asset){uint64_t size=0;if(bgt_asset_size64((uint32_t)asset,&size)<0)break;files[i].asset=(uint32_t)asset;files[i].size=size;files[i].pos=0;
+        uint32_t h=w32_handle_file_new(i);if(!h){w32_file_destroy(i);return 0xffffffffu;}
+        w32_handle_file_access(h,ARG(1));
+        if(ARG64(3)){
+            uint64_t sa=ARG64(3);if(sa>UINT32_MAX||!x86_accessible((uint32_t)sa,W32_64?24:12,1)){w32_thread_close_handle(h);last_error=87;return 0xffffffffu;}
+            w32_thread_inherit_handle(h,x86_rd32((uint32_t)sa+(W32_64?16:8))!=0);
+        }
+        last_error=0;return h;}
     bgt_asset_close((uint32_t)asset);last_error=4;return 0xffffffffu;
 }
 static uint32_t k_CreateFileA(void){return create_file(0);}
 static uint32_t k_CreateFileW(void){return create_file(1);}
-static uint32_t k_CloseHandle(void) {
-    /* LANE-E/C: audio now shares the scheduler's event handles. */
-    if (ARG(0) > 0x00100000u && ARG(0) < 0x00100400u) return (uint32_t)w32_thread_api("CloseHandle");
-    uint32_t i = file_index(ARG(0));
-    if (!i) { last_error = 6; return 0; }
-    bgt_asset_close(files[i].asset); files[i].asset = 0; return 1;
-}
 static uint32_t k_ReadFile(void){
-    uint32_t i=file_index(ARG(0)),dst=ARG(1),want=ARG(2),got=0,out=ARG(3);
-    if(out)x86_wr32(out,0);
-    if(!i||ARG(4)){last_error=i?87:6;return 0;}
-    if((uint64_t)dst+want>0x100000000ull || !x86_accessible(dst,want,2)){last_error=998;return 0;}
+    uint32_t i=file_index(ARG64(0)),dst=ARG(1),want=ARG(2),got=0,out=ARG(3);
+    if(!ARG64(3)||!file_span(ARG64(3),4,2)){last_error=87;return 0;}
+    x86_wr32(out,0);
+    if(!i||ARG64(4)){last_error=i?87:6;return 0;}
+    if(!w32_handle_access(ARG64(0),1))return 0;
+    if(!file_span(ARG64(1),want,2)){last_error=998;return 0;}
     static uint8_t buffer[65536];
     while(got<want && files[i].pos<files[i].size){
         uint32_t n=want-got;if(n>sizeof buffer)n=sizeof buffer;
@@ -429,8 +464,18 @@ static uint32_t k_ReadFile(void){
     }
     if(out)x86_wr32(out,got);return 1;
 }
-static uint32_t k_GetFileSize(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0xffffffffu;}if(ARG(1))x86_wr32(ARG(1),(uint32_t)(files[i].size>>32));return (uint32_t)files[i].size;}
-static uint32_t k_GetFileSizeEx(void){uint32_t i=file_index(ARG(0));if(!i){last_error=6;return 0;}x86_wr32(ARG(1),(uint32_t)files[i].size);x86_wr32(ARG(1)+4,(uint32_t)(files[i].size>>32));return 1;}
+static uint32_t k_GetFileSize(void){
+    uint32_t i=file_index(ARG64(0));if(!i){last_error=6;return 0xffffffffu;}
+    if(!w32_handle_any_access(ARG64(0),3))return 0xffffffffu;
+    if(ARG64(1)){if(!file_span(ARG64(1),4,2)){last_error=87;return 0xffffffffu;}x86_wr32(ARG(1),(uint32_t)(files[i].size>>32));}
+    return (uint32_t)files[i].size;
+}
+static uint32_t k_GetFileSizeEx(void){
+    uint32_t i=file_index(ARG64(0));if(!i){last_error=6;return 0;}
+    if(!w32_handle_access(ARG64(0),0x80))return 0;
+    if(!ARG64(1)||!file_span(ARG64(1),8,2)){last_error=87;return 0;}
+    x86_wr64(ARG(1),files[i].size);return 1;
+}
 static int seek_file(uint32_t i,int64_t delta,uint32_t method){
     if(!i){last_error=6;return 0;}
     uint64_t base=method==0?0:method==1?files[i].pos:files[i].size;
@@ -443,11 +488,28 @@ int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_
     if (pos_out) *pos_out = files[i].pos;
     return 1;
 }
-static uint32_t k_SetFilePointer(void){uint32_t i=file_index(ARG(0));int64_t d=(int32_t)ARG(1);if(ARG(2))d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));if(!seek_file(i,d,ARG(3)))return 0xffffffffu;if(ARG(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;}
-static uint32_t k_SetFilePointerEx(void){uint32_t i=file_index(ARG(0)),out=ARG(W32_64?2:3),method=ARG(W32_64?3:4);int64_t d=W32_64?(int64_t)ARG64(1):(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));if(!seek_file(i,d,method))return 0;if(out){x86_wr32(out,(uint32_t)files[i].pos);x86_wr32(out+4,(uint32_t)(files[i].pos>>32));}return 1;}
+static uint32_t k_SetFilePointer(void){
+    uint32_t i=file_index(ARG64(0));if(!i){last_error=6;return 0xffffffffu;}
+    if(!w32_handle_any_access(ARG64(0),3))return 0xffffffffu;
+    int64_t d=(int32_t)ARG(1);
+    if(ARG64(2)){
+        if(!file_span(ARG64(2),4,3)){last_error=87;return 0xffffffffu;}
+        d=(int64_t)(((uint64_t)x86_rd32(ARG(2))<<32)|ARG(1));
+    }
+    if(!seek_file(i,d,ARG(3)))return 0xffffffffu;
+    if(ARG64(2))x86_wr32(ARG(2),(uint32_t)(files[i].pos>>32));return (uint32_t)files[i].pos;
+}
+static uint32_t k_SetFilePointerEx(void){
+    uint32_t i=file_index(ARG64(0)),method=ARG(W32_64?3:4);uint64_t out=ARG64(W32_64?2:3);
+    if(!i){last_error=6;return 0;}if(!w32_handle_any_access(ARG64(0),3))return 0;
+    if(out&&!file_span(out,8,2)){last_error=87;return 0;}
+    int64_t d=W32_64?(int64_t)ARG64(1):(int64_t)(((uint64_t)ARG(2)<<32)|ARG(1));
+    if(!seek_file(i,d,method))return 0;if(out)x86_wr64((uint32_t)out,files[i].pos);return 1;
+}
 static uint32_t get_file_attributes(int wide) {
     char raw[512];uint32_t attrs;w32_gstr(ARG(0),wide,raw,sizeof raw);
-    if(!w32_fs_query(raw,&attrs)){last_error=2;return 0xffffffffu;}return attrs;
+    w32_fs_info_t info;uint32_t e=w32_fs_stat(raw,&info);
+    if(e){last_error=e;return 0xffffffffu;}attrs=info.attrs;return attrs;
 }
 static uint32_t k_GetFileAttributesA(void) { return get_file_attributes(0); }
 static uint32_t k_GetFileAttributesW(void) { return get_file_attributes(1); }
@@ -502,40 +564,52 @@ static uint32_t k_WritePrivateProfileStringW(void) { return k_WritePrivateProfil
 /* registry: open keys are paths; values live in storage as [u32 type][data] */
 static char keys[64][160];
 static uint32_t nkeys;
-static const char *key_path(uint32_t h) {
-    if (h == 0x80000000u) return "HKCR";
-    if (h == 0x80000001u) return "HKCU";
-    if (h == 0x80000002u) return "HKLM";
-    if (h == 0x80000003u) return "HKU";
-    if (h >= H_KEY && h < H_KEY + nkeys) return keys[h - H_KEY];
-    return 0;
+static const char *key_path(uint64_t h) {
+    if (h == (W32_64?0xffffffff80000000ull:0x80000000u)) return "HKCR";
+    if (h == (W32_64?0xffffffff80000001ull:0x80000001u)) return "HKCU";
+    if (h == (W32_64?0xffffffff80000002ull:0x80000002u)) return "HKLM";
+    if (h == (W32_64?0xffffffff80000003ull:0x80000003u)) return "HKU";
+    uint32_t i=w32_handle_key(h);
+    return i&&i<=nkeys?keys[i-1]:0;
 }
-static uint32_t reg_open(int wide, uint32_t parent, uint32_t sub, uint32_t out) {
+static uint32_t reg_open(int wide, uint64_t parent, uint32_t sub, uint64_t out, uint32_t access) {
     const char *pp = key_path(parent);
     if (!pp) return 6; /* ERROR_INVALID_HANDLE */
+    if(!out||out>UINT32_MAX||!x86_accessible((uint32_t)out,w32_ptr_size(),2))return 87;
     char s[128], full[160];
     w32_gstr(sub, wide, s, sizeof s);
     uint32_t n = 0;
     for (const char *c = pp; *c && n < 150; c++) full[n++] = *c;
     if (s[0]) { full[n++] = '\\'; for (const char *c = s; *c && n < 159; c++) full[n++] = *c; }
     full[n] = 0;
-    for (uint32_t i = 0; i < nkeys; i++) if (w32_streqi(keys[i], full)) { w32_wrptr(out, H_KEY + i); return 0; }
-    if (nkeys >= 64) return 8;
-    for (uint32_t i = 0; i <= n; i++) keys[nkeys][i] = full[i];
-    w32_wrptr(out, H_KEY + nkeys++);
-    return 0;
+    uint32_t slot=0;
+    while(slot<nkeys&&!w32_streqi(keys[slot],full))slot++;
+    if(slot==nkeys){
+        if(nkeys>=64)return 8;
+        for(uint32_t i=0;i<=n;i++)keys[slot][i]=full[i];
+        nkeys++;
+    }
+    uint32_t h=w32_handle_key_new(slot+1,access);if(!h)return last_error;
+    w32_wrptr((uint32_t)out,h);return 0;
 }
-static uint32_t r_RegOpenKeyExA(void) { return reg_open(0, ARG(0), ARG(1), ARG(4)); }
-static uint32_t r_RegOpenKeyExW(void) { return reg_open(1, ARG(0), ARG(1), ARG(4)); }
-static uint32_t r_RegOpenKeyA(void) { return reg_open(0, ARG(0), ARG(1), ARG(2)); }
-static uint32_t r_RegOpenKeyW(void) { return reg_open(1, ARG(0), ARG(1), ARG(2)); }
-static uint32_t r_RegCreateKeyEx(int wide) { uint32_t rc = reg_open(wide, ARG(0), ARG(1), ARG(7)); if (!rc && ARG(8)) x86_wr32(ARG(8), 2); return rc; }
+static uint32_t r_RegOpenKeyExA(void) { return reg_open(0, ARG64(0), ARG(1), ARG64(4),ARG(3)); }
+static uint32_t r_RegOpenKeyExW(void) { return reg_open(1, ARG64(0), ARG(1), ARG64(4),ARG(3)); }
+static uint32_t r_RegOpenKeyA(void) { return reg_open(0, ARG64(0), ARG(1), ARG64(2),0x20019u); }
+static uint32_t r_RegOpenKeyW(void) { return reg_open(1, ARG64(0), ARG(1), ARG64(2),0x20019u); }
+static uint32_t r_RegCreateKeyEx(int wide) { uint32_t rc = reg_open(wide, ARG64(0), ARG(1), ARG64(7),ARG(5)); if (!rc && ARG(8)) x86_wr32(ARG(8), 2); return rc; }
 static uint32_t r_RegCreateKeyExA(void) { return r_RegCreateKeyEx(0); }
 static uint32_t r_RegCreateKeyExW(void) { return r_RegCreateKeyEx(1); }
-static uint32_t r_RegCloseKey(void) { return 0; }
+static uint32_t r_RegCloseKey(void) {
+    uint64_t h=ARG64(0);
+    if(!key_path(h))return 6;
+    if(!w32_handle_key(h))return 0; /* predefined keys are not owned */
+    uint32_t saved=last_error;int ok=w32_thread_close_handle(h);uint32_t error=last_error;last_error=saved;
+    return ok?0:error;
+}
 static uint32_t r_RegQueryValueEx(int wide) {
-    const char *kp = key_path(ARG(0));
+    const char *kp = key_path(ARG64(0));
     if (!kp) return 6;
+    if(w32_handle_key(ARG64(0))&&!w32_handle_access(ARG64(0),1))return 5;
     char name[96], k[32];
     w32_gstr(ARG(1), wide, name, sizeof name);
     storage_key(k, "reg", kp, name);
@@ -556,8 +630,9 @@ static uint32_t r_RegQueryValueEx(int wide) {
 static uint32_t r_RegQueryValueExA(void) { return r_RegQueryValueEx(0); }
 static uint32_t r_RegQueryValueExW(void) { return r_RegQueryValueEx(1); }
 static uint32_t r_RegSetValueEx(int wide) {
-    const char *kp = key_path(ARG(0));
+    const char *kp = key_path(ARG64(0));
     if (!kp) return 6;
+    if(w32_handle_key(ARG64(0))&&!w32_handle_access(ARG64(0),2))return 5;
     char name[96], k[32];
     w32_gstr(ARG(1), wide, name, sizeof name);
     storage_key(k, "reg", kp, name);
@@ -569,7 +644,21 @@ static uint32_t r_RegSetValueEx(int wide) {
 }
 static uint32_t r_RegSetValueExA(void) { return r_RegSetValueEx(0); }
 static uint32_t r_RegSetValueExW(void) { return r_RegSetValueEx(1); }
-static uint32_t r_RegDeleteValue(void) { return 0; }
+/* ABI v0.2 has no storage delete: removal writes a zero-length value, which a query cannot distinguish
+ * from "never set" (values are stored as [u32 type][data], so any shorter record is absent). */
+static uint32_t r_RegDeleteValue(int wide) {
+    const char *kp = key_path(ARG64(0));
+    if (!kp) return 6;
+    if (w32_handle_key(ARG64(0)) && !w32_handle_access(ARG64(0), 2)) return 5;
+    char name[96], k[32]; uint8_t probe[8];
+    w32_gstr(ARG(1), wide, name, sizeof name);
+    storage_key(k, "reg", kp, name);
+    int32_t n = bgt_storage_read(k, w32_slen(k), probe, sizeof probe);
+    if (n < 4) return 2; /* ERROR_FILE_NOT_FOUND */
+    return bgt_storage_write(k, w32_slen(k), probe, 0) == BGT_OK ? 0 : 8;
+}
+static uint32_t r_RegDeleteValueA(void) { return r_RegDeleteValue(0); }
+static uint32_t r_RegDeleteValueW(void) { return r_RegDeleteValue(1); }
 
 /* ------------------------------------------------------------------ MSVC runtime (cdecl) */
 #define CARG(n) ARG(n)
@@ -643,6 +732,16 @@ static uint32_t c_p_fmode(void) { if (!fmode_cell) fmode_cell = w32_misc_alloc(4
 static uint32_t c_p_commode(void) { if (!commode_cell) commode_cell = w32_misc_alloc(4); return commode_cell; }
 static uint32_t c_p_argc(void) { if (!argc_cell) { argc_cell = w32_misc_alloc(4); x86_wr32(argc_cell, 1); } return argc_cell; }
 static uint32_t c_p_argv(void) { ensure_args(); uint32_t c = w32_misc_alloc(8); w32_wrptr(c, argv_cell); return c; }
+/* LANE-K6d: the remaining normal-CRT startup plumbing an i386 MinGW image calls before main (empty environment). */
+static uint32_t environ_cell;
+static uint32_t c_p_environ(void) {
+    if (!environ_cell) { environ_cell = w32_misc_alloc(8); uint32_t array = w32_misc_alloc(8); w32_wrptr(array, 0); w32_wrptr(environ_cell, array); }
+    return environ_cell;
+}
+static uint32_t invalid_parameter_handler;
+static uint32_t c_set_invalid_parameter_handler(void) { uint32_t old = invalid_parameter_handler; invalid_parameter_handler = CARG(0); return old; }
+static uint32_t c_set_new_mode(void) { return 0; } /* the previous mode (malloc failure does not call new handlers) */
+static uint32_t c_fpreset(void) { return 0; }
 static uint32_t c_controlfp(void) { return 0x9001fu; }
 static uint32_t c_except_handler(void) { return 1; } /* ExceptionContinueSearch */
 static uint32_t c_XcptFilter(void) { return 0; }  /* EXCEPTION_CONTINUE_SEARCH */
@@ -669,6 +768,7 @@ static uint32_t s_ShellAboutW(void) { return w32_shell_about(1); }
 #include "w32_fs.h"
 #include "w32_kernel_extra.h"
 #include "w32_kernel_more.h"
+#include "w32_crt_fs.h"
 #define API(n, a, f) {n, a, 0, f}
 #define FAPI(n, a, f) API(n, a, f) /* registered, tested failure-only contract */
 #define CAPI(n, f) {n, 0, 1, f}
@@ -677,18 +777,21 @@ static uint32_t s_ShellAboutW(void) { return w32_shell_about(1); }
 #define DATAI(n) {n, DATA, 1, 0}
 const w32_api_t w32_api_kernel[] = {
     API("CommandLineToArgvW",2,s_CommandLineToArgvW),
-    API("DuplicateHandle",7,k_DuplicateHandle), API("GetHandleInformation",2,k_GetHandleInformation), API("SetHandleInformation",3,k_SetHandleInformation),
     API("FindFirstFileW",2,k_FindFirstFileW), API("FindFirstFileExW",6,k_FindFirstFileExW), API("FindNextFileW",2,k_FindNextFileW), API("FindClose",1,k_FindClose),
     API("FormatMessageW",7,k_FormatMessageW), API("GetTempFileNameW",4,k_GetTempFileNameW),
-    API("GetProcessAffinityMask",3,k_GetProcessAffinityMask), API("SetProcessAffinityMask",2,k_SetProcessAffinityMask), API("SetPriorityClass",2,k_SetPriorityClass),
     FAPI("GetDiskFreeSpaceExA",4,k_no_process), FAPI("GetVolumeInformationW",8,k_no_process),
     FAPI("AddVectoredExceptionHandler",2,k_no_process), FAPI("RemoveVectoredExceptionHandler",1,k_zero),
     API("VirtualProtect",4,k_VirtualProtect), API("VirtualQuery",3,k_VirtualQuery),
     FAPI("AttachConsole",1,k_no_console), FAPI("GetConsoleScreenBufferInfo",2,k_no_console),
     FAPI("SetConsoleCtrlHandler",2,k_no_console), FAPI("SetConsoleMode",2,k_no_console), FAPI("SetConsoleTextAttribute",2,k_no_console),
-    API("CreateDirectoryW",2,k_CreateDirectoryW), API("DeleteFileW",1,k_DeleteFileW), FAPI("ReplaceFileW",6,k_readonly_volume),
-    FAPI("CreatePipe",4,k_no_process), FAPI("CreateProcessW",10,k_no_process), FAPI("OpenProcess",3,k_OpenProcess), API("GetExitCodeProcess",2,k_GetExitCodeProcess),
+    API("CreateDirectoryW",2,k_CreateDirectoryW), API("CreateDirectoryA",2,k_CreateDirectoryA), API("DeleteFileW",1,k_DeleteFileW), API("DeleteFileA",1,k_DeleteFileA),
+    API("RemoveDirectoryW",1,k_RemoveDirectoryW), API("RemoveDirectoryA",1,k_RemoveDirectoryA), API("MoveFileW",2,k_MoveFileW), API("MoveFileA",2,k_MoveFileA),
+    API("GetFullPathNameW",4,k_GetFullPathNameW), API("GetFullPathNameA",4,k_GetFullPathNameA),
+    API("GetFileAttributesExW",3,k_GetFileAttributesExW), API("GetFileAttributesExA",3,k_GetFileAttributesExA),
+    FAPI("ReplaceFileW",6,k_readonly_volume),
+    FAPI("CreatePipe",4,k_no_process), FAPI("CreateProcessW",10,k_no_process),
     API("GetCurrentDirectoryW",2,k_GetCurrentDirectoryW), API("SetCurrentDirectoryW",1,k_SetCurrentDirectoryW),
+    API("GetCurrentDirectoryA",2,k_GetCurrentDirectoryA), API("SetCurrentDirectoryA",1,k_SetCurrentDirectoryA),
     API("GetEnvironmentVariableW",3,k_GetEnvironmentVariableW), API("SetEnvironmentVariableW",2,k_SetEnvironmentVariableW),
     API("GetLogicalDrives",0,k_GetLogicalDrives), API("GetUserDefaultUILanguage",0,k_GetUserDefaultUILanguage),
     API("GetLocaleInfoEx",4,k_GetLocaleInfoEx), API("LCIDToLocaleName",4,k_LCIDToLocaleName), API("IsDBCSLeadByteEx",2,k_IsDBCSLeadByteEx),
@@ -704,7 +807,7 @@ const w32_api_t w32_api_kernel[] = {
     API("LoadLibraryExA", 3, k_LoadLibraryA), API("LoadLibraryExW", 3, k_LoadLibraryW), API("FreeLibrary", 1, k_FreeLibrary),
     API("GetProcAddress", 2, k_GetProcAddress),
     API("GetModuleFileNameA", 3, k_GetModuleFileNameA), API("GetModuleFileNameW", 3, k_GetModuleFileNameW),
-    API("ExitProcess", 1, k_ExitProcess), API("TerminateProcess", 2, k_ExitProcess),
+    API("ExitProcess", 1, k_ExitProcess),
     API("GetCommandLineA", 0, k_GetCommandLineA), API("GetCommandLineW", 0, k_GetCommandLineW),
     API("GetStartupInfoA", 1, k_GetStartupInfo), API("GetStartupInfoW", 1, k_GetStartupInfo),
     API("GetVersion", 0, k_GetVersion), API("GetVersionExA", 1, k_GetVersionEx), API("GetVersionExW", 1, k_GetVersionEx),
@@ -731,7 +834,7 @@ const w32_api_t w32_api_kernel[] = {
     API("GetSystemInfo", 1, k_GetSystemInfo), STUB("FlushInstructionCache", 3),
     API("FindResourceA", 3, k_FindResourceA), API("FindResourceW", 3, k_FindResourceW),
     API("LoadResource", 2, k_LoadResource), API("LockResource", 1, k_LockResource), API("SizeofResource", 2, k_SizeofResource), API("FreeResource", 1, k_one),
-    API("GetStdHandle", 1, k_GetStdHandle), API("WriteFile", 5, k_WriteFile), API("CloseHandle", 1, k_CloseHandle),
+    API("WriteFile", 5, k_WriteFile),
     API("ReadFile",5,k_ReadFile), API("GetFileSize",2,k_GetFileSize), API("GetFileSizeEx",2,k_GetFileSizeEx),
     API("SetFilePointer",4,k_SetFilePointer), API("SetFilePointerEx",5,k_SetFilePointerEx),
     API("CreateFileA", 7, k_CreateFileA), API("CreateFileW", 7, k_CreateFileW),
@@ -747,7 +850,7 @@ const w32_api_t w32_api_kernel[] = {
     API("RegCloseKey", 1, r_RegCloseKey),
     API("RegQueryValueExA", 6, r_RegQueryValueExA), API("RegQueryValueExW", 6, r_RegQueryValueExW),
     API("RegSetValueExA", 6, r_RegSetValueExA), API("RegSetValueExW", 6, r_RegSetValueExW),
-    API("RegDeleteValueA", 2, r_RegDeleteValue), API("RegDeleteValueW", 2, r_RegDeleteValue),
+    API("RegDeleteValueA", 2, r_RegDeleteValueA), API("RegDeleteValueW", 2, r_RegDeleteValueW),
     /* SHELL32 / COMCTL32 */
     API("ShellAboutA", 4, s_ShellAboutA), API("ShellAboutW", 4, s_ShellAboutW),
     STUB("InitCommonControls", 0), API("InitCommonControlsEx", 1, k_one),
@@ -757,12 +860,34 @@ const w32_api_t w32_api_kernel[] = {
     CAPI("strlen", c_strlen), CAPI("wcslen", c_wcslen), CAPI("strcpy", c_strcpy), CAPI("wcscpy", c_wcscpy),
     CAPI("strcmp", c_strcmp), CAPI("strchr", c_strchr), CAPI("atoi", c_atoi), CAPI("abs", c_abs),
     CAPI("rand", c_rand), CAPI("srand", c_srand), CAPI("time", c_time), CAPI("_time32", c_time), CAPI("clock", c_clock),
+    /* CRT metadata/directory family (K6d): shared VFS index, both guest widths. */
+    CAPI("_stat32", xc_stat32), CAPI("_stat32i64", xc_stat32i64), CAPI("_stat64i32", xc_stat64i32), CAPI("_stat64", xc_stat64),
+    CAPI("_stat", xc_stat), CAPI("_stati64", xc_stati64), CAPI("_wstat32", xc_wstat32), CAPI("_wstat32i64", xc_wstat32i64),
+    CAPI("_wstat64i32", xc_wstat64i32), CAPI("_wstat64", xc_wstat64), CAPI("_wstat", xc_wstat), CAPI("_wstati64", xc_wstati64),
+    CAPI("_fstat32", xc_fstat32), CAPI("_fstat32i64", xc_fstat32i64), CAPI("_fstat64i32", xc_fstat64i32), CAPI("_fstat64", xc_fstat64),
+    CAPI("_fstat", xc_fstat), CAPI("_fstati64", xc_fstati64), CAPI("_findfirst32", xc_findfirst32), CAPI("_findfirst32i64", xc_findfirst32i64),
+    CAPI("_findfirst64i32", xc_findfirst64i32), CAPI("_findfirst64", xc_findfirst64), CAPI("_findfirst", xc_findfirst),
+    CAPI("_findfirsti64", xc_findfirsti64), CAPI("_findnext32", xc_findnext32), CAPI("_findnext32i64", xc_findnext32i64),
+    CAPI("_findnext64i32", xc_findnext64i32), CAPI("_findnext64", xc_findnext64), CAPI("_findnext", xc_findnext),
+    CAPI("_findnexti64", xc_findnexti64), CAPI("_wfindfirst32", xc_wfindfirst32), CAPI("_wfindfirst32i64", xc_wfindfirst32i64),
+    CAPI("_wfindfirst64i32", xc_wfindfirst64i32), CAPI("_wfindfirst64", xc_wfindfirst64), CAPI("_wfindfirst", xc_wfindfirst),
+    CAPI("_wfindfirsti64", xc_wfindfirsti64), CAPI("_wfindnext32", xc_wfindnext32), CAPI("_wfindnext32i64", xc_wfindnext32i64),
+    CAPI("_wfindnext64i32", xc_wfindnext64i32), CAPI("_wfindnext64", xc_wfindnext64), CAPI("_wfindnext", xc_wfindnext),
+    CAPI("_wfindnexti64", xc_wfindnexti64), CAPI("_findclose", xc_findclose), CAPI("_access", xc_access), CAPI("_waccess", xc_waccess),
+    CAPI("_access_s", xc_access_s), CAPI("_waccess_s", xc_waccess_s), CAPI("_mkdir", xc_mkdir), CAPI("_wmkdir", xc_wmkdir), CAPI("_rmdir", xc_rmdir),
+    CAPI("_wrmdir", xc_wrmdir), CAPI("_chdir", xc_chdir), CAPI("_wchdir", xc_wchdir), CAPI("remove", xc_remove), CAPI("_wremove", xc_wremove),
+    CAPI("_unlink", xc_remove), CAPI("_wunlink", xc_wremove), CAPI("rename", xc_rename_a), CAPI("_wrename", xc_rename_w),
+    CAPI("_getcwd", xc_getcwd_a), CAPI("_wgetcwd", xc_getcwd_w), CAPI("_getdcwd", xc_getdcwd_a), CAPI("_wgetdcwd", xc_getdcwd_w),
+    CAPI("_fullpath", xc_fullpath_a), CAPI("_wfullpath", xc_fullpath_w), CAPI("_getdrive", xc_getdrive), CAPI("_chdrive", xc_chdrive),
+    CAPI("_errno", xc_errno), CAPI("_get_errno", xc_get_errno), CAPI("_set_errno", xc_set_errno),
     CAPI("exit", c_exit), CAPI("_exit", c_exit), CSTUB("_cexit"), CSTUB("_c_exit"),
     CAPI("sprintf", c_sprintf), CAPI("swprintf", c_swprintf), CAPI("_snprintf", c_snprintf),
     CAPI("_initterm", c_initterm), CAPI("_initterm_e", c_initterm_e),
     CAPI("__getmainargs", c_getmainargs), CAPI("__wgetmainargs", c_getmainargs),
     CSTUB("__set_app_type"), CSTUB("_set_app_type"), CSTUB("__setusermatherr"), CSTUB("_setusermatherr"),
     CAPI("__p__fmode", c_p_fmode), CAPI("__p__commode", c_p_commode), CAPI("__p___argc", c_p_argc), CAPI("__p___argv", c_p_argv),
+    CAPI("__p__environ", c_p_environ), CAPI("__p__wenviron", c_p_environ), CAPI("_set_invalid_parameter_handler", c_set_invalid_parameter_handler),
+    CAPI("_set_new_mode", c_set_new_mode), CAPI("_fpreset", c_fpreset),
     CAPI("_controlfp", c_controlfp), CAPI("_controlfp_s", c_onexit_table), CAPI("_except_handler3", c_except_handler),
     CAPI("_except_handler4_common", c_except_handler), CAPI("_XcptFilter", c_XcptFilter), CAPI("_seh_filter_exe", c_XcptFilter),
     CAPI("_initialize_narrow_environment", c_onexit_table), CAPI("_configure_narrow_argv", c_onexit_table),

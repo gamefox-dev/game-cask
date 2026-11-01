@@ -40,6 +40,8 @@ export interface GpuItem {
   data?: Uint8Array<ArrayBuffer>;
   source?: string;
   complete?: (code: number, log?: string) => void;
+  /** TEXTURE_READBACK result delivery: tightly packed texels, or a nonzero error. Exactly once. */
+  readback?: (data?: Uint8Array<ArrayBuffer>, error?: number) => void;
 }
 export interface GpuBackend {
   /** Bit language: WGSL=1, GLSL330=2, GLSLES300=4. Zero means unsupported (no CAP_GPU). */

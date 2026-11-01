@@ -39,7 +39,15 @@ for (const cross of [false, true])
       },n));
       for (const held of [false,true,false]) {
         await input(p,[{type:'gamepad',index:0,connected:held,buttons:held?1:0,axes:[0,0,0,0],triggers:[0,0]}]);
-        await advance(100); images.push(await readPixels(p));
+        if (held) {
+          let sampled = false;
+          for (let i = 0; i < 120 && !sampled; i++) {
+            await advance(1);
+            sampled = (await diagnostics(p)).logs.some(l => l.message.includes('x64-smoke input sampled pad=100'));
+          }
+          expect(sampled, JSON.stringify(await diagnostics(p))).toBe(true);
+        } else await advance(100);
+        images.push(await readPixels(p));
       }
       expect(diffFraction(images[0],images[1],2)).toBeGreaterThan(0.1);
       if (hardwarePixels()) expect(diffFraction(images[0],images[2],2)).toBe(0);

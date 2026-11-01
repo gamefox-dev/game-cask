@@ -28,6 +28,11 @@ enum {
     BGT_OP_GPU_TEXTURE = 0x56,
     BGT_OP_GPU_DRAW = 0x57,
     BGT_OP_GPU_DRAW_INDEXED = 0x58,
+    BGT_OP_GPU_TEXTURE_CREATE_EX = 0x59,
+    BGT_OP_GPU_TEXTURE_UPDATE_EX = 0x5a,
+    BGT_OP_GPU_SAMPLER_CREATE_EX = 0x5b,
+    BGT_OP_GPU_TEXTURE_READBACK = 0x5c,
+    BGT_OP_GPU_TEXTURE_GENERATE_MIPS = 0x5d,
 };
 static inline void bgt__gpu_copy(uint8_t *dst, const void *src, uint32_t bytes) {
     const uint8_t *s = (const uint8_t *)src;
@@ -102,6 +107,21 @@ static inline void bgt_cmd_gpu_draw(bgt_cmdbuf_t *b, const bgt_gpu_draw_t *v) {
 }
 static inline void bgt_cmd_gpu_draw_indexed(bgt_cmdbuf_t *b, const bgt_gpu_draw_indexed_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_DRAW_INDEXED, 20), v, 20);
+}
+static inline void bgt_cmd_gpu_texture_create_ex(bgt_cmdbuf_t *b, const bgt_gpu_texture_create_ex_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_CREATE_EX, 32), v, 32);
+}
+static inline void bgt_cmd_gpu_texture_update_ex(bgt_cmdbuf_t *b, const bgt_gpu_texture_update_ex_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_UPDATE_EX, 40), v, 40);
+}
+static inline void bgt_cmd_gpu_sampler_create_ex(bgt_cmdbuf_t *b, const bgt_gpu_sampler_create_ex_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_SAMPLER_CREATE_EX, 44), v, 44);
+}
+static inline void bgt_cmd_gpu_texture_readback(bgt_cmdbuf_t *b, const bgt_gpu_texture_readback_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_READBACK, 36), v, 36);
+}
+static inline void bgt_cmd_gpu_texture_generate_mips(bgt_cmdbuf_t *b, const bgt_gpu_texture_generate_mips_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_TEXTURE_GENERATE_MIPS, 8), v, 8);
 }
 static inline void bgt_cmd_gpu_pipeline_create(bgt_cmdbuf_t *b, const bgt_gpu_pipeline_create_t *v,
         const bgt_gpu_vertex_layout_t *buffers, const bgt_gpu_attribute_t *attrs,

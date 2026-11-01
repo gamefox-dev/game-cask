@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "w32_int.h"
+static int w32_is_findfirst_crt(const char *n); /* LANE-K6d */
 /* LANE-E/GL/C: retain every registry and virtual-clock/scheduler integration. */
 #include "w32_audio.h"
 #include "w32_input.h"
@@ -590,7 +591,9 @@ static int thunk_handler(uint32_t addr) {
          w32_streqi(s->name, "FindFirstFileW") || w32_streqi(s->name, "FindFirstFileExW") ||
          w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread") ||
          /* LANE-K1: INVALID_SOCKET is UINT_PTR, not a zero-extended int. */
-         w32_streqi(s->name, "socket") || w32_streqi(s->name, "accept"))) {
+         w32_streqi(s->name, "socket") || w32_streqi(s->name, "accept") ||
+         /* LANE-K6d: _findfirst* return intptr_t, so failure is a full-width -1. */
+         w32_is_findfirst_crt(s->name))) {
         X.r[EAX] = (x86_word_t)UINT64_MAX;
     }
     if (!w32_thread_deferred_result()) w32_trace_result(X.r[EAX]); /* LANE-C */
@@ -599,6 +602,14 @@ static int thunk_handler(uint32_t addr) {
     /* LANE-C: the saved context resumes after this API, never inside its native C frame. */
     if (w32_thread_pending()) X.transfer = X86_SCHEDULE;
     return 0;
+}
+
+/* LANE-K6d: CRT search-handle creators (_findfirst32/64i32/..., _wfindfirst...). */
+static int w32_is_findfirst_crt(const char *n) {
+    static const char p1[] = "_findfirst", p2[] = "_wfindfirst";
+    const char *p = n[1] == 'w' ? p2 : p1;
+    for (unsigned i = 0; p[i]; i++) if (n[i] != p[i]) return 0;
+    return 1;
 }
 
 /* ------------------------------------------------------------------ image loading */
@@ -846,6 +857,8 @@ const char *w32_metrics_json(void) {
     jkv("lifted_calls", x86_metrics.lifted_calls);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interp_code_entries", x86_metrics.interp_code_entries);
+    jkv("interp_functions", x86_metrics.interp_functions);
+    jkv("interp_unowned_entries", x86_metrics.interp_unowned_entries);
     jkv("generic_insn_execs", x86_metrics.generic_insn_execs);
     jkv("tail_calls_lifted", x86_metrics.tail_calls_lifted);
     jkv("continues_interpreted", x86_metrics.continues_interpreted);
@@ -859,6 +872,8 @@ const char *w32_metrics_json(void) {
     jkv("gl_pipelines", w32_gl_pipelines);
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
+    jkv("gl_approximations", w32_gl_approximations);
+    jput("\"gl_approximation_kinds\":"); jput(w32_gl_approximations_json()); jput(",");
     jkv("gdi_ops", w32_m.gdi_ops);
     jkv("chrome_ops", w32_m.chrome_ops);
     jkv("gdi_approx_rop", w32_m.gdi_approx_rop);

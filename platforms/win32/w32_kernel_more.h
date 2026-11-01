@@ -31,34 +31,7 @@ static uint32_t s_CommandLineToArgvW(void) {
     }
     x86_wr32(argc_out,argc);return base;
 }
-static uint32_t k_GetHandleInformation(void) {
-    if(!file_index(ARG(0))){last_error=6;return 0;}
-    if(!ARG(1)){last_error=87;return 0;}
-    x86_wr32(ARG(1),0);return 1;
-}
-static uint32_t k_SetHandleInformation(void) {
-    if(!file_index(ARG(0)))return k_fail(6);
-    if(ARG(1)&~3u)return k_fail(87);
-    if(ARG(2)&ARG(1))return k_fail(50);return 1;
-}
-static uint32_t k_DuplicateHandle(void) {
-    if(ARG(3))w32_wrptr(ARG(3),0);
-    if(!file_index(ARG(1)) && ARG(1)!=0xffffffffu)return k_fail(6);
-    return k_fail(50); /* no shared kernel-object handle indirection yet */
-}
-static uint32_t k_GetProcessAffinityMask(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    if(!ARG(1)||!ARG(2))return k_fail(87);
-    w32_wrptr(ARG(1),1);w32_wrptr(ARG(2),1);return 1;
-}
-static uint32_t k_SetProcessAffinityMask(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    return ARG64(1)==1?1:k_fail(87);
-}
-static uint32_t k_SetPriorityClass(void) {
-    if(ARG(0)!=0xffffffffu)return k_fail(6);
-    return ARG(1)==0x20?1:k_fail(50); /* normal cooperative process only */
-}
+/* Owned handles/process queries are dispatched by the shared scheduler registry. */
 static uint32_t k_FormatMessageW(void) {
     uint32_t flags=ARG(0),id=ARG(2),out=ARG(4),cap=ARG(5);const char *text=0;
     if(!(flags&0x1000)||flags&0x400)return k_fail(87); /* system messages, not arbitrary module resources */
@@ -78,14 +51,17 @@ static uint32_t k_FormatMessageW(void) {
     uint32_t n=w32_slen(text);if(flags&0x100){uint32_t count=imax((int32_t)cap,(int32_t)n+1);uint32_t p=w32_heap_alloc(count*2,0);if(!p)return k_fail(8);w32_wrptr(out,p);out=p;cap=count;}
     if(cap<=n)return k_fail(122);w32_pstr(out,cap,1,text);return n;
 }
-/* Search handles retain their pattern and cursor over the manifest/CRT VFS index. */
-static struct { int open; char pattern[512]; fs_node_t *next; } find_files[64];
+/* Search handles retain their pattern and cursor over the manifest/CRT VFS index; the CRT's _findfirst
+ * family uses the very same handles and matching. Non-root directories start with "." and ".." as on Windows. */
+typedef struct { char name[260]; uint32_t attrs; uint64_t size, created, accessed, written; } find_entry_t;
+static struct { int open; char pattern[512]; fs_node_t *next; unsigned dots; uint64_t dir_times[2][3]; } find_files[64];
 static int file_match(const char *pattern,const char *s) {
     const char *star=0,*retry=0;
     if(w32_streqi(pattern,"*.*"))pattern="*";
     while(*s){
-        if(*pattern=='?'||*pattern==*s){pattern++;s++;continue;}
-        if(*pattern=='*'){star=++pattern;retry=s;continue;}
+        char a=*pattern,b=*s;if(a>='A'&&a<='Z')a=(char)(a+32);if(b>='A'&&b<='Z')b=(char)(b+32);
+        if(a=='?'||(a==b&&a)){pattern++;s++;continue;}
+        if(a=='*'){star=++pattern;retry=s;continue;}
         if(star){pattern=star;s=++retry;continue;}return 0;
     }
     while(*pattern=='*')pattern++;
@@ -93,31 +69,69 @@ static int file_match(const char *pattern,const char *s) {
     if(pattern[0]=='.'&&pattern[1]=='*'&&!pattern[2])pattern+=2;
     return !*pattern;
 }
-static int find_emit(unsigned slot,uint32_t out) {
+static int find_take(unsigned slot,find_entry_t *e) {
     char parent[512];unsigned last=0,i=0;
     do{parent[i]=find_files[slot].pattern[i];if(parent[i]=='/')last=i+1;}while(parent[i++]);
     const char *pattern=find_files[slot].pattern+last;parent[last?last-1:0]=0;
+    while(find_files[slot].dots<2){
+        unsigned d=find_files[slot].dots++;
+        if(!parent[0])continue; /* the volume root has neither */
+        const char *dot=d?"..":".";
+        if(!file_match(pattern,dot))continue;
+        e->name[0]='.';e->name[1]=d?'.':0;e->name[2]=0;e->attrs=0x10;e->size=0;
+        e->created=find_files[slot].dir_times[d][0];e->accessed=find_files[slot].dir_times[d][1];e->written=find_files[slot].dir_times[d][2];
+        return 1;
+    }
     for(fs_node_t *n=find_files[slot].next;n;n=n->next){
         find_files[slot].next=n->next;if(!n->live)continue;
         const char *name=n->name;unsigned j=0;
         if(last){while(j<last-1&&name[j]==parent[j])j++;if(j!=last-1||name[j]!='/')continue;name+=last;}
         int slash=0;for(j=0;name[j];j++)if(name[j]=='/')slash=1;
         if(slash||!file_match(pattern,name))continue;
-        for(i=0;i<592;i++)x86_wr8(out+i,0);
-        x86_wr32(out,n->attributes);x86_wr32(out+28,(uint32_t)(n->size>>32));x86_wr32(out+32,(uint32_t)n->size);
-        w32_pstr(out+44,260,1,name);return 1;
+        for(j=0;n->disp[j]&&j<259;j++)e->name[j]=n->disp[j];e->name[j]=0;
+        e->attrs=n->attributes;e->size=n->size;e->created=n->created;e->accessed=n->accessed;e->written=n->written;
+        return 1;
     }
     return 0;
 }
-static uint32_t find_first(uint32_t src,uint32_t out) {
-    fs_init();char raw[512],path[512];w32_gstr(src,1,raw,sizeof raw);w32_fs_normalize(raw,path);
-    if(!out||!x86_accessible(out,592,2)){last_error=87;return 0xffffffffu;}
+static void find_write_w(const find_entry_t *e,uint32_t out) {
+    for(unsigned i=0;i<592;i++)x86_wr8(out+i,0);
+    x86_wr32(out,e->attrs);
+    x86_wr32(out+4,(uint32_t)e->created);x86_wr32(out+8,(uint32_t)(e->created>>32));
+    x86_wr32(out+12,(uint32_t)e->accessed);x86_wr32(out+16,(uint32_t)(e->accessed>>32));
+    x86_wr32(out+20,(uint32_t)e->written);x86_wr32(out+24,(uint32_t)(e->written>>32));
+    x86_wr32(out+28,(uint32_t)(e->size>>32));x86_wr32(out+32,(uint32_t)e->size);
+    w32_pstr(out+44,260,1,e->name);
+}
+/* Returns 0 and the first entry, or a Win32 error. */
+static uint32_t find_begin(const char *raw,unsigned *slot_out,find_entry_t *first) {
+    fs_init();if(!raw[0])return 3;
+    fs_path_t pv,*p=&pv;fs_resolve(raw,p);
+    if(p->toolong)return 206;if(p->invalid||p->foreign)return p->foreign?3:123;
+    if(p->trailing)return 2; /* INFERRED error: FindFirstFile search names must not end in a separator */
     unsigned slot;for(slot=0;slot<64&&find_files[slot].open;slot++){}
-    if(slot==64){last_error=4;return 0xffffffffu;}
-    unsigned i=0;do{find_files[slot].pattern[i]=path[i];}while(path[i++]);
-    find_files[slot].next=fs_nodes;
-    if(!find_emit(slot,out)){last_error=2;return 0xffffffffu;}
-    find_files[slot].open=1;return 0x120000+slot;
+    if(slot==64)return 4;
+    unsigned i=0;do{find_files[slot].pattern[i]=p->key[i];}while(p->key[i++]);
+    find_files[slot].next=fs_nodes;find_files[slot].dots=0;
+    for(unsigned d=0;d<2;d++)for(unsigned t=0;t<3;t++)find_files[slot].dir_times[d][t]=filetime_origin();
+    if(p->key_parent){
+        char parent[512];for(i=0;i<p->key_parent;i++)parent[i]=p->key[i];parent[p->key_parent]=0;
+        fs_node_t *d=fs_lookup(parent);
+        if(!d||!(d->attributes&0x10))return 3;
+        find_files[slot].dir_times[0][0]=d->created;find_files[slot].dir_times[0][1]=d->accessed;find_files[slot].dir_times[0][2]=d->written;
+        unsigned end=p->key_parent;while(end&&parent[end-1]!='/')end--;
+        parent[end?end-1:0]=0;d=parent[0]?fs_lookup(parent):0;
+        if(d){find_files[slot].dir_times[1][0]=d->created;find_files[slot].dir_times[1][1]=d->accessed;find_files[slot].dir_times[1][2]=d->written;}
+    }
+    if(!find_take(slot,first))return 2;
+    find_files[slot].open=1;*slot_out=slot;return 0;
+}
+static uint32_t find_first(uint32_t src,uint32_t out) {
+    char raw[520];w32_gstr(src,1,raw,sizeof raw);
+    if(!out||!x86_accessible(out,592,2)){last_error=87;return 0xffffffffu;}
+    unsigned slot;find_entry_t e;uint32_t err=find_begin(raw,&slot,&e);
+    if(err){last_error=err;return 0xffffffffu;}
+    find_write_w(&e,out);return 0x120000+slot;
 }
 static uint32_t k_FindFirstFileW(void) { return find_first(ARG(0),ARG(1)); }
 static uint32_t k_FindFirstFileExW(void) {
@@ -128,7 +142,8 @@ static uint32_t k_FindNextFileW(void) {
     uint32_t slot=ARG(0)-0x120000;
     if(slot>=64||!find_files[slot].open)return k_fail(6);
     if(!ARG(1)||!x86_accessible(ARG(1),592,2))return k_fail(87);
-    return find_emit(slot,ARG(1))?1:k_fail(18);
+    find_entry_t e;if(!find_take(slot,&e))return k_fail(18);
+    find_write_w(&e,ARG(1));return 1;
 }
 static uint32_t k_FindClose(void) {
     uint32_t slot=ARG(0)-0x120000;if(slot>=64||!find_files[slot].open)return k_fail(6);

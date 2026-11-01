@@ -570,7 +570,13 @@ static void emit_analysis(FILE *o, an_t *a, const char *name) {
         uint32_t fu = 0;
         for (uint32_t k = 0; k < f->nij; k++) if (!f->ij[k].resolved) fu++;
         insns += f->insns.n; unres += fu; icalls += f->indirect_calls; unsup += f->unsupported; fpu += f->fpu; undec += f->undecodable;
-        fprintf(o, "    {\"addr\": %u, \"seed\": \"%s\", \"insns\": %u, \"calls\": [", f->addr, SEED[f->seed_kind], f->insns.n);
+        uint32_t end = f->end;
+        if (!end) for (uint32_t k = 0; k < f->insns.n; k++) {
+            x86_insn_t in;
+            uint32_t next = f->insns.v[k] + (decode_at(pe, f->insns.v[k], &in) ? in.len : 1);
+            if (next > end) end = next;
+        }
+        fprintf(o, "    {\"addr\": %u, \"end\": %u, \"unwindRange\": %s, \"seed\": \"%s\", \"insns\": %u, \"calls\": [", f->addr, end, f->unwind_range ? "true" : "false", SEED[f->seed_kind], f->insns.n);
         for (uint32_t k = 0; k < f->calls.n; k++) fprintf(o, "%s%u", k ? ", " : "", f->calls.v[k]);
         fprintf(o, "], \"imports\": [");
         for (uint32_t k = 0; k < f->imports.n; k++) { fprintf(o, "%s", k ? ", " : ""); json_str(o, pe->imp[f->imports.v[k]].name); }
@@ -686,7 +692,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     char t1[200], t2[256], t3[512]; /* sized so the worst-case composition provably fits (gcc -Wformat-truncation) */
     if (vhas(&skip, f->addr)) { fprintf(o, "\n/* function %08x: provided by port/overrides (exception) */\n", f->addr); return; }
     fprintf(o, "\n/* function %08x (%u instructions) */\nvoid F_%08x(void) {\n", f->addr, f->insns.n, f->addr);
-    fprintf(o, "    bgt_coverage_entry(0x%08xu, 1);\n", f->addr);
+    fprintf(o, "    bgt_coverage_entry(X.eip, 1);\n");
     fprintf(o, "    const uint32_t ra = x86_rd32(X.r[ESP]), esp0 = X.r[ESP]; (void)ra; (void)esp0;\n    uint32_t t, u; (void)t; (void)u;\n");
     /* LANE-C: all instruction labels are legal cooperative resume points. */
     fprintf(o, "    switch (X.eip) {\n");
@@ -740,7 +746,8 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
         case XO_LEAVE: fprintf(o, "X.r[ESP] = X.r[EBP]; X.r[EBP] = x86_pop();"); break;
         case XO_NOP: fprintf(o, ";"); break;
         case XO_CDQ: if (in.osz == 4) fprintf(o, "X.r[EDX] = (X.r[EAX] & 0x80000000u) ? 0xffffffffu : 0;"); else spec = 0; break;
-        case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: fprintf(o, "xs_string(%u, %d, %u);", in.op, sz, in.rep); break;
+        /* LANE-K5a: preserve address aliases, source segment and precise REP restart. */
+        case XO_MOVS: case XO_STOS: case XO_LODS: case XO_CMPS: case XO_SCAS: fprintf(o, "xs_string(%u, %d, %u, %u, 0x%08xu, 0x%08xu, %u);if(X.transfer)return;", in.op, sz, in.rep, in.asz, in.addr, next, A->seg_fs); break;
         case XO_MUL: case XO_IMUL1: case XO_DIV: case XO_IDIV: {
             rd(t1, sizeof t1, A);
             fprintf(o, "{ const char *e = xs_muldiv(%u, %s, %d); if (e) x86_fault(e, 0x%08xu); }", in.op, t1, sz, va);

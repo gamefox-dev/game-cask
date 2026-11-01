@@ -42,7 +42,9 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   expect([...textureUploads[0].data!]).toEqual([
     0, 0, 255, 128, 255, 255, 255, 128, 255, 0, 0, 128, 0, 255, 0, 128,
   ]); // GL bottom-up upload converted to BGT top-down
-  expect([...textureUploads[1].data!]).toEqual([127, 127, 127, 128]);
+  // glGenerateMipmap is now a GPU-side §13.7 operation: the profile uploads level 0 only.
+  expect(textureUploads).toHaveLength(1);
+  expect(ops(O.TEXTURE_GENERATE_MIPS).map((it) => it.words)).toEqual([[1, 0]]);
   expect(ops(O.PASS_BEGIN)).toHaveLength(ops(O.PASS_END).length);
   expect(ops(O.PASS_BEGIN).some((it) => it.words[7] !== 0)).toBe(true);
   for (const p of ops(O.PIPELINE_CREATE)) {
@@ -53,7 +55,6 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   }
   expect(new Set(ops(O.UNIFORM_BUFFER).map((it) => it.words[0]))).toEqual(new Set([0, 1]));
   expect(ops(O.TEXTURE).every((it) => it.words[0] === 0)).toBe(true);
-  expect(ops(O.TEXTURE_UPDATE).some((it) => it.words[1] === 1 && it.data?.length === 4)).toBe(true);
   expect(stream.readbacks).toBe(2);
   const sources = ops(O.SHADER_CREATE).map((it) => it.source);
   expect(sources.every((s) => s?.startsWith('#version 330 core\n'))).toBe(true);

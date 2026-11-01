@@ -43,6 +43,21 @@ static void smoke_frame(unsigned frame) {
     XINPUT_STATE input = {0};
     if (XInputGetState(0, &input) == ERROR_SUCCESS) {
         pad_frames++; if (input.Gamepad.wButtons & XINPUT_GAMEPAD_A) button_frames++;
+        /* Browser tests hold input until 100 guest samples, not 100 host updates: a worker wait
+         * may resume on a later update. This acknowledgement leaves the exact final counts intact. */
+        if (pad_frames == 100) {
+            char text[96];
+            snprintf(text, sizeof text, "x64-smoke input sampled pad=100 buttons=%u", button_frames);
+            OutputDebugStringA(text);
+            /* Do not let a second guest iteration in this same host update overshoot the window.
+             * The host acknowledges by disconnecting the injected pad; audio/worker threads keep running. */
+            DWORD deadline = GetTickCount() + 1000;
+            XINPUT_STATE release;
+            while (XInputGetState(0, &release) == ERROR_SUCCESS) {
+                if ((LONG)(GetTickCount() - deadline) >= 0) ExitProcess(33);
+                Sleep(1);
+            }
+        }
     }
     /* The background reacts to genuine XInput state, independent of keyboard/merged input. */
     glClearColor(input.Gamepad.wButtons & XINPUT_GAMEPAD_A ? 0.5f : 0.05f, 0.1f, 0.15f, 1);

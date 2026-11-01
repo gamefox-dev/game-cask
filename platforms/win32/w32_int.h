@@ -154,7 +154,24 @@ void w32_fs_normalize(const char *raw,char *out);
 int w32_fs_query(const char *raw,uint32_t *attrs);
 void w32_fs_update(const char *raw,uint64_t size);
 void w32_fs_remove(const char *raw);
+/* Shared VFS operations (Win32 error results); KERNEL32 and the CRT path functions both use these. */
+typedef struct { uint32_t attrs; uint64_t size, created, accessed, written; int shipped, dir, exec; } w32_fs_info_t;
+uint32_t w32_fs_stat(const char *raw, w32_fs_info_t *info);
+int w32_fs_key_info(const char *key, w32_fs_info_t *info);
+void w32_fs_update_key(const char *key, uint64_t size);
+uint32_t w32_fs_open_check(const char *raw, char *key_out, int *exists);
+uint64_t w32_fs_now(void);
+uint64_t w32_fs_origin(void);
+int w32_errno_from_win32(uint32_t error);
+/* CRT-owned mutable file nodes (AMD64 shared CRT only) */
+int w32_crt_files_busy(const char *key, int subtree);
+void w32_crt_files_drop(const char *key);
+void w32_crt_files_rename(const char *from, const char *to);
+int w32_crt_fd_stat(int fd, w32_fs_info_t *info, int *chr);
 uint32_t w32_file_open_str(const char *raw, int wide);
+int w32_file_read_ahead(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got);
+void w32_file_consumed(uint32_t h, uint64_t pos, uint32_t n);
+void w32_file_observed(uint32_t h, uint64_t pos, uint32_t n);
 int w32_file_read_buf(uint32_t h, uint8_t *dst, uint32_t want, uint32_t *got);
 int w32_file_seek_pos(uint32_t h, int64_t delta, uint32_t method, uint64_t *pos_out);
 int w32_file_size_get(uint32_t h, uint64_t *size_out);

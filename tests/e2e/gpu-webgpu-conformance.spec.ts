@@ -4,7 +4,7 @@ import { CommandEncoder } from '../../bgt/runtime/commands';
 import { resolve } from 'node:path';
 const browserModule = (file: string) => `/@fs${resolve('bgt', file)}`;
 
-test('WebGPU §13 all 25 opcodes execute, including deletion and handle reuse',
+test('WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse',
   async ({ page, backendParam, collector }, info) => {
     void collector;
     test.skip(backendParam !== 'webgpu');
@@ -20,7 +20,20 @@ test('WebGPU §13 all 25 opcodes execute, including deletion and handle reuse',
       expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
       for (const [op, count] of Object.entries(d.coverage.ops)) if (count > 0) seen.add(Number(op));
     }
-    expect([...seen].filter(op => op >= 0x40 && op <= 0x58).sort()).toEqual(Object.values(GPU_OP).sort());
+    // The original native scenes cover §13; the texture/FBO fixture executes all five additive §13.7 ops.
+    await openGame(page, backendParam, { game: 'x64-gl-fbo' });
+    await assertBackend(page, backendParam, info);
+    for (let i = 0; i < 120; i++) {
+      await step(page, 1); await page.waitForTimeout(10);
+      if ((await diagnostics(page)).logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0'))) break;
+    }
+    await step(page, 3);
+    const extended = await diagnostics(page);
+    expect(extended.errors).toEqual([]); expect(extended.commandErrors.count).toBe(0);
+    expect(extended.logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0'))).toBe(true);
+    for (const [op, count] of Object.entries(extended.coverage.ops)) if (count > 0) seen.add(Number(op));
+    const expected = Object.values(GPU_OP).filter(op => typeof op === 'number' && op >= 0x40 && op <= 0x5d) as number[];
+    expect([...seen].filter(op => op >= 0x40 && op <= 0x5d).sort()).toEqual(expected.sort());
   });
 
 test('WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330',
@@ -58,9 +71,15 @@ test('WebGPU §13 loss before first GPU draw rejects decoded handles and queued 
       const commands = new CommandEncoder().gpu(GPU_OP.BUFFER_CREATE, [1, 1, 16, 0, 0]);
       if (deleted) commands.gpu(GPU_OP.BUFFER_DELETE, [1]);
       const bytes = Buffer.from(commands.finish()).toString('base64');
-      const result = await page.evaluate((s) => (window as any).__BGT_TEST__.injectCommands(s), bytes);
+      // Keep decoding and loss in one browser task: separate evaluate calls permit a requestAnimationFrame
+      // to render/drain the create+delete queue, legitimately making fallback resource-free in that case.
+      const result = await page.evaluate(async (s) => {
+        const api = (window as any).__BGT_TEST__;
+        const decoded = api.injectCommands(s);
+        await api.simulateDeviceLoss({ unrecoverable: true });
+        return decoded;
+      }, bytes);
       expect(result.status).toBe(0);
-      await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss({ unrecoverable: true }));
       await expect(page.getByRole('alert')).toContainText('Cannot restore live GPU resources');
       expect((await diagnostics(page)).backend).toBe('webgpu');
     }

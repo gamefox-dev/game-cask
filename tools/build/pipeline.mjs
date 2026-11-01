@@ -23,7 +23,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
-import { coveragePlan, staticClosure } from './coverage.mjs';
+import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 import { analyzeCached, liftChunks } from './chunks.mjs';
 
@@ -195,7 +195,8 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   }
   const recorded=cfg.slice?.coverage ?? p.coverage;
   const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
-  const sliceCode=new Set();
+  const sliceCode=new Set(), sliceRanges=[], codeRanges=[];
+  let codeFunctions=0;
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
   mkdirSync(work, { recursive: true });
@@ -240,16 +241,19 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     const id = cIdent(name);
     let lifted = null, stats = null, analysis = null, chunkSources = null, scale = null;
     const identity = hashFile(file);
+    let ownershipAnalysis = null;
     if(plan && p.interpretOnly) {
       const identity=plan.modules.find((m)=>m.name===name);
       if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
-      const an=JSON.parse(execFileSync(tool,['analyze',file,'--name',id,'--base',base.toString(16)],{encoding:'utf8',maxBuffer:256<<20}));
+      const an=analyzeCached(tool,file,id,base,work,identity).analysis;
+      ownershipAnalysis=an;
       for(const a of staticClosure(an,plan.code))sliceCode.add(a);
     }
     if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
       const args = ['lift', file, '--name', id, '--base', base.toString(16), '--out', lifted];
       const measured = mode64 && p.chunkInstructions !== 0 ? analyzeCached(tool,file,id,base,work,identity) : null;
+      ownershipAnalysis = measured?.analysis;
       let selectedSet = null;
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if(plan) {
@@ -278,7 +282,16 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         scale = {lift_ms:performance.now()-started,generated_c_bytes:statSync(lifted).size,chunks:1};
       }
     }
-    const totals = analysis ? JSON.parse(analysis).totals : null;
+    ownershipAnalysis ??= analysis ? JSON.parse(analysis) : analyzeCached(tool,file,id,base,work,identity).analysis;
+    const ranges=owningRanges(ownershipAnalysis);
+    const owners=new Map(ownershipAnalysis.functions.map((f,i)=>[f.addr,codeFunctions+i]));
+    codeFunctions+=owners.size;
+    for(const r of ranges)codeRanges.push({...r,owner:owners.get(r.owner)});
+    if(plan) {
+      const selected=new Set(staticClosure(ownershipAnalysis,plan.code));
+      for(const r of ranges)if(selected.has(r.owner))sliceRanges.push({addr:r.addr,end:r.end});
+    }
+    const totals = ownershipAnalysis.totals;
     mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, chunkSources, stats, scale, provenance, sha256: identity,
       functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
@@ -292,6 +305,8 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       throw new Error(`pipeline: ${m.name} imports ${missing.join(', ')}, which is neither a module in game.json "pipeline.modules" nor a DLL the ${p.platform} profile implements (platforms/${p.platform}/dlls.json). If the game ships it, add it as a module; otherwise it is a kit gap (iteration request).`);
     }
   }
+  codeRanges.sort((a,b)=>a.addr-b.addr);
+  sliceRanges.sort((a,b)=>a.addr-b.addr);
   /* driver */
   const driver = join(work, 'pipeline_main.c');
   const ext = mods.filter((m) => m.lifted).map((m) => `extern const x86_lifted_entry_t x86_lifted_${m.id}[];`).join('\n');
@@ -309,12 +324,15 @@ ${ext}
 static const w32_module_cfg_t modules[] = {
 ${rows}
 };
+static const x86_code_range_t code_ranges[] = {
+${codeRanges.map((r)=>`    {${r.addr}u,${r.end}u,${r.owner}u},`).join('\n')}
+};
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
 static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
-BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; return w32_boot(&config, &io); }
+BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); return w32_boot(&config, &io); }
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); }
 BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
@@ -349,6 +367,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     machine: mode64?'x86-64':'i386',
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
     interpretOnly: !!p.interpretOnly,
+    ...(plan ? {discovery:{input_recordings:plan.recordings,recorded_entries:plan.code.size}} : {}),
     ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
       optimization: p.fixture.crt === true ? '-O2' : '-O1', language: p.fixture.cpp ? 'C++' : 'C' } } : {}),
     modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats, scale: m.scale })),
@@ -359,7 +378,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   return {
     sources,
     streams,
-    slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),ranges:plan.ranges} : null,
+    slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),codeRanges:sliceRanges,ranges:plan.ranges} : null,
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
@@ -374,7 +393,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
 
 export function pipelineSummary(r) {
   const f = r.modules.map((m) => `${m.name}: ${m.functions} fns${m.lift ? `, ${m.dataSeeds ?? 0} data seeds rejected, ${m.lift.specialized} specialized/${m.lift.generic} generic insns, ${m.lift.jumpTables} jump tables, ${m.lift.unresolvedJumps} unresolved` : ' (interpreted)'}`);
-  return `pipeline ${r.platform}${r.interpretOnly ? ' [interpret-only oracle build]' : ''}: ${f.join('; ')}; generated ${r.loc.generated} LOC, hand-written ${r.loc.handwritten} LOC, ${r.exceptions.overrides.length} override(s)`;
+  return `pipeline ${r.platform}${r.interpretOnly ? ' [interpret-only oracle build]' : ''}: ${f.join('; ')}; generated ${r.loc.generated} LOC, hand-written ${r.loc.handwritten} LOC, ${r.exceptions.overrides.length} override(s)${r.discovery ? `; discovery input interpreted instructions: ${r.discovery.input_recordings.map((m)=>m.interp_insns ?? 'unknown').join(', ')} (re-record after building to measure remaining work)` : ''}`;
 }
 
 export { statSync };

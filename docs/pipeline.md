@@ -72,7 +72,13 @@ still runs (interpreted, visible as `interp_insns`).
 - **Runtime** (`diagnostics().metrics`, from the game's `bgt_metrics` export; names changed in v0.2.1, see
   `docs/verification.md`):
   - `interp_insns`: guest instructions that ran in the interpreter (0 = fully lifted)
-  - `interp_code_entries`: entries into non-lifted guest code (the interpreter ran at least one instruction)
+  - `interp_code_entries`: dynamic interpreter block/continuation entries that executed at least one instruction
+    (initial entry, control-flow successor, return from lifted/API code, or entry into a different analyzed owner;
+    repeated loop entries count again). A pre-execution quantum transfer does not count.
+  - `interp_functions`: distinct analyzed owning functions that executed at least one interpreted instruction,
+    including functions entered at an interior address, not a count of instruction addresses or call events.
+  - `interp_unowned_entries`: interpreter entry events outside analyzed ranges; these cannot be honestly labeled
+    functions. Nonzero values identify analysis/discovery gaps rather than silently claiming a complete function census.
   - `tail_calls_lifted`: lifted jumps out of a function resolved straight to a lifted function (tail calls; not
     interpretation)
   - `continues_interpreted`: lifted frames that had to continue in the interpreter (unresolved jumps, code beyond
@@ -230,13 +236,33 @@ input/GL remain separate gaps.
 
 ## Recording and packaging a vertical slice (v0.3 subset)
 
-During a probe, `reports/probe/coverage.json` records executed lifted/interpreted entries, module hashes/bases and file
-chunks read. Browser tests using the shared fixture save `reports/coverage/<project>/*.json`; each also attaches the
+During a probe, `reports/probe/coverage.json` records executed lifted/interpreted function, block and continuation
+entries, module hashes/bases and file chunks read. It is **not an instruction-address trace**. AMD64 lifted region
+resumption records its actual continuation address, not a falsely repeated function start. The host deduplicates
+addresses, merging lifted/interpreted kind bits, with a **1,048,576 distinct-address safety limit** per loaded runtime
+(16× the former 65,536). `metrics.code_entries_dropped` counts rejected entry events; any nonzero value still rejects
+both coverage-guided and strict builds. Never strip it or manufacture a smaller trace. Runtime owner accounting uses
+one byte per analyzed function, plus sorted disjoint range metadata; it does not retain an instruction-address set. Browser tests using the shared fixture save `reports/coverage/<project>/*.json`; each also attaches the
 snapshot. The read-only test API has `coverage()`. A snapshot is specific to exact binaries AND load bases; mismatches
 fail the build. Preserve a successful launcher's entire L3 loop, not just a boot screenshot.
 
-- Coverage-guided lifting without packaging: `pipeline.coverage: ["../reports/probe/coverage.json"]` selects recorded
-  entries plus their static call closure; unselected code remains interpreted and recorded for the next build.
+- Coverage-guided lifting without packaging: `pipeline.coverage: ["../reports/probe/coverage.json"]` selects the
+  **owning functions** of recorded entries plus their static call closure. Analyzer JSON exposes half-open `addr..end`
+  ranges and `unwindRange`; AMD64 `.pdata` ownership takes precedence over speculative interior seeds. Otherwise the
+  nearest enclosing analyzed start owns an address; gaps are not attributed to the preceding function. Unselected code
+  remains interpreted and recorded for the next build.
+- Incremental discovery: record a workload, build with that recording, reload/run the same workload (and extend it),
+  save the new recording to a **different file**, then build with **all prior and new files** in `pipeline.coverage`.
+  Addresses and ranges are unioned only when module names/hashes/bases agree. Each reload starts a bounded fresh
+  recording; there is no hidden cross-module or cross-reload union. Overflowed evidence is rejected even if other
+  inputs would cover the same addresses. Use a shorter representative run to bootstrap a minimal selection, not an
+  edited/filtered overflowed trace.
+- After **each run**, report remaining `interp_insns`, `interp_code_entries`, `interp_functions` and
+  `interp_unowned_entries` for the same workload. Probe/browser snapshots retain these in `metrics.execution`;
+  builds preserve per-input observations in `manifest.pipeline.discovery.input_recordings` and print the input
+  interpreted-instruction counts (unknown for old snapshots), **not a prediction of post-build execution**.
+  Repeat recording after building to measure the actual improvement. Synthetic CC0 regression: a 70,000-NOP body
+  with indirect function/interior entries converges in two selective builds, with exact counter assertions.
 - Strict package: `npm run build:port -- --slice reports/probe/coverage.json` (CLI paths resolve from the repository root), or `game.json` `slice:{coverage:["../reports/...json"]}` (config paths resolve from port/). CLI accepts comma-separated
   or multiple files after --slice (last option). Modules use the compact loader/streamed original view automatically.
   Only covered file chunks are emitted. Uncovered callbacks and data ranges pause visibly, with
@@ -254,8 +280,11 @@ metrics are copied to trial.json along with manifest packaging/pipeline metrics.
 Current limitation: conservative virtual PE section bytes are retained, not the mathematically minimum loader data.
 Code remains a single wasm module, no lazy code chunks (LSC's compile-time translation-unit chunks are not lazy
 runtime modules). Bounded GL and cooperative threads are implemented; the 1.6M synthetic scale fixture does not
-certify a 7.1M game. Coverage is function entries,
-not a guarantee against jumping into an unrecorded basic block within a covered function.
+certify a 7.1M game. Selection/strict code packaging is **function-range granular**: valid interior continuations are
+allowed within a selected analyzed owning range. Recording block entries is not instruction-level packaging or a
+proof against unrecorded paths within that function. Unknown/unowned code still interprets in a discovery build and
+stops outside a strict slice; it may need analyzer improvements before convergence. File-range slice stops remain
+unchanged. The finite coverage limit is a safety net, not a guarantee for arbitrary workloads.
 
 ## Known execution limits (kit gaps, not port work)
 - **x86:** i386 and baseline AMD64 modes; SSE/SSE2 semantics are currently enabled for AMD64 profile builds.
@@ -299,7 +328,17 @@ Nondefault rounding/FTZ/traps, 80-bit long double, positional formats, unsupport
 MSVC-specific C++ personalities remain gaps. Static unknown imports fault with untruncated DLL!symbol; dynamic unknown
 lookup returns NULL.
 
-FILE reads of shipped profile files use the existing range-request/yield machinery and preserve slice boundaries.
+FILE reads of shipped profile files use deferred range-request/yield machinery with a bounded **16 KiB default
+read-ahead buffer** (configurable through Windows setvbuf/setbuf, maximum 64 KiB). A byte read from owned bytes
+needs no new request/update. Refills stop at both the current 64 KiB boundary and actual stream chunk boundary,
+so speculation cannot pull an adjacent omitted strict-slice chunk. Consumption, including physical CRLF input
+bytes but excluding returned pushback bytes, drives `files` coverage; speculative ranges and byte/request counts
+are recorded separately in `readAhead` and `crtReadAheadBytes`/`crtReadAheadRequests`. `crtConsumedBytes` counts
+actual FILE source bytes delivered/read, not source chunk download bytes. Inspected non-LF bytes after CR are
+recorded separately as `crtObservedBytes` and also retained in packaging coverage because translation depends on them. Chunk-level packaging is deliberately
+coarser than byte counters. FILE positioning uses logical physical-byte cookies; raw descriptors expose the
+underlying read-ahead cursor until fflush/position synchronizes them. Full contracts and bounds:
+[CRT FILE contracts](../platforms/win32/CONTRACTS.md#crt-files-formatting-and-locks).
 CRT-created writable and temporary files live in process memory only; shipped files remain read-only. Streams support
 read/write/seek/position/pushback/EOF/error and formatted scanning; stdout/stderr log complete lines. The deterministic
 process environment is empty, locale support is **C/ASCII**, and localtime is **UTC**, derived from the virtual clock.

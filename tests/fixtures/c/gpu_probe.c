@@ -187,6 +187,51 @@ static const uint32_t layouts[] = {
     offsetof(bgt_gpu_color_attachment_t, g),
     offsetof(bgt_gpu_color_attachment_t, b),
     offsetof(bgt_gpu_color_attachment_t, a),
+    sizeof(bgt_gpu_texture_create_ex_t),
+    offsetof(bgt_gpu_texture_create_ex_t, handle),
+    offsetof(bgt_gpu_texture_create_ex_t, dimension),
+    offsetof(bgt_gpu_texture_create_ex_t, width),
+    offsetof(bgt_gpu_texture_create_ex_t, height),
+    offsetof(bgt_gpu_texture_create_ex_t, depth),
+    offsetof(bgt_gpu_texture_create_ex_t, mips),
+    offsetof(bgt_gpu_texture_create_ex_t, format),
+    offsetof(bgt_gpu_texture_create_ex_t, usage),
+    sizeof(bgt_gpu_texture_update_ex_t),
+    offsetof(bgt_gpu_texture_update_ex_t, handle),
+    offsetof(bgt_gpu_texture_update_ex_t, mip),
+    offsetof(bgt_gpu_texture_update_ex_t, x),
+    offsetof(bgt_gpu_texture_update_ex_t, y),
+    offsetof(bgt_gpu_texture_update_ex_t, z),
+    offsetof(bgt_gpu_texture_update_ex_t, width),
+    offsetof(bgt_gpu_texture_update_ex_t, height),
+    offsetof(bgt_gpu_texture_update_ex_t, depth),
+    offsetof(bgt_gpu_texture_update_ex_t, data_ptr),
+    offsetof(bgt_gpu_texture_update_ex_t, data_len),
+    sizeof(bgt_gpu_sampler_create_ex_t),
+    offsetof(bgt_gpu_sampler_create_ex_t, handle),
+    offsetof(bgt_gpu_sampler_create_ex_t, min_filter),
+    offsetof(bgt_gpu_sampler_create_ex_t, mag_filter),
+    offsetof(bgt_gpu_sampler_create_ex_t, mip_filter),
+    offsetof(bgt_gpu_sampler_create_ex_t, wrap_u),
+    offsetof(bgt_gpu_sampler_create_ex_t, wrap_v),
+    offsetof(bgt_gpu_sampler_create_ex_t, wrap_w),
+    offsetof(bgt_gpu_sampler_create_ex_t, compare_enable),
+    offsetof(bgt_gpu_sampler_create_ex_t, compare),
+    offsetof(bgt_gpu_sampler_create_ex_t, min_lod),
+    offsetof(bgt_gpu_sampler_create_ex_t, max_lod),
+    sizeof(bgt_gpu_texture_readback_t),
+    offsetof(bgt_gpu_texture_readback_t, handle),
+    offsetof(bgt_gpu_texture_readback_t, mip),
+    offsetof(bgt_gpu_texture_readback_t, x),
+    offsetof(bgt_gpu_texture_readback_t, y),
+    offsetof(bgt_gpu_texture_readback_t, z),
+    offsetof(bgt_gpu_texture_readback_t, width),
+    offsetof(bgt_gpu_texture_readback_t, height),
+    offsetof(bgt_gpu_texture_readback_t, depth),
+    offsetof(bgt_gpu_texture_readback_t, request),
+    sizeof(bgt_gpu_texture_generate_mips_t),
+    offsetof(bgt_gpu_texture_generate_mips_t, handle),
+    offsetof(bgt_gpu_texture_generate_mips_t, base_level),
     BGT_GPU_BUFFER_VERTEX,
     BGT_GPU_BUFFER_INDEX,
     BGT_GPU_BUFFER_UNIFORM,
@@ -199,6 +244,9 @@ static const uint32_t layouts[] = {
     BGT_GPU_FORMAT_RGBA16F,
     BGT_GPU_FORMAT_DEPTH24_STENCIL8,
     BGT_GPU_FORMAT_DEPTH32F,
+    BGT_GPU_FORMAT_RGB10A2, BGT_GPU_FORMAT_R16F, BGT_GPU_FORMAT_RG16F, BGT_GPU_FORMAT_R32F,
+    BGT_GPU_FORMAT_RG32F, BGT_GPU_FORMAT_RGBA32F, BGT_GPU_DIM_2D, BGT_GPU_DIM_3D, BGT_GPU_DIM_2D_ARRAY,
+    BGT_GPU_LIMIT_VOLUME_DIMENSION, BGT_GPU_LIMIT_ARRAY_LAYERS,
     BGT_GPU_FORMAT_NONE,
     BGT_GPU_FILTER_NEAREST,
     BGT_GPU_FILTER_LINEAR,
@@ -301,6 +349,8 @@ static const uint32_t layouts[] = {
     BGT_OP_GPU_TEXTURE,
     BGT_OP_GPU_DRAW,
     BGT_OP_GPU_DRAW_INDEXED,
+    BGT_OP_GPU_TEXTURE_CREATE_EX, BGT_OP_GPU_TEXTURE_UPDATE_EX, BGT_OP_GPU_SAMPLER_CREATE_EX,
+    BGT_OP_GPU_TEXTURE_READBACK, BGT_OP_GPU_TEXTURE_GENERATE_MIPS,
 };
 BGT_EXPORT(gpu_layout) uint32_t gpu_layout(void) { return (uint32_t)(uintptr_t)layouts; }
 BGT_EXPORT(gpu_layout_count) uint32_t gpu_layout_count(void) { return sizeof layouts / 4; }
@@ -407,5 +457,25 @@ BGT_EXPORT(gpu_encode) int32_t gpu_encode(void) {
     uint32_t w_draw_indexed[] = {1,2,3,4,5};
     bgt__gpu_copy((uint8_t *)&v_draw_indexed, w_draw_indexed, sizeof v_draw_indexed);
     bgt_cmd_gpu_draw_indexed(&cb, &v_draw_indexed);
+    bgt_gpu_texture_create_ex_t v_texture_create_ex;
+    uint32_t w_texture_create_ex[] = {1,2,3,4,5,6,7,8};
+    bgt__gpu_copy((uint8_t *)&v_texture_create_ex, w_texture_create_ex, sizeof v_texture_create_ex);
+    bgt_cmd_gpu_texture_create_ex(&cb, &v_texture_create_ex);
+    bgt_gpu_texture_update_ex_t v_texture_update_ex;
+    uint32_t w_texture_update_ex[] = {1,2,3,4,5,6,7,8,9,10};
+    bgt__gpu_copy((uint8_t *)&v_texture_update_ex, w_texture_update_ex, sizeof v_texture_update_ex);
+    bgt_cmd_gpu_texture_update_ex(&cb, &v_texture_update_ex);
+    bgt_gpu_sampler_create_ex_t v_sampler_create_ex;
+    uint32_t w_sampler_create_ex[] = {1,2,3,4,5,6,7,8,9,10,11};
+    bgt__gpu_copy((uint8_t *)&v_sampler_create_ex, w_sampler_create_ex, sizeof v_sampler_create_ex);
+    bgt_cmd_gpu_sampler_create_ex(&cb, &v_sampler_create_ex);
+    bgt_gpu_texture_readback_t v_texture_readback;
+    uint32_t w_texture_readback[] = {1,2,3,4,5,6,7,8,9};
+    bgt__gpu_copy((uint8_t *)&v_texture_readback, w_texture_readback, sizeof v_texture_readback);
+    bgt_cmd_gpu_texture_readback(&cb, &v_texture_readback);
+    bgt_gpu_texture_generate_mips_t v_texture_generate_mips;
+    uint32_t w_texture_generate_mips[] = {1,2};
+    bgt__gpu_copy((uint8_t *)&v_texture_generate_mips, w_texture_generate_mips, sizeof v_texture_generate_mips);
+    bgt_cmd_gpu_texture_generate_mips(&cb, &v_texture_generate_mips);
     return bgt_cmd_submit(&cb);
 }

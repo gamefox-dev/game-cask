@@ -25,6 +25,7 @@ static inline void *cwmem(uint32_t p,uint32_t n) {
     return n?x86_flat_at(p,n):0;
 }
 static void flush_stdout(void);
+static void file_flush_all(void);
 static inline char *cstr(uint32_t p) {
     uint32_t n = 0;
     while (x86_rd8(p + n)) n++;

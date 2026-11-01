@@ -77,11 +77,11 @@ int main(void) {
         glDeleteShader(recycled); check(!glIsShader(recycled), "deleted shader remains live");
     }
     GLuint bad = glCreateShader(GL_FRAGMENT_SHADER);
-    const char *bad_source = "#version 330 core\nuniform vec4 unsupported[2]; void main(){}";
+    const char *bad_source = "#version 330 core\nuniform nosuchtype unsupported[2]; void main(){}";
     glShaderSource(bad, 1, &bad_source, 0); glCompileShader(bad);
     GLint compiled = 1; char bad_log[128]; glGetShaderiv(bad, GL_COMPILE_STATUS, &compiled);
     glGetShaderInfoLog(bad, sizeof bad_log, 0, bad_log);
-    check(!compiled && bad_log[0], "unsupported uniform layout must have a compile log"); glDeleteShader(bad);
+    check(!compiled && bad_log[0], "invalid declaration must have a compile log"); glDeleteShader(bad);
     GLuint p = make_program(); glUseProgram(p);
     GLint tint = glGetUniformLocation(p, "tint"), image = glGetUniformLocation(p, "image");
     check(tint >= 0 && image >= 0, "uniform locations missing");
@@ -118,6 +118,7 @@ int main(void) {
     GLuint render_texture, framebuffer, renderbuffer;
     glGenTextures(1, &render_texture); glBindTexture(GL_TEXTURE_2D, render_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // complete without a mip chain
     glGenFramebuffers(1, &framebuffer); glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, render_texture, 0);
     glGenRenderbuffers(1, &renderbuffer); glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
@@ -148,7 +149,9 @@ int main(void) {
         glViewport(80, 100, 80, 100);
         glUniform4f(tint, 1, 1, 1, 0.5f); glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
         glViewport(160, 100, 80, 100);
+        glBindSampler(2, 0); // the texture's own LINEAR filter: a sampler object would override it
         glBindTexture(GL_TEXTURE_2D, render_texture); glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glBindSampler(2, sampler);
         glBindTexture(GL_TEXTURE_2D, texture); glUniform4f(tint, 1, 0.8f, 0.6f, 1);
         glViewport(240, 100, 80, 100);
         glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0, 3);

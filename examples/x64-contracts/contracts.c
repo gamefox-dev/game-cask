@@ -112,8 +112,9 @@ int main(void) {
     CHECK("FormatMessage-allocate",K("FormatMessageW",FORMAT_MESSAGE_FROM_SYSTEM|FORMAT_MESSAGE_ALLOCATE_BUFFER,0,87,0,&ft,0)>0&&ft&&LocalFree((void *)(uintptr_t)ft)==0);
     HANDLE self=CreateFileW(L"contracts.exe",GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
     CHECK("GetHandleInformation",K("GetHandleInformation",self,&flags,0,0,0,0)&&flags==0);
-    CHECK("SetHandleInformation",K("SetHandleInformation",self,HANDLE_FLAG_INHERIT,HANDLE_FLAG_INHERIT,0,0,0)==0&&GetLastError()==50);
-    CHECK("DuplicateHandle",!K("DuplicateHandle",(HANDLE)-1,self,(HANDLE)-1,&ft,0,0)&&GetLastError()==50&&ft==0);CloseHandle(self);
+    CHECK("SetHandleInformation",SetHandleInformation(self,HANDLE_FLAG_INHERIT,HANDLE_FLAG_INHERIT)&&GetHandleInformation(self,&flags)&&flags==HANDLE_FLAG_INHERIT);
+    HANDLE kernelAlias=0;
+    CHECK("DuplicateHandle",DuplicateHandle(GetCurrentProcess(),self,GetCurrentProcess(),&kernelAlias,0,FALSE,DUPLICATE_SAME_ACCESS)&&kernelAlias!=self&&CloseHandle(self)&&GetFileSize(kernelAlias,0)>0&&CloseHandle(kernelAlias));
     WIN32_FIND_DATAW fd;HANDLE find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"contracts.exe",&fd,0,0,0,0);
     CHECK("FindFirstFileW",find!=INVALID_HANDLE_VALUE&&fd.nFileSizeLow>0&&!wcscmp(fd.cFileName,L"contracts.exe"));
     CHECK("FindNextFileW",!K("FindNextFileW",find,&fd,0,0,0,0)&&GetLastError()==18);
@@ -126,7 +127,7 @@ int main(void) {
     CHECK("Find-wildcard",find!=INVALID_HANDLE_VALUE&&!wcscmp(fd.cFileName,L"contracts.exe"));K("FindClose",find,0,0,0,0,0);
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"nested/*.*",&fd,0,0,0,0);unsigned enumerated=0;
     if(find!=INVALID_HANDLE_VALUE){do{enumerated++;}while(K("FindNextFileW",find,&fd,0,0,0,0));K("FindClose",find,0,0,0,0,0);}
-    CHECK("Find-shipped-directory",enumerated==2);
+    CHECK("Find-shipped-directory",enumerated==4); /* ".", ".." and the two shipped files: non-root directories list dot entries as on Windows */
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"streamed.?xt",&fd,0,0,0,0);
     CHECK("Find-streamed-file",find!=INVALID_HANDLE_VALUE&&fd.nFileSizeLow>0);K("FindClose",find,0,0,0,0,0);
     find=(HANDLE)(uintptr_t)K("FindFirstFileW",L"writable",&fd,0,0,0,0);
@@ -175,14 +176,14 @@ int main(void) {
     CHECK("FILE-eof",fgetc(alias)==EOF&&feof(alias)&&(*(unsigned *)((char *)alias+24)&0x10));
     CHECK("_fstat64",C("_fstat64",desc,bytes,0,0,0,0)==0&&*(uint64_t *)(bytes+24)==3);
     CHECK("_wstat64",C("_wstat64",L"scratch",bytes,0,0,0,0)==0&&*(uint64_t *)(bytes+24)==3);
-    CHECK("_get_osfhandle",C("_get_osfhandle",1,0,0,0,0,0)==0x1f5&&C("_get_osfhandle",desc,0,0,0,0,0)==UINT64_MAX);
+    CHECK("_get_osfhandle",C("_get_osfhandle",1,0,0,0,0,0)==(uintptr_t)GetStdHandle(STD_OUTPUT_HANDLE)&&C("_get_osfhandle",desc,0,0,0,0,0)==UINT64_MAX);
     CHECK("_getpid",C("_getpid",0,0,0,0,0,0)==GetCurrentProcessId());
     CHECK("_close",C("_close",desc,0,0,0,0,0)==0&&C("_close",desc,0,0,0,0,0)==UINT64_MAX);
     CHECK("_fdopen-owner-closed",fgetc(alias)==EOF);
     CHECK("_wrename",C("_wrename",L"scratch",L"renamed",0,0,0,0)==0);
     CHECK("_wunlink",C("_wunlink",L"renamed",0,0,0,0,0)==0);
-    CHECK("_wchdir",C("_wchdir",L".",0,0,0,0,0)==0&&C("_wchdir",L"missing",0,0,0,0,0)==UINT64_MAX);
-    CHECK("_wrmdir",C("_wrmdir",L"C:\\GAME",0,0,0,0,0)==UINT64_MAX);
+    CHECK("_wchdir",C("_wchdir",L".",0,0,0,0,0)==0&&neg(C("_wchdir",L"missing",0,0,0,0,0))==-1);
+    CHECK("_wrmdir",neg(C("_wrmdir",L"C:\\GAME",0,0,0,0,0))==-1);
     file=fopen("again","w+");FILE *reopened=0;
     CHECK("freopen_s",C("freopen_s",&reopened,"again","r",file,0,0)==0&&reopened==file);fclose(file);
     CHECK("remove",C("remove","again",0,0,0,0,0)==0);
@@ -201,7 +202,7 @@ int main(void) {
     CHECK("wcsftime",C("wcsftime",wide,1024,L"%Y-%m-%d",&tm,0,0)==10&&!wcscmp(wide,L"2001-10-25"));
     CHECK("wcsftime-unicode",C("wcsftime",wide,1024,L"\u00e9\U0001f600",&tm,0,0)==3&&wide[0]==0xe9&&wide[1]==0xd83d&&wide[2]==0xde00&&wide[3]==0);
     file=tmpfile();CHECK("putwc",C("putwc",'Q',file,0,0,0,0)=='Q');rewind(file);CHECK("getwc",C("getwc",file,0,0,0,0,0)=='Q');fclose(file);
-    file=tmpfile();CHECK("fwprintf",C("fwprintf",file,L"%ls %d",L"wide",7,0,0)==6);rewind(file);memset(bytes,0,sizeof bytes);fread(bytes,1,6,file);CHECK("fwprintf-bytes",!strcmp(bytes,"wide 7"));fclose(file);
+    file=tmpfile();CHECK("fwprintf",C("fwprintf",file,L"%ls %d",L"wide",7,0,0)==6);rewind(file);memset(bytes,0,sizeof bytes);CHECK("fwprintf-bytes",fread(bytes,1,12,file)==12&&!memcmp(bytes,"w\0i\0d\0e\0 \0" "7\0",12));fclose(file);
     errno=2;C("perror","fixture",0,0,0,0,0);CHECK("perror",1);
     unsigned argc=0;wchar_t **argv=(wchar_t **)(uintptr_t)S("CommandLineToArgvW",L"app \"a b\" c\\\\\"d",&argc,0,0,0,0);
     CHECK("CommandLineToArgvW",argv&&argc==3&&!wcscmp(argv[1],L"a b"));LocalFree(argv);

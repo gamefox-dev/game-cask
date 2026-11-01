@@ -27,21 +27,23 @@ it('GCC lint accepts unversioned Linux GCC and skips quietly when it is unavaila
   expect(called).toBe(false);
 });
 
-it.each([false, true])('GCC lint enforces CI flags and cleans outputs even on compiler failure (%s)', (fail) => {
-  let output = '';
+it.each([-1, 0, 1])('GCC lint checks x86 and GLSL and cleans outputs even on compiler failure at call %s', (failAt) => {
+  const outputs: string[] = [];
+  const sources = [
+    [expect.stringMatching(/\/tools\/x86\/x86tool\.c$/), expect.stringMatching(/\/platforms\/x86\/x86_decode\.c$/)],
+    [expect.stringMatching(/\/tests\/native\/glsl_driver\.c$/)],
+  ];
   const run = (cc: string, args: string[]) => {
     expect(cc).toBe('gcc-14');
     expect(args.slice(0, 6)).toEqual(['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o']);
-    expect(args.slice(7).map((p) => p.replaceAll('\\', '/'))).toEqual([
-      expect.stringMatching(/\/tools\/x86\/x86tool\.c$/),
-      expect.stringMatching(/\/platforms\/x86\/x86_decode\.c$/),
-    ]);
-    output = args[6];
-    mkdirSync(output); // A stand-in artifact that must be removed on both paths.
-    if (fail) throw new Error('warning treated as error');
+    const call = outputs.length;
+    expect(args.slice(7).map((p) => p.replaceAll('\\', '/'))).toEqual(sources[call]);
+    outputs.push(args[6]);
+    mkdirSync(args[6]); // Stand-in artifacts must be removed even when the second compiler fails.
+    if (call === failAt) throw new Error('warning treated as error');
   };
-  if (fail) expect(() => checkHostGcc('gcc-14', run)).toThrow('warning treated as error');
+  if (failAt >= 0) expect(() => checkHostGcc('gcc-14', run)).toThrow('warning treated as error');
   else checkHostGcc('gcc-14', run);
-  expect(output).not.toBe('');
-  expect(existsSync(output)).toBe(false);
+  expect(outputs).toHaveLength(failAt < 0 ? 2 : failAt + 1);
+  for (const output of outputs) expect(existsSync(output)).toBe(false);
 });
