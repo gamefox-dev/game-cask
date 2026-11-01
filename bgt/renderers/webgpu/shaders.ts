@@ -12,8 +12,10 @@ const types: Record<string, string> = {
 // Block/struct member in std140 terms; `kind` says how the WGSL host-shareable form differs from the GLSL value.
 type Field = { name: string; base: string; arr: number; kind: 'plain' | 'bool' | 'mat2' | 'struct' | 'pad'; comps: number };
 interface StructInfo { name: string; fields: Field[]; host?: string }
-const scalar = (t: string) => t.endsWith('u') || t === 'u32' ? 'u32' : t.endsWith('i') || t === 'i32' ? 'i32' : 'f32';
-const vector = (n: number, t: string) => n === 1 ? scalar(t) : `vec${n}${scalar(t)[0]}`;
+const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool' :
+  t.endsWith('u') || t === 'u32' ? 'u32' : t.endsWith('i') || t === 'i32' ? 'i32' : 'f32';
+const vector = (n: number, t: string) => n === 1 ? scalar(t) :
+  scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
 
 function lex(source: string): Token[] {
@@ -650,6 +652,19 @@ class GLSL {
         name === 'textureGrad' ? 'textureSampleGrad' : args.length === 3 ? 'textureSampleBias' : 'textureSample';
       const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`;
       return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
+    }
+    const userSignature = this.signatures.get(name);
+    const userOverload = userSignature?.length === args.length && userSignature.every((p, i) => p.type === args[i].type);
+    if (name === 'mix' && !userOverload && args.length === 3 && scalar(args[2].type) === 'bool') {
+      const [x, y, condition] = args;
+      // GLSL's selector overload copies y where true and x where false; it is not interpolation.
+      // Keep exact integer/bool types (not f32, which loses uint precision), and preserve unselected NaNs.
+      const shape = /^vec[234]/.test(x.type) ? vector(Number(x.type[3]), 'bool') : 'bool';
+      if (x.type !== y.type || condition.type !== shape ||
+        !/^(f32|i32|u32|bool|vec[234](?:[fiu]|<bool>))$/.test(x.type)) {
+        this.fail('mix boolean selector requires matching scalar/vector operand and selector shapes');
+      }
+      return { code: `select(${x.code}, ${y.code}, ${condition.code})`, type: x.type };
     }
     if (['min', 'max', 'clamp', 'step', 'smoothstep', 'mod'].includes(name)) {
       const type = args.find(a => /^vec[234]/.test(a.type))?.type;
