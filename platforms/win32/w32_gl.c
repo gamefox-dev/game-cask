@@ -96,8 +96,28 @@ typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offs
 typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
 static Buffer buffers[N]; static Vao vaos[N];
+/* Generic current values belong to the context, not the VAO (GL 3.3 §2.8). */
+static float current_attr[16][4]; static uint32_t current_attr_ready;
+static void init_current_attr(void) {
+    if (!current_attr_ready) { for (uint32_t i = 0; i < 16; i++) current_attr[i][3] = 1; current_attr_ready = 1; }
+}
+static uint32_t current_attribute(uint32_t n, int vector) {
+    uint32_t index = ARG(0); if (index >= 16) { fail(BAD_VALUE); return 0; }
+    init_current_attr();
+    for (uint32_t i = 0; i < 4; i++) {
+        union { uint32_t u; float f; } v = {vector && i < n ? x86_rd32(ARG(1) + 4 * i) : 0};
+        current_attr[index][i] = i < n ? (vector ? v.f : argf(i + 1)) : i == 3 ? 1.0f : 0.0f;
+    }
+    return 0;
+}
+#define CURRENT_ATTR(n) \
+    static uint32_t api_VertexAttrib##n##f(void) { return current_attribute(n, 0); } \
+    static uint32_t api_VertexAttrib##n##fv(void) { return current_attribute(n, 1); }
+CURRENT_ATTR(1) CURRENT_ATTR(2) CURRENT_ATTR(3) CURRENT_ATTR(4)
+#undef CURRENT_ATTR
 static Shader shaders[N]; static Program programs[N];
 static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
+static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
 static uint32_t ubo_whole[8];
 static uint32_t program;
 static uint32_t blend, depth, stencil, cull, scissor_enabled;
@@ -215,6 +235,26 @@ static uint32_t api_EnableVertexAttribArray(void) {
 static uint32_t api_DisableVertexAttribArray(void) {
     if (ARG(0) >= 16) fail(BAD_VALUE); else if (!vao) fail(BAD_OP); else vaos[vao].a[ARG(0)].enabled = 0;
     return 0;
+}
+static void ensure_current_buffer(uint32_t instances) {
+    init_current_attr(); if (!instances) instances = 1;
+    if (instances > current_capacity) {
+        uint32_t capacity = 1; while (capacity < instances) capacity *= 2;
+        uint32_t *data = (uint32_t *)glp_alloc(capacity * 256u);
+        if (!data) { fail(OOM); return; }
+        if (current_gpu) SEND(0x42, current_gpu);
+        glp_free(current_data, current_capacity * 256u); current_data = data; current_capacity = capacity;
+        /* Buffer namespaces: public buffers 1..255, uniform buffers 701..955. */
+        current_gpu = 1023;
+        SEND(0x40, current_gpu, 1, capacity * 256u, 0, 0);
+        if (error) {
+            glp_free(current_data, current_capacity * 256u); current_data = 0;
+            current_gpu = current_capacity = 0; return;
+        }
+    }
+    for (uint32_t n = 0; n < instances; n++) for (uint32_t i = 0; i < 16; i++) for (uint32_t j = 0; j < 4; j++)
+        current_data[n * 64 + i * 4 + j] = bits(current_attr[i][j]);
+    SEND(0x41, current_gpu, 0, PTR(current_data), instances * 256u);
 }
 static uint32_t api_VertexAttribDivisor(void) {
     if (ARG(0) >= 16) fail(BAD_VALUE); else if (!vao) fail(BAD_OP);

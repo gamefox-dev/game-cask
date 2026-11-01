@@ -6,7 +6,7 @@ import { oracleFailure, writeOracleReport } from '../../tools/report/oracle-repo
 import { loadHeadless, ROOT, Headless } from '../support/headless';
 /* LANE-GL: opt-in fixture recorder; no rendering is claimed by this oracle. */
 import { glStream } from '../support/x64-gl-stream';
-const streamOptions = (id: string) => ['x64-gl', 'x64-gl-fbo', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
+const streamOptions = (id: string) => ['x64-gl', 'x64-gl-fbo', 'x64-gl-current', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {

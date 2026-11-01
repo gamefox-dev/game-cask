@@ -1374,7 +1374,7 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
         if (!gp_flatten(g, log, un[s], v->name, v->type, v->arr, d->offset, -1, (uint32_t)stages)) { ok = 0; break; }
     }
     if (!ok) return 0;
-    g->usize = gs_roundup(cursor, 16);
+    g->usize = gs_roundup(cursor, 16) + 16 * g->nslots; /* per-slot swizzles follow ordinary uniforms */
     /* ---- uniform blocks */
     for (int s = 0; s < 2 && ok; s++) if (un[s]) for (uint32_t i = 0; i < un[s]->nblocks && ok; i++) {
         GsBlock *b = &un[s]->blocks[i]; int o = 1 - s; GsBlock *w = 0;
@@ -1622,6 +1622,8 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                 while (t1 > t0 && (gs_space(s[t1 - 1]) || s[t1 - 1] == '\n')) t1--;
                 int slot = 0, shadow = 0; uint32_t end = 0, id1 = t0; while (id1 < t1 && gs_idc(s[id1])) id1++;
                 if (cnt >= 2 && id1 > t0 && em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && end == t1) {
+                    int swizzle = !shadow && !gs_eqn(s + i, len, "textureSize");
+                    if (swizzle) { eb_str(&em->out, "bgt_gl_sw"); eb_num(&em->out, (uint32_t)slot); eb_str(&em->out, "("); }
                     eb_put(&em->out, s + i, len); eb_str(&em->out, "(");
                     eb_put(&em->out, s + a0[0], t0 - a0[0]); eb_str(&em->out, "bgt_t"); eb_num(&em->out, (uint32_t)slot);
                     eb_put(&em->out, s + t1, a1[0] - t1);
@@ -1639,7 +1641,7 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                             eb_str(&em->out, "))");
                         } else em_range(em, a0[x], a1[x], 0);
                     }
-                    eb_str(&em->out, ")"); i = close + 1; continue;
+                    eb_str(&em->out, swizzle ? "))" : ")"); i = close + 1; continue;
                 }
                 if (cnt >= 1 && id1 > t0 && !em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && em->failed) return;
             }
@@ -1692,13 +1694,24 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
             if (v->type < GS_STRUCT_BASE && gs_types[v->type].dim) continue;
             em_decl(em, pu, v->type, v->name, v->arr); eb_str(o, " ");
         }
+        for (uint32_t k = 0; k < g->nslots; k++) { eb_str(o, "ivec4 bgt_gl_swz"); eb_num(o, k); eb_str(o, "; "); }
         eb_str(o, "}; ");
         for (uint32_t k = 0; k < g->nslots; k++) {
             if (g->slot_shadow[k]) eb_str(o, "uniform sampler2DShadow bgt_t");
             else if (g->slot_dim[k] == 1) eb_str(o, "uniform sampler3D bgt_t");
             else if (g->slot_dim[k] == 2) eb_str(o, "uniform sampler2DArray bgt_t");
             else eb_str(o, "uniform sampler2D bgt_t");
-            eb_num(o, k); eb_str(o, "; "); }
+            eb_num(o, k); eb_str(o, "; ");
+        }
+        for (uint32_t k = 0; k < g->nslots; k++) {
+            if (!g->slot_shadow[k]) {
+                eb_str(o, "float bgt_gl_sc"); eb_num(o, k); eb_str(o, "(vec4 v,int i){if(i==4)return 0.0;if(i==5)return 1.0;return v[i];} vec4 bgt_gl_sw");
+                eb_num(o, k); eb_str(o, "(vec4 v){return vec4(");
+                for (uint32_t c = 0; c < 4; c++) { if (c) eb_str(o, ","); eb_str(o, "bgt_gl_sc"); eb_num(o, k);
+                    eb_str(o, "(v,bgt_gl_swz"); eb_num(o, k); eb_str(o, "["); eb_num(o, c); eb_str(o, "])"); }
+                eb_str(o, ");} ");
+            }
+        }
         for (uint32_t k = 0; k < g->nb; k++) if (g->b[k].unit[sidx] >= 0) {
             GsBlock *b = &u->blocks[g->b[k].unit[sidx]];
             eb_str(o, "layout(std140) uniform bgt_u"); eb_num(o, k + 1); eb_str(o, " { ");

@@ -236,7 +236,15 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         stencil && tg.has_stencil, stencil_read, stencil_write,
         stencil_compare, stencil_fail, stencil_zfail, stencil_pass, stencil_compare, stencil_fail, stencil_zfail,
         stencil_pass, umask, smask, 0, 0, tg.ncolor};
-    uint32_t slots[8], attr_slots[16], nslots = 0, nattrs = 0;
+    uint32_t slots[8], attr_slots[16], nslots = 0, nattrs = 0, constant_slot = 8;
+    uint32_t active_attrs = 0, attr_components[16] = {0};
+    for (uint32_t i = 0; i < p->info->na; i++) {
+        const GpAttrib *a = &p->info->a[i]; uint32_t loc = (uint32_t)a->location;
+        active_attrs |= 1u << loc;
+        attr_components[loc] = a->gl_type == 0x1406 ? 1 : a->gl_type >= 0x8b50 && a->gl_type <= 0x8b52 ? a->gl_type - 0x8b50 + 2 : 0;
+    }
+    uint32_t disabled = active_attrs;
+    for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) disabled &= ~(1u << i);
     for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) {
         Attribute *a = &vaos[vao].a[i];
         if (!a->buffer || !buffers[a->buffer].gpu || !a->stride || (a->stride & 3) ||
@@ -254,12 +262,24 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
         attr_slots[i] = s; nattrs++;
     }
+    if (disabled) {
+        if (nslots == 8) { fail(BAD_OP); return 0; }
+        ensure_current_buffer((uint32_t)instances); if (error) return 0;
+        constant_slot = nslots++; w[26 + constant_slot * 2] = 256; w[27 + constant_slot * 2] = 1;
+        for (uint32_t i = 0; i < 16; i++) if (disabled & (1u << i)) {
+            if (!attr_components[i]) { fail(BAD_OP); return 0; }
+            nattrs++;
+        }
+    }
     w[23] = nslots; w[24] = nattrs; uint32_t at = 26 + nslots * 2;
     for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) {
         Attribute *a = &vaos[vao].a[i];
         uint32_t format = a->type == U8 ? 4 : a->integer ? (a->type == U32 ? 9 : 5) + a->count - 1 :
             a->count - 1;
         w[at++] = i; w[at++] = attr_slots[i]; w[at++] = a->offset % a->stride; w[at++] = format;
+    }
+    for (uint32_t i = 0; i < 16; i++) if (disabled & (1u << i)) {
+        w[at++] = i; w[at++] = constant_slot; w[at++] = i * 16; w[at++] = attr_components[i] - 1;
     }
     for (uint32_t c = 0; c < tg.ncolor; c++) {
         uint32_t mask = color_mask; if (rgb_only(tg.color[c].fmt)) mask &= 7;
@@ -302,6 +322,16 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }
     float h = (float)tg.h; copy(p->values, &h, 4);
+    uint32_t swz_base = p->usize - p->info->nslots * 16;
+    for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
+        uint32_t unit = p->slot_unit[slot], id = tex_bind[p->info->slot_dim[slot]][unit];
+        /* Incomplete sampling returns the specified black fallback, independent of the object's swizzle. */
+        Texture *t = id && textures[id].gpu && bound[slot] == textures[id].gpu ? &textures[id] : 0;
+        for (uint32_t c = 0; c < 4; c++) {
+            uint32_t v = t ? t->p.swz[c] : 0x1903u + c;
+            put32(p->values + swz_base + slot * 16 + c * 4, v == 0 ? 4 : v == 1 ? 5 : v - 0x1903u);
+        }
+    }
     SEND(0x41, p->ubuf, 0, PTR(p->values), p->usize); p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
@@ -317,7 +347,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     uint32_t sr[] = {stencil_ref}; op(0x51, sr, 1);
     uint32_t bc[] = {bits(blend_color[0]), bits(blend_color[1]), bits(blend_color[2]), bits(blend_color[3])};
     op(0x52, bc, 4);
-    for (uint32_t s = 0; s < nslots; s++) { Attribute *a = &vaos[vao].a[slots[s]]; Buffer *b = &buffers[a->buffer];
+    for (uint32_t s = 0; s < nslots; s++) {
+        if (s == constant_slot) { uint32_t vb[] = {s, current_gpu, 0, (uint32_t)instances * 256u}; op(0x53, vb, 4); continue; }
+        Attribute *a = &vaos[vao].a[slots[s]]; Buffer *b = &buffers[a->buffer];
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }

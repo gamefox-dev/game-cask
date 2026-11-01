@@ -293,7 +293,7 @@ static void param_set(Params *p, Texture *t, uint32_t pname, const float *f, con
         case 0x2801: p->min = v; break; case 0x2800: p->mag = v; break; case 0x2802: p->ws = v; break;
         case 0x2803: p->wt = v; break; case 0x8072: p->wr = v; break; case 0x884c: p->cmp_mode = v; break;
         case 0x884d: p->cmp_func = v; break;
-        default: p->swz[pname - 0x8e42] = v; if (v != (uint32_t)(0x1903 + pname - 0x8e42)) approximate("GL_TEXTURE_SWIZZLE ignored");
+        default: p->swz[pname - 0x8e42] = v;
         }
         return;
     }
@@ -313,7 +313,6 @@ static void param_set(Params *p, Texture *t, uint32_t pname, const float *f, con
         }
         for (int k = 0; k < 4; k++) {
             p->swz[k] = is_float ? (uint32_t)f[k] : (uint32_t)i[k];
-            if (p->swz[k] != (uint32_t)(0x1903 + k)) approximate("GL_TEXTURE_SWIZZLE ignored");
         }
         return;
     case 0x813c: case 0x813d:
