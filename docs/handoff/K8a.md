@@ -166,3 +166,38 @@ were absent in this sandbox at session start. Do not claim to have inspected the
 Original synthetic fixture sources only. The unchanged game was not built/run here and no title/first-draw claim
 is made. At final full-lane completion rerun every required gate, every pipeline oracle at 300 frames, and a fresh
 independent validation session; update this handoff with actual counts and remaining boundaries.
+
+## Continuation checkpoint after fresh-session budget boundary
+
+Current branch commits:
+
+- `c3b4f50 feat(gpu): allocate texture mips lazily with configurable budget`
+- `7ff2d58 feat(gl): support depth texture uploads and readback`
+
+The first blocker is committed. `TEXTURE_CREATE_EX` now reserves level 0 and grows through explicit update/readback or
+mip generation; `TEXTURE_ALLOCATE_MIPS` (`0x5e`) is additive, mirrored in C/TS layouts and both renderers, and preserves
+already allocated native contents during immutable-storage growth. `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes`
+are validated reservation/accounting limits (default 256 MiB, 16 MiB..0xffffffff), reported through extended limits and
+runtime GPU metrics (`budgetBytes`, `reservedBytes`, `peakReservedBytes`, `largestAllocationBytes`). The Win32 profile maps
+submit E_LIMIT to truthful `GL_OUT_OF_MEMORY` and does not publish a texture GPU handle before successful creation.
+
+The second blocker is committed but not yet browser-certified. GL DEPTH_COMPONENT16/24/32F (normalized into the BGT DEPTH32F
+storage) and DEPTH24_STENCIL8 uploads now convert checked external data, including packed DS, and profile GetTexImage/
+ReadPixels depth paths are wired. The GPU ABI accepts 2D depth updates; WebGL2 uploads/readbacks native depth, and WebGPU
+uses ordered staging/render conversion for depth upload/readback. WebGPU DS stencil readback remains intentionally
+E_UNSUPPORTED because WebGPU exposes no sampleable stencil aspect; do not claim full DS readback semantics until this is
+resolved or the acceptance boundary is explicitly narrowed. Typecheck and host-GCC checks passed after `7ff2d58`.
+The attempted focused x64 GL unit run did not reach its test summary: the sandbox build of all examples exceeded 900s.
+No browser depth fixture has been added yet.
+
+Exact next steps for the next fresh session:
+
+1. Re-run focused GPU/profile tests without claiming the timed-out run; add a depth fixture with exact errors, packed DS,
+   partial uploads, sampling, GetTexImage/ReadPixels and cross-backend pixels. Decide/implement truthful WebGPU DS stencil
+   readback before claiming blocker 2 complete, then amend/commit a depth test/fixture checkpoint.
+2. Implement integer formats/transfers/samplers/render targets/readback on both backends. Add ABI format entries and exact
+   signed/unsigned storage conversions; coordinate shader reflection changes with K8b; commit with unit/browser fixtures.
+3. Replace the four GLSTUB clear-buffer entries with indexed, format-class-correct clears on both backends, preserving
+   scissor/write masks and clear state; commit with permuted draw-buffer/error/pixel tests.
+4. Run tier 1, request external validation of the known five `tests/unit/pi-harness.test.ts` sandbox failures via
+   `ask_reviewer`, then update this handoff with actual counts, all oracle results, leakcheck, and fresh independent review.
