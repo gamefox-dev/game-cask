@@ -16,6 +16,20 @@ void main() {
 }`;
 
 describe('WebGPU engine-independent GLSL frontend and ABI reflection', () => {
+  it('renames legal GLSL varying identifiers consistently in shared linked locations', () => {
+    const vertex = '#version 330 core\nout vec4 ref;void main(){gl_Position=vec4(0);ref=vec4(1);}';
+    const fragment = '#version 330 core\nin vec4 ref;layout(location=0) out vec4 o;void main(){o=ref;}';
+    const names = [...new Set([...glslVaryings(vertex,1),...glslVaryings(fragment,2)])];
+    expect(translateGLSL(vertex,1,1,names)).toContain('@location(0) bgt_internal_glsl_ref: vec4f');
+    expect(translateGLSL(fragment,2,1,names)).toContain('@location(0) bgt_internal_glsl_ref: vec4f');
+  });
+  it('retains integer sampler signedness and renames GLSL identifiers reserved by WGSL', () => {
+    for (const [sampler, scalar] of [['isampler2D', 'i32'], ['usampler2D', 'u32']]) {
+      const code = translateGLSL(`#version 330 core\nuniform ${sampler} bgt_t0;layout(location=0) out vec4 o;void main(){${scalar === 'i32' ? 'ivec4' : 'uvec4'} ref=texelFetch(bgt_t0,ivec2(0),0);o=vec4(ref);}`, 2, 1);
+      expect(code).toContain(`texture_2d<${scalar}>`); expect(code).toContain('textureLoad(');
+      expect(code).toContain('bgt_internal_glsl_ref');
+    }
+  });
   it('lowers fixed-size vector array constructors with typed elements and rejects wrong lengths', () => {
     const code=translateGLSL(`#version 330 core
 void main(){ vec2 p[3]=vec2[3](vec2(-1,1),vec2(-1,-1),vec2(1,-1));

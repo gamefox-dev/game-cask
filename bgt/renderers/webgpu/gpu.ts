@@ -3,12 +3,15 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
-import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
+import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
 const formats: GPUTextureFormat[] = [
   'rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'depth24plus-stencil8', 'depth32float',
   'rgb10a2unorm', 'r16float', 'rg16float', 'r32float', 'rg32float', 'rgba32float',
+  'r8uint', 'r8sint', 'r16uint', 'r16sint', 'r32uint', 'r32sint',
+  'rg8uint', 'rg8sint', 'rg16uint', 'rg16sint', 'rg32uint', 'rg32sint',
+  'rgba8uint', 'rgba8sint', 'rgba16uint', 'rgba16sint', 'rgba32uint', 'rgba32sint',
 ];
 const compare: GPUCompareFunction[] = [
   'never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always',
@@ -28,7 +31,7 @@ const vertexFormats: GPUVertexFormat[] = [
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer> }
 interface TextureResource {
-  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[];
+  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[] }
@@ -47,6 +50,12 @@ export class WebGPUCommands implements GpuBackend {
   private pipelines = new Map<number, PipelineResource>();
   private encoder?: GPUCommandEncoder;
   private pass?: GPURenderPassEncoder;
+  private passFormats: number[] = [];
+  private passDepth = 0xffffffff;
+  private passSize = [1, 1];
+  private viewport = [0, 0, 1, 1, 0, 1];
+  private stencilRef = 0;
+  private clearPipelines = new Map<string, GPURenderPipeline>();
   private screen?: GPUTexture;
   private current?: PipelineResource;
   private uniforms = new Map<number, GPUBufferBinding>();
@@ -90,10 +99,12 @@ export class WebGPUCommands implements GpuBackend {
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
-    this.blits.clear(); this.blitSampler = undefined;
+    this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear(); this.clearPipelines.clear();
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
+      if (t.allocatedMips > 1) this.execute({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
+        words: [t.words[0], t.allocatedMips] });
       if (t.generated && t.desc.dimension !== 1) {
         this.execute(t.generated.source);
         this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated.base] });
@@ -152,18 +163,18 @@ export class WebGPUCommands implements GpuBackend {
       case OP.BUFFER_DELETE: this.buffers.get(h)!.native.destroy(); this.buffers.delete(h); break;
       case OP.TEXTURE_CREATE_EX: {
         const desc = toCanonicalTexture(w), depthFormat = isDepthFormat(desc.format);
-        if (desc.format >= 10 && !d.features.has('float32-filterable')) {
+        if (desc.format >= 10 && desc.format <= 12 && !d.features.has('float32-filterable')) {
           throw new Error('32-bit float textures need the float32-filterable WebGPU feature');
         }
-        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: desc.mips,
+        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: 1,
           dimension: desc.dimension === 1 ? '3d' : '2d', format: formats[desc.format],
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-            (depthFormat ? 0 : GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC) });
-        this.textures.set(h, { native, words: w, desc, uploads: [] });
+            GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC });
+        this.textures.set(h, { native, words: w, desc, uploads: [], allocatedMips: 1 });
         // WebGPU zero-initializes color/stencil, but BGT initializes depth to one.
         if (depthFormat) {
           const encoder = d.createCommandEncoder();
-          for (let mip = 0; mip < desc.mips; mip++) {
+          for (let mip = 0; mip < 1; mip++) {
             const a: GPURenderPassDepthStencilAttachment = {
               view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
               depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
@@ -173,13 +184,19 @@ export class WebGPUCommands implements GpuBackend {
           }
           d.queue.submit([encoder.finish()]);
         }
+        if (item.op === OP.TEXTURE_CREATE && desc.mips > 1) this.growTexture(h, desc.mips);
+        break;
+      }
+      case OP.TEXTURE_ALLOCATE_MIPS: {
+        this.growTexture(w[0], w[1]);
         break;
       }
       case OP.TEXTURE_UPDATE_EX: {
         const t = this.textures.get(h)!, bpp = TEXEL_BYTES[t.desc.format];
         const [, mip, x, y, z, width, height, depth] = w;
         t.generated?.overridden.add(mip);
-        d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
+        if (isDepthFormat(t.desc.format)) this.uploadDepth(t, mip, x, y, z, width, height, depth, item.data!);
+        else d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
           { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
         const level = mipExtent(t.desc, mip);
@@ -197,7 +214,11 @@ export class WebGPUCommands implements GpuBackend {
         }
         break;
       }
-      case OP.TEXTURE_READBACK: this.readback(item, w); break;
+      case OP.TEXTURE_READBACK: {
+        if (isDepthFormat(this.textures.get(h)!.desc.format)) this.readDepthback(item, w);
+        else this.readback(item, w);
+        break;
+      }
       case OP.TEXTURE_GENERATE_MIPS: this.generateMips(w[0], w[1]); break;
       case OP.TEXTURE_DELETE: this.textures.get(h)!.native.destroy(); this.textures.delete(h); break;
       case OP.SAMPLER_CREATE_EX: {
@@ -240,10 +261,12 @@ export class WebGPUCommands implements GpuBackend {
         this.index = undefined; this.current = undefined;
         this.encoder = d.createCommandEncoder();
         const colors: GPURenderPassColorAttachment[] = [];
+        this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
         let width = 0, height = 0;
         for (let i = 0; i < h; i++) {
           const j = 7 + i * 7, t = w[j] ? this.textures.get(w[j])!.native : this.screen!;
           width = Math.max(1, t.width >> w[j + 1]); height = Math.max(1, t.height >> w[j + 1]);
+          this.passFormats.push(w[j] ? this.textures.get(w[j])!.desc.format : 0);
           colors.push({ view: t.createView({ baseMipLevel: w[j + 1], mipLevelCount: 1 }),
             loadOp: w[j + 2] ? 'clear' : 'load', storeOp: 'store', clearValue: w.slice(j + 3, j + 7).map(f) });
         }
@@ -256,6 +279,7 @@ export class WebGPUCommands implements GpuBackend {
           if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
             stencilStoreOp: 'store', stencilClearValue: w[6] });
         }
+        this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
         this.pass = this.encoder.beginRenderPass({ colorAttachments: colors, depthStencilAttachment: depth });
         this.pass.setViewport(0, 0, width, height, 0, 1);
         this.pass.setScissorRect(0, 0, width, height);
@@ -263,6 +287,7 @@ export class WebGPUCommands implements GpuBackend {
         this.pass.setBlendConstant([0, 0, 0, 0]);
         break;
       }
+      case OP.CLEAR_BUFFER: this.clearBuffer(w); break;
       case OP.PASS_END:
         this.pass!.end(); d.queue.submit([this.encoder!.finish()]); this.pass = undefined; this.encoder = undefined;
         // Destruction is deferred until submissions using these buffers finish.
@@ -272,9 +297,10 @@ export class WebGPUCommands implements GpuBackend {
         }
         break;
       case OP.PIPELINE: this.current = this.pipelines.get(h)!; this.pass!.setPipeline(this.current.native); break;
-      case OP.VIEWPORT: this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
+      case OP.VIEWPORT:
+        this.viewport = w.map(f); this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
       case OP.SCISSOR: this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
-      case OP.STENCIL_REF: this.pass!.setStencilReference(h); break;
+      case OP.STENCIL_REF: this.stencilRef = h; this.pass!.setStencilReference(h); break;
       case OP.BLEND_CONSTANT: this.pass!.setBlendConstant(w.map(f)); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER:
@@ -294,13 +320,133 @@ export class WebGPUCommands implements GpuBackend {
     }
   }
 
+  /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */
+  private clearBuffer(w: number[]): void {
+    const kind = w[0] & 3, cls = (w[0] >>> 2) & 3, mask = (w[0] >>> 4) & 15, smask = (w[0] >>> 8) & 255;
+    const key = JSON.stringify([this.passFormats, this.passDepth, kind, cls, mask, smask, w[1]]);
+    let pipeline = this.clearPipelines.get(key);
+    if (!pipeline) {
+      const colorType = (fmt: number) => !isIntegerFormat(fmt) ? 'vec4f' : fmt & 1 ? 'vec4u' : 'vec4i';
+      const fields = this.passFormats.map((fmt, i) => `@location(${i}) c${i}:${colorType(fmt)}`);
+      if (kind === 1 || kind === 3) fields.push('@builtin(frag_depth) depth:f32');
+      const assignments = this.passFormats.map((fmt, i) => `o.c${i}=${kind === 0 && w[1] === i ?
+        cls === 0 ? 'bitcast<vec4f>(v.value)' : cls === 1 ? 'bitcast<vec4i>(v.value)' : 'v.value' : `${colorType(fmt)}(0)`};`);
+      if (kind === 1 || kind === 3) assignments.push('o.depth=bitcast<f32>(v.value.x);');
+      const module = this.device.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
+@vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); return vec4f(p[i],0,1); }
+${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O;${assignments.join('')}return o;}` : '@fragment fn fs() {}'}` });
+      const stencilFace: GPUStencilFaceState = { compare: 'always', passOp: kind >= 2 ? 'replace' : 'keep' };
+      pipeline = this.device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+        fragment: { module, entryPoint: 'fs', targets: this.passFormats.map((fmt, i) => ({ format: formats[fmt],
+          writeMask: kind === 0 && i === w[1] ? mask : 0 })) },
+        depthStencil: this.passDepth === 0xffffffff ? undefined : { format: formats[this.passDepth],
+          depthWriteEnabled: (kind === 1 || kind === 3) && !!(w[0] & 16), depthCompare: 'always',
+          stencilFront: stencilFace, stencilBack: stencilFace, stencilWriteMask: kind >= 2 ? smask : 0 },
+        primitive: { topology: 'triangle-list' } });
+      if (this.clearPipelines.size >= 64) this.clearPipelines.delete(this.clearPipelines.keys().next().value!);
+      this.clearPipelines.set(key, pipeline);
+    }
+    this.pass!.setPipeline(pipeline);
+    // Stencil-only clears use no uniform binding. All other forms consume exact u32/f32 bit patterns.
+    if (kind !== 2) {
+      const uniform = this.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
+      new Uint32Array(uniform.getMappedRange()).set(w.slice(2)); uniform.unmap(); this.scratch.push(uniform);
+      this.pass!.setBindGroup(0, this.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: uniform } }] }));
+    }
+    this.pass!.setViewport(0, 0, this.passSize[0], this.passSize[1], 0, 1);
+    if (kind >= 2) this.pass!.setStencilReference(w[kind === 2 ? 2 : 3]);
+    this.pass!.draw(3);
+    const v = this.viewport; this.pass!.setViewport(v[0], v[1], v[2], v[3], v[4], v[5]);
+    this.pass!.setStencilReference(this.stencilRef);
+    if (this.current) this.pass!.setPipeline(this.current.native);
+  }
+
   private blits = new Map<number, GPURenderPipeline>();
   private blitSampler?: GPUSampler;
+  private depthUploadPipelines = new Map<string, GPURenderPipeline>();
+
+  /** Upload a depth texture through an ordered render pass; WebGPU queue writes to depth aspects are invalid.
+   * DEPTH24_STENCIL8 uses one pass per distinct stencil value so stencil replace remains exact. */
+  private uploadDepth(t: TextureResource, mip: number, x: number, y: number, z: number,
+    width: number, height: number, depth: number, data: Uint8Array<ArrayBuffer>): void {
+    if (t.desc.dimension !== 0 || z !== 0 || depth !== 1) throw new Error('Depth uploads are 2D only');
+    const values = new Float32Array(width * height * 4), view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const stencilValues = new Set<number>();
+    for (let i = 0; i < width * height; i++) {
+      if (t.desc.format === 5) {
+        const packed = view.getUint32(i * 4, true);
+        values[i * 4] = ((packed >>> 8) & 0xffffff) / 0xffffff;
+        values[i * 4 + 1] = packed & 255; stencilValues.add(packed & 255);
+      } else values[i * 4] = view.getFloat32(i * 4, true);
+    }
+    const d = this.device, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+    d.queue.writeTexture({ texture: source }, values, { bytesPerRow: width * 16, rowsPerImage: height }, [width, height, 1]);
+    const encoder = d.createCommandEncoder(), target = t.native.createView({ baseMipLevel: mip, mipLevelCount: 1 });
+    const refs = t.desc.format === 5 ? [...stencilValues] : [-1];
+    for (const ref of refs) {
+      const pipeline = this.depthUploadPipeline(t.desc.format, ref, x, y);
+      const pass = encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: {
+        view: target, depthLoadOp: 'load', depthStoreOp: 'store', depthClearValue: 1,
+        ...(t.desc.format === 5 ? { stencilLoadOp: 'load' as const, stencilStoreOp: 'store' as const } : {}),
+      } });
+      pass.setPipeline(pipeline); pass.setViewport(x, y, width, height, 0, 1); pass.setScissorRect(x, y, width, height);
+      if (ref >= 0) pass.setStencilReference(ref);
+      pass.setBindGroup(0, d.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: source.createView() }] }));
+      pass.draw(3); pass.end();
+    }
+    d.queue.submit([encoder.finish()]); source.destroy();
+  }
+
+  private depthUploadPipeline(format: number, stencilValue: number, x: number, y: number): GPURenderPipeline {
+    const key = `${format}:${stencilValue}:${x}:${y}`, existing = this.depthUploadPipelines.get(key); if (existing) return existing;
+    const d = this.device, check = stencilValue >= 0 ? `if (abs(q.y - ${stencilValue}.0) > 0.1) { discard; }` : '';
+    const module = d.createShaderModule({ code: `
+@group(0) @binding(0) var src: texture_2d<f32>;
+struct VO { @builtin(position) pos: vec4f };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); var o:VO; o.pos=vec4f(p[i],0,1); return o; }
+@fragment fn fs(@builtin(position) p: vec4f) -> @builtin(frag_depth) f32 { let q=textureLoad(src, vec2<i32>(i32(p.x)-${x},i32(p.y)-${y}),0); ${check} return q.x; }` });
+    const depthStencil: GPUDepthStencilState = { format: formats[format], depthWriteEnabled: true, depthCompare: 'always' };
+    if (format === 5) Object.assign(depthStencil, { stencilFront: { compare: 'always', passOp: 'replace', failOp: 'keep', depthFailOp: 'keep' },
+      stencilBack: { compare: 'always', passOp: 'replace', failOp: 'keep', depthFailOp: 'keep' }, stencilWriteMask: 255 });
+    const pipeline = d.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+      fragment: { module, entryPoint: 'fs', targets: [] }, depthStencil, primitive: { topology: 'triangle-list' } });
+    this.depthUploadPipelines.set(key, pipeline); return pipeline;
+  }
+
+  /** Grow an immutable WebGPU texture without losing already rendered/uploaded levels. */
+  private growTexture(handle: number, allocatedMips: number): void {
+    const d = this.device, t = this.textures.get(handle)!;
+    if (allocatedMips <= t.allocatedMips) return;
+    if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
+    const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
+      dimension: t.desc.dimension === 1 ? '3d' : '2d', format: formats[t.desc.format],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC });
+    const encoder = d.createCommandEncoder();
+    for (let mip = 0; mip < t.allocatedMips; mip++) {
+      const e = mipExtent(t.desc, mip);
+      encoder.copyTextureToTexture({ texture: t.native, mipLevel: mip }, { texture: next, mipLevel: mip },
+        [e.width, e.height, e.depth]);
+    }
+    if (isDepthFormat(t.desc.format)) for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
+      encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: {
+        view: next.createView({ baseMipLevel: mip, mipLevelCount: 1 }), depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
+        ...(t.desc.format === 5 ? { stencilLoadOp: 'clear' as const, stencilStoreOp: 'store' as const, stencilClearValue: 0 } : {}),
+      } }).end();
+    }
+    d.queue.submit([encoder.finish()]);
+    const old = t.native; t.native = next; t.allocatedMips = allocatedMips;
+    old.destroy();
+  }
 
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
     const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
+    this.growTexture(handle, desc.mips);
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
     const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
     const source: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, base, 0, 0, 0,
@@ -354,6 +500,37 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
     }
   }
 
+  /** Depth readback is an ordered depth-sampling conversion; stencil is not a sampleable WebGPU aspect. */
+  private readDepthback(item: GpuItem, w: number[]): void {
+    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    if (t.desc.format === 5) { item.readback?.(undefined, -4); return; }
+    if (t.desc.dimension !== 0 || z !== 0 || depth !== 1) throw new Error('Depth readback is 2D only');
+    const source = t.native.createView({ aspect: 'depth-only', baseMipLevel: mip, mipLevelCount: 1 });
+    const target = d.createTexture({ size: [width, height, 1], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+    const module = d.createShaderModule({ code: `
+@group(0) @binding(0) var src: texture_depth_2d;
+struct VO { @builtin(position) pos: vec4f };
+@vertex fn vs(@builtin(vertex_index) i:u32)->VO { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); var o:VO; o.pos=vec4f(p[i],0,1); return o; }
+@fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f { let q=textureLoad(src,vec2<i32>(i32(p.x)+${x},i32(p.y)+${y}),0); return vec4f(q,q,q,1); }` });
+    const pipeline = d.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+      fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba32float' }] }, primitive: { topology: 'triangle-list' } });
+    const encoder = d.createCommandEncoder(), pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(),
+      loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+    pass.setPipeline(pipeline); pass.setBindGroup(0, d.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: source }] })); pass.draw(3); pass.end();
+    const row = width * 16, aligned = Math.ceil(row / 256) * 256, buffer = d.createBuffer({ size: aligned * height,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: aligned, rowsPerImage: height }, [width, height, 1]);
+    d.queue.submit([encoder.finish()]); target.destroy(); this.readbacks.add(item);
+    void buffer.mapAsync(GPUMapMode.READ).then(() => {
+      const mapped = new Float32Array(buffer.getMappedRange()), out = new Uint8Array(width * height * 4);
+      const dv = new DataView(out.buffer);
+      for (let i = 0; i < width * height; i++) dv.setFloat32(i * 4,
+        mapped[Math.floor(i / width) * (aligned >> 2) + (i % width) * 4], true);
+      buffer.destroy(); if (this.readbacks.delete(item)) item.readback?.(out);
+    }).catch(() => { buffer.destroy(); if (this.readbacks.delete(item)) item.readback?.(undefined, E_IO); });
+  }
+
   /** §13.7 TEXTURE_READBACK: copy in stream order, map later; exact stored texels, rows top-first. */
   private readback(item: GpuItem, w: number[]): void {
     const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
@@ -383,7 +560,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   }
 
   private pipeline(w: readonly number[], depthSlots: ReadonlySet<number> = new Set(),
-    sampling: readonly DepthSampling[] = []): PipelineResource {
+    sampling: readonly DepthSampling[] = [], integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()): PipelineResource {
     const d = this.device, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
     const repack: Repack[] = [];
     let j = 26;
@@ -409,7 +586,8 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
       operation: blendOps[op], srcFactor: op >= 3 ? 'one' : factors[src], dstFactor: op >= 3 ? 'one' : factors[dst],
     });
     for (let i = 0; i < w[25]; i++, j += 9) {
-      if (w[j] >= 10 && w[j + 1] && !d.features.has('float32-blendable')) {
+      if (isIntegerFormat(w[j]) && w[j + 1]) throw new Error('Integer render targets cannot be blended');
+      if (w[j] >= 10 && w[j] <= 12 && w[j + 1] && !d.features.has('float32-blendable')) {
         throw new Error('Blending 32-bit float targets needs the float32-blendable WebGPU feature');
       }
       targets.push({ format: formats[w[j]], writeMask: w[j + 8],
@@ -438,8 +616,8 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
       .filter(b => b.group === group).map(b => ({ binding: b.binding,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         ...(b.type === 'uniform' ? { buffer: { type: 'uniform' as const } } :
-          b.type === 'texture' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
-            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : 'float' as const,
+          b.type === 'texture' || b.type === 'textureI' || b.type === 'textureU' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
+            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : b.type === 'textureI' ? 'sint' as const : b.type === 'textureU' ? 'uint' as const : 'float' as const,
               viewDimension: b.type === 'texture3d' ? '3d' as const :
                 b.type === 'texture2darray' ? '2d-array' as const : '2d' as const } } :
             { sampler: { type: b.type === 'comparison' ? 'comparison' as const :
@@ -453,7 +631,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
     const linked = (s: ShaderResource) => {
       if (!s.item.words[2] && !sampling.length) return s.native;
       const source = s.item.words[2] ?
-        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots) : s.item.source!;
+        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots, integerSamplers) : s.item.source!;
       return d.createShaderModule({ code: lowerDepthSampling(source, sampling) });
     };
     const native = d.createRenderPipeline({ layout: d.createPipelineLayout({ bindGroupLayouts: layouts }),
@@ -472,14 +650,17 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
       .map(b => b.binding >> 1).filter(slot => isDepthFormat(this.textures.get(this.sampled.get(slot)![1])!.desc.format)));
-    const sampling = [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
+    const glsl = !!this.shaders.get(p.words[1])!.item.words[2];
+    const sampling = glsl ? [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
       b.group === 1 && b.type !== 'comparison')).map(slot => ({ binding: slot * 2,
-      sampler: this.samplers.get(this.sampled.get(slot)![2])!.words }));
-    if (sampling.length || (depthSlots.size && this.shaders.get(p.words[1])!.item.words[2])) {
-      const key = JSON.stringify([[...depthSlots], sampling]);
+      sampler: this.samplers.get(this.sampled.get(slot)![2])!.words })) : [];
+    const integerSamplers = new Map(p.bindings.filter(b => b.type === 'textureI' || b.type === 'textureU')
+      .map(b => [b.binding >> 1, this.samplers.get(this.sampled.get(b.binding >> 1)![2])!.words] as const));
+    if (sampling.length || (glsl && (depthSlots.size || integerSamplers.size))) {
+      const key = JSON.stringify([[...depthSlots], sampling, [...integerSamplers]]);
       let variant = p.variants.get(key);
       if (!variant) {
-        variant = this.pipeline(p.words, depthSlots, sampling);
+        variant = this.pipeline(p.words, depthSlots, sampling, integerSamplers);
         if (p.variants.size >= 64) p.variants.delete(p.variants.keys().next().value!);
         p.variants.set(key, variant);
       }

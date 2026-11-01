@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: CC0-1.0
 // Original, engine-independent known-answer shader corpus. No captured or third-party shader sources.
 export interface GlslRegression { name: string; body: string; header?: string; expected: number[]; texture?: boolean; invalid?: boolean }
-export const regressionVertex = `void main() {
+export const regressionVertex = `out vec4 ref;\nvoid main() {
+  ref = vec4(1.0);
   vec2 p[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
   vec2 chosen = mix(p[bgt_vertex_index], -p[bgt_vertex_index], lessThan(vec2(1.0, -1.0), vec2(0.0)));
   gl_Position = vec4(chosen, 0.5, 1.0);
@@ -88,5 +89,5 @@ glslRegressions.push(
     o = all(equal(size, ivec2(2))) && all(equal(a, b)) ? a : vec4(0.0);` },
 );
 export function regressionFragment(c: GlslRegression): string {
-  return `${c.header ?? ''}\nlayout(location=0) out vec4 o;\nvoid main() { ${c.body} }`;
+  return `${c.header ?? ''}\nin vec4 ref;\nlayout(location=0) out vec4 o;\nvoid main() { ${c.body} o *= ref; }`;
 }

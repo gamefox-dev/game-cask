@@ -37,10 +37,8 @@ it('x64-gl-fbo: GL error codes, completeness statuses and upload round trips mat
   const m = h.host.metrics() as Record<string, any>;
   expect(m.interp_insns).toBe(0); expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
   // Valid-but-unsupported GL 3.3 requests are counted and listed, never silently accepted.
-  expect(m.gl_approximations).toBe(4);
-  expect(m.gl_approximation_kinds).toEqual(['GL_CLAMP_TO_BORDER treated as CLAMP_TO_EDGE',
-    'GL_TEXTURE_LOD_BIAS ignored', 'internalformat unsupported 0x8235',
-    'glReadPixels of depth/stencil or integer data']);
+  expect(m.gl_approximations).toBe(2);
+  expect(m.gl_approximation_kinds).toEqual(['GL_CLAMP_TO_BORDER treated as CLAMP_TO_EDGE', 'GL_TEXTURE_LOD_BIAS ignored']);
 });
 
 it('x64-gl-fbo: §13.7 textures, explicit mip levels, depth storage and multi-attachment passes', async () => {
@@ -50,15 +48,14 @@ it('x64-gl-fbo: §13.7 textures, explicit mip levels, depth storage and multi-at
   const guestLog = h.logs.join('\n');
   const ops = (op: number) => stream.items.filter((it) => it.op === op);
   // The depth texture is real DEPTH32F storage allocated with no upload.
-  expect(ops(O.TEXTURE_CREATE).some((it) => it.words[1] === 64 && it.words[2] === 64 && it.words[4] === GPU.FORMAT_DEPTH32F),
+  expect(ops(O.TEXTURE_CREATE_EX).some((it) => it.words.slice(1).join() === [0,64,64,1,7,GPU.FORMAT_DEPTH32F,3].join()),
     guestLog).toBe(true);
   // 3D (dimension 1) and 2D-array (dimension 2) textures go through the extended create/update.
   const created = ops(O.TEXTURE_CREATE_EX).map((it) => it.words.slice(1, 8));
   expect(created).toContainEqual([GPU.DIM_3D, 2, 2, 4, 3, GPU.FORMAT_RGBA8, 1]);
   expect(created).toContainEqual([GPU.DIM_2D_ARRAY, 2, 2, 2, 2, GPU.FORMAT_RGBA8, 1]);
   expect(created.some((c) => c[5] === GPU.FORMAT_RGB10A2)).toBe(true);
-  expect(ops(O.TEXTURE_CREATE).some(it => it.words[1] === 8 && it.words[2] === 8 &&
-    it.words[4] === GPU.FORMAT_RGBA16F)).toBe(true);
+  expect(ops(O.TEXTURE_CREATE_EX).some(it => it.words.slice(1).join() === [0,8,8,1,4,GPU.FORMAT_RGBA16F,3].join())).toBe(true);
   // glTexSubImage3D uploads the single z=2 slice.
   expect(ops(O.TEXTURE_UPDATE_EX).some((it) => it.words[4] === 2 && it.words[7] === 1 && it.words[5] === 2)).toBe(true);
   // Explicit mip levels 0,1,2 are uploaded level by level with their own sizes (not generated).

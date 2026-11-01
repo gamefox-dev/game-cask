@@ -56,7 +56,8 @@ for (const cross of [false, true])
           expect(d.logs.some(l => l.message.includes(`x64-gl-fbo ok ${contract}`)), contract).toBe(true);
         expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
         expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
-        expect(m.gl_approximations).toBe(4);
+        expect(m.gl_approximations).toBe(2);
+        expect(m.gl_approximation_kinds).toEqual(['GL_CLAMP_TO_BORDER treated as CLAMP_TO_EDGE', 'GL_TEXTURE_LOD_BIAS ignored']);
         const px = await readPixels(p);
         if (hardwarePixels()) for (const probe of probes) {
           const x = Math.floor(d.letterbox.x + (probe.x + .5) * d.letterbox.w / 320);

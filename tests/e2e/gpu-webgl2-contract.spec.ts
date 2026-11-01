@@ -82,10 +82,11 @@ test('GPU WebGL2: shaders fail once during context loss and queued uploads resto
   async ({ page, backendParam }) => {
     test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');
     const r = await probe<{ calls: number; failedCalls: number; status: number; log: string; update: number;
-      errors: string[]; pixel: number[] }>(page, 'lossProbe', 'gpu-webgl2-loss-probe.ts');
+      clearCodes: number[]; restoredTexel: number[]; errors: string[]; pixel: number[] }>(page, 'lossProbe', 'gpu-webgl2-loss-probe.ts');
     expect(r.calls).toBe(1); expect(r.failedCalls).toBe(1);
     expect(r.status).toBe(-6); expect(r.log).toContain('lost');
-    expect(r.update).toBe(-6); expect(r.errors).toEqual([]); near(r.pixel, [255, 0, 0, 255]);
+    expect(r.update).toBe(-6); expect(r.clearCodes).toEqual([-6,-6,-6]); expect(r.restoredTexel).toEqual([7,11,13,255]);
+    expect(r.errors).toEqual([]); near(r.pixel, [255, 0, 0, 255]);
   });
 
 // Catches native stride limits leaking into the portable ABI and missing first_instance fetch offsets.

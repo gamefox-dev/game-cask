@@ -25,6 +25,15 @@ static const Fmt fmts[] = {
     F(0x881b, 4, 3, K_COLOR, 0, 1, 16, 16, 16, 0, 0, 0), F(0x881a, 4, 4, K_COLOR, 0, 1, 16, 16, 16, 16, 0, 0),
     F(0x822e, 10, 1, K_COLOR, 0, 1, 32, 0, 0, 0, 0, 0), F(0x8230, 11, 2, K_COLOR, 0, 1, 32, 32, 0, 0, 0, 0),
     F(0x8815, 12, 3, K_COLOR, 0, 1, 32, 32, 32, 0, 0, 0), F(0x8814, 12, 4, K_COLOR, 0, 1, 32, 32, 32, 32, 0, 0),
+    F(0x8232, 13, 1, K_COLOR, 0, 0, 8, 0, 0, 0, 0, 0), F(0x8231, 14, 1, K_COLOR, 0, 0, 8, 0, 0, 0, 0, 0),
+    F(0x8234, 15, 1, K_COLOR, 0, 0, 16, 0, 0, 0, 0, 0), F(0x8233, 16, 1, K_COLOR, 0, 0, 16, 0, 0, 0, 0, 0),
+    F(0x8236, 17, 1, K_COLOR, 0, 0, 32, 0, 0, 0, 0, 0), F(0x8235, 18, 1, K_COLOR, 0, 0, 32, 0, 0, 0, 0, 0),
+    F(0x8238, 19, 2, K_COLOR, 0, 0, 8, 8, 0, 0, 0, 0), F(0x8237, 20, 2, K_COLOR, 0, 0, 8, 8, 0, 0, 0, 0),
+    F(0x823a, 21, 2, K_COLOR, 0, 0, 16, 16, 0, 0, 0, 0), F(0x8239, 22, 2, K_COLOR, 0, 0, 16, 16, 0, 0, 0, 0),
+    F(0x823c, 23, 2, K_COLOR, 0, 0, 32, 32, 0, 0, 0, 0), F(0x823b, 24, 2, K_COLOR, 0, 0, 32, 32, 0, 0, 0, 0),
+    F(0x8d7c, 25, 4, K_COLOR, 0, 0, 8, 8, 8, 8, 0, 0), F(0x8d8e, 26, 4, K_COLOR, 0, 0, 8, 8, 8, 8, 0, 0),
+    F(0x8d76, 27, 4, K_COLOR, 0, 0, 16, 16, 16, 16, 0, 0), F(0x8d88, 28, 4, K_COLOR, 0, 0, 16, 16, 16, 16, 0, 0),
+    F(0x8d70, 29, 4, K_COLOR, 0, 0, 32, 32, 32, 32, 0, 0), F(0x8d82, 30, 4, K_COLOR, 0, 0, 32, 32, 32, 32, 0, 0),
     F(0x1902, 6, 0, K_DEPTH, 0, 0, 0, 0, 0, 0, 32, 0), F(0x81a5, 6, 0, K_DEPTH, 0, 0, 0, 0, 0, 0, 32, 0),
     F(0x81a6, 6, 0, K_DEPTH, 0, 0, 0, 0, 0, 0, 32, 0), F(0x81a7, 6, 0, K_DEPTH, 0, 0, 0, 0, 0, 0, 32, 0),
     F(0x8cac, 6, 0, K_DEPTH, 0, 1, 0, 0, 0, 0, 32, 0),
@@ -40,9 +49,9 @@ static const Fmt *find_fmt(uint32_t internal) {
 }
 /* Valid 3.3 internal formats this profile does not represent (neither stored nor approximated). */
 static int known_unsupported(uint32_t f) {
-    return (f >= 0x8231 && f <= 0x823c) || (f >= 0x8f94 && f <= 0x8f9b) || f == 0x822a || f == 0x822c ||
+    return (f >= 0x8f94 && f <= 0x8f9b) || f == 0x822a || f == 0x822c ||
         f == 0x805b || f == 0x8054 || f == 0x8053 || f == 0x805a || f == 0x8c3a || f == 0x8c3d || f == 0x906f ||
-        (f >= 0x8d70 && f <= 0x8d8f) || (f >= 0x83f0 && f <= 0x83f3) || (f >= 0x8dbb && f <= 0x8dbe) ||
+        (f >= 0x8d70 && f <= 0x8d74) || (f >= 0x8d77 && f <= 0x8d7a) || (f >= 0x8d7d && f <= 0x8d8f) || (f >= 0x83f0 && f <= 0x83f3) || (f >= 0x8dbb && f <= 0x8dbe) ||
         (f >= 0x84e9 && f <= 0x84ec) || (f >= 0x8c48 && f <= 0x8c4f) || f == 0x8e8c || f == 0x8e8d ||
         f == 0x8e8e || f == 0x8e8f || f == 0x8d62;
 }
@@ -123,7 +132,11 @@ static int valid_format(uint32_t f) {
     return f == 0x1903 || f == 0x8227 || f == 0x1907 || f == 0x80e0 || f == 0x1908 || f == 0x80e1 ||
         f == 0x1902 || f == 0x84f9 || (f >= 0x8d94 && f <= 0x8d9b) || f == 0x8228 || f == 0x1901;
 }
-static int integer_format(uint32_t f) { return (f >= 0x8d94 && f <= 0x8d9b) || f == 0x8228; }
+static int integer_format(uint32_t f) { return (f >= 0x8d94 && f <= 0x8d9b) || f == 0x8228 || f == 0x8d98 || f == 0x8d99; }
+static int integer_internal(const Fmt *f) { return f && f->bgt >= 13; }
+static int integer_unsigned(const Fmt *f) { return integer_internal(f) && (f->bgt & 1); }
+static uint32_t integer_type_bits(uint32_t t) { return t == T_UBYTE || t == T_BYTE ? 8 : t == T_USHORT || t == T_SHORT ? 16 : 32; }
+static int integer_type_signed(uint32_t t) { return t == T_BYTE || t == T_SHORT || t == T_INT; }
 static uint32_t format_comps(uint32_t f) {
     switch (f) {
     case 0x1903: case 0x1902: case 0x1901: case 0x8d94: return 1;
@@ -135,6 +148,13 @@ static uint32_t format_comps(uint32_t f) {
 /* Returns 0 if (format,type) is a legal combination, else the GL error to raise. */
 static uint32_t transfer_error(uint32_t format, uint32_t type) {
     if (!valid_format(format) || !valid_type(type)) return BAD_ENUM;
+    if (integer_format(format)) {
+        if (format == 0x8d94) return type == T_UBYTE || type == T_BYTE || type == T_USHORT || type == T_SHORT || type == T_UINT || type == T_INT ? 0 : BAD_OP;
+        if (format == 0x8228) return type == T_UBYTE || type == T_BYTE || type == T_USHORT || type == T_SHORT || type == T_UINT || type == T_INT ? 0 : BAD_OP;
+        return format == 0x8d98 || format == 0x8d99 ? (type == T_UBYTE || type == T_BYTE || type == T_USHORT || type == T_SHORT || type == T_UINT || type == T_INT ? 0 : BAD_OP) : BAD_OP;
+    }
+    if (format == 0x1902) return type == T_USHORT || type == T_UINT || type == T_FLOAT ? 0 : BAD_OP;
+    if (format == 0x84f9) return type == 0x84fa ? 0 : BAD_OP;
     if (type == 0x8c3b || type == 0x8c3e) return BAD_ENUM; /* packed-float transfers: documented limit */
     int rgbaf = format == 0x1908 || format == 0x80e1 || format == 0x8d99 || format == 0x8d9b;
     int rgbf = format == 0x1907 || format == 0x80e0 || format == 0x8d98 || format == 0x8d9a;
@@ -170,6 +190,7 @@ static void decode_pixel(uint32_t a, uint32_t format, uint32_t type, float *out)
             raw[3] = unorm_f(v & 3, 2); break;
         case 0x8368: for (int i = 0; i < 3; i++) raw[i] = unorm_f((v >> (10 * i)) & 1023, 10);
             raw[3] = unorm_f(v >> 30, 2); break;
+        case 0x84fa: raw[0] = unorm_f(v >> 8, 24); raw[1] = unorm_f(v & 255, 8); break;
         default: break;
         }
     } else for (uint32_t i = 0; i < comps; i++) {
@@ -200,8 +221,50 @@ static float clamp01(float f) { return f != f || f < 0 ? 0 : f > 1 ? 1 : f; }
 static uint8_t to_u8(float f) { return (uint8_t)(clamp01(f) * 255.0f + 0.5f); }
 static void put16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
 static void put32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
+static uint32_t integer_components(uint32_t bgt) {
+    if (bgt >= 13 && bgt <= 18) return 1;
+    if (bgt >= 19 && bgt <= 24) return 2;
+    if (bgt >= 25 && bgt <= 30) return 4;
+    return 0;
+}
+static uint32_t integer_component_bytes(uint32_t bgt) {
+    return (bgt == 13 || bgt == 14 || bgt == 19 || bgt == 20 || bgt == 25 || bgt == 26) ? 1 :
+        (bgt == 15 || bgt == 16 || bgt == 21 || bgt == 22 || bgt == 27 || bgt == 28) ? 2 : 4;
+}
+static int64_t read_integer(uint32_t a, uint32_t type) {
+    switch (type) {
+    case T_BYTE: return (int8_t)x86_rd8(a); case T_SHORT: return (int16_t)x86_rd16(a); case T_INT: return (int32_t)x86_rd32(a);
+    case T_UBYTE: return x86_rd8(a); case T_USHORT: return x86_rd16(a); default: return x86_rd32(a);
+    }
+}
+static int64_t clamp_integer(int64_t v, uint32_t bytes, int is_unsigned) {
+    int64_t lo = is_unsigned ? 0 : -((int64_t)1 << (bytes * 8 - 1));
+    int64_t hi = is_unsigned ? ((int64_t)1 << (bytes * 8)) - 1 : ((int64_t)1 << (bytes * 8 - 1)) - 1;
+    return v < lo ? lo : v > hi ? hi : v;
+}
+static void write_integer(uint8_t *p, uint32_t b, uint32_t v) {
+    if (b == 1) p[0] = (uint8_t)v; else if (b == 2) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+    else { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
+}
+static void decode_integer_pixel(uint32_t a, uint32_t format, uint32_t type, int64_t *out) {
+    uint32_t n = format_comps(format), b = type_bytes(type);
+    for (uint32_t i = 0; i < n; i++) out[i] = read_integer(a + i * b, type);
+}
+static void encode_integer_texel(uint8_t *p, uint32_t bgt, const int64_t *v) {
+    uint32_t n = integer_components(bgt), b = integer_component_bytes(bgt);
+    for (uint32_t i = 0; i < n; i++) write_integer(p + i * b, b, (uint32_t)clamp_integer(v[i], b, bgt & 1));
+}
+static void decode_integer_texel(const uint8_t *p, uint32_t bgt, int64_t *v) {
+    uint32_t n = integer_components(bgt), b = integer_component_bytes(bgt);
+    v[0] = v[1] = v[2] = 0; v[3] = 1;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t q = b == 1 ? p[i] : b == 2 ? p[i*2] | p[i*2+1] << 8 : p[i*4] | p[i*4+1] << 8 | p[i*4+2] << 16 | (uint32_t)p[i*4+3] << 24;
+        v[i] = bgt & 1 ? (int64_t)q : b == 1 ? (int8_t)q : b == 2 ? (int16_t)q : (int32_t)q;
+    }
+}
 static uint32_t storage_bytes(uint32_t bgt) {
-    static const uint32_t b[] = {4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16}; return b[bgt];
+    static const uint32_t b[] = {4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16,
+        1, 1, 2, 2, 4, 4, 2, 2, 4, 4, 8, 8, 4, 4, 8, 8, 16, 16}; return b[bgt];
 }
 /* Encode r,g,b,a into BGT storage `bgt`; rgb-only logical formats get alpha one. */
 static void encode_texel(uint8_t *p, uint32_t bgt, const float *v) {
@@ -210,6 +273,9 @@ static void encode_texel(uint8_t *p, uint32_t bgt, const float *v) {
     case 2: p[0] = to_u8(v[0]); break;
     case 3: p[0] = to_u8(v[0]); p[1] = to_u8(v[1]); break;
     case 4: for (int i = 0; i < 4; i++) put16(p + i * 2, f2h(v[i])); break;
+    case 5: put32(p, ((uint32_t)(clamp01(v[0]) * 16777215.0f + 0.5f) << 8) |
+        (uint32_t)(clamp01(v[1]) * 255.0f + 0.5f)); break;
+    case 6: put32(p, bits(clamp01(v[0]))); break;
     case 7: put32(p, (uint32_t)(clamp01(v[0]) * 1023.0f + 0.5f) | (uint32_t)(clamp01(v[1]) * 1023.0f + 0.5f) << 10 |
         (uint32_t)(clamp01(v[2]) * 1023.0f + 0.5f) << 20 | (uint32_t)(clamp01(v[3]) * 3.0f + 0.5f) << 30); break;
     case 8: put16(p, f2h(v[0])); break;
@@ -227,6 +293,9 @@ static void decode_texel(const uint8_t *p, uint32_t bgt, float *v) {
     case 2: v[0] = (float)p[0] / 255.0f; break;
     case 3: v[0] = (float)p[0] / 255.0f; v[1] = (float)p[1] / 255.0f; break;
     case 4: for (int i = 0; i < 4; i++) v[i] = h2f(p[i * 2] | p[i * 2 + 1] << 8); break;
+    case 5: { uint32_t u = p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
+        v[0] = (float)(u >> 8) / 16777215.0f; v[1] = (float)(u & 255) / 255.0f; break; }
+    case 6: { union { uint32_t u; float f; } w = {p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24}; v[0] = w.f; break; }
     case 7: { uint32_t u = p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
         v[0] = (float)(u & 1023) / 1023.0f; v[1] = (float)((u >> 10) & 1023) / 1023.0f;
         v[2] = (float)((u >> 20) & 1023) / 1023.0f; v[3] = (float)(u >> 30) / 3.0f; break; }

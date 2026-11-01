@@ -35,12 +35,33 @@
 #define BGT_GPU_FORMAT_R32F 10u
 #define BGT_GPU_FORMAT_RG32F 11u
 #define BGT_GPU_FORMAT_RGBA32F 12u
+/* Integer color formats: exact signed/unsigned texel storage, nearest sampling only. */
+#define BGT_GPU_FORMAT_R8UI 13u
+#define BGT_GPU_FORMAT_R8I 14u
+#define BGT_GPU_FORMAT_R16UI 15u
+#define BGT_GPU_FORMAT_R16I 16u
+#define BGT_GPU_FORMAT_R32UI 17u
+#define BGT_GPU_FORMAT_R32I 18u
+#define BGT_GPU_FORMAT_RG8UI 19u
+#define BGT_GPU_FORMAT_RG8I 20u
+#define BGT_GPU_FORMAT_RG16UI 21u
+#define BGT_GPU_FORMAT_RG16I 22u
+#define BGT_GPU_FORMAT_RG32UI 23u
+#define BGT_GPU_FORMAT_RG32I 24u
+#define BGT_GPU_FORMAT_RGBA8UI 25u
+#define BGT_GPU_FORMAT_RGBA8I 26u
+#define BGT_GPU_FORMAT_RGBA16UI 27u
+#define BGT_GPU_FORMAT_RGBA16I 28u
+#define BGT_GPU_FORMAT_RGBA32UI 29u
+#define BGT_GPU_FORMAT_RGBA32I 30u
 #define BGT_GPU_DIM_2D 0u
 #define BGT_GPU_DIM_3D 1u
 #define BGT_GPU_DIM_2D_ARRAY 2u
 #define BGT_GPU_LIMIT_VOLUME_DIMENSION 256u
 #define BGT_GPU_LIMIT_ARRAY_LAYERS 256u
 #define BGT_GPU_FORMAT_NONE 4294967295u
+/* CLEAR_BUFFER: kind bits 0..1, value class bits 2..3, color mask bits 4..7 (depth mask bit 4), stencil mask bits 8..15. */
+typedef struct { uint32_t kind_class_masks, index, value[4]; } bgt_gpu_clear_buffer_t;
 #define BGT_GPU_FILTER_NEAREST 0u
 #define BGT_GPU_FILTER_LINEAR 1u
 #define BGT_GPU_MIP_NONE 0u
@@ -360,6 +381,10 @@ typedef struct bgt_gpu_texture_generate_mips {
     uint32_t handle;
     uint32_t base_level;
 } bgt_gpu_texture_generate_mips_t; /* 8 bytes */
+typedef struct bgt_gpu_texture_allocate_mips {
+    uint32_t handle;
+    uint32_t allocated_mips;
+} bgt_gpu_texture_allocate_mips_t; /* 8 bytes */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(bgt_gpu_buffer_create_t) == 20, "GPU buffer_create layout");
 _Static_assert(sizeof(bgt_gpu_buffer_update_t) == 16, "GPU buffer_update layout");
@@ -394,6 +419,7 @@ _Static_assert(sizeof(bgt_gpu_texture_update_ex_t) == 40, "GPU texture_update_ex
 _Static_assert(sizeof(bgt_gpu_sampler_create_ex_t) == 44, "GPU sampler_create_ex layout");
 _Static_assert(sizeof(bgt_gpu_texture_readback_t) == 36, "GPU texture_readback layout");
 _Static_assert(sizeof(bgt_gpu_texture_generate_mips_t) == 8, "GPU texture_generate_mips layout");
+_Static_assert(sizeof(bgt_gpu_texture_allocate_mips_t) == 8, "GPU texture_allocate_mips layout");
 #endif
 
 #endif

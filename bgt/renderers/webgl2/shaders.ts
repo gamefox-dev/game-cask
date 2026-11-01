@@ -77,7 +77,7 @@ export function translateShader(source: string, stage: number, language: number)
   }
   const uniforms = /\buniform\s+(?:(?:lowp|mediump|highp)\s+)?(\w+)\s+([^;{]+);/g;
   for (const m of clean.matchAll(uniforms)) {
-    if (!/^(sampler2D|sampler2DShadow|sampler3D|sampler2DArray)$/.test(m[1]) || !/^bgt_t[0-7]$/.test(m[2].trim())) {
+    if (!/^(sampler2D|sampler2DShadow|sampler3D|sampler2DArray|isampler2D|usampler2D|isampler3D|usampler3D|isampler2DArray|usampler2DArray)$/.test(m[1]) || !/^bgt_t[0-7]$/.test(m[2].trim())) {
       throw new Error(`Illegal non-block uniform ${m[2]}`);
     }
   }
@@ -104,8 +104,8 @@ export function translateShader(source: string, stage: number, language: number)
     (linear.length ? '  bgt_internal_q = gl_Position.w;\n' : '');
   const linearFragment = linear.map(v => `  ${v.name} = bgt_internal_np_${v.name} / bgt_internal_q;\n`).join('');
   const header = '#version 300 es\nprecision highp float;\nprecision highp int;\n'+
-    'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp usampler2D;\n'+
-    'precision highp sampler3D;\nprecision highp sampler2DArray;\n' +
+    'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp isampler2D;\nprecision highp usampler2D;\n'+
+    'precision highp sampler3D;\nprecision highp sampler2DArray;\nprecision highp isampler3D;\nprecision highp usampler3D;\nprecision highp isampler2DArray;\nprecision highp usampler2DArray;\n' +
     (/\bmix\s*\(/.test(body) ? selectorMixOverloads(body) : '');
   if (stage === 1) return header + `
 uniform vec4 bgt_internal_view_transform;
