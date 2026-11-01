@@ -72,4 +72,17 @@ setup function builds their deduplicated declaration union. This handles file fi
 API selections and watch reruns without parsing CLI arguments. A permanent inventory assertion checks that the complete
 suite's declarations cover every kit example, including native package/ABI tests. Thus the full suite builds every
 example once without any special build-all fallback; focused runs never silently fall back to `--examples`. The existing browser npm scripts still
-build every example and their slice setup is unchanged. All assertions/timeouts/backend policies remain unchanged.
+build every example and their slice setup is unchanged (except the explicit CI partition below). All assertions/timeouts/backend policies remain unchanged.
+
+## CI cost partition (LANE-K7i)
+
+Plain `npm test` and `npm run build:examples` remain complete. `npm run lint` check-builds the 25 non-scale examples;
+`BGT_INCLUDE_SCALE=1 npm run lint` also check-builds `x64-scale`. Direct `build.mjs examples/x64-scale --check`
+always honors the explicit target. Both paths use the exact same object and Asyncify caches as package builds.
+
+The normal required CI job sets `BGT_CI_LIGHT=1`: it omits only `tests/unit/build-chunks.test.ts`, the scale browser
+spec and the scale example from bulk builds. A second unconditional required `scale` job runs the original scale
+unit file (including native checksum/chunk/cache tests), original WebGL2 browser spec and 300-frame differential
+oracle, and explicitly check-builds the scale fixture. No assertions are removed in aggregate. Each job has a
+45-minute ceiling for margin; timing estimates and actual CI evidence are recorded in the handoff. The optional
+WebGPU hardware job remains a full run, not a substitute for either required job.

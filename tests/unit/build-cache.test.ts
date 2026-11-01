@@ -10,7 +10,7 @@ import { objectKey, parseDependencies, prepareObjects } from '../../tools/build/
 // @ts-expect-error plain ESM build tool
 import { leaseCache, pruneCache, touchCache } from '../../tools/build/cache.mjs';
 // @ts-expect-error plain ESM build tool
-import { declaredExamples, testExamples } from '../../tools/build/test-examples.mjs';
+import { declaredExamples, selectExampleDirs, testExamples } from '../../tools/build/test-examples.mjs';
 import { ROOT } from '../support/headless';
 
 function compile(input: object): Promise<any> {
@@ -140,6 +140,14 @@ it('LRU collection respects live leases and hits, for both object and Asyncify p
     finally { active(); }
     expect(pruneCache(dir, 0).bytes).toBe(0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+it('scale check/CI selection partitions work without changing the full default example inventory', () => {
+  const dirs = ['examples/sample2d', 'examples/x64-scale', 'examples/x64-smoke'];
+  expect(selectExampleDirs(dirs, { check: false, light: false, includeScale: false })).toEqual(dirs);
+  expect(selectExampleDirs(dirs, { check: true, light: false, includeScale: false })).toEqual(['examples/sample2d', 'examples/x64-smoke']);
+  expect(selectExampleDirs(dirs, { check: true, light: false, includeScale: true })).toEqual(dirs);
+  expect(selectExampleDirs(dirs, { check: false, light: true, includeScale: true })).toEqual(['examples/sample2d', 'examples/x64-smoke']);
 });
 
 it('test declarations build only the selected examples, deduplicated, and reject non-kit paths', () => {

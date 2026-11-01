@@ -16,7 +16,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # LANE-K7i: required functional job; scale coverage lives in the required job below.
+    timeout-minutes: 45
+    env:
+      BGT_CI_LIGHT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,7 +45,7 @@ jobs:
       - run: npm run lint
       - name: Wasm sample build
         run: npm run build:examples
-      - run: npm test
+      - run: npm test -- --maxWorkers=1
       - name: Browser E2E (WebGL 2 fallback, software rendering)
         # Keep boot, fallback, guest/lifting/logic assertions; annotate skipped strict pixels.
         run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
@@ -53,6 +56,40 @@ jobs:
           path: |
             reports/e2e-results.json
             reports/e2e-html/
+          retention-days: 7
+
+  # LANE-K7i: required, not opt-in; preserves every heavy fixture assertion
+  # omitted by BGT_CI_LIGHT in the functional job. Plain npm test is still full.
+  scale:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Scale check-build (same object cache as package builds)
+        run: node tools/build/build.mjs examples/x64-scale --check
+      - name: Scale native checksum and unchanged chunk/cache unit assertions
+        run: npm test -- tests/unit/build-chunks.test.ts --maxWorkers=1
+      - name: Scale browser assertions (software WebGL 2)
+        run: BGT_E2E_SCALE_ONLY=1 BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-scale npx playwright test tests/e2e/x64-scale.spec.ts --project=chromium-webgl2
+      - name: Scale differential oracle — 300 frames
+        run: npm run oracle -- examples/x64-scale 300
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-report
+          path: |
+            reports/e2e-scale-results.json
+            reports/e2e-scale-html/
+            reports/oracle-x64-scale.json
           retention-days: 7
 
   webgpu:

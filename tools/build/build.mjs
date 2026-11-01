@@ -20,6 +20,7 @@ import { libcNotices } from './libc-notices.mjs';
 import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
 import { cacheDirectory, prepareObjects } from './objects.mjs';
+import { selectExampleDirs } from './test-examples.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -337,7 +338,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const si=argv.indexOf('--slice');
   const sliceCoverage=si>=0?argv.slice(si+1).flatMap((s)=>s.split(',')):null;
   if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
-  const targets = all || examples ? allGameDirs({ includePort: all }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
+  const targets = all || examples ? selectExampleDirs(allGameDirs({ includePort: all }), { check }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
   if (!targets.length) {
     console.error('usage: build.mjs <gameDir...> | --all | --examples [--check]');
     process.exit(1);

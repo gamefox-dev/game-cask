@@ -16,6 +16,12 @@ export function declaredExamples(file, root = ROOT) {
   }
   return [...new Set(ids)].sort();
 }
+// The normal CI job and the required scale job partition the full default suite.
+// Plain npm test has no exclusions. Never infer this policy from cache presence.
+export function ciLight() { return process.env.BGT_CI_LIGHT === '1'; }
+export function selectExampleDirs(dirs, { check = false, light = ciLight(), includeScale = process.env.BGT_INCLUDE_SCALE === '1' } = {}) {
+  return dirs.filter((dir) => !dir.replace(/\\/g, '/').endsWith('/x64-scale') || (!light && (!check || includeScale)));
+}
 export function testExamples(files, root = ROOT) {
   return [...new Set(files.flatMap((file) => declaredExamples(resolve(file), root)))].sort().map((id) => `examples/${id}`);
 }

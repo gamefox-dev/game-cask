@@ -20,9 +20,10 @@ export function portableFlags(flags, root = ROOT) {
   return [...flags, `-ffile-prefix-map=${root}=.`, `-fmacro-prefix-map=${root}=.`];
 }
 export function objectKey({ compiler, flags, file, dependencies, root = ROOT }) {
+  const pathFlag = (s) => isAbsolute(s) ? logicalPath(s, root) : s;
   const normalized = flags.map((s, i) => {
-    if (['-I', '-isystem', '-iquote', '-include', '-imacros'].includes(flags[i - 1])) return logicalPath(s, root);
-    for (const prefix of ['-I', '-isystem', '-iquote']) if (s.startsWith(prefix) && s !== prefix) return prefix + logicalPath(s.slice(prefix.length), root);
+    if (['-I', '-isystem', '-iquote', '-idirafter', '-include', '-imacros'].includes(flags[i - 1])) return pathFlag(s);
+    for (const prefix of ['-I', '-isystem', '-iquote', '-idirafter']) if (s.startsWith(prefix) && s !== prefix) return prefix + pathFlag(s.slice(prefix.length));
     if (s === `-ffile-prefix-map=${root}=.`) return '-ffile-prefix-map=@=.';
     if (s === `-fmacro-prefix-map=${root}=.`) return '-fmacro-prefix-map=@=.';
     return s; // Macro/string values are semantic bytes, NOT clone paths to rewrite.
