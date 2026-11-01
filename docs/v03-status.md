@@ -1,13 +1,30 @@
 # v0.3 merged implementation status
 
-Integration I3 on `integration/p1` adds **K1, FIX1–FIX3, K2, K3, LBR and LSC** to I2's combined Task 1/2a
-and **S1, E, G, WG, F, GL, W2, C** subsystems. K2, K3, LBR and LSC were merged in that order with `--no-ff`.
-I3 wires shared writable-VFS metadata, bounded kernel thread priority, protection-aware lifted spans and CI-review deadlines.
+Integration I5 on `integration/p1` merges **K6b** with `--no-ff` after **K6e, K6a, K6c and K6d**. K6a's texture/FBO
+and additive ABI §13.7 contracts coexist with K6b's GLSL preprocessor, shader/program objects and reflection.
+I5 enables floating 3D and 2D-array samplers through typed reflection, per-program texture-unit bindings, GLSL ES
+3.00 and WGSL; cube maps remain explicitly rejected. The earlier I4 CRT buffering/slice-discovery integration
+and I3 shared VFS, priority/protection, x87, bridge and scale work remain in place.
 This is still **0.3.0-dev.1**, a bounded kit-development delivery, not unrestricted Windows/OpenGL compatibility,
 a release certification, or a new game-playability claim. This merged ledger supersedes the old per-stage missing
 lists. Historical measurements remain in [verification.md](verification.md); lane details are in [handoff/](handoff/).
 
-## Merged verification
+## I5 merged verification
+
+Doctor, clang + real GCC lint (**27 examples**), typecheck and leakcheck pass. Full required-WebGPU browser suite:
+**208 passed / 51 existing intentional skips / 0 failed / 0 flaky** (WebGL 2 **94/24**, WebGPU **106/26**, auto **8/1**).
+All **23 pipeline examples × 300 frames = 6,900 identical pairs**, null errors, zero lifted interpretation and empty
+lifted stub lists. The unchanged default unit suite is **655 passed / 5 failed**, 59 files, no skips: only the merged
+K6e FIFO gate's sandbox-denied `ps`/liveness regressions fail. Reviewer-directed **external validation of
+`tests/unit/pi-harness.test.ts` on the exact commit is pending**; no sandbox change, skipped acceptance test or K7i
+cherry-pick is substituted. No full Tier 1-green claim is made while that gate is pending. Details and intermediate
+failures: [I5 handoff](handoff/integration-i5.md).
+The original CC0 `x64-gl-fbo` fixture now verifies typed sampler reflection, nonzero units 3/5 with unit-zero
+bindings cleared, distinct 3D slices/array layers, and shader-biased mips; all existing FBO/pixel assertions remain.
+Host frontend regressions cover dimensional sampler arrays, Y-only coordinate/gradient/fetch conversion,
+GLSL ES 3.00 declarations, WGSL texture types and retained shader bias. No tolerances or assertions were weakened.
+
+## Historical I3 merged verification
 
 - **Tier 1 green on final implementation `d5f836c`:** doctor ready; lint (ESLint, real GCC and all **22 example
   check-builds**), typecheck and leakcheck pass. Explicit host builds also pass with **clang 21 and GCC 14.2**,
@@ -46,10 +63,10 @@ Details, review findings, fixes and provenance: [K6d handoff](handoff/K6d.md).
 |---|---|---|
 | AMD64 execution, Task 1 | Shared decoder/interpreter/lifter, baseline SSE/SSE2, Win64 callbacks, TLS, MinGW C++ SEH/unwind; known-result and zero-interpretation fixtures | Not arbitrary Win64, MSVC personalities or AVX; bounded x87 model below |
 | CRT + memory, Task 2a | Shared 396-name CRT registry, normal -O2 C/STL native-reference fixtures, 600 MiB touched/153600 pages checked in a configured 2048 MiB window | Default 1024 MiB guest window, images 16–64 MiB; locale/files/math/formatting remain bounded |
-| S1 GPU ABI §13 | All 25 opcodes 0x40..0x58, C/TS layouts/encoders, resource/pass/budget validation, owned uploads/source, deferred shader results and negotiated limits | Frozen old IO/commands retained; capability and language support are separate |
+| S1 + K6a GPU ABI §13/§13.7 | All 30 opcodes 0x40..0x5d, C/TS layouts/encoders, 2D/3D/array storage, extra formats, LOD samplers, readback/mip generation, resource/pass/budget validation | Frozen old IO/commands and 80-byte limits retained; no cube/layered/depth-volume storage |
 | WG WebGPU | All §13 commands; native WGSL plus kit GLSL330/ES300→WGSL frontend; formats, MRT, depth/stencil, indexed/base-vertex/instances, recovery and ordered 2D/GPU screen/readback | Practical frontend, not unrestricted GLSL; explicit errors for unsupported syntax; language mask 7 |
 | W2 WebGL 2 | All §13 commands; GLSL330/ES300 execution, portable IDs/strides, MRT/depth/stencil/mips, interleaving/readback and actual context-loss restoration | WGSL is **WebGPU-only**; mask 6; CAP_GPU requires extensions and portable limits |
-| GL OpenGL profile | WGL/GL 3.3→§13; 360 names, 146 implemented / 214 explicit unsupported; seven-scene `x64-gl` real-backend goldens, colored ordered readback and cross-image comparison | Bounded GL subset; recording semantic oracle remains separate from real raster evidence |
+| GL OpenGL profile + K6a/K6b | WGL/GL 3.3→§13/§13.7; 360 names, 192 implemented / 168 explicit unsupported; textures/FBOs, preprocessing, active-uniform/block/attribute reflection, uniform arrays/structs; `x64-gl`, `x64-gl-fbo` and `x64-glsl` real-backend pixels | Bounded GL subset, not full GL 3.3; cube maps rejected; recording semantic oracle is separate from raster evidence |
 | E COM/audio/input | Class registry/identity/refcounts/task memory, WASAPI shared stereo float32/int16 + virtual clock, Raw Input, separate four-slot gamepads, XInput and best-effort rumble | No general COM marshaling, capture/exclusive audio, WinMM/DirectSound expansion, full HID or physical rumble verification |
 | C threads | Deterministic cooperative i386/AMD64 workers, waits/events/mutexes/semaphores/CS/SRW/CV/address waits, TLS/FLS/TEBs/last error and instruction quantum | Bounded single process; native callback continuations are LIFO, not general native fibers |
 | F codegen | Register-local AMD64 integer/common SSE emission, conservative flag liveness, guarded flat-memory spans, cold semantic/quantum boundaries | Correctness gates green; literal x64-crt performance acceptance remains **unmet** |
@@ -110,17 +127,23 @@ universal speedup. See [codegen handoff](handoff/codegen.md) and its committed b
 
 ### GPU / GL
 
-WGSL is not translated for WebGL 2. The maintained WG frontend does not implement unrestricted preprocessing,
-extensions, user-struct/out-parameter syntax, ordinary non-block uniform or sampler-array contracts. Both renderers
-restore uploaded resources but lose rendered attachments and emit reset/targets-lost events. Unrecoverable GPU
-resources are never silently migrated.
+WGSL is not translated for WebGL 2. The maintained WG frontend consumes canonical §13 shaders, not unrestricted
+preprocessing/extensions or ordinary non-block GL uniforms. K6b's bounded C frontend preprocesses, reflects and
+flattens those uniforms, arrays/structs, blocks and constant sampler-array elements before backend compilation;
+the WG frontend supports user structs and local out/inout arguments. Both renderers restore uploaded resources
+but lose rendered attachments and emit reset/targets-lost events; unrecoverable resources are never silently migrated.
 
 GL names are bounded to 255 per object type, caches to 128 descriptors, one current WGL context and one shader per
-stage. Replaced source/uploads retain arena bytes. Uniform arrays/structs and preprocessing-dependent reflection,
-non-square matrices, mapping/query/sync APIs, arbitrary framebuffer readback, depth uploads, conversions outside
+stage. The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
+8 samplers/7 user blocks); texture uploads remain bounded by the ABI. K6a adds color texture/FBO readback and
+validated pixel-store conversion, nonzero mips, renderbuffers and multiple draw buffers. No cube/1D/rectangle/MSAA,
+layered/3D attachment, depth transfer or integer/SNORM/compressed-format support is claimed. Array-shadow/integer
+samplers, dynamic sampler indexing/parameters, row-major/block-array/interface-block translation and specified
+non-square matrix forms remain unsupported. Mapping/query/sync APIs, conversions outside
 float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1, scissored/masked clears, reversed depth ranges
-and constant-alpha combinations are unsupported or visibly rejected. ReadPixels is in-bounds screen RGBA/u8 only.
-See [GL handoff](handoff/gl-profile.md) for the exact exclusions. I2 now compiles/rasterizes `x64-gl` on both actual
+and constant-alpha combinations are unsupported or visibly rejected. Legal border wrap and LOD bias parameters
+remain queryable counted approximations. See [K6a](handoff/K6a.md), [K6b](handoff/K6b.md) and the superseding
+[I5 integration](handoff/integration-i5.md) limits. I2 compiles/rasterizes `x64-gl` on both actual
 backends, with per-tile goldens, side-effecting UV evaluation, colored ordered readback and cross-image comparisons.
 One `gpu-scenes` fixture supplies common GLSL/ES scenes to both backends; native WGSL/lifetime extras remain selectable
 within that fixture, not a duplicate executable. [Tolerance and launch details](../examples/gpu-scenes/README.md).

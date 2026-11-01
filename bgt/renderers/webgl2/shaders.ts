@@ -65,15 +65,29 @@ export function translateShader(source: string, stage: number, language: number)
     }
   }
   if (stage === 2) fragmentOutputs(clean); // Reject forms we cannot reliably reflect, never ignore outputs.
-  const body = clean.replace(/^\s*#version[^\n]*(?:\n|$)/, '')
+  // GLSL ES 3.00 has no `noperspective`. Screen-linear interpolation is exact when the vertex stage forwards
+  // value*w and w through the perspective-correct path and the fragment stage divides them: sum(l*v*w/w)/sum(l*w/w).
+  const linear: { type: string; name: string }[] = [];
+  const qualified = new RegExp(`\\bnoperspective\\s+${stage === 1 ? 'out' : 'in'}\\s+(?:(?:lowp|mediump|highp)\\s+)?(\\w+)\\s+(\\w+)\\s*;`, 'g');
+  let text = clean.replace(qualified, (_m, type: string, name: string) => {
+    linear.push({ type, name });
+    return `${stage === 1 ? 'out' : 'in'} ${type} bgt_internal_np_${name}; ${type} ${name};`;
+  });
+  text = text.replace(/\bnoperspective\b/g, '');
+  const body = text.replace(/^\s*#version[^\n]*(?:\n|$)/, '')
     .replace(/\bmain\s*\(/g, 'bgt_internal_main(');
+  const linearOut = linear.length && stage === 1 ? 'out float bgt_internal_q;\n' : '';
+  const linearIn = linear.length && stage === 2 ? 'in float bgt_internal_q;\n' : '';
+  const linearVertex = linear.map(v => `  bgt_internal_np_${v.name} = ${v.name} * gl_Position.w;\n`).join('') +
+    (linear.length ? '  bgt_internal_q = gl_Position.w;\n' : '');
+  const linearFragment = linear.map(v => `  ${v.name} = bgt_internal_np_${v.name} / bgt_internal_q;\n`).join('');
   const header = '#version 300 es\nprecision highp float;\nprecision highp int;\n'+
     'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp usampler2D;\n'+
     'precision highp sampler3D;\nprecision highp sampler2DArray;\n';
   if (stage === 1) return header + `
 uniform vec4 bgt_internal_view_transform;
 out vec3 bgt_internal_clip;
-uniform highp uint bgt_internal_instance;
+${linearOut}uniform highp uint bgt_internal_instance;
 uniform highp uint bgt_internal_vertex;
 uniform bool bgt_internal_remap;
 uniform highp usampler2D bgt_internal_ids;
@@ -85,7 +99,7 @@ uniform int bgt_internal_id_width;
 ${body}
 void main() {
   bgt_internal_main();
-  bgt_internal_clip = vec3(gl_Position.xy, gl_Position.w);
+${linearVertex}  bgt_internal_clip = vec3(gl_Position.xy, gl_Position.w);
   gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;
   gl_Position.y = -gl_Position.y;
   gl_Position.xy = gl_Position.xy * bgt_internal_view_transform.xy +
@@ -93,12 +107,12 @@ void main() {
   gl_PointSize = 1.0;
 }\n`;
   return header + `in vec3 bgt_internal_clip;
-#define bgt_frag_coord gl_FragCoord
+${linearIn}#define bgt_frag_coord gl_FragCoord
 ${body}
 void main() {
   // Preserve original clip planes after the fractional viewport transform, including points/lines
   // whose footprint overlaps the viewport although their centres are outside BGT clip space.
   if (any(greaterThan(abs(bgt_internal_clip.xy), vec2(bgt_internal_clip.z)))) discard;
-  bgt_internal_main();
+${linearFragment}  bgt_internal_main();
 }\n`;
 }

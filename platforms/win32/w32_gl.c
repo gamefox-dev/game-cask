@@ -94,13 +94,7 @@ static void missing(const char *name) {
 typedef struct { uint32_t used, size, gpu; uint8_t *data; } Buffer;
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
 typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
-typedef struct { uint32_t used, type, compiled, gpu, deleted; char *source; char log[4096]; } Shader;
-typedef struct { char name[64], type[32]; uint32_t offset, size, sampler, unit, dim, shadow; } Uniform;
-typedef struct { char name[64]; uint32_t binding; } Block;
-typedef struct {
-    uint32_t used, linked, vs, fs, vgpu, fgpu, nu, nb, ubuf, dirty, nout;
-    Uniform u[64]; Block block[7]; uint8_t values[4096]; char log[4096];
-} Program;
+#include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
 static Buffer buffers[N]; static Vao vaos[N];
 static Shader shaders[N]; static Program programs[N];
 static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];

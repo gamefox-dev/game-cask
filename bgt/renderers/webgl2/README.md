@@ -1,8 +1,8 @@
 # WebGL 2 §13 backend
 
-`WebGL2Gpu` executes all 25 GPU opcodes in `Frame.items` order. `WebGL2Renderer` restores legacy GL state at
+`WebGL2Gpu` executes all 30 GPU §13/§13.7 opcodes in `Frame.items` order. `WebGL2Renderer` restores legacy GL state at
 GPU/2D boundaries. The runtime connects `Renderer.gpu` to the host and advertises `CAP_GPU` only when
-`languages != 0`. No wire-layout or ABI changes are introduced here; ABI §13 remains the contract.
+`languages != 0`. The five additive K6a texture/sampler operations retain all legacy wire layouts.
 
 ## Capability and language support
 
@@ -19,6 +19,16 @@ desktop-only GLSL constructs fail with a compilation request log, rather than si
 validates block names, masks, texture uniforms, input scalar/vector types and linked output locations (including
 arrays). Interface declarations must be explicit, not hidden in preprocessor macros. Uniforms use
 std140 `bgt_u0..7`; sampler uniforms use `bgt_t0..7`. Native/private builtin access is rejected.
+GLSL ES 3.00 has no `noperspective`: the vertex wrapper forwards `value * w` and `w` through the ordinary
+perspective-correct varying path and the fragment wrapper divides them, which gives exact screen-linear
+interpolation. ES has no implicit int-to-float conversions and the GL profile cannot type-check function bodies,
+so desktop shaders relying on them fail with the native ES compiler's log (WebGPU's frontend is more tolerant).
+
+I5 carries floating `sampler3D`/`sampler2DArray` reflection and dimension-specific texture-unit binding through
+the GL profile to GLSL ES 3.00 declarations and §13.7 storage. Coordinate conversion flips Y only, preserving
+volume Z and array layer; gradients and integer fetches follow the same convention. `x64-gl-fbo` asserts typed
+reflection, units 3/5 and pixels for both dimensions on WebGL 2 and WebGPU. Cube maps remain explicitly rejected
+(no cube storage in the ABI); array-shadow/integer samplers are also outside the supported GL subset.
 
 **WGSL is WebGPU-only.** This backend does not ship an npm WGSL translator and does not advertise the WGSL bit.
 No dependency was added or fetched. A WGSL fixture is therefore not claimed here; WebGPU is a separate lane.

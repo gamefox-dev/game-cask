@@ -34,6 +34,7 @@
     X(PFNGLGETTEXIMAGEPROC, glGetTexImage) X(PFNGLGETTEXLEVELPARAMETERIVPROC, glGetTexLevelParameteriv) \
     X(PFNGLGETTEXPARAMETERFVPROC, glGetTexParameterfv) X(PFNGLGETTEXPARAMETERIVPROC, glGetTexParameteriv) \
     X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
+    X(PFNGLGETACTIVEUNIFORMPROC, glGetActiveUniform) X(PFNGLGETUNIFORMIVPROC, glGetUniformiv) \
     X(PFNGLPIXELSTOREIPROC, glPixelStorei) X(PFNGLREADBUFFERPROC, glReadBuffer) X(PFNGLREADPIXELSPROC, glReadPixels) \
     X(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage) X(PFNGLSHADERSOURCEPROC, glShaderSource) \
     X(PFNGLSTENCILFUNCPROC, glStencilFunc) X(PFNGLSTENCILOPPROC, glStencilOp) X(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
@@ -123,9 +124,9 @@ int main(void) {
     p_tex = program("#version 330 core\nin vec2 tc; layout(location=0) out vec4 color; uniform sampler2D img;"
         "uniform vec4 tint; uniform vec4 zsel; void main(){ color=textureLod(img,tc,zsel.y)*tint; }");
     p_vol = program("#version 330 core\nin vec2 tc; layout(location=0) out vec4 color; uniform sampler3D vol;"
-        "uniform vec4 zsel; void main(){ color=texture(vol,vec3(tc,zsel.x)); }");
+        "uniform vec4 zsel; void main(){ color=texture(vol,vec3(tc,zsel.x),zsel.y); }");
     p_arr = program("#version 330 core\nin vec2 tc; layout(location=0) out vec4 color; uniform sampler2DArray arr;"
-        "uniform vec4 zsel; void main(){ color=texture(arr,vec3(tc,zsel.x)); }");
+        "uniform vec4 zsel; void main(){ color=texture(arr,vec3(tc,zsel.x),zsel.y); }");
     p_flat = program("#version 330 core\nin vec2 tc; layout(location=0) out vec4 color; uniform vec4 tint;"
         "void main(){ color=tint; }");
     p_mrt = program("#version 330 core\nin vec2 tc; layout(location=0) out vec4 c0; layout(location=1) out vec4 c1;"
@@ -143,6 +144,25 @@ int main(void) {
     (void)tint_tex; (void)zsel_tex;
     GLint zsel_vol = glGetUniformLocation(p_vol, "zsel"), zsel_arr = glGetUniformLocation(p_arr, "zsel");
     GLint tint_flat = glGetUniformLocation(p_flat, "tint");
+    /* Integration regression: reflection must retain the GL sampler type while bindings
+     * use nonzero texture units (not the canonical shader slot). */
+    const GLuint dimensional_programs[] = {p_vol, p_arr};
+    const GLenum dimensional_types[] = {GL_SAMPLER_3D, GL_SAMPLER_2D_ARRAY};
+    const char *dimensional_names[] = {"vol", "arr"};
+    const GLint dimensional_units[] = {3, 5};
+    for (unsigned i = 0; i < 2; i++) {
+        GLint count = 0, found = 0; glGetProgramiv(dimensional_programs[i], GL_ACTIVE_UNIFORMS, &count);
+        for (GLint j = 0; j < count; j++) {
+            char name[80]; GLint size = 0; GLenum type = 0;
+            glGetActiveUniform(dimensional_programs[i], (GLuint)j, sizeof name, 0, &size, &type, name);
+            if (!strcmp(name, dimensional_names[i])) found = size == 1 && type == dimensional_types[i];
+        }
+        note(i ? "sampler2DArray reflection" : "sampler3D reflection", found);
+        glUseProgram(dimensional_programs[i]);
+        GLint loc = glGetUniformLocation(dimensional_programs[i], dimensional_names[i]), value = -1;
+        glUniform1i(loc, dimensional_units[i]); glGetUniformiv(dimensional_programs[i], loc, &value);
+        note(i ? "sampler2DArray unit 5" : "sampler3D unit 3", value == dimensional_units[i]);
+    }
     expect_error(GL_NO_ERROR, "setup");
 
     /* ---- Tile 0: depth-only FBO with a DEPTH_COMPONENT24 texture allocated with NULL data ---- */
@@ -247,6 +267,10 @@ int main(void) {
         glBindTexture(GL_TEXTURE_2D_ARRAY, layers); glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
         unsigned char small[8]; glGetTexImage(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA, GL_UNSIGNED_BYTE, small);
         note("array mip layers stay independent", small[0] == 255 && small[1] == 0 && small[4] == 0 && small[5] == 255);
+        /* Distinguishable mip-1 colours make shader texture() bias observable. */
+        const unsigned char biased_layers[] = {0,0,255,255, 255,255,0,255};
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 1, 0, 0, 0, 1, 1, 2, GL_RGBA, GL_UNSIGNED_BYTE, biased_layers);
+        expect_error(GL_NO_ERROR, "array explicit biased mip");
     }
     glBindTexture(GL_TEXTURE_2D, wrap_tex);
     glTexImage3D(GL_TEXTURE_2D, 0, GL_RGBA8, 2, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); expect_error(GL_INVALID_ENUM, "TexImage3D 2D target");
@@ -475,12 +499,22 @@ int main(void) {
         set_tint(1, 1, 1, 1);
         tile(7); glBindTexture(GL_TEXTURE_2D, mrt0); quad(0, -0.5f, 0, 0.5f, 1, 0, 1, 1);
         glBindTexture(GL_TEXTURE_2D, mrt1); quad(0, 0.5f, 0, 0.5f, 1, 0, 1, 1);
-        glUseProgram(p_vol); glBindTexture(GL_TEXTURE_3D, volume); glUniform4f(zsel_vol, 0.375f, 0, 0, 0);
+        /* Poison the old default-unit path: units 3/5 are the only complete dimensional bindings. */
+        glBindTexture(GL_TEXTURE_3D, 0); glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        glActiveTexture(GL_TEXTURE3);
+        glUseProgram(p_vol); glBindTexture(GL_TEXTURE_3D, volume);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+        glUniform4f(zsel_vol, 0.375f, 0, 0, 0);
         tile(3); quad(1, -0.5f, 0, 0.5f, 1, 0, 1, 1);
         glUniform4f(zsel_vol, 0.625f, 0, 0, 0); quad(1, 0.5f, 0, 0.5f, 1, 0, 1, 1);
-        glUseProgram(p_arr); glBindTexture(GL_TEXTURE_2D_ARRAY, layers); tile(4);
+        glUniform4f(zsel_vol, 0.625f, 14, 0, 0); quad(1, 0.9f, 0, 0.1f, 1, 0, 1, 1);
+        glActiveTexture(GL_TEXTURE5);
+        glUseProgram(p_arr); glBindTexture(GL_TEXTURE_2D_ARRAY, layers);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST); tile(4);
         glUniform4f(zsel_arr, 0, 0, 0, 0); quad(2, -0.5f, 0, 0.5f, 1, 0, 1, 1);
         glUniform4f(zsel_arr, 1, 0, 0, 0); quad(2, 0.5f, 0, 0.5f, 1, 0, 1, 1);
+        glUniform4f(zsel_arr, 1, 14, 0, 0); quad(2, 0.9f, 0, 0.1f, 1, 0, 1, 1);
+        glActiveTexture(GL_TEXTURE0);
         if (glGetError() != GL_NO_ERROR) { OutputDebugStringA("x64-gl-fbo unexpected GL error"); failures++; }
         frame++; SwapBuffers(dc);
     }

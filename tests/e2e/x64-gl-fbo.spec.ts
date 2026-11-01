@@ -18,8 +18,11 @@ const probes = [
   { name: '3D texture slice 1 voxel (0,0)', x: 250, y: 75, rgb: [60, 0, 0], tolerance: 2 },
   { name: '3D texture slice 1 voxel (1,0)', x: 270, y: 75, rgb: [60, 200, 0], tolerance: 2 },
   { name: '3D texture slice 2 after TexSubImage3D', x: 300, y: 25, rgb: [255, 255, 255], tolerance: 2 },
+  { name: '3D sampler unit 3: updated slice lower row', x: 300, y: 75, rgb: [255, 255, 255], tolerance: 2 },
   { name: '2D array layer 0', x: 20, y: 150, rgb: [255, 0, 0], tolerance: 2 },
   { name: '2D array layer 1', x: 60, y: 150, rgb: [0, 255, 0], tolerance: 2 },
+  { name: '3D texture() bias selects generated mip 2', x: 316, y: 50, rgb: [124, 139, 139], tolerance: 3 },
+  { name: 'array texture() bias selects explicit mip 1 layer 1', x: 76, y: 150, rgb: [255, 255, 0], tolerance: 2 },
   { name: 'explicit mip level 1 selected by textureLod', x: 100, y: 150, rgb: [0, 255, 0], tolerance: 2 },
   { name: 'MAX_LEVEL clamps explicit LOD to level 1', x: 120, y: 150, rgb: [0, 255, 0], tolerance: 2 },
   { name: 'BASE_LEVEL 1 with non-mip min filter', x: 147, y: 150, rgb: [0, 255, 0], tolerance: 2 },
@@ -47,6 +50,10 @@ for (const cross of [false, true])
         expect(failures, JSON.stringify(d.logs)).toEqual([]);
         expect(d.logs.filter(l => l.message.includes('x64-gl-fbo unexpected GL error'))).toEqual([]);
         expect(d.logs.some(l => l.message.includes('x64-gl-fbo PASS failures=0')), JSON.stringify(d.logs)).toBe(true);
+        // Integration regression: success must include actual typed reflection and nonzero-unit binding,
+        // not merely a shader that happened to sample texture unit zero. The probes below rasterize both.
+        for (const contract of ['sampler3D reflection', 'sampler2DArray reflection', 'sampler3D unit 3', 'sampler2DArray unit 5'])
+          expect(d.logs.some(l => l.message.includes(`x64-gl-fbo ok ${contract}`)), contract).toBe(true);
         expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
         expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
         expect(m.gl_approximations).toBe(4);

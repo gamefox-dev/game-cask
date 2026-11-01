@@ -189,9 +189,9 @@ static uint32_t fallback_texture(uint32_t dim, int shadow) {
     }
     return id;
 }
-static uint32_t fallback_sampler(int shadow) {
+static uint32_t fallback_sampler(int shadow, uint32_t dimension) {
     Texture t; zero(&t, sizeof t); params_init(&t.p); t.p.min = t.p.mag = 0x2600; t.p.ws = t.p.wt = t.p.wr = 0x812f;
-    t.gmips = 1; t.p.cmp_func = 0x207; return sampler_id(&t, 0, shadow, 0);
+    t.gmips = 1; t.p.cmp_func = 0x207; return sampler_id(&t, 0, shadow, dimension);
 }
 static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t first, uint32_t index_type,
         uint32_t index_offset, int32_t base_vertex) {
@@ -211,15 +211,18 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (programs[program].nout > tg.ncolor) tg.ncolor = programs[program].nout;
     if (!tg.ncolor && !tg.has_depth && !tg.has_stencil) return 0;
     Program *p = &programs[program]; uint32_t smask = 0, umask = 1, sampler_ids[8] = {0}, bound[8] = {0};
-    for (uint32_t i = 0; i < p->nu; i++) if (p->u[i].sampler) {
-        uint32_t unit = p->u[i].unit, slot = p->u[i].sampler - 1, dim = p->u[i].dim, shadow = p->u[i].shadow;
+    for (uint32_t slot = 0; slot < p->nslots; slot++) {
+        uint32_t unit = p->slot_unit[slot], dim = p->info->slot_dim[slot], shadow = p->info->slot_shadow[slot];
+        /* Different sampler types must not alias the same GL texture unit. */
+        for (uint32_t j = 0; j < slot; j++) if (p->slot_unit[j] == unit &&
+            (p->info->slot_dim[j] != dim || p->info->slot_shadow[j] != shadow)) { fail(BAD_OP); return 0; }
         uint32_t id = tex_bind[dim][unit]; const Sampler *so = samp[unit] ? &samplers[samp[unit]] : 0;
         if (id && tex_complete(&textures[id], so, shadow)) {
             Texture *t = &textures[id];
             if (t->gpu == tg.ds.gpu && (tg.has_depth || tg.has_stencil)) { fail(BAD_OP); return 0; }
             for (uint32_t c = 0; c < tg.ncolor; c++) if (!tg.gap[c] && tg.color[c].gpu == t->gpu && tg.color[c].gpu) { fail(BAD_OP); return 0; }
             bound[slot] = t->gpu; sampler_ids[slot] = sampler_id(t, so, shadow, dim);
-        } else { bound[slot] = fallback_texture(dim, shadow); sampler_ids[slot] = fallback_sampler(shadow); }
+        } else { bound[slot] = fallback_texture(dim, shadow); sampler_ids[slot] = fallback_sampler(shadow, dim); }
         smask |= 1 << slot;
     }
     for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
@@ -299,7 +302,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }
     float h = (float)tg.h; copy(p->values, &h, 4);
-    SEND(0x41, p->ubuf, 0, PTR(p->values), 4096); p->dirty = 0;
+    SEND(0x41, p->ubuf, 0, PTR(p->values), p->usize); p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
     uint32_t vp[] = {bits((float)viewport[0]), bits(h - viewport[1] - viewport[3]), bits((float)viewport[2]),
@@ -318,13 +321,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
-    uint32_t ub[] = {0, p->ubuf, 0, 4096}; op(0x55, ub, 4);
+    uint32_t ub[] = {0, p->ubuf, 0, p->usize}; op(0x55, ub, 4);
     for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
         uint32_t b[] = {i + 1, buffers[ubo[s]].gpu, ubo_offset[s], ubo_size[s]}; op(0x55, b, 4);
     }
-    for (uint32_t i = 0; i < p->nu; i++) if (p->u[i].sampler) {
-        uint32_t slot = p->u[i].sampler - 1, unit = p->u[i].unit;
-        uint32_t t[] = {slot, bound[slot], sampler_ids[slot]}; (void)unit; op(0x56, t, 3);
+    for (uint32_t slot = 0; slot < p->nslots; slot++) {
+        uint32_t t[] = {slot, bound[slot], sampler_ids[slot]}; op(0x56, t, 3);
     }
     if (index_type) {
         uint32_t b[] = {ib->gpu, index_type == U32, 0, ib->size}; op(0x54, b, 4);
