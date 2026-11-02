@@ -1,5 +1,19 @@
 # v0.3 merged implementation status
 
+## Integration I9 checkpoint — K14b + K14a + K15h
+
+Ordered `--no-ff` merges **`db5dc46`** (K14b / `c09faa7`), **`5bbe48a`** (K14a / `fe3b72e`), then
+**`f6f8028`** (K15h / `12efec7`) retain K10/K11/K13 and K12 behavior. Repairs **`9b86642`**, **`323f07f`**,
+**`730c09c`**, **`3f42927`** fix anonymous struct-field hygiene, C local-struct shadowing, TS inline instance
+bindings and sampler-compatible overload reflection, each with failing-before regressions. Latest focused
+evidence: **120 unit tests**, **4 browser tests on both backends**, and scratch-only **543 captured submissions /
+104 unique stages + one reprocessed fragment: 105/105 native stage compiles on each backend**. Doctor, lint
+(clang + real GCC; 33 default example checks) and typecheck pass on `3f42927`. **Full units are still running;
+full e2e, leakcheck and the 30 default + three fast 300-frame oracles remain pending. No final Tier1 PASS claim.**
+The anonymous-field repair has an independent bounded PASS; focused re-review of the three later vK14a repairs
+is pending. Exact live-job paths, before/after evidence and continuation instructions:
+[I9 checkpoint](handoff/integration-i9.md). Historical lane/checkpoint counts below are not final I9 evidence.
+
 ## Integration I8 final three-lane checkpoint — K11 + K10 + K13
 
 Ordered merges remain **`140b96c`** (K11 / `2124b13`), **`aa0f739`** (K10 / `f1fd1d9`), then **`fb1ce3d`**
