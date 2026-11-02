@@ -1,5 +1,17 @@
 # v0.3 merged implementation status
 
+## Integration I8 — K11 + K10 over K12
+
+Ordered `--no-ff` merges **`140b96c`** (K11 / `2124b13`) then **`aa0f739`** (K10 / `f1fd1d9`) preserve K12's
+segregated heap and K9's GL work. Size remains default; fast is opt-in. K10 coverage/strict checks and census reasons
+are exercised in both presets, including affine quantum/guard boundaries and suspending handwritten overrides.
+Final merged implementation gates: doctor, ESLint + clang/real-GCC lint (**33 example check-builds**, including scale),
+typecheck and leakcheck pass; **1,020 unit tests / 79 files**, **232 browser passes / 51 unchanged intentional skips**,
+both required backends. **29 default pipeline oracles × 300 = 8,700 identical pairs**, plus CRT/C++/scale in fast
+(**900 more pairs**); the explicit size/fast matrix repeats three size controls (**10,500 total compared pairs**).
+All lifted runs have zero interpreted instructions and empty stubs. Fresh independent bounded source follow-up passes;
+no engine-speedup, first-draw or F-PERF-CRT closure claim. Details: [I8 handoff](handoff/integration-i8.md).
+
 ## K11 — opt-in lifted-code speed policies
 
 K11 delivers opt-in AMD64 memory/ALU/attribute/counting policies (`pipeline.liftPreset: "fast"`, size-oriented defaults retained); **807 units / 66 files**, **218 browser passes / 51 unchanged skips**, **25 default pipeline oracles ×300** plus **6 ×2 policy oracles ×300** pass. Full measurements, bounded independent validation and explicit no-engine-speedup boundary: [K11 handoff](handoff/K11.md).
