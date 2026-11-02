@@ -564,6 +564,16 @@ faults; cache collisions re-report rather than discard evidence. The host's inde
 unchanged. Abrupt external wasm traps may leave a final unflushed tail; do not package an errored recording.
 C/TS layout, normal/malformed descriptors, both backend selections, intersection and strict-stop fixtures cover this.
 
+### Strict slice first-entry observation (K10, additive optional export)
+
+`u32 bgt_slice_first_entry(void)` optionally returns a pointer to read-only
+`bgt_slice_first_entry_t` (`u32 address,kind`, 8 bytes; TS `SLICE_FIRST_ENTRY`), or 0 before any accepted guest entry.
+It records the first **actually checked/executed entry**, with kind 1 lifted / 2 interpreted, never a fabricated
+compiled entry. The shared host validates the pointer/kind and incorporates that single observation when reading
+metrics/coverage. Both backends use the same decoder. No hot-path import, per-entry buffer or command addition;
+strict successful-path recording remains absent apart from this one bounded startup observation. Missing-code
+observations still use slice_missing. C/TS layout and strict browser coverage regressions retain their assertions.
+
 ## 13. v0.3 GPU layer (additive interface)
 
 This section is normative for the wire interface, validator and future backend/profile implementations. Execution

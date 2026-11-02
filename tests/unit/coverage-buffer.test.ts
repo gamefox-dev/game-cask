@@ -25,8 +25,10 @@ it('strict builds have no coverage import and enforce exact half-open membership
   expect(WebAssembly.Module.imports(module).map(i=>i.name)).toEqual(['slice_missing']);
   const missing:number[]=[];
   const instance=await WebAssembly.instantiate(module,{bgt:{slice_missing:(_kind:number,a:number)=>{missing.push(a);throw new Error('slice stop');}}});
-  const ex=instance.exports as any;ex.configure();
+  const ex=instance.exports as any;ex.configure();expect(ex.first_entry()).toBe(0);
   for(const a of [100,109,200,209,500])ex.emit(a,2);
+  const first=ex.first_entry(),fv=new DataView(ex.memory.buffer);
+  expect([fv.getUint32(first,true),fv.getUint32(first+4,true)]).toEqual([100,2]);
   for(const a of [0,99,110,199,210,501])expect(()=>ex.emit(a,2)).toThrow('slice stop');
   expect(missing).toEqual([0,99,110,199,210,501]);
   // Strict hooks check membership locally, including internally handled dynamic entries.

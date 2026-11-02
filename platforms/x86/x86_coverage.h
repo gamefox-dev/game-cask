@@ -10,6 +10,9 @@ uint64_t x86_coverage_events, x86_coverage_crossings, x86_coverage_cache_hits;
 static const uint32_t *slice_entries;
 static const x86_code_range_t *slice_ranges;
 static uint32_t slice_nentries,slice_nranges;
+static uint32_t slice_first_entry[2];
+uint32_t x86_slice_first_entry(void) {return slice_first_entry[1]?(uint32_t)(uintptr_t)slice_first_entry:0;}
+static void slice_note_first(uint32_t address,uint32_t kind) {if(!slice_first_entry[1]){slice_first_entry[0]=address;slice_first_entry[1]=kind;}}
 static const uint32_t *host_entries,*host_ranges;
 static uint32_t host_nentries,host_nranges;
 static int host_slice_enabled;
@@ -54,10 +57,10 @@ void x86_coverage_entry(uint32_t address,uint32_t kind) {
     if(!host_allows(address)) { bgt_slice_missing(1,address);return; }
     uint32_t lo=0,hi=slice_nentries;
     while(lo<hi){uint32_t m=(lo+hi)/2;if(slice_entries[m]<address)lo=m+1;else hi=m;}
-    if(lo<slice_nentries && slice_entries[lo]==address)return;
+    if(lo<slice_nentries && slice_entries[lo]==address){slice_note_first(address,kind);return;}
     lo=0;hi=slice_nranges;
     while(lo<hi){uint32_t m=(lo+hi)/2;if(slice_ranges[m].addr<=address)lo=m+1;else hi=m;}
-    if(lo && address<slice_ranges[lo-1].end)return;
+    if(lo && address<slice_ranges[lo-1].end){slice_note_first(address,kind);return;}
     (void)kind;bgt_slice_missing(1,address);
 #elif X86_COVERAGE_MODE == 0
     x86_coverage_events++;x86_coverage_crossings++;bgt_coverage_entry(address,kind);

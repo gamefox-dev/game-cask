@@ -342,7 +342,7 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; ${cfg.slice && plan
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); x86_coverage_flush(); }
 BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
-${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(uint32_t entries,uint32_t ranges) { return x86_prepare_host_slice(entries,ranges); }' : ''}
+${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(uint32_t entries,uint32_t ranges) { return x86_prepare_host_slice(entries,ranges); }\nBGT_EXPORT(bgt_slice_first_entry) uint32_t bgt_slice_first_entry(void) {return x86_slice_first_entry();}' : ''}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash(); }
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }

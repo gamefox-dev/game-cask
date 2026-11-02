@@ -24,6 +24,7 @@ import {
   IO,
   LIMITS,
   SLICE_POLICY,
+  SLICE_FIRST_ENTRY,
   MAX_TOUCHES,
   errorName,
 } from './abi';
@@ -163,6 +164,7 @@ interface GameExports {
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
   bgt_slice_policy?(entries:number,ranges:number):number;
+  bgt_slice_first_entry?():number;
   bgt_async_buffer?(): number;
   bgt_async_buffer_size?(): number;
   // added by binaryen's asyncify pass (game.json "asyncify": true)
@@ -768,6 +770,14 @@ export class GameHost {
     const fn = this.exports.bgt_metrics;
     if (!fn) return null;
     const ptr = fn() >>> 0;
+    const first=this.exports.bgt_slice_first_entry?.() ?? 0;
+    if(first && first%4===0 && this.inRange(first,SLICE_FIRST_ENTRY.SIZE)) {
+      const v=this.dv(),a=v.getUint32(first+SLICE_FIRST_ENTRY.address,true),kind=v.getUint32(first+SLICE_FIRST_ENTRY.kind,true);
+      if((kind===1 || kind===2) && !this.codeCoverage.has(a)) {
+        if(this.codeCoverage.size<CODE_COVERAGE_LIMIT)this.codeCoverage.set(a,kind);
+        else this.codeCoverageDropped++;
+      }
+    }
     const mem = this.mem();
     if (!ptr || ptr >= mem.byteLength) return null;
     const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.metricsBytes)).indexOf(0);

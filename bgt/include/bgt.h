@@ -301,6 +301,10 @@ typedef struct {
     uint32_t byte_size, version, entry_count, entries_ptr, range_count, ranges_ptr;
 } bgt_slice_policy_t;
 _Static_assert(sizeof(bgt_slice_policy_t)==24,"slice policy layout");
+/* Optional bgt_slice_first_entry(): pointer to {u32 address,kind}, or 0 before
+ * execution. Read-only startup evidence; no per-entry host crossing. */
+typedef struct {uint32_t address,kind;} bgt_slice_first_entry_t;
+_Static_assert(sizeof(bgt_slice_first_entry_t)==8,"slice first entry layout");
 
 /* Debug/bench reference path: one import call per sprite (BGT_CAP_DIRECT_DRAW).
  * Exists only to measure the command-buffer path against; do not ship ports on it. */

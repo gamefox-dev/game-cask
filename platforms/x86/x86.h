@@ -232,6 +232,7 @@ void x86_coverage_entry(uint32_t address, uint32_t kind);
 void x86_coverage_flush(void);
 void x86_set_slice(const uint32_t *entries,uint32_t nentries,const x86_code_range_t *ranges,uint32_t nranges);
 uint32_t x86_prepare_host_slice(uint32_t nentries,uint32_t nranges);
+uint32_t x86_slice_first_entry(void);
 extern uint64_t x86_coverage_events, x86_coverage_crossings, x86_coverage_cache_hits;
 #ifndef X86_COVERAGE_MODE
 #define X86_COVERAGE_MODE 1

@@ -24,6 +24,7 @@ static const uint32_t table[] = {
     offsetof(bgt_gpu_limits_t,texture_budget_bytes),
     sizeof(bgt_slice_policy_t),offsetof(bgt_slice_policy_t,version),offsetof(bgt_slice_policy_t,entry_count),
     offsetof(bgt_slice_policy_t,entries_ptr),offsetof(bgt_slice_policy_t,range_count),offsetof(bgt_slice_policy_t,ranges_ptr),
+    sizeof(bgt_slice_first_entry_t),offsetof(bgt_slice_first_entry_t,address),offsetof(bgt_slice_first_entry_t,kind),
 };
 BGT_EXPORT(probe_table) uint32_t probe_table(void) { return (uint32_t)(uintptr_t)table; }
 BGT_EXPORT(probe_count) uint32_t probe_count(void) { return sizeof table / sizeof table[0]; }
