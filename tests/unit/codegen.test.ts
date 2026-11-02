@@ -197,16 +197,21 @@ it('buffers real emitted indirect-entry hooks without losing or inventing covera
   expect(h.coverage).toHaveLength(2);
 });
 
-it('strict checks and buffered coverage also guard K13 native interior suffix entries', async () => {
-  // The MOV at +7 is an interior native suffix, not a block-start dispatch case.
-  const hex = 'b807100001ffe0c70425002000007b000000c3';
-  const h = await harness(hex);
+// JMP marks only its immediate successor (+7 NOP) as a block start. Skipping it and
+// targeting the following MOV (+8) exercises K13's genuine native suffix landing.
+const nativeSuffixHex = 'b808100001ffe090c70425002000007b000000c3';
+it('buffers coverage from K13 native interior suffix entries', async () => {
+  const h = await harness(nativeSuffixHex);
+  expect(h.text).toContain('entry_index=3;'); // suffix initialization, not ordinary dispatch
   h.ex.reset(base, 0); h.ex.run(0);
   expect(h.view().getUint32(h.ex.ram() + 0x2000, true)).toBe(123);
   expect(h.coverage).toEqual([]);
   h.ex.coverage_flush();
-  expect(h.coverage).toEqual([[base, 1], [base + 7, 1]]);
-  const strict = await harness(hex, ['X86_COVERAGE_MODE=2']);
+  expect(h.coverage).toEqual([[base, 1], [base + 8, 1]]);
+});
+it('strict checks stop K13 native interior suffix entries before their write', async () => {
+  const strict = await harness(nativeSuffixHex, ['X86_COVERAGE_MODE=2']);
+  expect(strict.text).toContain('entry_index=3;');
   strict.ex.reset(base, 0); strict.ex.configure_policy();
   expect(() => strict.ex.run(0)).toThrow('strict slice stop');
   expect(strict.view().getUint32(strict.ex.ram() + 0x2000, true)).toBe(0);
