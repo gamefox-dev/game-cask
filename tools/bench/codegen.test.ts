@@ -60,9 +60,25 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       modules: [{ from: './build/boundary.exe', main: true }],
     },
   }));
-  let boundarySum = 0;
-  for (let i = 0; i < 100000; i++) boundarySum = (boundarySum + ((i & 1) ? ((i & 1023) ^ 0x55) : (i & 1023) + 3)) >>> 0;
-  const boundaryChecksum = `guest: boundary checksum ${boundarySum.toString(16).padStart(8, '0')}`;
+  const boundaryKinds = ['codegen-boundary', 'codegen-scalar', 'codegen-imports', 'codegen-vtable', 'codegen-interior'];
+  const boundaryChecksums = new Map<string, string>();
+  for (const [kind, id] of boundaryKinds.entries()) {
+    let sum = 0;
+    for (let i = 0; i < 100000; i++) sum = (sum + ((kind === 0 || kind === 3) ?
+      ((i & 1) ? ((i & 1023) ^ 0x55) : (i & 1023) + 3) : i & 1023)) >>> 0;
+    boundaryChecksums.set(id, `guest: boundary checksum ${sum.toString(16).padStart(8, '0')}`);
+    if (!kind) continue;
+    const game = join(ROOT, 'node_modules/.cache/bgt', id); mkdirSync(game, { recursive: true });
+    writeFileSync(join(game, 'boundary.c'), `#define BOUNDARY_KIND ${kind}\n` + readFileSync(join(ROOT, 'tools/bench/boundary.c'), 'utf8'));
+    cpSync(join(ROOT, 'tools/bench/boundary-landing.S'), join(game, 'boundary-landing.S'));
+    writeFileSync(join(game, 'game.json'), JSON.stringify({
+      id, name: `CC0 isolated boundary pattern ${kind}`, pipeline: {
+        platform: 'win32', fixture: { target: 'x86_64-windows-gnu', sources: ['boundary.c', ...(kind === 4 ? ['boundary-landing.S'] : [])],
+          out: 'boundary.exe', crt: true, libs: ['kernel32'] },
+        modules: [{ from: './build/boundary.exe', main: true }],
+      },
+    }));
+  }
   const liftPreset = process.env.BGT_CODEGEN_PRESET;
   const resourcesBefore = resources();
   const rows = [];
@@ -71,9 +87,10 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
   const trials = Number(process.env.BGT_CODEGEN_TRIALS ?? 8);
   expect(Number.isInteger(trials) && trials > 0 && trials <= 64).toBe(true);
   for (const id of ids) {
-    let game = id === 'codegen-cpu' ? dir : id === 'codegen-boundary' ? boundaryDir : `examples/${id}`;
+    let game = id === 'codegen-cpu' ? dir : id === 'codegen-boundary' ? boundaryDir : boundaryKinds.includes(id) ?
+      join(ROOT, 'node_modules/.cache/bgt', id) : `examples/${id}`;
     if (liftPreset) {
-      if (id !== 'codegen-cpu' && id !== 'codegen-boundary') {
+      if (id !== 'codegen-cpu' && !boundaryKinds.includes(id)) {
         game = join(ROOT, 'node_modules/.cache/bgt/codegen-inputs', id);
         cpSync(join(ROOT, 'examples', id), game, { recursive: true, filter: (p) => !p.endsWith('/build') });
       }
@@ -102,7 +119,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       expect((runtime as { interp_insns: number }).interp_insns, id).toBe(0);
       expect(logs.some((s) => /\bFAIL\b/.test(s)), id).toBe(false);
       if (id === 'codegen-cpu') expect(logs).toContain(checksum);
-      if (id === 'codegen-boundary') expect(logs).toContain(boundaryChecksum);
+      if (boundaryChecksums.has(id)) expect(logs).toContain(boundaryChecksums.get(id));
       }
       if (sample) { allTrials.push(runs); times.push(runs.reduce((a, b) => a + b, 0) / trials); }
     }

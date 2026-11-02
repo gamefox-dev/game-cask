@@ -857,7 +857,7 @@ static void lift(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             func_t *f = &a->f[func_index(a, order.v[j])];
             if (vhas(&f->insns, entries.v[i])) { owner = f->addr; break; }
         }
-        fprintf(o, "    {0x%08xu, F_%08x, 0x%08xu},\n", entries.v[i], owner,
+        fprintf(o, "    {0x%08xu, F_%08x, 0x%08xu, 0},\n", entries.v[i], owner,
             entries.v[i] == owner ? owner + 1 : 0);
     }
     st->entries = entries.n; /* LANE-C */

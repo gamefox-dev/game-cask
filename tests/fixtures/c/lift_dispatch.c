@@ -12,8 +12,8 @@ static int host_thunk(uint32_t address) {
     return 0;
 }
 BGT_EXPORT(cache) uint32_t cache(void) {
-    static const x86_lifted_entry_t a[]={{0x1000,first,0x1100},{0x2000,second,0x2100}};
-    static const x86_lifted_entry_t b[]={{0x1000,second,0x1001}};
+    static const x86_lifted_entry_t a[]={{0x1000,first,0x1100,0},{0x2000,second,0x2100,0}};
+    static const x86_lifted_entry_t b[]={{0x1000,second,0x1001,0}};
     prepare(); x86_register_lifted(a,2);
     for(unsigned repeat=0;repeat<3;repeat++) {
         for(unsigned p=0x0fff;p<=0x2100;p++) {
@@ -30,7 +30,7 @@ BGT_EXPORT(cache) uint32_t cache(void) {
     return 0;
 }
 BGT_EXPORT(nx) void nx(void) {
-    static const x86_lifted_entry_t a[]={{0x1000,first,0x1100}};
+    static const x86_lifted_entry_t a[]={{0x1000,first,0x1100,0}};
     prepare();x86_register_lifted(a,1);(void)x86_find_lifted(0x1000);
     x86_protection[1]=2; // cached entry must still check execute permission
     (void)x86_find_lifted(0x1000);

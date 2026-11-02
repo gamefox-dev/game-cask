@@ -44,6 +44,18 @@ export function liftPolicyArgs(policy) {
     '--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off',
   ]);
 }
+// Strict internal registry syntax: wrappers remain void(void); native steps are void(uint32_t).
+// Reject any unparsed row instead of silently dropping malformed native declarations.
+export function registryRows(text) {
+  const table = /const x86_lifted_entry_t x86_lifted_[a-z0-9_]+\[\]\s*=\s*\{([\s\S]*?)\};/.exec(text);
+  if (!table) throw new Error('lifter registry format changed');
+  return table[1].split('\n').map((s) => s.trim()).filter(Boolean).map((line) => {
+    const row = /^\{\s*(0x[0-9a-f]+u),\s*(F_[0-9a-f]+),\s*(0x[0-9a-f]+u),\s*(N_[0-9a-f]+|0)\s*\},$/.exec(line);
+    if (!row || (row[4] !== '0' && row[4] !== 'N_' + row[2].slice(2))) throw new Error('malformed lifted registry row');
+    return { addr: parseInt(row[1], 16), row: `{${row[1]},${row[2]},${row[3]},${row[4]}},`,
+      declarations: [`void ${row[2]}(void);`, ...(row[4] === '0' ? [] : [`void ${row[4]}(uint32_t);`])] };
+  });
+}
 export function liftChunks({ tool, file, id, base, work, analysis, key, selected, skip = [], flagLiveness, policy = liftPolicy(), budget = 32768 }) {
   const dir = join(work, `chunks_${id}`); mkdirSync(dir, {recursive:true});
   const functions = selected ? analysis.functions.filter((f) => selected.has(f.addr)) : analysis.functions;
@@ -67,11 +79,9 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
   let sourceBytes = 0, sourceLines = 0, largest = 0;
   for (const t of tasks) {
     const text = readFileSync(t.out,'utf8');
-    const table = text.slice(text.indexOf('const x86_lifted_entry_t x86_lifted_'));
-    if (!table.startsWith('const x86_lifted_entry_t')) throw new Error('lifter registry format changed');
-    for (const match of table.matchAll(/\{\s*(0x[0-9a-f]+u),\s*(F_[0-9a-f]+),\s*(0x[0-9a-f]+u)\s*\}/g)) {
-      rows.push({addr:parseInt(match[1],16), row:`{${match[1]},${match[2]},${match[3]}},`});
-      declarations.add(`void ${match[2]}(void);`);
+    for (const row of registryRows(text)) {
+      rows.push({addr:row.addr, row:row.row});
+      for (const declaration of row.declarations) declarations.add(declaration);
     }
     const s = JSON.parse(readFileSync(t.out+'.stats.json','utf8'));
     for (const k of ['functions','specialized','generic','jumpTables','unresolvedJumps','flagsElided','entries']) stats[k] += s[k] ?? 0;

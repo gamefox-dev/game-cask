@@ -563,20 +563,15 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;return;\n}\n");
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
-        fprintf(o, "void F_%08x(void){\n", original->addr);
+        fprintf(o, "void N_%08x(uint32_t pc){\n", original->addr);
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)
             fprintf(o, "R_%08x_%08x,", original->addr, original->insns.v[begin]);
-        fprintf(o, "};for(;;){unsigned region=0;uint32_t old=X.eip;uint64_t old_clock=X.tsc;\n");
+        fprintf(o, "};unsigned region=0;\n");
         for (uint32_t begin = 256; begin < original->insns.n; begin += 256)
-            fprintf(o, "if(X.eip>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
-        fprintf(o, "regions[region](X.eip);if(X.transfer||x86_lift_pending||x86_lift_count)return;"
-                   "if(x86_is_thunk(X.eip))x86_lift_thunk();"
-                   "if(X.transfer||x86_lift_pending||x86_lift_count||X.eip<0x%08xu||X.eip>=0x%08xu||"
-                   "(X.eip==old&&X.tsc==old_clock))return;"
-                   "if(x86_find_lifted(X.eip)!=F_%08x)return;"
-                   "x86_metrics.lifted_calls++;}\n", original->addr, original->end, original->addr);
-        fprintf(o, "}\n"); vpush(&order, original->addr); vpush(&ends, original->end);
+            fprintf(o, "if(pc>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
+        fprintf(o, "regions[region](pc);}\nvoid F_%08x(void){x86_run_native(N_%08x);}\n",
+            original->addr, original->addr); vpush(&order, original->addr); vpush(&ends, original->end);
         for (uint32_t j = 0; j < original->nij; j++) if (!original->ij[j].resolved) st->unresolved++;
     }
     l64_entry_t *entries = xcalloc(order.n, sizeof *entries);
@@ -584,7 +579,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
     qsort(entries, order.n, sizeof *entries, l64_entry_cmp);
     fprintf(o, "const x86_lifted_entry_t x86_lifted_%s[]={\n", name);
     for (uint32_t i = 0; i < order.n; i++) {
-        fprintf(o, "{0x%08xu,F_%08x,0x%08xu},\n", entries[i].addr, entries[i].addr, entries[i].end);
+        fprintf(o, "{0x%08xu,F_%08x,0x%08xu,N_%08x},\n", entries[i].addr, entries[i].addr, entries[i].end, entries[i].addr);
     }
     free(entries);
     fprintf(o, "};\nconst uint32_t x86_lifted_%s_count=%u;\n", name, order.n); free(order.v); free(ends.v);

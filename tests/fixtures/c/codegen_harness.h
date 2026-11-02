@@ -16,6 +16,7 @@ uint32_t x86_lift_count;
 /* This single-owner snapshot harness has no host APIs/registry. Integration fixtures use x86_rt.c. */
 int x86_is_thunk(uint32_t addr) { (void)addr; return 0; }
 void x86_lift_thunk(void) { __builtin_trap(); }
+void x86_run_native(x86_native_fn step) { step(X.eip); }
 x86_lifted_fn x86_find_lifted(uint32_t addr) { (void)addr; return 0; }
 static uint32_t yields, fault_address, fault_hash, stop_at_quantum;
 void x86_fault(const char *m, uint32_t a) {
