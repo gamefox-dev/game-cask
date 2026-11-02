@@ -10,7 +10,7 @@ export function profileRange(value='0:300') {
 export function mapProfile(profile) {
   return profile.nodes.map(n=>{
     const name=n.callFrame.functionName;
-    const m=name.match(/\b[FR]_([0-9a-f]{8})(?:_([0-9a-f]{8}))?/i);
+    const m=name.match(/\b[FNR]_([0-9a-f]{8})(?:_([0-9a-f]{8}))?/i);
     return {node:n.id,functionName:name,guestAddress:m?Number.parseInt(m[1],16):null,
       regionAddress:m?.[2]?Number.parseInt(m[2],16):null,wasmFunction:/wasm-function\[(\d+)\]/.exec(name)?.[1] ?? null,
       hitCount:n.hitCount ?? 0};

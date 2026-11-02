@@ -105,8 +105,9 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
 - `cpu_profile.categories`: lifted-native dispatch, generic/shared semantics, interpreter. Each has `calls`,
   `samples`, `sample_us`, `estimated_us`. Timers sample about 1/1024 calls with jitter to avoid regular-loop aliasing;
   totals extrapolate sample mean × calls. Small sample counts are noisy; these are not CPU hardware counters.
-  AMD64 native regions cannot suspend; i386 native dispatch and generic/interpreter calls may include nested API
-  callbacks, so these are **inclusive attribution**, not mutually exclusive partitions. Decode/dispatch overhead
+  AMD64 register-local regions/native steps cannot suspend. K13's outer AMD64 native wrapper dispatch,
+  like i386 dispatch and generic/interpreter calls, may include API/thunk work and nested guest callbacks;
+  frame-wait idle time is subtracted. These are **inclusive attribution**, not mutually exclusive partitions. Decode/dispatch overhead
   outside timed calls remains in `host_profile.updateMs`, not silently assigned to native code.
 - `cpu_profile.apis`: every hit import slot's DLL/name, exact count, sampled microseconds and extrapolated total.
   The metrics JSON observation ceiling is 8 MiB (debug JSON adds 64 KiB for views), tested with all 4096 maximum-length
@@ -136,7 +137,8 @@ npm run probe -- --game mygame --script ./explore.mjs --cpu-profile 1100:1700 --
 ```
 
 `--cpu-profile START:END` brackets **update frame boundaries**, splitting `p.step`, `p.click` and `p.key` as needed.
-It saves DevTools-compatible `cpu.cpuprofile` and `cpu-mapping.json`. Names `F_<guest>` / `R_<guest>_<region>` map
+It saves DevTools-compatible `cpu.cpuprofile` and `cpu-mapping.json`. Names `F_<guest>` / `N_<guest>` /
+`R_<guest>_<region>` map
 back to addresses; unnamed wasm nodes explicitly remain unmapped (build with `BGT_PROFILE_NAMES=1`). Use the `p.*`
 stepping helpers: direct `p.page.evaluate(step)` and resource-tour internals bypass the range interceptor. Reports
 record actual start/end and whether the requested end was reached; failures save partial profiles when possible.

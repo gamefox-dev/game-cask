@@ -1,4 +1,37 @@
-# Integration I8 — K11 speed policies + K10 instrumentation
+# Integration I8 — K11 speed policies + K10 instrumentation + K13 native chaining
+
+## Reviewer scope extension: K13
+
+Reviewer live instruction #113 extends I8 to include **`lane/K13` / `9f5c191`**, based on K11 `2124b13`, after
+the two original ordered merges. **`fb1ce3d`** is its `--no-ff` merge over the already-validated K11+K10 tree.
+K13's lane review was vK13 FAIL followed by vK13b PASS at `59ddafd`; these historical reviews are not substituted
+for validation of this three-lane merge. The original K11+K10 evidence below remains explicitly pre-K13.
+
+Semantic integration keeps K13's scalar SSE/decoder and read/write permission repairs, bounded native suffixes,
+flat foreign-owner/thunk driver, callback stop scopes, checked native-step cache and four-field chunk registry.
+K9 GL/renderers and K12 heap implementation remain untouched. Additional adaptations:
+
+- K10 local strict membership is checked on both registry cache hits and misses, before a foreign native step.
+- K13's native suffix dispatch uses `x86_coverage_lifted`, not direct host crossings; guard and both counting-policy
+  quantum fallbacks retain census reasons, and accepted suffixes reset a stale indirect exit reason.
+- Overridden registry entries have NULL native steps, retaining K10's all-overridden and suspending override path.
+- **Asyncify exclusions now select only exact generated `N_*` native-step definitions** intersected with linked
+  names. K13 `F_*` wrappers run the flat driver and may suspend inside API thunks, so they are never excluded.
+  Empty/all-inlined step sets and oversized lists retain conservative instrumentation. The benchmark follows the
+  same policy. New `N_*` profiling names map to guest addresses in the CDP sidecar.
+- Both presets exercise real native-suffix coverage/strict stops and quantum/guard reasons. Real-runtime tests
+  warm foreign-owner caches before installing a narrower host policy and prove the forbidden owner's first
+  side effect does not run; cold lookups are checked too. The existing real import-yield/handwritten override
+  fixture retains all assertions and now executes the unmodified native import path before adding overrides.
+  The prior interior-fallback regression uses a >8-instruction non-SSE body to retain the intended K13 boundary,
+  not an outdated assumption that every interior entry still executes shared semantics.
+- K13's two new standalone test files explicitly declare `@bgt-examples: none`; owned CC0 fixture compilation
+  remains local and K7i lazy selection is intact.
+
+Focused merged evidence: **105/105 tests / 5 files**, plus **2/2** both-preset Asyncify/import/override tests.
+**Three-lane full Tier 1 and fresh independent review are in progress, not yet claimed.**
+
+## Historical pre-K13 K11+K10 checkpoint
 
 ## Merge and scope
 
@@ -38,7 +71,7 @@ No target/game files, captured shaders, web access, installs, dependencies, succ
   compiles its own CC0 fixtures. Owned benchmark fixtures are explicit too. Existing `build-chunks` declares
   `x64-scale`; the probe regression declares `win32-hello`. No build-all fallback or test weakening was added.
 
-## Validation
+## Pre-K13 validation
 
 Full sandbox gates on the merged implementation, including the standalone setup repair:
 

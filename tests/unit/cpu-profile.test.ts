@@ -30,9 +30,11 @@ it('validates frame ranges and maps native region/function names without inventi
   expect(profileRange('100:200')).toEqual({start:100,end:200});
   for(const s of ['1','2:1','-1:2','0:0','0:NaN'])expect(()=>profileRange(s)).toThrow();
   const mapped=mapProfile({nodes:[{id:1,callFrame:{functionName:'R_01001000_01001200'},hitCount:3},
-    {id:2,callFrame:{functionName:'wasm-function[51]'}},{id:3,callFrame:{functionName:'jsWork'}}]});
+    {id:2,callFrame:{functionName:'wasm-function[51]'}},{id:3,callFrame:{functionName:'jsWork'}},
+    {id:4,callFrame:{functionName:'N_01003000'},hitCount:7}]});
   expect(mapped[0]).toMatchObject({guestAddress:0x1001000,regionAddress:0x1001200,hitCount:3});
   expect(mapped[1]).toMatchObject({guestAddress:null,wasmFunction:'51'});expect(mapped[2].guestAddress).toBeNull();
+  expect(mapped[3]).toMatchObject({guestAddress:0x1003000,regionAddress:null,hitCount:7});
 });
 it('takes a best-effort resource snapshot with unavailable observations explicitly null',()=>{
   const r=resourceSnapshot();expect(r.cpuCount).toBeGreaterThan(0);expect(r.totalRamBytes).toBeGreaterThan(0);
