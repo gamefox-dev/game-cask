@@ -4,7 +4,7 @@
 
 Q35's bounded **single-sample** transfer path is implemented and browser-certified in this checkpoint; multisample allocation/resolve remains outside the existing ABI/profile capability, so unrestricted GL 3.3 Q35 conformance is not claimed. Q34 transform feedback is **unfinished** and must be the next lane continuation; no Q34 success or first-draw target claim is made. The branch contains no captured target shader/source or game files. All fixture sources are original CC0-1.0.
 
-Implementation commit: **`6769207`** (`feat(gl): implement ordered framebuffer blits`). All checks below were rerun on that exact implementation commit after publication; the final handoff commit changes documentation only. Working tree was clean after the 26 final oracle runs. No push, web access, system installs or ENOSPC occurred.
+Implementation commit: **`3776c8e`** (`feat(gl): implement ordered framebuffer blits`). All checks below were rerun on its identical executable tree before the documentation-only handoff amendment. The final follow-up commit changes documentation only. Working tree was clean after the 26 final oracle runs. No push, web access, system installs or ENOSPC occurred.
 
 ## Q35 delivered
 
