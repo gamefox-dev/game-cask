@@ -126,6 +126,26 @@ describe('opaque sampler helper identity specialization', () => {
       expect(out).toMatch(/bgt_gl_local_\d+\.x/);
       expect(out).toContain('texture(bgt_t0,');
     });
+  for (const inactive of ['sampler3D', 'samplerCube']) for (const forward of [false, true])
+    it(`reflection excludes sampler-incompatible overloads (${inactive}, forwarding ${forward})`, () => {
+      const source = version + 'uniform sampler2D image;uniform ' + inactive + ' unused;out vec4 o;' +
+        'vec4 read(sampler2D s){return texture(s,vec2(0.5));}' +
+        'vec4 read(' + inactive + ' s){return texture(unused,vec3(0.5));}' +
+        (forward ? 'vec4 relay(sampler2D s){return read(s);}vec4 relay(' + inactive + ' s){return read(s);}' : '') +
+        'void main(){o=' + (forward ? 'relay' : 'read') + '(image);}';
+      const r = runGlsl({ fs: [source] }); expect(r.fs?.ok, r.fs?.log).toBe(true);
+      expect(r.linked, r.linkLog).toBe(true); expect(r.slots).toBe(1);
+      expect(r.uniforms?.map(u => u.name)).toEqual(['image']);
+      expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.fsOut).not.toContain(inactive);
+      expect(translateGLSL(r.fsOut!, 2, 1)).toContain('@fragment fn fs_main');
+    });
+  it('both selected sampler overloads still contribute reflection', () => {
+    const r = runGlsl({ fs: [version + 'uniform sampler2D image;uniform sampler3D volume;out vec4 o;' +
+      'vec4 read(sampler2D s){return texture(s,vec2(0.5));}vec4 read(sampler3D s){return texture(s,vec3(0.5));}' +
+      'void main(){o=read(image)+read(volume);}'] });
+    expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.slots).toBe(2);
+    expect(r.uniforms?.map(u => u.name)).toEqual(['image', 'volume']);
+  });
   it('ordinary value functions do not acquire uniform-only inline-struct restrictions', () => {
     const source = 'out vec4 o;struct S{float x;}v;S f(S a){return a;}void main(){v.x=0.5;o=vec4(f(v).x);}';
     const r = runGlsl({ fs: [version + source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.fsOut).toMatch(/struct S/);

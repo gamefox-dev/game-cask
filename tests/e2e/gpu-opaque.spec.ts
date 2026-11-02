@@ -5,6 +5,33 @@ import { runGlsl } from '../support/glsl-native';
 import { opaqueRegressions, opaqueFragment, opaqueVertex } from '../support/glsl-opaque-regressions';
 import type { OpaqueCase } from './gpu-opaque-probe';
 
+// Catches inactive, sampler-incompatible overloads activating extra bindings or unsupported storage.
+test('only selected sampler overloads contribute profile bindings and native pixels', async ({ page, backendParam, collector }, info) => {
+  void collector;
+  expect(await openGame(page, backendParam)).toBe('ready'); await assertBackend(page, backendParam, info);
+  const cases: OpaqueCase[] = [];
+  for (const language of [1, 2]) for (const inactive of ['sampler3D', 'samplerCube']) for (const forward of [false, true]) {
+    const version = language === 1 ? '#version 330 core\n' : '#version 300 es\nprecision highp float;\n';
+    const fs = version + 'uniform sampler2D image;uniform ' + inactive + ' unused;layout(location=0) out vec4 o;' +
+      'vec4 read(sampler2D s){return texture(s,vec2(0.5));}vec4 read(' + inactive + ' s){return texture(unused,vec3(0.5));}' +
+      (forward ? 'vec4 relay(sampler2D s){return read(s);}vec4 relay(' + inactive + ' s){return read(s);}' : '') +
+      'void main(){o=' + (forward ? 'relay' : 'read') + '(image);}';
+    const r = runGlsl({ vs: [version + opaqueVertex], fs: [fs] });
+    expect(r.linked, r.linkLog ?? r.fs?.log).toBe(true); expect(r.slots).toBe(1);
+    expect(r.uniforms?.map(u => u.name)).toEqual(['image']);
+    expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.vsOut, r.vsEmitLog).toBeTruthy();
+    const uniform = new Float32Array(r.usize! / 4); uniform[0] = 8;
+    new Int32Array(uniform.buffer).set([0, 1, 2, 3], uniform.length - 4);
+    cases.push({ name: inactive + '/' + language + '/' + forward, language: 1, vs: r.vsOut!, fs: r.fsOut!,
+      slots: [0], expected: [64, 17, 191, 255], uniform: [...uniform] });
+  }
+  const result = await page.evaluate(async ({ path, backend, cases }) => {
+    const { opaqueProbe } = await import(/* @vite-ignore */ path); return opaqueProbe(backend, cases);
+  }, { path: `/@fs${resolve('tests/e2e/gpu-opaque-probe.ts')}`, backend: backendParam, cases });
+  expect(result.errors).toEqual([]); expect(cases).toHaveLength(8); expect(result.pixels).toHaveLength(8);
+  for (const { name, pixel, expected } of result.pixels) expect(pixel, name).toEqual(expected);
+});
+
 // Catches lost actual bindings, accidental sampler copies, forwarding/overload collisions,
 // integer precision loss and comparison-vs-color sampling on both actual native compilers.
 test('opaque sampler helpers: direct and GL canonical known-answer pixels', async ({ page, backendParam, collector }, info) => {

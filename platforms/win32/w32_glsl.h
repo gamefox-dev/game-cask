@@ -1341,6 +1341,34 @@ static int gs_sampler_ref_type(const GsUnit *u, const GsFunc *f, const GsSampler
         return gs_is_sampler(u->vars[v].type) && !!u->vars[v].arr == ref->indexed ? u->vars[v].type : -1;
     return -1;
 }
+/* Resolve opaque argument types before reflection as well as before specialization.
+ * Numeric overload choice remains native; incompatible sampler signatures cannot be active. */
+static int gs_call_types(const GsUnit *u, const GsFunc *caller, Lx args, int *types, uint32_t *count) {
+    Tk open = lx_next(&args); if (!tk_is(&open, "(")) return 0;
+    uint32_t start = args.pos; *count = 0;
+    for (;;) {
+        Tk t = lx_next(&args); if (!t.kind) return 0;
+        if (tk_is(&t, ",") || tk_is(&t, ")")) {
+            Lx empty = {u->src, start, t.off, 1}; Tk first = lx_next(&empty);
+            if (first.kind || *count || tk_is(&t, ",")) {
+                if (*count == GS_MAX_PARAMS) return 0;
+                GsSamplerRef ref;
+                types[(*count)++] = gs_sampler_ref(u, start, t.off, &ref) ? gs_sampler_ref_type(u, caller, &ref) : -1;
+            }
+            start = args.pos; if (tk_is(&t, ")")) return 1;
+        } else if (tk_is(&t, "(") || tk_is(&t, "[") || tk_is(&t, "{")) {
+            if (!ps_skip_group(&args, t.p[0], tk_is(&t, "(") ? ')' : tk_is(&t, "[") ? ']' : '}')) return 0;
+        }
+    }
+}
+static int gs_call_matches(const GsFunc *callee, const int *types, uint32_t count) {
+    if (callee->np != count) return 0;
+    for (uint32_t p = 0; p < count; p++) {
+        int opaque = callee->params[p].type > 0 && gs_is_sampler((uint32_t)callee->params[p].type);
+        if (opaque ? types[p] != callee->params[p].type : types[p] >= 0) return 0;
+    }
+    return 1;
+}
 static int gs_validate_opaque_calls(GsUnit *u, GsLog *log) {
     for (uint32_t fi = 0; fi < u->nfuncs; fi++) {
         const GsFunc *f = &u->funcs[fi]; Lx l = {u->src, f->b0, f->b1, 1};
@@ -1349,30 +1377,10 @@ static int gs_validate_opaque_calls(GsUnit *u, GsLog *log) {
             int opaque = 0;
             for (uint32_t i = 0; i < u->nfuncs; i++) if (u->funcs[i].opaque && tk_is(&name, u->funcs[i].name)) opaque = 1;
             Tk next = lx_peek(&l); if (!opaque || !tk_is(&next, "(")) continue;
-            Lx args = l; lx_next(&args); uint32_t start = args.pos, count = 0; int types[GS_MAX_PARAMS], ok = 1;
-            for (;;) {
-                Tk t = lx_next(&args);
-                if (!t.kind) { ok = 0; break; }
-                if (tk_is(&t, ",") || tk_is(&t, ")")) {
-                    Lx empty = {u->src, start, t.off, 1}; Tk first = lx_next(&empty);
-                    if (first.kind || count || tk_is(&t, ",")) {
-                        if (count == GS_MAX_PARAMS) { ok = 0; break; }
-                        GsSamplerRef ref; types[count++] = gs_sampler_ref(u, start, t.off, &ref) ? gs_sampler_ref_type(u, f, &ref) : -1;
-                    }
-                    start = args.pos; if (tk_is(&t, ")")) break;
-                } else if (tk_is(&t, "(") || tk_is(&t, "[")) {
-                    if (!ps_skip_group(&args, t.p[0], tk_is(&t, "(") ? ')' : ']')) { ok = 0; break; }
-                }
-            }
-            int match = 0;
+            uint32_t count = 0; int types[GS_MAX_PARAMS], ok = gs_call_types(u, f, l, types, &count), match = 0;
             for (uint32_t i = 0; ok && i < u->nfuncs; i++) {
-                const GsFunc *callee = &u->funcs[i]; if (!tk_is(&name, callee->name) || count != callee->np) continue;
-                int same = 1;
-                for (uint32_t p = 0; p < count; p++) {
-                    int opaque_param = callee->params[p].type > 0 && gs_is_sampler((uint32_t)callee->params[p].type);
-                    if (opaque_param ? types[p] != callee->params[p].type : types[p] >= 0) same = 0;
-                }
-                match |= same;
+                const GsFunc *callee = &u->funcs[i];
+                if (tk_is(&name, callee->name)) match |= gs_call_matches(callee, types, count);
             }
             if (!match) { gs_diag(log, 1, 0, name.line, 1, "no matching opaque helper overload (sampler types and argument count must match)", 0); return 0; }
         }
@@ -1514,7 +1522,14 @@ static void gs_scan_body(GsUnit *u, GsFunc *func, uint32_t b0, uint32_t b1, int 
                     if (shadow) { h = (h + 1) & 2047; continue; }
                     if (y->kind == SYM_VAR) u->vars[y->idx].used = 1;
                     else if (y->kind == SYM_BLOCK) u->blocks[y->idx].used = 1;
-                    else if (mark_funcs) for (uint32_t f = 0; f < u->nfuncs; f++) if (gs_eq(u->funcs[f].name, y->name)) u->funcs[f].reach |= 1;
+                    else if (mark_funcs) {
+                        int opaque_family = 0;
+                        for (uint32_t f = 0; f < u->nfuncs; f++) if (u->funcs[f].opaque && gs_eq(u->funcs[f].name, y->name)) opaque_family = 1;
+                        uint32_t count = 0; int types[GS_MAX_PARAMS]; Lx call = {s, j, b1, 1};
+                        int typed = opaque_family && gs_call_types(u, func, call, types, &count);
+                        for (uint32_t f = 0; f < u->nfuncs; f++) if (gs_eq(u->funcs[f].name, y->name) &&
+                            (!opaque_family || (typed && gs_call_matches(&u->funcs[f], types, count)))) u->funcs[f].reach |= 1;
+                    }
                 }
                 h = (h + 1) & 2047;
             }
