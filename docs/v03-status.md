@@ -1,5 +1,9 @@
 # v0.3 merged implementation status
 
+## K14b — Q41/Q42/Q43 completion
+
+Commit `55e11c1` completes sparse fragment-output masks, linked std140 uniform-block ranges with the approved counted desktop zero-tail policy for undersized bound ranges, bounded GPU continuation and ordered `BUFFER_COPY` / `glCopyBufferSubData` on both WebGL 2 and WebGPU. Original CC0 fixtures cover exact sparse MRT pixels, 80/176/192-byte block reflection and relinking, short-range diagnostics/recovery, 289 native byte-copy comparisons per backend, and 3,000 ordered feedback draws. Final gates: **996 unit tests / 75 files**, **241 browser passes / 51 existing intentional skips / 0 failures**, doctor, ESLint + Clang/real-GCC lint (**33 example check-builds**), typecheck and leakcheck; **30 pipeline oracles × 300 frames = 9,000 identical pairs**. The ranges browser fixture records **121 guest checks per backend**, peak **9,008 lists / 39,008 commands**, with exact cross-backend finish results. No target title/playability or unrestricted GL 3.3 claim; see [K14b handoff](handoff/K14b.md).
+
 ## K12 — deterministic guest heap and CRT allocation
 
 K12 adds a bounded-work segregated guest heap for both Win32 widths, real logical `HeapCreate` ownership and
