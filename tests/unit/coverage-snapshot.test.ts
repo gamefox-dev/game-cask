@@ -27,6 +27,12 @@ it('coverage snapshots retain execution evidence and separate consumed, observed
     execution, code_entries_dropped: 7, frame: 9,
     crtConsumedBytes: 3, crtObservedBytes: 1, crtReadAheadBytes: 16384, crtReadAheadRequests: 1,
   });
-  runtime.host.metrics = () => null;
-  expect(BGTRuntime.prototype.coverageSnapshot.call(runtime as unknown as BGTRuntime).metrics.execution).toBeNull();
+  // A real buffered flush can add the final entries and overflow the independent host cap.
+  runtime.host.metrics = () => {
+    runtime.host.codeCoverage.set(300,1);runtime.host.codeCoverageDropped=8;
+    return null;
+  };
+  const flushed=BGTRuntime.prototype.coverageSnapshot.call(runtime as unknown as BGTRuntime);
+  expect(flushed.metrics.execution).toBeNull();expect(flushed.code).toContainEqual({address:300,kind:1});
+  expect(flushed.metrics.code_entries_dropped).toBe(8);
 });

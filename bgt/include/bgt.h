@@ -293,6 +293,15 @@ BGT_IMPORT(yield) void bgt_yield(void);
 /* Wall-clock microseconds for profiling only. Never use for simulation. */
 BGT_IMPORT(time_us) double bgt_time_us(void);
 
+/* Optional bgt_slice_policy(u32 entries,u32 ranges) export: prepare host restriction
+ * storage once after init, return this descriptor or 0 on failure. Descriptor is
+ * read-only; host fills entries/ranges before first update. Ranges {u32 addr,end}
+ * are half-open and sorted. This policy intersects, never replaces, compiled bounds. */
+typedef struct {
+    uint32_t byte_size, version, entry_count, entries_ptr, range_count, ranges_ptr;
+} bgt_slice_policy_t;
+_Static_assert(sizeof(bgt_slice_policy_t)==24,"slice policy layout");
+
 /* Debug/bench reference path: one import call per sprite (BGT_CAP_DIRECT_DRAW).
  * Exists only to measure the command-buffer path against; do not ship ports on it. */
 BGT_IMPORT(debug_draw_sprite) void bgt_debug_draw_sprite(uint32_t texture, float x, float y, float w, float h,

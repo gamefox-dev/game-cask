@@ -532,6 +532,36 @@ is **not** yet a minimum-image slice. Discovery records unknown indirect entries
 analyzer improvements before selective convergence. Self-modifying code and instruction-level strict packaging
 remain unsupported; see [pipeline.md](../../docs/pipeline.md) for ownership/selection and exact counter definitions.
 
+### Strict compiled slice host policy (K10, additive optional export)
+
+A strict module may export `u32 bgt_slice_policy(u32 entry_count,u32 range_count)`. After successful `bgt_init`
+and before the first update, the host calls it **once** when a host code allowlist is configured. Counts are each
+bounded by 1,048,576. Return 0 means limit/allocation/already-configured failure (host load fails truthfully).
+A positive return is a 4-aligned wasm pointer to `bgt_slice_policy_t` (C `bgt.h`, TS `SLICE_POLICY`):
+
+| Offset | Field | Meaning |
+|---:|---|---|
+| 0 | byte_size | 24 |
+| 4 | version | 1 |
+| 8 | entry_count | equals requested count |
+| 12 | entries_ptr | writable array of entry_count u32 guest addresses |
+| 16 | range_count | equals requested count |
+| 20 | ranges_ptr | writable range_count records `{u32 addr,end}` (8 bytes) |
+
+The descriptor is read-only. The host validates its shape and all buffer spans before writing the arrays. Entries
+are sorted ascending; ranges are sorted disjoint half-open intervals. The module checks this **additional** host
+policy before executing a guest entry, intersected with its original compiled policy: neither can widen the other.
+Missing code calls existing `slice_missing(1,address)` before execution. Both browser backends and the headless
+host use this identical decoder. Older strict modules retain the imported coverage-hook membership check; modules
+without the export are unchanged. Frozen IO/imports and existing slice_missing layout/semantics are unchanged.
+
+This permits AMD64 strict generated recording hooks to be compiled out without losing a stricter host restriction
+(even an empty host allowlist). i386 direct lifted calls retain local membership checks, not host recording crossings.
+Discovery builds buffer/de-duplicate records in wasm and flush at frame boundaries, metrics reads, pressure and explicit
+faults; cache collisions re-report rather than discard evidence. The host's independent coverage overflow limit is
+unchanged. Abrupt external wasm traps may leave a final unflushed tail; do not package an errored recording.
+C/TS layout, normal/malformed descriptors, both backend selections, intersection and strict-stop fixtures cover this.
+
 ## 13. v0.3 GPU layer (additive interface)
 
 This section is normative for the wire interface, validator and future backend/profile implementations. Execution

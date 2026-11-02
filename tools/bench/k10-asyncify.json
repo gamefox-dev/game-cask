@@ -1,0 +1,361 @@
+{
+  "schema": "game-cask/asyncify-benchmark/1",
+  "node": "v24.19.0",
+  "method": "Uncached two wasm-opt invocations on exactly the same linked, DWARF-stripped named wasm; -O2 + Asyncify, output names retained for inspection. Times include parse/optimize/emit, not just instrumentation. No native removal of dispatcher or callback paths.",
+  "rows": [
+    {
+      "id": "x64-crt",
+      "mode": "conservative",
+      "resources": {
+        "start": {
+          "when": "2026-11-02T03:53:56.897Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.734375,
+            7.73046875,
+            7.0478515625
+          ],
+          "freeRamBytes": 882491392,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-02T03:54:06.098Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.3134765625,
+            7.67333984375,
+            7.03515625
+          ],
+          "freeRamBytes": 310198272,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "elapsedMs": 9172.195333000001,
+      "inputBytes": 1480540,
+      "outputBytes": 1358557,
+      "stateGlobal": "global$1",
+      "nativeFunctions": 176,
+      "nativeWithAsyncifyState": [
+        {
+          "name": "F_01001000",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01002ff0",
+          "asyncifyStateReferences": 5
+        }
+      ],
+      "globals": [
+        "__stack_pointer",
+        "global$1",
+        "global$2"
+      ]
+    },
+    {
+      "id": "x64-crt",
+      "mode": "native-boundaries",
+      "resources": {
+        "start": {
+          "when": "2026-11-02T03:54:06.548Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.3134765625,
+            7.67333984375,
+            7.03515625
+          ],
+          "freeRamBytes": 162381824,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-02T03:54:15.704Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            17.21728515625,
+            9.58203125,
+            7.71826171875
+          ],
+          "freeRamBytes": 916504576,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "elapsedMs": 9125.756958999998,
+      "inputBytes": 1480540,
+      "outputBytes": 1358231,
+      "stateGlobal": "global$1",
+      "nativeFunctions": 176,
+      "nativeWithAsyncifyState": [],
+      "globals": [
+        "__stack_pointer",
+        "global$1",
+        "global$2"
+      ]
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "conservative",
+      "resources": {
+        "start": {
+          "when": "2026-11-02T03:54:37.558Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            14.9462890625,
+            9.5595703125,
+            7.7529296875
+          ],
+          "freeRamBytes": 599261184,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 4
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-02T03:55:00.092Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            11.94140625,
+            9.2880859375,
+            7.70703125
+          ],
+          "freeRamBytes": 339230720,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 4
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "elapsedMs": 22499.739457999996,
+      "inputBytes": 3279157,
+      "outputBytes": 2931137,
+      "stateGlobal": "global$1",
+      "nativeFunctions": 654,
+      "nativeWithAsyncifyState": [
+        {
+          "name": "F_01002b00",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01007f10",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01008760",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01009340",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0100aa20",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0100cd90",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0100db80",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0100e5a0",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_010102d0",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01011770",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_010124f0",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01014450",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_01015af0",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0101b460",
+          "asyncifyStateReferences": 5
+        },
+        {
+          "name": "F_0101ba30",
+          "asyncifyStateReferences": 5
+        }
+      ],
+      "globals": [
+        "__stack_pointer",
+        "global$1",
+        "global$2"
+      ]
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "native-boundaries",
+      "resources": {
+        "start": {
+          "when": "2026-11-02T03:55:01.181Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            11.94140625,
+            9.2880859375,
+            7.70703125
+          ],
+          "freeRamBytes": 119341056,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 4
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-02T03:55:20.634Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            10.36474609375,
+            9.0927734375,
+            7.67236328125
+          ],
+          "freeRamBytes": 644530176,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 9347069379,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 4
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "elapsedMs": 19420.925583999997,
+      "inputBytes": 3279157,
+      "outputBytes": 2928692,
+      "stateGlobal": "global$1",
+      "nativeFunctions": 654,
+      "nativeWithAsyncifyState": [],
+      "globals": [
+        "__stack_pointer",
+        "global$1",
+        "global$2"
+      ]
+    }
+  ]
+}

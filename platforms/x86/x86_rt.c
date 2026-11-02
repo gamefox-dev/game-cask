@@ -7,6 +7,7 @@
 #include "x86_sem.h"
 #include "bgt.h"
 #include "x86_sched.h" /* LANE-C */
+#include "x86_coverage.h"
 
 void x86_exec_insn(const x86_insn_t *in);
 
@@ -143,6 +144,7 @@ static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
+    x86_coverage_flush();
     uint32_t n = 0;
     const char *p = "x86: ";
     while (*p && n + 32 < sizeof fault_buf) fault_buf[n++] = *p++;
@@ -197,7 +199,12 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
     }
     if (lo) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
-        if (addr == e->addr || addr < e->end) return e->fn;
+        if (addr == e->addr || addr < e->end) {
+#if X86_COVERAGE_MODE == 2
+            x86_coverage_entry(addr,1);
+#endif
+            return e->fn;
+        }
     }
     return 0;
 }
@@ -231,7 +238,7 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if (entry) { bgt_coverage_entry(addr, 2); interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER); }
+    if (entry) { x86_coverage_entry(addr, 2); interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER); }
     return entry;
 }
 static void interpreted_count(int entry, const x86_code_range_t *owner) {
@@ -398,7 +405,7 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
 #endif
     x86_lifted_fn fn = x86_find_lifted(target);
     if (fn) {
-        bgt_coverage_entry(target,1);
+        x86_coverage_lifted(target,1);
         x86_metrics.lifted_calls++;
         profiled_native(fn);
         return;

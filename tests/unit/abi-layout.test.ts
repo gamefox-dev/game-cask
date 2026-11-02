@@ -41,6 +41,7 @@ describe('ABI layout', () => {
       A.BUTTONS.UP, A.BUTTONS.START, A.BUTTONS.R, A.CAP_DIRECT_DRAW, A.EVENT_FOCUS_LOST, A.FLAG_INTEGER_SCALE,
       4, 29, 40, 44, 79, 82, 225, A.DT_US,
       A.OP.READBACK, A.CAP_READBACK, A.CAP_STREAM_FILES, 16, 12,
+      A.SLICE_POLICY.SIZE,A.SLICE_POLICY.version,A.SLICE_POLICY.entry_count,A.SLICE_POLICY.entries_ptr,A.SLICE_POLICY.range_count,A.SLICE_POLICY.ranges_ptr,
     ];
     expect([...t].map((v, i) => (expected[i] < 0 ? signed(v) : v))).toEqual(expected);
   });

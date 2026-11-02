@@ -692,7 +692,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     char t1[200], t2[256], t3[512]; /* sized so the worst-case composition provably fits (gcc -Wformat-truncation) */
     if (vhas(&skip, f->addr)) { fprintf(o, "\n/* function %08x: provided by port/overrides (exception) */\n", f->addr); return; }
     fprintf(o, "\n/* function %08x (%u instructions) */\nvoid F_%08x(void) {\n", f->addr, f->insns.n, f->addr);
-    fprintf(o, "    bgt_coverage_entry(X.eip, 1);\n");
+    fprintf(o, "    x86_coverage_lifted(X.eip, 1);\n");
     fprintf(o, "    const uint32_t ra = x86_rd32(X.r[ESP]), esp0 = X.r[ESP]; (void)ra; (void)esp0;\n    uint32_t t, u; (void)t; (void)u;\n");
     /* LANE-C: all instruction labels are legal cooperative resume points. */
     fprintf(o, "    switch (X.eip) {\n");

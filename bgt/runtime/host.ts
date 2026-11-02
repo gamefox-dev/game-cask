@@ -23,6 +23,7 @@ import {
   GPU_LIMITS,
   IO,
   LIMITS,
+  SLICE_POLICY,
   MAX_TOUCHES,
   errorName,
 } from './abi';
@@ -161,6 +162,7 @@ interface GameExports {
   bgt_debug_state?(): number;
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
+  bgt_slice_policy?(entries:number,ranges:number):number;
   bgt_async_buffer?(): number;
   bgt_async_buffer_size?(): number;
   // added by binaryen's asyncify pass (game.json "asyncify": true)
@@ -431,7 +433,14 @@ export class GameHost {
           this.recordDecode(res);
           return res.status;
         },
-        slice_missing: (kind: number,addr: number) => { throw new OutsideSlice(kind >>> 0,addr >>> 0); },
+        slice_missing: (kind: number,addr: number) => {
+          kind >>>= 0;addr >>>= 0;
+          if(kind===1) {
+            if(this.codeCoverage.has(addr) || this.codeCoverage.size<CODE_COVERAGE_LIMIT)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0)|2);
+            else this.codeCoverageDropped++;
+          }
+          throw new OutsideSlice(kind,addr);
+        },
         coverage_entry: (addr: number, kind: number) => {
           addr >>>= 0; kind >>>= 0;
           if (kind === 1 || kind === 2) {
@@ -626,6 +635,22 @@ export class GameHost {
     // flushed with the first rendered frame.
     this.frame.logicalW = this.logicalWidth;
     this.frame.logicalH = this.logicalHeight;
+    if(this.allowedCode && this.exports.bgt_slice_policy) {
+      const entries=[...this.allowedCode].sort((a,b)=>a-b),ranges=[...(this.config.sliceCodeRanges ?? [])].sort((a,b)=>a.addr-b.addr);
+      if(entries.length>1048576 || ranges.length>1048576 || entries.some(a=>!Number.isInteger(a)||a<0||a>0xffffffff) ||
+        ranges.some((r,i)=>!Number.isInteger(r.addr)||!Number.isInteger(r.end)||r.addr<0||r.end<=r.addr||r.end>0xffffffff||(i>0 && ranges[i-1].end>r.addr)))
+        throw new HostError('invalid slice-policy input');
+      const p=this.exports.bgt_slice_policy(entries.length,ranges.length) >>> 0;
+      if(!p || p%4 || !this.inRange(p,SLICE_POLICY.SIZE))throw new HostError('invalid slice-policy descriptor');
+      const v=this.dv();
+      if(v.getUint32(p,true)!==SLICE_POLICY.SIZE || v.getUint32(p+SLICE_POLICY.version,true)!==1 ||
+        v.getUint32(p+SLICE_POLICY.entry_count,true)!==entries.length || v.getUint32(p+SLICE_POLICY.range_count,true)!==ranges.length)
+        throw new HostError('invalid slice-policy shape');
+      const ep=v.getUint32(p+SLICE_POLICY.entries_ptr,true),rp=v.getUint32(p+SLICE_POLICY.ranges_ptr,true);
+      if(ep%4 || rp%4 || !this.inRange(ep,entries.length*4) || !this.inRange(rp,ranges.length*8))throw new HostError('invalid slice-policy buffers');
+      entries.forEach((a,i)=>v.setUint32(ep+4*i,a,true));
+      ranges.forEach((r,i)=>{v.setUint32(rp+8*i,r.addr,true);v.setUint32(rp+8*i+4,r.end,true);});
+    }
     this.initialized = true;
     return rc;
   }
@@ -742,7 +767,7 @@ export class GameHost {
     const ptr = fn() >>> 0;
     const mem = this.mem();
     if (!ptr || ptr >= mem.byteLength) return null;
-    const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.debugStateBytes)).indexOf(0);
+    const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.metricsBytes)).indexOf(0);
     if (end < 0) return null;
     try {
       const metrics=JSON.parse(utf8.decode(mem.subarray(ptr, ptr + end)));

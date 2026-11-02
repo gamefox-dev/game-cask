@@ -70,6 +70,8 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
   resources.end=resourceSnapshot();
   const report = {
     resources, profileEnabled:process.env.BGT_CPU_PROFILE !== '0',
+    coverageMode:process.env.BGT_COVERAGE_DIRECT==='1'?'direct':'buffered',
+    asyncifyMode:process.env.BGT_ASYNCIFY_FULL==='1'?'conservative':'amd64-native-boundaries',
     schema: 'game-cask/codegen/1', base: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     node: process.version, platform: `${process.platform}/${process.arch}`, fixtures: rows,
     method: 'Whole wasm (profile + Asyncify included); update/render/consume 300 fixed frames; median of five fresh '

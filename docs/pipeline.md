@@ -109,6 +109,9 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
   callbacks, so these are **inclusive attribution**, not mutually exclusive partitions. Decode/dispatch overhead
   outside timed calls remains in `host_profile.updateMs`, not silently assigned to native code.
 - `cpu_profile.apis`: every hit import slot's DLL/name, exact count, sampled microseconds and extrapolated total.
+  The metrics JSON observation ceiling is 8 MiB (debug JSON adds 64 KiB for views), tested with all 4096 maximum-length
+  printable import names. Names are escaped. Pathological control-byte names exceeding that bound return valid
+  `metrics_serialization_overflow:1` JSON, never silently malformed/truncated metrics or invented API totals.
   API time includes nested guest callbacks, excludes time parked across frame yields, and overlaps category totals.
   API sampling is first/every 1024th call; use CDP to check periodic-work bias. `idle_yield_us` is observed wall time
   parked at frame waits (including probe think time), **not** virtual guest Sleep duration or CPU consumption.
@@ -150,6 +153,48 @@ samples: 300-update median overhead **8.3% x64-crt / 3.6% x64-cpp** in short sta
 in both variants; this isolates the C instrumentation, not total instrumentation cost. These millisecond fixtures
 are noisy, not a bound for an engine workload. `tools/bench/codegen.test.ts` now records resources alongside runtime
 metrics; rebuild before changing variants and do not measure while another task republishes the same fixture.
+
+### Buffered coverage and Asyncify boundaries
+
+Discovery generated hooks now de-duplicate `(address,kind)` in a **wasm-local 65,536-slot direct-mapped cache**,
+with a bounded 4096-record queue. Only newly observed kind bits cross into JS at pressure, frame waits, normal update
+return, metrics reads and explicit profile faults. Collisions may re-report records but cannot discard evidence.
+`coverage_events`, `coverage_cache_hits`, `coverage_crossings` expose the reduction; the host still owns the independent
+1,048,576-entry/drop limit. A snapshot flushes **before** copying code and drop counts. Abrupt external wasm traps
+can leave an unflushed tail: errored recordings are not packaging evidence. `BGT_COVERAGE_DIRECT=1` restores direct
+crossings for A/B tests without changing instruction/API semantics.
+
+AMD64 strict builds omit generated recording hooks. The dispatcher enforces compiled code membership locally;
+i386's direct calls retain local checks. An optional [strict host-policy export](../bgt/abi/ABI.md#strict-compiled-slice-host-policy-k10-additive-optional-export)
+intersects a stricter host allowlist with the compiled policy, including the existing empty-allowlist stop. Neither
+strict path records successful entries or imports `coverage_entry`; outside-slice failures retain their missing-code
+address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
+and passes the strict package/reference runs; no coverage evidence is filtered or manufactured.
+
+AMD64 generated register-local functions return to the dispatcher before generic semantics, quantum scheduling,
+API thunks or guest callbacks. They do **not** own a suspending native stack. Build postprocessing now excludes only
+**exact generated `F_<addr>` wrapper definitions**, not handwritten symbols or an unsafe `--asyncify-ignore-indirect`.
+Region signatures already separate them from suspendable call targets. `BGT_ASYNCIFY_FULL=1` retains conservative
+analysis for A/B. i386, dispatcher, shared semantics, scheduler, callbacks and handwritten overrides stay instrumented.
+A synthetic normally lifted Win64 override really yields twice; the regression verifies it resumes and returns the
+known answer. It also exposed/fixes the pre-existing AMD64 `--skip` duplicate-symbol bug (overrides have an exact-entry
+registry record, never a duplicate native body or an invented interior range).
+
+For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
+conservative analysis rather than an incomplete exclusion. `manifest.pipeline.metrics` records `asyncify_mode`,
+`asyncify_remove_count`, list SHA-256, `pre_asyncify_bytes`, elapsed time and cache state. Named linked wasm is read
+without instantiating/compiling it in JS; only standard function-name metadata is parsed. Toolchain libc DWARF is
+stripped before postprocessing, retaining names for sound exact selection but not shipping private debug paths.
+
+```sh
+npm run bench:execution                  # sequential direct/full, buffered/full, buffered/restricted, interpreter
+npm run bench:asyncify -- reports/asyncify.json   # same linked input, uncached postprocess + state-reference audit
+```
+
+Both save resource snapshots. `bench:execution` includes CRT, C++, the 1.6M-instruction/chunk scale fixture and an
+original CC0 dispatch-heavy workload (4,194,304 indirect calls, independent numeric checksum), 300 updates per run,
+five fresh instances plus discarded warmup. Native `bgt.yield` reachability must not be inferred from a function's
+name alone: exclusions come from generated definitions, and the exact-list override regression guards this boundary.
 
 ## Pixel reads: CPU replay of the recorded GDI ops
 GDI draws on GPU render targets and nothing is read back from the GPU. When a module imports a pixel-read API

@@ -809,6 +809,7 @@ void w32_wait_frame(void) {
     w32_m.yields++;
     X.frame_insns=0;
     w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
+    x86_coverage_flush();
     x86_profile_idle_begin();
     bgt_yield();
     x86_profile_idle_end();
@@ -853,22 +854,38 @@ void w32_update(void) {
 void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
 /* ------------------------------------------------------------------ metrics / debug */
-static char json[524288];
+/* 4096 slots with maximum printable names fit below 8 MiB. Pathological
+ * control-byte names can exceed it: report a valid explicit overflow object. */
+static char json[8u << 20];
 static uint32_t jn;
-static void jput(const char *s) { while (*s && jn + 1 < sizeof json) json[jn++] = *s++; }
+static int json_overflow;
+static void jput(const char *s) { while (*s && jn + 1 < sizeof json) json[jn++] = *s++; if(*s)json_overflow=1; }
+static void jescaped(const char *s) {
+    static const char hex[]="0123456789abcdef";
+    while(*s) { unsigned char c=(unsigned char)*s++;
+        if(c=='"' || c=='\\') {char t[]={'\\',(char)c,0};jput(t);}
+        else if(c<0x20) {char t[]={'\\','u','0','0',hex[c>>4],hex[c&15],0};jput(t);}
+        else {char t[]={(char)c,0};jput(t);}
+    }
+}
 static void jnum(uint64_t v) {
     char t[24]; int n = 0;
     do { t[n++] = (char)('0' + v % 10); v /= 10; } while (v);
     while (n && jn + 1 < sizeof json) json[jn++] = t[--n];
+    if(n)json_overflow=1;
 }
 static void jkv(const char *k, uint64_t v) { jput("\""); jput(k); jput("\":"); jnum(v); jput(","); }
 
 const char *w32_metrics_json(void) {
-    jn = 0;
+    x86_coverage_flush();
+    jn = 0;json_overflow=0;
     jput("{\"platform\":\"win32\",");
     jkv("lifted_functions", x86_metrics.lifted_functions);
     jkv("lifted_calls", x86_metrics.lifted_calls);
     jkv("guest_instruction_clock", x86_guest_instruction_clock());
+    jkv("coverage_events",x86_coverage_events);
+    jkv("coverage_crossings",x86_coverage_crossings);
+    jkv("coverage_cache_hits",x86_coverage_cache_hits);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interp_code_entries", x86_metrics.interp_code_entries);
     jkv("interp_functions", x86_metrics.interp_functions);
@@ -911,14 +928,14 @@ const char *w32_metrics_json(void) {
 #endif
     jkv("trace_hash", trace_hash);
     jput("\"stubs\":[");
-    for (uint32_t i = 0; i < w32_m.stubs_distinct && i < 24; i++) { if (i) jput(","); jput("\""); jput(w32_m.stubs[i]); jput("\""); }
+    for (uint32_t i = 0; i < w32_m.stubs_distinct && i < 24; i++) { if (i) jput(","); jput("\""); jescaped(w32_m.stubs[i]); jput("\""); }
     jput("],\"apis_hit\":[");
     int first = 1;
     for (uint32_t i = 0; i < nslots; i++) {
         if (!slots[i].hits) continue;
         if (!first) jput(",");
         first = 0;
-        jput("\""); jput(slots[i].name); jput("\"");
+        jput("\""); jescaped(slots[i].name); jput("\"");
     }
     jput("],\"cpu_profile\":{\"sample_period\":");jnum(X86_PROFILE_SAMPLE);
     jput(",\"idle_yield_us\":");jnum((uint64_t)x86_profile_idle_us);
@@ -933,7 +950,7 @@ const char *w32_metrics_json(void) {
     jput("],\"apis\":[");first=1;
     for(uint32_t i=0;i<nslots;i++)if(slots[i].hits){
         slot_t *s=&slots[i];if(!first)jput(",");first=0;
-        jput("{\"dll\":\"");jput(s->dll);jput("\",\"name\":\"");jput(s->name);jput("\",");
+        jput("{\"dll\":\"");jescaped(s->dll);jput("\",\"name\":\"");jescaped(s->name);jput("\",");
         jkv("count",s->hits);jkv("samples",s->timing_samples);jkv("sample_us",(uint64_t)s->timing_us);
         jput("\"estimated_us\":");jnum(s->timing_samples?(uint64_t)(s->timing_us*(double)s->hits/(double)s->timing_samples):0);jput("}");
     }
@@ -958,6 +975,7 @@ const char *w32_metrics_json(void) {
         x86_census_t *e=&x86_census[top[k]-1];if(k)jput(",");jput("{");jkv("address",e->address);jkv("count",e->count);jput("\"instructions\":");jnum(e->instructions);jput("}");
     }
     jput("]}}");
+    if(json_overflow) {jn=0;jput("{\"platform\":\"win32\",\"metrics_serialization_overflow\":1,");jkv("imports_bound",nslots);jput("\"cpu_profile\":null}");}
     json[jn] = 0;
     return json;
 }
@@ -993,7 +1011,7 @@ void wj_rect(w32_json_t *j, int32_t x, int32_t y, int32_t w, int32_t h) {
  * (UI layout) and to locate guest data for __BGT_TEST__.peek (module bases). Never a way to change state. */
 const char *w32_debug_json(void) {
     static w32_json_t j;
-    if (!j.b) { j.cap = 64u << 10; j.b = (char *)x86_alloc(j.cap); if (!j.b) return w32_metrics_json(); }
+    if (!j.b) { j.cap = (8u << 20) + (64u << 10); j.b = (char *)x86_alloc(j.cap); if (!j.b) return w32_metrics_json(); }
     j.n = 0;
     const char *m = w32_metrics_json();
     uint32_t mn = w32_slen(m);

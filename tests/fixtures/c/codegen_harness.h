@@ -3,6 +3,7 @@
 #define X86_FLAT_BYTES 65536ull
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
+#include "../../../platforms/x86/x86_coverage.h"
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u << 20];
