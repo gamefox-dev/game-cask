@@ -202,7 +202,7 @@ it('buffers real emitted indirect-entry hooks without losing or inventing covera
 const nativeSuffixHex = 'b808100001ffe090c70425002000007b000000c3';
 it('buffers coverage from K13 native interior suffix entries', async () => {
   const h = await harness(nativeSuffixHex);
-  expect(h.text).toContain('entry_index=3;'); // suffix initialization, not ordinary dispatch
+  expect(h.text).toContain('entry_index=3u;'); // suffix initialization, not ordinary dispatch
   h.ex.reset(base, 0); h.ex.run(0);
   expect(h.view().getUint32(h.ex.ram() + 0x2000, true)).toBe(123);
   expect(h.coverage).toEqual([]);
@@ -211,7 +211,7 @@ it('buffers coverage from K13 native interior suffix entries', async () => {
 });
 it('strict checks stop K13 native interior suffix entries before their write', async () => {
   const strict = await harness(nativeSuffixHex, ['X86_COVERAGE_MODE=2']);
-  expect(strict.text).toContain('entry_index=3;');
+  expect(strict.text).toContain('entry_index=3u;');
   strict.ex.reset(base, 0); strict.ex.configure_policy();
   expect(() => strict.ex.run(0)).toThrow('strict slice stop');
   expect(strict.view().getUint32(strict.ex.ram() + 0x2000, true)).toBe(0);
