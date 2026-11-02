@@ -25,19 +25,19 @@ its source generation lives in `execution.test.ts`. No per-game addresses or spe
 ## Committed execution report
 
 [`k10-execution.json`](k10-execution.json) records all raw samples, categories, API timing, generic-exit census,
-resource snapshots, build/cache facts and execution counters. It was measured in the indicated K10 worktree based
-on the report's base commit (not falsely attributed to an already existing final commit).
+resource snapshots, build/cache facts and execution counters. The final run was measured at **d9b0603** (the report's commit); an earlier short-sample summary is retained
+separately to expose the substantial CRT variance rather than cherry-pick its favorable sample.
 
 | Fixture | direct/full ms | buffered/full ms | buffered/restricted ms | interpreter ms | after/reference speedup |
 |---|---:|---:|---:|---:|---:|
-| x64-crt | 7.602 | 7.324 | 4.474 | 9.525 | 2.13× |
-| x64-cpp | 3.569 | 3.425 | 3.418 | 4.725 | 1.38× |
-| x64-scale (1,609,529 instructions, chunked) | 34.734 | 30.315 | 29.960 | 83.404 | 2.78× |
-| generated dispatch-heavy | 563.178 | 282.858 | 281.067 | 848.285 | 3.02× |
+| x64-crt | 6.238 | 5.160 | 4.333 | 4.183 | 0.97× |
+| x64-cpp | 3.687 | 3.670 | 3.571 | 4.985 | 1.40× |
+| x64-scale (1,609,529 instructions, chunked) | 35.845 | 31.752 | 30.880 | 86.118 | 2.79× |
+| generated dispatch-heavy | 591.461 | 329.841 | 334.138 | 860.491 | 2.58× |
 
 The **coverage-only** change cuts host crossings: CRT **2023→837**, C++ **2796→214**, scale **49672→24202**,
 dispatch-heavy **8,389,564→72** (>99.999% reduction). Direct/full versus buffered/full isolates that change.
-The dispatch-heavy median halves; sparse scale entries give a smaller 12.7% median reduction. The exact-count
+The coverage-only dispatch-heavy median falls 44.2%; sparse scale entries give a smaller 11.4% median reduction. The exact-count
 cache metrics, not a presumed universal speedup, establish that hot repeated Wasm→JS crossings were removed.
 The direct-mapped cache can collide/re-report; it never discards entries or bypasses the host overflow policy.
 
@@ -46,9 +46,9 @@ Generic executions per lifted call are unchanged: CRT **1.92285**, C++ **0.08897
 opcode forms; those general code-model improvements belong to K11. The coverage → re-lift fixture still converges
 from >70k interpreted instructions to zero in two selective builds, followed by an identical strict/reference run.
 
-**F-PERF-CRT:** this sample reaches the ≥2× execution target, but the prior same-worktree rerun measured only
-~0.92× and earlier short samples vary substantially. It would be dishonest to close the historical acceptance
-with one 4–10 ms sample. The fixture retires only roughly 10k semantic-clock instructions, spends much of 300 frames
+**F-PERF-CRT remains open:** the final sample is only **0.97×** over the reference. An earlier short sample reached
+2.13×, while another was ~0.92×; it would be dishonest to close the historical acceptance using that favorable
+4–10 ms observation. The fixture retires only roughly 10k semantic-clock instructions, spends much of 300 frames
 idle/host-side, and still has 3888 generic executions/2022 lifted calls, so a robust universal ≥2× claim remains open.
 This report does not establish ≥2× wasm-size reduction or game performance. Category estimates with 1–4 samples
 must not be summed as exact wall time. See docs/pipeline.md for inclusive/sample/timer semantics.
@@ -74,6 +74,7 @@ record the list count/hash, linked size, postprocess cache state and elapsed tim
 
 [`k10-profile-overhead.json`](k10-profile-overhead.json): C timing/census enabled versus disabled on identical short
 fixtures, JS timing present in both. Measured median overhead **8.3% CRT / 3.6% C++**, not a total instrumentation
-bound and not a target-game measurement. The extra 1ms CDP profiler is opt-in and outside that comparison. The
+bound and not a target-game measurement. The extra 1ms CDP profiler is opt-in and outside that comparison. The expanded/resettable 262k census landed after the original C-overhead sample; the final execution report uses
+that implementation, while the committed overhead report remains explicitly historical. The
 `guest_instruction_clock` field remains the raw active-context AMD64 `X.tsc`; exact threaded process-retirement
 accounting is owned by K11. No exact instructions/s is fabricated from it.

@@ -1,5 +1,10 @@
 # v0.3 merged implementation status
 
+K10 execution profiling/coverage lane is delivered on its branch through `b543d1a`: sampled timing and resettable
+census windows, no-`-g` named profiling, wasm-local coverage buffering and exact native Asyncify exclusions. Final
+lane-wide gates are being finalized; no merged-tree/Tier1/game acceptance is asserted here. See [K10 handoff](handoff/K10.md)
+and committed same-toolchain [benchmark report](../tools/bench/README-execution.md).
+
 ## K8a Q21 final completion
 
 Lane K8a continuation 3 completes the bounded Q21 GL contracts on top of `39c42d5`. The final implementation commits
