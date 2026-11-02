@@ -1,3 +1,4 @@
+// @bgt-examples: none
 // Generated C versus the unchanged instruction interpreter: full CPU bytes and RAM, not API hashes alone.
 import { describe, it, expect } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -74,11 +75,15 @@ BGT_EXPORT(run) unsigned run(unsigned interpreted) {
 }`;
   writeFileSync(join(dir, 'probe.c'), source);
   const wasm = await compileC(relative(ROOT, join(dir, 'probe.c')),defines);
-  const { instance } = await WebAssembly.instantiate(wasm, { bgt: { coverage_entry: () => {}, slice_missing: () => {throw new Error('strict slice stop');} } });
+  const coverage: [number, number][] = [];
+  const { instance } = await WebAssembly.instantiate(wasm, { bgt: {
+    coverage_entry: (address: number, kind: number) => coverage.push([address, kind]),
+    slice_missing: () => { throw new Error('strict slice stop'); },
+  } });
   const ex = instance.exports as any;
   const memory = () => new Uint8Array(ex.memory.buffer);
   const view = () => new DataView(ex.memory.buffer);
-  return { ex, memory, view, code, text, stats: JSON.parse(readFileSync(join(dir, 'lifted.c.stats.json'), 'utf8')) };
+  return { ex, memory, view, code, text, coverage, stats: JSON.parse(readFileSync(join(dir, 'lifted.c.stats.json'), 'utf8')) };
 }
 
 it('specialized ALU flag masks agree with all arithmetic reference flags and preserve dead bits', async () => {
@@ -175,6 +180,32 @@ it('an internal indirect jump does not taint a later direct region-exit census r
   const h=await harness('b807100001ffe0e9f4efff00');
   h.ex.reset(base,0);h.ex.run(0);
   expect(h.ex.last_exit_reason()).toBe(6); // XE_OTHER, not stale XE_INDIRECT
+});
+
+it('buffers real emitted indirect-entry hooks without losing or inventing coverage', async () => {
+  // Two accepted native entries; the external direct destination must not be recorded by this region.
+  const h = await harness('b807100001ffe0e9f4efff00');
+  for (let n = 0; n < 2; n++) { h.ex.reset(base, 0); h.ex.run(0); }
+  expect(h.coverage).toEqual([]);
+  expect(h.ex.coverage_events()).toBe(4n);
+  expect(h.ex.coverage_hits()).toBe(2n);
+  h.ex.coverage_flush();
+  expect(h.coverage).toEqual([[base, 1], [base + 7, 1]]);
+  expect(h.ex.coverage_crossings()).toBe(2n);
+  h.ex.coverage_flush();
+  expect(h.coverage).toHaveLength(2);
+});
+
+it('classifies guard, quantum and interior semantic boundaries in both counting policies', async () => {
+  const guard = await harness('48c7c300300000eb00488b03c3');
+  guard.ex.reset(base, 0); guard.ex.protect(3, 2); guard.ex.run(0);
+  expect(guard.ex.last_block_reason()).toBe(2); // XE_GUARD
+  const quantum = await harness('90c3');
+  quantum.ex.reset(base, 2000000); quantum.ex.stop_at_quantum(1); quantum.ex.run(0);
+  expect(quantum.ex.last_block_reason()).toBe(3); // XE_QUANTUM, including affine reservation
+  const interior = await harness('b80100000083c002c3');
+  interior.ex.reset(base + 5, 0); interior.ex.run(0);
+  expect(interior.ex.last_block_reason()).toBe(4); // XE_INTERIOR
 });
 
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {

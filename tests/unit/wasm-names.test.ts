@@ -1,3 +1,4 @@
+// @bgt-examples: none
 import {it,expect} from 'vitest';
 // @ts-expect-error ESM build helper
 import {functionNames,stripDwarf,encodeFunctionNames} from '../../tools/build/wasm-names.mjs';

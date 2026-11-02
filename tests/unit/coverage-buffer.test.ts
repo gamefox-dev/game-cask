@@ -1,3 +1,4 @@
+// @bgt-examples: none
 // Original CC0 buffered coverage regressions: collisions never discard entries, strict checks precede execution.
 import {it,expect} from 'vitest';
 import {compileC} from '../support/compile';

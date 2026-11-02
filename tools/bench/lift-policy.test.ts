@@ -1,3 +1,4 @@
+// @bgt-examples: none
 // Opt-in heavy policy matrix; uses only original CC0 pipeline examples, never game inputs.
 import { it, expect } from 'vitest';
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

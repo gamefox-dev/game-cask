@@ -1,3 +1,4 @@
+// @bgt-examples: none
 // Original CC0 regression: a hand-written suspending override is NOT a native generated wrapper.
 import {it,expect} from 'vitest';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
@@ -8,11 +9,11 @@ import {ROOT,loadHeadless} from '../support/headless';
 import {buildGame} from '../../tools/build/build.mjs';
 // @ts-expect-error ESM analyzer
 import {x86tool} from '../../tools/build/pipeline.mjs';
-it('keeps a real yield inside a measured override instrumented while excluding only generated wrappers',async()=>{
+it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while excluding only generated wrappers',async(liftPreset)=>{
  const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/asyncify-override-')),id=basename(dir).toLowerCase();
  try {
   writeFileSync(join(dir,'guest.c'),'/* Original CC0 */\n#include <windows.h>\nint _tls_index;\n__declspec(dllexport) __declspec(noinline) unsigned target(unsigned x){return x+7;}\nunsigned (*volatile target_ptr)(unsigned)=target;\nvoid entry(void){char s[80];unsigned x=target_ptr(5);wsprintfA(s,"override result %u",x);OutputDebugStringA(s);for(;;)Sleep(5);}\n');
-  const cfg={id,name:'CC0 suspending override',pipeline:{platform:'win32',fixture:{target:'x86_64-windows-gnu',sources:['guest.c'],out:'guest.exe',entry:'entry',libs:['kernel32','user32']},modules:[{from:'./build/guest.exe',main:true}]}};
+  const cfg={id,name:'CC0 suspending override',pipeline:{platform:'win32',liftPreset,fixture:{target:'x86_64-windows-gnu',sources:['guest.c'],out:'guest.exe',entry:'entry',libs:['kernel32','user32']},modules:[{from:'./build/guest.exe',main:true}]}};
   writeFileSync(join(dir,'game.json'),JSON.stringify(cfg));
   const initial=buildGame(dir,{quiet:true});
   const base=initial.pipeline.modules[0].base;

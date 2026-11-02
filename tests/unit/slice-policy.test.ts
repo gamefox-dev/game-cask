@@ -1,3 +1,4 @@
+// @bgt-examples: none
 import {it,expect} from 'vitest';
 import {compileC} from '../support/compile';
 import {GameHost} from '../../bgt/runtime/host';

@@ -1,3 +1,4 @@
+// @bgt-examples: none
 // Original CC0 measurements: precise retained census counts and honest sampled timing/resource failures.
 import { it, expect } from 'vitest';
 import { compileC } from '../support/compile';

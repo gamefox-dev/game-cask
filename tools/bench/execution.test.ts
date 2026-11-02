@@ -1,3 +1,4 @@
+// @bgt-examples: none
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Original kit fixtures only. Same toolchain; isolated sequential variants, no republishing races.
 import {it,expect} from 'vitest';

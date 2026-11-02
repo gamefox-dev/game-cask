@@ -1,3 +1,4 @@
+// @bgt-examples: none
 import {it,expect} from 'vitest';
 import {compileC} from '../support/compile';
 it('serializes all 4096 maximum-length printable import names without truncation and reports pathological overflow truthfully',async()=>{
