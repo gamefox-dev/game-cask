@@ -8,7 +8,11 @@ numerical regressions. Scratch-only audit: **135 captured submissions / 61 uniqu
 on both actual native compilers (stage compilation, not captured pipeline/render certification). WebGL 2 explicitly
 rejects the native boundary `put(v.wy[dynamicIndex])` for out/inout parameters before native compilation; later unrelated
 shader compilation/rendering is tested. Direct swizzles, array elements, members and aliases remain supported.
-No wire ABI changes or target first-draw/title/playability claim. Details and final gates: [K9a handoff](handoff/K9a.md).
+Final gates on `3dbd9e0`: doctor, clang + GCC lint (28 example checks), typecheck and leakcheck pass;
+**939 units / 68 files**, **218 browser passes / 51 intentional skips**, **25 pipeline oracles × 300 frames = 7,500
+identical pairs**. Original numeric corpus: **350 rendered results** (348 common + 2 WebGPU native-boundary controls),
+plus two explicit WebGL rejections and subsequent successful renders. Fresh independent bounded review passes.
+No wire ABI changes or target first-draw/title/playability claim. Details: [K9a handoff](handoff/K9a.md).
 
 ## K8a Q21 final completion
 
