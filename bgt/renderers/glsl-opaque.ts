@@ -96,8 +96,10 @@ export function specializeOpaqueSamplers(source: string): string {
   const rewrite = (text: string, env: Map<string, string | undefined>, validationOnly = false, opaqueParameters: ReadonlyMap<string, string> = new Map()): string => {
     const ts = tokens(text); let out = '', from = 0;
     const structRanges: [number, number][] = [];
-    for (let i = 0; i < ts.length; i++) if (ts[i].text === 'struct' && ts[i + 1]?.text && ts[i + 2]?.text === '{')
-      structRanges.push([i + 2, closing(ts, i + 2)]);
+    for (let i = 0; i < ts.length; i++) if (ts[i].text === 'struct') {
+      const brace = ts[i + 1]?.text === '{' ? i + 1 : i + 2;
+      if (ts[brace]?.text === '{') structRanges.push([brace, closing(ts, brace)]);
+    }
     const inStruct = (index: number) => structRanges.some(([a, b]) => index > a && index < b);
     const scopes: { end: number; env: Map<string, string | undefined> }[] = [];
     const locals = new Map<number, string>(), implicitScopes = new Map<number, number>();

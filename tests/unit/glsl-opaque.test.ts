@@ -87,6 +87,20 @@ describe('opaque sampler helper identity specialization', () => {
     const r = runGlsl({ fs: [version + source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy();
     expect(r.fsOut).toMatch(/float bgt_t0\s*;/); expect(r.fsOut).toContain('q.bgt_t0');
   });
+  for (const language of [1, 2]) for (const ordinary of [false, true])
+    it(`anonymous struct fields retain uniform and sampler-parameter spellings (language ${language}, ordinary ${ordinary})`, () => {
+      const source = (language === 1 ? version : '#version 300 es\nprecision highp float;\n') +
+        'uniform sampler2D bgt_t0;layout(location=0) out vec4 o;' + (ordinary ? 'float value();' : '') +
+        'vec4 read(sampler2D s){' + (ordinary ? 'return texture(s,vec2(0.5))*value();}float value(){' : '') +
+        'struct {float bgt_t0;float s;}q;q.bgt_t0=1.0;q.s=1.0;' +
+        (ordinary ? 'return q.bgt_t0*q.s;}' : 'return texture(s,vec2(0.5))*q.bgt_t0*q.s;}') +
+        'void main(){o=read(bgt_t0);}';
+      const out = specializeOpaqueSamplers(source);
+      expect(out).toContain('float bgt_t0;float s;'); expect(out).toContain('q.bgt_t0'); expect(out).toContain('q.s');
+      expect(translateShader(source, 2, language)).toMatch(/float bgt_t0\s*;/);
+      const r = runGlsl({ fs: [source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy();
+      expect(r.fsOut).toMatch(/float bgt_t0\s*;/); expect(r.fsOut).toContain('q.bgt_t0');
+    });
   it('ordinary value functions do not acquire uniform-only inline-struct restrictions', () => {
     const source = 'out vec4 o;struct S{float x;}v;S f(S a){return a;}void main(){v.x=0.5;o=vec4(f(v).x);}';
     const r = runGlsl({ fs: [version + source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.fsOut).toMatch(/struct S/);
