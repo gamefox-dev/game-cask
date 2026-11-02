@@ -1,7 +1,7 @@
 // Generated C versus the unchanged instruction interpreter: full CPU bytes and RAM, not API hashes alone.
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { compileC } from '../support/compile';
 import { ROOT } from '../support/headless';
@@ -27,6 +27,29 @@ function pe(code: Buffer): Buffer {
   b.writeUInt32LE(0x1000, 0x200); b.writeUInt32LE(0x1000 + code.length, 0x204);
   code.copy(b, 0x400); return b;
 }
+it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', '--lift-optimize-small'])(
+  'CLI %s rejects invalid values and accepts on/off', (option) => {
+    const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
+    const dir = mkdtempSync(join(root, 'cli-'));
+    try {
+      const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
+      writeFileSync(input, pe(Buffer.from('4883c001c3', 'hex')));
+      const tool = x86tool();
+      const args = ['lift', input, '--name', 'probe', '--out', output, option];
+      const invalid = spawnSync(tool, [...args, 'banana'], { encoding: 'utf8' });
+      expect(invalid.error).toBeUndefined();
+      expect(invalid.status).toBe(2);
+      expect(invalid.stderr).toContain(`${option} must be on or off`);
+      for (const value of ['on', 'off']) {
+        const valid = spawnSync(tool, [...args, value], { encoding: 'utf8' });
+        expect(valid.error).toBeUndefined();
+        expect(valid.status, valid.stderr).toBe(0);
+        expect(readFileSync(output, 'utf8')).toContain('void F_01001000(void)');
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  },
+);
+
 describe.each(['size', 'fast'])('lift preset %s', (preset) => {
 const fast = preset === 'fast';
 async function harness(hex: string) {
