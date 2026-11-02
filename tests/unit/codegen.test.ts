@@ -396,6 +396,28 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
   }
 });
 
+it('COMI/UCOMI memory forms read exact scalar widths and preserve fault state at page edges', async () => {
+  for (const prefix of ['', '66']) for (const op of ['2e', '2f']) {
+    const h = await harness(`${prefix}0f${op}03c3`), width = prefix ? 8 : 4;
+    expect(h.stats.generic).toBe(0);
+    for (const offset of [0, 1]) {
+      const execute = (interp: number) => {
+        h.ex.reset(base, 0); h.ex.set_reg(3, BigInt(0x3000 - width + offset));
+        h.ex.set_xmm(0, prefix ? 0x3ff0000000000000n : 0x3f800000n, 0x123456789abcdefn);
+        h.ex.set_flags(0xffff); h.ex.unmap(3);
+        h.view().setBigUint64(h.ex.ram() + 0x3000 - width + offset,
+          prefix ? 0x7ff8000000000000n : 0x7fc00000n, true);
+        let faulted = false;
+        try { h.ex.run(interp); } catch (e) { expect(e).toBeInstanceOf(WebAssembly.RuntimeError); faulted = true; }
+        expect(faulted).toBe(!!offset);
+        if (!offset) expect(h.ex.get_flags()).toBe((0xffff & ~0x8d5) | 0x45);
+        return { faulted, cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()) };
+      };
+      expect(execute(0)).toEqual(execute(1));
+    }
+  }
+});
+
 it('REX.R/B scalar conversions track extended GPR and XMM operands, and MMX is not mislabeled SSE', async () => {
   const toFloat = await harness('f34d0f2ac1c3');
   toFloat.ex.reset(base, 0); toFloat.ex.set_reg(9, 16777217n); toFloat.ex.run(0);
