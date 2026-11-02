@@ -164,17 +164,19 @@ export function specializeOpaqueSamplers(source: string): string {
         }
         const call = callStack[callStack.length - 1];
         const builtin = call?.arg === 0 && /^(?:texture(?:Lod|Grad|Size|Proj|Offset|ProjLod|ProjGrad|ProjOffset|LodOffset|GradOffset|Gather|GatherOffset|QueryLod|QueryLevels|ProjLodOffset|ProjGradOffset|Samples)?|texelFetch(?:Offset)?)$/.test(call.name);
-        if (builtin && ['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(call.name)) {
+        if (builtin && /^(?:texture(?:Proj)?(?:Lod|Grad)?(?:Offset)?|textureSize|texelFetch(?:Offset)?)$/.test(call.name)) {
           const args = parts(ts, call.open + 1, closing(ts, call.open));
-          const count = call.name === 'texture' ? [2, 3] : [call.name === 'textureGrad' ? 4 : call.name === 'textureSize' ? 2 : 3];
+          const base = call.name.replace('Proj','').replace('Offset',''), offset = Number(call.name.endsWith('Offset'));
+          const count = (base === 'texture' ? [2, 3] : [base === 'textureGrad' ? 4 : base === 'textureSize' ? 2 : 3]).map(n=>n+offset);
           const type = opaqueParameters.get(actual!) ?? uniforms.get(actual!);
-          if (/^(?:[iu]?sampler2D|sampler3D|sampler2DArray|sampler2DShadow)$/.test(type ?? '')) {
+          if (/^(?:[iu]?sampler(?:2D|3D|2DArray)|sampler2DShadow)$/.test(type ?? '')) {
             if (!count.includes(args.length)) throw new Error('GLSL: invalid opaque texture builtin argument count');
             if (call.name !== 'textureSize') {
               const [ca, cb] = args[1], constructor = ts[ca]?.text;
-              const expected = call.name === 'texelFetch' ? (type === 'sampler3D' || type === 'sampler2DArray' ? 'ivec3' : 'ivec2') :
-                type === 'sampler3D' || type === 'sampler2DArray' || type === 'sampler2DShadow' ? 'vec3' : 'vec2';
-              if (/^(?:[iub]?vec[234]|float|int|uint|bool|mat\w+)$/.test(constructor) && ts[ca + 1]?.text === '(' && closing(ts, ca + 1) === cb - 1 && constructor !== expected)
+              const dimensional = /(?:3D|2DArray|2DShadow)$/.test(type!);
+              const expected = call.name.includes('Proj') ? dimensional ? ['vec4'] : ['vec3','vec4'] :
+                [base === 'texelFetch' ? dimensional ? 'ivec3' : 'ivec2' : dimensional ? 'vec3' : 'vec2'];
+              if (/^(?:[iub]?vec[234]|float|int|uint|bool|mat\w+)$/.test(constructor) && ts[ca + 1]?.text === '(' && closing(ts, ca + 1) === cb - 1 && !expected.includes(constructor))
                 throw new Error('GLSL: invalid opaque texture builtin coordinate type');
             }
           }

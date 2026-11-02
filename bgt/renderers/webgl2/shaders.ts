@@ -1,6 +1,7 @@
 // GLSL 3.30 and ES 3.00 share the portable §13 graphics subset. Unsupported desktop-only
 // constructs fail compilation with a request log, rather than being silently reinterpreted.
 // WGSL is WebGPU-only: no pinned, maintained translator is shipped with this kit.
+import { builtinExtras } from './glsl-builtins';
 import { specializeOpaqueSamplers } from '../glsl-opaque';
 import { validateNativeLvalues } from './glsl-boundaries';
 function globalDeclarations(source: string): string[] {
@@ -110,6 +111,7 @@ export function translateShader(source: string, stage: number, language: number)
   const header = '#version 300 es\nprecision highp float;\nprecision highp int;\n'+
     'precision highp sampler2D;\nprecision highp sampler2DShadow;\nprecision highp isampler2D;\nprecision highp usampler2D;\n'+
     'precision highp sampler3D;\nprecision highp sampler2DArray;\nprecision highp isampler3D;\nprecision highp usampler3D;\nprecision highp isampler2DArray;\nprecision highp usampler2DArray;\n' +
+    builtinExtras(body) +
     (/\bmix\s*\(/.test(body) ? selectorMixOverloads(body) : '');
   if (stage === 1) return header + `
 uniform vec4 bgt_internal_view_transform;

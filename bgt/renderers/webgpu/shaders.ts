@@ -1,10 +1,11 @@
 // Local, engine-independent GLSL 330/ES 300 frontend. Unsupported syntax is a compile error, never guessed.
 // Native WebGPU validates the resulting WGSL; errors retain the original token/line where possible.
-import { inverseHelper } from './glsl-builtins';
+import { textureBuiltin } from './glsl-textures';
+import { lowerBuiltin } from './glsl-builtins';
 import { specializeOpaqueSamplers } from '../glsl-opaque';
 import { integerLiteral, integerConstant, integerCode, type IntegerValue } from './glsl-integers';
 type Token = { text: string; line: number };
-type Expr = { code: string; type: string; view?: Field; place?: string; swizzle?: { root: string; components: string } };
+type Expr = { code: string; type: string; bits?: string; view?: Field; place?: string; swizzle?: { root: string; components: string } };
 type Parameter = { type: string; mode: string };
 type Signature = { params: Parameter[]; type: string; name: string };
 const types: Record<string, string> = {
@@ -276,12 +277,13 @@ class GLSL {
   private uniform(layout: Map<string, number>): void {
     if (layout.has('binding') || layout.has('set')) this.fail('native bindings are forbidden; use bgt_uS/bgt_tS');
     const name = this.name();
-    if (name === 'sampler3D' || name === 'sampler2DArray') {
+    if (/^[iu]?sampler(?:3D|2DArray)$/.test(name)) {
       const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
-      this.need(';'); const s = Number(slot[1]), volume = name === 'sampler3D';
-      this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: ${volume ? 'texture_3d<f32>' : 'texture_2d_array<f32>'};`,
+      this.need(';'); const s = Number(slot[1]), volume = name.endsWith('3D');
+      const component = name[0] === 'i' ? 'i32' : name[0] === 'u' ? 'u32' : 'f32';
+      this.declarations.push(`@group(1) @binding(${2 * s}) var ${n}: ${volume ? 'texture_3d' : 'texture_2d_array'}<${component}>;`,
         `@group(1) @binding(${2 * s + 1}) var ${n}_sampler: sampler;`);
-      this.variables.set(n, { code: n, type: volume ? 'texture3d' : 'texture2darray' }); return;
+      this.variables.set(n, { code: n, type: 'texture' + (component === 'i32' ? 'I' : component === 'u32' ? 'U' : '') + (volume ? '3d' : '2darray') }); return;
     }
     if (name === 'isampler2D' || name === 'usampler2D') {
       const n = this.name(), slot = /^bgt_t([0-7])$/.exec(n); if (!slot) this.fail('sampler must be bgt_t0..bgt_t7');
@@ -468,7 +470,7 @@ class GLSL {
           if (v !== undefined) this.intConsts.set(n, { value: BigInt(v), unsigned: type === 'u32' });
         }
         this.locals.add(n);
-        parts.push(...this.pending.splice(0), `${constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
+        parts.push(...this.pending.splice(0), `${constant ? /^(?:[iu]32|vec[234][iu])$/.test(array) ? 'const' : 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
       } while (this.eat(','));
       result = parts.join('\n');
     } else {
@@ -506,7 +508,9 @@ class GLSL {
       this.pending.push(`${e.place}${n};`); lhs = this.save(e);
     } else
     if (['-', '+', '!', '~'].includes(n)) {
-      const e = this.expression(12); lhs = { code: n === '+' ? e.code : `(${n}${e.code})`, type: e.type };
+      const e = this.expression(12); lhs = { code: n === '-' && e.type === 'f32' && /^0(?:\.0*)?$/.test(e.code) ?
+        'bitcast<f32>(0x80000000u)' : n === '+' ? e.code : `(${n}${e.code})`, type: e.type,
+        bits: n === '-' && e.type === 'f32' && /^0(?:\.0*)?$/.test(e.code) ? '0x80000000u' : undefined };
     } else if (n === '(') { lhs = this.expression(); this.need(')'); lhs.code = `(${lhs.code})`; }
     else if (/^(\d|\.)/.test(n)) {
       const integer = integerLiteral(n);
@@ -556,7 +560,7 @@ class GLSL {
         const swizzle = member.replace(/[rgba]/g, c => ({ r: 'x', g: 'y', b: 'z', a: 'w' })[c]!);
         const components = lhs.swizzle ? [...swizzle].map(c => lhs.swizzle!.components['xyzw'.indexOf(c)]).join('') : swizzle;
         const root = lhs.swizzle?.root ?? lhs.code;
-        lhs = { code: `${root}.${components}`, type, swizzle: { root, components },
+        lhs = { code: `${root}.${components}`, type, bits: lhs.bits ? `(${lhs.bits}).${swizzle}` : undefined, swizzle: { root, components },
           place: lhs.place ? `${root}.${components}` : undefined }; continue;
       }
       if (this.eat('[')) {
@@ -669,12 +673,17 @@ class GLSL {
     // A scalar user overload cannot intercept a different built-in shape (e.g. vector mix).
     const signature = exact ?? overloads?.find(s => s.params.length === evaluated.length && s.params.every((p, i) =>
       p.mode === 'in' ? compatible(p.type, evaluated[i].value.type) : p.type === evaluated[i].value.type));
+    const outBuiltin = !signature && ['modf', 'frexp'].includes(name);
+    if (outBuiltin && (evaluated.length !== 2 || !/^(f32|vec[234]f)$/.test(evaluated[0].value.type)))
+      this.fail(name + ' requires float scalar/vector and matching output');
     const writes: string[] = [];
     for (let i = 0; i < evaluated.length; i++) {
       const { value: a, before } = evaluated[i]; this.pending.push(...before);
-      const param = signature?.params[i];
+      const inputType = evaluated[0]?.value.type;
+      const param = signature?.params[i] ?? (outBuiltin && i === 1 ? { mode: 'out',
+        type: name === 'modf' ? inputType : inputType === 'f32' ? 'i32' : 'vec' + inputType[3] + 'i' } : undefined);
       if (param && param.mode !== 'in') {
-        if (!a.place) this.fail('out/inout argument requires matching mutable storage');
+        if (!a.place || a.type !== param.type) this.fail('out/inout argument requires matching mutable storage');
         const temp = this.temp('argument');
         this.pending.push(`var ${temp}: ${param.type}${param.mode === 'inout' ? ` = ${a.code}` : ''};`);
         writes.push(this.copyOut(a, temp)); args.push({ code: `&${temp}`, type: a.type });
@@ -687,12 +696,17 @@ class GLSL {
       if (type === 'void') this.pending.push(`${call};`);
       this.pending.push(...writes); return result;
     }
-    if (name === 'inverse') {
-      const helper = args.length === 1 && inverseHelper(args[0].type);
-      if (!helper) this.fail('inverse requires one square float matrix');
-      if (!this.helpers.some(h => h.startsWith('fn ' + helper.name + '('))) this.helpers.push(helper.source);
-      return { code: helper.name + '(' + args[0].code + ')', type: args[0].type };
+    if (outBuiltin) {
+      const result = this.temp(name);
+      this.pending.push('let ' + result + ' = ' + name + '(' + args[0].code + ');',
+        args[1].code.slice(1) + ' = ' + result + (name === 'modf' ? '.whole;' : '.exp;'), ...writes);
+      return { code: result + '.fract', type: args[0].type };
     }
+    const builtin = lowerBuiltin(name, args, {
+      helper: source => { if (!this.helpers.includes(source)) this.helpers.push(source); },
+      fail: message => this.fail(message),
+    });
+    if (builtin) return builtin;
     const info = this.structs.get(name);
     if (info) {
       if (args.length !== info.fields.length) this.fail(`structure constructor '${name}' requires ${info.fields.length} arguments`);
@@ -720,82 +734,20 @@ class GLSL {
       }
       const converted = args.map(a => /^(f32|i32|u32)$/.test(a.type) ?
         this.convert(a, scalar(types[name])) : a);
+      // Construct vectors containing literal -0 through integer bits, so constant folding of
+      // WGSL floating-point constructors cannot silently erase the GLSL sign before a bitcast/pack.
+      if (/^vec[234]$/.test(name) && converted.some(a => a.code === 'bitcast<f32>(0x80000000u)') &&
+        converted.every(a => a.type === 'f32')) {
+        return { code: 'bitcast<' + types[name] + '>(vec' + name[3] + 'u(' + converted.map(a =>
+          a.code === 'bitcast<f32>(0x80000000u)' ? '0x80000000u' : 'bitcast<u32>(' + a.code + ')').join(', ') + '))', type: types[name] };
+      }
       return { code: `${types[name]}(${converted.map(a => a.code).join(', ')})`, type: types[name] };
     }
-    if (['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(name)) {
-      const [t, uv, lod] = args;
-      if (!t || !['texture', 'textureI', 'textureU', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
-        this.fail('texture requires bgt_tS');
-      }
-      if (this.stage === 1 && name === 'texture' && args.length !== 2) this.fail('texture bias is only available in fragment shaders');
-      if (t.type === 'texture3d') {
-        if (name === 'textureSize') return { code: `vec3i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec3i' };
-        if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: 'vec4f' };
-        const implicitVertex = this.stage === 1 && name === 'texture';
-        const fn3 = name === 'textureLod' || implicitVertex ? 'textureSampleLevel' : name === 'textureGrad' ? 'textureSampleGrad' :
-          args.length === 3 ? 'textureSampleBias' : 'textureSample';
-        return { code: `${fn3}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')}${implicitVertex ? ', 0.0' : ''})`, type: 'vec4f' };
-      }
-      if (t.type === 'texture2darray') {
-        const helper = `bgt_internal_array_${this.temporary++}`, layer = `clamp(i32(floor(c.z + 0.5)), 0, i32(textureNumLayers(${t.code})) - 1)`;
-        if (name === 'textureSize') return { code: `vec3i(vec2i(textureDimensions(${t.code}, ${uv.code})), i32(textureNumLayers(${t.code})))`, type: 'vec3i' };
-        if (name === 'texelFetch') {
-          this.helpers.push(`fn ${helper}(p: vec3i, l: i32) -> vec4f { return textureLoad(${t.code}, p.xy, p.z, l); }`);
-          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
-        }
-        if (name === 'textureGrad') {
-          this.helpers.push(`fn ${helper}(c: vec3f, dx: vec2f, dy: vec2f) -> vec4f {` +
-            ` return textureSampleGrad(${t.code}, ${t.code}_sampler, c.xy, ${layer}, dx, dy); }`);
-          return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
-        }
-        if (name === 'textureLod') {
-          this.helpers.push(`fn ${helper}(c: vec3f, l: f32) -> vec4f {` +
-            ` return textureSampleLevel(${t.code}, ${t.code}_sampler, c.xy, ${layer}, l); }`);
-          return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
-        }
-        const biased = args.length === 3, vertex = this.stage === 1;
-        this.helpers.push(`fn ${helper}(c: vec3f${biased ? ', b: f32' : ''}) -> vec4f {` +
-          ` return ${vertex ? 'textureSampleLevel' : biased ? 'textureSampleBias' : 'textureSample'}(${t.code}, ${t.code}_sampler, c.xy, ${layer}${vertex ? ', 0.0' : biased ? ', b' : ''}); }`);
-        return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
-      }
-      if (name === 'textureSize') return { code: `vec2i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec2i' };
-      if (t.type === 'textureI' || t.type === 'textureU') {
-        const result = t.type === 'textureI' ? 'vec4i' : 'vec4u';
-        if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: result };
-        const slot = Number(t.code.match(/bgt_t([0-7])/)![1]);
-        const s = this.integerSamplers.get(slot) ?? [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0];
-        const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
-        const literal = (n: number) => Number.isInteger(n) ? `${n}.0` : String(n);
-        const helper = `bgt_internal_integer_sample_${this.temporary++}`;
-        const wrap = (axis: string, mode: number) => mode === 0 ? `clamp(p.${axis},0,size.${axis}-1)` : mode === 1 ?
-          `((p.${axis}%size.${axis})+size.${axis})%size.${axis}` :
-          `min(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2),size.${axis}*2-1-(((p.${axis}%(size.${axis}*2))+size.${axis}*2)%(size.${axis}*2)))`;
-        this.helpers.push(`fn ${helper}(c:vec2f,l:f32)->${result} { let level=${s[3] === 0 ? `min(${Math.floor(f(s[9]))},i32(textureNumLevels(${t.code}))-1)` : `i32(clamp(floor(clamp(l,${literal(f(s[9]))},${literal(f(s[10]))})+0.5),0.0,f32(textureNumLevels(${t.code})-1u)))`}; let size=vec2i(textureDimensions(${t.code},level)); let p=vec2i(floor(c*vec2f(size))); return textureLoad(${t.code},vec2i(${wrap('x',s[4])},${wrap('y',s[5])}),level); }`.replace(/(\d+)\.0\.0/g, '$1.0'));
-        let lodExpr = '0.0';
-        if (name === 'textureLod') lodExpr = args[2].code;
-        else if (name === 'textureGrad') lodExpr = `log2(max(length(${args[2].code}*vec2f(textureDimensions(${t.code}))),length(${args[3].code}*vec2f(textureDimensions(${t.code})))))`;
-        else if (this.stage === 2) lodExpr = `log2(max(length(dpdx(${uv.code})*vec2f(textureDimensions(${t.code}))),length(dpdy(${uv.code})*vec2f(textureDimensions(${t.code})))))`;
-        if (name === 'texture' && args.length === 3) lodExpr = `(${lodExpr}+${args[2].code})`;
-        if (!s[3]) lodExpr = `${Math.floor(f(s[9]))}.0`;
-        return { code: `${helper}(${uv.code},${lodExpr})`, type: result };
-      }
-      if (name === 'texelFetch') {
-        const code = `textureLoad(${t.code}, ${uv.code}, ${lod.code})`;
-        return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
-      }
-      if (t.type === 'depth') {
-        if (name !== 'texture') this.fail('shadow sampling supports texture() only');
-        const helper = `bgt_internal_shadow_${this.temporary++}`;
-        this.helpers.push(`fn ${helper}(uv: vec3f) -> f32 {` +
-          ` return ${this.stage === 1 ? 'textureSampleCompareLevel' : 'textureSampleCompare'}(${t.code}, ${t.code}_sampler, uv.xy, uv.z); }`);
-        return { code: `${helper}(${uv.code})`, type: 'f32' };
-      }
-      const implicitVertex = this.stage === 1 && name === 'texture';
-      const fn = name === 'textureLod' || implicitVertex ? 'textureSampleLevel' :
-        name === 'textureGrad' ? 'textureSampleGrad' : args.length === 3 ? 'textureSampleBias' : 'textureSample';
-      const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')}${implicitVertex ? ', 0.0' : ''})`;
-      return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
-    }
+    const texture = textureBuiltin(name, args, {
+      stage: this.stage, save: value => this.save(value), temp: prefix => this.temp(prefix),
+      helper: source => this.helpers.push(source), fail: message => this.fail(message), samplers: this.integerSamplers,
+    });
+    if (texture) return texture;
     if (name === 'mix' && args.length === 3 && scalar(args[2].type) === 'bool') {
       const [x, y, condition] = args;
       // GLSL's selector overload copies y where true and x where false; it is not interpolation.
@@ -819,6 +771,7 @@ class GLSL {
     const relational: Record<string, string> = { lessThan: '<', lessThanEqual: '<=', greaterThan: '>',
       greaterThanEqual: '>=', equal: '==', notEqual: '!=' };
     if (relational[name] && args.length === 2) {
+
       return { code: `(${args[0].code} ${relational[name]} ${args[1].code})`, type: `vec${args[0].type[3]}<bool>` };
     }
     if (name === 'not' && args.length === 1) return { code: `(!${args[0].code})`, type: args[0].type };
@@ -853,7 +806,7 @@ export function translateGLSL(source: string, stage: number, language: number, v
 
 export interface ShaderBinding {
   group: number; binding: number;
-  type: 'uniform' | 'texture' | 'textureI' | 'textureU' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray';
+  type: 'uniform' | 'texture' | 'textureI' | 'textureU' | 'depth' | 'sampler' | 'comparison' | 'nonfiltering' | 'texture3d' | 'texture2darray' | 'textureI3d' | 'textureU3d' | 'textureI2darray' | 'textureU2darray';
 }
 export function shaderBindings(source: string, activeOnly = false): ShaderBinding[] {
   const clean = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
@@ -869,11 +822,13 @@ export function shaderBindings(source: string, activeOnly = false): ShaderBindin
       /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' :
       /^texture_2d\s*<\s*i32\s*>$/.test(m[3].trim()) ? 'textureI' :
       /^texture_2d\s*<\s*u32\s*>$/.test(m[3].trim()) ? 'textureU' :
-      /^texture_3d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture3d' :
-      /^texture_2d_array\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture2darray' : m[3].trim() === 'sampler' ? 'sampler' :
+      /^texture_3d\s*<\s*([fiu])32\s*>$/.test(m[3].trim()) ?
+        ('texture' + ({ f: '', i: 'I', u: 'U' }[/<\s*([fiu])/.exec(m[3])![1]]) + '3d') as ShaderBinding['type'] :
+      /^texture_2d_array\s*<\s*([fiu])32\s*>$/.test(m[3].trim()) ?
+        ('texture' + ({ f: '', i: 'I', u: 'U' }[/<\s*([fiu])/.exec(m[3])![1]]) + '2darray') as ShaderBinding['type'] : m[3].trim() === 'sampler' ? 'sampler' :
       m[3].trim() === 'sampler_comparison' ? 'comparison' : undefined;
     if (!type || (g === 0 ? type !== 'uniform' || b > 7 : g !== 1 || b > 15 ||
-      ((type === 'texture' || type === 'textureI' || type === 'textureU' || type === 'depth' || type === 'texture3d' || type === 'texture2darray') ? b % 2 !== 0 :        (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
+      ((type.startsWith('texture') || type === 'depth') ? b % 2 !== 0 :        (type === 'sampler' || type === 'comparison') ? b % 2 !== 1 : true)))
       throw new Error(`WGSL binding @group(${g}) @binding(${b}) violates §13.5`);
     const name = /var\s*(?:<[^>]+>\s*)?(\w+)/.exec(m[0])![1];
     if (!activeOnly || new RegExp(`\\b${name}\\b`).test(clean.replace(m[0], '')))

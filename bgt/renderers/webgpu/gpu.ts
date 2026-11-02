@@ -395,13 +395,13 @@ export class WebGPUCommands implements GpuBackend {
     if(bytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback input exceeds storage binding limit');
     const depthSlots=new Set(s.bindings.filter(b=>b.group===1 && b.binding%2===0 && isDepthFormat(this.textures.get(this.sampled.get(b.binding>>1)![1])!.desc.format)).map(b=>b.binding>>1));
     const sampling=[...depthSlots].filter(slot=>s.bindings.some(b=>b.group===1&&b.binding===slot*2+1&&b.type!=='comparison')).map(slot=>({binding:slot*2,sampler:this.samplers.get(this.sampled.get(slot)![2])!.words}));
-    const integerSamplers=new Map(s.bindings.filter(b=>b.type==='textureI'||b.type==='textureU').map(b=>[b.binding>>1,this.samplers.get(this.sampled.get(b.binding>>1)![2])!.words] as const));
+    const integerSamplers=new Map(s.bindings.filter(b=>b.group===1&&(b.type.startsWith('texture')||b.type==='depth')).map(b=>[b.binding>>1,this.samplers.get(this.sampled.get(b.binding>>1)![2])!.words] as const));
     const code=lowerDepthSampling(translateGLSL(s.item.source!,1,s.item.words[2],undefined,depthSlots,integerSamplers),sampling);
     const lowered=lowerFeedback(code,layout,inputs,pw[3],w[0],w[1],w[2],w[indexed?4:3],indexWord,indexed?w[3]|0:0);
     const module=d.createShaderModule({code:lowered}), bindings=shaderBindings(code,true).map(b=>b.type==='sampler'&&depthSlots.has(b.binding>>1)?{...b,type:'nonfiltering' as const}:b);
     const layouts=[0,1].map(group=>d.createBindGroupLayout({entries:bindings.filter(b=>b.group===group).map(b=>({binding:b.binding,visibility:GPUShaderStage.COMPUTE,
       ...(b.type==='uniform'?{buffer:{type:'uniform' as const}}:
-        b.type.startsWith('texture')||b.type==='depth'?{texture:{sampleType:b.type==='depth'?'depth' as const:b.type==='textureI'?'sint' as const:b.type==='textureU'?'uint' as const:'float' as const,viewDimension:b.type==='texture3d'?'3d' as const:b.type==='texture2darray'?'2d-array' as const:'2d' as const}}:
+        b.type.startsWith('texture')||b.type==='depth'?{texture:{sampleType:b.type==='depth'?'depth' as const:b.type.startsWith('textureI')?'sint' as const:b.type.startsWith('textureU')?'uint' as const:'float' as const,viewDimension:b.type.endsWith('3d')?'3d' as const:b.type.endsWith('2darray')?'2d-array' as const:'2d' as const}}:
         {sampler:{type:b.type==='comparison'?'comparison' as const:b.type==='nonfiltering'?'non-filtering' as const:'filtering' as const}})}))}));
     layouts.push(d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}));
     let pipeline=this.feedbackPipelines.get(lowered);
@@ -735,10 +735,10 @@ struct VO { @builtin(position) pos: vec4f };
       .filter(b => b.group === group).map(b => ({ binding: b.binding,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         ...(b.type === 'uniform' ? { buffer: { type: 'uniform' as const } } :
-          b.type === 'texture' || b.type === 'textureI' || b.type === 'textureU' || b.type === 'depth' || b.type === 'texture3d' || b.type === 'texture2darray' ?
-            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : b.type === 'textureI' ? 'sint' as const : b.type === 'textureU' ? 'uint' as const : 'float' as const,
-              viewDimension: b.type === 'texture3d' ? '3d' as const :
-                b.type === 'texture2darray' ? '2d-array' as const : '2d' as const } } :
+          b.type.startsWith('texture') || b.type === 'depth' ?
+            { texture: { sampleType: b.type === 'depth' ? 'depth' as const : b.type.startsWith('textureI') ? 'sint' as const : b.type.startsWith('textureU') ? 'uint' as const : 'float' as const,
+              viewDimension: b.type.endsWith('3d') ? '3d' as const :
+                b.type.endsWith('2darray') ? '2d-array' as const : '2d' as const } } :
             { sampler: { type: b.type === 'comparison' ? 'comparison' as const :
               b.type === 'nonfiltering' ? 'non-filtering' as const : 'filtering' as const } }),
       })) }));
@@ -773,7 +773,7 @@ struct VO { @builtin(position) pos: vec4f };
     const sampling = glsl ? [...depthSlots].filter(slot => p.bindings.some(b => b.binding === slot * 2 + 1 &&
       b.group === 1 && b.type !== 'comparison')).map(slot => ({ binding: slot * 2,
       sampler: this.samplers.get(this.sampled.get(slot)![2])!.words })) : [];
-    const integerSamplers = new Map(p.bindings.filter(b => b.type === 'textureI' || b.type === 'textureU')
+    const integerSamplers = new Map(p.bindings.filter(b => b.group === 1 && (b.type.startsWith('texture') || b.type === 'depth'))
       .map(b => [b.binding >> 1, this.samplers.get(this.sampled.get(b.binding >> 1)![2])!.words] as const));
     if (sampling.length || (glsl && (depthSlots.size || integerSamplers.size))) {
       const key = JSON.stringify([[...depthSlots], sampling, [...integerSamplers]]);

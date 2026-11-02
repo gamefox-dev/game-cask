@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 // Original, engine-independent known-answer shader corpus. No captured or third-party shader sources.
-import { builtinRegressions } from './glsl-builtin-regressions';
 import { storageRegressions } from './glsl-storage-regressions';
-export interface GlslRegression { name: string; body: string; header?: string; expected: number[]; texture?: boolean; invalid?: boolean; uniform?: number[]; webglRejection?: string }
+export interface GlslRegression { name: string; body: string; header?: string; expected: number[]; texture?: boolean; textureKind?: 'float2d' | 'float3d' | 'floatArray' | 'int2d' | 'uint2d' | 'int3d' | 'uint3d' | 'intArray' | 'uintArray' | 'shadow' | 'depthColor'; sampler?: number[]; invalid?: boolean; uniform?: number[]; webglRejection?: string }
 export const regressionVertex = `out vec4 ref;\nvoid main() {
   ref = vec4(1.0);
   vec2 p[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
@@ -90,7 +89,7 @@ glslRegressions.push(
     vec4 b = textureLod(bgt_t0, vec2(0.75, 0.25), 0.0);
     o = all(equal(size, ivec2(2))) && all(equal(a, b)) ? a : vec4(0.0);` },
 );
-glslRegressions.push(...storageRegressions, ...builtinRegressions);
+glslRegressions.push(...storageRegressions);
 export function regressionFragment(c: GlslRegression): string {
   return `${c.header ?? ''}\nin vec4 ref;\nlayout(location=0) out vec4 o;\nvoid main() { ${c.body} o *= ref; }`;
 }

@@ -6,6 +6,14 @@ import { builtinRegressions } from '../support/glsl-builtin-regressions';
 import { regressionFragment } from '../support/glsl-regressions';
 
 describe('GLSL matrix and builtin coverage', () => {
+  it('retains the explicit builtin fixture census', () => {
+    expect(builtinRegressions).toHaveLength(244);
+    expect(new Set(builtinRegressions.map(c=>c.name)).size).toBe(244);
+  });
+  for (const body of ['inverse(mat2x3(1.0))','inverse(1.0)','modf(1.0, 2.0)','frexp(1.0, 2)'])
+    it('rejects invalid builtin shape/storage: ' + body, () => {
+      expect(() => translateGLSL('#version 330 core\nlayout(location=0) out vec4 o; void main(){ ' + body + '; o=vec4(1.0); }',2,1)).toThrow();
+    });
   for (const n of [2,3,4]) it('generates adjugate inverse mat' + n, () => {
     const helper = inverseHelper('mat' + n + 'x' + n + 'f')!;
     expect(helper.source).toContain('let d =');

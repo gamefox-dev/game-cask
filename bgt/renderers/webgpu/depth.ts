@@ -26,20 +26,20 @@ fn ${name}_load(p: vec2i, level: i32) -> f32 {
   let size = vec2i(textureDimensions(${texture}, level));
   return textureLoad(${texture}, vec2i(${name}_x(p.x,size.x), ${name}_y(p.y,size.y)), level);
 }
-fn ${name}_level(uv: vec2f, level: i32, linear: bool) -> f32 {
+fn ${name}_level(uv: vec2f, level: i32, linear: bool, offset: vec2i) -> f32 {
   let p = uv * vec2f(textureDimensions(${texture}, level));
-  if (!linear) { return ${name}_load(vec2i(floor(p)), level); }
-  let base = vec2i(floor(p - vec2f(0.5))); let a = fract(p - vec2f(0.5));
+  if (!linear) { return ${name}_load(vec2i(floor(p)) + offset, level); }
+  let base = vec2i(floor(p - vec2f(0.5))) + offset; let a = fract(p - vec2f(0.5));
   return mix(mix(${name}_load(base,level), ${name}_load(base+vec2i(1,0),level), a.x),
     mix(${name}_load(base+vec2i(0,1),level), ${name}_load(base+vec2i(1,1),level), a.x), a.y);
 }
-fn ${name}(uv: vec2f, lod: f32) -> f32 {
+fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
   let level = clamp(lod, 0.0, f32(textureNumLevels(${texture}) - 1u));
   let linear = select(${s[2] === 1}, ${s[1] === 1}, lod > 0.0);
-  ${s[3] === 0 ? `return ${name}_level(uv,0,linear);` : s[3] === 1 ?
-    `return ${name}_level(uv,i32(floor(level+0.5)),linear);` :
+  ${s[3] === 0 ? `return ${name}_level(uv,0,linear,offset);` : s[3] === 1 ?
+    `return ${name}_level(uv,i32(floor(level+0.5)),linear,offset);` :
     `let low=i32(floor(level)); let high=min(low+1,i32(textureNumLevels(${texture}))-1);
-     return mix(${name}_level(uv,low,linear),${name}_level(uv,high,linear),fract(level));`}
+     return mix(${name}_level(uv,low,linear,offset),${name}_level(uv,high,linear,offset),fract(level));`}
 }
 `;
     let implicit = false, bias = false;
@@ -57,19 +57,20 @@ fn ${name}(uv: vec2f, lod: f32) -> f32 {
         }
       }
       if (args[0] !== texture) continue;
-      if (args.length !== (match[1] === 'textureSample' ? 3 : match[1] === 'textureSampleGrad' ? 5 : 4))
-        throw new Error('WGSL: depth sample offsets must be flattened by the profile');
+      const count = match[1] === 'textureSample' ? 3 : match[1] === 'textureSampleGrad' ? 5 : 4;
+      if (args.length !== count && args.length !== count + 1) throw new Error('WGSL: invalid depth sample argument count');
+      const sampleOffset = args.length === count + 1 ? args.pop()! : 'vec2i(0)';
       const uv = args[2], size = `vec2f(textureDimensions(${texture},0))`;
       const dx = match[1] === 'textureSampleGrad' ? args[3] : `dpdx(${uv})`;
       const dy = match[1] === 'textureSampleGrad' ? args[4] : `dpdy(${uv})`;
       let lod = `log2(max(length((${dx})*${size}),length((${dy})*${size})))`;
       if (match[1] === 'textureSampleLevel') lod = args[3];
-      let replacement = `${name}(${uv},${lod})`;
+      let replacement = `${name}(${uv},${lod},${sampleOffset})`;
       if (match[1] === 'textureSample' || match[1] === 'textureSampleBias') {
         implicit = true;
         if (match[1] === 'textureSampleBias') bias = true;
         replacement = `${name}_${match[1] === 'textureSampleBias' ? 'bias' : 'implicit'}` +
-          `(${uv}${match[1] === 'textureSampleBias' ? ', ' + args[3] : ''})`;
+          `(${uv}${match[1] === 'textureSampleBias' ? ', ' + args[3] : ''}, ${sampleOffset})`;
       }
       output += source.slice(offset, match.index) + replacement;
       offset = end; call.lastIndex = end;
@@ -80,10 +81,10 @@ fn ${name}_lod(uv: vec2f) -> f32 {
   let size = vec2f(textureDimensions(${texture},0));
   return log2(max(length(dpdx(uv)*size),length(dpdy(uv)*size)));
 }
-fn ${name}_implicit(uv: vec2f) -> f32 { return ${name}(uv,${name}_lod(uv)); }
+fn ${name}_implicit(uv: vec2f, offset: vec2i) -> f32 { return ${name}(uv,${name}_lod(uv),offset); }
 `;
     if (bias) helpers += `
-fn ${name}_bias(uv: vec2f, bias: f32) -> f32 { return ${name}(uv,${name}_lod(uv)+bias); }
+fn ${name}_bias(uv: vec2f, bias: f32, offset: vec2i) -> f32 { return ${name}(uv,${name}_lod(uv)+bias,offset); }
 `;
   }
   return source + helpers;
