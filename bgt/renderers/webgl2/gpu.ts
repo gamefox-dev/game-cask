@@ -2,6 +2,7 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
+import { blitStencil } from './blit-stencil';
 import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
 
@@ -144,7 +145,7 @@ export class WebGL2Gpu implements GpuBackend {
       // A shader failed by device loss remains a CPU-side failed handle, never a live native module.
       // Recompiling that failed source on restore could abort before its queued deletion is reached.
       if ((item.op <= OP.PIPELINE_DELETE || (item.op >= OP.TEXTURE_CREATE_EX && item.op !== OP.CLEAR_BUFFER)) &&
-        item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK) {
+        item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK && item.op !== OP.BLIT) {
         this.deferred.push({ ...item, complete: undefined });
       }
       return -6;
@@ -173,6 +174,7 @@ export class WebGL2Gpu implements GpuBackend {
   private dispatch(item: GpuItem): void {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
     switch (op) {
+      case OP.BLIT: this.blit(w); break;
       case OP.BUFFER_CREATE: {
         const object = g.createBuffer()!;
         const data = new Uint8Array(w[2]);
@@ -317,6 +319,61 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.DRAW_INDEXED: this.draw(w, true); break;
       default: throw new Error('Unknown GPU opcode');
     }
+  }
+
+  private blit(w: number[]): void {
+    const g = this.gl, src = this.textures.get(w[0]), dst = this.textures.get(w[2]);
+    if (!w[16] || !w[17] || w[4] === w[6] || w[5] === w[7] || w[8] === w[10] || w[9] === w[11]) return;
+    // Screen transfers use the same top-down logical staging image as ordinary GPU screen passes.
+    if ((!w[0] || !w[2]) && (!this.screen || this.screenSize[0] !== this.frame.width || this.screenSize[1] !== this.frame.height)) {
+      g.deleteTexture(this.screen); this.screen = g.createTexture()!;
+      g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D, this.screen);
+      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA8, this.frame.width, this.frame.height); this.screenSize = [this.frame.width, this.frame.height];
+    }
+    let source = src?.object ?? this.screen!, sm = w[1];
+    const target = dst?.object ?? this.screen!, sf = src?.desc.format ?? 0, df = dst?.desc.format ?? 0;
+    const sw=src?Math.max(1,src.desc.width>>sm):this.frame.width, sh=src?Math.max(1,src.desc.height>>sm):this.frame.height;
+    const read=g.createFramebuffer()!, draw=g.createFramebuffer()!; let snapshot: WebGLTexture | null = null;
+    const attach=(fb:number, object:WebGLFramebuffer, texture:WebGLTexture, mip:number, format:number)=>{
+      g.bindFramebuffer(fb,object);
+      for(const a of [g.COLOR_ATTACHMENT0,g.DEPTH_STENCIL_ATTACHMENT,g.DEPTH_ATTACHMENT]) g.framebufferTexture2D(fb,a,g.TEXTURE_2D,null,0);
+      g.framebufferTexture2D(fb,format===5?g.DEPTH_STENCIL_ATTACHMENT:format===6?g.DEPTH_ATTACHMENT:g.COLOR_ATTACHMENT0,g.TEXTURE_2D,texture,mip);
+      if(fb===g.READ_FRAMEBUFFER)g.readBuffer(format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0);
+      else g.drawBuffers([format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0]);
+      if(g.checkFramebufferStatus(fb)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Incomplete blit framebuffer');
+    };
+    try {
+      g.disable(g.SCISSOR_TEST);g.depthMask(true);g.stencilMask(255);g.colorMask(true,true,true,true);
+      if(!w[0] || !w[2]) {
+        attach(g.DRAW_FRAMEBUFFER,draw,this.screen!,0,0);g.bindFramebuffer(g.READ_FRAMEBUFFER,null);
+        const b=this.frame.lb,H=g.drawingBufferHeight;
+        g.blitFramebuffer(b.x,H-b.y,b.x+b.w,H-b.y-b.h,0,0,this.frame.width,this.frame.height,g.COLOR_BUFFER_BIT,g.NEAREST);
+      }
+      if(source===target){
+        snapshot=g.createTexture()!;g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,snapshot);
+        g.texStorage2D(g.TEXTURE_2D,1,this.format(sf)[0],sw,sh);
+        attach(g.READ_FRAMEBUFFER,read,source,sm,sf);attach(g.DRAW_FRAMEBUFFER,draw,snapshot,0,sf);
+        g.blitFramebuffer(0,0,sw,sh,0,0,sw,sh,sf===5?g.DEPTH_BUFFER_BIT|g.STENCIL_BUFFER_BIT:sf===6?g.DEPTH_BUFFER_BIT:g.COLOR_BUFFER_BIT,g.NEAREST);
+        source=snapshot;sm=0;
+      }
+      attach(g.READ_FRAMEBUFFER,read,source,sm,sf);attach(g.DRAW_FRAMEBUFFER,draw,target,w[3],df);
+      g.viewport(0,0,dst?Math.max(1,dst.desc.width>>w[3]):this.frame.width,dst?Math.max(1,dst.desc.height>>w[3]):this.frame.height);
+      g.enable(g.SCISSOR_TEST);g.scissor(w[14],w[15],w[16],w[17]);
+      const r=w.slice(4,12).map(v=>v|0);
+      // Normalize destination orientation; simultaneous reversal of both rectangles preserves the mapping.
+      for(const a of [0,1]) if(r[6+a]<r[4+a]) { [r[4+a],r[6+a]]=[r[6+a],r[4+a]];[r[a],r[2+a]]=[r[2+a],r[a]]; }
+      // Native Chromium stencil scaling was isolated to mis-map texels without a GL error.
+      // Keep exact 1:1 native copies; the render fallback also handles reversed source axes.
+      const fallback=!!(w[12]&4) && (r[2]-r[0]!==r[6]-r[4] || r[3]-r[1]!==r[7]-r[5]);
+      const mask=(w[12]&1?g.COLOR_BUFFER_BIT:0)|(w[12]&2?g.DEPTH_BUFFER_BIT:0)|((w[12]&4)&&!fallback?g.STENCIL_BUFFER_BIT:0);
+      if(mask)g.blitFramebuffer(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],mask,w[13]?g.LINEAR:g.NEAREST);
+      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)]);
+      if(!w[2]){
+        const b=this.frame.lb,H=g.drawingBufferHeight;
+        g.disable(g.SCISSOR_TEST);g.bindFramebuffer(g.READ_FRAMEBUFFER,draw);g.bindFramebuffer(g.DRAW_FRAMEBUFFER,null);
+        g.blitFramebuffer(0,0,this.frame.width,this.frame.height,b.x,H-b.y,b.x+b.w,H-b.y-b.h,g.COLOR_BUFFER_BIT,g.NEAREST);
+      }
+    } finally {g.bindFramebuffer(g.FRAMEBUFFER,null);g.deleteFramebuffer(read);g.deleteFramebuffer(draw);g.deleteTexture(snapshot);}
   }
 
   private createPipeline(w: number[]): void {

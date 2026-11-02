@@ -59,6 +59,28 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it('blits validate aspects, classes, scissor and pass ordering atomically', () => {
+    const t=setup(), valid=[1,0,2,0,0,0,8,8,0,0,16,16,1,0,0,0,16,16];
+    t.send(O.TEXTURE_CREATE,[1,8,8,1,0,3]);t.send(O.TEXTURE_CREATE,[2,16,16,1,0,2]);
+    expect(t.send(O.BLIT,valid).status).toBe(0);
+    expect(t.send(O.BLIT,[...valid.slice(0,4),8,8,0,0,16,16,0,0,...valid.slice(12)]).status).toBe(0);
+    expect(t.send(O.BLIT,valid.slice(1)).status).toBe(A.E_INVALID);
+    for (const [index,value,status] of [[0,9,A.E_NOT_FOUND],[1,1,A.E_INVALID],[12,8,A.E_INVALID],[12,3,A.E_INVALID],
+      [13,2,A.E_INVALID],[14,1,A.E_BOUNDS]] as const) {
+      const w=[...valid];w[index]=value;const before=t.frame.items.length;
+      expect(t.send(O.BLIT,w).status).toBe(status);expect(t.frame.items.length).toBe(before);
+    }
+    expect(t.inPass(O.BLIT,valid).status).toBe(A.E_STATE);
+    for (const [h,fmt] of [[3,5],[4,5],[5,6],[6,17],[7,18],[8,0]]) t.send(O.TEXTURE_CREATE_EX,[h,0,16,16,1,1,fmt,3]);
+    const x=[3,0,4,0,...valid.slice(4)];x[12]=6;
+    expect(t.send(O.BLIT,x).status).toBe(0);x[13]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[13]=0;x[2]=5;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=5;x[12]=4;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=6;x[2]=7;x[12]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[2]=6;x[13]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=8;x[2]=2;expect(t.send(O.BLIT,x).status).toBe(0);
+    const old=setup();old.ctx.gpu=undefined;expect(old.send(O.BLIT,[]).status).toBe(A.E_UNSUPPORTED);
+  });
   it('typed indexed clears validate class, masks, finite depth and pass ordering without side effects', () => {
     const t = setup();
     expect(t.send(O.CLEAR_BUFFER, [0xf0,0,0,0,0,0]).status).toBe(A.E_STATE);
@@ -99,7 +121,8 @@ describe('GPU command validation', () => {
     const t = setup(); t.resources();
     expect(t.run(new CommandEncoder().clear(0xff112233)
       .gpu(O.BUFFER_UPDATE, [1, 1024, 16384, source.length])
-      .gpu(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 4])).errors).toEqual([]);
+      .gpu(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 4])
+      .gpu(O.BLIT, [1,0,0,0,0,0,8,8,0,0,64,64,1,0,0,0,64,64])).errors).toEqual([]);
     expect(t.run(t.bound().gpu(O.VIEWPORT, [0, 0, F(64), F(64), 0, F(1)])
       .gpu(O.SCISSOR, [0, 0, 64, 64]).gpu(O.CLEAR_BUFFER, [0xf0, 0, F(.25), F(.5), F(.75), F(1)]).gpu(O.STENCIL_REF, [42])
       .gpu(O.BLEND_CONSTANT, [F(0.25), F(0.5), F(0.75), F(1)])

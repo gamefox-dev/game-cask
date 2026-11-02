@@ -36,12 +36,16 @@ enum {
     /* Grow the native allocation to include levels [0, allocated_mips). */
     BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS = 0x5e,
     BGT_OP_GPU_CLEAR_BUFFER = 0x5f,
+    BGT_OP_GPU_BLIT = 0x60,
 };
 static inline void bgt__gpu_copy(uint8_t *dst, const void *src, uint32_t bytes) {
     const uint8_t *s = (const uint8_t *)src;
     if (dst) for (uint32_t i = 0; i < bytes; i++) dst[i] = s[i];
 }
 /* Struct encoders require the ABI little-endian C target (wasm32). */
+static inline void bgt_cmd_gpu_blit(bgt_cmdbuf_t *b, const bgt_gpu_blit_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_BLIT, 72), v, 72);
+}
 static inline void bgt_cmd_gpu_buffer_create(bgt_cmdbuf_t *b, const bgt_gpu_buffer_create_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_BUFFER_CREATE, 20), v, 20);
 }

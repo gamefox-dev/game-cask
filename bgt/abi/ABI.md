@@ -968,3 +968,29 @@ not clear values; exact value bits use per-operation uniform snapshots.
 Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
 accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
 cross-backend tolerance, see `docs/handoff/K6a.md`).
+
+### 13.10 Framebuffer transfer (additive v0.3, opcode 0x60)
+
+`BLIT` is a 72-byte **outside-pass**, ordered operation. Its 18 words are:
+`source, source_mip, destination, destination_mip, i32 sx0,sy0,sx1,sy1, i32 dx0,dy0,dx1,dy1,
+mask, filter, scissor_x,scissor_y,scissor_width,scissor_height`.
+Handles name GPU textures; color handle 0 is the shared logical RGBA8 screen (mip 0).
+Coordinates are top-left pixel **edges**, signed, and each rectangle may be reversed independently.
+Clipping to source/destination bounds and destination scissor preserves the original mapping;
+empty rectangles/scissor are no-ops. Rectangles may scale; source pixel centres map affinely to destination centres.
+Filter NEAREST=0 / LINEAR=1; linear uses clamped bilinear texels. Color mask=1; depth=2; stencil=4.
+Color cannot be combined with depth/stencil in one operation (profiles split them in stream order).
+Blits ignore viewport, color/depth/stencil write masks and tests; only the explicit scissor clips writes.
+
+All textures must be allocated 2D attachments. Unknown handles give E_NOT_FOUND; wrong usage/dimension E_STATE;
+unallocated mip, invalid mask/filter/aspect/class E_INVALID; scissor outside destination E_BOUNDS; inside a pass E_STATE.
+Color classes (float/normalized, signed integer, unsigned integer) must match; integer requires NEAREST.
+Depth/stencil require identical depth formats; stencil requires DEPTH24_STENCIL8; either requires NEAREST.
+This ABI remains single-sample: no sample-count conversion is advertised. GL validates original internal depth formats
+before mapping to these portable storage formats. A same-image transfer snapshots the source; GL overlapping results
+are unspecified, but this deterministic ABI rule prevents backend validation hazards. Native copy is allowed only for
+compatible 1:1 transfers; other forms render into the destination. WebGL uses native blitFramebuffer with logical-screen
+staging. WebGPU samples depth for depth-only transfers and extracts real stencil bit planes with read-only stencil tests,
+then writes them with bit-masked replace passes. No CPU upload shadow is treated as rendered content.
+Rendered/blitted contents are lost on device reset under the existing TARGETS_LOST contract, not replayed as uploads.
+C layout/encoder: `bgt_gpu_blit_t`, `bgt_cmd_gpu_blit`; TS `GPU_OP.BLIT`, `GPU_LAYOUT.blit`, `GPU.BLIT_*`.

@@ -510,5 +510,45 @@ static uint32_t api_ReadPixels(void) {
     fetch_texels(im->gpu, im->mip, (uint32_t)x0, tg.h - (uint32_t)y1, 0, rw, rh, im->bgt, sink_external, &r);
     return 0;
 }
+/* GL 3.3 framebuffer transfer: validate the entire operation before emitting any attachment. */
+static uint32_t api_BlitFramebuffer(void) {
+    uint32_t mask = ARG(8), filter = ARG(9);
+    if (mask & ~(0x4000u | 0x100u | 0x400u)) { fail(BAD_VALUE); return 0; }
+    if (filter != 0x2600 && filter != 0x2601) { fail(BAD_ENUM); return 0; }
+    if ((mask & 0x500) && filter != 0x2600) { fail(BAD_OP); return 0; }
+    Target src, dst;
+    if (resolve_fbo(fbo_read, 1, &src) != 0x8cd5 || resolve_fbo(fbo, 0, &dst) != 0x8cd5) { fail(0x506); return 0; }
+    if ((mask & 0x4000) && (fbo_read ? !fbos[fbo_read].read : !dfb_read)) mask &= ~0x4000u;
+    if ((mask & 0x100) && (!src.has_depth || !dst.has_depth)) mask &= ~0x100u;
+    if ((mask & 0x400) && (!src.has_stencil || !dst.has_stencil)) mask &= ~0x400u;
+    if ((mask & 0x500) && src.ds.fmt && dst.ds.fmt && src.ds.fmt->internal != dst.ds.fmt->internal) { fail(BAD_OP); return 0; }
+    if ((mask & 0x500) && src.ds.bgt != dst.ds.bgt) { fail(BAD_OP); return 0; }
+    for (uint32_t i = 0; i < dst.ncolor && (mask & 0x4000); i++) if (!dst.gap[i] && (fbo || dfb_draw)) {
+        const Fmt *a = src.color[0].fmt, *b = dst.color[i].fmt;
+        int ai = integer_internal(a), bi = integer_internal(b);
+        if (ai != bi || (ai && (integer_unsigned(a) != integer_unsigned(b) || filter != 0x2600))) { fail(BAD_OP); return 0; }
+    }
+    if (!mask) return 0;
+    if (!fbo || !fbo_read) ensure_screen_depth();
+    uint32_t clip[4] = {0, 0, dst.w, dst.h};
+    if (scissor_enabled) {
+        int64_t right = (int64_t)scissor[0] + scissor[2], top = (int64_t)scissor[1] + scissor[3];
+        int32_t x = imin((int32_t)dst.w, imax(0, scissor[0])), y = imin((int32_t)dst.h, imax(0, scissor[1]));
+        int32_t r = right > dst.w ? (int32_t)dst.w : right < 0 ? 0 : (int32_t)right;
+        int32_t t = top > dst.h ? (int32_t)dst.h : top < 0 ? 0 : (int32_t)top;
+        clip[0] = (uint32_t)x; clip[2] = (uint32_t)imax(0, r - x); clip[3] = (uint32_t)imax(0, t - y);
+        clip[1] = dst.h - (uint32_t)y - clip[3];
+    }
+    for (uint32_t i = 0; i < dst.ncolor + 1; i++) {
+        int ds = i == dst.ncolor;
+        if (ds ? !(mask & 0x500) : (!(mask & 0x4000) || dst.gap[i] || (!fbo && !dfb_draw))) continue;
+        const Image *a = ds ? &src.ds : &src.color[0], *b = ds ? &dst.ds : &dst.color[i];
+        uint32_t w[18] = {a->gpu, a->mip, b->gpu, b->mip, ARG(0), src.h - ARG(1), ARG(2), src.h - ARG(3),
+            ARG(4), dst.h - ARG(5), ARG(6), dst.h - ARG(7), ds ? ((mask & 0x100 ? 2u : 0u) | (mask & 0x400 ? 4u : 0u)) : 1u,
+            filter == 0x2601, clip[0], clip[1], clip[2], clip[3]};
+        send(0x60, w, 18);
+    }
+    return 0;
+}
 static uint32_t api_Flush(void) { return 0; }
 static uint32_t api_Finish(void) { return 0; }

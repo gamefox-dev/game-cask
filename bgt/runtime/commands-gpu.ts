@@ -109,6 +109,24 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     return bytes;
   };
   switch (op) {
+    case GPU_OP.BLIT: {
+      const [, sm, dst, dm] = w, mask = w[12], filter = w[13];
+      if (!mask || (mask & ~7) || ((mask & 1) && mask !== 1) || filter > 1) return E_INVALID;
+      if ((mask & 6) && filter) return E_INVALID;
+      const s = h ? g.textures.get(h) : undefined, d = dst ? g.textures.get(dst) : undefined;
+      if ((h && !s) || (dst && !d)) return E_NOT_FOUND;
+      if ((s && (s.dimension !== 0 || !(s.usage & 2))) || (d && (d.dimension !== 0 || !(d.usage & 2)))) return E_STATE;
+      if (sm >= (s?.allocatedMips ?? 1) || dm >= (d?.allocatedMips ?? 1)) return E_INVALID;
+      const sf = s?.format ?? 0, df = d?.format ?? 0;
+      if (mask & 1) {
+        const cls = (f: number) => !isInteger(f) ? 0 : f & 1 ? 1 : 2;
+        if (isDepth(sf) || isDepth(df) || cls(sf) !== cls(df) || (isInteger(sf) && filter)) return E_INVALID;
+      } else if (!s || !d || !isDepth(sf) || sf !== df || ((mask & 4) && sf !== 5)) return E_INVALID;
+      const dw = d ? textureSize(d, dm).width : ctx.frame.logicalW;
+      const dh = d ? textureSize(d, dm).height : ctx.frame.logicalH;
+      if (w[14] + w[16] > dw || w[15] + w[17] > dh) return E_BOUNDS;
+      return emit();
+    }
     case GPU_OP.BUFFER_CREATE: {
       const e = fresh(g.buffers); if (e) return e;
       if (!w[1] || (w[1] & ~7) || !w[2]) return E_INVALID;

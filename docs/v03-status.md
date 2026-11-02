@@ -1,5 +1,9 @@
 # v0.3 merged implementation status
 
+## K9b Q35 checkpoint
+
+Lane K9b adds ordered framebuffer blits (§13.10 / opcode 0x60) on both backends, with native compatible copies and general draw/stencil-test lowering; the original CC0 `x64-gl-blit` fixture passes both backend pixels and exact cross-image equality. Current checks: 792 units / 67 files, 221 browsers / 51 existing skips, 26 × 300 identical pipeline oracle pairs, lint and typecheck green. **Q34 transform feedback remains unfinished**; this is a context-limit checkpoint, not K9b completion. See [K9b handoff](handoff/K9b.md).
+
 ## K8a Q21 final completion
 
 Lane K8a continuation 3 completes the bounded Q21 GL contracts on top of `39c42d5`. The final implementation commits

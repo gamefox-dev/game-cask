@@ -359,6 +359,11 @@ static const uint32_t layouts[] = {
     BGT_OP_GPU_TEXTURE_READBACK, BGT_OP_GPU_TEXTURE_GENERATE_MIPS, BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS,
     BGT_OP_GPU_CLEAR_BUFFER, sizeof(bgt_gpu_clear_buffer_t), offsetof(bgt_gpu_clear_buffer_t, kind_class_masks),
     offsetof(bgt_gpu_clear_buffer_t, index), offsetof(bgt_gpu_clear_buffer_t, value),
+    BGT_OP_GPU_BLIT, BGT_GPU_BLIT_COLOR, BGT_GPU_BLIT_DEPTH, BGT_GPU_BLIT_STENCIL,
+    sizeof(bgt_gpu_blit_t), offsetof(bgt_gpu_blit_t, source), offsetof(bgt_gpu_blit_t, source_mip),
+    offsetof(bgt_gpu_blit_t, destination), offsetof(bgt_gpu_blit_t, destination_mip),
+    offsetof(bgt_gpu_blit_t, source_rect), offsetof(bgt_gpu_blit_t, destination_rect),
+    offsetof(bgt_gpu_blit_t, mask), offsetof(bgt_gpu_blit_t, filter), offsetof(bgt_gpu_blit_t, scissor),
 };
 BGT_EXPORT(gpu_layout) uint32_t gpu_layout(void) { return (uint32_t)(uintptr_t)layouts; }
 BGT_EXPORT(gpu_layout_count) uint32_t gpu_layout_count(void) { return sizeof layouts / 4; }
@@ -490,5 +495,7 @@ BGT_EXPORT(gpu_encode) int32_t gpu_encode(void) {
     bgt__gpu_copy((uint8_t *)&v_texture_allocate_mips, w_texture_allocate_mips, sizeof v_texture_allocate_mips);
     bgt_cmd_gpu_texture_allocate_mips(&cb, &v_texture_allocate_mips);
     bgt_gpu_clear_buffer_t clear = {1,2,{3,4,5,6}}; bgt_cmd_gpu_clear_buffer(&cb, &clear);
+    bgt_gpu_blit_t blit = {1,2,3,4,{5,6,7,8},{9,10,11,12},13,14,{15,16,17,18}};
+    bgt_cmd_gpu_blit(&cb, &blit);
     return bgt_cmd_submit(&cb);
 }

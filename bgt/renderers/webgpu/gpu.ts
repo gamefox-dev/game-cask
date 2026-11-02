@@ -3,6 +3,7 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
+import { WebGPUBlit, type BlitImage } from './blit';
 import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
@@ -67,6 +68,7 @@ export class WebGPUCommands implements GpuBackend {
   private pending = new Set<ShaderResource>();
   private failedShaders = new Map<number, GpuItem>();
   private readbacks = new Set<GpuItem>();
+  private framebufferBlit?: WebGPUBlit;
 
   constructor(private device: GPUDevice, private error: (message: string) => void) {}
 
@@ -95,6 +97,7 @@ export class WebGPUCommands implements GpuBackend {
 
   async restore(device: GPUDevice): Promise<void> {
     this.device = device;
+    this.framebufferBlit = undefined;
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
@@ -143,6 +146,15 @@ export class WebGPUCommands implements GpuBackend {
   private run(item: GpuItem): void {
     const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
     switch (op) {
+      case OP.BLIT: {
+        const image = (h: number, mip: number): BlitImage => h ? {
+          texture: this.textures.get(h)!.native, mip, format: formats[this.textures.get(h)!.desc.format],
+          kind: this.textures.get(h)!.desc.format,
+        } : {texture: this.screen!, mip: 0, format: 'rgba8unorm', kind: 0};
+        this.framebufferBlit ??= new WebGPUBlit(d);
+        this.framebufferBlit.execute(w, image(h, w[1]), image(w[2], w[3]));
+        break;
+      }
       case OP.BUFFER_CREATE: {
         const native = d.createBuffer({ size: Math.ceil(w[2] / 4) * 4,
           usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });

@@ -160,6 +160,8 @@ describe('v0.3 GPU ABI layout', () => {
       A.GPU_OP.TEXTURE_CREATE_EX, A.GPU_OP.TEXTURE_UPDATE_EX, A.GPU_OP.SAMPLER_CREATE_EX,
       A.GPU_OP.TEXTURE_READBACK, A.GPU_OP.TEXTURE_GENERATE_MIPS, A.GPU_OP.TEXTURE_ALLOCATE_MIPS,
       A.GPU_OP.CLEAR_BUFFER, A.GPU_LAYOUT.clear_buffer, 0, 4, 8,
+      A.GPU_OP.BLIT, A.GPU.BLIT_COLOR, A.GPU.BLIT_DEPTH, A.GPU.BLIT_STENCIL,
+      A.GPU_LAYOUT.blit, 0, 4, 8, 12, 16, 32, 48, 52, 56,
     ]);
   });
   it('all 30 C GPU encoders exactly match the TS wire-word encoder', () => {
@@ -198,6 +200,7 @@ describe('v0.3 GPU ABI layout', () => {
       .gpu(A.GPU_OP.TEXTURE_GENERATE_MIPS, [1,2])
       .gpu(A.GPU_OP.TEXTURE_ALLOCATE_MIPS, [1,2])
       .gpu(A.GPU_OP.CLEAR_BUFFER, [1,2,3,4,5,6])
+      .gpu(A.GPU_OP.BLIT, [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18])
       .finish();
     expect(submitted).toEqual(expected);
   });

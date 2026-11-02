@@ -17,6 +17,14 @@
 #define BGT_GPU_LIMIT_STRIDE 2048u
 #define BGT_GPU_LIMIT_SHADER_BYTES (1024u * 1024u)
 #define BGT_GPU_LIMITS_SIZE 80u
+#define BGT_GPU_BLIT_COLOR 1u
+#define BGT_GPU_BLIT_DEPTH 2u
+#define BGT_GPU_BLIT_STENCIL 4u
+typedef struct {
+    uint32_t source, source_mip, destination, destination_mip;
+    int32_t source_rect[4], destination_rect[4]; /* x0,y0,x1,y1; top-left */
+    uint32_t mask, filter, scissor[4]; /* x,y,width,height */
+} bgt_gpu_blit_t;
 #define BGT_GPU_BUFFER_VERTEX 1u
 #define BGT_GPU_BUFFER_INDEX 2u
 #define BGT_GPU_BUFFER_UNIFORM 4u
@@ -386,6 +394,7 @@ typedef struct bgt_gpu_texture_allocate_mips {
     uint32_t allocated_mips;
 } bgt_gpu_texture_allocate_mips_t; /* 8 bytes */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(bgt_gpu_blit_t) == 72, "GPU blit layout");
 _Static_assert(sizeof(bgt_gpu_buffer_create_t) == 20, "GPU buffer_create layout");
 _Static_assert(sizeof(bgt_gpu_buffer_update_t) == 16, "GPU buffer_update layout");
 _Static_assert(sizeof(bgt_gpu_buffer_delete_t) == 4, "GPU buffer_delete layout");

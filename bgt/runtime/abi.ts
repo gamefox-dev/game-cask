@@ -197,8 +197,12 @@ export const GPU_OP = {
   /** Grow the native allocation to include levels [0, allocated_mips). */
   TEXTURE_ALLOCATE_MIPS: 0x5e,
   CLEAR_BUFFER: 0x5f,
+  BLIT: 0x60,
 } as const;
 export const GPU = {
+  BLIT_COLOR: 1,
+  BLIT_DEPTH: 2,
+  BLIT_STENCIL: 4,
   BUFFER_VERTEX: 1,
   BUFFER_INDEX: 2,
   BUFFER_UNIFORM: 4,
@@ -346,6 +350,7 @@ export const GPU_LAYOUT = {
   texture_generate_mips: 8,
   texture_allocate_mips: 8,
   clear_buffer: 24,
+  blit: 72,
   pipeline_create: 104,
   vertex_layout: 8,
   attribute: 16,
