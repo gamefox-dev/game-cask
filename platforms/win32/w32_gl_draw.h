@@ -313,6 +313,11 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (count < 0 || instances < 0 || instances > 65535) { fail(BAD_VALUE); return 0; }
     if (!count || !instances) return 0;
     if (!vao || !program || !programs[program].info) { fail(BAD_OP); return 0; }
+    /* Non-persistent GL3.3 mappings may not be consumed or overwritten by a draw. */
+    for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled && buffers[vaos[vao].a[i].buffer].map) { fail(BAD_OP); return 0; }
+    if (index_type && buffers[vaos[vao].element].map) { fail(BAD_OP); return 0; }
+    for (uint32_t i = 0; i < programs[program].nb; i++) if (buffers[ubo[programs[program].block[i].binding]].map) { fail(BAD_OP); return 0; }
+    if (tf_active) for (uint32_t i = 0; i < 4; i++) if (buffers[tf_bound[i]].map) { fail(BAD_OP); return 0; }
     uint32_t primitive = topo == 0 ? 0 : topo <= 2 ? 1 : 4;
     if (tf_active && tf_mode != primitive) { fail(BAD_OP); return 0; }
     Program *feedback_program = &programs[program];

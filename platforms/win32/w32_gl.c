@@ -109,7 +109,10 @@ static void missing(const char *name) {
     w32_logf2("unimplemented OpenGL entry: ", name);
 }
 
-typedef struct { uint32_t used, size, gpu, generated; uint8_t *data; } Buffer;
+typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
+    uint32_t map, map_offset, map_size, map_flags, map_access; } Buffer;
+static void approximate(const char *kind);
+static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
 typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
@@ -192,10 +195,16 @@ static uint32_t api_GenBuffers(void) {
     for (int32_t i = 0; i < n; i++) x86_wr32(ARG(1) + 4 * i, alloc_name(buffers, sizeof(Buffer)));
     return 0;
 }
+/* Reviewer #136: Windows default-element storage survives even a core VAO-0 bind.
+ * Only element state is VAO-owned; the other eight targets already work without a VAO.
+ * Attribute setup and draws retain core errors: no supplied vendor evidence for those. */
+static void default_element_compat(uint32_t target, const char *kind) {
+    if (!vao && target == ELEMENT_BUFFER) approximate(kind);
+}
 static uint32_t api_BindBuffer(void) {
     uint32_t target = ARG(0), id = ARG(1); if (id >= N) { fail(BAD_VALUE); return 0; }
     if (target == ARRAY_BUFFER) array = id;
-    else if (target == ELEMENT_BUFFER && vao) vaos[vao].element = id;
+    else if (target == ELEMENT_BUFFER) vaos[vao].element = id;
     else if (target == UNIFORM_BUFFER) uniform = id;
     else if (target == FEEDBACK_BUFFER) tf_buffer = id;
     else if (target == 0x8f36) copy_read = id;
@@ -204,7 +213,8 @@ static uint32_t api_BindBuffer(void) {
     else if (target == 0x88ec) pixel_unpack = id;
     else if (target == 0x8c2a) texture_buffer = id;
     else { fail(target == ELEMENT_BUFFER ? BAD_OP : BAD_ENUM); return 0; }
-    if (id) buffers[id].used = 1; return 0;
+    if (id) buffers[id].used = 1;
+    default_element_compat(target, "core VAO 0 element-buffer binding"); return 0;
 }
 static uint32_t api_BufferData(void) {
     Buffer *b = bound_buffer(ARG(0)); int64_t size = (int64_t)ARG64(1);
@@ -214,15 +224,19 @@ static uint32_t api_BufferData(void) {
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
     uint32_t id = (uint32_t)(b - buffers);
     if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
+    /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
+    unmap_storage(b); b->map_access = 0x88ba;
     glp_free(b->data, b->size); b->data = 0;
     b->gpu = 0; b->size = 0; b->generated = 0;
     uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
     if (!send(0x40, create, 5)) { glp_free(data, (uint32_t)size); return 0; }
-    b->gpu = id; b->size = (uint32_t)size; b->data = data; return 0;
+    b->gpu = id; b->size = (uint32_t)size; b->data = data;
+    default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
 }
 static uint32_t api_BufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); uint64_t off = ARG64(1), n = ARG64(2);
     if (!b) return 0;
+    if (b->map) { fail(BAD_OP); return 0; }
     if (off + n < off || off + n > b->size) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     if (b->generated && ((off & 3) || (n & 3)) && (off || n != b->size)) { fail(BAD_OP); return 0; }
@@ -233,12 +247,14 @@ static uint32_t api_BufferSubData(void) {
         if (accepted) copy(b->data + off, data, (uint32_t)n);
         glp_free(data, (uint32_t)n); if (!accepted) return 0;
     }
-    if (!off && n == b->size) b->generated = 0; return 0;
+    if (!off && n == b->size) b->generated = 0;
+    default_element_compat(ARG(0), "core VAO 0 element-buffer sub-data upload"); return 0;
 }
 static uint32_t api_CopyBufferSubData(void) {
     Buffer *src = bound_buffer(ARG(0)), *dst = bound_buffer(ARG(1));
     int64_t so = (int64_t)ARG64(2), off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
     if (!src || !dst) return 0;
+    if (src->map || dst->map) { fail(BAD_OP); return 0; }
     if (so < 0 || off < 0 || size < 0 || (uint64_t)so > src->size || (uint64_t)off > dst->size ||
         (uint64_t)size > src->size - (uint64_t)so || (uint64_t)size > dst->size - (uint64_t)off ||
         (src == dst && so < off + size && off < so + size)) { fail(BAD_VALUE); return 0; }
@@ -259,6 +275,7 @@ static uint32_t api_DeleteBuffers(void) {
         if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
             if (bound) { fail(BAD_OP); continue; } }
         if (buffers[id].gpu && !send(0x42, &buffers[id].gpu, 1)) continue;
+        unmap_storage(&buffers[id]);
         glp_free(buffers[id].data, buffers[id].size);
         zero(&buffers[id], sizeof(Buffer)); if (array == id) array = 0; if (uniform == id) uniform = 0;
         for (uint32_t j = 0; j < N; j++) {
@@ -367,6 +384,7 @@ static uint32_t api_VertexAttribDivisor(void) {
     else if (ARG(1) > 1) fail(BAD_VALUE); else vaos[vao].a[ARG(0)].divisor = ARG(1); return 0;
 }
 
+#include "w32_gl_buffer.h"
 #include "w32_gl_fmt.h"
 #include "w32_gl_tex.h"
 #include "w32_gl_fbo.h"
@@ -382,7 +400,8 @@ static uint32_t api_VertexAttribDivisor(void) {
         if (eq(name, "glGetError")) return api_##fn(); \
         uint32_t pending = error; error = 0; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
-            eq(name, "glDeleteBuffers") || eq(name, "glCopyBufferSubData"); \
+            eq(name, "glDeleteBuffers") || eq(name, "glCopyBufferSubData") || \
+            eq(name, "glUnmapBuffer") || eq(name, "glFlushMappedBufferRange"); \
         uint32_t result = (!protects_source || flush_padded_cleanup()) ? api_##fn() : 0; \
         if (!error) w32_gl_state_changes += mutates; \
         if (pending) error = pending; return result; \

@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include "../../platforms/win32/w32_gl.c"
 x86_cpu_t X;
+bgt_io_t *w32_io;
 uint8_t *x86_pages[1u<<20];
 uint8_t x86_protection[1u<<20]; int x86_protection_active;
 __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stderr,"fault %s %u\n",s,a);exit(3);}
@@ -15,6 +16,14 @@ static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
 static uint32_t live_modules[1024], module_creates;
 static uint32_t reject_transport;
+static uint8_t device_buffers[256][256];
+static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback;
+/* Bounded guest staging adapter, one live mapping in these focused tests. */
+uint32_t w32_heap_alloc(uint32_t n,int z) {
+    if(heap_live||heap_oom||n>65536)return 0;heap_live=n;
+    if(z)memset(memory+1048576,0,n);return 1048576;
+}
+void w32_heap_free(uint32_t p) { if(p!=1048576||!heap_live)abort();heap_live=0; }
 static void *x86_host_backing(uint32_t n) { n=(n+15)&~15u; if(n>sizeof host-top){rejected_size=n;return 0;} void *p=host+top;top+=n;memset(p,0,n);return p; }
 uint64_t x86_host_limit(void) { return sizeof host; }
 static char host_diagnostic[512];
@@ -38,6 +47,17 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     const uint32_t *w=p; if(n<16||w[2]!=n||w[3]!=1)abort(); submissions++;
     uint32_t code=w[4]&65535u; const uint32_t *a=w+6;
     if(reject_transport&&code==0x48)return -3;
+    if(code==0x41&&reject_update)return -3;
+    if(code==0x63&&reject_readback)return -3;
+    if((code==0x40||code==0x41)&&a[0]<256) {
+        uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
+        if(code==0x40)device_sizes[a[0]]=size;
+        if(size&&ptr&&dest+size<=256)memcpy(device_buffers[a[0]]+dest,host+(uint32_t)(ptr-(uint32_t)(uintptr_t)host),size);
+    }
+    if(code==0x63) {
+        if(request_pending||a[0]>=256||a[1]+a[2]>device_sizes[a[0]]||a[1]+a[2]>256)abort();
+        request_pending=a[3];device_readback=a[2];memcpy(memory+524288,device_buffers[a[0]]+a[1],a[2]);
+    }
     if(code==0x48) {
         if(n!=48||a[0]==0||a[0]>=1024||live_modules[a[0]]||a[1]<1||a[1]>2||a[2]!=1||request_pending)abort();
         uint32_t off=a[3]-(uint32_t)(uintptr_t)host;
@@ -49,8 +69,10 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     return 0;
 }
 int32_t bgt_request_status(uint32_t r){if(r!=request_pending||!r)abort();return 1;}
-int32_t bgt_request_read(uint32_t r,void *p,uint32_t n){if(r!=request_pending||n<4)abort();memcpy(p,&request_result,4);return 4;}
-int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pending=0;return 0;}
+int32_t bgt_request_read(uint32_t r,void *p,uint32_t n){if(r!=request_pending)abort();
+    if(device_readback){if(n<device_readback)abort();memcpy(p,memory+524288,device_readback);return (int32_t)device_readback;}
+    if(n<4)abort();memcpy(p,&request_result,4);return 4;}
+int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pending=device_readback=0;return 0;}
 uint32_t w32_pstr(uint32_t a,uint32_t n,int wide,const char *s){(void)wide;uint32_t k=0;while(k+1<n&&s[k]){memory[a+k]=s[k];k++;}if(n)memory[a+k]=0;return k;}
 uint32_t w32_gstr(uint32_t a,int wide,char *s,uint32_t n){(void)wide;snprintf(s,n,"%s",memory+a);return (uint32_t)strlen(s);}
 static uint32_t call(uint32_t (*fn)(void),uint32_t a,uint32_t b,uint32_t c,uint32_t d){X.r[ESP]=1024;x86_wr32(1028,a);x86_wr32(1032,b);x86_wr32(1036,c);x86_wr32(1040,d);return fn();}
@@ -202,11 +224,74 @@ static void allocator(void) {
     for(uint32_t i=0;i<128;i++)glp_free(slots[i],sizes[i]);CHECK(w32_gl_frontend_bytes==0);
     printf("allocator split/coalesce/zero/overflow OK randomized=24000\n");
 }
+static void buffer_vao(void) {
+    uint32_t targets[]={ARRAY_BUFFER,ELEMENT_BUFFER,UNIFORM_BUFFER,FEEDBACK_BUFFER,0x8f36,0x8f37,0x88eb,0x88ec,0x8c2a};
+    for(uint32_t i=0;i<9;i++) {
+        call(api_BindBuffer,targets[i],i+1,0,0);call(api_BufferData,targets[i],64,8192,0x88e4);CHECK(!error);
+        CHECK(bound_buffer(targets[i])==&buffers[i+1]);
+        call(api_BindBuffer,targets[i],0,0,0);call(api_BufferData,targets[i],64,8192,0x88e4);CHECK(error==BAD_OP);error=0;
+        CHECK(buffers[i+1].size==64);
+    }
+    call(api_BindBuffer,ELEMENT_BUFFER,10,0,0);call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(!error);
+    uint32_t real=alloc_name(vaos,sizeof(Vao));call(api_BindVertexArray,real,0,0,0);CHECK(!vaos[real].element);
+    call(api_BindBuffer,ELEMENT_BUFFER,10,0,0);CHECK(bound_buffer(ELEMENT_BUFFER)->size==64);
+    call(api_BindVertexArray,0,0,0,0);CHECK(vaos[0].element==10);
+    uint64_t before=w32_gl_approximations;
+    for(int i=0;i<3;i++)call(api_BindBuffer,ELEMENT_BUFFER,10,0,0);
+    CHECK(w32_gl_approximations==before+3);CHECK(strstr(w32_gl_approximations_json(),"core VAO 0 element-buffer binding"));
+    call(api_VertexAttribPointer,0,2,F32,0);CHECK(error==BAD_OP);error=0;
+    call(api_EnableVertexAttribArray,0,0,0,0);CHECK(error==BAD_OP);error=0;
+    CHECK(!draw(4,3,1,0,U16,0,0)&&error==BAD_OP);error=0;
+    x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);CHECK(!vaos[0].element&&!vaos[real].element);
+    for(uint32_t i=0;i<9;i++){x86_wr32(4096,i+1);call(api_DeleteBuffers,1,4096,0,0);}
+    CHECK(!error&&w32_gl_frontend_bytes==0);puts("buffer VAO0 persistence targets=9 strict attributes/draws OK");
+}
+static void buffer_mapping(void) {
+    call(api_BindBuffer,ELEMENT_BUFFER,1,0,0);for(uint32_t i=0;i<64;i++)memory[8192+i]=(uint8_t)i;
+    call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(!error);
+    uint32_t p=call(api_MapBuffer,ELEMENT_BUFFER,0x88ba,0,0);CHECK(p&&heap_live==64&&!error);
+    call(api_GetBufferPointerv,ELEMENT_BUFFER,0x88bd,4096,0);CHECK(x86_rd32(4096)==p);
+    CHECK(memory[p+17]==17);memory[p+17]=199;
+    call(api_BufferSubData,ELEMENT_BUFFER,0,4,8192);CHECK(error==BAD_OP);error=0;
+    call(api_GetBufferSubData,ELEMENT_BUFFER,0,4,8192);CHECK(error==BAD_OP);error=0;
+    CHECK(!call(api_MapBuffer,ELEMENT_BUFFER,0x88b9,0,0)&&error==BAD_OP);error=0;
+    CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&!heap_live&&device_buffers[1][17]==199&&buffers[1].data[17]==199);
+    /* Native generated bytes differ from the stale upload shadow. Odd explicit flush must
+     * preserve native neighbours, copy only flushed bytes, and not commit later host writes. */
+    buffers[1].generated=1;memset(device_buffers[1],77,64);memset(buffers[1].data,33,64);
+    reject_readback=1;CHECK(!call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0)&&error==OOM&&!heap_live&&!buffers[1].map&&!request_pending);error=reject_readback=0;
+    p=call(api_MapBufferRange,ELEMENT_BUFFER,5,7,0x12);CHECK(p&&memory[p]==77&&!error);
+    memory[p]=123;memory[p+1]=124;
+    call(api_FlushMappedBufferRange,ELEMENT_BUFFER,0,1,0);CHECK(!error&&device_buffers[1][5]==123&&device_buffers[1][6]==77&&device_buffers[1][4]==77);
+    memory[p]=222;CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&!heap_live&&device_buffers[1][5]==123&&device_buffers[1][6]==77);
+    /* Validation, zero-length flush, allocation failure, failed upload, read-only and delete. */
+    uint32_t bad[]={0,0x40,0x11,0x21,0x05,0x09,0x10};
+    for(uint32_t i=0;i<sizeof bad/sizeof *bad;i++){CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,0,4,bad[i]));CHECK(error==(bad[i]==0x40?BAD_VALUE:BAD_OP));error=0;}
+    CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,64,1,2)&&error==BAD_VALUE);error=0;
+    CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,0,0,2)&&error==BAD_OP);error=0;
+    CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,UINT32_MAX,2,2)&&error==BAD_VALUE);error=0;
+    heap_oom=1;CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,0,4,2)&&error==OOM&&!heap_live);heap_oom=error=0;
+    p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,0x12);CHECK(p);call(api_FlushMappedBufferRange,ELEMENT_BUFFER,8,0,0);CHECK(!error);
+    call(api_FlushMappedBufferRange,ELEMENT_BUFFER,7,2,0);CHECK(error==BAD_VALUE);error=0;
+    reject_update=1;memory[p]=7;call(api_FlushMappedBufferRange,ELEMENT_BUFFER,0,4,0);CHECK(error==OOM&&device_buffers[1][0]==77&&buffers[1].data[0]==77);error=reject_update=0;
+    CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&!heap_live);
+    p=call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0);CHECK(p&&memory[p]==77);memory[p]=6;
+    CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&device_buffers[1][0]==77);
+    call(api_GetBufferParameteriv,ELEMENT_BUFFER,0x88bb,4096,0);CHECK(x86_rd32(4096)==0x88b8);
+    call(api_GetBufferParameteriv,ELEMENT_BUFFER,0x88bc,4096,0);CHECK(!x86_rd32(4096));
+    p=call(api_MapBuffer,ELEMENT_BUFFER,0x88b9,0,0);CHECK(p);memory[p]=5;reject_update=1;
+    CHECK(!call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)&&error==OOM&&!heap_live&&device_buffers[1][0]==77);error=reject_update=0;
+    p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,0x26);CHECK(p&&!error);
+    call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(!buffers[1].map&&!heap_live&&!error);
+    p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,2);CHECK(p&&!error);
+    x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(!heap_live&&!buffers[1].map&&!error&&w32_gl_frontend_bytes==0);
+    puts("buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK");
+}
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
     if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
-    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else return 2;
+    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
 }
