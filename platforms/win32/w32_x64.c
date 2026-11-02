@@ -108,6 +108,9 @@ void w64_tls_init(void) {
 static uint32_t scratch_ctx[16],scratch_next[16],scratch_origin[16],scratch_disp[16],scratch_data[16],scratch_frame[16];
 static int scratch_phase[16];
 static unsigned depth;
+/* Filters must run even when guest backing is exhausted. Slot 0 also serves direct
+ * C-specific-handler probes; nested dispatched exceptions use depth-specific slots. */
+static uint32_t scratch_ep[17],scratch_oom[16];
 static void unwind_exception(uint32_t record,uint32_t target_frame,uint32_t target_pc,uint64_t retval,uint32_t initial,int phase2) {
     if(depth>=16)x86_fault("exception nesting limit",record);unsigned d=depth++;
     if(!scratch_ctx[d]){scratch_ctx[d]=w32_misc_alloc(CTX_BYTES);scratch_next[d]=w32_misc_alloc(CTX_BYTES);scratch_origin[d]=w32_misc_alloc(CTX_BYTES);scratch_disp[d]=w32_misc_alloc(80);scratch_data[d]=w32_misc_alloc(8);scratch_frame[d]=w32_misc_alloc(8);}
@@ -129,13 +132,20 @@ static void unwind_exception(uint32_t record,uint32_t target_frame,uint32_t targ
         for(uint32_t i=0;i<CTX_BYTES;i++)x86_wr8(c+i,x86_rd8(next+i));
         if(x86_rd64(cr(c,ESP))<=sp)x86_fault("unwind made no stack progress",pc);
     }
-    depth--;x86_fault(phase2?"RtlUnwindEx target not found":"unhandled guest exception",record);
+    depth--;x86_fault(phase2?"RtlUnwindEx target not found":x86_rd32(record)==0xc0000017u?"unhandled guest heap STATUS_NO_MEMORY (0xc0000017)":"unhandled guest exception",record);
 }
 static uint32_t rtl_lookup(void){uint32_t base=0,f=w64_lookup(ARG(0),&base);if(ARG(1))x86_wr64(ARG(1),base);return f;}
 static uint32_t rtl_virtual(void){return w64_virtual_unwind(ARG(0),ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),ARG(6));}
 static uint32_t rtl_capture(void){w64_context_save(ARG(0),1);return 0;}
 static uint32_t rtl_restore(void){w64_context_restore(ARG(0));X.transfer=1;return 0;}
 static uint32_t rtl_unwind(void){uint32_t record=ARG(2),target=ARG(0),pc=ARG(1);uint64_t value=ARG64(3);if(!record){record=w32_misc_alloc(152);x86_wr32(record,0xc0000027u);x86_wr32(record+4,2);}uint32_t initial=depth?(scratch_phase[depth-1]?scratch_ctx[depth-1]:scratch_origin[depth-1]):0;unwind_exception(record,target,pc,value,initial,1);return 0;}
+void w32_heap_no_memory(void) {
+    if(depth||X.callback_depth)x86_fault("guest heap STATUS_NO_MEMORY (0xc0000017): nested SEH/native callback continuation unsupported",0xc0000017u);
+    uint32_t r=scratch_oom[depth];if(!r)r=scratch_oom[depth]=w32_misc_alloc(152);
+    for(uint32_t i=0;i<152;i++)x86_wr8(r+i,0);
+    x86_wr32(r,0xc0000017u);x86_wr64(r+16,x86_rd64((uint32_t)X.r[ESP]));
+    unwind_exception(r,0,0,0,0,0);
+}
 static uint32_t raise_exception(void){uint32_t r=w32_misc_alloc(152);x86_wr32(r,ARG(0));x86_wr32(r+4,ARG(1));x86_wr64(r+16,x86_rd64((uint32_t)X.r[ESP]));uint32_t count=ARG(2)>15?15:ARG(2);x86_wr32(r+24,count);for(uint32_t i=0;i<count;i++)x86_wr64(r+32+8*i,x86_rd64(ARG(3)+8*i));unwind_exception(r,0,0,0,0,0);return 0;}
 static uint32_t setjmp64(void){uint32_t p=ARG(0);static const unsigned regs[10]={EBX,ESP,EBP,ESI,EDI,R12,R13,R14,R15,0};x86_wr64(p,X.r[EDX]);for(unsigned i=0;i<9;i++)x86_wr64(p+8+8*i,X.r[regs[i]]+(regs[i]==ESP?8:0));x86_wr64(p+80,x86_rd64((uint32_t)X.r[ESP]));x86_wr32(p+88,X.mxcsr);x86_wr16(p+92,0x37f);for(unsigned i=0;i<10;i++)for(unsigned j=0;j<16;j++)x86_wr8(p+96+i*16+j,X.xmm[i+6].u8[j]);return 0;}
 static uint32_t longjmp64(void){uint32_t p=ARG(0),value=ARG(1);static const unsigned regs[9]={EBX,ESP,EBP,ESI,EDI,R12,R13,R14,R15};for(unsigned i=0;i<9;i++)X.r[regs[i]]=x86_rd64(p+8+8*i);X.eip=ptr(x86_rd64(p+80));X.r[EAX]=value?value:1;X.mxcsr=x86_rd32(p+88);for(unsigned i=0;i<10;i++)for(unsigned j=0;j<16;j++)X.xmm[i+6].u8[j]=(uint8_t)x86_rd8(p+96+i*16+j);X.transfer=1;return (uint32_t)X.r[EAX];}
@@ -158,8 +168,9 @@ static uint32_t c_specific_handler(void) {
             if(X.transfer)return 0;
         }else if(jump){
             int32_t filter=(int32_t)handler;
-            if(handler!=1){uint32_t ep=w32_heap_alloc(16,0);x86_wr64(ep,record);x86_wr64(ep+8,ctx);
-                uint64_t a[2]={ep,established};filter=(int32_t)x86_callback64(base+handler,2,a);w32_heap_free(ep);if(X.transfer)return 0;}
+            if(handler!=1){uint32_t ep=scratch_ep[depth];if(!ep)ep=scratch_ep[depth]=w32_misc_alloc(16);
+                x86_wr64(ep,record);x86_wr64(ep+8,ctx);
+                uint64_t a[2]={ep,established};filter=(int32_t)x86_callback64(base+handler,2,a);if(X.transfer)return 0;}
             if(filter<0)return 0; /* ExceptionContinueExecution */
             if(filter>0){uint32_t initial=depth?scratch_origin[depth-1]:ctx;unwind_exception(record,frame,base+jump,0,initial,1);return 0;}
         }
@@ -186,6 +197,7 @@ uint64_t w64_api(const char *name,int *handled) {
     return 0;
 }
 #else
+void w32_heap_no_memory(void) {x86_fault("guest heap STATUS_NO_MEMORY (0xc0000017): i386 SEH dispatch unavailable",0xc0000017u);}
 uint64_t w64_api(const char *name,int *handled) { (void)name;*handled=0;return 0; }
 void w64_tls_init(void) {}
 #endif

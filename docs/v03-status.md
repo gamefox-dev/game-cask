@@ -1,5 +1,17 @@
 # v0.3 merged implementation status
 
+## K12 — deterministic guest heap and CRT allocation
+
+K12 adds a bounded-work segregated guest heap for both Win32 widths, real logical `HeapCreate` ownership and
+quotas, boundary-tag coalescing/in-place realloc, truthful failure/exception behavior, and the shared CRT
+malloc/aligned/recalloc family. Original CC0 x64/i386 fixtures cover contracts and 300-frame differential
+oracles; native invariants exercise 150,000 randomized operations per width. The same-machine CC0 benchmark
+holds at 12.606–17.497 ns/operation from 4,005 to 40,005 live allocations versus 3,620–149,858 ns for the
+old first-fit implementation. Final K12 gates: **979 unit tests / 72 files**, **232 browser passes / 51 existing
+intentional skips**, doctor, clang+GCC lint, typecheck, leakcheck, and **29 pipeline oracles × 300 = 8,700
+identical pairs**. Nested SEH/native-callback OOM is an explicit x86-runtime boundary with a precise diagnostic;
+ordinary exhausted-backing AMD64 OOM dispatch is covered. Details: [K12 handoff](handoff/K12.md).
+
 ## Integration I7 — K9a + K9b
 
 Integration commit **`2638514`** merges K9a with lane K9b/K9c using `--no-ff`, preserving K9a's GLSL integer,

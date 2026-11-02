@@ -92,7 +92,16 @@ uint32_t w32_pstr(uint32_t addr, uint32_t cap, int wide, const char *s);
 uint32_t w32_misc_alloc(uint32_t n);
 int w32_streqi(const char *a, const char *b);
 
-/* guest heap */
+/* guest heap: shared backing arena, separate ownership and bounded live-footprint maxima */
+uint32_t w32_heap_create(uint32_t flags,uint32_t initial,uint32_t maximum);
+int w32_heap_destroy(uint64_t handle);
+int w32_heap_valid_handle(uint64_t handle);
+uint32_t w32_heap_flags(uint64_t handle);
+uint32_t w32_heap_alloc_on(uint64_t handle,uint32_t n,int zero);
+int w32_heap_free_on(uint64_t handle,uint32_t a);
+uint32_t w32_heap_size_on(uint64_t handle,uint32_t a);
+uint32_t w32_heap_realloc_on(uint64_t handle,uint32_t a,uint32_t n,int zero,int in_place);
+void w32_heap_no_memory(void);
 uint32_t w32_heap_alloc(uint32_t n, int zero);
 void w32_heap_free(uint32_t a);
 uint32_t w32_heap_size(uint32_t a);
