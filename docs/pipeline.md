@@ -183,8 +183,9 @@ Strict builds omit recording/crossings but retain wasm-local membership checks a
 handled dynamic entries (including same-region indirect jumps). This is necessary when a host policy is narrower
 than an entire compiled function range; a registry-only check would be insufficient. An optional [strict host-policy export](../bgt/abi/ABI.md#strict-compiled-slice-host-policy-k10-additive-optional-export)
 intersects a stricter host allowlist with the compiled policy, including the existing empty-allowlist stop. Neither
-strict path records successful entries or imports `coverage_entry`; outside-slice failures retain their missing-code
-address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
+strict path imports `coverage_entry` or keeps per-entry successful-path recording. A single actually accepted
+startup entry is exposed through the optional first-entry export, preserving bounded startup evidence; outside-slice
+failures retain their missing-code address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
 and passes the strict package/reference runs; no coverage evidence is filtered or manufactured.
 
 AMD64 generated register-local functions return to the dispatcher before generic semantics, quantum scheduling,
