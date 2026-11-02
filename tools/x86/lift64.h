@@ -25,16 +25,34 @@ static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
     snprintf(expr, sizeof expr, "(%s%s)", base, index);
     snprintf(s, cap, "(%s%s%s)", (p->pad & 1) ? "(uint32_t)" : "", expr, seg);
 }
+/* Cold flag deoptimization recipes use recoverable register results, never a hot operand log.
+ * An overwrite/load that destroys a dependency invalidates the recipe and retains precise liveness. */
+typedef struct { int op, reg, n; uint64_t imm; uint32_t mask; } l64_replay_t;
+static l64_replay_t l64_replay;
+static uint32_t l64_fault_writes;
 static uint32_t l64_remaining;
 static int l64_guarded;
+static void l64_replay_flags(FILE *o) {
+    l64_replay_t p = l64_replay;
+    if (!p.mask) return;
+    fprintf(o, "{uint64_t z=(uint%u_t)r[%d];", p.n * 8, p.reg);
+    if (p.op == XO_ADD) fprintf(o, "(void)xl_alu(%d,z-0x%llxull,0x%llxull,%d,&flags,0x%xu);",
+        XO_ADD, (unsigned long long)p.imm, (unsigned long long)p.imm, p.n, p.mask);
+    else if (p.op == XO_SUB) fprintf(o, "(void)xl_alu(%d,z+0x%llxull,0x%llxull,%d,&flags,0x%xu);",
+        XO_SUB, (unsigned long long)p.imm, (unsigned long long)p.imm, p.n, p.mask);
+    else fprintf(o, "(void)xl_alu(%d,z,0x%llxull,%d,&flags,0x%xu);",
+        p.op, (unsigned long long)p.imm, p.n, p.mask);
+    fprintf(o, "}");
+}
 static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writing, const char *value) {
     /* The reference's implicit stack primitives use low-32-bit addresses; explicit [RSP]
      * operands still validate full-width effective addresses through l64_ea. */
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
     uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_remaining << 8) | (writing << 5) | n;
-    fprintf(o, "address=%s;p=xl_pointer_access(address,%d,%d);if(!p){fault=0x%llxull;value=%s;goto memory_fault;}\n",
-            ea, n, writing ? 2 : 1, (unsigned long long)meta, value);
+    fprintf(o, "address=%s;p=xl_pointer_access(address,%d,%d);if(!p){", ea, n, writing ? 2 : 1);
+    if (!writing || !l64_fault_writes) l64_replay_flags(o);
+    fprintf(o, "fault=0x%llxull;value=%s;goto memory_fault;}\n", (unsigned long long)meta, value);
 }
 static void l64_read(FILE *o, const x86_opnd_t *p, const char *dest, uint32_t next) {
     if (p->kind == XK_IMM) fprintf(o, "%s=0x%llxull;", dest,
@@ -92,7 +110,34 @@ static int l64_index(func_t *f, uint32_t va) {
 }
 /* Per-flag backwards fixed point across both successors. External/indirect edges observe all flags.
  * Every instruction remains an external landing-pad entry; liveness only removes unobservable writes. */
-static uint32_t *l64_liveness(func_t *f, x86_insn_t *ins, const uint8_t *guarded, const uint8_t *starts) {
+static l64_replay_t *l64_replays(func_t *f, x86_insn_t *ins, const uint8_t *starts) {
+    l64_replay_t *out = calloc(f->insns.n, sizeof *out), p = {0};
+    for (uint32_t k = 0; k < f->insns.n; k++) {
+        x86_insn_t *in = &ins[k]; const x86_opnd_t *a = &in->o[0], *b = &in->o[1];
+        if (starts[k]) p.mask = 0;
+        out[k] = p;
+        if (in->op == XO_XCHG && a->kind == XK_REG &&
+            (a->reg == p.reg || (a->reg >= 16 && a->reg - 16 == p.reg))) out[k].mask = 0;
+        if (p.reg == ESP && (in->op == XO_PUSH || in->op == XO_POP || in->op == XO_CALL ||
+            in->op == XO_CALL_IND || in->op == XO_RET || in->op == XO_LEAVE)) out[k].mask = 0;
+        uint32_t r, w; l64_flag_io(in, &r, &w);
+        if (a->kind == XK_REG && (a->reg == p.reg || (a->reg >= 16 && a->reg - 16 == p.reg)) &&
+            in->op != XO_CMP && in->op != XO_TEST && in->op != XO_PUSH) p.mask = 0;
+        if (in->op == XO_XCHG || in->op == XO_CDQ || in->op == XO_CWDE ||
+            in->op == XO_LEAVE || in->op == XO_POP) p.mask = 0;
+        if (!w) { if (r == L64_FLAGS) p.mask = 0; continue; }
+        p.mask = 0;
+        if (a->kind != XK_REG || a->reg >= 16) continue;
+        int op = in->op;
+        if ((op == XO_ADD || op == XO_SUB || op == XO_CMP || op == XO_TEST) && b->kind == XK_IMM) {
+            p = (l64_replay_t){op, a->reg, a->size, b->imm, L64_FLAGS};
+        } else if (op == XO_INC || op == XO_DEC)
+            p = (l64_replay_t){op == XO_INC ? XO_ADD : XO_SUB, a->reg, a->size, 1, L64_FLAGS & ~F_CF};
+    }
+    return out;
+}
+static uint32_t *l64_liveness(func_t *f, x86_insn_t *ins, const uint8_t *guarded, const uint8_t *starts,
+        const l64_replay_t *replays) {
     uint32_t n = f->insns.n, *live = calloc(n, sizeof *live), *out = calloc(n, sizeof *out);
     int changed;
     do {
@@ -102,11 +147,11 @@ static uint32_t *l64_liveness(func_t *f, x86_insn_t *ins, const uint8_t *guarded
             l64_flag_io(in, &r, &w);
             /* A memory exception observes the incoming flags, even when a later writer kills them. */
             if (!guarded[j]) {
-                for (int k = 0; k < in->nops; k++) if (in->o[k].kind == XK_MEM) r |= L64_FLAGS;
+                for (int k = 0; k < in->nops; k++) if (in->o[k].kind == XK_MEM) r |= L64_FLAGS & ~replays[j].mask;
                 if (in->op == XO_PUSH || in->op == XO_POP || in->op == XO_LEAVE || in->op == XO_RET ||
-                    in->op == XO_CALL || in->op == XO_CALL_IND) r |= L64_FLAGS;
+                    in->op == XO_CALL || in->op == XO_CALL_IND) r |= L64_FLAGS & ~replays[j].mask;
             }
-            /* A failed whole-block guard starts reference execution with observable flags. */
+            /* A failed whole-block guard/quantum check resumes before its first instruction. */
             if (starts[j]) r |= L64_FLAGS;
             if (in->op == XO_JMP || in->op == XO_JCC) {
                 int t = l64_index(f, in->target); v |= t < 0 ? L64_FLAGS : live[t];
@@ -253,7 +298,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             l64_guard_t guard = l64_guard(ins, k, end);
             for (; k < end; k++) guarded[k] = guard.safe && guard.n;
         }
-        uint32_t *live = l64_liveness(f, ins, guarded, starts);
+        l64_replay_t *replays = l64_replays(f, ins, starts);
+        uint32_t *live = l64_liveness(f, ins, guarded, starts, replays);
         l64_used |= l64_written;
         /* A distinct signature keeps Asyncify's conservative void(void) scheduler-call target
          * set from including native regions, which cannot suspend. Registry wrappers stay tiny. */
@@ -302,6 +348,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 in->op == XO_RET || in->op == XO_LEAVE) writes |= 1u << ESP;
             if (in->op == XO_LEAVE) writes |= 1u << EBP;
             if (writes) fprintf(o, "dirty|=0x%xu;", writes);
+            l64_replay = replays[k];
+            { uint32_t reads; l64_flag_io(in, &reads, &l64_fault_writes); }
             l64_remaining = block_end - k - 1;
             uint32_t mask = live[k] & L64_FLAGS;
             /* Read-modify-write faults expose the computed flags before the store fails. */
@@ -322,17 +370,20 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     if (in->op == XO_INC || in->op == XO_DEC) fprintf(o, "u=1;");
                     else l64_read(o, bb, "u", next);
                 }
-                if (in->op == XO_INC || in->op == XO_DEC) mask &= ~F_CF;
+                int faulting_inc = (in->op == XO_INC || in->op == XO_DEC) && aa->kind == XK_MEM && !l64_guarded;
+                if (faulting_inc) fprintf(o, "v=flags&F_CF;");
+                else if (in->op == XO_INC || in->op == XO_DEC) mask &= ~F_CF;
                 if (mask != (in->op == XO_INC || in->op == XO_DEC ? L64_FLAGS & ~F_CF : L64_FLAGS))
                     st->flags_elided++;
                 int alu_op = in->op == XO_INC ? XO_ADD :
                     in->op == XO_DEC || in->op == XO_NEG ? XO_SUB : in->op;
-                if (mask == L64_FLAGS) fprintf(o, "t=xl_alu_full(%u,t,u,%d,&flags);", alu_op, n);
-                else fprintf(o, "t=xl_alu(%u,t,u,%d,&flags,0x%xu);", alu_op, n, mask);
+                fprintf(o, "t=xl_alu(%u,t,u,%d,&flags,0x%xu);", alu_op, n, mask);
                 if (in->op != XO_CMP && in->op != XO_TEST) l64_write(o, aa, "t", next);
+                if (faulting_inc) fprintf(o, "flags=(flags&~F_CF)|(uint32_t)v;");
                 break;
             case XO_NOT: l64_read(o, aa, "t", next); l64_write(o, aa, "~t", next); break;
             case XO_ROL: case XO_ROR: case XO_RCL: case XO_RCR: case XO_SHL: case XO_SHR: case XO_SAL: case XO_SAR:
+                l64_fault_writes = L64_FLAGS;
                 l64_read(o, aa, "t", next); l64_read(o, bb, "u", next);
                 fprintf(o, "X.flags=flags;t=x64_shift(%u,t,(uint32_t)u,%d);flags=X.flags;", in->op, n);
                 l64_write(o, aa, "t", next); break;
@@ -415,7 +466,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"
                    "x86_fault(\"unmapped flat guest memory\",(uint32_t)address);\n");
         fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;return;\n}\n");
-        free(guarded); free(starts); free(live); free(ins);
+        free(replays); free(guarded); free(starts); free(live); free(ins);
         }
         fprintf(o, "void F_%08x(void){\n", original->addr);
         fprintf(o, "static void (*const regions[])(uint32_t)={");

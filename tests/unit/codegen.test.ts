@@ -138,6 +138,40 @@ it('flat-memory faults spill locals, live flags and reference partial cross-page
   }
 });
 
+it('cold inverse-ALU recipes recover exact fault flags without saved hot operands', async () => {
+  // Changing RBX within each block prevents the whole-span guard. Each first ALU's flags are
+  // killed after the memory operation on the success path, but observable on its abort path.
+  const cases = [
+    '48c7c0ff0000004883c00148c7c300300000488b134883c001c3',
+    '48c7c0000000004883e80148c7c3003000004889134883c001c3',
+    '48c7c0000000004883f80148c7c300300000488b134883c001c3',
+    '48c7c01000000048a91000000048c7c3003000004889134883c001c3',
+    '48c7c0ff00000048ffc048c7c300300000488b134883c001c3',
+    '48c7c00000000048ffc848c7c300300000488b134883c001c3',
+    // Destroyed dependencies must keep conservative flags (AL and AH aliases, POP).
+    '48c7c0100000004883c001b00048c7c300300000488b134883c001c3',
+    '48c7c0100000004883e801b40048c7c300300000488b134883c001c3',
+    // RSP update before a PUSH fault cannot use its post-decrement value to invert ADD.
+    '48bc10300000000000004883ec08504883c001c3',
+    // RMW store fault sees the newly computed flags, not the predecessor recipe.
+    '48c7c0100000004883c00148c7c300300000488303014883c001c3',
+  ];
+  for (const [i, hex] of cases.entries()) {
+    const h = await harness(hex);
+    if (i < 6) expect(h.text).toContain('{uint64_t z=');
+    expect(h.text).not.toContain('xl_alu_full(');
+    const execute = (interp: number) => {
+      h.ex.reset(base, 0);
+      if (i === 9) h.ex.protect(3, 2); else h.ex.unmap(3);
+      expect(() => h.ex.run(interp), `case ${i} ${hex}`).toThrow(WebAssembly.RuntimeError);
+      return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536),
+        address: h.ex.fault_address(), diagnostic: h.ex.fault_hash() };
+    };
+    expect(execute(0), hex).toEqual(execute(1));
+  }
+});
+
 it('global protection flag disables lifted span fast paths and protected writes fault with identical state', async () => {
   // Straight-line guarded block writes across two mapped pages: first RW, second read-only.
   const h = await harness('48c7c3fc2f0000eb0048b88877665544332211488903c3');

@@ -13,8 +13,12 @@ uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
-static uint32_t yields;
-void x86_fault(const char *m, uint32_t a) { (void)m; (void)a; __builtin_trap(); }
+static uint32_t yields, fault_address, fault_hash;
+void x86_fault(const char *m, uint32_t a) {
+    fault_address = a; fault_hash = 2166136261u;
+    while (*m) { fault_hash = (fault_hash ^ (uint8_t)*m++) * 16777619u; }
+    __builtin_trap();
+}
 uint32_t x86_address(uint64_t a) {
     if (a > UINT32_MAX) x86_fault("high pointer", X.eip);
     return (uint32_t)a;
@@ -43,7 +47,7 @@ BGT_EXPORT(reset) void reset(uint32_t pc, uint32_t budget) {
     for (int i = 0; i < 16; i++) { x86_pages[i] = ram + i * 4096; x86_protection[i] = 0; }
     x86_protection_active = 0;
     X.mode64 = 1; X.mxcsr = 0x1f80; X.eip = pc; X.r[ESP] = 0x8000; X.frame_insns = budget;
-    yields = 0; x86_lift_pending = 0; x86_lift_count = 0;
+    yields = fault_address = fault_hash = 0; x86_lift_pending = 0; x86_lift_count = 0;
 }
 BGT_EXPORT(cpu) uint32_t cpu(void) { return (uint32_t)(uintptr_t)&X; }
 BGT_EXPORT(cpu_size) uint32_t cpu_size(void) { return sizeof X; }
@@ -53,3 +57,6 @@ BGT_EXPORT(protect) void protect(uint32_t page, uint32_t mode) {
     x86_protection[page] = (uint8_t)mode; x86_protection_active = 1;
 }
 BGT_EXPORT(yields) uint32_t yield_count(void) { return yields; }
+BGT_EXPORT(fault_address) uint32_t last_fault_address(void) { return fault_address; }
+BGT_EXPORT(fault_hash) uint32_t last_fault_hash(void) { return fault_hash; }
+BGT_EXPORT(clock) uint64_t instruction_clock(void) { return X.tsc; }
