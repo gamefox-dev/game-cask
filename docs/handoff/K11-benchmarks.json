@@ -1,7 +1,7 @@
 {
   "schema": "game-cask/k11-benchmarks/1",
   "machine": "darwin/arm64, Node 24.19.0, Zig 0.13.0",
-  "method": "same-machine sequential A/B; five fresh 300-frame batches after a discarded warmup, with 24 inner executions per batch for final policy rows; long CC0 scale uses 1024 rounds and 3 batches; whole wasm includes profile/Asyncify; exact oracle hashes and no interpreted instructions required",
+  "method": "same-machine sequential A/B; five fresh 300-frame batches after a discarded warmup, with 24 inner executions per batch for final policy rows; long CC0 scale uses 1024 rounds and 3 trials per batch; whole wasm includes profile/Asyncify; exact oracle hashes and no interpreted instructions required",
   "policies": {
     "size": "all four K11 policies false; default",
     "fast": "pipeline.liftPreset=fast; all four K11 policies true"
@@ -11,7 +11,7 @@
     "step1_memory_55f26a8": {"codegen-cpu": {"wasm_bytes": 1378408, "run_ms_median": 5.354}, "x64-cpp": {"wasm_bytes": 2896989, "run_ms_median": 3.385}, "x64-crt": {"wasm_bytes": 1272469, "run_ms_median": 2.664}},
     "step2_flags_a281d75": {"codegen-cpu": {"wasm_bytes": 1381127, "run_ms_median": 5.290}, "x64-cpp": {"wasm_bytes": 3178418, "run_ms_median": 3.424}, "x64-crt": {"wasm_bytes": 1320637, "run_ms_median": 2.751}},
     "step3_optimize_small_9b3f57a": {"codegen-cpu": {"wasm_bytes": 1381127, "run_ms_median": 5.470}, "x64-cpp": {"wasm_bytes": 3179222, "run_ms_median": 4.079}, "x64-crt": {"wasm_bytes": 1312317, "run_ms_median": 2.760}},
-    "step4_counting_d496a11": {"codegen-cpu": {"wasm_bytes": 1390993, "run_ms_median": 7.881}, "x64-cpp": {"wasm_bytes": 3282489, "run_ms_median": 3.742}, "x64-crt": {"wasm_bytes": 1330365, "run_ms_median": 6.034}}
+    "step4_counting_d496a11": {"codegen-cpu": {"wasm_bytes": 1390993, "run_ms_median": 5.383}, "x64-cpp": {"wasm_bytes": 3282489, "run_ms_median": 3.318}, "x64-crt": {"wasm_bytes": 1330365, "run_ms_median": 2.717}}
   },
   "final_batched_24": {
     "size": {
