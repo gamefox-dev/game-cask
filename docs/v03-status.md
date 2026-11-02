@@ -1,6 +1,11 @@
 # v0.3 merged implementation status
 
-## Integration I8 — K11 + K10 over K12
+## Integration I8 — K11 + K10 over K12 (pre-K13 verification)
+
+Reviewer scope extension: K13 (`9f5c191`) is now being integrated after these two lanes. The counts below are
+pre-K13 evidence, not a final three-lane acceptance claim.
+
+### K11 + K10 checkpoint
 
 Ordered `--no-ff` merges **`140b96c`** (K11 / `2124b13`) then **`aa0f739`** (K10 / `f1fd1d9`) preserve K12's
 segregated heap and K9's GL work. Size remains default; fast is opt-in. K10 coverage/strict checks and census reasons
@@ -11,6 +16,15 @@ both required backends. **29 default pipeline oracles × 300 = 8,700 identical p
 (**900 more pairs**); the explicit size/fast matrix repeats three size controls (**10,500 total compared pairs**).
 All lifted runs have zero interpreted instructions and empty stubs. Fresh independent bounded source follow-up passes;
 no engine-speedup, first-draw or F-PERF-CRT closure claim. Details: [I8 handoff](handoff/integration-i8.md).
+
+## K13 — native scalar SSE and flat boundary chaining
+
+K13 adds native scalar SSE conversions/COMI, flat foreign-owner/thunk chaining, checked lookup caching and
+bounded SSE/tiny native interior entries. Post-review gates: **840 units /68 files**, **218 browser passes /51
+unchanged skips**, **25 ×2 presets ×300 =15,000 identical oracle pairs**. Final size+fast isolated A/B: scalar
+~3×, interior ~2.6–3.1×; import/vtable gains are small/noisy (fast import unchanged), not an engine-speedup claim.
+Independent **vK13 FAIL then vK13b PASS at 59ddafd** after memory-permission and test-sensitivity fixes.
+Committed every sample, scope/tradeoffs: [K13 handoff](handoff/K13.md).
 
 ## K11 — opt-in lifted-code speed policies
 

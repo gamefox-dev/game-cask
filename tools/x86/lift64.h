@@ -28,7 +28,7 @@ static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
 }
 /* Cold flag deoptimization recipes use recoverable register results, never a hot operand log.
  * An overwrite/load that destroys a dependency invalidates the recipe and retains precise liveness. */
-typedef struct { int op, reg, n; uint64_t imm; uint32_t mask; } l64_replay_t;
+typedef struct { int op, reg, n; uint64_t imm; uint32_t mask, position; } l64_replay_t;
 static l64_replay_t l64_replay;
 static uint32_t l64_fault_writes;
 static uint32_t l64_position;
@@ -42,7 +42,7 @@ static int l64_guarded;
 static void l64_replay_flags(FILE *o) {
     l64_replay_t p = l64_replay;
     if (!p.mask) return;
-    fprintf(o, "{uint64_t z=(uint%u_t)r[%d];", p.n * 8, p.reg);
+    fprintf(o, "if(entry_index<=%uu){uint64_t z=(uint%u_t)r[%d];", p.position, p.n * 8, p.reg);
     if (p.op == XO_ADD) fprintf(o, "(void)xl_alu(%d,z-0x%llxull,0x%llxull,%d,&flags,0x%xu);",
         XO_ADD, (unsigned long long)p.imm, (unsigned long long)p.imm, p.n, p.mask);
     else if (p.op == XO_SUB) fprintf(o, "(void)xl_alu(%d,z+0x%llxull,0x%llxull,%d,&flags,0x%xu);",
@@ -56,10 +56,13 @@ static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writi
      * operands still validate full-width effective addresses through l64_ea. */
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
+    /* Fault-replay discriminators are not access bits: 0=scalar read, 1=scalar store,
+     * 2=vector store, 3=vector read. A vector read must never demand WRITE permission. */
+    unsigned access = writing == 1 || writing == 2 ? 2 : 1;
     uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (writing << 5) | n;
-    fprintf(o, "address=%s;p=%s(address,%d,%d);if(!p){", ea,
-            lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, writing ? 2 : 1);
-    if (!writing || !l64_fault_writes) l64_replay_flags(o);
+    fprintf(o, "address=%s;p=%s(address,%d,%u);if(!p){", ea,
+            lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, access);
+    if (writing == 0 || writing == 3 || !l64_fault_writes) l64_replay_flags(o);
     fprintf(o, "fault=0x%llxull;value=%s;goto memory_fault;}\n", (unsigned long long)meta, value);
 }
 static void l64_read(FILE *o, const x86_opnd_t *p, const char *dest, uint32_t next) {
@@ -104,8 +107,8 @@ static void l64_flag_io(const x86_insn_t *in, uint32_t *read, uint32_t *write) {
     case XO_MOV: case XO_MOVZX: case XO_MOVSX: case XO_LEA: case XO_NOT: case XO_NOP:
     case XO_PUSH: case XO_POP: case XO_JMP: case XO_JMP_IND: return;
     case XO_SIMD:
-        if (in->simd_op != 0x2e && in->simd_op != 0x2f) return;
-        break;
+        if (in->simd_op == 0x2e || in->simd_op == 0x2f) *write = L64_FLAGS;
+        return;
     default: break;
     }
     /* Unknown/partial writers, calls, exits and generic instructions are observation barriers. */
@@ -139,9 +142,9 @@ static l64_replay_t *l64_replays(func_t *f, x86_insn_t *ins, const uint8_t *star
         if (a->kind != XK_REG || a->reg >= 16) continue;
         int op = in->op;
         if ((op == XO_ADD || op == XO_SUB || op == XO_CMP || op == XO_TEST) && b->kind == XK_IMM) {
-            p = (l64_replay_t){op, a->reg, a->size, b->imm, L64_FLAGS};
+            p = (l64_replay_t){op, a->reg, a->size, b->imm, L64_FLAGS, k};
         } else if (op == XO_INC || op == XO_DEC)
-            p = (l64_replay_t){op == XO_INC ? XO_ADD : XO_SUB, a->reg, a->size, 1, L64_FLAGS & ~F_CF};
+            p = (l64_replay_t){op == XO_INC ? XO_ADD : XO_SUB, a->reg, a->size, 1, L64_FLAGS & ~F_CF, k};
     }
     return out;
 }
@@ -196,14 +199,32 @@ static int l64_simd_supported(const x86_insn_t *in) {
     return op == 0x10 || op == 0x11 || op == 0x28 || op == 0x29 || op == 0x6f || op == 0x7f ||
         op == 0x54 || op == 0x55 || op == 0x56 || op == 0x57 || op == 0xdb || op == 0xdf ||
         op == 0xeb || op == 0xef || op == 0x58 || op == 0x59 || op == 0x5c || op == 0x5d ||
-        op == 0x5e || op == 0x5f;
+        op == 0x5e || op == 0x5f || op == 0x2e || op == 0x2f || op == 0x51 || op == 0xc2 ||
+        ((op == 0x2a || op == 0x2c || op == 0x2d || op == 0x5a) &&
+         (in->simd_prefix == 0xf2 || in->simd_prefix == 0xf3));
 }
 static void l64_simd(FILE *o, const x86_insn_t *in, uint32_t next) {
     const x86_opnd_t *a = &in->o[0], *b = &in->o[1];
     unsigned op = in->simd_op, pre = in->simd_prefix;
     int scalar = pre == 0xf2 || pre == 0xf3, dbl = pre == 0xf2 || pre == 0x66, bytes = dbl ? 8 : 4;
+    if (op == 0x2a) {
+        l64_read(o, b, "t", next);
+        fprintf(o, "X.xmm[%u].%s[0]=(%s)xs_from_int((int64_t)x64_sext(t,%u),%d,X.mxcsr);",
+            a->reg, dbl ? "u64" : "u32", dbl ? "uint64_t" : "uint32_t", b->size, dbl);
+        return;
+    }
+    if (op == 0x2c || op == 0x2d) {
+        if (b->kind == XK_XMM) fprintf(o, "bv=X.xmm[%u];", b->reg);
+        else {
+            char ea[300]; l64_ea(ea, sizeof ea, b, 1);
+            l64_pointer(o, ea, bytes, next, 3, "0");
+            fprintf(o, "bv=(x86_vec_t){0};__builtin_memcpy(&bv,p,%d);", bytes);
+        }
+        fprintf(o, "t=(uint64_t)xs_to_int(bv.%s[0],%d,%d,X.mxcsr);", dbl ? "f64" : "f32", a->size * 8, op == 0x2c);
+        l64_write(o, a, "t", next); return;
+    }
     int store = op == 0x11 || op == 0x29 || op == 0x7f;
-    int count = scalar && (op == 0x10 || op == 0x11 || (op >= 0x51 && op <= 0x5f)) ? bytes : 16;
+    int count = (op == 0x2e || op == 0x2f || (scalar && (op == 0x10 || op == 0x11 || op == 0xc2 || (op >= 0x51 && op <= 0x5f)))) ? bytes : 16;
     fprintf(o, "av=X.xmm[%u];", a->reg);
     if (store) {
         if (b->kind == XK_XMM) {
@@ -222,11 +243,30 @@ static void l64_simd(FILE *o, const x86_insn_t *in, uint32_t next) {
         l64_pointer(o, ea, count, next, 3, "0");
         fprintf(o, "bv=(x86_vec_t){0};__builtin_memcpy(&bv,p,%d);", count);
     }
-    if (op == 0x10 || op == 0x28 || op == 0x6f) {
+    if (op == 0x2e || op == 0x2f) {
+        fprintf(o, "{double x=av.%s[0],y=bv.%s[0];flags&=~0x%xu;"
+            "if(x!=x||y!=y)flags|=F_ZF|F_PF|F_CF;else if(x==y)flags|=F_ZF;else if(x<y)flags|=F_CF;}",
+            dbl ? "f64" : "f32", dbl ? "f64" : "f32", L64_FLAGS);
+        return;
+    }
+    if (op == 0x5a) {
+        if (dbl) fprintf(o, "av.u32[0]=xs_double_to_float(bv.u64[0],X.mxcsr);");
+        else fprintf(o, "av.f64[0]=(double)bv.f32[0];");
+    } else if (op == 0x10 || op == 0x28 || op == 0x6f) {
         if (op == 0x10 && scalar) {
             if (b->kind == XK_MEM) fprintf(o, "av=(x86_vec_t){0};");
             fprintf(o, "__builtin_memcpy(&av,&bv,%d);", bytes);
         } else fprintf(o, "av=bv;");
+    } else if (op == 0xc2) {
+        const char *field = dbl ? "f64" : "f32";
+        const char *exprs[] = {"x==y", "x<y", "x<=y", "x!=x||y!=y", "x!=y", "!(x<y)", "!(x<=y)", "x==x&&y==y"};
+        for (int i = 0; i < (scalar ? 1 : 16 / bytes); i++)
+            fprintf(o, "{double x=av.%s[%d],y=bv.%s[%d];av.%s[%d]=(%s)?%s:0;}",
+                field, i, field, i, dbl ? "u64" : "u32", i, exprs[in->simd_imm & 7], dbl ? "UINT64_MAX" : "UINT32_MAX");
+    } else if (op == 0x51) {
+        for (int i = 0; i < (scalar ? 1 : 16 / bytes); i++)
+            fprintf(o, "av.%s[%d]=(%s)__builtin_sqrt(bv.%s[%d]);",
+                dbl ? "f64" : "f32", i, dbl ? "double" : "float", dbl ? "f64" : "f32", i);
     } else if (op >= 0x58 && op <= 0x5f) {
         const char *field = dbl ? "f64" : "f32";
         for (int i = 0; i < (scalar ? 1 : 16 / bytes); i++) {
@@ -333,9 +373,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "\nstatic %svoid R_%08x_%08x(uint32_t pc){\n",
                 lift_optimize_small && f->insns.n <= 4 ? "" : "__attribute__((minsize,noinline)) ", original->addr, f->addr);
         fprintf(o, "uint64_t r[16],clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
-                   "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER;int32_t debt=0;int action=0,width=0,writing=0;"
+                   "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER,entry_index=0;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"
-                   "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;(void)debt;\n");
+                   "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;(void)debt;(void)entry_index;\n");
         l64_sync(o, 1);
         /* Record only entries actually handled by this region. An indirect jump
          * may dispatch out to an import thunk or another owner; its real handler
@@ -350,9 +390,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             const x86_opnd_t *aa = &in->o[0], *bb = &in->o[1]; int n = aa->size ? aa->size : in->osz;
             if (starts[k] && lift_affine_counting) {
                 /* L_ is an external entry/backedge; forward native edges bypass it through B_. */
-                fprintf(o, "L_%08x:;debt=-%d;if(budget+%uu>2000000u){pc=0x%08xu;count=1;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}\n"
+                fprintf(o, "L_%08x:;entry_index=0;debt=-%d;if(budget+%uu>2000000u){pc=0x%08xu;count=1;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}\n"
                            "B_%08x: __attribute__((unused));\n", va, (int)k, f->insns.n, va, va);
-            } else if (starts[k]) fprintf(o, "L_%08x:;\n", va);
+            } else if (starts[k]) fprintf(o, "L_%08x:;entry_index=0;\n", va);
             if (!in->len) { l64_flush(o, k); fprintf(o, "pc=0x%08xu;goto exit;\n", va); continue; }
             if (!l64_specialized(in)) {
                 st->generic++;
@@ -371,6 +411,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     "if(budget+%uu>2000000u){pc=0x%08xu;count=%uu;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}"
                     "clock+=%uu;budget+=%uu;\n", count, va, count, count, count);
             }
+            if (!starts[k]) fprintf(o, "N_%08x: __attribute__((unused));\n", va);
             uint32_t writes = 0;
             if (aa->kind == XK_REG && in->op != XO_CMP && in->op != XO_TEST && in->op != XO_PUSH &&
                 in->op != XO_CALL_IND && in->op != XO_JMP_IND) writes |= 1u << (aa->reg >= 16 ? aa->reg - 16 : aa->reg);
@@ -488,6 +529,26 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             if (starts[k + 1]) l64_edge(o, f, next, k);
         }
         fprintf(o, "landing:\n");
+        fprintf(o, "switch(pc){\n");
+        for (uint32_t k = 0; k < f->insns.n; k++) if (!starts[k] &&
+                (f->insns.n <= 8 || ins[k].op == XO_SIMD)) {
+            uint32_t end = k + 1; while (end < f->insns.n && !starts[end]) end++;
+            uint32_t va = f->insns.v[k], count = end - k;
+            fprintf(o, "case 0x%08xu:exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);entry_index=%uu;", va, k);
+            if (lift_affine_counting) fprintf(o, "debt=-%d;", (int)k);
+            /* The interior suffix rechecks every guard before entering code that assumes it.
+             * Counter updates mirror the ordinary block start, but count only the suffix. */
+            l64_guard_t guard = l64_guard(ins, k, end);
+            l64_emit_guard(o, &guard, va, count, k);
+            if (lift_affine_counting) fprintf(o,
+                "if(budget+%uu>2000000u){count=1;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}", f->insns.n);
+            else fprintf(o, "if(budget+%uu>2000000u){count=%uu;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}"
+                "clock+=%uu;budget+=%uu;", count, count, count, count);
+            fprintf(o, "goto N_%08x;\n", va);
+        }
+        fprintf(o, "default:break;}\n");
+        /* Broad suffix duplication was measured at +82% whole-module size on x64-cpp.
+         * Keep native SSE/tiny entries; larger non-SSE landings retain bounded semantics. */
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
         fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
@@ -509,15 +570,15 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
-        fprintf(o, "void F_%08x(void){\n", original->addr);
+        fprintf(o, "void N_%08x(uint32_t pc){\n", original->addr);
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)
             fprintf(o, "R_%08x_%08x,", original->addr, original->insns.v[begin]);
         fprintf(o, "};unsigned region=0;\n");
         for (uint32_t begin = 256; begin < original->insns.n; begin += 256)
-            fprintf(o, "if(X.eip>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
-        fprintf(o, "regions[region](X.eip);\n");
-        fprintf(o, "}\n"); vpush(&order, original->addr); vpush(&ends, original->end);
+            fprintf(o, "if(pc>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
+        fprintf(o, "regions[region](pc);}\nvoid F_%08x(void){x86_run_native(N_%08x);}\n",
+            original->addr, original->addr); vpush(&order, original->addr); vpush(&ends, original->end);
         for (uint32_t j = 0; j < original->nij; j++) if (!original->ij[j].resolved) st->unresolved++;
     }
     l64_entry_t *entries = xcalloc(order.n, sizeof *entries);
@@ -525,7 +586,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
     qsort(entries, order.n, sizeof *entries, l64_entry_cmp);
     fprintf(o, "const x86_lifted_entry_t x86_lifted_%s[]={\n", name);
     for (uint32_t i = 0; i < order.n; i++) {
-        fprintf(o, "{0x%08xu,F_%08x,0x%08xu},\n", entries[i].addr, entries[i].addr, entries[i].end);
+        fprintf(o, "{0x%08xu,F_%08x,0x%08xu,", entries[i].addr, entries[i].addr, entries[i].end);
+        if (vhas(&skip,entries[i].addr)) fprintf(o, "0},\n");
+        else fprintf(o, "N_%08x},\n", entries[i].addr);
     }
     free(entries);
     fprintf(o, "};\nconst uint32_t x86_lifted_%s_count=%u;\n", name, order.n); free(order.v); free(ends.v);

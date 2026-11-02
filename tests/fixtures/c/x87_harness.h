@@ -18,6 +18,8 @@ const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 unsigned x86_lift_reason;
 uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
+/* Single-step snapshot harness; production flat chaining is tested with the real runtime. */
+void x86_run_native(x86_native_fn step){step(X.eip);}
 void x86_fault(const char *m,uint32_t p){(void)m;(void)p;__builtin_trap();}
 uint32_t x86_address(uint64_t a){if(a>0xffffffffu)__builtin_trap();return (uint32_t)a;}
 void x86_cooperate(void){__builtin_trap();}

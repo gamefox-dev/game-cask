@@ -175,11 +175,12 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   if (cfg.asyncify) {
     if(asyncifyRestricted && !pipe.report.interpretOnly) {
       const names=new Set(functionNames(readFileSync(wasmPath)).map(f=>f.name));
-      asyncifyRemove=pipe.nativeLiftSymbols.filter(n=>n.startsWith('F_') && names.has(n));
-      if(!asyncifyRemove.length && pipe.nativeLiftSymbols.some(n=>n.startsWith('F_')))throw new Error('missing lifted function names for Asyncify restriction');
-      // Stay below macOS's per-process argv ceiling on engine-sized modules. Exact generated
-      // wrappers are sufficient: region signatures already separate them from suspending calls.
-      // If even wrappers exceed the bound, retain the conservative analysis, not a partial list.
+      // K13 F_* wrappers drive cross-owner chaining and may suspend in an API thunk.
+      // Only generated N_* native steps return before host work and remain safe to exclude.
+      asyncifyRemove=pipe.nativeLiftSymbols.filter(n=>n.startsWith('N_') && names.has(n));
+      // Steps can all be inlined; an empty intersection is legal, never broaden to F_*.
+      // Stay below macOS's per-process argv ceiling on engine-sized modules. If the exact
+      // step list exceeds the bound, retain conservative analysis, not a partial list.
       if(asyncifyRemove.join(',').length>180000)asyncifyRemove=[];
     }
     // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can

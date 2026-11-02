@@ -371,7 +371,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   ].map((f) => join(ROOT, f));
   const liftedSources = mods.filter((m) => m.lifted).flatMap((m) => m.chunkSources ?? [m.lifted]);
   const sources = [driver, ...liftedSources, ...platform, ...ov.files];
-  const nativeLiftSymbols=mode64 ? liftedSources.flatMap(f=>[...readFileSync(f,'utf8').matchAll(/\bvoid ([FR]_[0-9a-f]{8}(?:_[0-9a-f]{8})?)\([^)]*\)\s*\{/g)].map(m=>m[1])) : [];
+  const nativeLiftSymbols=mode64 ? liftedSources.flatMap(f=>[...readFileSync(f,'utf8').matchAll(/\bvoid ([FNR]_[0-9a-f]{8}(?:_[0-9a-f]{8})?)\([^)]*\)\s*\{/g)].map(m=>m[1])) : [];
   const generated = liftedSources.reduce((n, f) => n + lines(f), 0) + lines(driver);
   const handwritten = [...ov.files, ...(cfg.sources ?? []).map((s) => join(gameDir, s))].filter(existsSync).reduce((n, f) => n + lines(f), 0);
   const report = {

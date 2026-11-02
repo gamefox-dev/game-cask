@@ -186,10 +186,14 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 /* ------------------------------------------------------------------ lifted registry */
 static const x86_lifted_entry_t *lifted;
 static uint32_t nlifted;
+/* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
+ * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
+static struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid; } lifted_cache[1024];
 
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
+    __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
     for (uint32_t i = 0; i < n; i++)
@@ -199,6 +203,14 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
     if (x86_force_interp) return 0;
+    unsigned slot = (addr ^ (addr >> 10)) & 1023u;
+    if (lifted_cache[slot].valid && lifted_cache[slot].addr == addr) {
+#if X86_COVERAGE_MODE == 2
+        if (lifted_cache[slot].fn) x86_coverage_entry(addr,1);
+#endif
+        return lifted_cache[slot].fn;
+    }
+    x86_lifted_fn found = 0; x86_native_fn native = 0;
     /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
     uint32_t lo = 0, hi = nlifted;
     while (lo < hi) {
@@ -207,21 +219,64 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
     }
     if (lo) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
-        if (addr == e->addr || addr < e->end) {
-#if X86_COVERAGE_MODE == 2
-            x86_coverage_entry(addr,1);
-#endif
-            return e->fn;
-        }
+        if (addr == e->addr || addr < e->end) { found = e->fn; native = e->native; }
     }
-    return 0;
+    lifted_cache[slot].addr = addr; lifted_cache[slot].fn = found;
+    lifted_cache[slot].native = native; lifted_cache[slot].valid = 1;
+#if X86_COVERAGE_MODE == 2
+    if (found) x86_coverage_entry(addr,1);
+#endif
+    return found;
 }
+
+static x86_native_fn find_native(uint32_t addr) {
+    if (!x86_find_lifted(addr)) return 0;
+    return lifted_cache[(addr ^ (addr >> 10)) & 1023u].native;
+}
+/* Each nested invocation installs its own stop boundary. Native chaining must not consume
+ * a caller continuation past the return requested by callbacks or cold generic CALLs. */
+static uint32_t native_stop, native_floor;
+static int native_limit;
 
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
+/* Native regions have already spilled and returned. Only this tiny wrapper may suspend,
+ * invoke callbacks, grow memory or transfer; it never holds a local guest register/pointer. */
+void x86_lift_thunk(void) {
+#ifdef X86_FLAT_GUEST
+    if (!X.transfer && !x86_lift_pending && !x86_lift_count && x86_is_thunk(X.eip)) {
+        x86_metrics.thunk_dispatches++;
+        thunk_fn(X.eip);
+    }
+#endif
+}
+
+/* One flat native driver for all owners. Native steps return before host calls/suspension;
+ * guest recursion and tail cycles consume no recursive C frames. Legacy/override entries
+ * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
+void x86_run_native(x86_native_fn step) {
+#ifdef X86_FLAT_GUEST
+    uint32_t stop = native_stop, floor = native_floor; int limit = native_limit;
+    for (;;) {
+        uint32_t old = X.eip; uint64_t clock = X.tsc;
+        step(X.eip);
+        if (X.transfer || x86_lift_pending || x86_lift_count) return;
+        if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
+        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        if (x86_is_thunk(X.eip)) x86_lift_thunk();
+        if (X.transfer || x86_lift_pending || x86_lift_count) return;
+        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        /* A naked call outside invoke has no return boundary; execute only its supplied step. */
+        if (!limit || !(step = find_native(X.eip))) return;
+        x86_metrics.lifted_calls++;
+    }
+#else
+    step(X.eip);
+#endif
+}
 
 /* Coverage is block/continuation entry evidence, not an instruction trace. The host
  * deduplicates addresses. Function census uses a bounded byte per analyzed owner. */
@@ -310,7 +365,7 @@ static const x86_insn_t *decode_at(uint32_t eip) {
 }
 
 /* run until EIP == ret_addr with ESP > esp_floor */
-static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
+static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
 #ifdef X86_FLAT_GUEST
     {
         int entry = 1;
@@ -407,6 +462,13 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
             interpreted_count(counted_entry, owner);
         entry = next_entry;
     }
+}
+
+static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
+    uint32_t saved_stop = native_stop, saved_floor = native_floor; int saved_limit = native_limit;
+    native_stop = ret_addr; native_floor = esp_floor; native_limit = 1;
+    interp_loop(ret_addr, esp_floor);
+    native_stop = saved_stop; native_floor = saved_floor; native_limit = saved_limit;
 }
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {

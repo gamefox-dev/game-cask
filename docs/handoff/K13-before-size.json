@@ -1,0 +1,1260 @@
+{
+  "schema": "game-cask/codegen/1",
+  "base": "2124b134252468d4abca656deccef2f6a1f4cc75",
+  "node": "v24.19.0",
+  "platform": "darwin/arm64",
+  "fixtures": [
+    {
+      "id": "x64-crt",
+      "instructions": 5345,
+      "specialized": 5130,
+      "generic": 215,
+      "wasm_bytes": 1259242,
+      "duration_ms": 10991.531,
+      "peak_child_rss_bytes": 239501312,
+      "compile_ms": 10876.686,
+      "link_ms": 114.799,
+      "object_timings": [
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/3b7b59e3fda54b71a336ed20ca263050aedc83edce2cab67d663cbf5b0c6587f.o",
+          "compile_ms": 69.426
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/8973bdf644d240547be9e6189bd4fe48fbf255eef8f4bdccc1b783d2be79bb87.o",
+          "compile_ms": 7794.248
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/758de973bbdd07086ebb701e37014cc31fe6347a6a8656c6459807124046f8b0.o",
+          "compile_ms": 279.365
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/0259073c64c3569aa87494c896845cc4d475ffc9877ecaaba4921306cc7d35b9.o",
+          "compile_ms": 82.445
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/de1d443e423efe341fac36d7cec0fd4410a47701fa7aa0c85778a3f62efce335.o",
+          "compile_ms": 172.622
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2fa040d64ffa1eb2b492d9f556c5117664d87c3bbb8915afd5794600b38c065b.o",
+          "compile_ms": 218.759
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/20b25aeef90792ff722d5e465aa0f521e7f632ab7d7d9bcbabf68f476d8ff8e9.o",
+          "compile_ms": 215.614
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/e7b1bb2897ffa22df59934082ee46faaaaf14273e92baca6b0358de7093faf93.o",
+          "compile_ms": 281.166
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/d3a1e4ae44f07b4f6e04c58079e0a504c63caccab1abdd6ca8f78dfb5595ec5a.o",
+          "compile_ms": 179.285
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/dc6de11da32ebf115805b43de5c239a94a2241ba859d83d223f7eb863067080f.o",
+          "compile_ms": 191.213
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f1041d03b10057958a61f9b0e5dee3b7d45a702479abee21c29f742e39bc9eeb.o",
+          "compile_ms": 119.015
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/0550a4adbf6abd7da1a7454ac3436ba7c1058d26338659a3f5c088bdba169c47.o",
+          "compile_ms": 5765.575
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/d391e6b54f59d6eec93a5d3a698a8c22c85607475e43d8cb13a6ed6f378f3f05.o",
+          "compile_ms": 95.108
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/02cc481fcd93ca9630d017e939b8457245c81758c24bfdbe54f4b60563f539d9.o",
+          "compile_ms": 81.957
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f22ccc2075c2e758c5f68ead05091219c5bf55f69738e1fcd164a0fdd5d5a931.o",
+          "compile_ms": 189.243
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/c53561b2e173ef7d6aa7055a78aaa3f71c0043b69e5aeaccc792e01f4129e659.o",
+          "compile_ms": 92.206
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/87a265752889eefb3279be94b1a4fdae924922edec6a7404047ffbb59fa2c75a.o",
+          "compile_ms": 78.412
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/aadc1c666bf995533e05ed605e6e5403e21e933933d1f2f1d4a356db3b81ba21.o",
+          "compile_ms": 90.031
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/bab0fe9e6ea80945ffa4d509059670654b5eb7ec6e288a7cb387d6024babeeaa.o",
+          "compile_ms": 86.059
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/99d0b209415ec494ff6aebd46af0a146ee19caf769419899a33e337f3152754b.o",
+          "compile_ms": 261.684
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/e4b9b3cdfec323c27eca9f3a25fe0ae0005b1088d2c6b8c74df89c7e3422511e.o",
+          "compile_ms": 72.837
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2f0d4de50296c207e5a5410cd73e83a2a6ac30a318ad3c9661666e2cab06e6c7.o",
+          "compile_ms": 216.077
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/93f38d71b9fe994605c400f05891e67103fe221aeace0ca17c15d4b6bb910116.o",
+          "compile_ms": 352.387
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2427395aba4a819384bd04465216956f8963d13751957730687294c6dcdddba3.o",
+          "compile_ms": 83.882
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/6e8a98b516ada57b67b4de70566dc2f98cc47866653d58d0e633f8c3274dce39.o",
+          "compile_ms": 550.974
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/6f3dc4357d4d27802c33778df41fae03d2ff950532cfbb654b491c98d16860ae.o",
+          "compile_ms": 784.798
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/a1590de7e11701ddf39bcf7cb8757c9b30e5d2dc030ac61c18be898c60efaf9d.o",
+          "compile_ms": 705.093
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/82a1bd8f3863d4764b0d0172542a72da039747d57e8d6360346815116aacd524.o",
+          "compile_ms": 570.332
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/75558a3fd4852f16364f32cbaedf8317bb4bfd28f42b4767fa87b817e366f2b1.o",
+          "compile_ms": 155.637
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/ca078ecc73d4ae9dd03c73957ae2967f5c10b5a96218f6f628fa237aa145321a.o",
+          "compile_ms": 1029.515
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/44f62d6786175845fb54ce12fbcfcf15cb383bbc24b31508a13b2f6fce55b888.o",
+          "compile_ms": 74.079
+        }
+      ],
+      "parallel_rss_upper_bound_bytes": 479002624,
+      "objects_compiled": 31,
+      "objects_cached": 0,
+      "jobs": 2,
+      "object_cache": {
+        "bytes": 11974886,
+        "removed": 0,
+        "pinnedBytes": 0
+      },
+      "asyncify_cached": false,
+      "asyncify_ms": 8722.084167,
+      "build_ms": 24019.27,
+      "lifted_insns": 5345,
+      "wasm_bytes_per_insn": 235.59251637043965,
+      "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+      "generic_per_lifted_call": 1.9228486646884273,
+      "frames": 300,
+      "trials_per_sample": 3,
+      "run_ms_median": 3.854958666666789,
+      "run_ms_samples": [
+        3.3480693333331146,
+        3.753860666665181,
+        3.854958666666789,
+        4.915291333333395,
+        5.732916666666521
+      ],
+      "run_ms_trials": [
+        [
+          3.5623750000013388,
+          3.3269579999978305,
+          3.1548750000001746
+        ],
+        [
+          4.160874999997759,
+          3.2449589999996533,
+          4.159042000002955
+        ],
+        [
+          3.04216599999927,
+          3.902290999998513,
+          4.317124999997759
+        ],
+        [
+          7.769000000000233,
+          2.994458000001032,
+          3.9824159999989206
+        ],
+        [
+          4.415165999998862,
+          6.068167000001267,
+          6.715416999999434
+        ]
+      ],
+      "logs": [
+        "guest CRT stdout: crt string=6ad83dae",
+        "guest CRT stdout: crt stdlib=7702d143",
+        "guest CRT stdout: ulp sin=3fd7710255764214,3ebb8813",
+        "guest CRT stdout: ulp cos=3fedc6b7eb995912,3f6e35bf",
+        "guest CRT stdout: ulp tan=3fd9312d859bf8b0,3ec9896c",
+        "guest CRT stdout: ulp asin=3fd899f4edc962d3,3ec4cfa7",
+        "guest CRT stdout: ulp acos=3ff2fb7e18d1d464,3f97dbf1",
+        "guest CRT stdout: ulp atan=3fd6f61941e4def0,3eb7b0ca",
+        "guest CRT stdout: ulp exp=3ff747a513dbef6a,3fba3d29",
+        "guest CRT stdout: ulp exp2=3ff4bfdad5362a27,3fa5fed7",
+        "guest CRT stdout: ulp expm1=3fdd1e944f6fbdaa,3ee8f4a2",
+        "guest CRT stdout: ulp log=bfef62f40794a7b8,bf7b17a0",
+        "guest CRT stdout: ulp log2=bff6a3fe5c604298,bfb51ff3",
+        "guest CRT stdout: ulp log10=bfdb43125b8e9800,beda1893",
+        "guest CRT stdout: ulp log1p=3fd4618bc21c5ec2,3ea30c5e",
+        "guest CRT stdout: ulp sqrt=3fe3988e1409212e,3f1cc471",
+        "guest CRT stdout: ulp cbrt=3fe7137449123ef6,3f389ba2",
+        "guest CRT stdout: ulp fabs=3fd8000000000000,3ec00000",
+        "guest CRT stdout: ulp floor=0000000000000000,00000000",
+        "guest CRT stdout: ulp ceil=3ff0000000000000,3f800000",
+        "guest CRT stdout: ulp trunc=0000000000000000,00000000",
+        "guest CRT stdout: ulp round=0000000000000000,00000000",
+        "guest CRT stdout: ulp sinh=3fd8910411ce5046,3ec48820",
+        "guest CRT stdout: ulp cosh=3ff123640f685b59,3f891b20",
+        "guest CRT stdout: ulp tanh=3fd6ef53de8c8fb0,3eb77a9e",
+        "guest CRT stdout: ulp asinh=3fd7786a7973a592,3ebbc354",
+        "guest CRT stdout: ulp atanh=3fd93b0aee21c2c8,3ec9d858",
+        "guest CRT stdout: ulp erf=3fd9dd0d2b721f39,3ecee869",
+        "guest CRT stdout: ulp erfc=3fe311796a46f064,3f188bcb",
+        "guest CRT stdout: ulp atan2=3fd2a73a661eaf06,3e9539d4",
+        "guest CRT stdout: ulp pow=3fd2c7f098b2a9f8,3e963f85",
+        "guest CRT stdout: ulp hypot=3ff4e16fdacff937,3fa70b7f",
+        "guest CRT stdout: ulp fmod=3fd8000000000000,3ec00000",
+        "guest CRT stdout: ulp remainder=3fd8000000000000,3ec00000",
+        "guest CRT stdout: ulp copysign=3fd8000000000000,3ec00000",
+        "guest CRT stdout: ulp fmin=3fd8000000000000,3ec00000",
+        "guest CRT stdout: ulp fmax=3ff4000000000000,3fa00000",
+        "guest CRT stdout: ulp fdim=0000000000000000,00000000",
+        "guest CRT stdout: crt math=5ff12b0d",
+        "guest CRT stdout: crt stdio=1a852801",
+        "guest CRT stdout: crt locale=f86bc056",
+        "guest CRT stdout: crt time=0de0652c",
+        "guest CRT stdout: crt file-edges=04a5217b",
+        "guest CRT stdout: crt result=PASS failures=0",
+        "guest CRT stdout: crt exit-handler=PASS",
+        "win32 profile: ExitProcess"
+      ],
+      "runtime": {
+        "platform": "win32",
+        "lifted_functions": 161,
+        "lifted_calls": 2022,
+        "interp_insns": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 3888,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 789,
+        "imports_bound": 214,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 1,
+        "heap_bytes": 8400,
+        "guest_committed_bytes": 536936448,
+        "trace_hash": 620840639,
+        "stubs": [],
+        "apis_hit": [
+          "atof",
+          "strtod",
+          "strtof",
+          "strtol",
+          "strtoll",
+          "strtoul",
+          "wcstod",
+          "wcstol",
+          "wcstoul",
+          "__p__environ",
+          "getenv",
+          "_set_new_mode",
+          "free",
+          "malloc",
+          "realloc",
+          "localeconv",
+          "setlocale",
+          "frexp",
+          "llround",
+          "llroundf",
+          "lround",
+          "lroundf",
+          "modf",
+          "modff",
+          "strchr",
+          "strrchr",
+          "strstr",
+          "wcschr",
+          "wcsrchr",
+          "wcsstr",
+          "__p___argc",
+          "__p___argv",
+          "_configure_narrow_argv",
+          "_crt_atexit",
+          "_errno",
+          "_initialize_narrow_environment",
+          "_initterm",
+          "_set_app_type",
+          "_set_invalid_parameter_handler",
+          "exit",
+          "__acrt_iob_func",
+          "__p__commode",
+          "__p__fmode",
+          "__stdio_common_vfprintf",
+          "__stdio_common_vfscanf",
+          "__stdio_common_vsprintf",
+          "__stdio_common_vsscanf",
+          "__stdio_common_vswprintf",
+          "clearerr",
+          "fclose",
+          "feof",
+          "ferror",
+          "fflush",
+          "fgetc",
+          "fgets",
+          "fopen",
+          "fputc",
+          "fread",
+          "fseek",
+          "ftell",
+          "fwrite",
+          "puts",
+          "rewind",
+          "tmpfile",
+          "ungetc",
+          "_stricmp",
+          "isalnum",
+          "isalpha",
+          "iscntrl",
+          "isgraph",
+          "islower",
+          "isprint",
+          "ispunct",
+          "isspace",
+          "isupper",
+          "isxdigit",
+          "strcmp",
+          "strcspn",
+          "strlen",
+          "strncat",
+          "strpbrk",
+          "strspn",
+          "tolower",
+          "toupper",
+          "wcscat",
+          "wcscmp",
+          "wcscpy",
+          "wcscspn",
+          "wcslen",
+          "wcsncat",
+          "wcsncmp",
+          "wcsncpy",
+          "wcspbrk",
+          "wcsspn",
+          "_gmtime64",
+          "_localtime64",
+          "_time64",
+          "clock",
+          "strftime",
+          "bsearch",
+          "div",
+          "ldiv",
+          "lldiv",
+          "qsort",
+          "rand",
+          "srand",
+          "GetProcAddress",
+          "InitializeCriticalSection",
+          "LoadLibraryA",
+          "SetUnhandledExceptionFilter",
+          "VirtualAlloc",
+          "sin",
+          "sinf",
+          "cos",
+          "cosf",
+          "tan",
+          "tanf",
+          "asin",
+          "asinf",
+          "acos",
+          "acosf",
+          "atan",
+          "atanf",
+          "exp",
+          "expf",
+          "exp2",
+          "exp2f",
+          "expm1",
+          "expm1f",
+          "log",
+          "logf",
+          "log2",
+          "log2f",
+          "log10",
+          "log10f",
+          "log1p",
+          "log1pf",
+          "sqrt",
+          "sqrtf",
+          "cbrt",
+          "cbrtf",
+          "fabs",
+          "fabsf",
+          "floor",
+          "floorf",
+          "ceil",
+          "ceilf",
+          "trunc",
+          "truncf",
+          "round",
+          "roundf",
+          "sinh",
+          "sinhf",
+          "cosh",
+          "coshf",
+          "tanh",
+          "tanhf",
+          "asinh",
+          "asinhf",
+          "atanh",
+          "atanhf",
+          "erf",
+          "erff",
+          "erfc",
+          "erfcf",
+          "atan2",
+          "atan2f",
+          "pow",
+          "powf",
+          "hypot",
+          "hypotf",
+          "fmod",
+          "fmodf",
+          "remainder",
+          "remainderf",
+          "copysign",
+          "copysignf",
+          "fmin",
+          "fminf",
+          "fmax",
+          "fmaxf",
+          "fdim",
+          "fdimf",
+          "llround",
+          "llround",
+          "__sys_nerr",
+          "_snprintf",
+          "__stdio_common_vsscanf"
+        ]
+      },
+      "oracle": {
+        "identical": true,
+        "compared_frames": 300,
+        "hashes": {
+          "lifted": "250146bf",
+          "interpreted": "250146bf"
+        }
+      },
+      "reference_guest_dispatches": 9945,
+      "reference_dispatches_per_second": 2579794.1975338995,
+      "alu": {
+        "sites": 1302,
+        "materialized": 1098,
+        "materialized_fraction": 0.8433179723502304,
+        "full": 1019,
+        "dead": 204
+      }
+    },
+    {
+      "id": "x64-cpp",
+      "instructions": 30873,
+      "specialized": 30571,
+      "generic": 302,
+      "wasm_bytes": 2670595,
+      "duration_ms": 22107.887,
+      "peak_child_rss_bytes": 789381120,
+      "compile_ms": 21970.047,
+      "link_ms": 137.773,
+      "object_timings": [
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/5492c13564e20a3f3fde698e08dd135a0e046beb3605f5f3aa43ca688c87a8bc.o",
+          "compile_ms": 71.237
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/651bee81f30320a2d7bd873d266586db7b8d52db129b81cf7ca35793713cc14f.o",
+          "compile_ms": 21967.962
+        }
+      ],
+      "parallel_rss_upper_bound_bytes": 1578762240,
+      "objects_compiled": 2,
+      "objects_cached": 29,
+      "jobs": 2,
+      "object_cache": {
+        "bytes": 16623164,
+        "removed": 0,
+        "pinnedBytes": 0
+      },
+      "asyncify_cached": false,
+      "asyncify_ms": 16126.728125000009,
+      "build_ms": 39193.414,
+      "lifted_insns": 30873,
+      "wasm_bytes_per_insn": 86.50260745635345,
+      "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+      "generic_per_lifted_call": 0.08896658896658896,
+      "frames": 300,
+      "trials_per_sample": 3,
+      "run_ms_median": 3.619291999998192,
+      "run_ms_samples": [
+        3.5471390000069127,
+        3.5750273333348255,
+        3.619291999998192,
+        5.8480696666617105,
+        7.170500333333621
+      ],
+      "run_ms_trials": [
+        [
+          7.76829199999338,
+          7.3935420000052545,
+          6.349667000002228
+        ],
+        [
+          5.3590839999960735,
+          4.727541999993264,
+          7.457582999995793
+        ],
+        [
+          3.557291000004625,
+          3.629000000000815,
+          3.538790999999037
+        ],
+        [
+          3.5437499999970896,
+          3.75120899999456,
+          3.562917000002926
+        ],
+        [
+          3.5944170000002487,
+          3.4396250000136206,
+          3.6073750000068685
+        ]
+      ],
+      "logs": [
+        "guest: x64-cpp PASS caught=38 destructors=3 order=321",
+        "guest: x64-cpp rethrow=PASS caught=6 destructors=3 order=345"
+      ],
+      "runtime": {
+        "platform": "win32",
+        "lifted_functions": 615,
+        "lifted_calls": 2574,
+        "interp_insns": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 229,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 1106,
+        "imports_bound": 84,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 320,
+        "guest_committed_bytes": 67174400,
+        "trace_hash": 1050415985,
+        "stubs": [],
+        "apis_hit": [
+          "FlsAlloc",
+          "FlsGetValue",
+          "FlsSetValue",
+          "InitOnceExecuteOnce",
+          "InitializeCriticalSection",
+          "OutputDebugStringA",
+          "RaiseException",
+          "RtlCaptureContext",
+          "RtlLookupFunctionEntry",
+          "RtlUnwindEx",
+          "RtlVirtualUnwind",
+          "SetUnhandledExceptionFilter",
+          "Sleep",
+          "wsprintfA",
+          "_aligned_free",
+          "_aligned_malloc",
+          "_set_new_mode",
+          "calloc",
+          "malloc",
+          "__p___argc",
+          "__p___argv",
+          "_configure_narrow_argv",
+          "_crt_atexit",
+          "_initialize_narrow_environment",
+          "_initterm",
+          "_set_app_type",
+          "_set_invalid_parameter_handler",
+          "__p__commode",
+          "__p__fmode",
+          "strlen",
+          "__p__environ"
+        ]
+      },
+      "oracle": {
+        "identical": true,
+        "compared_frames": 300,
+        "hashes": {
+          "lifted": "3e9c1371",
+          "interpreted": "3e9c1371"
+        }
+      },
+      "reference_guest_dispatches": 28173,
+      "reference_dispatches_per_second": 7784119.103961238,
+      "alu": {
+        "sites": 7342,
+        "materialized": 5269,
+        "materialized_fraction": 0.7176518659765732,
+        "full": 5201,
+        "dead": 2073
+      }
+    },
+    {
+      "id": "codegen-boundary",
+      "instructions": 1516,
+      "specialized": 1504,
+      "generic": 12,
+      "wasm_bytes": 986009,
+      "duration_ms": 1527.479,
+      "peak_child_rss_bytes": 133513216,
+      "compile_ms": 1425.906,
+      "link_ms": 101.512,
+      "object_timings": [
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f423f76a2e009672f87cb2a00428ce67dd0f5813c9acb46aa3f77b9ad39d8d00.o",
+          "compile_ms": 87.324
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2770a88c307c05a58f39484fc66dda86b0d27d609b31094b09cffa4128fb68d1.o",
+          "compile_ms": 1422.664
+        }
+      ],
+      "parallel_rss_upper_bound_bytes": 267026432,
+      "objects_compiled": 2,
+      "objects_cached": 29,
+      "jobs": 2,
+      "object_cache": {
+        "bytes": 18917990,
+        "removed": 0,
+        "pinnedBytes": 0
+      },
+      "asyncify_cached": false,
+      "asyncify_ms": 7081.468666999994,
+      "build_ms": 9866.023,
+      "lifted_insns": 1516,
+      "wasm_bytes_per_insn": 650.4017150395779,
+      "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+      "generic_per_lifted_call": 0.2724670297683433,
+      "frames": 300,
+      "trials_per_sample": 3,
+      "run_ms_median": 137.64063899999988,
+      "run_ms_samples": [
+        136.59251399999872,
+        137.45655533333775,
+        137.64063899999988,
+        139.04254200000045,
+        139.64320833332508
+      ],
+      "run_ms_trials": [
+        [
+          137.34245799999917,
+          136.09666700000525,
+          138.93054100000882
+        ],
+        [
+          137.2919580000016,
+          141.3372090000048,
+          134.29274999999325
+        ],
+        [
+          140.34300000000803,
+          137.71704200000386,
+          139.06758399998944
+        ],
+        [
+          138.50074999999197,
+          139.34408299998904,
+          141.0847919999942
+        ],
+        [
+          134.38437499999418,
+          139.56345899999724,
+          135.82970800000476
+        ]
+      ],
+      "logs": [
+        "guest: boundary checksum 030c3950"
+      ],
+      "runtime": {
+        "platform": "win32",
+        "lifted_functions": 83,
+        "lifted_calls": 1101069,
+        "interp_insns": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 300005,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 201017,
+        "imports_bound": 50,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 64,
+        "guest_committed_bytes": 67174400,
+        "trace_hash": 2456480326,
+        "stubs": [],
+        "apis_hit": [
+          "GetLastError",
+          "InitializeCriticalSection",
+          "OutputDebugStringA",
+          "SetLastError",
+          "SetUnhandledExceptionFilter",
+          "Sleep",
+          "_set_new_mode",
+          "malloc",
+          "__p___argc",
+          "__p___argv",
+          "_configure_narrow_argv",
+          "_crt_atexit",
+          "_initialize_narrow_environment",
+          "_initterm",
+          "_set_app_type",
+          "_set_invalid_parameter_handler",
+          "__p__commode",
+          "__p__fmode",
+          "__stdio_common_vsprintf",
+          "strlen",
+          "__p__environ"
+        ]
+      },
+      "oracle": {
+        "identical": true,
+        "compared_frames": 300,
+        "hashes": {
+          "lifted": "926aea46",
+          "interpreted": "926aea46"
+        }
+      },
+      "reference_guest_dispatches": 3253484,
+      "reference_dispatches_per_second": 23637524.67031196,
+      "alu": {
+        "sites": 371,
+        "materialized": 298,
+        "materialized_fraction": 0.8032345013477089,
+        "full": 294,
+        "dead": 73
+      }
+    },
+    {
+      "id": "x64-scale",
+      "instructions": 1609529,
+      "specialized": 1597518,
+      "generic": 12011,
+      "wasm_bytes": 39638712,
+      "duration_ms": 121827.03,
+      "peak_child_rss_bytes": 402784256,
+      "compile_ms": 121259.849,
+      "link_ms": 567.131,
+      "object_timings": [
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f0a008fc8710f8d67a7dc80ccff3b8d943e8ff26e94c8f8064e65318ef74db58.o",
+          "compile_ms": 135.004
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/02de0f44a7c3d8f831c572ed449e4e67ba0d73067399603b6412bad68537602e.o",
+          "compile_ms": 277.735
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/1cefc0930f2d3bbfb24c36b3e5d41a30ac8f74994bcec282f197035f7c8c561d.o",
+          "compile_ms": 5507.186
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/9af91b4088320af649bfcedd2c265b547229429cd279a4b56f498063bfa3f5f7.o",
+          "compile_ms": 5529.886
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/9b7e34e10d116e547cda1c5cd064a7d326c42dae55e0161081b94d11560cf688.o",
+          "compile_ms": 5012.685
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/1c251c5c418074a4695df996917797e7d21cc9a49a08d0c5bebf9c24ae3c267f.o",
+          "compile_ms": 5067.141
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/137186d8c71a7fe3b72c30673634f4bdad8a195d5e5f664cc04cd59cffb85d90.o",
+          "compile_ms": 4757.258
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/d46303417f4b7974ed1f8ab71dbc5c425c5efea2afa4d3b0c916029b2a44a722.o",
+          "compile_ms": 4744.838
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/bf0c7b93a8d7fa734ede625d9db7c675d5ddc2a44dfd73d974190d25652e30ff.o",
+          "compile_ms": 4780.415
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f19425ce37cf1b07e7e1a3e31b77c99cf7ba5b9bcad1ae041269ef839a502106.o",
+          "compile_ms": 4789.155
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/1dfad2901586f716fa3d2def301847ec36cdd49d4d6774688b6394e353aad4db.o",
+          "compile_ms": 4818.574
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/ab5429b59f621caaf9aed8a883d688fc43be06226d54e3971a72ff7ee22fd768.o",
+          "compile_ms": 4801.463
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/0db931772944a4f24de7adba023f902de0e61f4c824c3b3447a04e16473788ae.o",
+          "compile_ms": 4875.792
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/58e1aab59d94968d0de64bd8086a3057f811e09026b1425823286a458d324393.o",
+          "compile_ms": 4849.871
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/77d192ab8b036f2e6765d49948ae442f9d37226023041b40351419a7abee2607.o",
+          "compile_ms": 4916.665
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/7bd4180828c99c867e137cac25a556389801aedd1c56deddc810a3d0ee9a9b95.o",
+          "compile_ms": 4849.381
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f620f5cff46f68ac3bef40df016b395fb1bb06c00a83c51e53d16c89b40c251d.o",
+          "compile_ms": 4799.146
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f9526f3b6e4e2a160fcc81c2fc1db449e7dfe06b80522eb50b4d00a992622425.o",
+          "compile_ms": 4824.313
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/be839449d10430294ee059fa33f7f58ead009bed6053fc24e57de0345de712cb.o",
+          "compile_ms": 4869.021
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f5ff1aa41558c5c6928df157f6ae47d9ed59c474ec8a8b8ee63c8272d70329f4.o",
+          "compile_ms": 4882.83
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/4474d0c7cc073557c7b67638aadc1a5829201da17b39f5fb32e5fda403818d64.o",
+          "compile_ms": 4732.513
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/261ee4f6a667efe69270379c5da2a69d3f5fcb7fd2f79a684984c363359888f8.o",
+          "compile_ms": 4695.637
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/d0b7a18d9348feea75947aa604c62dc64535aba5ee35f609811452153fb8bb1f.o",
+          "compile_ms": 4790.96
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/6af2ae550dc23be852d8f2ff9b9428093f4dd254ffc73d599ea068b3e8afb440.o",
+          "compile_ms": 4825.554
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/517a57d2a987a88a42d96fbf1fe875a557fc79306f4f04767a1c0b12beaa6f1f.o",
+          "compile_ms": 4928.301
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/0ce2dc0ededebd3e588eace17f44d9b574e06cdf2e32168aa8dcc4e4e6c2ea6d.o",
+          "compile_ms": 4955.025
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/1946272b0944103c5a27a1c7bd7322ad566750db4e64b3eb697ad2204d49da03.o",
+          "compile_ms": 4766.769
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/e0454764e862cde0ab886cce5a1812f11357a191fb0f919ebc28d00e93cdbbdd.o",
+          "compile_ms": 4763.169
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/7924b0c284355bed9e77ca571e2a9c9740abddd001ccb08a35724f2d0553a3d5.o",
+          "compile_ms": 4851.132
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/b54dc2b93147e3e1b091fe2e437f0e8079d759b5bf192f7b7510e9929db552ec.o",
+          "compile_ms": 4889.505
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/5701455d79b4b529c73af8a8d945d7a39a2d87f2f9e1a7edd9fa6379f1f0faac.o",
+          "compile_ms": 4778.957
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/9f65a87c1d35cd62c80db8ebd3112164f3c8539615a96a8d0a47fff3baf1eafe.o",
+          "compile_ms": 4762.053
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/6d1dc0e3fc792b3927bec3a002a841e1b1b49d32fb94c4e50aefac27f43344e0.o",
+          "compile_ms": 4816.546
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/f13f78c0565115aa6e6dedb42d7b74da04160185d1026bc58a48b7eda4ec9eba.o",
+          "compile_ms": 4812.512
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/8bd49e9b1d7c0fda692a71979c3bf2512a37fb19bb7f10f22645c070f2f693f3.o",
+          "compile_ms": 4785.725
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/c0a1e87580ffd38d56cc157c14ea056693c1224f22cd0770f73c3ec9583a23bc.o",
+          "compile_ms": 4782.174
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/5d7defb926d5b70b769d17834e24c598dd80b52ce9c1065b035a35b2ac8c9ecb.o",
+          "compile_ms": 4724.899
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/cbb33564dab5333e2bd8e89225ed6f0af29472267634f757f7bb931547c4dfae.o",
+          "compile_ms": 4702.291
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/09492532c1c5ec11f5a5a72f32dec8ba0d9ccbe2cc9a454d421e34ba09688bb4.o",
+          "compile_ms": 4793.765
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/b430ac6062477b7ec566be17291dc52433d9650acab53b2c8722d81b2399dd05.o",
+          "compile_ms": 4770.789
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/bb07b5d2659a8ce65dc581230ce9ca90e7ce2f78327b6ae4b69d37974a2221c8.o",
+          "compile_ms": 4758.04
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/0603e922bc947e5f68257a87805a3dae1bd285a08199b4625964a9d252983c3d.o",
+          "compile_ms": 4733.598
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2a52be070c0f809013d0a9183b4af8c34f1b230866e671542b3845aad4846899.o",
+          "compile_ms": 4706.46
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/bbe2212b384f6b24e77a2c72a6141ed26cbead9d28239ef67740ead5eee1839c.o",
+          "compile_ms": 4709.686
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/281bdfbb02909200e3d0b506b50fb8bdf3170acfcd8f9a7e7779a5caa760c328.o",
+          "compile_ms": 5068.59
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2212e6370da1d41b064839a7432c5619d03e8bfb8494adb79e94400e9ea54d79.o",
+          "compile_ms": 5064.856
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/27b7a36abcb83f942a0600700df70ed02eb7b3d58435c5781d3c589aae1c40be.o",
+          "compile_ms": 4705.322
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/89319f51d5ce9448a0e5f29490d858da3d7cbce00c5b80d4099d8b8137d87757.o",
+          "compile_ms": 4718.116
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/725e37aec81cfd6f5fa4dab3ed1eb0a4f990b01ecc5b35a1fedc8cd27f8cf911.o",
+          "compile_ms": 4718.334
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/ca30d2910c42d7c7f5d279ea66b0c94d3a9d9045f1d8b44dfae49fd4f46172ef.o",
+          "compile_ms": 4730.033
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/da7b92342a05bbb93321b14306439727c542a61845344f8ec3af725aac8cb87b.o",
+          "compile_ms": 4708.883
+        },
+        {
+          "object": "<baseline>/node_modules/.cache/bgt/objects/2e438d8ef9320a6b1c5ca3b38fb1897ce3fec0618ca0feb8dbc16ed92c69f507.o",
+          "compile_ms": 2265.529
+        }
+      ],
+      "parallel_rss_upper_bound_bytes": 805568512,
+      "objects_compiled": 52,
+      "objects_cached": 29,
+      "jobs": 2,
+      "object_cache": {
+        "bytes": 83946445,
+        "removed": 0,
+        "pinnedBytes": 0
+      },
+      "asyncify_cached": false,
+      "asyncify_ms": 134991.718,
+      "build_ms": 389038.03,
+      "lifted_insns": 1609529,
+      "wasm_bytes_per_insn": 24.6275227100599,
+      "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+      "generic_per_lifted_call": 0.49582251212981415,
+      "frames": 300,
+      "trials_per_sample": 3,
+      "run_ms_median": 30.590958666677277,
+      "run_ms_samples": [
+        30.38380533332626,
+        30.579721999975543,
+        30.590958666677277,
+        30.75145833337835,
+        31.201444333341595
+      ],
+      "run_ms_trials": [
+        [
+          31.461292000021785,
+          29.44458399992436,
+          30.86700000008568
+        ],
+        [
+          31.354374999995343,
+          30.54983400006313,
+          30.35016600007657
+        ],
+        [
+          29.683042000047863,
+          30.471415999927558,
+          33.44987500004936
+        ],
+        [
+          30.63725000002887,
+          31.04720799997449,
+          30.054707999923266
+        ],
+        [
+          30.169416000018828,
+          30.31787499994971,
+          30.664125000010245
+        ]
+      ],
+      "logs": [
+        "guest: scale checksum 31c9ceb2 functions 12000",
+        "guest: scale tick 0 939774da",
+        "guest: scale tick 60 5cfe4c05",
+        "guest: scale tick 120 3eb80774",
+        "guest: scale tick 180 91ba49a6",
+        "guest: scale tick 240 5d239563",
+        "guest: scale tick 300 41c43c16"
+      ],
+      "runtime": {
+        "platform": "win32",
+        "lifted_functions": 12078,
+        "lifted_calls": 49671,
+        "interp_insns": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 24628,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 347,
+        "imports_bound": 49,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 208,
+        "guest_committed_bytes": 67174400,
+        "trace_hash": 2118960194,
+        "stubs": [],
+        "apis_hit": [
+          "_set_new_mode",
+          "free",
+          "malloc",
+          "__p___argc",
+          "__p___argv",
+          "_configure_narrow_argv",
+          "_crt_atexit",
+          "_initialize_narrow_environment",
+          "_initterm",
+          "_set_app_type",
+          "_set_invalid_parameter_handler",
+          "__p__commode",
+          "__p__fmode",
+          "__stdio_common_vsprintf",
+          "strlen",
+          "InitializeCriticalSection",
+          "OutputDebugStringA",
+          "SetUnhandledExceptionFilter",
+          "Sleep",
+          "__p__environ"
+        ]
+      },
+      "oracle": {
+        "identical": true,
+        "compared_frames": 300,
+        "hashes": {
+          "lifted": "7e4cc442",
+          "interpreted": "7e4cc442"
+        }
+      },
+      "reference_guest_dispatches": 1776530,
+      "reference_dispatches_per_second": 58073694.8899602,
+      "alu": {
+        "sites": 636370,
+        "materialized": 624298,
+        "materialized_fraction": 0.9810299039866744,
+        "full": 624294,
+        "dead": 12072
+      }
+    }
+  ],
+  "resources_before": {
+    "at": "2026-11-02T06:29:14.009Z",
+    "cpu": "Apple M4",
+    "cores": 10,
+    "free_bytes": 2005319680,
+    "total_bytes": 17179869184,
+    "loadavg": [
+      8.8955078125,
+      9.4775390625,
+      9.59423828125
+    ],
+    "process": {
+      "userCPUTime": 101833,
+      "systemCPUTime": 16910,
+      "maxRSS": 83760,
+      "sharedMemorySize": 0,
+      "unsharedDataSize": 0,
+      "unsharedStackSize": 0,
+      "minorPageFault": 5293,
+      "majorPageFault": 81,
+      "swappedOut": 0,
+      "fsRead": 0,
+      "fsWrite": 0,
+      "ipcSent": 34,
+      "ipcReceived": 34,
+      "signalsCount": 0,
+      "voluntaryContextSwitches": 54,
+      "involuntaryContextSwitches": 633
+    }
+  },
+  "resources_after": {
+    "at": "2026-11-02T06:38:20.240Z",
+    "cpu": "Apple M4",
+    "cores": 10,
+    "free_bytes": 213237760,
+    "total_bytes": 17179869184,
+    "loadavg": [
+      8.3173828125,
+      7.48583984375,
+      8.3046875
+    ],
+    "process": {
+      "userCPUTime": 11290427,
+      "systemCPUTime": 1755675,
+      "maxRSS": 1159376,
+      "sharedMemorySize": 0,
+      "unsharedDataSize": 0,
+      "unsharedStackSize": 0,
+      "minorPageFault": 398759,
+      "majorPageFault": 146,
+      "swappedOut": 0,
+      "fsRead": 0,
+      "fsWrite": 0,
+      "ipcSent": 61,
+      "ipcReceived": 331,
+      "signalsCount": 0,
+      "voluntaryContextSwitches": 2830,
+      "involuntaryContextSwitches": 23696
+    }
+  },
+  "cpu_fixture_rounds": 32,
+  "lift_preset": "size",
+  "method": "Whole wasm (profile + Asyncify included); 300 update/render/consume frames per fresh instance. Five batches of fresh instances after a discarded warmup batch; median of batch means; init/compile excluded. Console startup is included, not just idle. Throughput uses the identical interpreter oracle guest-dispatch count, not static lifted instruction memberships or REP micro-iterations. ALU site counts exclude cold replay.",
+  "scope": "Baseline only at 2124b13. No post-K13 speedup claim; after measurements pending."
+}

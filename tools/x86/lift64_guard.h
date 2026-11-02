@@ -37,8 +37,10 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
             if (in->op == XO_SIMD) {
                 int scalar = in->simd_prefix == 0xf2 || in->simd_prefix == 0xf3;
                 int op = in->simd_op;
-                bytes = scalar && (op == 0x10 || op == 0x11 || (op >= 0x51 && op <= 0x5f)) ?
-                    (in->simd_prefix == 0xf2 ? 8 : 4) : 16;
+                bytes = (op == 0x2e || op == 0x2f || (scalar && (op == 0x10 || op == 0x11 || op == 0xc2 || (op >= 0x51 && op <= 0x5f)))) ?
+                    (in->simd_prefix == 0xf2 || in->simd_prefix == 0x66 ? 8 : 4) : 16;
+                if (op == 0x2a) bytes = (in->rex & 8) ? 8 : 4;
+                if (op == 0x2c || op == 0x2d) bytes = in->simd_prefix == 0xf2 ? 8 : 4;
             }
             if (!l64_span_add(&g, p, bytes, sp)) g.safe = 0;
         }

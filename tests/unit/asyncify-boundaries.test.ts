@@ -9,7 +9,7 @@ import {ROOT,loadHeadless} from '../support/headless';
 import {buildGame} from '../../tools/build/build.mjs';
 // @ts-expect-error ESM analyzer
 import {x86tool} from '../../tools/build/pipeline.mjs';
-it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while excluding only generated wrappers',async(liftPreset)=>{
+it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while excluding only non-suspending generated steps',async(liftPreset)=>{
  const cache=join(ROOT,'node_modules/.cache/bgt');mkdirSync(cache,{recursive:true});
  const dir=mkdtempSync(join(cache,'asyncify-override-')),id=basename(dir).toLowerCase();
  try {
@@ -17,6 +17,11 @@ it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while
   const cfg={id,name:'CC0 suspending override',pipeline:{platform:'win32',liftPreset,fixture:{target:'x86_64-windows-gnu',sources:['guest.c'],out:'guest.exe',entry:'entry',libs:['kernel32','user32']},modules:[{from:'./build/guest.exe',main:true}]}};
   writeFileSync(join(dir,'game.json'),JSON.stringify(cfg));
   const initial=buildGame(dir,{quiet:true});
+  // K13 wrappers now own the suspending flat driver. Imported Sleep must resume through them.
+  const native=await loadHeadless(id);await native.stepAsync(10);
+  expect(native.logs).toContain('guest: override result 12');
+  expect(native.host.yields).toBeGreaterThanOrEqual(2);
+  expect(native.host.metrics()).toMatchObject({interp_insns:0,stubs:[]});
   const base=initial.pipeline.modules[0].base;
   const pe=join(ROOT,'node_modules/.cache/bgt/pipeline',id,'fixture/guest.exe');
   const analysis=JSON.parse(execFileSync(x86tool(),['analyze',pe,'--base',base.toString(16)],{encoding:'utf8'}));
@@ -28,7 +33,7 @@ it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while
   expect(h.logs).toContain('guest: override result 12');expect(h.host.yields).toBeGreaterThanOrEqual(2);
   expect(h.host.metrics()).toMatchObject({interp_insns:0,stubs:[]});
   expect(readFileSync(join(ROOT,'web/public/games',id,'manifest.json'),'utf8')).toContain('amd64-native-boundaries');
-  // An entirely overridden selection legitimately has no generated wrappers/names to remove.
+  // An entirely overridden selection legitimately has no generated native steps/names to remove.
   const entry=analysis.entry;
   writeFileSync(join(dir,'overrides/entry.c'),`/* CC0 all-overridden selection regression. */\n#include "x86_lift.h"\nextern void w32_wait_frame(void);extern void w32_log(const char *);\nX86_OVERRIDE(${entry.toString(16).padStart(8,'0')}){w32_wait_frame();w32_wait_frame();w32_log("all overridden");X.eip=x86_address(x86_pop());}\n`);
   const all=buildGame(dir,{quiet:true});expect(all.pipeline.metrics.asyncify_remove_count).toBe(0);

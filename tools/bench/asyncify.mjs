@@ -15,13 +15,13 @@ try {
  for(const id of process.argv.slice(3).length?process.argv.slice(3):['x64-crt','x64-cpp']) {
   const input=join(scratch,`${id}-linked.wasm`);
   buildGame(`examples/${id}`,{quiet:true,outRoot:scratch,onLinkedWasm:p=>copyFileSync(p,input)});
-  const nativeNames=functionNames(readFileSync(input)).map(f=>f.name).filter(n=>/^F_[a-f0-9]{8}$/i.test(n));
+  const nativeNames=functionNames(readFileSync(input)).map(f=>f.name).filter(n=>/^N_[a-f0-9]{8}$/i.test(n));
   for(const mode of ['conservative','native-boundaries']) {
    const out=join(scratch,`${id}-${mode}.wasm`),resources={start:resourceSnapshot()};
    const start=performance.now();
    execFileSync(process.execPath,[join(ROOT,'node_modules/binaryen/bin/wasm-opt'),input,...WASM_OPT_FEATURES,
     '-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield','-g',
-    ...(mode==='native-boundaries'?[`--pass-arg=asyncify-removelist@${nativeNames.join(',')}`]:[]),'-o',out],{stdio:['ignore','ignore','inherit']});
+    ...(mode==='native-boundaries' && nativeNames.length?[`--pass-arg=asyncify-removelist@${nativeNames.join(',')}`]:[]),'-o',out],{stdio:['ignore','ignore','inherit']});
    const elapsedMs=performance.now()-start;resources.end=resourceSnapshot();
    const bytes=readFileSync(out),m=binaryen.readBinary(bytes);
    const stateExport=binaryen.getExportInfo(m.getExport('asyncify_get_state'));
@@ -32,7 +32,7 @@ try {
    const native=[];
    for(let i=0;i<m.getNumFunctions();i++) {
     const f=binaryen.getFunctionInfo(m.getFunctionByIndex(i));
-    if(!f.body || !/^[FR]_[a-f0-9]{8}/i.test(f.name))continue;
+    if(!f.body || !/^[NR]_[a-f0-9]{8}/i.test(f.name))continue;
     const text=binaryen.emitText(f.body);
     native.push({name:f.name,asyncifyStateReferences:text.split(`(global.get $${stateGlobal})`).length-1});
    }

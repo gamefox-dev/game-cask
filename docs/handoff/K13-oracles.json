@@ -1,0 +1,930 @@
+{
+  "schema": "game-cask/lift-policy/1",
+  "rows": [
+    {
+      "id": "win32-conformance",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1395808,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1395808,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "win32-hello",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1066088,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1066088,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-audio-init",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1293245,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d5bdc41a",
+            "interpreted": "d5bdc41a"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1425024,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d5bdc41a",
+            "interpreted": "d5bdc41a"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-audio",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1072607,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fca3a8ef",
+            "interpreted": "fca3a8ef"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1140698,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fca3a8ef",
+            "interpreted": "fca3a8ef"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-basics",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 885291,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 886803,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-contracts",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1412189,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "aa73228a",
+            "interpreted": "aa73228a"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1525521,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "aa73228a",
+            "interpreted": "aa73228a"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-cpp",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 2800035,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3e9c1371",
+            "interpreted": "3e9c1371"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 3425761,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3e9c1371",
+            "interpreted": "3e9c1371"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-cpprt",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 7430232,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0123a5b6",
+            "interpreted": "0123a5b6"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 9379262,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0123a5b6",
+            "interpreted": "0123a5b6"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-crt",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1297467,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "250146bf",
+            "interpreted": "250146bf"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1365098,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "250146bf",
+            "interpreted": "250146bf"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-gl-current",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1068537,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "644b5bca:295c8c71",
+            "interpreted": "644b5bca:295c8c71"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1107975,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "644b5bca:295c8c71",
+            "interpreted": "644b5bca:295c8c71"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-gl-fbo",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1263721,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b3678868:307490f5",
+            "interpreted": "b3678868:307490f5"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1325482,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b3678868:307490f5",
+            "interpreted": "b3678868:307490f5"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-gl-integer",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1132981,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "4dc212e5:287f55ca",
+            "interpreted": "4dc212e5:287f55ca"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1181424,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "4dc212e5:287f55ca",
+            "interpreted": "4dc212e5:287f55ca"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-gl",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1058635,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "c8adc1e8:207a9b9e",
+            "interpreted": "c8adc1e8:207a9b9e"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1090593,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "c8adc1e8:207a9b9e",
+            "interpreted": "c8adc1e8:207a9b9e"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-glsl",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1128170,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "90d3cfbe:20108045",
+            "interpreted": "90d3cfbe:20108045"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1173858,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "90d3cfbe:20108045",
+            "interpreted": "90d3cfbe:20108045"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-gui",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1003934,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d5418f3b",
+            "interpreted": "d5418f3b"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1034941,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d5418f3b",
+            "interpreted": "d5418f3b"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-handles",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1155438,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "a5c9bef1",
+            "interpreted": "a5c9bef1"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1230189,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "a5c9bef1",
+            "interpreted": "a5c9bef1"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-input",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1013858,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "6f2dfd92",
+            "interpreted": "6f2dfd92"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1046160,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "6f2dfd92",
+            "interpreted": "6f2dfd92"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-memory",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1001208,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "4d125c5d",
+            "interpreted": "4d125c5d"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1031513,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "4d125c5d",
+            "interpreted": "4d125c5d"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-scale",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 43066057,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7e4cc442",
+            "interpreted": "7e4cc442"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 76186446,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7e4cc442",
+            "interpreted": "7e4cc442"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-smoke",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1153474,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0b6a8554:207a9b9e",
+            "interpreted": "0b6a8554:207a9b9e"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1227514,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0b6a8554:207a9b9e",
+            "interpreted": "0b6a8554:207a9b9e"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-sysdlls",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1176118,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7c132130",
+            "interpreted": "7c132130"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1267658,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7c132130",
+            "interpreted": "7c132130"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-threads",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1045020,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "150fe857",
+            "interpreted": "150fe857"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1086753,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "150fe857",
+            "interpreted": "150fe857"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x64-tls",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 1028732,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "edaedcf1",
+            "interpreted": "edaedcf1"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 1061473,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "edaedcf1",
+            "interpreted": "edaedcf1"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x86-handles",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 9830307,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "77febf63",
+            "interpreted": "77febf63"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 9830307,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "77febf63",
+            "interpreted": "77febf63"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "x86-threads",
+      "modes": [
+        {
+          "preset": "size",
+          "wasm_bytes": 987652,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef"
+          },
+          "policy": {
+            "liftInlineMemory": false,
+            "liftInlineAlu": false,
+            "liftAffineCounting": false,
+            "liftOptimizeSmall": false
+          }
+        },
+        {
+          "preset": "fast",
+          "wasm_bytes": 987652,
+          "identical": true,
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef"
+          },
+          "policy": {
+            "liftInlineMemory": true,
+            "liftInlineAlu": true,
+            "liftAffineCounting": true,
+            "liftOptimizeSmall": true
+          }
+        }
+      ]
+    }
+  ]
+}

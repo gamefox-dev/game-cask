@@ -38,6 +38,27 @@ compares both presets for six fixtures, including the full 1.6M-instruction scal
 `reports/codegen.json`; `BGT_CODEGEN_REPORT` selects another destination. The benchmark has a separate Vitest
 configuration so it does not add timing-sensitive tests to `npm test`. It deliberately does not assert speed ratios.
 
+## Scalar SSE, import, vtable and interior-boundary cases (K13)
+
+```sh
+BGT_CODEGEN_IDS=x64-crt,x64-cpp,x64-scale,codegen-boundary BGT_CODEGEN_PRESET=size \
+  BGT_CODEGEN_REPORT=/absolute/cumulative-size.json npx vitest run --config tools/bench/codegen.config.ts
+BGT_CODEGEN_IDS=codegen-scalar,codegen-imports,codegen-vtable,codegen-interior BGT_CODEGEN_PRESET=fast \
+  BGT_CODEGEN_REPORT=/absolute/isolated-fast.json npx vitest run --config tools/bench/codegen.config.ts
+```
+
+Repeat **both** groups with both presets on the baseline and changed source. `boundary.c` and
+`boundary-landing.S` are original CC0: the cumulative case runs 100,000 scalar SSE conversion/arithmetical
+sequences, calls Windows imports through volatile pointers (checking last error), and calls two vtable targets.
+The four isolated cases select just one pattern with independently computed checksums. `codegen-interior` uses
+a legal interior code pointer inside a leaf's unwind range, not a fabricated owner or game address. Cases use
+ordinary Windows/CRT fixture builds; there are no profile overrides. Reports include `generic_per_lifted_call`.
+That denominator counts registry/native-region entries, not guest CALL instructions, and can shrink when generic
+boundaries disappear. Inspect **both absolute counters** rather than treating a ratio change as a guest-work change.
+
+The committed K13 before/after and isolated-case JSON and complete size/fast oracle matrix are in
+`docs/handoff/K13-measurements.json` and `K13-oracles.json`; see `K13.md` for limits and timing interpretation.
+
 ## Comparing against a commit
 
 Use the same benchmark files on a detached worktree of the comparison commit, with the same Node/Zig/Binaryen

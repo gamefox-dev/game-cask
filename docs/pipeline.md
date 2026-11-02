@@ -188,17 +188,19 @@ startup entry is exposed through the optional first-entry export, preserving bou
 failures retain their missing-code address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
 and passes the strict package/reference runs; no coverage evidence is filtered or manufactured.
 
-AMD64 generated register-local functions return to the dispatcher before generic semantics, quantum scheduling,
-API thunks or guest callbacks. They do **not** own a suspending native stack. Build postprocessing now excludes only
-**exact generated `F_<addr>` wrapper definitions**, not handwritten symbols or an unsafe `--asyncify-ignore-indirect`.
-Region signatures already separate them from suspendable call targets. `BGT_ASYNCIFY_FULL=1` retains conservative
+AMD64 generated register-local regions and `N_<addr>` native steps return before generic semantics, quantum
+scheduling, API thunks or guest callbacks. K13's `F_<addr>` wrappers drive flat cross-owner chaining and **may
+suspend** through imported APIs; they remain instrumented alongside the dispatcher. Build postprocessing excludes
+only **exact generated `N_<addr>` step definitions**, intersected with linked names, not wrappers, handwritten symbols
+or an unsafe `--asyncify-ignore-indirect`. Region signatures already separate them from suspendable call targets. `BGT_ASYNCIFY_FULL=1` retains conservative
 analysis for A/B. i386, dispatcher, shared semantics, scheduler, callbacks and handwritten overrides stay instrumented.
 A synthetic normally lifted Win64 override really yields twice; the regression verifies it resumes and returns the
 known answer. It also exposed/fixes the pre-existing AMD64 `--skip` duplicate-symbol bug (overrides have an exact-entry
 registry record, never a duplicate native body or an invented interior range).
 
-An entirely overridden selection has no native wrapper definitions and therefore uses an empty exclusion list,
-not a missing-metadata error. For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
+An entirely overridden selection has no native steps and therefore uses an empty exclusion list. An all-inlined
+step set may also have no surviving linked names; neither case broadens exclusions to suspending wrappers.
+For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
 conservative analysis rather than an incomplete exclusion. `manifest.pipeline.metrics` records `asyncify_mode`,
 `asyncify_remove_count`, list SHA-256, `pre_asyncify_bytes`, elapsed time and cache state. Named linked wasm is read
 without instantiating/compiling it in JS; only standard function-name metadata is parsed. Toolchain libc DWARF is
