@@ -1,8 +1,8 @@
 # v0.3 merged implementation status
 
-## K9b Q35 checkpoint
+## K9b / K9c Q34 and Q35
 
-Lane K9b adds ordered framebuffer blits (§13.10 / opcode 0x60) on both backends, with native compatible copies and general draw/stencil-test lowering; the original CC0 `x64-gl-blit` fixture passes both backend pixels and exact cross-image equality. Current checks: 792 units / 67 files, 221 browsers / 51 existing skips, 26 × 300 identical pipeline oracle pairs, lint and typecheck green. **Q34 transform feedback remains unfinished**; this is a context-limit checkpoint, not K9b completion. See [K9b handoff](handoff/K9b.md).
+Lane K9c (`3fea2b8`, `a256b2a`) implements ordered transform feedback (§13.11 / opcodes 0x61..0x63) on both backends: native WebGL2 capture and separate WebGPU vertex→compute lowering, pending/linked interfaces, original builtin capture, interleaved/separate buffers, ordering/discard/queries/errors and exact native readback. The original CC0 `x64-gl-feedback` fixture has **100 guest checks per backend**, exact captured bytes and cross-backend finish pixels; native edge regressions cover unaligned fetches, failed-link/setup cleanup, fail-closed generated-buffer recovery and 4.2M expanded strip outputs. Fresh independent source review at `a256b2a`: **PASS within bounded read-only scope**, no Tier1 attribution. Lane K9b's single-sample blits (§13.10 / 0x60, `3776c8e`) remain covered. Final Tier 1: **813 units / 69 files**, **226 browser passes / 51 existing skips**, **27 × 300 = 8,100 identical pipeline oracle pairs**, doctor, ESLint + clang/real-GCC lint (30 check-builds), typecheck and leakcheck green. Generated-buffer recovery fails closed rather than restoring stale bytes; array/matrix varyings and native-WGSL capture remain explicit errors. No target first-draw/title or unrestricted GL33 claim. See [K9b/K9c handoff](handoff/K9b.md).
 
 ## K8a Q21 final completion
 
