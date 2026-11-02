@@ -1,5 +1,20 @@
 # v0.3 merged implementation status
 
+## Integration I8 final three-lane checkpoint — K11 + K10 + K13
+
+Ordered merges remain **`140b96c`** (K11 / `2124b13`), **`aa0f739`** (K10 / `f1fd1d9`), then **`fb1ce3d`**
+(K13 / `9f5c191`), with follow-up commits `6f5eeae`, `7e31051`, `0f64339`. K13 adds bounded native scalar SSE,
+checked native-step lookup/chaining and exact native suffix interiors; K10 coverage/census and Asyncify semantics are
+preserved, with only generated `N_*` steps excluded from Asyncify. K9 GL and K12 heap sources remain preserved.
+
+Three-lane validation evidence: **1,057 unit tests / 81 files**, **232 browser passes / 51 unchanged skips**
+(WebGL2 104/24, WebGPU 120/26, auto 8/1), lint's **33/33 example check-builds**, and leakcheck's **619 files**
+passed in the logged run. **29 default pipeline oracles ×300 = 8,700 pairs** plus `x64-crt`, `x64-cpp`, and
+`x64-scale` in size/fast (**1,800 pairs**) all matched with null errors, zero lifted interpretation and empty stubs;
+**10,500 total frame pairs**. Exact final-checkpoint caveat and logs: [I8 handoff](handoff/integration-i8.md).
+A provider 429 prevented the requested follow-up review of the corrected suffix-test-only change; no independent PASS
+claim is made for that change. No engine speedup, first-draw, title or F-PERF-CRT closure claim.
+
 ## Integration I8 — K11 + K10 over K12 (pre-K13 verification)
 
 Reviewer scope extension: K13 (`9f5c191`) is now being integrated after these two lanes. The counts below are

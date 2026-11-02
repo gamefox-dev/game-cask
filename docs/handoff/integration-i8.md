@@ -29,7 +29,76 @@ K9 GL/renderers and K12 heap implementation remain untouched. Additional adaptat
   remains local and K7i lazy selection is intact.
 
 Focused merged evidence: **105/105 tests / 5 files**, plus **2/2** both-preset Asyncify/import/override tests.
-**Three-lane full Tier 1 and fresh independent review are in progress, not yet claimed.**
+Three-lane full Tier 1 is in progress, not yet claimed.
+
+### K13 merge review and precise suffix mutation
+
+A real fresh read-only source session reviewed `fb1ce3d`: **no production semantic conflict found** in the requested
+scope, including strict cache checks, native driver, four-field registries, override NULL steps and Asyncify safety.
+It found one P2 regression blind spot: an indirect jump's immediate successor was a block start, so the fixture did
+not test the new native suffix hook. **`7e31051` / `0f64339`** insert a skipped NOP at +7 and target the MOV at +8,
+assert emitted `entry_index=3u`, and split buffered coverage from strict-before-write checks in both presets.
+An initial formatting assertion omitted the generated unsigned suffix `u`; this test-only mistake was corrected.
+
+A second fresh follow-up was launched without `--fork` but failed with provider **429 `usage_limit_reached`**, before
+producing a review verdict. Reviewer explicitly accepted the existing bounded production review plus author-run
+mutation evidence for this test-only correction, requiring disclosure rather than another quota-consuming session.
+**No final-independent-PASS claim is made for the corrected test change.**
+
+Exact author mutation procedure, in a scratch-only original-kit checkout (never the integrated source tree): remove
+only `x86_coverage_lifted(pc,1)` from the emitted native-suffix landing case; then run:
+
+```sh
+npx --no-install vitest run tests/unit/codegen.test.ts --maxWorkers=1 -t 'K13 native interior suffix'
+```
+
+Mutant: **4 failed** (both presets: missing +8 coverage, or missing strict stop); restore the original `lift64.h`
+and run the identical command: **4 passed**. The remaining 58 tests are selection skips in this diagnostic,
+not acceptance skips. Logs: `/tmp/integration-i8/k13/suffix-{mutant,restored}.log`. An earlier mutant attempt failed
+only the unsigned-literal formatting assertion and is explicitly not the claimed dynamic mutation evidence.
+The scratch checkout is removed after checks. **`6f5eeae`** separately maps K13 `N_*` CDP names, with a known-answer
+unit assertion, and documents inclusive timing; it does not broaden Asyncify exclusions.
+
+## Final three-lane validation checkpoint
+
+The sequential validation script started on **`fb1ce3d`** and finished on code commit
+**`0f643392a6c1415335b17b1374d2ed7d7ede5edc`** (short `0f64339`), before this documentation-only checkpoint.
+Doctor completed on `fb1ce3d`. Lint started on `fb1ce3d` and ended after the small profiling/test follow-ups;
+its early ESLint phase is **not claimed as an exact-`0f64339` rerun**. Typecheck, full units, e2e, leakcheck,
+all default and fast oracles, and output restoration ran after `0f64339` was committed with no further code changes.
+Exact logs are under `/tmp/integration-i8/k13/`:
+
+| Gate | Result | Log |
+|---|---|---|
+| doctor | pass, original/ empty | `doctor.log` |
+| lint | pass, ESLint + clang + real GCC, **33/33 check-builds** incl. scale | `lint.log` |
+| typecheck | pass | `typecheck.log` |
+| unit | **1,057 passed / 81 files / 0 failures** | `units.log` |
+| e2e | **232 passed / 51 unchanged skips / 0 unexpected / 0 flaky**; WebGL2 104/24, WebGPU 120/26, auto 8/1 | `e2e.log` |
+| leakcheck | pass, **619 committable files** | `leakcheck.log` |
+| default oracles | **29 × 300 = 8,700 identical pairs**, null errors, lifted interp=0, stubs=[] | `oracle-*.log`, `default-oracles/` |
+| fast matrix | **x64-crt/x64-cpp/x64-scale × size+fast ×300 = 1,800 pairs**, identical hashes per fixture | `policy-oracles.log`, `policy-oracles.json` |
+| restored outputs | default example builds restored after matrix | `restore-defaults.log` |
+
+The combined oracle total is **10,500 compared frame pairs**. Fast matrix final rows: x64-crt size/fast wasm
+**1,386,056 / 1,459,211 B**, hash `bae2920f`; x64-cpp **3,051,226 / 3,655,290 B**, hash `eadc23f1`;
+x64-scale **44,998,182 / 77,339,758 B**, hash `f674cbe2`. All six rows are identical and have zero lifted
+interpretation/empty stubs.
+
+### Remaining work for fresh codemode (reviewer-requested stop)
+
+- Rerun **doctor and lint** (include `BGT_INCLUDE_SCALE=1`) on the final checkpoint: their prior runs began before
+  the profiling/test-only follow-ups. All 33 compile checks passed, but exact-final-code ESLint is not assumed.
+- Rerun **leakcheck** after this documentation checkpoint; optionally rerun typecheck and full suites/oracles on
+  the exact final documentation commit for a single-commit acceptance record. Code at `0f64339` already has the
+  complete unit/browser/default+fast oracle evidence above, and no test/code edits follow it.
+- Update the handoff/status with any new final-commit counts and deliver I8. Nothing is failing; no active gate
+  remains running. The latest validation marker `/tmp/integration-i8/k13/done` contains `0f64339`'s full hash.
+
+The provider-blocked review follow-up remains disclosed, not a claim of final independent PASS; reviewer explicitly
+accepted existing bounded production-source review plus author mutation evidence instead. No ENOSPC occurred;
+free space was approximately 7.3 GiB at this checkpoint. Stopping here is **reviewer instruction #117**, not a
+self-estimated context boundary.
 
 ## Historical pre-K13 K11+K10 checkpoint
 
