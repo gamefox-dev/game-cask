@@ -6,6 +6,7 @@
 #endif
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
+#include "../../../platforms/x86/x86_coverage.h"
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u << 20];
@@ -16,6 +17,9 @@ uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
+unsigned x86_lift_reason;
+uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
+void x86_run_native(x86_native_fn step){step(X.eip);}
 static unsigned yields, suspend_quantum, fault_address;
 void x86_fault(const char *message, uint32_t address) {
     (void)message; fault_address = address; __builtin_trap();

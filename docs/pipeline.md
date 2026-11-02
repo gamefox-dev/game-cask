@@ -92,6 +92,132 @@ still runs (interpreted, visible as `interp_insns`).
 - **Exceptions**: every override with a reason; every kit gap in `reports/errors.json` and as an iteration request in
   the work queue (`CLAUDE.md`).
 
+## Execution profiling (K10)
+
+Profiling is engine-independent, additive metrics JSON, not a new import/command ABI. Both browser backends
+and the headless/port-test hosts expose it. Build and probe normally; a port test reads
+`(await diagnostics(page)).metrics`. Coverage snapshots retain `metrics.execution` and runtime I/O/GPU timing.
+
+- `guest_instruction_clock` is the **raw active CPU context's `X.tsc`** (AMD64); it is included in probes and bench
+  runtime output. It is not yet a process-total retired-instruction counter: cooperative context restore can
+  change it, a pre-execution quantum attempt advances it, and i386 currently leaves it zero. Do not derive exact
+  threaded instructions/s from it. Exact process retirement accounting is a separate code-model task.
+- `cpu_profile.categories`: lifted-native dispatch, generic/shared semantics, interpreter. Each has `calls`,
+  `samples`, `sample_us`, `estimated_us`. Timers sample about 1/1024 calls with jitter to avoid regular-loop aliasing;
+  totals extrapolate sample mean × calls. Small sample counts are noisy; these are not CPU hardware counters.
+  AMD64 register-local regions/native steps cannot suspend. K13's outer AMD64 native wrapper dispatch,
+  like i386 dispatch and generic/interpreter calls, may include API/thunk work and nested guest callbacks;
+  frame-wait idle time is subtracted. These are **inclusive attribution**, not mutually exclusive partitions. Decode/dispatch overhead
+  outside timed calls remains in `host_profile.updateMs`, not silently assigned to native code.
+- `cpu_profile.apis`: every hit import slot's DLL/name, exact count, sampled microseconds and extrapolated total.
+  The metrics JSON observation ceiling is 8 MiB (debug JSON adds 64 KiB for views), tested with all 4096 maximum-length
+  printable import names. Names are escaped. Pathological control-byte names exceeding that bound return valid
+  `metrics_serialization_overflow:1` JSON, never silently malformed/truncated metrics or invented API totals.
+  API time includes nested guest callbacks, excludes time parked across frame yields, and overlaps category totals.
+  API sampling is first/every 1024th call; use CDP to check periodic-work bias. `idle_yield_us` is observed wall time
+  parked at frame waits (including probe think time), **not** virtual guest Sleep duration or CPU consumption.
+- `cpu_profile.exits`: top 32 retained `(address,reason)` pairs by exact exit count, with generic instruction counts.
+  Reasons: **1** opcode form; **2** failed whole-block memory guard; **3** quantum crossing; **4** interior landing;
+  **5** indirect dispatcher exit; **6** other dispatcher exit. Native calls/returns are not generic exits.
+  `interpreter_entries` lists the top 32 entry addresses by interpreted instructions; counts denote attempted block
+  entries (an entry interrupted before execution can have zero instructions). The 262,144-slot, 16-probe bounded
+  census never evicts; `census_dropped` counts rejected events. Nonzero means the retained top-N is incomplete,
+  not a trustworthy global ranking. Existing execution and coverage counters remain independent/exact.
+- `host_profile`: cumulative update/render wall ms, awaited range-I/O ms, sampled BGT imports by name (1/1024).
+  Hot coverage/time imports are counted but not individually timed. `runtime_profile` adds cumulative backend
+  `gpuSubmitMs` (JS encode/submit) and `gpuDrawWallMs` (including requested readback/waits), **not GPU timestamps**.
+  Its VFS `readMs` includes awaited fetches; `fetchMs` includes response consumption/integrity. Concurrent totals
+  overlap and must not be summed. `decompressMs:null` is deliberate: browser HTTP decompression cannot be timed
+  separately from fetch; guest decompression remains in CPU categories/CDP. No guessed zero is reported.
+
+```sh
+# Optional named wasm for guest-address mapping in Chromium's CPU profile (larger private output):
+BGT_PROFILE_NAMES=1 npm run build:port
+npm run probe -- --game mygame --script ./explore.mjs --cpu-profile 1100:1700 --out reports/probe/perf
+```
+
+`--cpu-profile START:END` brackets **update frame boundaries**, splitting `p.step`, `p.click` and `p.key` as needed.
+It saves DevTools-compatible `cpu.cpuprofile` and `cpu-mapping.json`. Names `F_<guest>` / `N_<guest>` /
+`R_<guest>_<region>` map
+back to addresses; unnamed wasm nodes explicitly remain unmapped (build with `BGT_PROFILE_NAMES=1`). Use the `p.*`
+stepping helpers: direct `p.page.evaluate(step)` and resource-tour internals bypass the range interceptor. Reports
+record actual start/end and whether the requested end was reached; failures save partial profiles when possible.
+CDP uses a 1ms sampling interval and is opt-in, not part of the always-on timing overhead claim.
+At its start frame, the probe snapshots historical census diagnostics then resets the census via the optional
+profiling export. Thus a later hot window is not starved by startup addresses. The report records whether reset was
+available. For multiple shorter windows in a probe/port test, call `await p.profileWindow()` (returns the completed
+window's metrics and resets), or test API `profileReset()`. Save each window separately; do not subtract top-N tables
+across generations. Counts inside retained rows are exact; any nonzero per-window drop count still invalidates a
+complete-ranking claim. Generation-tagged buckets exclude completions from an older suspended window; core execution
+and coverage counters are not reset or artificially incremented.
+
+Named profiling no longer passes **`-g` through Binaryen**. The build captures `--print-function-map` after all
+optimization/Asyncify passes, caches the final index/name sidecar with its wasm, then appends only the standard
+function-name subsection in a lightweight byte pass. No local-variable/DWARF metadata is emitted by wasm-opt.
+`profile-map.json` is also saved next to the wasm; function indices are post-transform, not an incorrect linker-index
+mapping. Cache publication, missing-sidecar rebuild, lease accounting and pruning include the sidecar. A 1.6M-insn,
+39 MiB named scale build completed with 13,900 final mapped functions and only 186,370 name-section bytes; the named
+browser smoke mapped 35 nodes with zero unmapped wasm nodes. This does not claim a successful 138 MiB target build.
+
+Every probe records `resources.start/end`: load averages, CPU model/count, free/total RAM, swap used, heavy-gate
+occupied slots/queued tickets and top CPU processes. Unsupported/sandbox-denied observations are `null` with an
+error, not fabricated availability. The snapshot reads existing gate locks without changing queue ownership.
+Both legacy harness lockf and current kit flock gates are recognized; non-atomic snapshots are advisory.
+
+`BGT_CPU_PROFILE=0` disables C census/timing for A/B measurement, not execution/coverage counters. The committed
+[`k10-profile-overhead.json`](../tools/bench/k10-profile-overhead.json) records same-machine/toolchain resources and
+samples: 300-update median overhead **8.3% x64-crt / 3.6% x64-cpp** in short startup workloads. JS timing remains on
+in both variants; this isolates the C instrumentation, not total instrumentation cost. These millisecond fixtures
+are noisy, not a bound for an engine workload. `tools/bench/codegen.test.ts` now records resources alongside runtime
+metrics; rebuild before changing variants and do not measure while another task republishes the same fixture.
+
+### Buffered coverage and Asyncify boundaries
+
+Discovery generated hooks now de-duplicate `(address,kind)` in a **wasm-local 65,536-slot direct-mapped cache**,
+with a bounded 4096-record queue. Only newly observed kind bits cross into JS at pressure, frame waits, normal update
+return, metrics reads and explicit profile faults. Collisions may re-report records but cannot discard evidence.
+`coverage_events`, `coverage_cache_hits`, `coverage_crossings` expose the reduction; the host still owns the independent
+1,048,576-entry/drop limit. A snapshot flushes **before** copying code and drop counts. Abrupt external wasm traps
+can leave an unflushed tail: errored recordings are not packaging evidence. `BGT_COVERAGE_DIRECT=1` restores direct
+crossings for A/B tests without changing instruction/API semantics.
+
+Strict builds omit recording/crossings but retain wasm-local membership checks at registry entries and internally
+handled dynamic entries (including same-region indirect jumps). This is necessary when a host policy is narrower
+than an entire compiled function range; a registry-only check would be insufficient. An optional [strict host-policy export](../bgt/abi/ABI.md#strict-compiled-slice-host-policy-k10-additive-optional-export)
+intersects a stricter host allowlist with the compiled policy, including the existing empty-allowlist stop. Neither
+strict path imports `coverage_entry` or keeps per-entry successful-path recording. A single actually accepted
+startup entry is exposed through the optional first-entry export, preserving bounded startup evidence; outside-slice
+failures retain their missing-code address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
+and passes the strict package/reference runs; no coverage evidence is filtered or manufactured.
+
+AMD64 generated register-local regions and `N_<addr>` native steps return before generic semantics, quantum
+scheduling, API thunks or guest callbacks. K13's `F_<addr>` wrappers drive flat cross-owner chaining and **may
+suspend** through imported APIs; they remain instrumented alongside the dispatcher. Build postprocessing excludes
+only **exact generated `N_<addr>` step definitions**, intersected with linked names, not wrappers, handwritten symbols
+or an unsafe `--asyncify-ignore-indirect`. Region signatures already separate them from suspendable call targets. `BGT_ASYNCIFY_FULL=1` retains conservative
+analysis for A/B. i386, dispatcher, shared semantics, scheduler, callbacks and handwritten overrides stay instrumented.
+A synthetic normally lifted Win64 override really yields twice; the regression verifies it resumes and returns the
+known answer. It also exposed/fixes the pre-existing AMD64 `--skip` duplicate-symbol bug (overrides have an exact-entry
+registry record, never a duplicate native body or an invented interior range).
+
+An entirely overridden selection has no native steps and therefore uses an empty exclusion list. An all-inlined
+step set may also have no surviving linked names; neither case broadens exclusions to suspending wrappers.
+For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
+conservative analysis rather than an incomplete exclusion. `manifest.pipeline.metrics` records `asyncify_mode`,
+`asyncify_remove_count`, list SHA-256, `pre_asyncify_bytes`, elapsed time and cache state. Named linked wasm is read
+without instantiating/compiling it in JS; only standard function-name metadata is parsed. Toolchain libc DWARF is
+stripped before postprocessing, retaining names for sound exact selection but not shipping private debug paths.
+
+```sh
+npm run bench:execution                  # sequential direct/full, buffered/full, buffered/restricted, interpreter
+npm run bench:asyncify -- reports/asyncify.json   # same linked input, uncached postprocess + state-reference audit
+```
+
+Both save resource snapshots. `bench:execution` includes CRT, C++, the 1.6M-instruction/chunk scale fixture and an
+original CC0 dispatch-heavy workload (4,194,304 indirect calls, independent numeric checksum), 300 updates per run,
+five fresh instances plus discarded warmup. Native `bgt.yield` reachability must not be inferred from a function's
+name alone: exclusions come from generated definitions, and the exact-list override regression guards this boundary.
+
 ## Pixel reads: CPU replay of the recorded GDI ops
 GDI draws on GPU render targets and nothing is read back from the GPU. When a module imports a pixel-read API
 (`GetPixel`, `GetDIBits`, or obtains one through `GetProcAddress`), the profile also logs every op it records per
@@ -212,12 +338,38 @@ identity/flags invalidate exactly affected objects; clone-relative paths allow o
 and the whole-module Asyncify boundary. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
-available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane F adds
+available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane K11 adds
+four opt-in AMD64 lifted-code policies, all defaulting to the size-oriented behavior: `liftInlineMemory`,
+`liftInlineAlu`, `liftAffineCounting`, and `liftOptimizeSmall`. `pipeline.liftPreset: "fast"` enables all four;
+`"size"` (the default when omitted) disables them. These are codegen policies, not game-specific behavior, and
+are part of the lift cache key. `liftInlineMemory` uses an inline same-page mapped/unprotected check with a cold
+full check; `liftInlineAlu` uses specialized live-flag helpers and cold recoverable fault recipes; `liftAffineCounting`
+settles the instruction debt at control/observation boundaries; `liftOptimizeSmall` drops `minsize` only for tiny
+regions. On one shared macOS arm64 machine, sequential cumulative A/B measurements were:
+
+| Stage (cumulative) | x64-crt wasm B / ms | x64-cpp wasm B / ms | CC0 33k-insn CPU wasm B / ms |
+|---|---:|---:|---:|
+| Baseline | 1,259,211 / 2.685 | 2,669,278 / 3.384 | 1,378,260 / 5.456 |
+| + `liftInlineMemory` | 1,272,469 / 2.664 | 2,896,989 / 3.385 | 1,378,408 / 5.354 |
+| + `liftInlineAlu` | 1,320,637 / 2.751 | 3,178,418 / 3.424 | 1,381,127 / 5.290 |
+| + `liftOptimizeSmall` | 1,312,317 / 2.760 | 3,179,222 / 4.079 | 1,381,127 / 5.470 |
+| + `liftAffineCounting` | 1,330,365 / 2.717 | 3,282,489 / 3.318 | 1,390,993 / 5.383 |
+
+Timings fluctuate under shared-machine load, so no universal speedup is claimed. The 1024-round / 36,709,146-dispatch CPU workload measured
+97.997→95.594 ms (baseline→all on); final opt-in policy reruns measured 95.347 ms (`size`) versus 95.659 ms (`fast`).
+Full per-stage samples, repeat runs, resource snapshots, hashes and the final policy comparison are committed in
+[`handoff/K11-measurements.json`](handoff/K11-measurements.json); compact interpretation is in
+[`handoff/K11-benchmarks.json`](handoff/K11-benchmarks.json). These results justify **opt-in**, not faster defaults.
+Every option has both-mode snapshot/oracle coverage in the codegen and lift-policy benchmarks. Lane F adds
 register-local AMD64 emission and guarded spans; non-default protection disables unchecked block spans before
 local mutation. LSC adds bounded chunk/cache/writer lifetimes and verified streaming loads; measured 1.6M synthetic
 instruction results and 7.1M extrapolation caveats are in [the scale handoff](handoff/scale.md), not a real-game claim.
 `node tools/bench/lift-scale.mjs 1024` writes `reports/scale.json` from an
-original generated CC0 fixture. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
+original generated CC0 fixture. K11's `tools/bench/codegen.test.ts` accepts `BGT_CODEGEN_PRESET=size|fast`,
+`BGT_CODEGEN_ROUNDS`, and `BGT_CODEGEN_TRIALS`; its committed reports record resource snapshots, exact oracle
+hashes, ALU materialization fractions, and known-count dispatch throughput. The measured fixtures are engineering
+A/B evidence only: they do not project the 7.1M-instruction target, whose observed hot phase is dominated by
+engine/build-specific lifted-call/API behavior rather than the synthetic per-instruction loop. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
 regression) and outstanding scale/GL/threading work.
 
 Build `manifest.pipeline.metrics`: `wasm_bytes_per_insn` = **whole wasm size** / lifted instructions, not marginal

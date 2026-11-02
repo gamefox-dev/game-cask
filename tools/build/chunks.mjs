@@ -30,7 +30,33 @@ export function analyzeCached(tool, file, id, base, dir, identity) {
   return { analysis: JSON.parse(readFileSync(out,'utf8')), key, analysis_ms: performance.now()-start, analysis_cached: cached };
 }
 
-export function liftChunks({ tool, file, id, base, work, analysis, key, selected, skip = [], flagLiveness, budget = 32768 }) {
+export function liftPolicy(p = {}) {
+  if (p.liftPreset !== undefined && !['size', 'fast'].includes(p.liftPreset)) throw new Error('pipeline.liftPreset must be size or fast');
+  const policy = {};
+  for (const key of ['liftInlineMemory', 'liftInlineAlu', 'liftAffineCounting', 'liftOptimizeSmall']) {
+    if (p[key] !== undefined && typeof p[key] !== 'boolean') throw new Error(`pipeline.${key} must be boolean`);
+    policy[key] = p[key] ?? p.liftPreset === 'fast';
+  }
+  return policy;
+}
+export function liftPolicyArgs(policy) {
+  return Object.entries(policy).flatMap(([key, value]) => [
+    '--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off',
+  ]);
+}
+// Strict internal registry syntax: wrappers remain void(void); native steps are void(uint32_t).
+// Reject any unparsed row instead of silently dropping malformed native declarations.
+export function registryRows(text) {
+  const table = /const x86_lifted_entry_t x86_lifted_[a-z0-9_]+\[\]\s*=\s*\{([\s\S]*?)\};/.exec(text);
+  if (!table) throw new Error('lifter registry format changed');
+  return table[1].split('\n').map((s) => s.trim()).filter(Boolean).map((line) => {
+    const row = /^\{\s*(0x[0-9a-f]+u),\s*(F_[0-9a-f]+),\s*(0x[0-9a-f]+u),\s*(N_[0-9a-f]+|0)\s*\},$/.exec(line);
+    if (!row || (row[4] !== '0' && row[4] !== 'N_' + row[2].slice(2))) throw new Error('malformed lifted registry row');
+    return { addr: parseInt(row[1], 16), row: `{${row[1]},${row[2]},${row[3]},${row[4]}},`,
+      declarations: [`void ${row[2]}(void);`, ...(row[4] === '0' ? [] : [`void ${row[4]}(uint32_t);`])] };
+  });
+}
+export function liftChunks({ tool, file, id, base, work, analysis, key, selected, skip = [], flagLiveness, policy = liftPolicy(), budget = 32768 }) {
   const dir = join(work, `chunks_${id}`); mkdirSync(dir, {recursive:true});
   const functions = selected ? analysis.functions.filter((f) => selected.has(f.addr)) : analysis.functions;
   const chunks = partitionFunctions(functions, budget), keep = new Set();
@@ -38,10 +64,10 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     const name = `${id}_${String(i).padStart(4,'0')}`, out = join(dir, name + '.c'), list = join(dir, name + '.txt');
     writeFileSync(list, addresses.map((a)=>a.toString(16)).join('\n')+'\n');
     for (const p of [out, out+'.key', out+'.stats.json', list]) keep.add(p);
-    const args = [tool,'lift',file,'--name',name,'--base',base.toString(16),'--select',list];
+    const args = [tool,'lift',file,'--name',name,'--base',base.toString(16),'--select',list,...liftPolicyArgs(policy)];
     if (flagLiveness) args.push('--flag-liveness','on');
     if (skip.length) args.push('--skip',skip.map((a)=>a.toString(16)).join(','));
-    return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,'chunks-v1']))};
+    return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,policy,'chunks-v2']))};
   });
   const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')], {
     input:JSON.stringify({tasks,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],
@@ -53,11 +79,9 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
   let sourceBytes = 0, sourceLines = 0, largest = 0;
   for (const t of tasks) {
     const text = readFileSync(t.out,'utf8');
-    const table = text.slice(text.indexOf('const x86_lifted_entry_t x86_lifted_'));
-    if (!table.startsWith('const x86_lifted_entry_t')) throw new Error('lifter registry format changed');
-    for (const match of table.matchAll(/\{\s*(0x[0-9a-f]+u),\s*(F_[0-9a-f]+),\s*(0x[0-9a-f]+u)\s*\}/g)) {
-      rows.push({addr:parseInt(match[1],16), row:`{${match[1]},${match[2]},${match[3]}},`});
-      declarations.add(`void ${match[2]}(void);`);
+    for (const row of registryRows(text)) {
+      rows.push({addr:row.addr, row:row.row});
+      for (const declaration of row.declarations) declarations.add(declaration);
     }
     const s = JSON.parse(readFileSync(t.out+'.stats.json','utf8'));
     for (const k of ['functions','specialized','generic','jumpTables','unresolvedJumps','flagsElided','entries']) stats[k] += s[k] ?? 0;

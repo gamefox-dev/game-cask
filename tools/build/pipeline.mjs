@@ -25,7 +25,7 @@ import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
 import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
-import { analyzeCached, liftChunks } from './chunks.mjs';
+import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -189,6 +189,7 @@ function overrides(gameDir) {
  */
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const policy = liftPolicy(p);
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
@@ -251,7 +252,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     }
     if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
-      const args = ['lift', file, '--name', id, '--base', base.toString(16)];
+      const args = ['lift', file, '--name', id, '--base', base.toString(16), ...liftPolicyArgs(policy)];
       const measured = analyzeCached(tool,file,id,base,work,identity);
       ownershipAnalysis = measured.analysis;
       let selectedSet = null;
@@ -268,7 +269,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       if (mode64 && p.chunkInstructions !== 0 && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
         const result = liftChunks({tool,file,id,base,work,analysis:measured.analysis,key:measured.key,
-          selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,budget:p.chunkInstructions ?? 32768});
+          selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,policy,budget:p.chunkInstructions ?? 32768});
         // Remove the old monolithic intermediate after successful chunk publication.
         rmSync(lifted,{force:true});rmSync(lifted+'.stats.json',{force:true});
         chunkSources = result.sources; lifted = chunkSources[0]; stats = result.stats;
@@ -276,7 +277,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         scale = {...result.metrics,analysis_ms:measured.analysis_ms,analysis_cached:measured.analysis_cached};
       } else {
         const key = sha256(JSON.stringify([measured.key, selectedSet ? [...selectedSet].sort((a,b)=>a-b) : null,
-          ov.addrs, p.flagLiveness === true, 'monolithic-v1']));
+          ov.addrs, p.flagLiveness === true, policy, 'monolithic-v2']));
         const metrics = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/lift.py')], {
           input: JSON.stringify({ tasks: [{ out: lifted, key, args: [tool, ...args] }], jobs: 1 }),
           encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
@@ -311,6 +312,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   }
   codeRanges.sort((a,b)=>a.addr-b.addr);
   sliceRanges.sort((a,b)=>a.addr-b.addr);
+  // Preserve observed block/continuation entries as well as selected owners.
+  // New i386 edge hooks record real interior entries, not additional functions.
+  if(plan)for(const address of plan.code)sliceCode.add(address);
   /* driver */
   const driver = join(work, 'pipeline_main.c');
   const ext = mods.filter((m) => m.lifted).map((m) => `extern const x86_lifted_entry_t x86_lifted_${m.id}[];`).join('\n');
@@ -331,17 +335,21 @@ ${rows}
 static const x86_code_range_t code_ranges[] = {
 ${codeRanges.map((r)=>`    {${r.addr}u,${r.end}u,${r.owner}u},`).join('\n')}
 };
+${cfg.slice && plan ? `static const uint32_t slice_entries[]={${[...sliceCode].sort((a,b)=>a-b).map(a=>a+'u').join(',')}};
+static const x86_code_range_t slice_ranges[]={${sliceRanges.map(r=>`{${r.addr}u,${r.end}u,0},`).join('')}};` : ''}
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
 static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
-BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); return w32_boot(&config, &io); }
-BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); }
+BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; ${cfg.slice && plan ? `x86_set_slice(slice_entries,${sliceCode.size},slice_ranges,${sliceRanges.length});` : ''} x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); return w32_boot(&config, &io); }
+BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); x86_coverage_flush(); }
 BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
+${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(uint32_t entries,uint32_t ranges) { return x86_prepare_host_slice(entries,ranges); }\nBGT_EXPORT(bgt_slice_first_entry) uint32_t bgt_slice_first_entry(void) {return x86_slice_first_entry();}' : ''}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash(); }
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
+BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
 BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
 `);
@@ -363,12 +371,14 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   ].map((f) => join(ROOT, f));
   const liftedSources = mods.filter((m) => m.lifted).flatMap((m) => m.chunkSources ?? [m.lifted]);
   const sources = [driver, ...liftedSources, ...platform, ...ov.files];
+  const nativeLiftSymbols=mode64 ? liftedSources.flatMap(f=>[...readFileSync(f,'utf8').matchAll(/\bvoid ([FNR]_[0-9a-f]{8}(?:_[0-9a-f]{8})?)\([^)]*\)\s*\{/g)].map(m=>m[1])) : [];
   const generated = liftedSources.reduce((n, f) => n + lines(f), 0) + lines(driver);
   const handwritten = [...ov.files, ...(cfg.sources ?? []).map((s) => join(gameDir, s))].filter(existsSync).reduce((n, f) => n + lines(f), 0);
   const report = {
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
+    liftPolicy: policy,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
     interpretOnly: !!p.interpretOnly,
     ...(plan ? {discovery:{input_recordings:plan.recordings,recorded_entries:plan.code.size}} : {}),
@@ -381,11 +391,14 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   writeFileSync(join(work, 'pipeline.json'), JSON.stringify(report, null, 2) + '\n');
   return {
     sources,
+    nativeLiftSymbols,
     streams,
     slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),codeRanges:sliceRanges,ranges:plan.ranges} : null,
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
+      ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
+      `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
         '-D_GNU_SOURCE', '-fno-math-errno'] : []),
       '-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable',

@@ -13,6 +13,8 @@ export class RangeFiles {
   private bytes = 0;
   private reads = new Map<string, RangeRead>();
   fetchedBytes = 0;
+  readonly timing = { fetchMs: 0, readMs: 0, reads: 0, fetches: 0,
+    decompressMs: null as number | null }; // HTTP decompression is inside browser fetch, not separately observable.
   constructor(private readonly base: string, private readonly fetcher: typeof fetch = (input,init) => globalThis.fetch(input,init), readonly cacheBudget = 16*1024*1024) {}
   add(file: StreamedFile): void {
     if (!normalizeAssetPath(file.path) || !Number.isSafeInteger(file.size) || file.size<0 || !Number.isInteger(file.chunkSize) || file.chunkSize<4096 || file.chunkSize>1024*1024) throw new Error('invalid streamed file');
@@ -31,6 +33,7 @@ export class RangeFiles {
     const key=c.sha256, cached=this.cache.get(key);
     if(cached) { this.cache.delete(key);this.cache.set(key,cached);return cached; }
     const pending=this.pending.get(key);if(pending)return pending;
+    const fetchStart=performance.now();this.timing.fetches++;
     const promise=(async()=>{
       const r=await this.fetcher(this.base+c.url);
       if(!r.ok)throw new Error(`stream chunk HTTP ${r.status}`);
@@ -50,9 +53,14 @@ export class RangeFiles {
       return data;
     })();
     this.pending.set(key,promise);
-    try{return await promise;}finally{this.pending.delete(key);}
+    try{return await promise;}finally{this.pending.delete(key);this.timing.fetchMs+=performance.now()-fetchStart;}
   }
   async read(path: string, offset: number, length: number, ahead = false): Promise<Uint8Array<ArrayBuffer>> {
+    const start=performance.now();this.timing.reads++;
+    try { return await this.readRange(path,offset,length,ahead); }
+    finally { this.timing.readMs+=performance.now()-start; }
+  }
+  private async readRange(path: string, offset: number, length: number, ahead: boolean): Promise<Uint8Array<ArrayBuffer>> {
     const file=this.files.get(path);if(!file)throw new Error('unknown streamed path');
     if(!Number.isSafeInteger(offset)||offset<0||!Number.isInteger(length)||length<0||length>8*1024*1024)throw new Error('invalid streamed range');
     let size=Math.max(0,Math.min(length,file.size-offset));const out=new Uint8Array(size);let n=0;

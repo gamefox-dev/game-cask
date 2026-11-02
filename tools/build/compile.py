@@ -16,9 +16,13 @@ import time
 import uuid
 
 
-def command(args, pass_fds=()):
+def command(args, pass_fds=(), stdout_path=None):
     start = time.monotonic()
-    subprocess.run(args, check=True, stdout=sys.stderr, pass_fds=pass_fds)
+    if stdout_path:
+        with open(stdout_path, 'w') as output:
+            subprocess.run(args, check=True, stdout=output, pass_fds=pass_fds)
+    else:
+        subprocess.run(args, check=True, stdout=sys.stderr, pass_fds=pass_fds)
     return round((time.monotonic() - start) * 1000, 3)
 
 
@@ -27,7 +31,7 @@ def main():
     jobs = max(1, min(8, int(cfg.get('jobs', 2))))
 
     def compile_one(o):
-        if os.path.exists(o['out']):
+        if os.path.exists(o['out']) and (not o.get('stdout') or os.path.exists(o['stdout'])):
             return None  # Immutable published payload; caller's lease pins it through linking.
         # Lock files have permanent inodes, live outside the payload/LRU namespace.
         locks = os.path.join(os.path.dirname(o['out']), '.locks')
@@ -38,18 +42,22 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX)
             # The child retains the lock if its Python supervisor is interrupted.
             # Once acquired, abandoned temporaries for this key are safe to remove.
-            for abandoned in glob.glob(o['out'] + '.*.tmp'):
+            for abandoned in glob.glob(o['out'] + '.*.tmp') + glob.glob(o['out'] + '.*.tmp.stdout'):
                 os.unlink(abandoned)
-            if os.path.exists(o['out']):
+            if os.path.exists(o['out']) and (not o.get('stdout') or os.path.exists(o['stdout'])):
                 return None
             temp = o['out'] + '.' + uuid.uuid4().hex + '.tmp'
             try:
-                elapsed = command(o['args'] + ['-o', temp], (lock.fileno(),))
+                elapsed = command(o['args'] + ['-o', temp], (lock.fileno(),), temp+'.stdout' if o.get('stdout') else None)
+                if o.get('stdout'):
+                    os.replace(temp+'.stdout', o['stdout'])
                 os.replace(temp, o['out'])
                 return {'object': o['out'], 'compile_ms': elapsed}
             finally:
                 if os.path.exists(temp):
                     os.unlink(temp)
+                if os.path.exists(temp+'.stdout'):
+                    os.unlink(temp+'.stdout')
 
     start = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:

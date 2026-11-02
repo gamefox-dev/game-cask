@@ -23,6 +23,12 @@
 
 /* ------------------------------------------------------------------ utilities */
 static void die(const char *m) { fprintf(stderr, "x86tool: %s\n", m); exit(2); }
+static int on_off(const char *option, const char *value) {
+    if (!strcmp(value, "on")) return 1;
+    if (!strcmp(value, "off")) return 0;
+    fprintf(stderr, "x86tool: %s must be on or off (got '%s')\n", option, value);
+    exit(2);
+}
 static void *xcalloc(size_t n, size_t s) { void *p = calloc(n ? n : 1, s); if (!p) die("out of memory"); return p; }
 static uint32_t r16(const uint8_t *p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8); }
 static uint32_t r32(const uint8_t *p) { return r16(p) | (r16(p + 2) << 16); }
@@ -692,7 +698,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     char t1[200], t2[256], t3[512]; /* sized so the worst-case composition provably fits (gcc -Wformat-truncation) */
     if (vhas(&skip, f->addr)) { fprintf(o, "\n/* function %08x: provided by port/overrides (exception) */\n", f->addr); return; }
     fprintf(o, "\n/* function %08x (%u instructions) */\nvoid F_%08x(void) {\n", f->addr, f->insns.n, f->addr);
-    fprintf(o, "    bgt_coverage_entry(X.eip, 1);\n");
+    fprintf(o, "    x86_coverage_lifted(X.eip, 1);\n");
     fprintf(o, "    const uint32_t ra = x86_rd32(X.r[ESP]), esp0 = X.r[ESP]; (void)ra; (void)esp0;\n    uint32_t t, u; (void)t; (void)u;\n");
     /* LANE-C: all instruction labels are legal cooperative resume points. */
     fprintf(o, "    switch (X.eip) {\n");
@@ -763,10 +769,10 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (vhas(&f->labels, in.target) && (in.target != f->addr || 1)) {
                 int inside = 0;
                 for (uint32_t q = 0; q < f->insns.n; q++) if (f->insns.v[q] == in.target) { inside = 1; break; }
-                if (inside) { fprintf(o, "goto L_%08x;", in.target); break; }
+                if (inside) { fprintf(o, "x86_coverage_lifted(0x%08xu,1);goto L_%08x;", in.target,in.target); break; }
             }
             /* tail call to another function */
-            if (lifted_has(a, in.target)) fprintf(o, "X.eip = 0x%08xu; F_%08x(); return;", in.target, in.target);
+            if (lifted_has(a, in.target)) fprintf(o, "X.eip = 0x%08xu; x86_coverage_lifted(X.eip,1); F_%08x(); return;", in.target, in.target);
             else fprintf(o, "X.eip = 0x%08xu; x86_continue(ra, esp0); return;", in.target);
             break;
         case XO_CALL:
@@ -774,7 +780,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (lifted_has(a, in.target))
                 /* LANE-C */
                 fprintf(o, "x86_push(0x%08xu); X.eip = 0x%08xu; x86_metrics.lifted_calls++; "
-                    "F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
+                    "x86_coverage_lifted(X.eip,1); F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
                     "x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, in.target, next, va);
             else fprintf(o, "x86_call(0x%08xu, 0x%08xu);", in.target, next);
             break;
@@ -791,7 +797,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
                 vec_t uniq = {0};
                 for (uint32_t q = 0; q < j->targets.n; q++) vpush(&uniq, j->targets.v[q]);
                 vsort_uniq(&uniq);
-                for (uint32_t q = 0; q < uniq.n; q++) fprintf(o, " case 0x%08xu: goto L_%08x;", uniq.v[q], uniq.v[q]);
+                for (uint32_t q = 0; q < uniq.n; q++) fprintf(o, " case 0x%08xu: x86_coverage_lifted(0x%08xu,1); goto L_%08x;", uniq.v[q], uniq.v[q], uniq.v[q]);
                 free(uniq.v);
                 fprintf(o, " default: break; }");
             } else st->unresolved += !(j && j->resolved);
@@ -851,7 +857,7 @@ static void lift(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             func_t *f = &a->f[func_index(a, order.v[j])];
             if (vhas(&f->insns, entries.v[i])) { owner = f->addr; break; }
         }
-        fprintf(o, "    {0x%08xu, F_%08x, 0x%08xu},\n", entries.v[i], owner,
+        fprintf(o, "    {0x%08xu, F_%08x, 0x%08xu, 0},\n", entries.v[i], owner,
             entries.v[i] == owner ? owner + 1 : 0);
     }
     st->entries = entries.n; /* LANE-C */
@@ -891,6 +897,14 @@ int main(int argc, char **argv) {
             selection=1;FILE *list=fopen(argv[i+1],"rb");if(!list)die("cannot open function selection");
             unsigned addr;while(fscanf(list,"%x",&addr)==1)vpush(&selected,(uint32_t)addr);fclose(list);vsort_uniq(&selected);
         }
+        else if (!strcmp(argv[i], "--lift-preset")) {
+            if (strcmp(argv[i + 1], "fast") && strcmp(argv[i + 1], "size")) die("--lift-preset must be fast or size");
+            lift_inline_memory = lift_inline_alu = lift_affine_counting = lift_optimize_small = !strcmp(argv[i + 1], "fast");
+        }
+        else if (!strcmp(argv[i], "--lift-inline-memory")) lift_inline_memory = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-inline-alu")) lift_inline_alu = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-affine-counting")) lift_affine_counting = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-optimize-small")) lift_optimize_small = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--flag-liveness")) flag_liveness = strcmp(argv[i + 1], "off") != 0;
         else if (!strcmp(argv[i], "--skip")) {
             for (char *s = argv[i + 1]; *s;) { vpush(&skip, (uint32_t)strtoul(s, &s, 16)); while (*s == ',') s++; }

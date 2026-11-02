@@ -1,0 +1,34 @@
+{
+  "schema": "game-cask/k11-benchmarks/1",
+  "machine": "darwin/arm64, Node 24.19.0, Zig 0.13.0",
+  "method": "same-machine sequential A/B; five fresh 300-frame batches after a discarded warmup, with 24 inner executions per batch for final policy rows; long CC0 scale uses 1024 rounds and 3 trials per batch; whole wasm includes profile/Asyncify; exact oracle hashes and no interpreted instructions required",
+  "policies": {
+    "size": "all four K11 policies false; default",
+    "fast": "pipeline.liftPreset=fast; all four K11 policies true"
+  },
+  "steps_default_branch_history": {
+    "baseline_957d837": {"codegen-cpu": {"wasm_bytes": 1378260, "run_ms_median": 5.456}, "x64-cpp": {"wasm_bytes": 2669278, "run_ms_median": 3.384}, "x64-crt": {"wasm_bytes": 1259211, "run_ms_median": 2.685}},
+    "step1_memory_55f26a8": {"codegen-cpu": {"wasm_bytes": 1378408, "run_ms_median": 5.354}, "x64-cpp": {"wasm_bytes": 2896989, "run_ms_median": 3.385}, "x64-crt": {"wasm_bytes": 1272469, "run_ms_median": 2.664}},
+    "step2_flags_a281d75": {"codegen-cpu": {"wasm_bytes": 1381127, "run_ms_median": 5.290}, "x64-cpp": {"wasm_bytes": 3178418, "run_ms_median": 3.424}, "x64-crt": {"wasm_bytes": 1320637, "run_ms_median": 2.751}},
+    "step3_optimize_small_9b3f57a": {"codegen-cpu": {"wasm_bytes": 1381127, "run_ms_median": 5.470}, "x64-cpp": {"wasm_bytes": 3179222, "run_ms_median": 4.079}, "x64-crt": {"wasm_bytes": 1312317, "run_ms_median": 2.760}},
+    "step4_counting_d496a11": {"codegen-cpu": {"wasm_bytes": 1390993, "run_ms_median": 5.383}, "x64-cpp": {"wasm_bytes": 3282489, "run_ms_median": 3.318}, "x64-crt": {"wasm_bytes": 1330365, "run_ms_median": 2.717}}
+  },
+  "final_batched_24": {
+    "size": {
+      "codegen-cpu": {"wasm_bytes": 1378250, "run_ms_median": 5.369440875, "dispatches": 1150094, "dispatches_per_second": 214192506.5894462, "alu_materialized_fraction": 0.015993552986393083},
+      "x64-cpp": {"wasm_bytes": 2670595, "run_ms_median": 3.3442934583335955, "dispatches": 28173, "dispatches_per_second": 8424200.911494808, "alu_materialized_fraction": 0.7176518659765732},
+      "x64-crt": {"wasm_bytes": 1259242, "run_ms_median": 2.6681857499996418, "dispatches": 9945, "dispatches_per_second": 3727251.7477470734, "alu_materialized_fraction": 0.8433179723502304}
+    },
+    "fast": {
+      "codegen-cpu": {"wasm_bytes": 1390993, "run_ms_median": 7.83507475, "dispatches": 1150094, "dispatches_per_second": 146787878.44365796, "alu_materialized_fraction": 0.015993552986393083},
+      "x64-cpp": {"wasm_bytes": 3285339, "run_ms_median": 3.365770875000029, "dispatches": 28173, "dispatches_per_second": 8370445.002439377, "alu_materialized_fraction": 0.7025333696540452},
+      "x64-crt": {"wasm_bytes": 1330663, "run_ms_median": 2.802510499999547, "dispatches": 9945, "dispatches_per_second": 3548604.010583228, "alu_materialized_fraction": 0.8356374807987711}
+    }
+  },
+  "long_scale_1024": {
+    "size": {"wasm_bytes": 1378251, "run_ms_median": 95.34748599999996, "dispatches": 36709146, "dispatches_per_second": 385003816.46140116},
+    "fast": {"wasm_bytes": 1390995, "run_ms_median": 95.6592640000005, "dispatches": 36709146, "dispatches_per_second": 383748990.58391047}
+  },
+  "pipeline_policy_oracles": "all six selected CC0 pipeline fixtures, both policies, 300 frames, identical hashes, null errors, zero interpreted instructions; see scratch-K11/policy-oracles.json",
+  "interpretation": "Fast is not the default: synthetic codegen shows size growth and no universal speed win. The target's observed hot phase (~3.4M lifted calls/s in the porter evidence) is about two orders slower than the synthetic dispatch fixture and requires K10 instrumentation before selecting a game policy."
+}

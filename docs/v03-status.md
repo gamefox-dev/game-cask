@@ -1,5 +1,50 @@
 # v0.3 merged implementation status
 
+## Integration I8 final three-lane checkpoint — K11 + K10 + K13
+
+Ordered merges remain **`140b96c`** (K11 / `2124b13`), **`aa0f739`** (K10 / `f1fd1d9`), then **`fb1ce3d`**
+(K13 / `9f5c191`), with follow-up commits `6f5eeae`, `7e31051`, `0f64339`. K13 adds bounded native scalar SSE,
+checked native-step lookup/chaining and exact native suffix interiors; K10 coverage/census and Asyncify semantics are
+preserved, with only generated `N_*` steps excluded from Asyncify. K9 GL and K12 heap sources remain preserved.
+
+Three-lane validation evidence: **1,057 unit tests / 81 files**, **232 browser passes / 51 unchanged skips**
+(WebGL2 104/24, WebGPU 120/26, auto 8/1), lint's **33/33 example check-builds**, and leakcheck's **619 files**
+passed in the logged run. **29 default pipeline oracles ×300 = 8,700 pairs** plus `x64-crt`, `x64-cpp`, and
+`x64-scale` in size/fast (**1,800 pairs**) all matched with null errors, zero lifted interpretation and empty stubs;
+**10,500 total frame pairs**. Exact final-checkpoint caveat and logs: [I8 handoff](handoff/integration-i8.md).
+A provider 429 prevented the requested follow-up review of the corrected suffix-test-only change; no independent PASS
+claim is made for that change. No engine speedup, first-draw, title or F-PERF-CRT closure claim.
+
+## Integration I8 — K11 + K10 over K12 (pre-K13 verification)
+
+Reviewer scope extension: K13 (`9f5c191`) is now being integrated after these two lanes. The counts below are
+pre-K13 evidence, not a final three-lane acceptance claim.
+
+### K11 + K10 checkpoint
+
+Ordered `--no-ff` merges **`140b96c`** (K11 / `2124b13`) then **`aa0f739`** (K10 / `f1fd1d9`) preserve K12's
+segregated heap and K9's GL work. Size remains default; fast is opt-in. K10 coverage/strict checks and census reasons
+are exercised in both presets, including affine quantum/guard boundaries and suspending handwritten overrides.
+Final merged implementation gates: doctor, ESLint + clang/real-GCC lint (**33 example check-builds**, including scale),
+typecheck and leakcheck pass; **1,020 unit tests / 79 files**, **232 browser passes / 51 unchanged intentional skips**,
+both required backends. **29 default pipeline oracles × 300 = 8,700 identical pairs**, plus CRT/C++/scale in fast
+(**900 more pairs**); the explicit size/fast matrix repeats three size controls (**10,500 total compared pairs**).
+All lifted runs have zero interpreted instructions and empty stubs. Fresh independent bounded source follow-up passes;
+no engine-speedup, first-draw or F-PERF-CRT closure claim. Details: [I8 handoff](handoff/integration-i8.md).
+
+## K13 — native scalar SSE and flat boundary chaining
+
+K13 adds native scalar SSE conversions/COMI, flat foreign-owner/thunk chaining, checked lookup caching and
+bounded SSE/tiny native interior entries. Post-review gates: **840 units /68 files**, **218 browser passes /51
+unchanged skips**, **25 ×2 presets ×300 =15,000 identical oracle pairs**. Final size+fast isolated A/B: scalar
+~3×, interior ~2.6–3.1×; import/vtable gains are small/noisy (fast import unchanged), not an engine-speedup claim.
+Independent **vK13 FAIL then vK13b PASS at 59ddafd** after memory-permission and test-sensitivity fixes.
+Committed every sample, scope/tradeoffs: [K13 handoff](handoff/K13.md).
+
+## K11 — opt-in lifted-code speed policies
+
+K11 delivers opt-in AMD64 memory/ALU/attribute/counting policies (`pipeline.liftPreset: "fast"`, size-oriented defaults retained); **807 units / 66 files**, **218 browser passes / 51 unchanged skips**, **25 default pipeline oracles ×300** plus **6 ×2 policy oracles ×300** pass. Full measurements, bounded independent validation and explicit no-engine-speedup boundary: [K11 handoff](handoff/K11.md).
+
 ## K12 — deterministic guest heap and CRT allocation
 
 K12 adds a bounded-work segregated guest heap for both Win32 widths, real logical `HeapCreate` ownership and
@@ -41,6 +86,15 @@ No wire ABI changes or target first-draw/title/playability claim. Details: [K9a 
 ## K9b / K9c Q34 and Q35
 
 Lane K9c (`3fea2b8`, `a256b2a`) implements ordered transform feedback (§13.11 / opcodes 0x61..0x63) on both backends: native WebGL2 capture and separate WebGPU vertex→compute lowering, pending/linked interfaces, original builtin capture, interleaved/separate buffers, ordering/discard/queries/errors and exact native readback. The original CC0 `x64-gl-feedback` fixture has **100 guest checks per backend**, exact captured bytes and cross-backend finish pixels; native edge regressions cover unaligned fetches, failed-link/setup cleanup, fail-closed generated-buffer recovery and 4.2M expanded strip outputs. Fresh independent source review at `a256b2a`: **PASS within bounded read-only scope**, no Tier1 attribution. Lane K9b's single-sample blits (§13.10 / 0x60, `3776c8e`) remain covered. Final Tier 1: **813 units / 69 files**, **226 browser passes / 51 existing skips**, **27 × 300 = 8,100 identical pipeline oracle pairs**, doctor, ESLint + clang/real-GCC lint (30 check-builds), typecheck and leakcheck green. Generated-buffer recovery fails closed rather than restoring stale bytes; array/matrix varyings and native-WGSL capture remain explicit errors. No target first-draw/title or unrestricted GL33 claim. See [K9b/K9c handoff](handoff/K9b.md).
+
+## K10 — execution profiling and coverage
+
+K10 execution profiling/coverage lane is delivered on its branch: sampled timing/resettable census windows,
+no-`-g` named profiling, wasm-local coverage buffering and exact native Asyncify exclusions. Final implementation
+`d9b0603` is locally Tier1 green: doctor, clang/GCC lint (29 builds), typecheck, **803 units/73 files**, **218 browser
+passes/51 intentional skips**, leakcheck and **25×300=7500 identical oracle pairs**. This is lane evidence, not a new
+merged-tree/game acceptance claim. F-PERF-CRT remains open (final0.97× reference); the138MiB named game rebuild
+remains porter verification. See [K10 handoff](handoff/K10.md) and [benchmarks](../tools/bench/README-execution.md).
 
 ## K8a Q21 final completion
 

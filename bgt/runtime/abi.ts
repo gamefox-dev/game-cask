@@ -2,6 +2,8 @@
 // compiles a C probe against the headers and checks these values match.
 
 export const ABI_VERSION = (0 << 16) | (3 << 8);
+export const SLICE_FIRST_ENTRY = {SIZE:8,address:0,kind:4} as const;
+export const SLICE_POLICY = { SIZE:24, version:4, entry_count:8, entries_ptr:12, range_count:16, ranges_ptr:20 } as const;
 
 export const BGT_OK = 0;
 export const E_INVALID = -1;
@@ -151,7 +153,8 @@ export const LIMITS = {
   storageKeyBytes: 64,
   storageValueBytes: 65536,
   logBytes: 4096,
-  debugStateBytes: 1 << 20,
+  metricsBytes: 8 << 20,
+  debugStateBytes: (8 << 20) + (64 << 10),
   peekBytes: 65536,
   maxCatchUpUpdates: 4,
 } as const;

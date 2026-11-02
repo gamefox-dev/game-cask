@@ -1,12 +1,13 @@
 /* Baseline SSE/SSE2 exact-width scalar implementation, no host SIMD alignment assumptions. MIT. */
 #include "x86_sem64.h"
+#include "x86_sse.h"
 #if defined(X86_FLAT_GUEST) || defined(X86_WIDE_CPU)
 static x86_vec_t loadv(const x86_opnd_t *o,int bytes) {
     x86_vec_t v = {0};
     if (o->kind == XK_XMM) return X.xmm[o->reg];
     uint32_t p = x64_ea(o);
 #ifdef X86_FLAT_GUEST
-    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_accessible(p, (uint32_t)bytes, 1)) {
         __builtin_memcpy(&v, x86_flat + p, (unsigned)bytes);
         return v;
     }
@@ -18,20 +19,14 @@ static void storev(const x86_opnd_t *o,x86_vec_t v,int bytes) {
     if (o->kind == XK_XMM) { X.xmm[o->reg] = v; return; }
     uint32_t p = x64_ea(o);
 #ifdef X86_FLAT_GUEST
-    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_accessible(p, (uint32_t)bytes, 2)) {
         __builtin_memcpy(x86_flat + p, &v, (unsigned)bytes);
         return;
     }
 #endif
     for (int i = 0; i < bytes; i++) x86_wr8(p + (uint32_t)i, v.u8[i]);
 }
-static double nearest_even(double x){if(!(x<4503599627370496.0&&x>-4503599627370496.0))return x;double lo=__builtin_floor(x),delta=x-lo;if(delta<0.5)return lo;if(delta>0.5)return lo+1;return ((int64_t)lo&1)?lo+1:lo;}
-static int64_t convert_int(double x,int bits,int trunc) {
-    if(!trunc){int mode=(X.mxcsr>>13)&3;x=mode==0?nearest_even(x):mode==1?__builtin_floor(x):mode==2?__builtin_ceil(x):__builtin_trunc(x);}
-    double lo=bits==64?-9223372036854775808.0:-2147483648.0,hi=bits==64?9223372036854775808.0:2147483648.0;
-    if(!(x>=lo&&x<hi))return bits==64?INT64_MIN:INT32_MIN;
-    return (int64_t)x;
-}
+static int64_t convert_int(double x,int bits,int trunc) { return xs_to_int(x,bits,trunc,X.mxcsr); }
 static int64_t clamp_signed(int64_t x,int bits){int64_t lo=-(1ll<<(bits-1)),hi=(1ll<<(bits-1))-1;return x<lo?lo:x>hi?hi:x;}
 static uint64_t clamp_unsigned(int64_t x,int bits){uint64_t hi=(1ull<<bits)-1;return x<0?0:(uint64_t)x>hi?hi:(uint64_t)x;}
 static uint64_t lane(x86_vec_t v,int i,int bytes){return bytes==1?v.u8[i]:bytes==2?v.u16[i]:bytes==4?v.u32[i]:v.u64[i];}
@@ -41,8 +36,10 @@ void x86_simd(const x86_insn_t *in) {
     unsigned op=in->simd_op,prefix=in->simd_prefix;int scalar=prefix==0xf2||prefix==0xf3,dbl=prefix==0x66||prefix==0xf2,bytes=dbl?8:4,n=scalar?1:16/bytes;
     const x86_opnd_t *a=&in->o[0],*b=&in->o[1];x86_vec_t av=X.xmm[a->reg],bv={0},r=av;
     if(op==0xae){unsigned group=a->reg&7;if(group==2){X.mxcsr=(uint32_t)x64_load(x64_ea(b),4);return;}if(group==3){x64_store(x64_ea(b),X.mxcsr,4);return;}if(group>=5)return;x86_fault("unsupported FXSAVE/XSAVE instruction",in->addr);}
+    if((op==0x2a||op==0x2c||op==0x2d)&&prefix!=0xf2&&prefix!=0xf3)
+        x86_fault("unsupported MMX conversion",in->addr);
     if(op==0x6e || op==0x2a){x86_opnd_t g=*b;if(g.kind==XK_XMM)g.kind=XK_REG;g.size=(in->rex&8)?8:4;uint64_t v=x64_read(&g);
-        if(op==0x6e){r=(x86_vec_t){0};r.u64[0]=v;}else if(dbl)r.f64[0]=(double)(int64_t)x64_sext(v,g.size);else r.f32[0]=(float)(int64_t)x64_sext(v,g.size);X.xmm[a->reg]=r;return;}
+        if(op==0x6e){r=(x86_vec_t){0};r.u64[0]=v;}else if(dbl)r.u64[0]=xs_from_int((int64_t)x64_sext(v,g.size),1,X.mxcsr);else r.u32[0]=(uint32_t)xs_from_int((int64_t)x64_sext(v,g.size),0,X.mxcsr);X.xmm[a->reg]=r;return;}
     if(op==0x7e && prefix!=0xf3){x86_opnd_t g=*b;if(g.kind==XK_XMM)g.kind=XK_REG;g.size=(in->rex&8)?8:4;x64_write(&g,av.u64[0]);return;}
     if(op==0xd6 && prefix==0x66){bv=av;bv.u64[1]=0;storev(b,bv,8);return;}
     if(op==0x2c || op==0x2d){bv=loadv(b,bytes);x64_set(a->reg,(in->rex&8)?8:4,(uint64_t)convert_int(dbl?bv.f64[0]:bv.f32[0],(in->rex&8)?64:32,op==0x2c));return;}
@@ -58,13 +55,13 @@ void x86_simd(const x86_insn_t *in) {
         else for(int i=0;i<16/width;i++){uint64_t v=lane(bv,i,width),out=0;if(group==2)out=count>=(unsigned)width*8?0:v>>count;else if(group==6)out=count>=(unsigned)width*8?0:v<<count;else if(group==4)out=(uint64_t)(slane(bv,i,width)>>(count>=(unsigned)width*8?width*8-1:count));else x86_fault("unsupported SSE shift group",in->addr);setlane(&r,i,width,out);}
         X.xmm[b->reg]=r;return;
     }
-    int readbytes=(op==0x10&&scalar)||(op>=0x2e&&op<=0x2f)?bytes:(op==0x7e?8:scalar&&op>=0x51&&op<=0x5f?bytes:16);
+    int readbytes=(op==0x10&&scalar)||(op==0x5a&&scalar)||(op==0xc2&&scalar)||(op>=0x2e&&op<=0x2f)?bytes:(op==0x7e?8:scalar&&op>=0x51&&op<=0x5f?bytes:16);
     if((op==0x5a&&prefix==0)||(op==0xe6&&prefix==0xf3))readbytes=8;
     bv=loadv(b,readbytes);
     if(op==0x10 || op==0x28 || op==0x6f || op==0x7e){if(op==0x7e){r=(x86_vec_t){0};r.u64[0]=bv.u64[0];}else if(op==0x10&&scalar){if(b->kind==XK_MEM)r=(x86_vec_t){0};__builtin_memcpy(&r,&bv,(uint32_t)bytes);}else r=bv;X.xmm[a->reg]=r;return;}
     if(op==0x2e || op==0x2f){double x=dbl?av.f64[0]:av.f32[0],y=dbl?bv.f64[0]:bv.f32[0];X.flags&=~(F_OF|F_SF|F_AF|F_ZF|F_PF|F_CF);if(x!=x||y!=y)X.flags|=F_ZF|F_PF|F_CF;else if(x==y)X.flags|=F_ZF;else if(x<y)X.flags|=F_CF;return;}
     if((op>=0x51&&op<=0x53)||(op>=0x58&&op<=0x5f)||op==0xc2){
-        if(op==0x5a){if(prefix==0xf3)r.f64[0]=bv.f32[0];else if(prefix==0xf2)r.f32[0]=(float)bv.f64[0];else if(prefix==0x66){r=(x86_vec_t){0};r.f32[0]=(float)bv.f64[0];r.f32[1]=(float)bv.f64[1];}else{r.f64[0]=bv.f32[0];r.f64[1]=bv.f32[1];}X.xmm[a->reg]=r;return;}
+        if(op==0x5a){if(prefix==0xf3)r.f64[0]=bv.f32[0];else if(prefix==0xf2)r.u32[0]=xs_double_to_float(bv.u64[0],X.mxcsr);else if(prefix==0x66){r=(x86_vec_t){0};r.f32[0]=(float)bv.f64[0];r.f32[1]=(float)bv.f64[1];}else{r.f64[0]=bv.f32[0];r.f64[1]=bv.f32[1];}X.xmm[a->reg]=r;return;}
         if(op==0x5b){for(int i=0;i<4;i++){if(prefix==0)r.f32[i]=(float)bv.i32[i];else r.i32[i]=(int32_t)convert_int(bv.f32[i],32,prefix==0xf3);}X.xmm[a->reg]=r;return;}
         for(int i=0;i<n;i++){
             double x=dbl?av.f64[i]:av.f32[i],y=dbl?bv.f64[i]:bv.f32[i],v=0;

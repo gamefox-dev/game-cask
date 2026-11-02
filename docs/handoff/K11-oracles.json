@@ -1,0 +1,402 @@
+[
+  {
+    "id": "win32-conformance",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "cac197f9",
+      "interpreted": "cac197f9"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "win32-hello",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "3aee6ab3",
+      "interpreted": "3aee6ab3"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-audio",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "fca3a8ef",
+      "interpreted": "fca3a8ef"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-audio-init",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "d5bdc41a",
+      "interpreted": "d5bdc41a"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-basics",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "fa722538",
+      "interpreted": "fa722538"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-contracts",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "aa73228a",
+      "interpreted": "aa73228a"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-cpp",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "3e9c1371",
+      "interpreted": "3e9c1371"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-cpprt",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "0123a5b6",
+      "interpreted": "0123a5b6"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-crt",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "250146bf",
+      "interpreted": "250146bf"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-gl",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "c8adc1e8:207a9b9e",
+      "interpreted": "c8adc1e8:207a9b9e"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-gl-current",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "644b5bca:295c8c71",
+      "interpreted": "644b5bca:295c8c71"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-gl-fbo",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "b3678868:307490f5",
+      "interpreted": "b3678868:307490f5"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-gl-integer",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "4dc212e5:287f55ca",
+      "interpreted": "4dc212e5:287f55ca"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-glsl",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "90d3cfbe:20108045",
+      "interpreted": "90d3cfbe:20108045"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-gui",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "d5418f3b",
+      "interpreted": "d5418f3b"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-handles",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "a5c9bef1",
+      "interpreted": "a5c9bef1"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-input",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "6f2dfd92",
+      "interpreted": "6f2dfd92"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-memory",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "4d125c5d",
+      "interpreted": "4d125c5d"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-scale",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "7e4cc442",
+      "interpreted": "7e4cc442"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-smoke",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "0b6a8554:207a9b9e",
+      "interpreted": "0b6a8554:207a9b9e"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-sysdlls",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "7c132130",
+      "interpreted": "7c132130"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-threads",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "150fe857",
+      "interpreted": "150fe857"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x64-tls",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "edaedcf1",
+      "interpreted": "edaedcf1"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x86-handles",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "77febf63",
+      "interpreted": "77febf63"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  },
+  {
+    "id": "x86-threads",
+    "exit": 0,
+    "identical": true,
+    "comparedFrames": 300,
+    "errors": {
+      "lifted": null,
+      "interpreted": null
+    },
+    "hashes": {
+      "lifted": "55742fef",
+      "interpreted": "55742fef"
+    },
+    "lifted_interp_insns": 0,
+    "stubs": []
+  }
+]

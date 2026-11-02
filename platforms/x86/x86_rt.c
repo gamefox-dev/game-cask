@@ -7,6 +7,7 @@
 #include "x86_sem.h"
 #include "bgt.h"
 #include "x86_sched.h" /* LANE-C */
+#include "x86_coverage.h"
 
 void x86_exec_insn(const x86_insn_t *in);
 
@@ -15,7 +16,50 @@ uint8_t *x86_pages[1u << 20];
 uint8_t x86_protection[1u << 20];
 int x86_protection_active;
 x86_metrics_t x86_metrics;
+uint64_t x86_guest_instruction_clock(void) { return X.tsc; }
 int x86_force_interp;
+x86_timing_t x86_timings[XP_CATEGORIES];
+x86_census_t x86_census[X86_CENSUS_CAP];
+uint64_t x86_census_dropped,x86_census_generation,x86_census_window_start_clock;
+void x86_profile_reset(void) {
+    __builtin_memset(x86_census,0,sizeof x86_census);x86_census_dropped=0;
+    x86_census_generation++;x86_census_window_start_clock=X.tsc;
+}
+double x86_profile_idle_us;
+static double idle_start;
+double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
+void x86_profile_idle_begin(void) { idle_start = bgt_time_us(); }
+void x86_profile_idle_end(void) { x86_profile_idle_us += bgt_time_us() - idle_start; }
+double x86_profile_begin(unsigned category) {
+    if(!X86_PROFILE_ENABLED)return -1;
+    static uint32_t countdown[XP_CATEGORIES], random=0x19730119;
+    x86_timing_t *t = &x86_timings[category];t->calls++;
+    if(countdown[category]) {countdown[category]--;return -1;}
+    random=random*1664525u+1013904223u;
+    countdown[category]=X86_PROFILE_SAMPLE/2+(random%X86_PROFILE_SAMPLE);
+    t->samples++; return x86_profile_clock();
+}
+void x86_profile_end(unsigned category, double start) {
+    if (start >= 0) x86_timings[category].sample_us += x86_profile_clock() - start;
+}
+uint64_t x86_profile_exit(uint32_t address, uint32_t reason) {
+    if(!X86_PROFILE_ENABLED)return 0;
+    uint32_t h = ((address * 2654435761u) ^ (reason * 2246822519u)) & (X86_CENSUS_CAP-1);
+    for (unsigned i=0;i<16;i++,h=(h+1)&(X86_CENSUS_CAP-1)) {
+        x86_census_t *e=&x86_census[h];
+        if (!e->reason || (e->address==address && e->reason==reason)) {
+            e->address=address;e->reason=reason;e->count++;return (uint64_t)(h+1) | (x86_census_generation<<32);
+        }
+    }
+    x86_census_dropped++;return 0;
+}
+void x86_profile_instruction(uint64_t bucket) {
+    if((bucket>>32)!=(uint32_t)x86_census_generation)return;
+    uint32_t index=(uint32_t)bucket;if(index)x86_census[index-1].instructions++;
+}
+static uint64_t interpreter_bucket;
+static uint64_t interpreter_generation;
+unsigned x86_lift_reason = XE_FORM;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 void x86_lift_block(uint32_t count);
@@ -32,6 +76,10 @@ void x86_cooperate(void) {
     scheduler();
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
+
+static void profiled_native(x86_lifted_fn fn) {
+    double start=x86_profile_begin(XP_NATIVE);fn();x86_profile_end(XP_NATIVE,start);
+}
 
 /* ------------------------------------------------------------------ host arena */
 extern unsigned char __heap_base;
@@ -104,6 +152,7 @@ static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
+    x86_coverage_flush();
     uint32_t n = 0;
     const char *p = "x86: ";
     while (*p && n + 32 < sizeof fault_buf) fault_buf[n++] = *p++;
@@ -137,10 +186,14 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 /* ------------------------------------------------------------------ lifted registry */
 static const x86_lifted_entry_t *lifted;
 static uint32_t nlifted;
+/* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
+ * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
+static struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid; } lifted_cache[1024];
 
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
+    __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
     for (uint32_t i = 0; i < n; i++)
@@ -150,6 +203,14 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
     if (x86_force_interp) return 0;
+    unsigned slot = (addr ^ (addr >> 10)) & 1023u;
+    if (lifted_cache[slot].valid && lifted_cache[slot].addr == addr) {
+#if X86_COVERAGE_MODE == 2
+        if (lifted_cache[slot].fn) x86_coverage_entry(addr,1);
+#endif
+        return lifted_cache[slot].fn;
+    }
+    x86_lifted_fn found = 0; x86_native_fn native = 0;
     /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
     uint32_t lo = 0, hi = nlifted;
     while (lo < hi) {
@@ -158,16 +219,64 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
     }
     if (lo) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
-        if (addr == e->addr || addr < e->end) return e->fn;
+        if (addr == e->addr || addr < e->end) { found = e->fn; native = e->native; }
     }
-    return 0;
+    lifted_cache[slot].addr = addr; lifted_cache[slot].fn = found;
+    lifted_cache[slot].native = native; lifted_cache[slot].valid = 1;
+#if X86_COVERAGE_MODE == 2
+    if (found) x86_coverage_entry(addr,1);
+#endif
+    return found;
 }
+
+static x86_native_fn find_native(uint32_t addr) {
+    if (!x86_find_lifted(addr)) return 0;
+    return lifted_cache[(addr ^ (addr >> 10)) & 1023u].native;
+}
+/* Each nested invocation installs its own stop boundary. Native chaining must not consume
+ * a caller continuation past the return requested by callbacks or cold generic CALLs. */
+static uint32_t native_stop, native_floor;
+static int native_limit;
 
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
+/* Native regions have already spilled and returned. Only this tiny wrapper may suspend,
+ * invoke callbacks, grow memory or transfer; it never holds a local guest register/pointer. */
+void x86_lift_thunk(void) {
+#ifdef X86_FLAT_GUEST
+    if (!X.transfer && !x86_lift_pending && !x86_lift_count && x86_is_thunk(X.eip)) {
+        x86_metrics.thunk_dispatches++;
+        thunk_fn(X.eip);
+    }
+#endif
+}
+
+/* One flat native driver for all owners. Native steps return before host calls/suspension;
+ * guest recursion and tail cycles consume no recursive C frames. Legacy/override entries
+ * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
+void x86_run_native(x86_native_fn step) {
+#ifdef X86_FLAT_GUEST
+    uint32_t stop = native_stop, floor = native_floor; int limit = native_limit;
+    for (;;) {
+        uint32_t old = X.eip; uint64_t clock = X.tsc;
+        step(X.eip);
+        if (X.transfer || x86_lift_pending || x86_lift_count) return;
+        if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
+        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        if (x86_is_thunk(X.eip)) x86_lift_thunk();
+        if (X.transfer || x86_lift_pending || x86_lift_count) return;
+        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        /* A naked call outside invoke has no return boundary; execute only its supplied step. */
+        if (!limit || !(step = find_native(X.eip))) return;
+        x86_metrics.lifted_calls++;
+    }
+#else
+    step(X.eip);
+#endif
+}
 
 /* Coverage is block/continuation entry evidence, not an instruction trace. The host
  * deduplicates addresses. Function census uses a bounded byte per analyzed owner. */
@@ -192,11 +301,16 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if (entry) bgt_coverage_entry(addr, 2);
+    if(entry)x86_coverage_entry(addr,2);
+    if(entry || interpreter_generation!=x86_census_generation) {
+        interpreter_generation=x86_census_generation;
+        interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER);
+    }
     return entry;
 }
 static void interpreted_count(int entry, const x86_code_range_t *owner) {
     x86_metrics.interp_insns++;
+    x86_profile_instruction(interpreter_bucket);
     if (owner && !interpreted_owners[owner->owner]) {
         interpreted_owners[owner->owner] = 1; x86_metrics.interp_functions++;
     }
@@ -251,7 +365,7 @@ static const x86_insn_t *decode_at(uint32_t eip) {
 }
 
 /* run until EIP == ret_addr with ESP > esp_floor */
-static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
+static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
 #ifdef X86_FLAT_GUEST
     {
         int entry = 1;
@@ -266,7 +380,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t old = X.eip;
                 uint64_t old_clock = X.tsc;
                 x86_metrics.lifted_calls++;
-                f();
+                profiled_native(f);
                 if (x86_lift_pending) {
                     const x86_insn_t *pending = x86_lift_pending; x86_lift_pending = 0;
                     x86_exec_one(pending);
@@ -284,7 +398,11 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t budget = X.frame_insns, addr = in->addr;
                 int next_entry = ends_block(in), string = is_string(in->op), rep = in->rep;
                 x86_word_t count = X.r[ECX];
+                double interpreter_start=x86_profile_begin(XP_INTERPRETER);
+                uint64_t saved_bucket=interpreter_bucket;
                 x86_exec64(in);
+                x86_profile_end(XP_INTERPRETER,interpreter_start);
+                interpreter_bucket=saved_bucket;
                 /* Both dispatch and the first string iteration can transfer before execution.
                  * A partially executed REP changes its count and still counts once. A zero-
                  * count REP completes at next, so it also remains a completed dispatch.
@@ -310,7 +428,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
         }
         /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
         x86_lifted_fn resume = x86_find_lifted(eip);
-        if (resume) { x86_metrics.lifted_calls++; resume(); entry = 1; continue; }
+        if (resume) { x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
         const x86_insn_t *in = decode_at(eip);
@@ -327,19 +445,30 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t next = in->addr + in->len;
                 x86_push(next);
                 x86_metrics.lifted_calls++;
-                fn();
+                profiled_native(fn);
                 entry = 1;
                 if (X.transfer) return; /* LANE-C */
                 if (X.eip != next) x86_fault("lifted callee returned to an unexpected address", in->addr);
                 continue;
             }
         }
+        double interpreter_start=x86_profile_begin(XP_INTERPRETER);
+        uint64_t saved_bucket=interpreter_bucket;
         x86_exec_insn(in);
+        x86_profile_end(XP_INTERPRETER,interpreter_start);
+        interpreter_bucket=saved_bucket;
         /* i386's outer quantum check already ran; strings have an inner check too. */
         if (string && !(X.transfer && X.eip == addr && (!rep || X.r[ECX] == count)))
             interpreted_count(counted_entry, owner);
         entry = next_entry;
     }
+}
+
+static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
+    uint32_t saved_stop = native_stop, saved_floor = native_floor; int saved_limit = native_limit;
+    native_stop = ret_addr; native_floor = esp_floor; native_limit = 1;
+    interp_loop(ret_addr, esp_floor);
+    native_stop = saved_stop; native_floor = saved_floor; native_limit = saved_limit;
 }
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
@@ -350,9 +479,9 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
 #endif
     x86_lifted_fn fn = x86_find_lifted(target);
     if (fn) {
-        bgt_coverage_entry(target,1);
+        x86_coverage_lifted(target,1);
         x86_metrics.lifted_calls++;
-        fn();
+        profiled_native(fn);
         return;
     }
     X.eip = target;
@@ -370,7 +499,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
     /* a jump straight to a lifted function entry with the frame torn down is a tail call */
     if (X.r[ESP] == esp0) {
         x86_lifted_fn fn = x86_find_lifted(X.eip);
-        if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
+        if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; profiled_native(fn); return; }
     }
     /* a tail jump to an import thunk is an API call, not interpretation */
     if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
@@ -381,11 +510,16 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
  * entries this is bounded by the statically emitted block length and uses the generic semantic
  * counter. It preserves the exact instruction at which the reference cooperates. */
 void x86_lift_block(uint32_t count) {
+    uint64_t bucket=x86_profile_exit(X.eip,x86_lift_reason);
     while (count--) {
         const x86_insn_t *in = decode_at(X.eip);
         uint32_t next = in->addr + in->len;
         int call = in->op == XO_CALL || in->op == XO_CALL_IND;
-        x86_exec_one(in);
+        x86_profile_instruction(bucket);
+        x86_metrics.generic_insn_execs++;
+        double generic_start=x86_profile_begin(XP_GENERIC);
+        x86_exec_insn(in);
+        x86_profile_end(XP_GENERIC,generic_start);
         /* LANE-F/C: a quantum transfer can precede this pending CALL's execution. */
         if (X.transfer) return;
         if (call) x86_invoke(X.eip, next);
@@ -394,8 +528,11 @@ void x86_lift_block(uint32_t count) {
 }
 
 void x86_exec_one(const x86_insn_t *in) {
+    x86_profile_instruction(x86_profile_exit(in->addr,XE_FORM));
     x86_metrics.generic_insn_execs++;
+    double start=x86_profile_begin(XP_GENERIC);
     x86_exec_insn(in);
+    x86_profile_end(XP_GENERIC,start);
 }
 
 const uint8_t *x86_debug_peek(uint32_t addr, uint32_t len) {

@@ -23,6 +23,8 @@ import {
   GPU_LIMITS,
   IO,
   LIMITS,
+  SLICE_POLICY,
+  SLICE_FIRST_ENTRY,
   MAX_TOUCHES,
   errorName,
 } from './abi';
@@ -161,6 +163,9 @@ interface GameExports {
   bgt_debug_state?(): number;
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
+  bgt_profile_reset?():void;
+  bgt_slice_policy?(entries:number,ranges:number):number;
+  bgt_slice_first_entry?():number;
   bgt_async_buffer?(): number;
   bgt_async_buffer_size?(): number;
   // added by binaryen's asyncify pass (game.json "asyncify": true)
@@ -201,7 +206,11 @@ export class GameHost {
   private ioWork = new Set<Promise<void>>();
   get fileIo() { const v=this.services.vfs;return { consumedBytes:v.consumedBytes,observedBytes:v.observedBytes,readAheadBytes:v.readAheadBytes,readAheadRequests:v.readAheadRequests,files:v.coverage(),readAhead:v.readAheadCoverage() }; }
   get ioPending(): boolean { return this.ioWork.size > 0; }
-  async settleRequests(): Promise<void> { await Promise.all([...this.ioWork]); }
+  async settleRequests(): Promise<void> {
+    if (!this.ioWork.size) return;
+    const start=this.services.now();
+    try { await Promise.all([...this.ioWork]); } finally { this.profile.ioWaitMs+=this.services.now()-start; }
+  }
   state: DrawState = defaultState(1, 1);
   logicalWidth = 0;
   logicalHeight = 0;
@@ -211,6 +220,8 @@ export class GameHost {
   /** kit coverage: BGT commands executed per opcode, and runtime imports called */
   readonly opCounts: Record<number, number> = {};
   readonly importCounts: Record<string, number> = {};
+  readonly profile = { updateMs: 0, renderMs: 0, ioWaitMs: 0,
+    imports: {} as Record<string, { samples: number; sampleMs: number; estimatedMs: number }> };
   commandErrorCount = 0;
   readonly timings: HostTimings = { updateMs: 0, renderMs: 0, decodeMs: 0 };
   instantiateMs = 0;
@@ -356,8 +367,17 @@ export class GameHost {
     const counted: Record<string, (...args: never[]) => unknown> = {};
     for (const [name, fn] of Object.entries(raw.bgt)) {
       counted[name] = (...args: never[]) => {
-        this.importCounts[name] = (this.importCounts[name] ?? 0) + 1;
-        return (fn as (...a: never[]) => unknown)(...args);
+        const count=this.importCounts[name] = (this.importCounts[name] ?? 0) + 1;
+        // Never time the timer itself or hot coverage crossings. Sample other imports 1/1024.
+        const sample=name !== 'time_us' && name !== 'coverage_entry' && (count-1)%1024===0;
+        const start=sample?this.services.now():0;
+        try { return (fn as (...a: never[]) => unknown)(...args); }
+        finally { if(sample) {
+          const t=this.profile.imports[name] ??= {samples:0,sampleMs:0,estimatedMs:0};
+          t.samples++;t.sampleMs+=this.services.now()-start;
+          t.estimatedMs=t.sampleMs*count/t.samples;
+        } }
+        // Estimates are refreshed at observation for the final unsampled tail.
       };
     }
     return { bgt: counted };
@@ -416,7 +436,14 @@ export class GameHost {
           this.recordDecode(res);
           return res.status;
         },
-        slice_missing: (kind: number,addr: number) => { throw new OutsideSlice(kind >>> 0,addr >>> 0); },
+        slice_missing: (kind: number,addr: number) => {
+          kind >>>= 0;addr >>>= 0;
+          if(kind===1) {
+            if(this.codeCoverage.has(addr) || this.codeCoverage.size<CODE_COVERAGE_LIMIT)this.codeCoverage.set(addr,(this.codeCoverage.get(addr) ?? 0)|2);
+            else this.codeCoverageDropped++;
+          }
+          throw new OutsideSlice(kind,addr);
+        },
         coverage_entry: (addr: number, kind: number) => {
           addr >>>= 0; kind >>>= 0;
           if (kind === 1 || kind === 2) {
@@ -611,6 +638,25 @@ export class GameHost {
     // flushed with the first rendered frame.
     this.frame.logicalW = this.logicalWidth;
     this.frame.logicalH = this.logicalHeight;
+    if(this.allowedCode && this.exports.bgt_slice_policy) {
+      const entries=[...this.allowedCode].sort((a,b)=>a-b),ranges=[...(this.config.sliceCodeRanges ?? [])].sort((a,b)=>a.addr-b.addr);
+      if(entries.length>1048576 || ranges.length>1048576 || entries.some(a=>!Number.isInteger(a)||a<0||a>0xffffffff) ||
+        ranges.some((r,i)=>!Number.isInteger(r.addr)||!Number.isInteger(r.end)||r.addr<0||r.end<=r.addr||r.end>0xffffffff||(i>0 && ranges[i-1].end>r.addr)))
+        throw new HostError('invalid slice-policy input');
+      const p=this.exports.bgt_slice_policy(entries.length,ranges.length) >>> 0;
+      if(!p || p%4 || !this.inRange(p,SLICE_POLICY.SIZE))throw new HostError('invalid slice-policy descriptor');
+      const v=this.dv();
+      if(v.getUint32(p,true)!==SLICE_POLICY.SIZE || v.getUint32(p+SLICE_POLICY.version,true)!==1 ||
+        v.getUint32(p+SLICE_POLICY.entry_count,true)!==entries.length || v.getUint32(p+SLICE_POLICY.range_count,true)!==ranges.length)
+        throw new HostError('invalid slice-policy shape');
+      const ep=v.getUint32(p+SLICE_POLICY.entries_ptr,true),rp=v.getUint32(p+SLICE_POLICY.ranges_ptr,true);
+      if(ep%4 || rp%4 || !this.inRange(ep,entries.length*4) || !this.inRange(rp,ranges.length*8))throw new HostError('invalid slice-policy buffers');
+      const overlap=(a:number,n:number,b:number,m:number)=>n>0 && m>0 && a<b+m && b<a+n;
+      if(overlap(p,SLICE_POLICY.SIZE,ep,entries.length*4) || overlap(p,SLICE_POLICY.SIZE,rp,ranges.length*8) ||
+        overlap(ep,entries.length*4,rp,ranges.length*8))throw new HostError('overlapping slice-policy buffers');
+      entries.forEach((a,i)=>v.setUint32(ep+4*i,a,true));
+      ranges.forEach((r,i)=>{v.setUint32(rp+8*i,r.addr,true);v.setUint32(rp+8*i+4,r.end,true);});
+    }
     this.initialized = true;
     return rc;
   }
@@ -708,6 +754,7 @@ export class GameHost {
       throw new HostError('asyncify rewind did not reach bgt_yield (game state diverged)');
     }
     this.timings.updateMs = this.services.now() - t0;
+    this.profile.updateMs += this.timings.updateMs;
     this.frameIndex++;
     // v0.2: the game may change its logical size at runtime
     const dv = this.dv();
@@ -719,17 +766,33 @@ export class GameHost {
     }
   }
 
+  profileReset():boolean {
+    const reset=this.exports.bgt_profile_reset;
+    if(!reset || this.inUpdate)return false;
+    reset();return true;
+  }
+
   /** Optional kit metrics JSON exported by the game (bgt_metrics). */
   metrics(): unknown {
     const fn = this.exports.bgt_metrics;
     if (!fn) return null;
     const ptr = fn() >>> 0;
+    const first=this.exports.bgt_slice_first_entry?.() ?? 0;
+    if(first && first%4===0 && this.inRange(first,SLICE_FIRST_ENTRY.SIZE)) {
+      const v=this.dv(),a=v.getUint32(first+SLICE_FIRST_ENTRY.address,true),kind=v.getUint32(first+SLICE_FIRST_ENTRY.kind,true);
+      if((kind===1 || kind===2) && !this.codeCoverage.has(a)) {
+        if(this.codeCoverage.size<CODE_COVERAGE_LIMIT)this.codeCoverage.set(a,kind);
+        else this.codeCoverageDropped++;
+      }
+    }
     const mem = this.mem();
     if (!ptr || ptr >= mem.byteLength) return null;
-    const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.debugStateBytes)).indexOf(0);
+    const end = mem.subarray(ptr, Math.min(mem.byteLength, ptr + LIMITS.metricsBytes)).indexOf(0);
     if (end < 0) return null;
     try {
-      return JSON.parse(utf8.decode(mem.subarray(ptr, ptr + end)));
+      const metrics=JSON.parse(utf8.decode(mem.subarray(ptr, ptr + end)));
+      for(const [name,t] of Object.entries(this.profile.imports))t.estimatedMs=t.sampleMs*(this.importCounts[name] ?? 0)/t.samples;
+      return { ...metrics, host_profile: this.profile };
     } catch {
       return null;
     }
@@ -754,6 +817,7 @@ export class GameHost {
     const t0 = this.services.now();
     this.exports.bgt_render();
     this.timings.renderMs = this.services.now() - t0;
+    this.profile.renderMs += this.timings.renderMs;
     this.timings.decodeMs = this.decodeTime;
     return this.frame;
   }

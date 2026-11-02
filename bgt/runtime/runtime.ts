@@ -161,6 +161,14 @@ export class BGTRuntime {
   private wasmStreaming = false;
   private firstFrameMs: number | null = null;
   private frameTimes: number[] = [];
+  private gpuWallMs = 0;
+  private gpuSubmitTotalMs = 0;
+  private executionMetrics() {
+    const m=this.host?.metrics();
+    return m && typeof m==='object' ? {...m,runtime_profile:{
+      gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,
+      vfs:this.rangeFiles?.timing ?? null}} : m ?? null;
+  }
   private sliceEvents = 0;
   private renderTail: Promise<void> = Promise.resolve();
   private renderBusy = false;
@@ -611,12 +619,15 @@ export class BGTRuntime {
     const frame = this.guard(() => host.render());
     if (!frame) return null;
     let out: Pixels | null | Promise<Pixels | null> = null;
+    const gpuStart=performance.now();
     try {
       out = await r.drawFrame(frame, this.letterbox, readback);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
     }
+    this.gpuWallMs+=performance.now()-gpuStart;
+    this.gpuSubmitTotalMs+=r.stats.submitMs;
     // A loss callback can run during an asynchronous draw/readback. Keep queued GPU work as fallback evidence.
     if (r.lost || this.failed || r !== this.renderer) return null;
     this.lastFrameStats = {
@@ -709,13 +720,17 @@ export class BGTRuntime {
     await this.renderer?.simulateLoss(opts);
   }
 
+  profileReset():boolean {return this.host?.profileReset() ?? false;}
+
   coverageSnapshot() {
+    // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
+    const execution=this.host?.metrics() ?? null;
     return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
       readAhead:this.vfs.readAheadCoverage(),
       metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,
-        execution:this.host?.metrics() ?? null,frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+        execution,runtime_profile:{gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,vfs:this.rangeFiles?.timing ?? null},frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
         crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
         load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
         frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},
@@ -775,7 +790,7 @@ export class BGTRuntime {
       yields: host?.yields ?? 0,
       suspended: host?.suspended ?? false,
       outsideSlice: this.outsideSlice,
-      metrics: host?.metrics() ?? null,
+      metrics: this.executionMetrics(),
       coverage: {
         ops: Object.fromEntries(Object.entries(host?.opCounts ?? {}).map(([k, v]) => [OP_NAMES[Number(k)] ?? k, v])),
         imports: { ...(host?.importCounts ?? {}) },

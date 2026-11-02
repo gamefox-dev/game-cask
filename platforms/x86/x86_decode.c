@@ -133,6 +133,22 @@ int x86_decode_mode(const uint8_t *bytes, uint32_t avail, uint32_t addr, int mod
             in->op = XO_SIMD; in->simd_op = (uint8_t)op2; in->simd_prefix = (uint8_t)prefix;
             f = modrm(&r,b,16,fs); a->kind = XK_XMM; a->reg = (uint8_t)f; a->size = 16;
             if (b->kind == XK_REG) b->kind = XK_XMM;
+            /* Scalar integer conversions use GPR/memory, never an XMM source/destination.
+             * Keep width/class correct for disassembly, register liveness and native emission. */
+            if ((op2 == 0x2a && (prefix == 0xf2 || prefix == 0xf3)) || op2 == 0x6e ||
+                (op2 == 0x7e && prefix != 0xf3) || op2 == 0xc4) {
+                if (b->kind == XK_XMM) b->kind = XK_REG;
+                b->size = op2 == 0xc4 ? 2 : (r.rex & 8) ? 8 : 4;
+            }
+            if (((op2 == 0x2c || op2 == 0x2d) && (prefix == 0xf2 || prefix == 0xf3)) ||
+                op2 == 0x50 || op2 == 0xd7 || op2 == 0xc5) {
+                a->kind = XK_REG; a->size = (op2 == 0x2c || op2 == 0x2d) && (r.rex & 8) ? 8 : 4;
+            }
+            if (b->kind == XK_MEM &&
+                (op2 == 0x2e || op2 == 0x2f || ((prefix == 0xf2 || prefix == 0xf3) &&
+                 (op2 == 0x10 || op2 == 0x11 || op2 == 0x2c || op2 == 0x2d ||
+                  op2 == 0xc2 || (op2 >= 0x51 && op2 <= 0x5f)))))
+                b->size = prefix == 0xf2 || prefix == 0x66 ? 8 : 4;
             if (op2 == 0x70 || op2 == 0xc2 || op2 == 0xc4 || op2 == 0xc5 || op2 == 0xc6 || (op2 >= 0x71 && op2 <= 0x73)) in->simd_imm = (uint8_t)u8(&r);
             DONE(2);
         }
