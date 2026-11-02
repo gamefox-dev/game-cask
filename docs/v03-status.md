@@ -1,6 +1,18 @@
 # v0.3 merged implementation status
 
-## K16a checkpoint — Q50 bounded GL frontend (lane, not merged acceptance)
+## K16a continuation checkpoint — Q50/Q51 shared host memory (lane, NOT final acceptance)
+
+Q51 extension replaces separate GL/CRT pools with one bounded reusable host allocator and accounts
+runtime/GL/CRT/FILE use/peak/shared limit/backing. Host libc preserves ENOMEM; FILE buffering preserves
+ferror/ENOMEM before VFS read; failures log consumer/size/use/limit without allocation. Build-time
+`pipeline.memory.hostArenaMiB` accepts 16..512 (default64 retained from repaired stress evidence).
+Implementation **`dd4d101`**: **13/13 focused tests /4 files**, seven native modes, ASan+UBSan, supplementary GCC and fresh independent bounded review pass; scratch post-stress evidence remains
+15/15 stages and native compiler audit is 15/15 per backend. CC0 mixed fixture adds 2,048 FILE cycles
+with eight live parents during real shader warm-up. Final focused browser and full Tier1 are pending;
+no title/playability claim. GDI private replay/deleted CPU-storage findings are explicitly deferred by
+reviewer #127 to a separate lane. Exact commits, interrupted failures and live jobs: [K16a handoff](handoff/K16a.md).
+
+### Previous Q50 checkpoint (historical)
 
 Implementation `0f7d459` releases transient GLSL parse tables after compile/link, retains compiled-source snapshots,
 reuses bounded host spans across sizes, exposes compile/link failure reasons and host allocator metrics, and adds
