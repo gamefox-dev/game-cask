@@ -40,6 +40,7 @@ enum {
     BGT_OP_GPU_FEEDBACK_VARYINGS = 0x61,
     BGT_OP_GPU_FEEDBACK_CAPTURE = 0x62,
     BGT_OP_GPU_BUFFER_READBACK = 0x63,
+    BGT_OP_GPU_BUFFER_COPY = 0x64,
 };
 static inline void bgt__gpu_copy(uint8_t *dst, const void *src, uint32_t bytes) {
     const uint8_t *s = (const uint8_t *)src;
@@ -51,6 +52,9 @@ static inline void bgt_cmd_gpu_feedback_varyings(bgt_cmdbuf_t *b, const bgt_gpu_
 }
 static inline void bgt_cmd_gpu_feedback_capture(bgt_cmdbuf_t *b, const bgt_gpu_feedback_capture_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_FEEDBACK_CAPTURE, 52), v, 52);
+}
+static inline void bgt_cmd_gpu_buffer_copy(bgt_cmdbuf_t *b, const bgt_gpu_buffer_copy_t *v) {
+    bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_BUFFER_COPY, 20), v, 20);
 }
 static inline void bgt_cmd_gpu_buffer_readback(bgt_cmdbuf_t *b, const bgt_gpu_buffer_readback_t *v) {
     bgt__gpu_copy(bgt_cmd_push(b, BGT_OP_GPU_BUFFER_READBACK, 16), v, 16);

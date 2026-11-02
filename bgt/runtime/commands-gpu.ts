@@ -123,6 +123,20 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       } catch { return E_INVALID; }
       return emit();
     }
+    case GPU_OP.BUFFER_COPY: {
+      const source = g.buffers.get(h), dest = g.buffers.get(w[2]);
+      if (!source || !dest) return E_NOT_FOUND;
+      if (!w[4]) return E_INVALID;
+      if (w[1] + w[4] > source.shadow.length || w[3] + w[4] > dest.shadow.length) return E_BOUNDS;
+      if (h === w[2] && w[1] < w[3] + w[4] && w[3] < w[1] + w[4]) return E_INVALID;
+      const transferBytes = 2 * (Math.ceil((w[4] + 3) / 4) * 4);
+      if (ctx.frame.gpuUploadBytes + transferBytes > g.budget) return E_LIMIT;
+      ctx.frame.gpuUploadBytes += transferBytes;
+      dest.shadow.set(source.shadow.slice(w[1], w[1] + w[4]), w[3]);
+      if (source.generated) dest.generated = true;
+      else if (!w[3] && w[4] === dest.shadow.length) dest.generated = false;
+      return emit();
+    }
     case GPU_OP.BUFFER_READBACK: {
       const b = g.buffers.get(h); if (!b) return E_NOT_FOUND;
       if (!w[2]) return E_INVALID;

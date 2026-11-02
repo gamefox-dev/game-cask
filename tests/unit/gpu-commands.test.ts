@@ -145,6 +145,21 @@ describe('GPU command validation', () => {
     expect(t.send(O.SAMPLER_CREATE, [2, 0, 0, 0, 0, 0, 0, 7]).status).toBe(0);
     expect(t.inPass(O.TEXTURE, [0, 1, 2]).status).toBe(0);
   });
+  it('buffer copies validate ranges, overlap, pass state, budget and generated authority atomically',()=>{
+    const t=setup();t.resources(1);t.send(O.BUFFER_CREATE,[3,15,64,0,0]);
+    for(const [words,status] of [
+      [[999,0,3,0,4],A.E_NOT_FOUND],[[3,0,999,0,4],A.E_NOT_FOUND],[[3,0,1,0,0],A.E_INVALID],
+      [[3,63,1,0,2],A.E_BOUNDS],[[3,0,3,63,2],A.E_BOUNDS],[[3,0,3,1,4],A.E_INVALID],
+      [[3,0xffffffff,1,0,4],A.E_BOUNDS],
+    ] as [number[],number][]){const before=t.frame.items.length;expect(t.send(O.BUFFER_COPY,words).status).toBe(status);expect(t.frame.items).toHaveLength(before);}
+    expect(t.inPass(O.BUFFER_COPY,[3,0,1,0,4]).status).toBe(A.E_STATE);
+    const src=t.ctx.gpu!.buffers.get(1)!,dst=t.ctx.gpu!.buffers.get(3)!;src.shadow[1]=123;
+    expect(t.send(O.BUFFER_COPY,[1,1,3,3,7]).status).toBe(0);expect(dst.shadow[3]).toBe(123);expect(dst.shadow[2]).toBe(0);
+    src.generated=true;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(true);
+    src.generated=false;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(false);
+    t.frame.gpuUploadBytes=t.ctx.gpu!.budget;const before=t.frame.items.length;
+    expect(t.send(O.BUFFER_COPY,[1,0,3,0,4]).status).toBe(A.E_LIMIT);expect(t.frame.items).toHaveLength(before);
+  });
   it('accepts every GPU op, preserves exact 2D/GPU ordering, copies uploads and sends validated backend items', () => {
     const t = setup(); t.resources(1);
     expect(t.run(new CommandEncoder().clear(0xff112233)
@@ -159,6 +174,7 @@ describe('GPU command validation', () => {
       .gpu(O.FEEDBACK_CAPTURE,[1,3,0,4096,0,0,0,0,0,0,0,0,0]).gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
       .gpu(O.PASS_END, []).clear(0xff223344)).errors).toEqual([]);
     expect(t.send(O.BUFFER_READBACK,[3,0,48,9]).status).toBe(0);
+    expect(t.send(O.BUFFER_COPY,[3,1,1,2049,47]).status).toBe(0);
     expect(t.run(new CommandEncoder() // §13.7 operations, all outside passes
       .gpu(O.TEXTURE_CREATE_EX, [2, 0, 4, 4, 1, 2, 0, 1]).gpu(O.TEXTURE_ALLOCATE_MIPS, [2, 2])
       .gpu(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4])

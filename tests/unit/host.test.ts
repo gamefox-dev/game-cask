@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BACKEND_HEADLESS, E_UNSUPPORTED } from '../../bgt/runtime/abi';
+import { BACKEND_HEADLESS, E_UNSUPPORTED, CAP_GPU, GPU_OP, CMD_GPU_CONTINUATION } from '../../bgt/runtime/abi';
 import { GameHost, HostServices, emptyInput } from '../../bgt/runtime/host';
 import { Vfs, normalizeAssetPath } from '../../bgt/runtime/vfs';
 import { compileC } from '../support/compile';
+import {CommandEncoder} from '../../bgt/runtime/commands';
 
 const cfg = { backend: BACKEND_HEADLESS, caps: 0, seed: 1, displayWidth: 100, displayHeight: 100, arg0: 0, arg1: 0 };
 const services = (logs: string[] = []): HostServices => ({ log: (_l, m) => logs.push(m), vfs: new Vfs(), now: () => 0 });
@@ -42,6 +43,18 @@ describe('game host lifecycle and validation', () => {
     const t = await GameHost.create(await variant(4), services(), cfg);
     t.init();
     expect(() => t.update()).toThrow(WebAssembly.RuntimeError);
+  });
+
+  it('render retains continuation ordering/budgets beyond the JS varargs limit until consume',async()=>{
+    const h=await GameHost.create(await variant(7),services(),{...cfg,caps:CAP_GPU,gpuBackend:{languages:7,execute:()=>0}});h.init();
+    expect(h.submitExternal(new CommandEncoder().gpu(GPU_OP.BUFFER_CREATE,[1,1,16,0,0]).finish(CMD_GPU_CONTINUATION)).status).toBe(0);
+    const encoder=new CommandEncoder();for(let i=0;i<65536;i++)encoder.gpu(GPU_OP.BUFFER_UPDATE,[1,0,0,4]);
+    const list=encoder.finish(CMD_GPU_CONTINUATION);
+    for(let i=0;i<3;i++)expect(h.submitExternal(list).status).toBe(0);
+    const frame=h.render();expect(frame.items).toHaveLength(196609);expect(frame.commandCount).toBe(196609);
+    expect(frame.continuationSubmits).toBe(4);expect(frame.submits).toBe(4);
+    const bytes=frame.commandBytes;expect(h.render().commandBytes).toBe(bytes);
+    h.consume();expect(h.render().commandBytes).toBe(0);expect(h.render().items).toHaveLength(0);
   });
 
   it('hostile pointers/keys/paths get error codes, not memory access', async () => {

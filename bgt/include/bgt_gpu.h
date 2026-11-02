@@ -29,6 +29,7 @@ typedef struct {
 typedef struct { uint32_t pipeline, separate, count, names_ptr, names_len; } bgt_gpu_feedback_varyings_t;
 typedef struct { uint32_t discard, bindings[4][3]; } bgt_gpu_feedback_capture_t;
 typedef struct { uint32_t handle, offset, size, request; } bgt_gpu_buffer_readback_t;
+typedef struct { uint32_t source, source_offset, destination, destination_offset, size; } bgt_gpu_buffer_copy_t;
 #define BGT_GPU_BUFFER_FEEDBACK 8u
 #define BGT_GPU_BUFFER_VERTEX 1u
 #define BGT_GPU_BUFFER_INDEX 2u
@@ -402,6 +403,7 @@ typedef struct bgt_gpu_texture_allocate_mips {
 _Static_assert(sizeof(bgt_gpu_feedback_varyings_t) == 20, "GPU feedback varying layout");
 _Static_assert(sizeof(bgt_gpu_feedback_capture_t) == 52, "GPU feedback capture layout");
 _Static_assert(sizeof(bgt_gpu_buffer_readback_t) == 16, "GPU buffer readback layout");
+_Static_assert(sizeof(bgt_gpu_buffer_copy_t) == 20, "GPU buffer copy layout");
 _Static_assert(sizeof(bgt_gpu_blit_t) == 72, "GPU blit layout");
 _Static_assert(sizeof(bgt_gpu_buffer_create_t) == 20, "GPU buffer_create layout");
 _Static_assert(sizeof(bgt_gpu_buffer_update_t) == 16, "GPU buffer_update layout");

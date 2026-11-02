@@ -1143,3 +1143,69 @@ C layouts/encoders: `bgt_gpu_feedback_varyings_t`, `bgt_gpu_feedback_capture_t`,
 `bgt_cmd_gpu_*` helpers. TS mirror: `GPU_OP`, `GPU_LAYOUT`, `GPU.BUFFER_FEEDBACK`. Conformance includes C/TS exact layout
 and encoder comparisons, validator atomicity/alias/range/deferred-request tests, the original CC0 `x64-gl-feedback`
 normal Win64 pipeline fixture and direct native `gpu-feedback` regressions on both real backends.
+
+### 13.12 Bounded GPU submission continuation (additive v0.3)
+
+Command-stream **header** flag `GPU_CONTINUATION=1` opts a GPU-only list into bounded continuation of the
+current frame/update. Command-prefix flags remain zero. Unflagged headers retain their existing 256-list ceiling;
+continuation lists do not consume that legacy list allowance. CAP_GPU is required, otherwise E_UNSUPPORTED.
+A flagged list containing any opcode outside 0x40..0x64 is rejected in the framing pass (E_UNSUPPORTED, no effects).
+Unknown header bits remain E_UNSUPPORTED. All passes must still end in the same submission. This is not a yield,
+an update boundary, an implicit render, or permission to make requests visible early.
+
+The first continuation opts the entire accumulated frame into **64 MiB wire bytes / 1,048,576 commands** aggregate
+ceilings, including all headers and earlier/later legacy lists. Exceeding either rejects the whole new submission
+with E_LIMIT and no effects. Per-list 8 MiB / 65,536 commands, upload-copy budget, vertices, resource/handle budgets
+and deferred-request lifetimes remain unchanged. Empty lists also consume header bytes: list proliferation is bounded.
+All accepted items append to the existing Frame.items ordering authority on **both** WebGL 2 and WebGPU. Updates,
+feedback writes, resource reuse, draws and readback observe exact earlier list order; none is dropped/coalesced across
+an observable operation. There is no asynchronous drain/backpressure or unlimited queue promise.
+
+C: `BGT_CMD_GPU_CONTINUATION`, `BGT_GPU_CONTINUATION_BYTES`, `BGT_GPU_CONTINUATION_COMMANDS`,
+`bgt_cmd_submit_flags(buffer, flags)` (the existing `bgt_cmd_submit` still emits flags=0). TS mirrors:
+`CMD_GPU_CONTINUATION`, `GPU_CONTINUATION_LIMITS`, `CommandEncoder.finish(flags=0)`. The GL profile opts its
+GPU-only lists in; legacy screen readback keeps flags=0. Diagnostics `lastFrame.commandCount`,
+`continuationSubmits`, `commandBytes`, `continuationByteLimit`, `continuationCommandLimit` expose usage/headroom.
+The IO, opcode layouts, shader languages and limits struct are unchanged.
+
+Fragment target compatibility clarification (no wire addition): a color attachment without a corresponding linked
+fragment output is left unchanged. WebGPU intersects each color-state write_mask with the fragment entry-point's
+output locations (zero for absent outputs), retaining the application's per-channel mask for present outputs.
+Vertex/fragment input locations do not count as outputs, including in combined WGSL modules. Depth-only and feedback
+programs remain valid; an absent color output is not a reason to drop depth/feedback work.
+
+### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
+
+`BUFFER_COPY` is a 20-byte **outside-pass** operation: `source, source_offset, destination,
+destination_offset, size`. Handles name live GPU buffers in the existing namespace; all usage combinations
+are legal. Byte offsets and sizes have no alignment requirement. Size must be positive (E_INVALID); unknown
+handles give E_NOT_FOUND, either range outside storage E_BOUNDS, overlapping ranges in the same buffer E_INVALID,
+inside-pass E_STATE. Disjoint same-buffer ranges are legal. Shape/capability/framing rules are unchanged.
+The whole copy observes actual native bytes in stream order, including prior feedback writes; it preserves all
+bytes outside the destination range. No CPU-shadow substitute for generated content is allowed. Generated-data
+authority propagates to the destination; a full authoritative source copy can reestablish recoverability.
+
+Each copy additionally charges `2 * roundUp(size + 3, 4)` bytes against the existing per-frame GPU upload/transfer
+budget. This bounds transient byte-repacking and transfer work even for tiny wire lists; rejection is E_LIMIT with
+no effects. WebGL 2 executes native copyBufferSubData. WebGPU uses native aligned copies where possible, otherwise
+copies aligned covering ranges into bounded storage staging buffers and computes byte-masked destination words,
+then copies them back. Adjacent app bytes are preserved, not overwritten with zero or CPU-shadow data. Staging is
+released after submission. C: `bgt_gpu_buffer_copy_t`, `BGT_OP_GPU_BUFFER_COPY`, `bgt_cmd_gpu_buffer_copy`;
+TS: `GPU_OP.BUFFER_COPY`, `GPU_LAYOUT.buffer_copy`. Both backends implement the same ordered contract.
+
+The desktop WGL profile implements glCopyBufferSubData using this operation (zero-size GL copies are no-ops).
+Negative/out-of-bounds/overlapping ranges are GL_INVALID_VALUE; missing bindings or active feedback-buffer mutation
+is GL_INVALID_OPERATION; unsupported targets are GL_INVALID_ENUM. Mapped buffers remain unavailable because mapping
+APIs fail explicitly. COPY_READ/COPY_WRITE and all desktop GL 3.3 buffer targets can be used for copy/storage;
+pixel-buffer **transfers** remain explicit GL_INVALID_OPERATION, never offset-as-client-pointer interpretation.
+
+**Desktop uniform-block undefined-result policy (reviewer amendment #107/#108).** In the desktop WGL GL 3.3 context,
+a bound but undersized user uniform block draws with its actual available prefix followed by a zero-filled tail.
+This is a counted approximation of desktop GL's undefined shader result, not an ES/WebGL draw-error rule, and is
+independent of source language (GLSL330/ES300). Every affected block/draw increments `gl_approximations` under
+`undersized uniform block range zero-filled`. An explicit program/block/name/binding/buffer/offset/size/required
+warning is logged once per linked program/block/binding. Seven reusable private UBOs (at most 7 * 64 KiB) are
+zeroed and populated with native BUFFER_COPY prefixes before drawing, so GPU-generated prefixes remain correct
+and unrelated application bytes beyond the bound range never leak into the tail. Relink resets warning state.
+Missing buffers remain GL_INVALID_OPERATION. Valid ranges use exactly the complete linked std140 size; neither the
+block nor app data is truncated/padded in those paths. The unchanged target must be remeasured by its porter.

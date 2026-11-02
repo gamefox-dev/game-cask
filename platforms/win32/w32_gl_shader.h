@@ -217,7 +217,7 @@ static uint32_t link_program_build(void) {
     }
     while (p->ndef < g->nu && g->u[p->ndef].block < 0) p->ndef++;
     for (uint32_t i = 0; i < 8; i++) p->slot_unit[i] = 0;
-    for (uint32_t i = 0; i < 7; i++) p->block[i].binding = 0;
+    for (uint32_t i = 0; i < 7; i++) { p->block[i].binding = 0; p->block[i].warned = 0; }
     p->vertex_only = !p->fs; p->dirty = 1; p->linked = 1; return 0;
 }
 static uint32_t api_LinkProgram(void) {
