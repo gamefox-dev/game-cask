@@ -22,13 +22,10 @@ static const uint32_t table[] = {
     BGT_KEY_A, BGT_KEY_Z, BGT_KEY_ENTER, BGT_KEY_SPACE, BGT_KEY_RIGHT, BGT_KEY_UP, BGT_KEY_LSHIFT, BGT_DT_US,
     BGT_OP_READBACK, BGT_CAP_READBACK, BGT_CAP_STREAM_FILES, sizeof(bgt_gpu_limits_t),
     offsetof(bgt_gpu_limits_t,texture_budget_bytes),
-<<<<<<< HEAD
     sizeof(bgt_slice_policy_t),offsetof(bgt_slice_policy_t,version),offsetof(bgt_slice_policy_t,entry_count),
     offsetof(bgt_slice_policy_t,entries_ptr),offsetof(bgt_slice_policy_t,range_count),offsetof(bgt_slice_policy_t,ranges_ptr),
     sizeof(bgt_slice_first_entry_t),offsetof(bgt_slice_first_entry_t,address),offsetof(bgt_slice_first_entry_t,kind),
-=======
     BGT_CMD_GPU_CONTINUATION, BGT_GPU_CONTINUATION_BYTES, BGT_GPU_CONTINUATION_COMMANDS,
->>>>>>> lane/K14b
 };
 BGT_EXPORT(probe_table) uint32_t probe_table(void) { return (uint32_t)(uintptr_t)table; }
 BGT_EXPORT(probe_count) uint32_t probe_count(void) { return sizeof table / sizeof table[0]; }
