@@ -29,8 +29,8 @@ it('strict builds have no coverage import and enforce exact half-open membership
   for(const a of [100,109,200,209,500])ex.emit(a,2);
   for(const a of [0,99,110,199,210,501])expect(()=>ex.emit(a,2)).toThrow('slice stop');
   expect(missing).toEqual([0,99,110,199,210,501]);
-  // Static lifted hooks are removed; dispatcher membership checking remains a separate responsibility.
-  ex.lifted(999);expect(missing).toHaveLength(6);
+  // Strict hooks check membership locally, including internally handled dynamic entries.
+  expect(()=>ex.lifted(999)).toThrow('slice stop');expect(missing).toHaveLength(7);
   expect(ex.host_policy(1048577,0)).toBe(0);expect(ex.host_policy(256,0)).toBe(0); // allocation failure is truthful
   const ptr=ex.host_policy(1,0);expect(ptr).toBeGreaterThan(0);
   expect(ex.host_policy(0,0)).toBe(0); // one-shot

@@ -548,15 +548,17 @@ A positive return is a 4-aligned wasm pointer to `bgt_slice_policy_t` (C `bgt.h`
 | 16 | range_count | equals requested count |
 | 20 | ranges_ptr | writable range_count records `{u32 addr,end}` (8 bytes) |
 
-The descriptor is read-only. The host validates its shape and all buffer spans before writing the arrays. Entries
+The descriptor is read-only. The host validates its shape and all buffer spans before writing the arrays;
+nonempty writable spans may overlap neither the descriptor nor one another. Entries
 are sorted ascending; ranges are sorted disjoint half-open intervals. The module checks this **additional** host
 policy before executing a guest entry, intersected with its original compiled policy: neither can widen the other.
 Missing code calls existing `slice_missing(1,address)` before execution. Both browser backends and the headless
 host use this identical decoder. Older strict modules retain the imported coverage-hook membership check; modules
 without the export are unchanged. Frozen IO/imports and existing slice_missing layout/semantics are unchanged.
 
-This permits AMD64 strict generated recording hooks to be compiled out without losing a stricter host restriction
-(even an empty host allowlist). i386 direct lifted calls retain local membership checks, not host recording crossings.
+This permits strict recording to be compiled out without losing a stricter host restriction (even an empty host
+allowlist). Wasm-local membership checks remain at registry and internally handled dynamic entries on both widths,
+including AMD64 in-region indirect dispatch and i386 direct lifted calls; none are host recording crossings.
 Discovery builds buffer/de-duplicate records in wasm and flush at frame boundaries, metrics reads, pressure and explicit
 faults; cache collisions re-report rather than discard evidence. The host's independent coverage overflow limit is
 unchanged. Abrupt external wasm traps may leave a final unflushed tail; do not package an errored recording.

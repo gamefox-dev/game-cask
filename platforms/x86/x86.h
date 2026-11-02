@@ -236,11 +236,10 @@ extern uint64_t x86_coverage_events, x86_coverage_crossings, x86_coverage_cache_
 #ifndef X86_COVERAGE_MODE
 #define X86_COVERAGE_MODE 1
 #endif
-#if X86_COVERAGE_MODE == 2 && defined(X86_FLAT_GUEST)
-#define x86_coverage_lifted(address,kind) ((void)sizeof(address),(void)sizeof(kind))
-#else
+/* Strict mode performs only a wasm-local membership check, never recording.
+ * Keep it at internal indirect dispatches as well as registry entries: a host
+ * policy can be narrower than a compiled function range. */
 #define x86_coverage_lifted(address,kind) x86_coverage_entry(address,kind)
-#endif
 
 /* ------------------------------------------------------------------ metrics */
 /* Names say what they count (kit v0.2.1; v0.2 had `interp_entries`, `exec_one`, `continues`). */

@@ -4,7 +4,7 @@ import {GameHost} from '../../bgt/runtime/host';
 import {Vfs} from '../../bgt/runtime/vfs';
 it('both backend selections configure sorted host restrictions and reject malformed optional descriptors',async()=>{
  const wasm=await compileC('tests/fixtures/c/slice_policy.c');
- for(const backend of [1,2])for(let mode=0;mode<5;mode++) {
+ for(const backend of [1,2])for(let mode=0;mode<8;mode++) {
   const h=await GameHost.create(wasm,{vfs:new Vfs(),log:()=>{},now:()=>0},{backend,caps:0,seed:1,
    displayWidth:64,displayHeight:64,arg0:mode,arg1:0,sliceCode:[500,100],sliceCodeRanges:[{addr:200,end:210},{addr:300,end:310}]});
   if(mode)expect(()=>h.init()).toThrow(/slice-policy/);

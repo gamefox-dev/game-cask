@@ -164,8 +164,9 @@ return, metrics reads and explicit profile faults. Collisions may re-report reco
 can leave an unflushed tail: errored recordings are not packaging evidence. `BGT_COVERAGE_DIRECT=1` restores direct
 crossings for A/B tests without changing instruction/API semantics.
 
-AMD64 strict builds omit generated recording hooks. The dispatcher enforces compiled code membership locally;
-i386's direct calls retain local checks. An optional [strict host-policy export](../bgt/abi/ABI.md#strict-compiled-slice-host-policy-k10-additive-optional-export)
+Strict builds omit recording/crossings but retain wasm-local membership checks at registry entries and internally
+handled dynamic entries (including same-region indirect jumps). This is necessary when a host policy is narrower
+than an entire compiled function range; a registry-only check would be insufficient. An optional [strict host-policy export](../bgt/abi/ABI.md#strict-compiled-slice-host-policy-k10-additive-optional-export)
 intersects a stricter host allowlist with the compiled policy, including the existing empty-allowlist stop. Neither
 strict path records successful entries or imports `coverage_entry`; outside-slice failures retain their missing-code
 address. The existing two-recording discovery → re-lift regression still converges to zero interpreted instructions
@@ -180,7 +181,8 @@ A synthetic normally lifted Win64 override really yields twice; the regression v
 known answer. It also exposed/fixes the pre-existing AMD64 `--skip` duplicate-symbol bug (overrides have an exact-entry
 registry record, never a duplicate native body or an invented interior range).
 
-For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
+An entirely overridden selection has no native wrapper definitions and therefore uses an empty exclusion list,
+not a missing-metadata error. For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
 conservative analysis rather than an incomplete exclusion. `manifest.pipeline.metrics` records `asyncify_mode`,
 `asyncify_remove_count`, list SHA-256, `pre_asyncify_bytes`, elapsed time and cache state. Named linked wasm is read
 without instantiating/compiling it in JS; only standard function-name metadata is parsed. Toolchain libc DWARF is

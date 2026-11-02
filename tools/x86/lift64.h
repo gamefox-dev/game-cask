@@ -273,7 +273,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
          * supplies coverage, not this region's unsuccessful lookup. */
         fprintf(o, "goto dispatch;\ndispatch:switch(pc){\n");
         for (uint32_t k = 0; k < f->insns.n; k++) if (starts[k])
-            fprintf(o, "case 0x%08xu:x86_coverage_lifted(pc,1);goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
+            fprintf(o, "case 0x%08xu:exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
         fprintf(o, "default:goto landing;}\n");
         uint32_t block_end = 0;
         for (uint32_t k = 0; k < f->insns.n; k++) {
@@ -405,7 +405,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "landing:\n");
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
-        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
+        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
         fprintf(o, "boundary:\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"

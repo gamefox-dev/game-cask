@@ -16,7 +16,7 @@ static slot_t test_slots[W32_THUNK_SLOTS];
 BGT_EXPORT(prepare) void prepare(uint32_t pathological) {
     slots=test_slots;nslots=W32_THUNK_SLOTS;
     for(unsigned i=0;i<nslots;i++){
-        for(unsigned j=0;j<255;j++){slots[i].name[j]=pathological?1:'x';slots[i].dll[j]=pathological?2:'d';}
+        for(unsigned j=0;j<255;j++){slots[i].name[j]=pathological==1?1:pathological==2?(j&1?'"':'\\'):'x';slots[i].dll[j]=pathological==1?2:pathological==2?(j&1?'\\':'"'):'d';}
         slots[i].name[0]='a'+i%26;slots[i].name[1]='a'+i/26%26;slots[i].name[2]='a'+i/676%26;
         slots[i].hits=i+1;slots[i].timing_samples=1;slots[i].timing_us=i+5;
     }

@@ -175,7 +175,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     if(asyncifyRestricted && !pipe.report.interpretOnly) {
       const names=new Set(functionNames(readFileSync(wasmPath)).map(f=>f.name));
       asyncifyRemove=pipe.nativeLiftSymbols.filter(n=>n.startsWith('F_') && names.has(n));
-      if(!asyncifyRemove.length && pipe.report.modules.some(m=>m.functions>0))throw new Error('missing lifted function names for Asyncify restriction');
+      if(!asyncifyRemove.length && pipe.nativeLiftSymbols.some(n=>n.startsWith('F_')))throw new Error('missing lifted function names for Asyncify restriction');
       // Stay below macOS's per-process argv ceiling on engine-sized modules. Exact generated
       // wrappers are sufficient: region signatures already separate them from suspending calls.
       // If even wrappers exceed the bound, retain the conservative analysis, not a partial list.

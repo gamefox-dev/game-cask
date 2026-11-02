@@ -26,6 +26,12 @@ it('keeps a real yield inside a measured override instrumented while excluding o
   expect(h.logs).toContain('guest: override result 12');expect(h.host.yields).toBeGreaterThanOrEqual(2);
   expect(h.host.metrics()).toMatchObject({interp_insns:0,stubs:[]});
   expect(readFileSync(join(ROOT,'web/public/games',id,'manifest.json'),'utf8')).toContain('amd64-native-boundaries');
+  // An entirely overridden selection legitimately has no generated wrappers/names to remove.
+  const entry=analysis.entry;
+  writeFileSync(join(dir,'overrides/entry.c'),`/* CC0 all-overridden selection regression. */\n#include "x86_lift.h"\nextern void w32_wait_frame(void);extern void w32_log(const char *);\nX86_OVERRIDE(${entry.toString(16).padStart(8,'0')}){w32_wait_frame();w32_wait_frame();w32_log("all overridden");X.eip=x86_address(x86_pop());}\n`);
+  const all=buildGame(dir,{quiet:true});expect(all.pipeline.metrics.asyncify_remove_count).toBe(0);
+  const complete=await loadHeadless(id);await complete.stepAsync(10);expect(complete.logs).toContain('all overridden');
+  expect(complete.host.metrics()).toMatchObject({interp_insns:0,exited:1,stubs:[]});
  } finally {
   for(const p of [dir,join(ROOT,'web/public/games',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id)])rmSync(p,{recursive:true,force:true});
  }

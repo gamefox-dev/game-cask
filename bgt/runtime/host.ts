@@ -648,6 +648,9 @@ export class GameHost {
         throw new HostError('invalid slice-policy shape');
       const ep=v.getUint32(p+SLICE_POLICY.entries_ptr,true),rp=v.getUint32(p+SLICE_POLICY.ranges_ptr,true);
       if(ep%4 || rp%4 || !this.inRange(ep,entries.length*4) || !this.inRange(rp,ranges.length*8))throw new HostError('invalid slice-policy buffers');
+      const overlap=(a:number,n:number,b:number,m:number)=>n>0 && m>0 && a<b+m && b<a+n;
+      if(overlap(p,SLICE_POLICY.SIZE,ep,entries.length*4) || overlap(p,SLICE_POLICY.SIZE,rp,ranges.length*8) ||
+        overlap(ep,entries.length*4,rp,ranges.length*8))throw new HostError('overlapping slice-policy buffers');
       entries.forEach((a,i)=>v.setUint32(ep+4*i,a,true));
       ranges.forEach((r,i)=>{v.setUint32(rp+8*i,r.addr,true);v.setUint32(rp+8*i+4,r.end,true);});
     }
