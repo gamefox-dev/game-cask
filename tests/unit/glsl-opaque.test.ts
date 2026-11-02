@@ -114,6 +114,18 @@ describe('opaque sampler helper identity specialization', () => {
       expect(r.fsOut).toMatch(/S bgt_gl_local_\d+=S\(1.0\)/);
       expect(r.fsOut).toMatch(/bgt_gl_local_\d+\.x/);
     });
+  for (const named of [false, true]) for (const language of [1, 2])
+    it(`inline struct instances shadow sampler uniforms (named ${named}, language ${language})`, () => {
+      const source = (language === 1 ? version : '#version 300 es\nprecision highp float;\n') +
+        'uniform sampler2D bgt_t0;layout(location=0) out vec4 o;' +
+        'vec4 read(sampler2D s){struct ' + (named ? 'S' : '') +
+        '{float x;} bgt_t0, other;bgt_t0.x=1.0;other.x=1.0;return texture(s,vec2(0.5))*bgt_t0.x*other.x;}' +
+        'void main(){o=read(bgt_t0);}';
+      const out = translateShader(source, 2, language);
+      expect(out).toMatch(/}\s*bgt_gl_local_\d+,\s*other/);
+      expect(out).toMatch(/bgt_gl_local_\d+\.x/);
+      expect(out).toContain('texture(bgt_t0,');
+    });
   it('ordinary value functions do not acquire uniform-only inline-struct restrictions', () => {
     const source = 'out vec4 o;struct S{float x;}v;S f(S a){return a;}void main(){v.x=0.5;o=vec4(f(v).x);}';
     const r = runGlsl({ fs: [version + source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.fsOut).toMatch(/struct S/);

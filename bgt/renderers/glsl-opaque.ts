@@ -109,9 +109,16 @@ export function specializeOpaqueSamplers(source: string): string {
       if (ts[i].text === 'if' && ts[end]?.text === 'else' && ts[end + 1]?.text !== '{')
         implicitScopes.set(end + 1, statementEnd(ts, end + 1));
     }
-    for (let i = 0; i < ts.length - 1; i++) if (isType(ts[i].text) && /^[A-Za-z_]\w*$/.test(ts[i + 1].text)) {
+    for (let i = 0; i < ts.length - 1; i++) {
+      let j = i + 1;
+      if (ts[i].text === 'struct') {
+        const brace = ts[j]?.text === '{' ? j : j + 1;
+        if (ts[brace]?.text !== '{') continue;
+        j = closing(ts, brace) + 1;
+      } else if (!isType(ts[i].text)) continue;
+      if (!/^[A-Za-z_]\w*$/.test(ts[j]?.text ?? '')) continue;
       if (validationOnly && sampler.test(ts[i].text)) throw new Error('GLSL: opaque sampler local variables are forbidden');
-      let j = i + 1; locals.set(j, ts[j].text);
+      locals.set(j, ts[j].text);
       while (++j < ts.length && ts[j].text !== ';') {
         if (['(', '[', '{'].includes(ts[j].text)) j = closing(ts, j);
         else if (ts[j].text === ',' && /^[A-Za-z_]\w*$/.test(ts[j + 1]?.text)) { j++; locals.set(j, ts[j].text); }
