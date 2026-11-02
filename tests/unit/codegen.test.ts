@@ -181,6 +181,18 @@ it('interior native entries count only their suffix and never replay flags from 
   }
 });
 
+it('SSE interior landings stay native without duplicating every large-region integer suffix', async () => {
+  const h = await harness('90'.repeat(16) + 'f30f2ac1f30f5ac0f20f5cc1c3');
+  expect(h.stats.generic).toBe(0);
+  for (const offset of [16, 20, 24]) {
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 7n); expect(h.ex.run(0)).toBe(0);
+    const want = h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size());
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 7n); h.ex.run(1);
+    expect(h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size())).toEqual(want);
+  }
+  h.ex.reset(base + 1, 0); expect(h.ex.run(0)).toBeGreaterThan(0);
+});
+
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {
   for (const hex of [
     '48b8887766554433221148c7c3fc2f0000488903c3',

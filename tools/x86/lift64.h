@@ -523,7 +523,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         }
         fprintf(o, "landing:\n");
         fprintf(o, "switch(pc){\n");
-        for (uint32_t k = 0; k < f->insns.n; k++) if (!starts[k]) {
+        for (uint32_t k = 0; k < f->insns.n; k++) if (!starts[k] &&
+                (f->insns.n <= 8 || ins[k].op == XO_SIMD)) {
             uint32_t end = k + 1; while (end < f->insns.n && !starts[end]) end++;
             uint32_t va = f->insns.v[k], count = end - k;
             fprintf(o, "case 0x%08xu:bgt_coverage_entry(pc,1);entry_index=%uu;", va, k);
@@ -538,7 +539,12 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 "clock+=%uu;budget+=%uu;", count, count, count, count);
             fprintf(o, "goto N_%08x;\n", va);
         }
-        fprintf(o, "default:goto exit;}\n");
+        fprintf(o, "default:break;}\n");
+        /* Broad suffix duplication was measured at +82% whole-module size on x64-cpp.
+         * Keep native SSE/tiny entries; larger non-SSE landings retain bounded semantics. */
+        fprintf(o, "{static const uint32_t entries[]={");
+        for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
+        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}bgt_coverage_entry(pc,1);count=1;action=1;\n", f->insns.n);
         fprintf(o, "boundary:\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
