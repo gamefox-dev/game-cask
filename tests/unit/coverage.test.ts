@@ -1,10 +1,11 @@
 // Discovery uses actual recordings, not filtered/fabricated target addresses.
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync,copyFileSync,mkdirSync} from 'node:fs';
 import {join,relative,basename} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ROOT,loadHeadless} from '../support/headless';
 import {compileC} from '../support/compile';
+import {instantiateFixture} from '../support/wasm-fixture';
 import {GameHost,CODE_COVERAGE_LIMIT,OutsideSlice} from '../../bgt/runtime/host';
 import {Vfs} from '../../bgt/runtime/vfs';
 // @ts-expect-error plain ESM
@@ -36,20 +37,21 @@ it('owning interval sweep scales and agrees with an independent enclosing-range 
 
 it('counts actual interpreted instructions, dynamic block entries and unique owners in both widths, excluding pre-execution quantum transfers',async()=>{
  for(const mode of [0,1]) {
-  const events:number[]=[];
-  const {instance}=await WebAssembly.instantiate(await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]),{bgt:{coverage_entry:(addr:number)=>events.push(addr),abort:()=>{throw new Error('unexpected guest abort');}}});
-  const ex=instance.exports as any;
+  const {host,exports}=await instantiateFixture(await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]));
+  // Observe every real hook call, including duplicate entries; do not replace its behaviour.
+  const events=vi.spyOn(host.codeCoverage,'set');
+  const ex=exports as any;
   ex.run(0);expect(ex.insns()).toBe(12);expect(ex.entries()).toBe(6);expect(ex.functions()).toBe(2);expect(ex.unowned()).toBe(0);expect(ex.result()).toBe(1);
-  expect(events).toEqual([0x1000,0x1005,0x1005,0x1009,0x1020,0x100e]);
-  events.length=0;ex.run(2000000);expect(ex.insns()).toBe(0);expect(ex.entries()).toBe(0);expect(ex.functions()).toBe(0);
+  expect(events.mock.calls.map(([addr])=>addr)).toEqual([0x1000,0x1005,0x1005,0x1009,0x1020,0x100e]);
+  events.mockClear();ex.run(2000000);expect(ex.insns()).toBe(0);expect(ex.entries()).toBe(0);expect(ex.functions()).toBe(0);
   ex.resume();expect(ex.insns()).toBe(12);expect(ex.entries()).toBe(6);expect(ex.functions()).toBe(2);expect(ex.result()).toBe(1);
  }
 });
 
 it('string quantum transfers count partial work but not pre-first-iteration suspension in both widths',async()=>{
  for(const mode of [0,1]) {
-  const {instance}=await WebAssembly.instantiate(await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]),{bgt:{coverage_entry:()=>{},abort:()=>{throw new Error('unexpected guest abort');}}});
-  const ex=instance.exports as any;
+  const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/coverage_accounting.c',[`MODE64=${mode}`]));
+  const ex=exports as any;
   for(const repeat of [0,1])for(const budget of [1999999,2000000]) {
    ex.string_run(budget,repeat,3);
    expect(ex.pc()).toBe(repeat?0x1000:0x1010);expect(ex.remaining()).toBe(3);expect(ex.destination()).toBe(0x3000);expect(ex.source()).toBe(0x4000);
@@ -91,8 +93,8 @@ it('records owned-to-unowned fall-through once and stops a strict slice before e
 
 it('attributes each interpreted owner correctly across a reentrant AMD64 quantum callback',async()=>{
  const wasm=await compileC('tests/fixtures/c/coverage_accounting.c',['MODE64=1']);
- const {instance}=await WebAssembly.instantiate(wasm,{bgt:{coverage_entry:()=>{},abort:()=>{throw new Error('unexpected abort');}}});
- const ex=instance.exports as any;ex.nested();
+ const {exports}=await instantiateFixture(wasm);
+ const ex=exports as any;ex.nested();
  expect(ex.insns()).toBe(2);expect(ex.entries()).toBe(2);expect(ex.functions()).toBe(2);expect(ex.unowned()).toBe(0);
 });
 

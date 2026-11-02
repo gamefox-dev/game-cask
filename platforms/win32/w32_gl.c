@@ -49,8 +49,10 @@ static double argd(uint32_t n) {
     union { uint64_t u; double d; } v = {W32_64 ? ARG64(n) : x86_rd64((uint32_t)X.r[ESP] + 4 + n * 4)};
     return v.d;
 }
+static void *glp_alloc(uint32_t n);
+static void glp_free(void *p, uint32_t n);
 static void *guest(uint32_t p, uint32_t n) {
-    uint8_t *v = x86_alloc(n ? n : 1);
+    uint8_t *v = glp_alloc(n ? n : 1);
     if (!v) { fail(OOM); return 0; }
     for (uint32_t i = 0; i < n; i++) v[i] = p ? x86_rd8(p + i) : 0;
     return v;
@@ -82,7 +84,7 @@ static int send(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code
 static int wait_request(uint32_t id, char *log, uint32_t cap) {
     int status;
     while ((status = bgt_request_status(id)) == 0) w32_wait_frame();
-    uint8_t result[4096];
+    uint8_t result[4096] = {0};
     int n = status > 0 ? bgt_request_read(id, result, sizeof result) : status;
     bgt_request_close(id);
     int code = -1;
@@ -211,10 +213,11 @@ static uint32_t api_BufferData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
     uint32_t id = (uint32_t)(b - buffers);
-    if (b->gpu && !send(0x42, &id, 1)) return 0;
+    if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
+    glp_free(b->data, b->size); b->data = 0;
     b->gpu = 0; b->size = 0; b->generated = 0;
     uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
-    if (!send(0x40, create, 5)) return 0;
+    if (!send(0x40, create, 5)) { glp_free(data, (uint32_t)size); return 0; }
     b->gpu = id; b->size = (uint32_t)size; b->data = data; return 0;
 }
 static uint32_t api_BufferSubData(void) {
@@ -256,6 +259,7 @@ static uint32_t api_DeleteBuffers(void) {
         if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
             if (bound) { fail(BAD_OP); continue; } }
         if (buffers[id].gpu && !send(0x42, &buffers[id].gpu, 1)) continue;
+        glp_free(buffers[id].data, buffers[id].size);
         zero(&buffers[id], sizeof(Buffer)); if (array == id) array = 0; if (uniform == id) uniform = 0;
         for (uint32_t j = 0; j < N; j++) {
             if (vaos[j].element == id) vaos[j].element = 0;

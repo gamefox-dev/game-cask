@@ -1,18 +1,7 @@
-/* Shader/program object types and the pooled allocator behind the GLSL front end.
- * Included once by w32_gl.c. SPDX-License-Identifier: MIT — LANE-K6b */
-#define GLP_CLASSES 27 /* through the ABI's 64 MiB buffer-upload ceiling */
-static void *glp_pool[GLP_CLASSES];
-static uint32_t glp_class(uint32_t n) { uint32_t c = 6; while (((uint64_t)1 << c) < n) c++; return c; }
-static void *glp_alloc(uint32_t n) {
-    uint32_t c = glp_class(n); if (c >= GLP_CLASSES) return 0;
-    void *p = glp_pool[c];
-    if (p) { glp_pool[c] = *(void **)p; uint8_t *b = (uint8_t *)p; for (uint32_t i = 0; i < (1u << c); i++) b[i] = 0; return p; }
-    return x86_alloc(1u << c);
-}
-static void glp_free(void *p, uint32_t n) {
-    if (!p) return; uint32_t c = glp_class(n); if (c >= GLP_CLASSES) return;
-    *(void **)p = glp_pool[c]; glp_pool[c] = p;
-}
+/* Shader/program types; shared host allocator supplies transient GLSL storage and
+ * retained GL source/buffer data. Included once by w32_gl.c. SPDX-License-Identifier: MIT */
+static void *glp_alloc(uint32_t n) { return x86_host_alloc(XH_GL, n); }
+static void glp_free(void *p, uint32_t n) { (void)n; x86_host_free(p); }
 #define GS_ALLOC(n) glp_alloc(n)
 #define GS_FREE(p, n) glp_free(p, n)
 #include "w32_glsl.h"

@@ -85,7 +85,14 @@ static void profiled_native(x86_lifted_fn fn) {
 extern unsigned char __heap_base;
 static uintptr_t arena_top;
 
-void *x86_alloc(uint32_t size) {
+uint64_t x86_host_limit(void) {
+#ifdef X86_FLAT_GUEST
+    return X86_HOST_ARENA_BYTES;
+#else
+    return UINT32_MAX - (((uintptr_t)&__heap_base + 15u) & ~(uintptr_t)15u);
+#endif
+}
+static void *x86_host_backing(uint32_t size) {
     if (!arena_top) arena_top = ((uintptr_t)&__heap_base + 15u) & ~(uintptr_t)15u;
     uintptr_t p = arena_top;
     uint64_t end64 = (uint64_t)p + (((uint64_t)size + 15u) & ~15ull);
@@ -94,7 +101,7 @@ void *x86_alloc(uint32_t size) {
         uintptr_t base = ((uintptr_t)&__heap_base + X86_HOST_ARENA_BYTES + 65535u) & ~65535u;
         x86_flat = (uint8_t *)base;
     }
-    if (end64 > (uintptr_t)x86_flat) return 0;
+    if (end64 > (uint64_t)(((uintptr_t)&__heap_base + 15u) & ~(uintptr_t)15u) + X86_HOST_ARENA_BYTES) return 0;
 #endif
     if (end64 > UINT32_MAX) return 0;
     uintptr_t end = (uintptr_t)end64;
@@ -107,6 +114,8 @@ void *x86_alloc(uint32_t size) {
     __builtin_memset((void *)p, 0, size); /* grown memory is zeroed, but be explicit for reuse */
     return (void *)p;
 }
+
+#include "x86_host.h"
 
 uint8_t *x86_map(uint32_t addr, uint32_t size) {
     if (!size) return 0;

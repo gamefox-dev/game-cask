@@ -54,6 +54,45 @@ static void expect_uniform(GLuint p, const char *name, GLenum type, GLint size) 
     if (ty != type || sz != size) OutputDebugStringA(name);
     check(ty == type && sz == size, "active uniform type or size is wrong");
 }
+/* Engine-like warm-up: many live linked programs with delete-pending attached shaders,
+ * repeated relinks and varied large sources. Old retained GsUnit tables exhaust 64 MiB.
+ * This runs through actual BGT/native compiler requests on both browser backends. */
+static void frontend_stress(void) {
+    GLuint cache[80] = {0}; static char text[100000];
+    /* Eight parent streams remain buffered while resource streams churn during shader warm-up.
+     * All bytes are original CC0 fixture data; immutable VFS reads must not starve behind GL. */
+    FILE *parents[8];
+    for (unsigned i = 0; i < 8; i++) { parents[i] = fopen("host-read.txt", "rb"); check(parents[i] && fgetc(parents[i]) == 'C', "parent FILE first byte failed"); }
+    const char *vertex = "#version 330 core\nvoid main(){gl_Position=vec4(0.0);}";
+    for (unsigned i = 0; i < 256; i++) {
+        if (cache[i % 80]) glDeleteProgram(cache[i % 80]);
+        unsigned n = (unsigned)sprintf(text, "#version 330 core\n/*");
+        unsigned pad = 4096 + (i % 8) * 8192; memset(text + n, ' ', pad); n += pad;
+        n += (unsigned)sprintf(text + n, "*/\nout vec4 c;\n");
+        for (unsigned j = 0; j < 24; j++) n += (unsigned)sprintf(text + n, "float h%u(float x){return x+0.001;}\n", j);
+        n += (unsigned)sprintf(text + n, "void main(){float x=0.0;");
+        for (unsigned j = 0; j < 24; j++) n += (unsigned)sprintf(text + n, "x=h%u(x);", j);
+        sprintf(text + n, "c=vec4(x,0.5,0.75,1.0);}");
+        GLuint vs = compile(GL_VERTEX_SHADER, 1, &vertex, 1, 0);
+        const char *fragment = text; GLuint fs = compile(GL_FRAGMENT_SHADER, 1, &fragment, 1, 0);
+        GLuint p = cache[i % 80] = link_program(vs, fs, 1, 0, 0);
+        glDeleteShader(vs); glDeleteShader(fs);
+        if (i % 4 == 0) { GLint ok = 0; glLinkProgram(p); glGetProgramiv(p, GL_LINK_STATUS, &ok); check(ok, "stress relink failed"); }
+        check(glGetError() == GL_NO_ERROR, "frontend stress GL error");
+        for (unsigned j = 0; j < 8; j++) {
+            FILE *f = fopen("host-read.txt", "rb"); check(f != 0, "stress fopen failed");
+            unsigned char bytes[302]; check(fgetc(f) == 'C', "stress FILE first byte failed");
+            rewind(f); check(fread(bytes, 1, sizeof bytes, f) == sizeof bytes, "stress FILE full read failed");
+            check(!ferror(f) && fgetc(f) == EOF && feof(f), "stress FILE EOF/error failed");
+            for (unsigned k = 0; k < sizeof bytes; k++) check(bytes[k] == (unsigned char)('A' + (k + 2) % 26), "stress FILE payload corrupt");
+            check(fclose(f) == 0, "stress fclose failed");
+        }
+    }
+    for (unsigned i = 0; i < 80; i++) glDeleteProgram(cache[i]);
+    for (unsigned i = 0; i < 8; i++) check(fclose(parents[i]) == 0, "parent fclose failed");
+    OutputDebugStringA("x64-glsl shared host stress PASS files=2048 parents=8 bytes=302");
+    OutputDebugStringA("x64-glsl frontend stress PASS cycles=256 retained=80");
+}
 static void put_f(unsigned char *b, int off, float v) { memcpy(b + off, &v, 4); }
 static void put_u(unsigned char *b, int off, unsigned v) { memcpy(b + off, &v, 4); }
 
@@ -69,6 +108,8 @@ int main(void) {
     HGLRC context = wglCreateContext(dc);
     if (!context) { OutputDebugStringA("x64-glsl GPU unavailable (requires GLSL330 command backend)"); for (;;) Sleep(16); }
     check(wglMakeCurrent(dc, context), "make current failed"); load_gl();
+
+    frontend_stress();
 
     char *quad = load("quad.vert"), *t0 = load("tile0.frag"), *t1 = load("tile1.frag"), *t2 = load("tile2.frag");
     char *t3 = load("tile3.frag"), *v4 = load("tile4.vert"), *t4 = load("tile4.frag"), *var = load("variant.frag");

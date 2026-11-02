@@ -86,7 +86,21 @@ static inline void x86_check_access(uint32_t addr,uint32_t size,unsigned access)
  * Returns the host pointer for `addr`, or 0 when out of memory. Pages of one call are contiguous. */
 uint8_t *x86_map(uint32_t addr, uint32_t size);
 int x86_mapped(uint32_t addr, uint32_t size);
-/* Host allocation from the runtime arena (never freed). */
+/* All host backing is bounded and separate from the guest heap/window. Runtime allocations
+ * are permanent; GL/CRT/FILE allocations return spans to one shared reusable pool. */
+#ifndef X86_HOST_ARENA_BYTES
+#define X86_HOST_ARENA_BYTES (64u << 20)
+#endif
+enum { XH_RUNTIME, XH_GL, XH_CRT, XH_FILE, XH_COUNT };
+typedef struct { uint64_t used, peak, allocations, frees, oom, backing_requested; } x86_host_stats_t;
+extern x86_host_stats_t x86_host_stats[XH_COUNT];
+extern uint64_t x86_host_used, x86_host_peak, x86_host_reserved;
+uint64_t x86_host_limit(void);
+const char *x86_host_consumer(unsigned consumer);
+void *x86_host_alloc(unsigned consumer, uint64_t size);
+void x86_host_free(void *p);
+void *x86_host_realloc(void *p, uint64_t size);
+uint32_t x86_host_size(const void *p);
 void *x86_alloc(uint32_t size);
 
 uint32_t x86_rd8_slow(uint32_t a);
@@ -103,7 +117,6 @@ void x86_set_scheduler(void (*schedule)(void));
 #ifndef X86_FLAT_BYTES
 #define X86_FLAT_BYTES (1024ull << 20)
 #endif
-#define X86_HOST_ARENA_BYTES (64u << 20)
 extern uint8_t *x86_flat;
 extern uint64_t x86_guest_committed;
 __attribute__((noreturn)) void x86_fault(const char *, uint32_t);

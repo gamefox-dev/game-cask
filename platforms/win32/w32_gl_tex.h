@@ -44,7 +44,8 @@ static uint8_t *scratch(uint32_t n) {
     static uint8_t *buf; static uint32_t cap;
     if (n > cap) {
         uint32_t c = cap ? cap : 65536; while (c < n) c *= 2;
-        uint8_t *b = x86_alloc(c); if (!b) { fail(OOM); return 0; } buf = b; cap = c;
+        uint8_t *b = glp_alloc(c); if (!b) { fail(OOM); return 0; }
+        glp_free(buf, cap); buf = b; cap = c;
     }
     return buf;
 }

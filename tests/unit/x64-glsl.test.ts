@@ -12,21 +12,28 @@ it('x64-glsl: lifted guest asserts GL 3.3 reflection and diagnostics; every tran
   buildGame('examples/x64-glsl', { quiet: true });
   const stream = glStream();
   const h = await loadHeadless('x64-glsl', stream);
-  for (let frame = 0; frame < 100 && !h.logs.some(s => s.includes('x64-glsl PASS tiles=8')); frame++)
+  for (let frame = 0; frame < 12000 && !h.logs.some(s => s.includes('x64-glsl PASS tiles=8')); frame++)
     await h.stepAsync(1);
   await h.stepAsync(4); // Four complete draw frames after shader/reflection startup, not a fixed boot-frame guess.
-  expect(h.logs.filter((s) => /command error|unexpected|failed|incomplete|wrong|missing|unexpectedly/.test(s))).toEqual([]);
+  // The new profile diagnostics expose this deliberately rejected macro call too; assert the
+  // exact expected rejection, not a blanket allowance for shader failures or "wrong" messages.
+  const macroDiagnostic = "glCompileShader: 0:3(1): error: macro invoked with the wrong number of arguments \u0060F'\n";
+  expect(h.logs.filter(s=>s.includes('wrong number of arguments'))).toEqual([macroDiagnostic]);
+  expect(h.logs.filter((s) => s!==macroDiagnostic && /command error|unexpected|failed|incomplete|wrong|missing|unexpectedly/.test(s))).toEqual([]);
   expect(h.host.commandErrorCount).toBe(0);
-  for (const text of ['x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
+  for (const text of ['x64-glsl frontend stress PASS cycles=256 retained=80', 'x64-glsl shared host stress PASS files=2048 parents=8 bytes=302', 'x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
     expect(h.logs.some((s) => s.includes(text)), h.logs.join('\n')).toBe(true);
   const m = h.host.metrics() as Record<string, any>;
   expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
   expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
   expect(m.gl_pipelines).toBe(8); expect(m.gl_draws).toBeGreaterThanOrEqual(8 * 4);
   const sources = stream.items.filter((it) => it.op === O.SHADER_CREATE).map((it) => ({ stage: it.words[1], source: it.source! }));
-  // 15 provisional compiles (including split-source and unnamed-block probes), eight tile links,
-  // and the two modules of the temporary unnamed-block reflection program.
-  expect(sources.length).toBe(15 + 16 + 2);
+  // Warm-up: two provisional + two linked stages per cycle, plus two stages on 64 relinks.
+  // Then 15 provisional compiles, eight tile links and two unnamed-block reflection stages.
+  expect(sources.length).toBe(256 * 4 + 64 * 2 + 15 + 16 + 2);
+  expect(m.host_consumers.file).toMatchObject({used:0,oom:0,allocations:2056,frees:2056});
+  expect(m.host_consumers.file.peak).toBeGreaterThanOrEqual(9*16384);
+  expect(m.host_consumers.gl.oom).toBe(0);
   const varyings = [...new Set(sources.flatMap((s) => glslVaryings(s.source, s.stage)))].sort();
   for (const { stage, source } of sources) {
     expect(source.startsWith('#version 330 core\n')).toBe(true);
@@ -51,7 +58,8 @@ it('x64-glsl: lifted guest asserts GL 3.3 reflection and diagnostics; every tran
 
 it('x64-glsl: a backend compile failure reaches the GL info log and stops the guest cleanly', async () => {
   const stream = glStream(-6, 'synthetic backend failure');
-  const h = await loadHeadless('x64-glsl', stream); await h.stepAsync(15);
+  const h = await loadHeadless('x64-glsl', stream);
+  for(let frame=0;frame<100 && !h.logs.some(s=>s.includes('shader failed to compile'));frame++)await h.stepAsync(1);
   expect(h.logs.some((s) => s.includes('synthetic backend failure')), h.logs.join('\n')).toBe(true);
   expect(h.logs.some((s) => s.includes('shader failed to compile'))).toBe(true);
   expect(h.logs.some((s) => s.includes('PASS tiles'))).toBe(false);

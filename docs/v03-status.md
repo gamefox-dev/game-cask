@@ -1,5 +1,37 @@
 # v0.3 merged implementation status
 
+## K16a final — Q50/Q51 shared host memory (kit Tier 1 PASS)
+
+Q51 extension replaces separate GL/CRT pools with one bounded reusable host allocator and accounts
+runtime/GL/CRT/FILE use/peak/shared limit/backing. Host libc preserves ENOMEM; FILE buffering preserves
+ferror/ENOMEM before VFS read; failures log consumer/size/use/limit without allocation. Build-time
+`pipeline.memory.hostArenaMiB` accepts 16..512 (default64 retained from repaired stress evidence).
+Implementation **`dd4d101`** over **`0f7d459`** retains the fresh independent bounded PASS, seven native
+ASan+UBSan/supplementary-GCC modes, and 15/15 post-stress stages per native backend. Final test repair
+**`93ec8fe`** replaces incomplete wasm import adapters with shared production `GameHost` instantiation
+and gives the two-build exhaustion tests a 300-second cold-build budget without changing assertions.
+
+**Final Tier 1 on `93ec8fe`:** doctor ready; lint (ESLint + clang + real GCC, **33 example check-builds**);
+typecheck; full **1,193 units /88 files, no skips**; full required-WebGPU browser suite **245 passed /51
+existing skips /0 failures /0 flakes** (WebGL2 110/24, WebGPU 127/26, auto 8/1 pass/skip); leakcheck
+**654 files**; and **30 ×300 =9,000 identical pipeline oracle frame pairs**, null errors/divergence,
+zero lifted interpretation and empty stubs throughout. One completed serial sweep, no light exclusions.
+All three real mixed GLSL/FILE stress/pixel cases pass, including 2,048 FILE cycles with eight live parents.
+Finalization after these gates is documentation-only; post-doc leakcheck is recorded in the handoff.
+No title/playability or captured-program rendering claim; no porter rerun. GDI private replay/deleted
+CPU-storage findings remain deferred by reviewer #127 to a separate lane. Exact commits, final evidence
+and preserved interrupted failures: [K16a handoff](handoff/K16a.md).
+
+### Previous Q50 checkpoint (historical)
+
+Implementation `0f7d459` releases transient GLSL parse tables after compile/link, retains compiled-source snapshots,
+reuses bounded host spans across sizes, exposes compile/link failure reasons and host allocator metrics, and adds
+CC0 shader-cache stress/lifetime/OOM regressions. Reproduced pre-fix 64 MiB exhaustion at warm-up cycle 113; after
+768 cycles all 15 supplied fragment stages pass the profile frontend and both native browser stage compilers.
+Six focused native tests and three real-browser stress/pixel tests pass; fresh independent bounded source/failure
+review is **PASS**. The Q50-only checkpoint did not finish Tier 1; the combined Q50/Q51 final sweep above
+supersedes that pending state. No title/playability claim. See [K16a handoff](handoff/K16a.md).
+
 ## Integration I9 final — K14b + K14a + K15h
 
 Ordered `--no-ff` merges **`db5dc46`** (K14b / `c09faa7`), **`5bbe48a`** (K14a / `fe3b72e`), then

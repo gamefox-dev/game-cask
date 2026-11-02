@@ -5,6 +5,20 @@ static int eq_n(const char *a, const char *b, uint32_t n) { for (uint32_t i = 0;
 
 static Program *link_old;
 static void release_program(uint32_t id);
+static void release_shader(uint32_t id);
+static void gl_front_oom(GsLog *log, const char *where) {
+    gs_put(log, "error: OpenGL shader frontend out of memory (bounded host reservation): ");
+    gs_put(log, where); gs_put(log, "\n"); fail(OOM);
+}
+static void gl_front_failure(const char *operation, char *text, uint32_t cap, uint64_t oom_before) {
+    GsLog log = {text, cap, w32_slen(text), 0};
+    if (w32_gl_frontend_oom != oom_before) {
+        /* Make the resource reason readable even if earlier warnings filled the info log. */
+        if (log.len + 128 >= cap) { log.len = 0; text[0] = 0; }
+        gl_front_oom(&log, operation);
+    } else if (!text[0]) gs_put(&log, "error: shader frontend operation failed (no backend log)\n");
+    w32_logf2(operation, text);
+}
 static uint32_t shader_handle(void) {
     for (uint32_t id = 1; id <= 1023; id++) {
         uint32_t i;
@@ -22,7 +36,11 @@ static int program_ok(uint32_t id) { return id && id < N && programs[id].used; }
 static int send_module(const char *src, uint32_t len, uint32_t stage, uint32_t *gpu, GsLog *log) {
     *gpu = shader_handle(); if (!*gpu) { gs_put(log, "out of GPU shader handles\n"); return 0; }
     uint32_t req = ++request_id;
-    SEND(0x48, *gpu, stage, 1, PTR(src), len, req);
+    uint32_t payload[] = {*gpu, stage, 1, PTR(src), len, req};
+    if (!send(0x48, payload, 6)) {
+        gs_put(log, error == OOM ? "error: shader command submission out of memory\n" : "error: shader command submission failed\n");
+        log->errors++; *gpu = 0; return 0;
+    }
     char text[4096]; int ok = wait_request(req, text, sizeof text);
     if (text[0]) { gs_put(log, text); if (text[w32_slen(text) - 1] != '\n') gs_put(log, "\n"); }
     if (!ok) { log->errors++; SEND(0x49, *gpu); *gpu = 0; }
@@ -45,7 +63,7 @@ static int shader_front(Shader *s, GsLog *log) {
         gs_diag(log, 1, 0, 1, 1, "a #version directive is required: GLSL 1.10 is not available in the OpenGL 3.3 core profile", 0);
         return 0;
     }
-    s->unit = glp_alloc(sizeof(GsUnit)); if (!s->unit) { fail(OOM); return 0; }
+    s->unit = glp_alloc(sizeof(GsUnit)); if (!s->unit) { gl_front_oom(log, "stage parse unit"); return 0; }
     if (!gs_parse(s->unit, s->type == 0x8b31 ? 1 : 2, s->pp.text, s->pp.len, log)) return 0;
     gs_analyze(s->unit);
     return gs_policy(s->unit, log);
@@ -53,7 +71,7 @@ static int shader_front(Shader *s, GsLog *log) {
 /* Translate and compile one stage against a layout (`g`); on failure the info log has the reason. */
 static int stage_module(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, uint32_t *gpu, GsLog *log, const Program *feedback) {
     uint32_t len, cap; char *src = gs_emit(u, vs, fs, g, log, &len, &cap);
-    if (!src) { if (!log->errors) log->errors++; return 0; }
+    if (!src) { if (!log->errors) { gs_put(log, "error: canonical stage emission failed\n"); log->errors++; } return 0; }
     uint32_t capture_position = 0;
     if (feedback) for (uint32_t i = 0; i < feedback->tf_count; i++) {
         if (eq(feedback->tf_names[i], "gl_Position")) capture_position |= 1;
@@ -105,9 +123,9 @@ static uint32_t api_ShaderSource(void) {
     source[at] = 0; Shader *s = &shaders[id];
     if (s->source) glp_free(s->source, s->source_len + 1);
     if (s->str_len) glp_free(s->str_len, (s->nstr ? s->nstr : 1) * 4);
-    s->source = source; s->source_len = at; s->str_len = lens; s->nstr = (uint32_t)count; s->compiled = 0; return 0;
+    s->source = source; s->source_len = at; s->str_len = lens; s->nstr = (uint32_t)count; return 0;
 }
-static uint32_t api_CompileShader(void) {
+static uint32_t compile_shader_build(void) {
     uint32_t id = ARG(0); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id]; GsLog log = {s->log, sizeof s->log, 0, 0};
     s->log[0] = 0; s->compiled = 0;
@@ -115,11 +133,30 @@ static uint32_t api_CompileShader(void) {
     if (!s->source) { gs_put(&log, "0:1(1): error: no source has been supplied\n"); return 0; }
     if (!shader_front(s, &log)) { if (!log.errors) gs_put(&log, "0:1(1): error: shader failed to compile\n"); return 0; }
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
-    Gp *g = glp_alloc(sizeof(Gp)); if (!g) { fail(OOM); return 0; }
+    Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "provisional link layout"); return 0; }
     GsUnit *vs = s->type == 0x8b31 ? s->unit : 0, *fs = s->type == 0x8b31 ? 0 : s->unit;
     if (gp_link(g, vs, fs, 0, 0, 0, 0, &log)) s->compiled = (uint32_t)stage_module(s->unit, vs, fs, g, &s->gpu, &log, 0);
     glp_free(g, sizeof(Gp)); if (!s->compiled && !log.errors) log.errors++;
     return 0;
+}
+/* Parsing tables are scratch, not shader state. Keep only the successfully compiled,
+ * preprocessed source snapshot: glShaderSource may replace the editable source before relink. */
+static uint32_t api_CompileShader(void) {
+    uint32_t id = ARG(0); uint64_t oom = w32_gl_frontend_oom;
+    compile_shader_build();
+    if (shader_ok(id)) {
+        Shader *s = &shaders[id];
+        if (s->unit) { glp_free(s->unit, sizeof(GsUnit)); s->unit = 0; }
+        if (!s->compiled) { shader_free_front(s); gl_front_failure("glCompileShader: ", s->log, sizeof s->log, oom); }
+    }
+    return 0;
+}
+static int shader_link_front(Shader *s, GsLog *log) {
+    if (!s->compiled || !s->pp.text) { gs_put(log, "error: attached shader has no compiled source snapshot\n"); return 0; }
+    s->unit = glp_alloc(sizeof(GsUnit));
+    if (!s->unit) { gl_front_oom(log, "link stage parse unit"); return 0; }
+    if (!gs_parse(s->unit, s->type == 0x8b31 ? 1 : 2, s->pp.text, s->pp.len, log)) return 0;
+    gs_analyze(s->unit); return gs_policy(s->unit, log);
 }
 static uint32_t api_GetShaderiv(void) {
     uint32_t id = ARG(0), key = ARG(1), value = 0;
@@ -148,7 +185,10 @@ static uint32_t api_AttachShader(void) {
     uint32_t p = ARG(0), s = ARG(1);
     if (!program_ok(p) || !shader_ok(s)) fail(BAD_VALUE);
     else if ((shaders[s].type == 0x8b31 ? programs[p].vs : programs[p].fs) == s) fail(BAD_OP);
-    else if (shaders[s].type == 0x8b31) programs[p].vs = s; else programs[p].fs = s; return 0;
+    else {
+        uint32_t *slot = shaders[s].type == 0x8b31 ? &programs[p].vs : &programs[p].fs;
+        uint32_t old = *slot; *slot = s; release_shader(old);
+    } return 0;
 }
 static uint32_t api_GetAttachedShaders(void) {
     uint32_t id = ARG(0), max = ARG(1), n = 0;
@@ -178,7 +218,8 @@ static uint32_t link_program_build(void) {
     }
     invalidate_pipelines();
     if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu); p->vgpu = p->fgpu = 0;
-    Gp *g = glp_alloc(sizeof(Gp)); if (!g) { fail(OOM); return 0; }
+    if (!shader_link_front(&shaders[p->vs], &log) || (p->fs && !shader_link_front(&shaders[p->fs], &log))) return 0;
+    Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "program link layout"); return 0; }
     GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));
     if (!fs) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
     if (!p->fs) {
@@ -204,8 +245,11 @@ static uint32_t link_program_build(void) {
             uint32_t j; for (j = 1; j < N; j++) if (programs[j].ubuf == h) break;
             if (j == N) p->ubuf = h;
         }
-        if (!p->ubuf) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
-        SEND(0x40, p->ubuf, 4, p->usize, 0, 0);
+        if (!p->ubuf) { glp_free(g, sizeof(Gp)); gs_put(&log, "error: out of GPU uniform buffer handles\n"); fail(OOM); return 0; }
+        uint32_t payload[] = {p->ubuf, 4, p->usize, 0, 0};
+        if (!send(0x40, payload, 5)) {
+            glp_free(g, sizeof(Gp)); gs_put(&log, error == OOM ? "error: uniform buffer submission out of memory\n" : "error: uniform buffer submission failed\n"); return 0;
+        }
     }
     p->info = g; p->nb = g->nb; p->nslots = g->nslots; p->ndef = 0;
     /* K6a pass lowering needs the highest linked output location, not a scan of raw
@@ -224,8 +268,12 @@ static uint32_t api_LinkProgram(void) {
     uint32_t id = ARG(0);
     if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
     if (tf_active && id == program) { fail(BAD_OP); return 0; }
+    uint64_t oom = w32_gl_frontend_oom;
     Program *p = &programs[id], *old = glp_alloc(sizeof(Program));
-    if (!old) { fail(OOM); return 0; } copy(old, p, sizeof *p); link_old = old;
+    if (!old) {
+        p->linked = 0; p->log[0] = 0;
+        gl_front_failure("glLinkProgram: ", p->log, sizeof p->log, oom); return 0;
+    } copy(old, p, sizeof *p); link_old = old;
     p->info = 0; p->values = 0; p->vgpu = p->fgpu = p->ubuf = p->usize = 0;
     link_program_build();
     if (p->linked) {
@@ -239,6 +287,12 @@ static uint32_t api_LinkProgram(void) {
         if (p->ubuf) SEND(0x42, p->ubuf); program_free_link(p);
         copy(p, old, sizeof *p); p->linked = 0; copy(p->log, log, sizeof log);
     }
+    /* All stage parse tables die at the end of EVERY link attempt, including rollback. */
+    uint32_t stages[2] = {p->vs, p->fs};
+    for (uint32_t i = 0; i < 2; i++) if (stages[i] && shaders[stages[i]].unit) {
+        glp_free(shaders[stages[i]].unit, sizeof(GsUnit)); shaders[stages[i]].unit = 0;
+    }
+    if (!p->linked) gl_front_failure("glLinkProgram: ", p->log, sizeof p->log, oom);
     link_old = 0; glp_free(old, sizeof(Program)); return 0;
 }
 static uint32_t api_ValidateProgram(void) {
