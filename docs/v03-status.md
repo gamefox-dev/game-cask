@@ -1,5 +1,17 @@
 # v0.3 merged implementation status
 
+## Integration I7 — K9a + K9b
+
+Integration commit **`2638514`** merges K9a with lane K9b/K9c using `--no-ff`, preserving K9a's GLSL integer,
+aggregate-equality, lazy-expression and copy-in/copy-out lowering through K9b's WebGPU transform-feedback
+vertex-to-compute path, plus K9b's Q34 transform feedback and Q35 blits. The conflict resolution exports the shared
+identifier mangler while retaining K9a's complete reserved-word mapping. An original CC0 regression combines hex
+literals, vector/struct equality and an inout helper in a captured vertex shader; exact interleaved/separate bytes
+pass in GLSL330 and ES300 on both backends. Final gates: **965 unit tests / 71 files**, **228 browser passes / 51
+unchanged intentional skips**, doctor, Clang + real GCC lint (**30 example checks**), typecheck and leakcheck pass;
+**27 pipeline oracles × 300 frames = 8,100 identical pairs**, with zero lifted interpretation and empty stubs.
+Details: [I7 handoff](handoff/integration-i7.md).
+
 ## K9a GLSL translation contracts
 
 K9a adds full 32-bit integer literal/constant handling, scalar aggregate equality, lazy conditional/short-circuit
