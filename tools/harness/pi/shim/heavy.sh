@@ -10,6 +10,10 @@
 set -u
 if [ "${1:-}" = --execute ]; then
   shift; RESULT=$1; shift
+  BGT_HEAVY_TICKET=${BGT_HEAVY_TICKET:-}
+  if [ -n "${BGT_HEAVY_LOG:-}" ]; then
+    printf '%s pid=%s ticket=%s granted %s\n' "$(date +%s)" "$$" "${BGT_HEAVY_TICKET##*/}" "${BGT_HEAVY_MEMORY:-}" >> "$BGT_HEAVY_LOG" || exit 74
+  fi
   [ -z "${BGT_HEAVY_TICKET:-}" ] || rm -f "$BGT_HEAVY_TICKET"
   unset BGT_HEAVY_TICKET
   export BGT_HEAVY_HELD=1
@@ -122,18 +126,38 @@ oldest() {
   echo "$head"
 }
 
+GATE_LOG=${BGT_HEAVY_LOG:-$PREFIX.log}
+LAST_WAIT=; LAST_LOG=0
+wait_log() {
+  local message=$1 key=${2:-$1} stamp
+  stamp=$(date +%s)
+  if [ "$key" != "$LAST_WAIT" ] || [ $((stamp-LAST_LOG)) -ge 30 ]; then
+    printf '%s pid=%s ticket=%s wait %s\n' "$stamp" "$$" "${TICKET##*/}" "$message" >> "$GATE_LOG" || exit 2
+    LAST_WAIT=$key; LAST_LOG=$stamp
+  fi
+}
 while :; do
   N=$(slots) || exit 2
   if [ "$(oldest)" = "${TICKET##*/}" ]; then
+    MEMORY=$(python3 -I "$HERE/memory.py"); MEMORY_RC=$?
+    if [ "$MEMORY_RC" != 0 ]; then
+      [ "$MEMORY_RC" = 75 ] || { echo "$MEMORY" >&2; exit 2; }
+      case "$MEMORY" in *unavailable*) wait_log "$MEMORY" memory-unavailable;; *) wait_log "$MEMORY" memory-low;; esac
+      sleep 0.2
+      continue
+    fi
     I=1
     while [ "$I" -le "$N" ]; do
-      BGT_HEAVY_TICKET=$TICKET python3 -I "$HERE/slot.py" "$PREFIX-slot-$I.lock" bash "$HERE/heavy.sh" --execute "$RESULT" "$REAL" "$@"
+      BGT_HEAVY_LOG="$GATE_LOG" BGT_HEAVY_MEMORY="$MEMORY" BGT_HEAVY_TICKET=$TICKET python3 -I "$HERE/slot.py" "$PREFIX-slot-$I.lock" bash "$HERE/heavy.sh" --execute "$RESULT" "$REAL" "$@"
       RC=$?
       # EX_TEMPFAIL (75) can be the real command's exit too; only the marker disambiguates.
       if [ -s "$RESULT" ]; then read -r RC < "$RESULT"; exit "$RC"; fi
       [ "$RC" = 75 ] || exit "$RC"
       I=$((I+1))
     done
+    wait_log "slots busy count=$N"
+  else
+    wait_log "fifo"
   fi
   sleep 0.2
 done

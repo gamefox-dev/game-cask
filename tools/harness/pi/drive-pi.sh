@@ -13,12 +13,13 @@
 #   PI_TIMEOUT      seconds, whole run (default 7200)
 #   PI_POLL         tui poll interval seconds (default 5)
 #   PI_LEAN=1       (default) disable discovered extensions; PI_PROVIDER_EXTENSION explicitly loads a provider
-#                   PI_LEAN=0 loads the user's full extension set (review before use)
+#                   PI_LEAN=0 permits project resource discovery (review before use); global packages are never copied
 #   PI_BIN          pi executable (default pi on PATH)
 #   PI_EXTRA_ARGS   extra pi args, e.g. "--no-skills"
 #   PI_TUI_SELECT=1 (tui) pick model+thinking via /model and /thinking in the TUI instead of CLI flags
 #   PI_BRIDGE=1    load the workspace bridge extension; requires PI_LANE and a running bridge server
 #   PI_BRIDGE_PORT localhost bridge port (default 5190); never installs global pi resources
+#   PI_CODEMODE    only (default) | on | off; fresh per-attempt agent settings, no global writes
 set -u
 umask 077
 [ $# -eq 3 ] || { sed -n 2,3p "$0"; exit 2; }
@@ -34,6 +35,10 @@ RUND="$OUT.d"; [ ! -e "$RUND" ] && [ ! -e "$OUT" ] || { echo "refusing to overwr
 START=$(date +%s)
 log() { echo "[run-pi $(date +%T)] $*" >&2; }
 
+CODEMODE=${PI_CODEMODE:-only}
+python3 "$HERE/session-agent.py" "$RUND/agent" "$CODEMODE" || exit 2
+export PI_CODING_AGENT_DIR="$RUND/agent"
+
 ARGS=(--model "$MODEL" --thinking "$THINK" --session-dir "$RUND/sessions")
 [ -z "${PI_FORK_SESSION:-}" ] || ARGS+=(--fork "$PI_FORK_SESSION")
 if [ "$LEAN" = 1 ]; then
@@ -47,6 +52,13 @@ if [ "${PI_BRIDGE:-0}" = 1 ]; then
   # Shared bridge brief template applies to trial and lane prompts without modifying either source brief.
   { cat "$PROMPT"; printf '\n'; cat "$HERE/bridge/agent-brief.md"; } > "$RUND/bridge-brief.md"
   PROMPT="$RUND/bridge-brief.md"
+else
+  ARGS+=(-e "$HERE/bridge/context.js")
+fi
+if [ "$CODEMODE" != off ]; then
+  ARGS+=(-e builtin:codemode --tools +codemode)
+else
+  ARGS+=(--tools -codemode)
 fi
 # shellcheck disable=SC2206
 [ -n "${PI_EXTRA_ARGS:-}" ] && ARGS+=($PI_EXTRA_ARGS)
