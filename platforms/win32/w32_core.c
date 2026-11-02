@@ -94,9 +94,8 @@ void w32_sleep_ms(uint32_t ms) {
     }
 }
 
-/* ------------------------------------------------------------------ guest heap (first fit, lazily mapped) */
-/* block: [u32 size_with_header | used(bit0)] [u32 requested] payload */
-static uint32_t heap_end = W32_HEAP_LO, heap_mapped = W32_HEAP_LO;
+/* ------------------------------------------------------------------ guest heap (segregated, lazily mapped) */
+static uint32_t heap_end = W32_HEAP_LO;
 typedef struct { uint32_t lo, hi, skip, live, prot; } virtual_range_t;
 static virtual_range_t virtual_ranges[256];
 static uint32_t virtual_n;
@@ -135,13 +134,20 @@ int w32_virtual_release(uint32_t addr) {
         for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;return 1;
     }}return 0;
 }
-#ifdef X86_FLAT_GUEST
 static uint32_t heap_skip(uint32_t p) {
-    for (uint32_t i = 0; i < virtual_n; i++) {
-        virtual_range_t *r = &virtual_ranges[i];
-        if (p >= r->skip && p < r->hi) return r->hi;
-    }
+    for(uint32_t i=0;i<virtual_n;i++)if(p>=virtual_ranges[i].skip&&p<virtual_ranges[i].hi)return virtual_ranges[i].hi;
     return p;
+}
+static void heap_commit_skip(uint32_t begin,uint32_t end) {
+    while(begin<end){
+        virtual_range_t *first=0;
+        for(uint32_t i=0;i<virtual_n;i++){
+            virtual_range_t *r=&virtual_ranges[i];
+            if(r->lo>=begin&&r->hi<=end&&(!first||r->lo<first->lo))first=r;
+        }
+        if(!first)break;
+        first->skip=begin;begin=first->hi;
+    }
 }
 static uint32_t heap_place(uint32_t p, uint32_t need) {
     for (uint32_t i = 0; i < virtual_n; i++) {
@@ -152,18 +158,6 @@ static uint32_t heap_place(uint32_t p, uint32_t need) {
     }
     return p;
 }
-static void heap_commit_skip(uint32_t begin, uint32_t end) {
-    while (begin < end) {
-        virtual_range_t *first = 0;
-        for (uint32_t i = 0; i < virtual_n; i++) {
-            virtual_range_t *r = &virtual_ranges[i];
-            if (r->lo >= begin && r->hi <= end && (!first || r->lo < first->lo)) first = r;
-        }
-        if (!first) break;
-        first->skip = begin; begin = first->hi;
-    }
-}
-#endif
 int w32_memory_region(uint32_t addr,uint32_t *base,uint64_t *end,uint32_t *type,uint32_t *initial_prot) {
     *base=0;*end=0x100000000ull;*type=0x20000;*initial_prot=4;
 #ifdef X86_FLAT_GUEST
@@ -186,97 +180,10 @@ int w32_memory_region(uint32_t addr,uint32_t *base,uint64_t *end,uint32_t *type,
 }
 static int heap_grow_to(uint32_t begin, uint32_t end) {
     if (end > W32_HEAP_HI) return 0;
-#ifdef X86_FLAT_GUEST
     uint32_t lo = begin & ~65535u, hi = (end + 65535u) & ~65535u;
     return x86_map(lo, hi - lo) != 0;
-#else
-    (void)begin;
-    if (end > heap_mapped) {
-        uint32_t to = (end + 0xffffu) & ~0xffffu;
-        if (!x86_map(heap_mapped, to - heap_mapped)) return 0;
-        heap_mapped = to;
-    }
-    return 1;
-#endif
 }
-uint32_t w32_heap_alloc(uint32_t n, int zero) {
-    uint32_t header = W32_64 ? 16u : 8u;
-    uint64_t required = ((uint64_t)n + header + 15u) & ~15ull;
-    if (required > W32_HEAP_HI - W32_HEAP_LO) return 0;
-    uint32_t need = (uint32_t)required;
-    for (uint32_t p = W32_HEAP_LO; p < heap_end;) {
-#ifdef X86_FLAT_GUEST
-        uint32_t next = heap_skip(p);
-        if (next != p) { p = next; continue; }
-#endif
-        uint32_t h = x86_rd32(p), size = h & ~15u;
-        if (!size) break;
-        if (!(h & 1u)) {
-            uint32_t q = p + size; /* coalesce following free blocks */
-            while (q < heap_end) {
-#ifdef X86_FLAT_GUEST
-                if (heap_skip(q) != q) break;
-#endif
-                uint32_t hq = x86_rd32(q), sq = hq & ~15u;
-                if ((hq & 1u) || !sq) break;
-                size += sq; q = p + size;
-            }
-            if (size >= need) {
-                if (size - need >= 32) { x86_wr32(p + need, size - need); x86_wr32(p + need + 4, 0); size = need; }
-                x86_wr32(p, size | 1u); x86_wr32(p + 4, n);
-                if (zero) {
-                    uint8_t *hp = x86_host(p + header);
-                    if (W32_64 && hp) __builtin_memset(hp, 0, size - header);
-                    else for (uint32_t i = header; i < size; i++) x86_wr8(p + i, 0);
-                }
-                return p + header;
-            }
-            x86_wr32(p, size);
-        }
-        p += size;
-    }
-    uint32_t p = heap_end;
-#ifdef X86_FLAT_GUEST
-    p = heap_place(p, need);
-#endif
-    if ((uint64_t)p + need > W32_HEAP_HI || !heap_grow_to(p, p + need)) return 0;
-#ifdef X86_FLAT_GUEST
-    heap_commit_skip(heap_end, p);
-#endif
-    heap_end = p + need;
-    x86_wr32(p, need | 1u); x86_wr32(p + 4, n);
-    if (zero) {
-        uint8_t *hp = x86_host(p + header);
-        if (W32_64 && hp) __builtin_memset(hp, 0, need - header);
-        else for (uint32_t i = header; i < need; i++) x86_wr8(p + i, 0);
-    }
-    return p + header;
-}
-void w32_heap_free(uint32_t a) {
-    uint32_t header = W32_64 ? 16u : 8u;
-    if (a >= W32_HEAP_LO + header && a < heap_end)
-        x86_wr32(a - header, x86_rd32(a - header) & ~15u);
-}
-uint32_t w32_heap_size(uint32_t a) {
-    uint32_t header = W32_64 ? 16u : 8u;
-    return a >= W32_HEAP_LO + header && a < heap_end ? x86_rd32(a - header + 4) : 0;
-}
-uint32_t w32_heap_realloc(uint32_t a, uint32_t n) {
-    if (!a) return w32_heap_alloc(n, 0);
-    uint32_t old = w32_heap_size(a);
-    uint32_t header = W32_64 ? 16u : 8u;
-    if (n <= ((x86_rd32(a - header) & ~15u) - header)) {
-        x86_wr32(a - header + 4, n);
-        return a;
-    }
-    uint32_t b = w32_heap_alloc(n, 0);
-    if (!b) return 0;
-    uint32_t copy = old < n ? old : n;
-    if (W32_64 && x86_host(b) && x86_host(a)) __builtin_memcpy(x86_host(b), x86_host(a), copy);
-    else for (uint32_t i = 0; i < copy; i++) x86_wr8(b + i, x86_rd8(a + i));
-    w32_heap_free(a);
-    return b;
-}
+#include "w32_heap.h"
 
 /* ------------------------------------------------------------------ modules + resources */
 w32_module_t *w32_mod_by_handle(uint32_t h) {
@@ -590,6 +497,7 @@ static int thunk_handler(uint32_t addr) {
         (w32_streqi(s->name, "CreateFileA") || w32_streqi(s->name, "CreateFileW") ||
          w32_streqi(s->name, "FindFirstFileW") || w32_streqi(s->name, "FindFirstFileExW") ||
          w32_streqi(s->name, "GetCurrentProcess") || w32_streqi(s->name, "GetCurrentThread") ||
+         w32_streqi(s->name, "HeapSize") ||
          /* LANE-K1: INVALID_SOCKET is UINT_PTR, not a zero-extended int. */
          w32_streqi(s->name, "socket") || w32_streqi(s->name, "accept") ||
          /* LANE-K6d: _findfirst* return intptr_t, so failure is a full-width -1. */

@@ -26,6 +26,64 @@ the unsigned-character sentinel representation. `__C_specific_handler` handles s
 callbacks through the Win64 ABI and the existing original-context unwind machinery; it is not a general MSVC C++
 personality implementation. The fixture directly tests scope search, negative filter and abnormal-finally callbacks.
 
+## Guest heaps and CRT allocation (K12)
+
+One deterministic two-level segregated allocator serves both guest widths. Its 32-byte boundary tags and
+intrusive lists live in guest memory; 16 sub-bins per power of two and nonempty bitmaps avoid any live-block
+scan. Metadata allocation/free are O(1) in live-block count (virtual-range lookup is bounded to 256 entries);
+zeroing and payload copying remain O(bytes). Requests round up to a bin boundary, with at most 1/16 relative
+class slack above alignment/header overhead. Free eagerly coalesces both physical neighbours, never across
+virtual reservations or skipped unmapped gaps. Shrink splits reusable tails; growth consumes an adjacent
+free block before moving. Both widths return at least 16-byte-aligned payloads (exceeding i386's 8-byte minimum).
+HeapSize/_msize report **requested**, not class/capacity sizes, including a non-NULL zero-size allocation.
+
+GetProcessHeap returns a stable process heap. HeapCreate makes independent ownership/limit/flag state;
+HeapFree, HeapReAlloc and HeapSize reject a block owned by another heap. HeapDestroy frees all live blocks
+of that heap, invalidates its handle, and cannot destroy the process heap. At most **255 simultaneous private
+heaps**; slots are recycled with generation-tagged handles. Stale handles cannot access a new heap; a slot
+retires rather than wrap its generation. Backing free space is shared/reusable across
+heaps; this is logical heap separation, not disjoint native Windows reservation regions. Reviewer-accepted
+bounded model: `initialSize` is a validated capacity hint (no upfront commitment/reservation);
+`maximumSize != 0` limits the sum of **aligned live block footprints including tags**, not native Windows
+reservation rounding. Moving realloc charges its net replacement footprint. All bytes are mapped on demand;
+failed growth leaves addresses, contents, bins, quotas and heap high-water unchanged. Free/destroy retain
+mapped pages for reuse. `heap_bytes` remains the arena high-water extent including skipped gaps;
+`guest_committed_bytes` remains the highest mapped guest end, not RSS or total live requested bytes.
+
+HEAP_NO_SERIALIZE is accepted; these operations never yield, so the cooperative scheduler provides atomic
+metadata mutation without host locks. HEAP_ZERO_MEMORY initializes the requested allocation, or just the newly
+requested tail on realloc (including shrink then regrow). HEAP_REALLOC_IN_PLACE_ONLY never moves and fails
+without changing the original allocation. HEAP_GENERATE_EXCEPTIONS works on success, including when inherited
+from HeapCreate; allocation failure dispatches STATUS_NO_MEMORY (0xc0000017) through the existing AMD64 SEH
+unwinder. i386 has no general SEH dispatcher: that failure aborts with a precise STATUS_NO_MEMORY/missing-SEH
+diagnostic instead of silently returning NULL. Unhandled AMD64 failures also name STATUS_NO_MEMORY. OOM
+raised inside an already dispatched SEH/native callback fails closed with a precise nested-continuation
+unsupported diagnostic; the existing runtime cannot resume that callback's removed native continuation.
+Ordinary caught OOM still invokes filters when shared heap backing is completely exhausted, using separate
+misc-arena exception scratch. This is not an expansion of the existing exception/personality scope.
+
+HeapAlloc/HeapReAlloc return NULL on ordinary exhaustion/overflow and preserve last error. Invalid handles
+fail ERROR_INVALID_HANDLE (6); wrong-owner/invalid pointers, unsupported per-call flag bits, NULL realloc
+and invalid initial/max ordering fail ERROR_INVALID_PARAMETER (87). HeapSize failure is full-width SIZE_T(-1).
+HeapFree(NULL) on a valid heap succeeds; double free fails. Unsupported HeapCreate options (e.g. executable
+heaps) fail ERROR_NOT_SUPPORTED (50). HeapCreate resource exhaustion returns NULL/ERROR_NOT_ENOUGH_MEMORY (8), or an exception with the
+flag. HeapValidate/HeapWalk/HeapCompact were not registered and are not added or given success stubs.
+
+Both-width CRT `malloc/calloc/realloc/free/_msize/_recalloc` share the process heap, including overflow-checked
+multiplication and ENOMEM (12). `realloc(p,0)` and `_recalloc(p,0,n)` free and return NULL; malloc/calloc of
+zero bytes return a freeable non-NULL block. `_recalloc` zeros only newly requested bytes. `_msize(NULL)`
+returns SIZE_T(-1)/EINVAL (22). All `_aligned_malloc/free/msize/realloc/recalloc` and
+`_aligned_offset_malloc/realloc/recalloc` entries share checked private metadata. Alignment is a nonzero
+power of two (raised to guest pointer size), `offset < size` unless offset is zero, `(pointer+offset)` is
+aligned, requested sizes are retained, and moving variants preserve min(old,new) bytes. Aligned recalloc
+zeroes new bytes; invalid parameters fail EINVAL, unrepresentable sizes/failed allocation ENOMEM, preserving
+the original block. Ordinary free and aligned free are not interchangeable. As elsewhere in this bounded
+CRT, invalid parameters set errno/return failure, not the full MSVC invalid-parameter-handler protocol.
+
+Original CC0 evidence: `x64-heap`/`x86-heap`, both execution modes and browser backends; native randomized
+structural invariants compile the actual allocator and bound header operations independent of live set.
+Benchmark source and same-machine before/after snapshots: `docs/handoff/K12.md`.
+
 ## CRT files, formatting and locks
 
 Added descriptor bridges `_read`, `_write`, `_close`, `_fdopen`, `_fileno`, `_get_osfhandle`, `_lseeki64`,

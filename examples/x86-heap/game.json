@@ -1,0 +1,9 @@
+{
+  "id": "x86-heap",
+  "name": "CC0 i386 guest heap contracts",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86-windows-gnu", "entry": "entry", "libs": ["kernel32"], "sources": ["../x64-heap/heap.c"], "out": "heap.exe"},
+    "modules": [{"from": "./build/heap.exe", "main": true}]
+  }
+}

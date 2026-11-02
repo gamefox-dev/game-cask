@@ -313,9 +313,9 @@ implementation, not a per-DLL workaround. Integer/pointer arguments, XMM argumen
 slots, LLP64 long, UTF-16 and FILE tokens are adapted explicitly. Guest callback comparators/constructors/exit
 handlers execute their lifted guest code. MinGW startup/STL/libc++/exception code is not replaced.
 
-The table currently has **396 function names** (aliases counted), plus ten startup data names: stdio **56**, stdlib
-**53**, string/wide/memory **45**, double/float math **113**, time **25**, locale/ctype/conversion **67**, startup
-**37**. `npm run analyze -- FILE --imports-coverage` emits each full DLL!name with implemented/stub/unknown and group,
+The table currently has **434 function names** (aliases counted), plus ten startup data names: stdio **78**, stdlib
+**61**, string/wide/memory **49**, double/float math **113**, time **26**, locale/ctype/conversion **67**, startup
+**40**. `npm run analyze -- FILE --imports-coverage` emits each full DLL!name with implemented/stub/unknown and group,
 plus totals. Runtime and census use the same CRT table. Other Win32 entries are classified from profile registries;
 unknown DLLs/names are not optimistically counted. Availability is not universal behavioral compatibility.
 
@@ -364,7 +364,12 @@ Configure guest memory in game.json:
 ```
 
 The integer range is 128..2048, default 1024; the manifest repeats `memory.guestWindowMiB`, `growth:"on-demand"` and
-`hostArenaMiB:64`. Guest malloc/heap is 16-byte aligned and returns NULL on exhaustion/overflow. Mapping grows wasm
+`hostArenaMiB:64`. Guest malloc/heap is 16-byte aligned and returns NULL on ordinary exhaustion/overflow.
+K12 uses deterministic bounded-work segregated free lists, eager boundary-tag coalescing and separate logical
+heap ownership/quotas; requested sizes survive size-class rounding. HEAP_GENERATE_EXCEPTIONS failure uses
+existing AMD64 SEH or an explicit unavailable-continuation diagnostic. The native performance benchmark is
+not a game/browser timing claim. Exact flag, CRT family and reservation/accounting limits:
+[guest heap contracts](../platforms/win32/CONTRACTS.md#guest-heaps-and-crt-allocation-k12). Mapping grows wasm
 memory only on demand, not by allocating/zeroing the full window. Gaps are inaccessible even below the high-water mark.
 `heap_bytes` is the guest heap high-water extent; `guest_committed_bytes` is the highest mapped guest end (not resident
 RSS). `x64-memory` writes **all 629145600 bytes**, verifies **153600 pages** and patterns, then maps/writes/reads the

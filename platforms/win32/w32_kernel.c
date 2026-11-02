@@ -210,13 +210,51 @@ static uint32_t k_GetSystemTime(void) { systemtime(ARG(0)); return 0; }
 static uint32_t k_one(void) { return 1; }
 static uint32_t k_zero(void) { return 0; }
 static uint32_t k_GetCurrentProcess(void) { return 0xffffffffu; }
-/* heaps: one guest heap serves all (HeapCreate returns a pseudo handle) */
-static uint32_t k_HeapCreate(void) { return H_HEAP + 1; }
+static uint32_t k_fail(uint32_t error);
+/* Heap operations never yield; HEAP_NO_SERIALIZE needs no host locking. */
+static uint32_t k_heap_oom(uint32_t flags) {
+    if(flags&4u)w32_heap_no_memory();
+    return 0; /* HeapAlloc/ReAlloc do not set last error on exhaustion. */
+}
+static uint32_t k_HeapCreate(void) {
+    uint32_t f=ARG(0);
+    if(ARG64(0)>UINT32_MAX||(f&~5u))return k_fail(50);
+    if(ARG64(1)>UINT32_MAX||ARG64(2)>UINT32_MAX){last_error=8;return k_heap_oom(f);}
+    if(ARG(2)&&ARG(1)>ARG(2))return k_fail(87);
+    uint32_t h=w32_heap_create(f,ARG(1),ARG(2));
+    if(h)return h;
+    last_error=8;return k_heap_oom(f);
+}
+static uint32_t k_HeapDestroy(void) {return w32_heap_destroy(ARG64(0))?1:k_fail(6);}
 static uint32_t k_GetProcessHeap(void) { return H_HEAP; }
-static uint32_t k_HeapAlloc(void) { return w32_heap_alloc(ARG(2), (ARG(1) & 8u) != 0); }
-static uint32_t k_HeapFree(void) { w32_heap_free(ARG(2)); return 1; }
-static uint32_t k_HeapReAlloc(void) { return w32_heap_realloc(ARG(2), ARG(3)); }
-static uint32_t k_HeapSize(void) { return w32_heap_size(ARG(2)); }
+static int k_heap_args(uint32_t allowed) {
+    if(!w32_heap_valid_handle(ARG64(0))){k_fail(6);return 0;}
+    if(ARG64(1)>UINT32_MAX||(ARG(1)&~allowed)){k_fail(87);return 0;}
+    return 1;
+}
+static uint32_t k_HeapAlloc(void) {
+    if(!k_heap_args(13))return 0;
+    uint32_t f=ARG(1)|w32_heap_flags(ARG64(0));
+    uint32_t p=ARG64(2)>UINT32_MAX?0:w32_heap_alloc_on(ARG64(0),ARG(2),(f&8u)!=0);
+    return p?p:k_heap_oom(f);
+}
+static uint32_t k_HeapFree(void) {
+    if(!k_heap_args(1))return 0;
+    return ARG64(2)<=UINT32_MAX&&w32_heap_free_on(ARG64(0),ARG(2))?1:k_fail(87);
+}
+static uint32_t k_HeapReAlloc(void) {
+    if(!k_heap_args(29))return 0;
+    if(ARG64(2)>UINT32_MAX||w32_heap_size_on(ARG64(0),ARG(2))==UINT32_MAX)return k_fail(87);
+    uint32_t f=ARG(1)|w32_heap_flags(ARG64(0));
+    uint32_t p=ARG64(3)>UINT32_MAX?0:w32_heap_realloc_on(ARG64(0),ARG(2),ARG(3),(f&8u)!=0,(f&16u)!=0);
+    return p?p:k_heap_oom(f);
+}
+static uint32_t k_HeapSize(void) {
+    if(!k_heap_args(1))return UINT32_MAX;
+    uint32_t n=ARG64(2)>UINT32_MAX?UINT32_MAX:w32_heap_size_on(ARG64(0),ARG(2));
+    if(n==UINT32_MAX)k_fail(87);
+    return n;
+}
 static uint32_t k_LocalAlloc(void) { return w32_heap_alloc(ARG(1), (ARG(0) & 0x40u) != 0); }
 static uint32_t k_LocalFree(void) { w32_heap_free(ARG(0)); return 0; }
 static uint32_t k_LocalReAlloc(void) { return w32_heap_realloc(ARG(0), ARG(1)); }
@@ -656,11 +694,10 @@ static uint32_t r_RegDeleteValueW(void) { return r_RegDeleteValue(1); }
 
 /* ------------------------------------------------------------------ MSVC runtime (cdecl) */
 #define CARG(n) ARG(n)
-static uint32_t c_malloc(void) { return w32_heap_alloc(CARG(0), 0); }
-static uint32_t c_calloc(void) { return w32_heap_alloc(CARG(0) * CARG(1), 1); }
-static uint32_t c_realloc(void) { return w32_heap_realloc(CARG(0), CARG(1)); }
-static uint32_t c_free(void) { w32_heap_free(CARG(0)); return 0; }
-static uint32_t c_msize(void) { return w32_heap_size(CARG(0)); }
+static uint32_t xc_errno(void);
+#define CA_RETURN uint32_t
+#define CA_ERRNO(e) x86_wr32(xc_errno(),(e))
+#include "w32_crt_alloc.h"
 static uint32_t c_memset(void) { for (uint32_t i = 0; i < CARG(2); i++) x86_wr8(CARG(0) + i, CARG(1)); return CARG(0); }
 static uint32_t c_memcpy(void) {
     uint32_t d = CARG(0), s = CARG(1), n = CARG(2);
@@ -810,7 +847,7 @@ const w32_api_t w32_api_kernel[] = {
     API("GetSystemTimeAsFileTime", 1, k_GetSystemTimeAsFileTime), API("GetSystemTime", 1, k_GetSystemTime), API("GetLocalTime", 1, k_GetSystemTime),
     /* Thread/synchronisation APIs live in w32_thread.c for both guest widths. */
     API("GetCurrentProcessId", 0, k_one), API("GetCurrentProcess", 0, k_GetCurrentProcess),
-    API("HeapCreate", 3, k_HeapCreate), API("HeapDestroy", 1, k_one), API("GetProcessHeap", 0, k_GetProcessHeap),
+    API("HeapCreate", 3, k_HeapCreate), API("HeapDestroy", 1, k_HeapDestroy), API("GetProcessHeap", 0, k_GetProcessHeap),
     API("HeapAlloc", 3, k_HeapAlloc), API("HeapFree", 3, k_HeapFree), API("HeapReAlloc", 4, k_HeapReAlloc), API("HeapSize", 3, k_HeapSize),
     API("LocalAlloc", 2, k_LocalAlloc), API("LocalFree", 1, k_LocalFree), API("LocalReAlloc", 3, k_LocalReAlloc),
     API("LocalLock", 1, k_Lock), API("LocalUnlock", 1, k_one), API("LocalSize", 1, k_Size),
@@ -849,7 +886,11 @@ const w32_api_t w32_api_kernel[] = {
     API("ShellAboutA", 4, s_ShellAboutA), API("ShellAboutW", 4, s_ShellAboutW),
     STUB("InitCommonControls", 0), API("InitCommonControlsEx", 1, k_one),
     /* MSVC runtime: msvcrt.dll and the ucrt api-sets share names */
-    CAPI("malloc", c_malloc), CAPI("calloc", c_calloc), CAPI("realloc", c_realloc), CAPI("free", c_free), CAPI("_msize", c_msize),
+    CAPI("malloc", c_malloc), CAPI("calloc", c_calloc), CAPI("realloc", c_realloc), CAPI("free", c_free), CAPI("_msize", c_msize), CAPI("_recalloc", c_recalloc),
+    CAPI("_aligned_malloc", c_aligned_malloc), CAPI("_aligned_free", c_aligned_free),
+    CAPI("_aligned_msize", c_aligned_msize), CAPI("_aligned_realloc", c_aligned_realloc),
+    CAPI("_aligned_recalloc", c_aligned_recalloc), CAPI("_aligned_offset_malloc", c_aligned_offset_malloc),
+    CAPI("_aligned_offset_realloc", c_aligned_offset_realloc), CAPI("_aligned_offset_recalloc", c_aligned_offset_recalloc),
     CAPI("memset", c_memset), CAPI("memcpy", c_memcpy), CAPI("memmove", c_memcpy), CAPI("memcmp", c_memcmp),
     CAPI("strlen", c_strlen), CAPI("wcslen", c_wcslen), CAPI("strcpy", c_strcpy), CAPI("wcscpy", c_wcscpy),
     CAPI("strcmp", c_strcmp), CAPI("strchr", c_strchr), CAPI("atoi", c_atoi), CAPI("abs", c_abs),
