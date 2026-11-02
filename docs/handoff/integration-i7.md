@@ -55,10 +55,15 @@ build. Native browser fixtures are pixel/contract evidence, not fabricated diffe
 
 ## Honest intermediate results and boundaries
 
-An initial full unit attempt was terminated during the discovery/fixture-build phase. The next full attempt reached
-**956/965** with nine transient missing-output/build-publication failures (including a chunk test and several
-oracle-based fixtures); its reports were subsequently overwritten by the explicit oracle sweep. The clean sequential
-rerun completed **965/965**. No test, timeout, tolerance or skip policy was weakened.
+The initial full unit attempt received external **SIGTERM at approximately 11:42 +07 on 2026-11-02** during the
+build-discovery/global-setup phase; its last logged operation lifted the 70,005-instruction discovery body
+(`discovery_exe_0001`). The reviewer reported the termination as external, cause unknown. The following full-run
+log contains two interleaved failure summaries: **956/965** (nine failures) and **960/965** (five failures), involving
+missing manifests/chunks and a chunk-test build output disappearing. Those runs are not passing evidence; no
+unproven root cause is attributed to shader changes. Focused CRT rerun: **9/9**. Subsequent complete unchanged
+runs passed **965/965**, at 11:55:51 (`unit-final2.log`, 232.06 s) and 12:00:59 (`unit-final-rerun.log`, 263.60 s).
+A focused browser invocation also encountered an occupied owned test port left by the earlier attempt; after
+cleaning that port, the focused native regression passed **2/2**. No test, timeout, tolerance or skip policy changed.
 
 The existing 51 browser skips are unchanged backend/policy skips. This merge does not claim unrestricted OpenGL 3.3,
 complete GLSL, native WGSL transform feedback, mobile/browser certification, target-game startup, first draw or
@@ -66,8 +71,11 @@ playability. K9b's explicit Q34/Q35 limits remain authoritative, including array
 rejection, single-sample blits and native-WGSL feedback `E_UNSUPPORTED`. Recovery fails closed for live GPU-generated
 buffers without an authoritative checkpoint; full reupload or deletion remains necessary before ordinary restoration.
 
-External scratch evidence under `/tmp/i7/`: `doctor.log`, `lint.log`, `typecheck.log`, `unit-final2.log`,
-`e2e-final.log`, `leak-final.log`, `oracle-<id>.log`, `oracles.json` and `oracles.log`. The fresh review used
+External scratch evidence under `/tmp/i7/`: final reruns `doctor-final.log`, `lint-final.log`,
+`typecheck-final.log`, `unit-final2.log`, `unit-final-rerun.log`, `e2e-final.log`, `leak-final.log`,
+`oracle-<id>.log`, `oracles.json`, `oracles-summary.json` and `oracles.log`. The final lint finds real
+`/opt/homebrew/bin/gcc-14`, not Apple's clang alias; the scale example is built by the full suite and oracle
+rather than duplicated in lint's 30 check-builds. The fresh review used
 `review-prompt.md`, `review-result.txt` and `review-findings.md`, with a separate session retained under
 `review-result.txt.d/`. Earlier `unit.log`/`unit-final.log` are interrupted/failed attempts, not passing evidence.
 Ignored `reports/e2e-results.json` and all `reports/oracle-*.json` retain structured local results. Machine-local
