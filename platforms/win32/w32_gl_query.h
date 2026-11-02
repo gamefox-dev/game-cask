@@ -46,6 +46,10 @@ static uint32_t query(uint32_t key, int32_t *v) {
         break; }
     case 0x8b8d: v[0] = (int32_t)program; break; case 0x85b5: v[0] = (int32_t)vao; break;
     case 0x8894: v[0] = (int32_t)array; break; case 0x8895: v[0] = (int32_t)vaos[vao].element; break;
+    case 0x8c8f: v[0] = (int32_t)tf_buffer; break;
+    case 0x8c8a: v[0] = 64; break;
+    case 0x8c8b: v[0] = 4; break;
+    case 0x8c80: v[0] = 4; break;
     case 0x8a28: v[0] = (int32_t)uniform; break; case 0x8069: v[0] = (int32_t)tex_bind[0][active_unit]; break;
     case 0x84e0: v[0] = (int32_t)active_unit + 0x84c0; break; case 0x8ca6: v[0] = (int32_t)fbo; break;
     case 0x8ca7: v[0] = (int32_t)rbo; break; case 0xcf5: v[0] = (int32_t)unpack_st.align; break;
@@ -94,8 +98,19 @@ static uint32_t api_GetBufferParameteriv(void) {
 }
 static uint32_t api_GetBufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
-    if ((uint64_t)ARG(1) + ARG(2) > b->size) fail(BAD_VALUE);
-    else for (uint32_t i = 0; i < ARG(2); i++) x86_wr8(ARG(3) + i, b->data[ARG(1) + i]); return 0;
+    uint64_t offset = ARG64(1), size = ARG64(2);
+    if (offset + size < offset || offset + size > b->size) { fail(BAD_VALUE); return 0; }
+    if (!size) return 0;
+    if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
+    if (b->generated) {
+        uint32_t req = ++request_id; SEND(0x63, b->gpu, (uint32_t)offset, (uint32_t)size, req);
+        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        uint8_t *data = glp_alloc((uint32_t)size);
+        int n = data && status > 0 ? bgt_request_read(req, data, (uint32_t)size) : -1; bgt_request_close(req);
+        if (n != (int)size) fail(BAD_OP);
+        else for (uint32_t i = 0; i < size; i++) x86_wr8(ARG(3) + i, data[i]);
+        glp_free(data, (uint32_t)size);
+    } else for (uint32_t i = 0; i < size; i++) x86_wr8(ARG(3) + i, b->data[offset + i]); return 0;
 }
 static uint32_t api_IsBuffer(void) { return ARG(0) < N && buffers[ARG(0)].gpu != 0; }
 static uint32_t api_IsTexture(void) { return ARG(0) && ARG(0) < N && textures[ARG(0)].kind1 != 0; }

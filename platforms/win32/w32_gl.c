@@ -14,6 +14,7 @@
 #define ARRAY_BUFFER 0x8892u
 #define ELEMENT_BUFFER 0x8893u
 #define UNIFORM_BUFFER 0x8a11u
+#define FEEDBACK_BUFFER 0x8c8eu
 #define FRAMEBUFFER 0x8d40u
 #define RENDERBUFFER 0x8d41u
 #define RGBA 0x1908u
@@ -95,7 +96,7 @@ static void missing(const char *name) {
     w32_logf2("unimplemented OpenGL entry: ", name);
 }
 
-typedef struct { uint32_t used, size, gpu; uint8_t *data; } Buffer;
+typedef struct { uint32_t used, size, gpu, generated; uint8_t *data; } Buffer;
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
 typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
@@ -124,6 +125,10 @@ static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_
 static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
 static uint32_t ubo_whole[8];
 static uint32_t program;
+static uint32_t tf_buffer, tf_active, tf_mode, rasterizer_discard;
+static uint32_t tf_bound[4], tf_offset[4], tf_size[4], tf_whole[4], tf_cursor[4];
+typedef struct { uint32_t used, target, active, result; } GlQuery;
+static GlQuery gl_queries[N]; static uint32_t tf_query;
 static uint32_t blend, depth, stencil, cull, scissor_enabled;
 static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
@@ -141,8 +146,8 @@ static uint32_t alloc_name(void *base, uint32_t stride) {
 }
 static Buffer *bound_buffer(uint32_t target) {
     uint32_t id = target == ARRAY_BUFFER ? array : target == ELEMENT_BUFFER ? vaos[vao].element :
-        target == UNIFORM_BUFFER ? uniform : 0;
-    if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER) fail(BAD_ENUM);
+        target == UNIFORM_BUFFER ? uniform : target == FEEDBACK_BUFFER ? tf_buffer : 0;
+    if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER) fail(BAD_ENUM);
     else if (!id || id >= N || !buffers[id].used) fail(BAD_OP);
     return id && id < N && buffers[id].used ? &buffers[id] : 0;
 }
@@ -156,6 +161,7 @@ static uint32_t api_BindBuffer(void) {
     if (target == ARRAY_BUFFER) array = id;
     else if (target == ELEMENT_BUFFER && vao) vaos[vao].element = id;
     else if (target == UNIFORM_BUFFER) uniform = id;
+    else if (target == FEEDBACK_BUFFER) tf_buffer = id;
     else { fail(target == ELEMENT_BUFFER ? BAD_OP : BAD_ENUM); return 0; }
     if (id) buffers[id].used = 1; return 0;
 }
@@ -163,23 +169,29 @@ static uint32_t api_BufferData(void) {
     Buffer *b = bound_buffer(ARG(0)); int64_t size = (int64_t)ARG64(1);
     if (!b) return 0;
     if (size <= 0 || size > 67108864) { fail(BAD_VALUE); return 0; }
+    if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
     uint32_t id = (uint32_t)(b - buffers);
     if (b->gpu) SEND(0x42, id);
-    b->gpu = id; b->size = (uint32_t)size; b->data = data;
-    SEND(0x40, id, 7, b->size, PTR(data), b->size); return 0;
+    b->gpu = id; b->size = (uint32_t)size; b->data = data; b->generated = 0;
+    SEND(0x40, id, 15, b->size, PTR(data), b->size); return 0;
 }
 static uint32_t api_BufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); uint64_t off = ARG64(1), n = ARG64(2);
     if (!b) return 0;
     if (off + n < off || off + n > b->size) { fail(BAD_VALUE); return 0; }
+    if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
+    if (b->generated && ((off & 3) || (n & 3)) && (off || n != b->size)) { fail(BAD_OP); return 0; }
     for (uint32_t i = 0; i < n; i++) b->data[off + i] = x86_rd8(ARG(3) + i);
-    if (n) SEND(0x41, b->gpu, (uint32_t)off, PTR(b->data + off), (uint32_t)n); return 0;
+    if (n) SEND(0x41, b->gpu, (uint32_t)off, PTR(b->data + off), (uint32_t)n);
+    if (!off && n == b->size) b->generated = 0; return 0;
 }
 static uint32_t api_DeleteBuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) {
         uint32_t id = x86_rd32(ARG(1) + 4 * i); if (!id || id >= N) continue;
+        if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
+            if (bound) { fail(BAD_OP); continue; } }
         if (buffers[id].gpu) SEND(0x42, buffers[id].gpu);
         zero(&buffers[id], sizeof(Buffer)); if (array == id) array = 0; if (uniform == id) uniform = 0;
         for (uint32_t j = 0; j < N; j++) {
@@ -187,9 +199,18 @@ static uint32_t api_DeleteBuffers(void) {
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) vaos[j].a[a].buffer = 0;
         }
         for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
+        if (tf_buffer == id) tf_buffer = 0;
+        for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) tf_bound[j] = 0;
     } return 0;
 }
 static uint32_t api_BindBufferBase(void) {
+    if (ARG(0) == FEEDBACK_BUFFER) {
+        uint32_t s = ARG(1), id = ARG(2);
+        if (s >= 4 || id >= N) { fail(BAD_VALUE); return 0; }
+        if (tf_active) { fail(BAD_OP); return 0; }
+        if (id) buffers[id].used = 1;
+        tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
+    }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     if (ARG(1) >= 8 || ARG(2) >= N) { fail(BAD_VALUE); return 0; }
     uint32_t s = ARG(1), id = ARG(2); uniform = id; ubo[s] = id; ubo_offset[s] = 0;
@@ -197,6 +218,14 @@ static uint32_t api_BindBufferBase(void) {
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
 }
 static uint32_t api_BindBufferRange(void) {
+    if (ARG(0) == FEEDBACK_BUFFER) {
+        uint32_t s = ARG(1), id = ARG(2); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
+        if (s >= 4 || id >= N) { fail(BAD_VALUE); return 0; }
+        if (tf_active) { fail(BAD_OP); return 0; }
+        if (id && (off < 0 || size <= 0 || (off & 3) || (size & 3) || (uint64_t)off + (uint64_t)size > buffers[id].size)) { fail(BAD_VALUE); return 0; }
+        if (id) buffers[id].used = 1;
+        tf_buffer = tf_bound[s] = id; tf_offset[s] = id ? (uint32_t)off : 0; tf_size[s] = id ? (uint32_t)size : 0; tf_whole[s] = 0; return 0;
+    }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     uint32_t s = ARG(1), id = ARG(2), off = ARG(3), size = ARG(4);
     if (s >= 8 || id >= N || (off & 255) || !size || (uint64_t)off + size > buffers[id].size) {
@@ -248,7 +277,7 @@ static void ensure_current_buffer(uint32_t instances) {
         if (!data) { fail(OOM); return; }
         if (current_gpu) SEND(0x42, current_gpu);
         glp_free(current_data, current_capacity * 256u); current_data = data; current_capacity = capacity;
-        /* Buffer namespaces: public buffers 1..255, uniform buffers 701..955. */
+        /* Buffer namespaces: public 1..255, uniform 256..699, current attributes 1023. */
         current_gpu = 1023;
         SEND(0x40, current_gpu, 1, capacity * 256u, 0, 0);
         if (error) {
@@ -269,6 +298,7 @@ static uint32_t api_VertexAttribDivisor(void) {
 #include "w32_gl_tex.h"
 #include "w32_gl_fbo.h"
 
+#include "w32_gl_feedback.h"
 #include "w32_gl_shader.h"
 #include "w32_gl_draw.h"
 #include "w32_gl_query.h"

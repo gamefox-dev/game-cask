@@ -198,6 +198,9 @@ export const GPU_OP = {
   TEXTURE_ALLOCATE_MIPS: 0x5e,
   CLEAR_BUFFER: 0x5f,
   BLIT: 0x60,
+  FEEDBACK_VARYINGS: 0x61,
+  FEEDBACK_CAPTURE: 0x62,
+  BUFFER_READBACK: 0x63,
 } as const;
 export const GPU = {
   BLIT_COLOR: 1,
@@ -206,6 +209,7 @@ export const GPU = {
   BUFFER_VERTEX: 1,
   BUFFER_INDEX: 2,
   BUFFER_UNIFORM: 4,
+  BUFFER_FEEDBACK: 8,
   TEXTURE_SAMPLED: 1,
   TEXTURE_ATTACHMENT: 2,
   FORMAT_RGBA8: 0,
@@ -351,6 +355,9 @@ export const GPU_LAYOUT = {
   texture_allocate_mips: 8,
   clear_buffer: 24,
   blit: 72,
+  feedback_varyings: 20,
+  feedback_capture: 52,
+  buffer_readback: 16,
   pipeline_create: 104,
   vertex_layout: 8,
   attribute: 16,

@@ -1,0 +1,38 @@
+// Original CC0-1.0 shader fixtures. Tests general vertex -> compute contracts, not target code.
+import {describe,it,expect} from 'vitest';
+import {feedbackLayout,feedbackVertices,validateFeedbackInterface} from '../../bgt/runtime/feedback';
+import {lowerFeedback} from '../../bgt/renderers/webgpu/feedback';
+import {translateGLSL} from '../../bgt/renderers/webgpu/shaders';
+describe('transform feedback layouts and compute lowering',()=>{
+  it.each([0,1,2,3,4])('complete primitive assembly topology %i',topology=>{
+    expect(feedbackVertices(topology,4)).toEqual([[0,1,2,3],[0,1,2,3],[0,1,1,2,2,3],[0,1,2],[0,1,2,2,1,3]][topology]);
+    expect(feedbackVertices(topology,0)).toEqual([]);
+  });
+  it('interleaved/separate strides are tight, including vec3 and exact signed/unsigned scalar bits',()=>{
+    expect(feedbackLayout('a 2\nb 5\nc 9\n',false,3).strides).toEqual([20]);
+    expect(feedbackLayout('a 2\nb 5\nc 9\n',true,3).strides).toEqual([12,4,4]);
+  });
+  it.each(['','a 4\n','a 13\n','a 0\na 1\n','bgt_internal_x 3\n','a 3','a 3\ntrailing','x 3\ny 3\nz 3\nw 3\nv 3\n'])('malformed interface is rejected: %s',source=>{
+    expect(()=>feedbackLayout(source,true,source.split('\n').length-1)).toThrow();
+  });
+  it('interface validation rejects missing, wrong-type and commented declarations without changing a valid layout',()=>{
+    const layout=feedbackLayout('value 3\n',false,1);
+    expect(()=>validateFeedbackInterface('out vec4 value;',layout)).not.toThrow();
+    for(const source of ['out float value;','// out vec4 value;','/* out vec4 value; */','out vec4 missing;'])expect(()=>validateFeedbackInterface(source,layout)).toThrow();
+  });
+  it('dispatch flattens the second dimension and byte fetch includes the containing-word remainder',()=>{
+    const code=translateGLSL('#version 330 core\nlayout(location=0) in vec4 bytes;out vec4 result;void main(){result=bytes;gl_Position=vec4(0.0);}',1,1);
+    const output=lowerFeedback(code,feedbackLayout('result 3\n',false,1),[{location:0,format:4,stride:8,step:0,offset:1}],4,1400000,1,0,0,undefined,0);
+    expect(output).toContain('id.x+id.y*4194240u');expect(output).toContain('if(ordinal_id>=4199994u)');
+    expect(output).toContain('((1u + vertex * 8u)+3u)/4u');expect(output).toContain(')%4u)*8u)');
+  });
+  it.each([1,2])('GLSL language %i invokes translated vertex body with IDs and typed fetches',lang=>{
+    const code=translateGLSL(`${lang===1?'#version 330 core':'#version 300 es\nprecision highp float;precision highp int;'}\nlayout(location=0) in vec3 pos;out vec3 next;flat out uint tag;void main(){next=pos+vec3(float(bgt_instance_index));tag=bgt_vertex_index+19u;gl_Position=vec4(pos,1.0);}`,1,lang);
+    const layout=feedbackLayout('next 2\ntag 9\n',false,2);
+    const out=lowerFeedback(code,layout,[{location:0,format:2,stride:12,step:0,offset:16}],4,4,2,3,1,undefined,0);
+    expect(out).toContain('@compute @workgroup_size(64)');expect(out).not.toContain('@vertex');expect(out).not.toContain('@location');
+    expect(out).toContain('let o=vs_main(v)');expect(out).toContain('let vertex=3u+ordinal');expect(out).toContain('let instance=1u+ordinal_id/6u');
+    expect(out).toContain('bgt_internal_tf_out[3u+ordinal_id*4u]=u32(o.tag)');expect(out).toContain('bitcast<u32>(o.next.z)');
+    expect(()=>lowerFeedback(code,feedbackLayout('missing 3\n',false,1),[],0,1,1,0,0,undefined,0)).toThrow();
+  });
+});

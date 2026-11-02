@@ -22,7 +22,7 @@ static uint32_t stencil_op(uint32_t v) {
 }
 static uint32_t *capability(uint32_t cap) {
     switch (cap) { case 0xbe2: return &blend; case 0xb71: return &depth; case 0xb90: return &stencil;
-        case 0xb44: return &cull; case 0xc11: return &scissor_enabled; default: return 0; }
+        case 0xb44: return &cull; case 0xc11: return &scissor_enabled; case 0x8c89: return &rasterizer_discard; default: return 0; }
 }
 static uint32_t enable(int enabled) {
     uint32_t *v = capability(ARG(0)); if (!v) fail(BAD_ENUM); else *v = (uint32_t)enabled; return 0;
@@ -263,7 +263,26 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     uint32_t topo = topology(mode); if (topo == 0xffffffffu) return 0;
     if (count < 0 || instances < 0 || instances > 65535) { fail(BAD_VALUE); return 0; }
     if (!count || !instances) return 0;
-    if (!vao || !program || !programs[program].linked) { fail(BAD_OP); return 0; }
+    if (!vao || !program || !programs[program].info) { fail(BAD_OP); return 0; }
+    uint32_t primitive = topo == 0 ? 0 : topo <= 2 ? 1 : 4;
+    if (tf_active && tf_mode != primitive) { fail(BAD_OP); return 0; }
+    Program *feedback_program = &programs[program];
+    if (feedback_program->vertex_only && !rasterizer_discard) { fail(BAD_OP); return 0; }
+    uint32_t tf_vertices = topo == 0 ? (uint32_t)count : topo == 1 ? (uint32_t)count / 2 * 2 :
+        topo == 2 ? ((uint32_t)count > 1 ? ((uint32_t)count - 1) * 2 : 0) :
+        topo == 3 ? (uint32_t)count / 3 * 3 : ((uint32_t)count > 2 ? ((uint32_t)count - 2) * 3 : 0);
+    uint32_t capture_words[13] = {rasterizer_discard};
+    if (tf_active) for (uint32_t i = 0; i < (feedback_program->tf_link_separate ? feedback_program->tf_link_count : 1); i++) {
+        uint32_t id = tf_bound[i], size = tf_whole[i] ? buffers[id].size : tf_size[i];
+        uint64_t bytes = (uint64_t)tf_vertices * (uint32_t)instances * feedback_program->tf_stride[i];
+        if (!id || !buffers[id].gpu || tf_cursor[i] > size || bytes > size - tf_cursor[i]) { fail(BAD_OP); return 0; }
+        for (uint32_t a = 0; a < 16; a++) if (vaos[vao].a[a].enabled && vaos[vao].a[a].buffer == id) { fail(BAD_OP); return 0; }
+        for (uint32_t b = 0; b < feedback_program->nb; b++) if (ubo[feedback_program->block[b].binding] == id) { fail(BAD_OP); return 0; }
+        if (index_type && vaos[vao].element == id) { fail(BAD_OP); return 0; }
+        capture_words[1 + i * 3] = buffers[id].gpu; capture_words[2 + i * 3] = tf_offset[i] + tf_cursor[i];
+        capture_words[3 + i * 3] = size - tf_cursor[i];
+    }
+    if (rasterizer_discard && !tf_active) return 0;
     Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
     if (index_type && index_type != U16 && index_type != U32) { fail(BAD_ENUM); return 0; }
     if (viewport[0] < 0 || viewport[1] < 0 || viewport[2] <= 0 || viewport[3] <= 0 ||
@@ -372,11 +391,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         if (pipeline_count == 128) { fail(OOM); return 0; }
         Pipeline *c = &pipelines[pipeline_count++]; c->used = 1; c->id = pipe = pipeline_count;
         w[0] = pipe; copy(c->words, w, at * 4); c->n = at; c->hash = hash;
-        send(0x4a, w, at); w32_gl_pipelines++;
+        send(0x4a, w, at); if (p->tf_link_count) tf_pipeline(p, pipe); w32_gl_pipelines++;
     }
     uint32_t max_index = first + (uint32_t)count - 1;
     Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : 4;
     if (index_type) {
+        if (ib->generated) { fail(BAD_OP); return 0; }
         if (!ib->gpu || index_offset % index_size || (uint64_t)index_offset + (uint32_t)count * index_size > ib->size) {
             fail(BAD_OP); return 0;
         }
@@ -394,6 +414,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             a->count * (a->type == U8 ? 1 : 4);
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }
+    if (tf_active && !tf_vertices) return 0; /* Complete primitives only: no write, cursor advance or authority change. */
     float h = (float)tg.h; copy(p->values, &h, 4);
     uint32_t swz_base = p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
@@ -435,10 +456,20 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     }
     if (index_type) {
         uint32_t b[] = {ib->gpu, index_type == U32, 0, ib->size}; op(0x54, b, 4);
+        if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {(uint32_t)count, (uint32_t)instances, index_offset / index_size, (uint32_t)base_vertex, 0};
         op(0x58, d, 5);
-    } else { uint32_t d[] = {(uint32_t)count, (uint32_t)instances, first, 0}; op(0x57, d, 4); }
-    op(0x4d, 0, 0); submit(); w32_gl_draws++; return 0;
+    } else { if (tf_active) op(0x62, capture_words, 13);
+        uint32_t d[] = {(uint32_t)count, (uint32_t)instances, first, 0}; op(0x57, d, 4); }
+    op(0x4d, 0, 0); if (submit()) {
+        if (tf_active) {
+            for (uint32_t i = 0; i < (p->tf_link_separate ? p->tf_link_count : 1); i++) {
+                tf_cursor[i] += tf_vertices * (uint32_t)instances * p->tf_stride[i]; buffers[tf_bound[i]].generated = 1;
+            }
+            if (tf_query) gl_queries[tf_query].result += tf_vertices / (primitive == 0 ? 1 : primitive == 1 ? 2 : 3) * (uint32_t)instances;
+        }
+        w32_gl_draws++;
+    } return 0;
 }
 static uint32_t api_DrawArrays(void) {
     if ((int32_t)ARG(1) < 0) { fail(BAD_VALUE); return 0; }

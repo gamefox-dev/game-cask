@@ -5,8 +5,9 @@ import {
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
+import { feedbackLayout, feedbackVertexCount, validateFeedbackInterface, type FeedbackLayout } from './feedback';
 
-type BufferEntry = { usage: number; shadow: Uint8Array<ArrayBuffer> };
+type BufferEntry = { usage: number; shadow: Uint8Array<ArrayBuffer>; generated?: boolean };
 type TextureEntry = {
   width: number; height: number; depth: number; dimension: number; mips: number; format: number; usage: number;
   /** Number of native mip levels currently reserved; logical mips remains the API maximum. */
@@ -15,15 +16,15 @@ type TextureEntry = {
 };
 const isDepth = (format: number) => format === 5 || format === 6;
 const isInteger = (format: number) => format >= 13 && format <= 30;
-type ShaderEntry = { stage: number; language: number; ready: boolean; bytes: number };
+type ShaderEntry = { stage: number; language: number; ready: boolean; bytes: number; source: string };
 type PipelineEntry = {
-  words: number[]; buffers: number[][]; attrs: number[][]; colors: number[][];
+  words: number[]; buffers: number[][]; attrs: number[][]; colors: number[][]; feedback?: FeedbackLayout;
 };
 type Binding = { handle: number; offset: number; size: number; format?: number };
 type Pass = {
   width: number; height: number; formats: number[]; depth: number; attachments: Set<number>;
   pipeline?: PipelineEntry; vertices: Map<number, Binding>; uniforms: Map<number, Binding>;
-  textures: Set<number>; index?: Binding;
+  textures: Set<number>; index?: Binding; capture?: number[]; capturePipeline?: PipelineEntry;
 };
 
 /** Persistent guest resource validation state, one per host, never shared between games. */
@@ -93,7 +94,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     return new Uint8Array(mem.subarray(ptr, ptr + len));
   };
   // All resource operations are outside passes. Dynamic/binding/draw operations are inside.
-  const resourceOp = op <= GPU_OP.PIPELINE_DELETE || (op >= GPU_OP.TEXTURE_CREATE_EX && op !== GPU_OP.CLEAR_BUFFER);
+  const resourceOp = op <= GPU_OP.PIPELINE_DELETE || (op >= GPU_OP.TEXTURE_CREATE_EX && op !== GPU_OP.CLEAR_BUFFER && op !== GPU_OP.FEEDBACK_CAPTURE);
   if (resourceOp && g.pass) return E_STATE;
   if (!resourceOp && op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
   const fresh = (map: Map<number, unknown>) => !validHandle(h) ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
@@ -109,6 +110,28 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     return bytes;
   };
   switch (op) {
+    case GPU_OP.FEEDBACK_VARYINGS: {
+      const pipeline = g.pipelines.get(h); if (!pipeline) return E_NOT_FOUND;
+      if (g.shaders.get(pipeline.words[1])!.language === 0) return E_UNSUPPORTED;
+      if (w[1] > 1 || !w[2] || !w[4] || w[4] > 4096) return E_INVALID;
+      const data = copy(w[3], w[4]); if (typeof data === 'number') return data;
+      try {
+        item.source = new TextDecoder('utf-8', {fatal:true}).decode(data);
+        const layout=feedbackLayout(item.source, !!w[1], w[2]);
+        validateFeedbackInterface(g.shaders.get(pipeline.words[1])!.source,layout);
+        pipeline.feedback=layout;
+      } catch { return E_INVALID; }
+      return emit();
+    }
+    case GPU_OP.BUFFER_READBACK: {
+      const b = g.buffers.get(h); if (!b) return E_NOT_FOUND;
+      if (!w[2]) return E_INVALID;
+      if (w[1] + w[2] > b.shadow.length) return E_BOUNDS;
+      if (w[2] > 8 * 1024 * 1024) return E_LIMIT;
+      if (!ctx.gpuRequest) return E_UNSUPPORTED;
+      const complete = ctx.gpuRequest(w[3]); if (typeof complete === 'number') return complete;
+      item.readback = complete; return emit();
+    }
     case GPU_OP.BLIT: {
       const [, sm, dst, dm] = w, mask = w[12], filter = w[13];
       if (!mask || (mask & ~7) || ((mask & 1) && mask !== 1) || filter > 1) return E_INVALID;
@@ -129,7 +152,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.BUFFER_CREATE: {
       const e = fresh(g.buffers); if (e) return e;
-      if (!w[1] || (w[1] & ~7) || !w[2]) return E_INVALID;
+      if (!w[1] || (w[1] & ~15) || !w[2]) return E_INVALID;
       if (w[2] > GPU_LIMITS.bufferSize || !budget(w[2])) return E_LIMIT;
       if (w[4] !== 0 && w[4] !== w[2]) return E_INVALID;
       const data = copy(w[3], w[4]); if (typeof data === 'number') return data;
@@ -141,9 +164,10 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     case GPU_OP.BUFFER_UPDATE: {
       const b = g.buffers.get(h); if (!b) return E_NOT_FOUND;
       if (!w[3]) return E_INVALID;
+      if (b.generated && (w[1]%4 || w[3]%4) && !(w[1]===0&&w[3]===b.shadow.length)) return E_UNSUPPORTED;
       if (w[1] + w[3] > b.shadow.length) return E_BOUNDS;
       const data = copy(w[2], w[3]); if (typeof data === 'number') return data;
-      b.shadow.set(data, w[1]); item.data = data;
+      b.shadow.set(data, w[1]); if(w[1]===0&&w[3]===b.shadow.length)b.generated=false; item.data = data;
       return emit();
     }
     case GPU_OP.BUFFER_DELETE: {
@@ -267,7 +291,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       try { item.source = new TextDecoder('utf-8', { fatal: true }).decode(data); } catch { return E_INVALID; }
       if (item.source.includes('\0')) return E_INVALID;
       const complete = ctx.gpuRequest(w[5]); if (typeof complete === 'number') return complete;
-      const shader = { stage: w[1], language: w[2], ready: false, bytes: w[4] };
+      const shader = { stage: w[1], language: w[2], ready: false, bytes: w[4], source: item.source };
       g.shaders.set(h, shader); reserve(w[4]);
       let completed = false;
       item.complete = (code, log = '') => {
@@ -366,6 +390,23 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
   }
   const pass = g.pass!;
   switch (op) {
+    case GPU_OP.FEEDBACK_CAPTURE: {
+      if (h > 1) return E_INVALID;
+      if (!pass.pipeline?.feedback) return E_STATE;
+      const layout = pass.pipeline.feedback;
+      for (let i=0;i<4;i++) {
+        const [handle,offset,size] = w.slice(1+i*3,4+i*3);
+        if (i >= layout.strides.length) { if(handle || offset || size) return E_INVALID; continue; }
+        const b = g.buffers.get(handle); if(!b) return E_NOT_FOUND;
+        if (!(b.usage & 8) || !size || offset%4 || size%4) return E_INVALID;
+        if(offset+size>b.shadow.length) return E_BOUNDS;
+        // GL forbids aliasing feedback destinations with active input bindings.
+        if ([...pass.vertices.values(),...pass.uniforms.values(),...(pass.index?[pass.index]:[])].some(v=>v.handle===handle)) return E_STATE;
+        if(w.slice(1,1+i*3).filter((_,j)=>j%3===0).includes(handle)) return E_STATE;
+      }
+      pass.capture = w; pass.capturePipeline=pass.pipeline;
+      return emit();
+    }
     case GPU_OP.CLEAR_BUFFER: {
       const kind = h & 3, cls = (h >>> 2) & 3;
       if (h & 0xffff0000) return E_INVALID;
@@ -449,6 +490,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         const ib = pass.index; if (!ib) return E_STATE;
         const size = ib.format ? 4 : 2;
         if ((w[2] + h) * size > ib.size) return E_BOUNDS;
+        if (g.buffers.get(ib.handle)!.generated) return E_UNSUPPORTED;
         const shadow = g.buffers.get(ib.handle)!.shadow;
         const view = new DataView(shadow.buffer);
         const base = w[3] | 0;
@@ -469,6 +511,19 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         const extent = Math.max(0, ...pipeline.attrs.filter((a) => a[1] === slot)
           .map((a) => a[2] + vertexSizes[a[3]]));
         if (extent && last * stride + extent > binding.size) return E_BOUNDS;
+        if (g.buffers.get(binding.handle)!.generated && pipeline.attrs.some(a=>a[1]===slot && a[2]%4)) return E_UNSUPPORTED;
+      }
+      if (pass.capture) {
+        const layout = pipeline.feedback; if(!layout || pipeline!==pass.capturePipeline) return E_STATE;
+        const vertices = feedbackVertexCount(pipeline.words[3],h) * w[1];
+        for(let i=0;i<layout.strides.length;i++) {
+          const [handle,,size] = pass.capture.slice(1+i*3,4+i*3);
+          if(vertices*layout.strides[i]>size) return E_BOUNDS;
+          if ([...pass.vertices.values(),...pass.uniforms.values(),...(pass.index?[pass.index]:[])].some(v=>v.handle===handle)) return E_STATE;
+          if(pipeline.attrs.some(a=>a[3]===4 && g.buffers.get(pass.vertices.get(a[1])!.handle)!.generated)) return E_UNSUPPORTED;
+        }
+        if(vertices)for(let i=0;i<layout.strides.length;i++)g.buffers.get(pass.capture[1+i*3])!.generated=true;
+        pass.capture = undefined; pass.capturePipeline=undefined;
       }
       ctx.frame.gpuVertices += h * w[1];
       return emit();
