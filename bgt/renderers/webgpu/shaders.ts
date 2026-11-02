@@ -229,6 +229,7 @@ class GLSL {
           const code = init ? this.convert(init, suffix).code : undefined;
           if (constant && !code) this.fail('const requires initializer');
           this.variables.get(current)!.constant = constant && !!init?.constant;
+          if (constant && init?.constant) this.variables.get(current)!.code = `(${code})`;
           if (constant && /^(i32|u32)$/.test(type) && init) {
             const value = this.constInt(this.tokens.slice(start + 1, this.i).map(t => t.text));
             if (value !== undefined) this.intConsts.set(current, { value: BigInt(value), unsigned: type === 'u32' });
@@ -465,14 +466,16 @@ class GLSL {
         const start = this.i;
         const value = this.eat('=') ? this.convert(this.expression(), array) : undefined;
         const init = value?.code;
-        this.variables.set(n, { code: n, type: array, constant: constant && !!value?.constant, place: constant ? undefined : n });
+        // Expand legal constant bindings at use sites: WGSL texture offsets require a
+        // const-expression, not GLSL's runtime `let` spelling for const float/vector storage.
+        this.variables.set(n, { code: constant && value?.constant ? `(${value.code})` : n, type: array, constant: constant && !!value?.constant, place: constant ? undefined : n });
         this.intConsts.delete(n);
         if (constant && init && /^(i32|u32)$/.test(type)) {
           const v = this.constInt(this.tokens.slice(start + 1, this.i).map(t => t.text));
           if (v !== undefined) this.intConsts.set(n, { value: BigInt(v), unsigned: type === 'u32' });
         }
         this.locals.add(n);
-        parts.push(...this.pending.splice(0), `${constant ? /^(?:[iu]32|vec[234][iu])$/.test(array) ? 'const' : 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
+        parts.push(...this.pending.splice(0), `${constant && value?.constant ? 'const' : constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
       } while (this.eat(','));
       result = parts.join('\n');
     } else {
@@ -576,7 +579,7 @@ class GLSL {
         }
         if (lhs.swizzle) {
           const indices = [...lhs.swizzle.components].map(c => `${'xyzw'.indexOf(c)}u`);
-          const mapped = this.save({ code: `array<u32, ${indices.length}>(${indices.join(', ')})[${index.code}]`, type: 'u32' });
+          const mapped = this.save({ code: `array<u32, ${indices.length}>(${indices.join(', ')})[${index.code}]`, type: 'u32', constant: lhs.constant && index.constant });
           const code = `${lhs.swizzle.root}[${mapped.code}]`;
           lhs = { code, type: scalar(lhs.type), constant: lhs.constant && index.constant, place: lhs.place ? code : undefined }; continue;
         }
@@ -795,6 +798,7 @@ class GLSL {
     }
     if (name === 'not' && args.length === 1) return { code: `(!${args[0].code})`, type: args[0].type };
     if (name === 'mod') {
+      if (args.every(a => a.constant)) return { code: `(${args[0].code} - ${args[1].code} * floor(${args[0].code} / ${args[1].code}))`, type: args[0].type };
       const helper = `bgt_internal_mod_${this.temporary++}`, type = args[0].type;
       this.helpers.push(`fn ${helper}(x: ${type}, y: ${args[1].type}) -> ${type} { return x - y * floor(x / y); }`);
       return { code: `${helper}(${args.map(a => a.code).join(', ')})`, type };

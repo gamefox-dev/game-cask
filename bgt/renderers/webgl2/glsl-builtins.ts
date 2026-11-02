@@ -44,15 +44,16 @@ export function builtinExtras(source: string): string {
   // Preserve legal user overloads, including prototypes. Do not inject duplicate definitions.
   const signature = (params: string) => params.split(',').map(p => p.trim().split(/\s+/)
     .filter(t => !['const','in','out','inout','lowp','mediump','highp'].includes(t))[0]).join(',');
-  const declared = new Set([...source.matchAll(/\b\w+\s+(\w+)\s*\(([^()]*)\)\s*(?:\{|;)/g)]
-    .map(m => m[1] + '(' + signature(m[2]) + ')'));
+  const declared = new Map([...source.matchAll(/\b\w+\s+(\w+)\s*\(([^()]*)\)\s*(?:\{|;)/g)]
+    .map(m => [m[1] + '(' + signature(m[2]) + ')', m[0].replace(/[;{]$/, ';')]));
   // Dependent vector wrappers precede source definitions. Forward-declare any user
   // overload replacing an injected helper, even when the source omitted a prototype.
   const prototypes: string[] = [];
   const generated = definitions.filter(d => {
     const m = /^\w+\s+(\w+)\s*\(([^()]*)\)/.exec(d)!;
-    if (!declared.has(m[1] + '(' + signature(m[2]) + ')')) return true;
-    prototypes.push(m[0] + ';'); return false;
+    const prototype = declared.get(m[1] + '(' + signature(m[2]) + ')');
+    if (!prototype) return true;
+    prototypes.push(prototype); return false;
   });
   return [...prototypes, ...generated].join('\n') + '\n';
 }

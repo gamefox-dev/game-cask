@@ -14,6 +14,8 @@ export function lowerDepthSampling(source: string, sampling: readonly DepthSampl
       new RegExp(`@binding\\s*\\(\\s*${binding}u?\\s*\\)`).test(m[1]));
     if (!found) continue;
     const texture = found[2], name = `bgt_internal_depth_${binding}`;
+    const lo = s[3] === 0 ? Math.floor(float(s[9] ?? 0)) : float(s[9] ?? 0);
+    const hi = s[3] === 0 ? lo : float(s[10] ?? 0x42000000);
     const wrap = (axis: string, mode: number) => mode === 0 ? `clamp(${axis}, 0, size - 1)` : mode === 1 ?
       `((${axis} % size) + size) % size` :
       `size - 1 - abs((((${axis} % (size * 2)) + size * 2) % (size * 2)) - size)`;
@@ -36,7 +38,7 @@ fn ${name}_level(uv: vec2f, level: i32, linear: bool, offset: vec2i) -> f32 {
     mix(${name}_load(base+vec2i(0,1),level), ${name}_load(base+vec2i(1,1),level), a.x), a.y);
 }
 fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
-  let effective = clamp(lod, ${literal(float(s[9] ?? 0))}, ${literal(float(s[10] ?? 0x42000000))});
+  let effective = clamp(lod, ${literal(lo)}, ${literal(hi)});
   let level = clamp(${s[3] === 0 ? literal(Math.floor(float(s[9] ?? 0))) : 'effective'}, 0.0, f32(textureNumLevels(${texture}) - 1u));
   let linear = select(${s[2] === 1}, ${s[1] === 1}, effective > 0.0);
   ${s[3] === 0 ? `return ${name}_level(uv,i32(level),linear,offset);` : s[3] === 1 ?

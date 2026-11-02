@@ -20,6 +20,11 @@ export function lowerBuiltin(name: string, args: BuiltinExpr[], context: Context
   if (name === 'inverse') {
     const helper = args.length === 1 && inverseHelper(a.type);
     if (!helper) context.fail('inverse requires one square float matrix');
+    if (a.constant) {
+      const determinant = /let d = (.*); return/.exec(helper.source)![1];
+      const result = /; return (.*); }$/.exec(helper.source)![1];
+      return { code: result.replace(/\bd\b/g, '(' + determinant + ')').replace(/\bm\b/g, '(' + a.code + ')'), type: a.type };
+    }
     context.helper(helper.source);
     return { code: helper.name + '(' + a.code + ')', type: a.type };
   }
@@ -35,6 +40,8 @@ export function lowerBuiltin(name: string, args: BuiltinExpr[], context: Context
     const helper = 'bgt_internal_' + name + '_' + type;
     const columns = Array.from({ length: Number(type[3]) }, (_, c) => matrix ?
       'a[' + c + '] * b[' + c + ']' : 'a * b[' + c + ']');
+    if (args.every(a => a.constant)) return { code: (type + '(' + columns.join(', ') + ')')
+      .replace(/\b[ab]\b/g, n => '(' + (n === 'a' ? a.code : b.code) + ')'), type };
     context.helper('fn ' + helper + '(a: ' + a.type + ', b: ' + b.type + ') -> ' + type +
       ' { return ' + type + '(' + columns.join(', ') + '); }');
     return { code: helper + '(' + a.code + ', ' + b.code + ')', type };
@@ -92,6 +99,10 @@ export function lowerBuiltin(name: string, args: BuiltinExpr[], context: Context
       refract:'select(0.0, z * x - (z * y * x + sqrt(max(k,0.0))) * y, k >= 0.0)' };
     const count = name === 'normalize' ? 1 : name === 'faceforward' || name === 'refract' ? 3 : 2;
     require(args.length === count && args.every(a=>a.type==='f32'), 'requires scalar floats');
+    if (args.every(a => a.constant)) {
+      const expression = expressions[name].replace(/\bk\b/g, '(1.0 - z * z * (1.0 - (y*x)*(y*x)))');
+      return { code: '(' + expression.replace(/\b[xyz]\b/g, n => '(' + args['xyz'.indexOf(n)].code + ')') + ')', type: 'f32' };
+    }
     context.helper('fn ' + helper + '(' + ['x','y','z'].slice(0,count).map(n=>n+': f32').join(', ') + ') -> f32 { ' +
       (name === 'refract' ? 'let k = 1.0 - z * z * (1.0 - (y*x)*(y*x)); ' : '') + 'return ' + expressions[name] + '; }');
     return { code: helper + '(' + args.map(a=>a.code).join(', ') + ')', type: 'f32' };

@@ -8,8 +8,8 @@ import { regressionFragment } from '../support/glsl-regressions';
 
 describe('GLSL matrix and builtin coverage', () => {
   it('retains the explicit builtin fixture census', () => {
-    expect(builtinRegressions).toHaveLength(267);
-    expect(new Set(builtinRegressions.map(c=>c.name)).size).toBe(267);
+    expect(builtinRegressions).toHaveLength(313);
+    expect(new Set(builtinRegressions.map(c=>c.name)).size).toBe(313);
   });
   for (const c of invalidOffsetRegressions) for (const language of [1,2]) it(c.name + ' rejects language ' + language, () => {
     const version = language === 1 ? '#version 330 core\n' : '#version 300 es\nprecision highp float;\n';

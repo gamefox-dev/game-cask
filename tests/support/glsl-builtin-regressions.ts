@@ -211,3 +211,30 @@ for (const c of depthApproximationRegressions) {
   c.expected = [64,0,0,255];
   builtinRegressions.splice(builtinRegressions.indexOf(c),1);
 }
+
+// Follow-up edge controls: fixed NONE LOD is floored before filter selection; source prototypes
+// must retain user return types and parameter qualifiers, not the portable-extra defaults.
+validCase('shadow-none-fractional-minlod','',
+  'textureGradOffset(bgt_t0,vec3(0.5,0.5,0.5),vec2(0.5,0.0),vec2(0.0,0.5),ivec2(0)) == 0.5',
+  {header:'uniform sampler2DShadow bgt_t0;',texture:true,textureKind:'shadow',sampler:[1,0,1,0,0,0,0,1,1,f32word(0.75),f32word(32)]});
+validCase('user-frexp-inout','int e=2; float x=frexp(4.0,e);','x == 4.0 && e == 5',
+  {header:'float frexp(float x,inout int e){e+=3;return x;}'});
+validCase('user-frexp-int-return','int e; int x=frexp(4.0,e);','x == 7 && e == 3',
+  {header:'int frexp(float x,out int e){e=3;return 7;}'});
+validCase('user-ldexp-int-return','','ldexp(2.0,3) == 7',
+  {header:'int ldexp(float x,int e){return 7;}'});
+
+// Legal non-literal constant offsets must reach native WGSL const-expression operands, not let/helper calls.
+const constantOffsets = [
+  ['float','const float k=1.0;','ivec2(int(k),-int(k))'],
+  ['vector-float','const vec2 k=vec2(1.0,-1.0);','ivec2(k)'],
+  ['swizzle-index','const ivec2 k=ivec2(-1,1);','ivec2(k.yx[0],k.yx[1])'],
+  ['scalar-dot','','ivec2(int(dot(1.0,1.0)),-1)'],
+  ['mod','','ivec2(int(mod(5.0,2.0)),-1)'],
+  ['nested','','ivec2(int(mod(dot(5.0,1.0),2.0)),-1)'],
+];
+for (const c of builtinRegressions.filter(c=>/^texture-float2d-.*Offset$/.test(c.name))) {
+  for (const [suffix,declaration,expression] of constantOffsets) builtinRegressions.push({
+    ...c,name:c.name+'-const-'+suffix,body:declaration+' '+c.body.replace('ivec2(1,-1)',expression),
+  });
+}

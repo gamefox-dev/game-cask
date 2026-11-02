@@ -101,13 +101,15 @@ function integerSample(t: Expr, uv: Expr, name: string, args: Expr[], offset: Ex
 }
 function shadowSample(t: Expr, uv: Expr, name: string, args: Expr[], offset: Expr | undefined, ctx: Context): Expr {
   const s = sampler(t,ctx), helper = ctx.temp('shadow_sample');
+  const lo = s[3] === 0 ? Math.floor(float(s[9])) : float(s[9]);
+  const hi = s[3] === 0 ? lo : float(s[10]);
   const compare = ['false','r < d','r == d','r <= d','r > d','r != d','r >= d','true'][s[8]];
   const wrap = (mode: number) => mode === 0 ? 'clamp(p,0,n-1)' : mode === 1 ? '((p%n)+n)%n' : 'min(((p%(n*2))+n*2)%(n*2),n*2-1-(((p%(n*2))+n*2)%(n*2)))';
   ctx.helper('fn ' + helper + '_x(p:i32,n:i32)->i32{return ' + wrap(s[4]) + ';}\n' +
     'fn ' + helper + '_y(p:i32,n:i32)->i32{return ' + wrap(s[5]) + ';}\n' +
     'fn ' + helper + '_load(p:vec2i,l:i32,r:f32)->f32 { let size=vec2i(textureDimensions(' + t.code + ',l)); let d=textureLoad(' + t.code + ',vec2i(' + helper + '_x(p.x,size.x),' + helper + '_y(p.y,size.y)),l); return select(0.0,1.0,' + compare + '); }\n' +
     'fn ' + helper + '_level(c:vec3f,l:i32,o:vec2i,linear:bool)->f32 { let p=c.xy*vec2f(textureDimensions(' + t.code + ',l)); if(!linear){return ' + helper + '_load(vec2i(floor(p))+o,l,c.z);} let b=vec2i(floor(p-vec2f(0.5)))+o; let a=fract(p-vec2f(0.5)); return mix(mix(' + helper + '_load(b,l,c.z),' + helper + '_load(b+vec2i(1,0),l,c.z),a.x),mix(' + helper + '_load(b+vec2i(0,1),l,c.z),' + helper + '_load(b+vec2i(1,1),l,c.z),a.x),a.y); }\n' +
-    'fn ' + helper + '(c:vec3f,l:f32,o:vec2i)->f32 { let effective=clamp(l,' + literal(float(s[9])) + ',' + literal(float(s[10])) + ');' +
+    'fn ' + helper + '(c:vec3f,l:f32,o:vec2i)->f32 { let effective=clamp(l,' + literal(lo) + ',' + literal(hi) + ');' +
     'let linear=select(' + (s[2]===1) + ',' + (s[1]===1) + ',effective>0.0);' +
     'let level=clamp(' + (s[3]===0 ? literal(Math.floor(float(s[9]))) : 'effective') + ',0.0,f32(textureNumLevels(' + t.code + ')-1u));' +
     (s[3]===0 ? 'return ' + helper + '_level(c,i32(level),o,linear);' :
