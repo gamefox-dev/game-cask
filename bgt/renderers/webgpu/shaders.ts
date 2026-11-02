@@ -1,5 +1,6 @@
 // Local, engine-independent GLSL 330/ES 300 frontend. Unsupported syntax is a compile error, never guessed.
 // Native WebGPU validates the resulting WGSL; errors retain the original token/line where possible.
+import { inverseHelper } from './glsl-builtins';
 import { specializeOpaqueSamplers } from '../glsl-opaque';
 import { integerLiteral, integerConstant, integerCode, type IntegerValue } from './glsl-integers';
 type Token = { text: string; line: number };
@@ -685,6 +686,12 @@ class GLSL {
       const result = type === 'void' ? { code: '', type } : this.save({ code: call, type });
       if (type === 'void') this.pending.push(`${call};`);
       this.pending.push(...writes); return result;
+    }
+    if (name === 'inverse') {
+      const helper = args.length === 1 && inverseHelper(args[0].type);
+      if (!helper) this.fail('inverse requires one square float matrix');
+      if (!this.helpers.some(h => h.startsWith('fn ' + helper.name + '('))) this.helpers.push(helper.source);
+      return { code: helper.name + '(' + args[0].code + ')', type: args[0].type };
     }
     const info = this.structs.get(name);
     if (info) {
