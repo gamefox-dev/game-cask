@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { loadHeadless, ROOT } from '../../tests/support/headless';
 // @ts-expect-error plain ESM
+import { resourceSnapshot } from '../probe/resources.mjs';
+// @ts-expect-error plain ESM
 import { buildGame } from '../build/build.mjs';
 
 it('reports size, emission counts, build/cache state and 300-frame execution for every fixture', async () => {
@@ -32,6 +34,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       }, modules: [{ from: './build/cpu.exe', main: true }],
     },
   }));
+  const resources={start:resourceSnapshot(),end:null as unknown};
   const rows = [];
   const ids = process.env.BGT_CODEGEN_IDS?.split(',') ?? ['codegen-cpu', 'x64-basics', 'x64-cpp',
     'x64-cpprt', 'x64-crt', 'x64-gui', 'x64-memory', 'x64-tls', 'win32-hello'];
@@ -64,7 +67,9 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
     rows.push(row);
     console.log(`${id}: ${JSON.stringify({ ...row, logs: undefined, runtime: undefined })}`);
   }
+  resources.end=resourceSnapshot();
   const report = {
+    resources, profileEnabled:process.env.BGT_CPU_PROFILE !== '0',
     schema: 'game-cask/codegen/1', base: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     node: process.version, platform: `${process.platform}/${process.arch}`, fixtures: rows,
     method: 'Whole wasm (profile + Asyncify included); update/render/consume 300 fixed frames; median of five fresh '

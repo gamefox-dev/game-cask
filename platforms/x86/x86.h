@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include "x86_decode.h"
+#include "x86_profile.h"
 
 enum { EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI, R8, R9, R10, R11, R12, R13, R14, R15 };
 typedef union { uint8_t u8[16]; uint16_t u16[8]; uint32_t u32[4]; uint64_t u64[2]; int8_t i8[16]; int16_t i16[8]; int32_t i32[4]; int64_t i64[2]; float f32[4]; double f64[2]; } x86_vec_t;
@@ -242,6 +243,8 @@ typedef struct {
     uint32_t lifted_functions;      /* registered lifted functions */
 } x86_metrics_t;
 extern x86_metrics_t x86_metrics;
+/* Monotonic instruction clock of the currently active guest CPU context. */
+uint64_t x86_guest_instruction_clock(void);
 
 /* Interpreter-only mode (differential oracle): ignore lifted functions. */
 extern int x86_force_interp;

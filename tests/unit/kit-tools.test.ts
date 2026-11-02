@@ -143,10 +143,15 @@ describe('probe mode', () => {
         p.log('mz', (await p.peek(st.modules[0].base, 2)).toString('latin1'), (await p.metrics()).interp_insns);
         p.log(d.game.id, d.backend, st.modules[0].name);
       }\n`);
-      execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--backend', 'webgl2', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out')], { cwd: ROOT, stdio: 'pipe' });
+      execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--backend', 'webgl2', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out'), '--cpu-profile', '1:4'], { cwd: ROOT, stdio: 'pipe' });
       const j = JSON.parse(readFileSync(join(dir, 'out', 'probe.json'), 'utf8'));
       expect(j.errors).toEqual([]);
       expect(j.notes).toEqual([]);
+      expect(j.resources.start.cpuCount).toBeGreaterThan(0);expect(j.resources.end.cpuCount).toBeGreaterThan(0);
+      expect(j.cpuProfile).toMatchObject({startedFrame:1,endedFrame:4,complete:true});
+      const cpu=JSON.parse(readFileSync(join(dir,'out/cpu.cpuprofile'),'utf8'));
+      expect(cpu.nodes.length).toBeGreaterThan(0);
+      expect(existsSync(join(dir,'out/cpu-mapping.json'))).toBe(true);
       expect(j.lines).toEqual(['mz MZ 0', 'win32-hello webgl2 hello.exe']);
       expect(existsSync(join(dir, 'out', 'shot.png')) && existsSync(join(dir, 'out', 'crop.png'))).toBe(true);
       const coverage = JSON.parse(readFileSync(join(dir, 'out', 'coverage.json'), 'utf8'));
@@ -154,6 +159,10 @@ describe('probe mode', () => {
       expect(coverage.modules[0].name).toBe('hello.exe');
       expect(coverage.code.length).toBeGreaterThan(0);
       expect(coverage.metrics.code_entries_dropped).toBe(0);
+      expect(coverage.metrics.execution.guest_instruction_clock).toBe(0); // i386 has no TSC instrumentation yet
+      expect(coverage.metrics.execution.cpu_profile.apis.some((a:any)=>a.count>0 && a.samples>0)).toBe(true);
+      expect(coverage.metrics.execution.host_profile.updateMs).toBeGreaterThan(0);
+      expect(coverage.metrics.runtime_profile.gpuDrawWallMs).toBeGreaterThan(0);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   }, 120_000);
 });

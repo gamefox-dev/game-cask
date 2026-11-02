@@ -1,0 +1,5538 @@
+{
+  "schema": "game-cask/execution-profile-overhead/1",
+  "method": "300 fixed headless updates/render/consume; median of five fresh instances after discarded warmup; same source/toolchain; C timing+census compile switch only (JS timing remains on in both). Short workloads are noisy; not a universal overhead bound.",
+  "on": {
+    "resources": {
+      "start": {
+        "when": "2026-11-02T01:50:06.040Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          15.66162109375,
+          20.5830078125,
+          17.5302734375
+        ],
+        "freeRamBytes": 1380007936,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 9550556037,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            false,
+            false
+          ],
+          "queued": 1
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "end": {
+        "when": "2026-11-02T01:50:42.346Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          18.85986328125,
+          20.671875,
+          17.673828125
+        ],
+        "freeRamBytes": 680837120,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 9550556037,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            false,
+            false
+          ],
+          "queued": 1
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    },
+    "profileEnabled": true,
+    "schema": "game-cask/codegen/1",
+    "base": "957d83757f576dd79e803645c90a80951919519e",
+    "node": "v24.19.0",
+    "platform": "darwin/arm64",
+    "fixtures": [
+      {
+        "id": "x64-crt",
+        "instructions": 5345,
+        "specialized": 5130,
+        "generic": 215,
+        "wasm_bytes": 1314523,
+        "duration_ms": 9137.791,
+        "peak_child_rss_bytes": 242335744,
+        "compile_ms": 9039.22,
+        "link_ms": 98.52,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/1f5b202b23d5d0bc2baf6b9d81a8a5455f5654cc7891e5adf0656020638cb779.o",
+            "compile_ms": 66.635
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/98722ebf8fe05be49e82e567ef7b97f356881b83ea43c7c50a5728e0573376f7.o",
+            "compile_ms": 5778.245
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/96fe05f0ac3d055585df908295e89a754247ee4b8dc8dab31cbfb9ec85bad4b6.o",
+            "compile_ms": 60.703
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/f2b37f164c1d8a073c858dce5cec6096e6b2111f77e4fe4f9f819292c5de3a88.o",
+            "compile_ms": 168.369
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/4d5a2b618d813a790a8b2842bc2e2fc55967ea931a664f1580b4b4c44f904d1a.o",
+            "compile_ms": 190.223
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/4c2d2c9a1f7e11001b70992e862efd141e83257790720167f84f152fc96b6083.o",
+            "compile_ms": 188.474
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/a25a98d22f9d134fc290f20e4fd2aea2c9367ea6aaa6b0fbcb031fe61937f548.o",
+            "compile_ms": 264.988
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/6ecb4802392ba44f912250b49c44e32371339f07e92aefb7746e7ab15baa017a.o",
+            "compile_ms": 177.38
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/25b09240b5ec26336fae8b6607e2e8efc47bdb213e1be7464a980dd7e2fec60a.o",
+            "compile_ms": 142.86
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/14ebe45edb9570f2734d8e2cc1540957c728e8698f94812003f908aa7f85f39b.o",
+            "compile_ms": 115.439
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/41da294d8dd0aad765409a4370d3b4a1d6765d1ad53065929134fed497f7ed64.o",
+            "compile_ms": 5116.168
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/257aa315c166ddceb2f97cf2099d24b9b8410bd670e56b04ecd72bebecd8dc84.o",
+            "compile_ms": 81.012
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/a944159f17f799225ca01b698a72b0381c806a1eb1b703caa2769f4baf420929.o",
+            "compile_ms": 72.992
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/adde48f6ecf007adc3cb4ab43f5523ff76eea381c4ea66e2efd0078d55d24196.o",
+            "compile_ms": 177.944
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/3c092a5a7d59fb519a69c45ec3611050a0146fb3c73b5330d6b6499af7137ea7.o",
+            "compile_ms": 77.492
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/e2a1963951ee07eec8730292844e3af5e86033fd3c5187053027018876ae2f2d.o",
+            "compile_ms": 71.232
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/83427a648fa33669f9d961d127612bbea6234c89d408efbd90db98d7bda24c72.o",
+            "compile_ms": 79.027
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/c115a57d01a57c85572497d5258ef10b6562dd606ed77b3735f1a43aa84fed07.o",
+            "compile_ms": 80.853
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/922ed21df0fbe74ed073d4cf74679b842694ebb0297210380203256587bae5b5.o",
+            "compile_ms": 243.475
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/81af43722aaf0c9281a3710f51d68ec4703756d5211e94f66f775f33f5b53ca3.o",
+            "compile_ms": 66.217
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/901960152814773c8465b0531d9e729a574f62a6e11c64d3607c71fd059540f5.o",
+            "compile_ms": 186.377
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/40238165100eb4e106567436caf0fd8630828487f5c1568edc5d48017cec0932.o",
+            "compile_ms": 332.188
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/c98284e5f6071a7feb032462ec52abc53f8e78f9937ffac3b71cc0fbec25f42a.o",
+            "compile_ms": 69.942
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/7437c59a3660d2213ce3f648651395ec089e31a35843fc620b543651aed46bc3.o",
+            "compile_ms": 649.821
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/b5b0da678822fd702c5f5d232e7fc25a65a6757604743d9353cbd3aa93f8ca19.o",
+            "compile_ms": 680.218
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/dd83f56de0e2195600a71ac6e3dba8df0c09ba45edd6021de493bfb0c62eded1.o",
+            "compile_ms": 642.332
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/54b45342670db0e226e5caff07ab4a24243919fb2afa3a9fd9ae77b614b13c06.o",
+            "compile_ms": 494.265
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/e5b8c2d14965e56887ee9a678935e1120377990f43f997dc9fb9357e0dd02716.o",
+            "compile_ms": 130.253
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/50a78a63980fff2816093569d972a00c3e19fa647db1520150840ae2ae4133a4.o",
+            "compile_ms": 855.873
+          }
+        ],
+        "parallel_rss_upper_bound_bytes": 484671488,
+        "objects_compiled": 29,
+        "objects_cached": 2,
+        "jobs": 2,
+        "object_cache": {
+          "bytes": 388781647,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "asyncify_cached": true,
+        "asyncify_ms": 122.44266699999935,
+        "build_ms": 12092.716,
+        "lifted_insns": 5345,
+        "wasm_bytes_per_insn": 245.9350795135641,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+        "frames": 300,
+        "run_ms_median": 4.539334000000963,
+        "run_ms_samples": [
+          3.775207999999111,
+          4.497583999998824,
+          4.539334000000963,
+          4.848667000000205,
+          10.996209000000817
+        ],
+        "logs": [
+          "guest CRT stdout: crt string=6ad83dae",
+          "guest CRT stdout: crt stdlib=7702d143",
+          "guest CRT stdout: ulp sin=3fd7710255764214,3ebb8813",
+          "guest CRT stdout: ulp cos=3fedc6b7eb995912,3f6e35bf",
+          "guest CRT stdout: ulp tan=3fd9312d859bf8b0,3ec9896c",
+          "guest CRT stdout: ulp asin=3fd899f4edc962d3,3ec4cfa7",
+          "guest CRT stdout: ulp acos=3ff2fb7e18d1d464,3f97dbf1",
+          "guest CRT stdout: ulp atan=3fd6f61941e4def0,3eb7b0ca",
+          "guest CRT stdout: ulp exp=3ff747a513dbef6a,3fba3d29",
+          "guest CRT stdout: ulp exp2=3ff4bfdad5362a27,3fa5fed7",
+          "guest CRT stdout: ulp expm1=3fdd1e944f6fbdaa,3ee8f4a2",
+          "guest CRT stdout: ulp log=bfef62f40794a7b8,bf7b17a0",
+          "guest CRT stdout: ulp log2=bff6a3fe5c604298,bfb51ff3",
+          "guest CRT stdout: ulp log10=bfdb43125b8e9800,beda1893",
+          "guest CRT stdout: ulp log1p=3fd4618bc21c5ec2,3ea30c5e",
+          "guest CRT stdout: ulp sqrt=3fe3988e1409212e,3f1cc471",
+          "guest CRT stdout: ulp cbrt=3fe7137449123ef6,3f389ba2",
+          "guest CRT stdout: ulp fabs=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp floor=0000000000000000,00000000",
+          "guest CRT stdout: ulp ceil=3ff0000000000000,3f800000",
+          "guest CRT stdout: ulp trunc=0000000000000000,00000000",
+          "guest CRT stdout: ulp round=0000000000000000,00000000",
+          "guest CRT stdout: ulp sinh=3fd8910411ce5046,3ec48820",
+          "guest CRT stdout: ulp cosh=3ff123640f685b59,3f891b20",
+          "guest CRT stdout: ulp tanh=3fd6ef53de8c8fb0,3eb77a9e",
+          "guest CRT stdout: ulp asinh=3fd7786a7973a592,3ebbc354",
+          "guest CRT stdout: ulp atanh=3fd93b0aee21c2c8,3ec9d858",
+          "guest CRT stdout: ulp erf=3fd9dd0d2b721f39,3ecee869",
+          "guest CRT stdout: ulp erfc=3fe311796a46f064,3f188bcb",
+          "guest CRT stdout: ulp atan2=3fd2a73a661eaf06,3e9539d4",
+          "guest CRT stdout: ulp pow=3fd2c7f098b2a9f8,3e963f85",
+          "guest CRT stdout: ulp hypot=3ff4e16fdacff937,3fa70b7f",
+          "guest CRT stdout: ulp fmod=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp remainder=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp copysign=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp fmin=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp fmax=3ff4000000000000,3fa00000",
+          "guest CRT stdout: ulp fdim=0000000000000000,00000000",
+          "guest CRT stdout: crt math=5ff12b0d",
+          "guest CRT stdout: crt stdio=1a852801",
+          "guest CRT stdout: crt locale=f86bc056",
+          "guest CRT stdout: crt time=0de0652c",
+          "guest CRT stdout: crt file-edges=04a5217b",
+          "guest CRT stdout: crt result=PASS failures=0",
+          "guest CRT stdout: crt exit-handler=PASS",
+          "win32 profile: ExitProcess"
+        ],
+        "runtime": {
+          "platform": "win32",
+          "lifted_functions": 161,
+          "lifted_calls": 2022,
+          "guest_instruction_clock": 9945,
+          "interp_insns": 0,
+          "interp_code_entries": 0,
+          "interp_functions": 0,
+          "interp_unowned_entries": 0,
+          "generic_insn_execs": 3888,
+          "tail_calls_lifted": 0,
+          "continues_interpreted": 0,
+          "api_calls": 789,
+          "imports_bound": 214,
+          "stub_calls": 0,
+          "gl_calls": 0,
+          "gl_draws": 0,
+          "gl_state_changes": 0,
+          "gl_pipelines": 0,
+          "gl_unimplemented": 0,
+          "gl_stubs": [],
+          "gl_approximations": 0,
+          "gl_approximation_kinds": [],
+          "gdi_ops": 0,
+          "chrome_ops": 0,
+          "gdi_approx_rop": 0,
+          "gdi_unsupported": 0,
+          "gdi_pixel_reads": 0,
+          "gdi_cpu_replays": 0,
+          "gdi_replay_compactions": 0,
+          "gdi_getpixel_noread": 0,
+          "pixel_replay": 0,
+          "mono_color_blits": 0,
+          "messages": 0,
+          "paints": 0,
+          "timers_fired": 0,
+          "yields": 300,
+          "peek_yields": 0,
+          "targets_lost": 0,
+          "exited": 1,
+          "heap_bytes": 8400,
+          "guest_committed_bytes": 536936448,
+          "trace_hash": 620840639,
+          "stubs": [],
+          "apis_hit": [
+            "atof",
+            "strtod",
+            "strtof",
+            "strtol",
+            "strtoll",
+            "strtoul",
+            "wcstod",
+            "wcstol",
+            "wcstoul",
+            "__p__environ",
+            "getenv",
+            "_set_new_mode",
+            "free",
+            "malloc",
+            "realloc",
+            "localeconv",
+            "setlocale",
+            "frexp",
+            "llround",
+            "llroundf",
+            "lround",
+            "lroundf",
+            "modf",
+            "modff",
+            "strchr",
+            "strrchr",
+            "strstr",
+            "wcschr",
+            "wcsrchr",
+            "wcsstr",
+            "__p___argc",
+            "__p___argv",
+            "_configure_narrow_argv",
+            "_crt_atexit",
+            "_errno",
+            "_initialize_narrow_environment",
+            "_initterm",
+            "_set_app_type",
+            "_set_invalid_parameter_handler",
+            "exit",
+            "__acrt_iob_func",
+            "__p__commode",
+            "__p__fmode",
+            "__stdio_common_vfprintf",
+            "__stdio_common_vfscanf",
+            "__stdio_common_vsprintf",
+            "__stdio_common_vsscanf",
+            "__stdio_common_vswprintf",
+            "clearerr",
+            "fclose",
+            "feof",
+            "ferror",
+            "fflush",
+            "fgetc",
+            "fgets",
+            "fopen",
+            "fputc",
+            "fread",
+            "fseek",
+            "ftell",
+            "fwrite",
+            "puts",
+            "rewind",
+            "tmpfile",
+            "ungetc",
+            "_stricmp",
+            "isalnum",
+            "isalpha",
+            "iscntrl",
+            "isgraph",
+            "islower",
+            "isprint",
+            "ispunct",
+            "isspace",
+            "isupper",
+            "isxdigit",
+            "strcmp",
+            "strcspn",
+            "strlen",
+            "strncat",
+            "strpbrk",
+            "strspn",
+            "tolower",
+            "toupper",
+            "wcscat",
+            "wcscmp",
+            "wcscpy",
+            "wcscspn",
+            "wcslen",
+            "wcsncat",
+            "wcsncmp",
+            "wcsncpy",
+            "wcspbrk",
+            "wcsspn",
+            "_gmtime64",
+            "_localtime64",
+            "_time64",
+            "clock",
+            "strftime",
+            "bsearch",
+            "div",
+            "ldiv",
+            "lldiv",
+            "qsort",
+            "rand",
+            "srand",
+            "GetProcAddress",
+            "InitializeCriticalSection",
+            "LoadLibraryA",
+            "SetUnhandledExceptionFilter",
+            "VirtualAlloc",
+            "sin",
+            "sinf",
+            "cos",
+            "cosf",
+            "tan",
+            "tanf",
+            "asin",
+            "asinf",
+            "acos",
+            "acosf",
+            "atan",
+            "atanf",
+            "exp",
+            "expf",
+            "exp2",
+            "exp2f",
+            "expm1",
+            "expm1f",
+            "log",
+            "logf",
+            "log2",
+            "log2f",
+            "log10",
+            "log10f",
+            "log1p",
+            "log1pf",
+            "sqrt",
+            "sqrtf",
+            "cbrt",
+            "cbrtf",
+            "fabs",
+            "fabsf",
+            "floor",
+            "floorf",
+            "ceil",
+            "ceilf",
+            "trunc",
+            "truncf",
+            "round",
+            "roundf",
+            "sinh",
+            "sinhf",
+            "cosh",
+            "coshf",
+            "tanh",
+            "tanhf",
+            "asinh",
+            "asinhf",
+            "atanh",
+            "atanhf",
+            "erf",
+            "erff",
+            "erfc",
+            "erfcf",
+            "atan2",
+            "atan2f",
+            "pow",
+            "powf",
+            "hypot",
+            "hypotf",
+            "fmod",
+            "fmodf",
+            "remainder",
+            "remainderf",
+            "copysign",
+            "copysignf",
+            "fmin",
+            "fminf",
+            "fmax",
+            "fmaxf",
+            "fdim",
+            "fdimf",
+            "llround",
+            "llround",
+            "__sys_nerr",
+            "_snprintf",
+            "__stdio_common_vsscanf"
+          ],
+          "cpu_profile": {
+            "sample_period": 1024,
+            "idle_yield_us": 961,
+            "categories": [
+              {
+                "name": "lifted_native",
+                "calls": 2022,
+                "samples": 2,
+                "sample_us": 5,
+                "estimated_us": 5265
+              },
+              {
+                "name": "generic_shared",
+                "calls": 3888,
+                "samples": 4,
+                "sample_us": 3,
+                "estimated_us": 3645
+              },
+              {
+                "name": "interpreter",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "apis": [
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "atof",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtod",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 6,
+                "estimated_us": 6
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtof",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtol",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtoll",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtoul",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstod",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstol",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstoul",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "__p__environ",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "getenv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_set_new_mode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "free",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "malloc",
+                "count": 3,
+                "samples": 1,
+                "sample_us": 988,
+                "estimated_us": 2964
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "realloc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-locale-l1-1-0.dll",
+                "name": "localeconv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-locale-l1-1-0.dll",
+                "name": "setlocale",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 2
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "frexp",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "llround",
+                "count": 87,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 58
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "llroundf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "lround",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "lroundf",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "modf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "modff",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strchr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strrchr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strstr",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcschr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcsrchr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcsstr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 2
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_configure_narrow_argv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_crt_atexit",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 2
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_errno",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initialize_narrow_environment",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initterm",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 13,
+                "estimated_us": 27
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_app_type",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_invalid_parameter_handler",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "exit",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__acrt_iob_func",
+                "count": 44,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 56
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__commode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__fmode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vfprintf",
+                "count": 44,
+                "samples": 1,
+                "sample_us": 17,
+                "estimated_us": 760
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vfscanf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 43,
+                "estimated_us": 43
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vsprintf",
+                "count": 104,
+                "samples": 1,
+                "sample_us": 6,
+                "estimated_us": 693
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vsscanf",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 10,
+                "estimated_us": 20
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vswprintf",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 3,
+                "estimated_us": 7
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "clearerr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fclose",
+                "count": 109,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 81
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "feof",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ferror",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fflush",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fgetc",
+                "count": 5,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 3
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fgets",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 4,
+                "estimated_us": 4
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fopen",
+                "count": 108,
+                "samples": 1,
+                "sample_us": 20,
+                "estimated_us": 2222
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fputc",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fread",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fseek",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ftell",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fwrite",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 3
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "puts",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "rewind",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "tmpfile",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ungetc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "_stricmp",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isalnum",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isalpha",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "iscntrl",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isgraph",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "islower",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isprint",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "ispunct",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isspace",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isupper",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isxdigit",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strcmp",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strcspn",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strlen",
+                "count": 3,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 5
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strncat",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strpbrk",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strspn",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "tolower",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "toupper",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscat",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscmp",
+                "count": 3,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscpy",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscspn",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcslen",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncat",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncmp",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncpy",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcspbrk",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsspn",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_gmtime64",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_localtime64",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_time64",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "clock",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "strftime",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 3,
+                "estimated_us": 3
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "bsearch",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 2
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "div",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "ldiv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "lldiv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "qsort",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 5,
+                "estimated_us": 5
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "rand",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "srand",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "GetProcAddress",
+                "count": 78,
+                "samples": 1,
+                "sample_us": 7,
+                "estimated_us": 555
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitializeCriticalSection",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 6,
+                "estimated_us": 6
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "LoadLibraryA",
+                "count": 7,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 19
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "SetUnhandledExceptionFilter",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 2
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "VirtualAlloc",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 10,
+                "estimated_us": 20
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sin",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cos",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cosf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tan",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asin",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "acos",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "acosf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp2",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp2f",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expm1",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expm1f",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "logf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log2",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log2f",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log10",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log10f",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log1p",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log1pf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sqrt",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sqrtf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cbrt",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cbrtf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fabs",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fabsf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "floor",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "floorf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "ceil",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "ceilf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "trunc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "truncf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "round",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "roundf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinh",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinhf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cosh",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "coshf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanh",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanhf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinh",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinhf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanh",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanhf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erff",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erfc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erfcf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan2",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan2f",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "pow",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "powf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "hypot",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "hypotf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmod",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmodf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "remainder",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "remainderf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "copysign",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "copysignf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmin",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fminf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmax",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmaxf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fdim",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fdimf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "llround",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "msvcrt.dll",
+                "name": "llround",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "__sys_nerr",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "_snprintf",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 2
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "__stdio_common_vsscanf",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              }
+            ],
+            "census_dropped": 0,
+            "exits": [
+              {
+                "address": 16806880,
+                "reason": 2,
+                "count": 106,
+                "instructions": 106
+              },
+              {
+                "address": 16806976,
+                "reason": 2,
+                "count": 106,
+                "instructions": 106
+              },
+              {
+                "address": 16803792,
+                "reason": 2,
+                "count": 101,
+                "instructions": 1212
+              },
+              {
+                "address": 16807904,
+                "reason": 2,
+                "count": 101,
+                "instructions": 101
+              },
+              {
+                "address": 16803847,
+                "reason": 2,
+                "count": 101,
+                "instructions": 303
+              },
+              {
+                "address": 16789061,
+                "reason": 2,
+                "count": 100,
+                "instructions": 600
+              },
+              {
+                "address": 16789024,
+                "reason": 2,
+                "count": 100,
+                "instructions": 600
+              },
+              {
+                "address": 16789088,
+                "reason": 2,
+                "count": 100,
+                "instructions": 300
+              },
+              {
+                "address": 11534672,
+                "reason": 5,
+                "count": 86,
+                "instructions": 0
+              },
+              {
+                "address": 11535168,
+                "reason": 5,
+                "count": 42,
+                "instructions": 0
+              },
+              {
+                "address": 11535216,
+                "reason": 5,
+                "count": 42,
+                "instructions": 0
+              },
+              {
+                "address": 11535920,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 11535392,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 11535264,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 11534576,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 11535792,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 11535328,
+                "reason": 5,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 16804078,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 11535424,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 16804128,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16807536,
+                "reason": 2,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16803781,
+                "reason": 2,
+                "count": 2,
+                "instructions": 8
+              },
+              {
+                "address": 16804140,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16804096,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16804156,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16803755,
+                "reason": 2,
+                "count": 2,
+                "instructions": 14
+              },
+              {
+                "address": 16804136,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16804138,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16803712,
+                "reason": 2,
+                "count": 2,
+                "instructions": 20
+              },
+              {
+                "address": 11535344,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 11535760,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 11534816,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              }
+            ],
+            "interpreter_entries": []
+          },
+          "host_profile": {
+            "updateMs": 4.11189000000013,
+            "renderMs": 0.36382799999410054,
+            "ioWaitMs": 0,
+            "imports": {
+              "asset_open": {
+                "samples": 1,
+                "sampleMs": 0.010292000000845292,
+                "estimatedMs": 1.090952000089601
+              },
+              "asset_size": {
+                "samples": 1,
+                "sampleMs": 0.0007910000003903406,
+                "estimatedMs": 0.0007910000003903406
+              },
+              "asset_read": {
+                "samples": 1,
+                "sampleMs": 0.006459000000177184,
+                "estimatedMs": 0.05813100000159466
+              },
+              "asset_seek": {
+                "samples": 1,
+                "sampleMs": 0.0006249999987630872,
+                "estimatedMs": 0.0037499999925785232
+              },
+              "asset_close": {
+                "samples": 1,
+                "sampleMs": 0.0010419999998703133,
+                "estimatedMs": 0.00312599999961094
+              },
+              "log": {
+                "samples": 1,
+                "sampleMs": 0.007041999999273685,
+                "estimatedMs": 0.3239319999665895
+              },
+              "asset_size64": {
+                "samples": 1,
+                "sampleMs": 0.004167000000961707,
+                "estimatedMs": 0.004167000000961707
+              },
+              "asset_read_ahead": {
+                "samples": 1,
+                "sampleMs": 0.020042000000103144,
+                "estimatedMs": 0.020042000000103144
+              },
+              "request_status": {
+                "samples": 1,
+                "sampleMs": 0.0016669999986334005,
+                "estimatedMs": 0.003333999997266801
+              },
+              "yield": {
+                "samples": 1,
+                "sampleMs": 0.0026669999988371274,
+                "estimatedMs": 1.5975329993034393
+              },
+              "submit_commands": {
+                "samples": 1,
+                "sampleMs": 0.01450000000113505,
+                "estimatedMs": 4.36450000034165
+              },
+              "request_read": {
+                "samples": 1,
+                "sampleMs": 0.0024169999996956903,
+                "estimatedMs": 0.0024169999996956903
+              },
+              "request_close": {
+                "samples": 1,
+                "sampleMs": 0.000875000001542503,
+                "estimatedMs": 0.000875000001542503
+              },
+              "asset_consumed": {
+                "samples": 1,
+                "sampleMs": 0.0022499999995488906,
+                "estimatedMs": 0.0022499999995488906
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "x64-cpp",
+        "instructions": 30873,
+        "specialized": 30571,
+        "generic": 302,
+        "wasm_bytes": 2880790,
+        "duration_ms": 22842.311,
+        "peak_child_rss_bytes": 796639232,
+        "compile_ms": 22706.628,
+        "link_ms": 135.623,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/aa5db8a0645bde7838696a7ceb1f9a16a021ea381f7bd71289d0074df3beae29.o",
+            "compile_ms": 70.908
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/a360eb8c5317a3256430ed92ac1c21665a958e14793e93bda0cbe4709788962c.o",
+            "compile_ms": 22704.422
+          }
+        ],
+        "parallel_rss_upper_bound_bytes": 1593278464,
+        "objects_compiled": 2,
+        "objects_cached": 29,
+        "jobs": 2,
+        "object_cache": {
+          "bytes": 392660800,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "asyncify_cached": true,
+        "asyncify_ms": 175.34570800000074,
+        "build_ms": 23952.577,
+        "lifted_insns": 30873,
+        "wasm_bytes_per_insn": 93.31098370744664,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+        "frames": 300,
+        "run_ms_median": 3.766750000002503,
+        "run_ms_samples": [
+          3.674166000004334,
+          3.713832999994338,
+          3.766750000002503,
+          3.9958330000008573,
+          4.013541000000259
+        ],
+        "logs": [
+          "guest: x64-cpp PASS caught=38 destructors=3 order=321",
+          "guest: x64-cpp rethrow=PASS caught=6 destructors=3 order=345"
+        ],
+        "runtime": {
+          "platform": "win32",
+          "lifted_functions": 615,
+          "lifted_calls": 2574,
+          "guest_instruction_clock": 28173,
+          "interp_insns": 0,
+          "interp_code_entries": 0,
+          "interp_functions": 0,
+          "interp_unowned_entries": 0,
+          "generic_insn_execs": 229,
+          "tail_calls_lifted": 0,
+          "continues_interpreted": 0,
+          "api_calls": 1106,
+          "imports_bound": 84,
+          "stub_calls": 0,
+          "gl_calls": 0,
+          "gl_draws": 0,
+          "gl_state_changes": 0,
+          "gl_pipelines": 0,
+          "gl_unimplemented": 0,
+          "gl_stubs": [],
+          "gl_approximations": 0,
+          "gl_approximation_kinds": [],
+          "gdi_ops": 0,
+          "chrome_ops": 0,
+          "gdi_approx_rop": 0,
+          "gdi_unsupported": 0,
+          "gdi_pixel_reads": 0,
+          "gdi_cpu_replays": 0,
+          "gdi_replay_compactions": 0,
+          "gdi_getpixel_noread": 0,
+          "pixel_replay": 0,
+          "mono_color_blits": 0,
+          "messages": 0,
+          "paints": 0,
+          "timers_fired": 0,
+          "yields": 300,
+          "peek_yields": 0,
+          "targets_lost": 0,
+          "exited": 0,
+          "heap_bytes": 320,
+          "guest_committed_bytes": 67174400,
+          "trace_hash": 1050415985,
+          "stubs": [],
+          "apis_hit": [
+            "FlsAlloc",
+            "FlsGetValue",
+            "FlsSetValue",
+            "InitOnceExecuteOnce",
+            "InitializeCriticalSection",
+            "OutputDebugStringA",
+            "RaiseException",
+            "RtlCaptureContext",
+            "RtlLookupFunctionEntry",
+            "RtlUnwindEx",
+            "RtlVirtualUnwind",
+            "SetUnhandledExceptionFilter",
+            "Sleep",
+            "wsprintfA",
+            "_aligned_free",
+            "_aligned_malloc",
+            "_set_new_mode",
+            "calloc",
+            "malloc",
+            "__p___argc",
+            "__p___argv",
+            "_configure_narrow_argv",
+            "_crt_atexit",
+            "_initialize_narrow_environment",
+            "_initterm",
+            "_set_app_type",
+            "_set_invalid_parameter_handler",
+            "__p__commode",
+            "__p__fmode",
+            "strlen",
+            "__p__environ"
+          ],
+          "cpu_profile": {
+            "sample_period": 1024,
+            "idle_yield_us": 775,
+            "categories": [
+              {
+                "name": "lifted_native",
+                "calls": 2574,
+                "samples": 3,
+                "sample_us": 2,
+                "estimated_us": 2395
+              },
+              {
+                "name": "generic_shared",
+                "calls": 229,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 362
+              },
+              {
+                "name": "interpreter",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "apis": [
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsAlloc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 7,
+                "estimated_us": 7
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsGetValue",
+                "count": 9,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 5
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsSetValue",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitOnceExecuteOnce",
+                "count": 9,
+                "samples": 1,
+                "sample_us": 10,
+                "estimated_us": 94
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitializeCriticalSection",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 2
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "OutputDebugStringA",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 6,
+                "estimated_us": 13
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RaiseException",
+                "count": 3,
+                "samples": 1,
+                "sample_us": 351,
+                "estimated_us": 1054
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlCaptureContext",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 9,
+                "estimated_us": 9
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlLookupFunctionEntry",
+                "count": 41,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 34
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlUnwindEx",
+                "count": 12,
+                "samples": 1,
+                "sample_us": 125,
+                "estimated_us": 1509
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlVirtualUnwind",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 2,
+                "estimated_us": 2
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "SetUnhandledExceptionFilter",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "Sleep",
+                "count": 1001,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 875
+              },
+              {
+                "dll": "USER32.dll",
+                "name": "wsprintfA",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 3,
+                "estimated_us": 6
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_aligned_free",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_aligned_malloc",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_set_new_mode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "calloc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "malloc",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 12,
+                "estimated_us": 25
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argc",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_configure_narrow_argv",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_crt_atexit",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initialize_narrow_environment",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initterm",
+                "count": 2,
+                "samples": 1,
+                "sample_us": 13,
+                "estimated_us": 26
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_app_type",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_invalid_parameter_handler",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__commode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__fmode",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strlen",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 1,
+                "estimated_us": 1
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "__p__environ",
+                "count": 1,
+                "samples": 1,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "census_dropped": 0,
+            "exits": [
+              {
+                "address": 16801502,
+                "reason": 1,
+                "count": 40,
+                "instructions": 40
+              },
+              {
+                "address": 16801510,
+                "reason": 1,
+                "count": 40,
+                "instructions": 40
+              },
+              {
+                "address": 16801520,
+                "reason": 1,
+                "count": 40,
+                "instructions": 40
+              },
+              {
+                "address": 16801506,
+                "reason": 1,
+                "count": 40,
+                "instructions": 40
+              },
+              {
+                "address": 16801515,
+                "reason": 1,
+                "count": 40,
+                "instructions": 40
+              },
+              {
+                "address": 16806560,
+                "reason": 6,
+                "count": 18,
+                "instructions": 0
+              },
+              {
+                "address": 11534416,
+                "reason": 5,
+                "count": 9,
+                "instructions": 0
+              },
+              {
+                "address": 16789579,
+                "reason": 6,
+                "count": 6,
+                "instructions": 0
+              },
+              {
+                "address": 16789624,
+                "reason": 6,
+                "count": 5,
+                "instructions": 0
+              },
+              {
+                "address": 16801904,
+                "reason": 1,
+                "count": 4,
+                "instructions": 4
+              },
+              {
+                "address": 16789242,
+                "reason": 4,
+                "count": 3,
+                "instructions": 3
+              },
+              {
+                "address": 16808800,
+                "reason": 6,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 16789242,
+                "reason": 6,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 16789250,
+                "reason": 4,
+                "count": 3,
+                "instructions": 3
+              },
+              {
+                "address": 16789801,
+                "reason": 6,
+                "count": 3,
+                "instructions": 0
+              },
+              {
+                "address": 16789247,
+                "reason": 4,
+                "count": 3,
+                "instructions": 3
+              },
+              {
+                "address": 16801795,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16801884,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16801875,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16801804,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16801800,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 11534944,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 11535248,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 16801880,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 16801809,
+                "reason": 1,
+                "count": 2,
+                "instructions": 2
+              },
+              {
+                "address": 11535024,
+                "reason": 5,
+                "count": 2,
+                "instructions": 0
+              },
+              {
+                "address": 16782835,
+                "reason": 1,
+                "count": 1,
+                "instructions": 1
+              },
+              {
+                "address": 11535280,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              },
+              {
+                "address": 11534976,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              },
+              {
+                "address": 16784080,
+                "reason": 1,
+                "count": 1,
+                "instructions": 1
+              },
+              {
+                "address": 11535264,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              },
+              {
+                "address": 11535568,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "interpreter_entries": []
+          },
+          "host_profile": {
+            "updateMs": 3.044631999997364,
+            "renderMs": 0.3245030000471161,
+            "ioWaitMs": 0,
+            "imports": {
+              "asset_open": {
+                "samples": 1,
+                "sampleMs": 0.046167000000423286,
+                "estimatedMs": 0.046167000000423286
+              },
+              "asset_size": {
+                "samples": 1,
+                "sampleMs": 0.0016250000044237822,
+                "estimatedMs": 0.0016250000044237822
+              },
+              "asset_read": {
+                "samples": 1,
+                "sampleMs": 0.023249999998370185,
+                "estimatedMs": 0.1627499999885913
+              },
+              "asset_seek": {
+                "samples": 1,
+                "sampleMs": 0.0007089999999152496,
+                "estimatedMs": 0.004253999999491498
+              },
+              "asset_close": {
+                "samples": 1,
+                "sampleMs": 0.0022499999977299012,
+                "estimatedMs": 0.0022499999977299012
+              },
+              "log": {
+                "samples": 1,
+                "sampleMs": 0.004000000000814907,
+                "estimatedMs": 0.008000000001629815
+              },
+              "yield": {
+                "samples": 1,
+                "sampleMs": 0.002749999999650754,
+                "estimatedMs": 1.6472499997908017
+              },
+              "submit_commands": {
+                "samples": 1,
+                "sampleMs": 0.021207999998296145,
+                "estimatedMs": 6.38360799948714
+              }
+            }
+          }
+        }
+      }
+    ],
+    "method": "Whole wasm (profile + Asyncify included); update/render/consume 300 fixed frames; median of five fresh instances after a discarded warmup; init/compile excluded. Console fixtures include CRT startup, not just idle."
+  },
+  "off": {
+    "resources": {
+      "start": {
+        "when": "2026-11-02T01:49:27.452Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          21.99853515625,
+          22.0615234375,
+          17.8701171875
+        ],
+        "freeRamBytes": 162611200,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 9550556037,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            false,
+            false
+          ],
+          "queued": 1
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "end": {
+        "when": "2026-11-02T01:50:05.398Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          15.66162109375,
+          20.5830078125,
+          17.5302734375
+        ],
+        "freeRamBytes": 1001078784,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 9550556037,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            false,
+            false
+          ],
+          "queued": 1
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    },
+    "profileEnabled": false,
+    "schema": "game-cask/codegen/1",
+    "base": "957d83757f576dd79e803645c90a80951919519e",
+    "node": "v24.19.0",
+    "platform": "darwin/arm64",
+    "fixtures": [
+      {
+        "id": "x64-crt",
+        "instructions": 5345,
+        "specialized": 5130,
+        "generic": 215,
+        "wasm_bytes": 1310754,
+        "duration_ms": 11423.667,
+        "peak_child_rss_bytes": 242237440,
+        "compile_ms": 11319.596,
+        "link_ms": 104.026,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/52cceaf356e725ebdf60f903b1400344eeeef97ee367bcf6d9ae210c681f4c7f.o",
+            "compile_ms": 126.386
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/c86a825cba2c4e7be135c58206efbf0669dd7d554327408f02eed0cbf310e8a8.o",
+            "compile_ms": 7729.974
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/0e36068323c9c793c20c27b602288caec08eccf505bc5ff5aaa18b61f499ce5a.o",
+            "compile_ms": 71.818
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/5132c17e7d0dd4ecde145e53c063ae0bd0d46882bc957b5abfbe2526fb8a6b39.o",
+            "compile_ms": 175.793
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/2bba09f07873761a9ecbdb95396f61b8b854d546f765769620e7a58a3d8a8e8c.o",
+            "compile_ms": 350.029
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/77b960a0ee26fe6753054b6068f4412a889e65829684ddd981bcafd061003898.o",
+            "compile_ms": 257.1
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/09bc2d4e4b2d6d5fabf41720c40a215d907adb62aa512f547b97761477509386.o",
+            "compile_ms": 373.593
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/bf9c7c4cedfc45c0036919ab982b2f0a258f96fbe6071c20b8890ef13efcdaf2.o",
+            "compile_ms": 227.41
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/7f3938a36a81f79298d149d316264951fb12cd84441a522c92cf004d8f8ff17c.o",
+            "compile_ms": 241.004
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/b45acfddfb5f210e2d368102cf17b7efb6d35eb0c6910ccb0c637b49f1ed08d8.o",
+            "compile_ms": 162.972
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/52a1fac4b9d4cfad64dfd707815b6a6d49b863a473bda27b4984ea382e611f03.o",
+            "compile_ms": 6366.431
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/209b4a8fda6dd2c6e447929819c1040aed504f2498b6d59462b429e0ff608fd9.o",
+            "compile_ms": 86.727
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/d8dbfc44ecb3684bf345b4044c9430190a01a05ea2b90e089a37abd82660ffd3.o",
+            "compile_ms": 133.46
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/fa275005a7a43ca507d446c9be77f0fcd894c9396af5871be4a61a99f12e85c6.o",
+            "compile_ms": 204.321
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/8b30cacb68acd1b64be9061bf212f2a8b3b73d7abc38b7ae2684f44c7a2c2f07.o",
+            "compile_ms": 79.146
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/34b0509f126a57ea8c6cb70fa421f4f22f8c51c7c3c0a0e40b375283765eb2cf.o",
+            "compile_ms": 72.444
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/9b0751e3bc09c07db0f0cc72772e65623e5d9bc5e93f6fa463babfb3fa7551c8.o",
+            "compile_ms": 81.021
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/91ef463ad4cfa65afe43c1945b15f29ca3f300f82795d2bcdbfe8dc691381c6f.o",
+            "compile_ms": 78.768
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/de3465fae52a4cf153546ef7ace3123308bb2c127306a03d3b1c14f381f01d52.o",
+            "compile_ms": 248.905
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/136ece6143f34ea5f54af0d02f59dedc135f88f25d9bd673e045b52453fc2edc.o",
+            "compile_ms": 66.039
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/691d77fa3d1b37b45c169d1873972b4210f7608598d5148dae11917c8cc3648a.o",
+            "compile_ms": 192.75
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/a81b3b6afcd7473645cc791c5820a03b72ffb3e523684774c55144f3a93c4e16.o",
+            "compile_ms": 440.013
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/9428761114301834777e967f37e6fe3a26d3bd90f42dc6b26924b7bb3da5d611.o",
+            "compile_ms": 69.779
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/af4c38cb0ffe5e386f012b3d376bcc26e03047be828e0d9621bc407ba45425b5.o",
+            "compile_ms": 937.672
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/5fb2ba3a3e3e035615602aec36c3ff312cde2d3ff86d2cc68f9e30b814977dce.o",
+            "compile_ms": 865.873
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/3c6fee6ba987702cc419c5a4834963919ff813c933d19928fc368f2a229c32bb.o",
+            "compile_ms": 667.655
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/90ef4f7e30955adf700f6c4cbd357cfd1dc0c0e15a29a3043a90956a23646eb9.o",
+            "compile_ms": 507.448
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/615929bec329bf4224407f4940eda7fef359eff8605ffb103be7d4020dec69c3.o",
+            "compile_ms": 133.84
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/93e7141bf50c7bc3ccf0cdb85649d8a07fd3bb3a21fd504512f0c8d8dcc0b1d4.o",
+            "compile_ms": 855.071
+          }
+        ],
+        "parallel_rss_upper_bound_bytes": 484474880,
+        "objects_compiled": 29,
+        "objects_cached": 2,
+        "jobs": 2,
+        "object_cache": {
+          "bytes": 372092508,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "asyncify_cached": true,
+        "asyncify_ms": 126.2373329999973,
+        "build_ms": 16302.062,
+        "lifted_insns": 5345,
+        "wasm_bytes_per_insn": 245.22993451824135,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+        "frames": 300,
+        "run_ms_median": 4.191208000000188,
+        "run_ms_samples": [
+          3.410374999999476,
+          3.8403330000001006,
+          4.191208000000188,
+          4.308583000001818,
+          4.379625000001397
+        ],
+        "logs": [
+          "guest CRT stdout: crt string=6ad83dae",
+          "guest CRT stdout: crt stdlib=7702d143",
+          "guest CRT stdout: ulp sin=3fd7710255764214,3ebb8813",
+          "guest CRT stdout: ulp cos=3fedc6b7eb995912,3f6e35bf",
+          "guest CRT stdout: ulp tan=3fd9312d859bf8b0,3ec9896c",
+          "guest CRT stdout: ulp asin=3fd899f4edc962d3,3ec4cfa7",
+          "guest CRT stdout: ulp acos=3ff2fb7e18d1d464,3f97dbf1",
+          "guest CRT stdout: ulp atan=3fd6f61941e4def0,3eb7b0ca",
+          "guest CRT stdout: ulp exp=3ff747a513dbef6a,3fba3d29",
+          "guest CRT stdout: ulp exp2=3ff4bfdad5362a27,3fa5fed7",
+          "guest CRT stdout: ulp expm1=3fdd1e944f6fbdaa,3ee8f4a2",
+          "guest CRT stdout: ulp log=bfef62f40794a7b8,bf7b17a0",
+          "guest CRT stdout: ulp log2=bff6a3fe5c604298,bfb51ff3",
+          "guest CRT stdout: ulp log10=bfdb43125b8e9800,beda1893",
+          "guest CRT stdout: ulp log1p=3fd4618bc21c5ec2,3ea30c5e",
+          "guest CRT stdout: ulp sqrt=3fe3988e1409212e,3f1cc471",
+          "guest CRT stdout: ulp cbrt=3fe7137449123ef6,3f389ba2",
+          "guest CRT stdout: ulp fabs=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp floor=0000000000000000,00000000",
+          "guest CRT stdout: ulp ceil=3ff0000000000000,3f800000",
+          "guest CRT stdout: ulp trunc=0000000000000000,00000000",
+          "guest CRT stdout: ulp round=0000000000000000,00000000",
+          "guest CRT stdout: ulp sinh=3fd8910411ce5046,3ec48820",
+          "guest CRT stdout: ulp cosh=3ff123640f685b59,3f891b20",
+          "guest CRT stdout: ulp tanh=3fd6ef53de8c8fb0,3eb77a9e",
+          "guest CRT stdout: ulp asinh=3fd7786a7973a592,3ebbc354",
+          "guest CRT stdout: ulp atanh=3fd93b0aee21c2c8,3ec9d858",
+          "guest CRT stdout: ulp erf=3fd9dd0d2b721f39,3ecee869",
+          "guest CRT stdout: ulp erfc=3fe311796a46f064,3f188bcb",
+          "guest CRT stdout: ulp atan2=3fd2a73a661eaf06,3e9539d4",
+          "guest CRT stdout: ulp pow=3fd2c7f098b2a9f8,3e963f85",
+          "guest CRT stdout: ulp hypot=3ff4e16fdacff937,3fa70b7f",
+          "guest CRT stdout: ulp fmod=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp remainder=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp copysign=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp fmin=3fd8000000000000,3ec00000",
+          "guest CRT stdout: ulp fmax=3ff4000000000000,3fa00000",
+          "guest CRT stdout: ulp fdim=0000000000000000,00000000",
+          "guest CRT stdout: crt math=5ff12b0d",
+          "guest CRT stdout: crt stdio=1a852801",
+          "guest CRT stdout: crt locale=f86bc056",
+          "guest CRT stdout: crt time=0de0652c",
+          "guest CRT stdout: crt file-edges=04a5217b",
+          "guest CRT stdout: crt result=PASS failures=0",
+          "guest CRT stdout: crt exit-handler=PASS",
+          "win32 profile: ExitProcess"
+        ],
+        "runtime": {
+          "platform": "win32",
+          "lifted_functions": 161,
+          "lifted_calls": 2022,
+          "guest_instruction_clock": 9945,
+          "interp_insns": 0,
+          "interp_code_entries": 0,
+          "interp_functions": 0,
+          "interp_unowned_entries": 0,
+          "generic_insn_execs": 3888,
+          "tail_calls_lifted": 0,
+          "continues_interpreted": 0,
+          "api_calls": 789,
+          "imports_bound": 214,
+          "stub_calls": 0,
+          "gl_calls": 0,
+          "gl_draws": 0,
+          "gl_state_changes": 0,
+          "gl_pipelines": 0,
+          "gl_unimplemented": 0,
+          "gl_stubs": [],
+          "gl_approximations": 0,
+          "gl_approximation_kinds": [],
+          "gdi_ops": 0,
+          "chrome_ops": 0,
+          "gdi_approx_rop": 0,
+          "gdi_unsupported": 0,
+          "gdi_pixel_reads": 0,
+          "gdi_cpu_replays": 0,
+          "gdi_replay_compactions": 0,
+          "gdi_getpixel_noread": 0,
+          "pixel_replay": 0,
+          "mono_color_blits": 0,
+          "messages": 0,
+          "paints": 0,
+          "timers_fired": 0,
+          "yields": 300,
+          "peek_yields": 0,
+          "targets_lost": 0,
+          "exited": 1,
+          "heap_bytes": 8400,
+          "guest_committed_bytes": 536936448,
+          "trace_hash": 620840639,
+          "stubs": [],
+          "apis_hit": [
+            "atof",
+            "strtod",
+            "strtof",
+            "strtol",
+            "strtoll",
+            "strtoul",
+            "wcstod",
+            "wcstol",
+            "wcstoul",
+            "__p__environ",
+            "getenv",
+            "_set_new_mode",
+            "free",
+            "malloc",
+            "realloc",
+            "localeconv",
+            "setlocale",
+            "frexp",
+            "llround",
+            "llroundf",
+            "lround",
+            "lroundf",
+            "modf",
+            "modff",
+            "strchr",
+            "strrchr",
+            "strstr",
+            "wcschr",
+            "wcsrchr",
+            "wcsstr",
+            "__p___argc",
+            "__p___argv",
+            "_configure_narrow_argv",
+            "_crt_atexit",
+            "_errno",
+            "_initialize_narrow_environment",
+            "_initterm",
+            "_set_app_type",
+            "_set_invalid_parameter_handler",
+            "exit",
+            "__acrt_iob_func",
+            "__p__commode",
+            "__p__fmode",
+            "__stdio_common_vfprintf",
+            "__stdio_common_vfscanf",
+            "__stdio_common_vsprintf",
+            "__stdio_common_vsscanf",
+            "__stdio_common_vswprintf",
+            "clearerr",
+            "fclose",
+            "feof",
+            "ferror",
+            "fflush",
+            "fgetc",
+            "fgets",
+            "fopen",
+            "fputc",
+            "fread",
+            "fseek",
+            "ftell",
+            "fwrite",
+            "puts",
+            "rewind",
+            "tmpfile",
+            "ungetc",
+            "_stricmp",
+            "isalnum",
+            "isalpha",
+            "iscntrl",
+            "isgraph",
+            "islower",
+            "isprint",
+            "ispunct",
+            "isspace",
+            "isupper",
+            "isxdigit",
+            "strcmp",
+            "strcspn",
+            "strlen",
+            "strncat",
+            "strpbrk",
+            "strspn",
+            "tolower",
+            "toupper",
+            "wcscat",
+            "wcscmp",
+            "wcscpy",
+            "wcscspn",
+            "wcslen",
+            "wcsncat",
+            "wcsncmp",
+            "wcsncpy",
+            "wcspbrk",
+            "wcsspn",
+            "_gmtime64",
+            "_localtime64",
+            "_time64",
+            "clock",
+            "strftime",
+            "bsearch",
+            "div",
+            "ldiv",
+            "lldiv",
+            "qsort",
+            "rand",
+            "srand",
+            "GetProcAddress",
+            "InitializeCriticalSection",
+            "LoadLibraryA",
+            "SetUnhandledExceptionFilter",
+            "VirtualAlloc",
+            "sin",
+            "sinf",
+            "cos",
+            "cosf",
+            "tan",
+            "tanf",
+            "asin",
+            "asinf",
+            "acos",
+            "acosf",
+            "atan",
+            "atanf",
+            "exp",
+            "expf",
+            "exp2",
+            "exp2f",
+            "expm1",
+            "expm1f",
+            "log",
+            "logf",
+            "log2",
+            "log2f",
+            "log10",
+            "log10f",
+            "log1p",
+            "log1pf",
+            "sqrt",
+            "sqrtf",
+            "cbrt",
+            "cbrtf",
+            "fabs",
+            "fabsf",
+            "floor",
+            "floorf",
+            "ceil",
+            "ceilf",
+            "trunc",
+            "truncf",
+            "round",
+            "roundf",
+            "sinh",
+            "sinhf",
+            "cosh",
+            "coshf",
+            "tanh",
+            "tanhf",
+            "asinh",
+            "asinhf",
+            "atanh",
+            "atanhf",
+            "erf",
+            "erff",
+            "erfc",
+            "erfcf",
+            "atan2",
+            "atan2f",
+            "pow",
+            "powf",
+            "hypot",
+            "hypotf",
+            "fmod",
+            "fmodf",
+            "remainder",
+            "remainderf",
+            "copysign",
+            "copysignf",
+            "fmin",
+            "fminf",
+            "fmax",
+            "fmaxf",
+            "fdim",
+            "fdimf",
+            "llround",
+            "llround",
+            "__sys_nerr",
+            "_snprintf",
+            "__stdio_common_vsscanf"
+          ],
+          "cpu_profile": {
+            "sample_period": 1024,
+            "idle_yield_us": 1058,
+            "categories": [
+              {
+                "name": "lifted_native",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "name": "generic_shared",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "name": "interpreter",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "apis": [
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "atof",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtod",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtof",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtol",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtoll",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "strtoul",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstod",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstol",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-convert-l1-1-0.dll",
+                "name": "wcstoul",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "__p__environ",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "getenv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_set_new_mode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "free",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "malloc",
+                "count": 3,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "realloc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-locale-l1-1-0.dll",
+                "name": "localeconv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-locale-l1-1-0.dll",
+                "name": "setlocale",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "frexp",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "llround",
+                "count": 87,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "llroundf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "lround",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "lroundf",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "modf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "modff",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strchr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strrchr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "strstr",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcschr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcsrchr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-private-l1-1-0.dll",
+                "name": "wcsstr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_configure_narrow_argv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_crt_atexit",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_errno",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initialize_narrow_environment",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initterm",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_app_type",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_invalid_parameter_handler",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "exit",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__acrt_iob_func",
+                "count": 44,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__commode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__fmode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vfprintf",
+                "count": 44,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vfscanf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vsprintf",
+                "count": 104,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vsscanf",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__stdio_common_vswprintf",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "clearerr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fclose",
+                "count": 109,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "feof",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ferror",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fflush",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fgetc",
+                "count": 5,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fgets",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fopen",
+                "count": 108,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fputc",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fread",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fseek",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ftell",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "fwrite",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "puts",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "rewind",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "tmpfile",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "ungetc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "_stricmp",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isalnum",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isalpha",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "iscntrl",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isgraph",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "islower",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isprint",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "ispunct",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isspace",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isupper",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "isxdigit",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strcmp",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strcspn",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strlen",
+                "count": 3,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strncat",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strpbrk",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strspn",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "tolower",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "toupper",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscat",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscmp",
+                "count": 3,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscpy",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcscspn",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcslen",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncat",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncmp",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsncpy",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcspbrk",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "wcsspn",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_gmtime64",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_localtime64",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "_time64",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "clock",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-time-l1-1-0.dll",
+                "name": "strftime",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "bsearch",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "div",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "ldiv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "lldiv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "qsort",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "rand",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-utility-l1-1-0.dll",
+                "name": "srand",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "GetProcAddress",
+                "count": 78,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitializeCriticalSection",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "LoadLibraryA",
+                "count": 7,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "SetUnhandledExceptionFilter",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "VirtualAlloc",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sin",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cos",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cosf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tan",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asin",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "acos",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "acosf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp2",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "exp2f",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expm1",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "expm1f",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "logf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log2",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log2f",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log10",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log10f",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log1p",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "log1pf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sqrt",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sqrtf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cbrt",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cbrtf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fabs",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fabsf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "floor",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "floorf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "ceil",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "ceilf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "trunc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "truncf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "round",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "roundf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinh",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "sinhf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "cosh",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "coshf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanh",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "tanhf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinh",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "asinhf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanh",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atanhf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erff",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erfc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "erfcf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan2",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "atan2f",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "pow",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "powf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "hypot",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "hypotf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmod",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmodf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "remainder",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "remainderf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "copysign",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "copysignf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmin",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fminf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmax",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fmaxf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fdim",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-math-l1-1-0.dll",
+                "name": "fdimf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "llround",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "msvcrt.dll",
+                "name": "llround",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "__sys_nerr",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "_snprintf",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "ucrtbase.dll",
+                "name": "__stdio_common_vsscanf",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "census_dropped": 0,
+            "exits": [],
+            "interpreter_entries": []
+          },
+          "host_profile": {
+            "updateMs": 2.6041279999844846,
+            "renderMs": 0.4109299999909126,
+            "ioWaitMs": 0,
+            "imports": {
+              "asset_open": {
+                "samples": 1,
+                "sampleMs": 0.0076249999983701855,
+                "estimatedMs": 0.8082499998272397
+              },
+              "asset_size": {
+                "samples": 1,
+                "sampleMs": 0.0007919999989098869,
+                "estimatedMs": 0.0007919999989098869
+              },
+              "asset_read": {
+                "samples": 1,
+                "sampleMs": 0.005333000000973698,
+                "estimatedMs": 0.04799700000876328
+              },
+              "asset_seek": {
+                "samples": 1,
+                "sampleMs": 0.0005829999972775113,
+                "estimatedMs": 0.0034979999836650677
+              },
+              "asset_close": {
+                "samples": 1,
+                "sampleMs": 0.0010409999995317776,
+                "estimatedMs": 0.0031229999985953327
+              },
+              "log": {
+                "samples": 1,
+                "sampleMs": 0.003333000000566244,
+                "estimatedMs": 0.15331800002604723
+              },
+              "asset_size64": {
+                "samples": 1,
+                "sampleMs": 0.003250000001571607,
+                "estimatedMs": 0.003250000001571607
+              },
+              "asset_read_ahead": {
+                "samples": 1,
+                "sampleMs": 0.015625,
+                "estimatedMs": 0.015625
+              },
+              "request_status": {
+                "samples": 1,
+                "sampleMs": 0.0016660000001138542,
+                "estimatedMs": 0.0033320000002277084
+              },
+              "yield": {
+                "samples": 1,
+                "sampleMs": 0.0021250000027066562,
+                "estimatedMs": 1.272875001621287
+              },
+              "submit_commands": {
+                "samples": 1,
+                "sampleMs": 0.017540999997436302,
+                "estimatedMs": 5.279840999228327
+              },
+              "request_read": {
+                "samples": 1,
+                "sampleMs": 0.002375000000029104,
+                "estimatedMs": 0.002375000000029104
+              },
+              "request_close": {
+                "samples": 1,
+                "sampleMs": 0.0009170000012090895,
+                "estimatedMs": 0.0009170000012090895
+              },
+              "asset_consumed": {
+                "samples": 1,
+                "sampleMs": 0.0022919999973964877,
+                "estimatedMs": 0.0022919999973964877
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "x64-cpp",
+        "instructions": 30873,
+        "specialized": 30571,
+        "generic": 302,
+        "wasm_bytes": 2873137,
+        "duration_ms": 20263.07,
+        "peak_child_rss_bytes": 827768832,
+        "compile_ms": 20156.678,
+        "link_ms": 106.345,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/68cc25268cb74f6c1bf8a99b5aba4a8161a62154a6074bba151d9aadc5442fc3.o",
+            "compile_ms": 71.132
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K10/node_modules/.cache/bgt/objects/0bf79dfe87f0d05b537b2dbbae8f5e3f57d07351efef749c8e76a077e003d375.o",
+            "compile_ms": 20153.811
+          }
+        ],
+        "parallel_rss_upper_bound_bytes": 1655537664,
+        "objects_compiled": 2,
+        "objects_cached": 29,
+        "jobs": 2,
+        "object_cache": {
+          "bytes": 375971661,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "asyncify_cached": true,
+        "asyncify_ms": 120.79541700000118,
+        "build_ms": 21353.395,
+        "lifted_insns": 30873,
+        "wasm_bytes_per_insn": 93.06309720467722,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost",
+        "frames": 300,
+        "run_ms_median": 3.6359169999996084,
+        "run_ms_samples": [
+          3.5680000000065775,
+          3.5997089999946184,
+          3.6359169999996084,
+          3.7981670000008307,
+          6.994582999999693
+        ],
+        "logs": [
+          "guest: x64-cpp PASS caught=38 destructors=3 order=321",
+          "guest: x64-cpp rethrow=PASS caught=6 destructors=3 order=345"
+        ],
+        "runtime": {
+          "platform": "win32",
+          "lifted_functions": 615,
+          "lifted_calls": 2574,
+          "guest_instruction_clock": 28173,
+          "interp_insns": 0,
+          "interp_code_entries": 0,
+          "interp_functions": 0,
+          "interp_unowned_entries": 0,
+          "generic_insn_execs": 229,
+          "tail_calls_lifted": 0,
+          "continues_interpreted": 0,
+          "api_calls": 1106,
+          "imports_bound": 84,
+          "stub_calls": 0,
+          "gl_calls": 0,
+          "gl_draws": 0,
+          "gl_state_changes": 0,
+          "gl_pipelines": 0,
+          "gl_unimplemented": 0,
+          "gl_stubs": [],
+          "gl_approximations": 0,
+          "gl_approximation_kinds": [],
+          "gdi_ops": 0,
+          "chrome_ops": 0,
+          "gdi_approx_rop": 0,
+          "gdi_unsupported": 0,
+          "gdi_pixel_reads": 0,
+          "gdi_cpu_replays": 0,
+          "gdi_replay_compactions": 0,
+          "gdi_getpixel_noread": 0,
+          "pixel_replay": 0,
+          "mono_color_blits": 0,
+          "messages": 0,
+          "paints": 0,
+          "timers_fired": 0,
+          "yields": 300,
+          "peek_yields": 0,
+          "targets_lost": 0,
+          "exited": 0,
+          "heap_bytes": 320,
+          "guest_committed_bytes": 67174400,
+          "trace_hash": 1050415985,
+          "stubs": [],
+          "apis_hit": [
+            "FlsAlloc",
+            "FlsGetValue",
+            "FlsSetValue",
+            "InitOnceExecuteOnce",
+            "InitializeCriticalSection",
+            "OutputDebugStringA",
+            "RaiseException",
+            "RtlCaptureContext",
+            "RtlLookupFunctionEntry",
+            "RtlUnwindEx",
+            "RtlVirtualUnwind",
+            "SetUnhandledExceptionFilter",
+            "Sleep",
+            "wsprintfA",
+            "_aligned_free",
+            "_aligned_malloc",
+            "_set_new_mode",
+            "calloc",
+            "malloc",
+            "__p___argc",
+            "__p___argv",
+            "_configure_narrow_argv",
+            "_crt_atexit",
+            "_initialize_narrow_environment",
+            "_initterm",
+            "_set_app_type",
+            "_set_invalid_parameter_handler",
+            "__p__commode",
+            "__p__fmode",
+            "strlen",
+            "__p__environ"
+          ],
+          "cpu_profile": {
+            "sample_period": 1024,
+            "idle_yield_us": 754,
+            "categories": [
+              {
+                "name": "lifted_native",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "name": "generic_shared",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "name": "interpreter",
+                "calls": 0,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "apis": [
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsAlloc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsGetValue",
+                "count": 9,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "FlsSetValue",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitOnceExecuteOnce",
+                "count": 9,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "InitializeCriticalSection",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "OutputDebugStringA",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RaiseException",
+                "count": 3,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlCaptureContext",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlLookupFunctionEntry",
+                "count": 41,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlUnwindEx",
+                "count": 12,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "RtlVirtualUnwind",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "SetUnhandledExceptionFilter",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "KERNEL32.dll",
+                "name": "Sleep",
+                "count": 1001,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "USER32.dll",
+                "name": "wsprintfA",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_aligned_free",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_aligned_malloc",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "_set_new_mode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "calloc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-heap-l1-1-0.dll",
+                "name": "malloc",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argc",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "__p___argv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_configure_narrow_argv",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_crt_atexit",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initialize_narrow_environment",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_initterm",
+                "count": 2,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_app_type",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-runtime-l1-1-0.dll",
+                "name": "_set_invalid_parameter_handler",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__commode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-stdio-l1-1-0.dll",
+                "name": "__p__fmode",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-string-l1-1-0.dll",
+                "name": "strlen",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              },
+              {
+                "dll": "api-ms-win-crt-environment-l1-1-0.dll",
+                "name": "__p__environ",
+                "count": 1,
+                "samples": 0,
+                "sample_us": 0,
+                "estimated_us": 0
+              }
+            ],
+            "census_dropped": 0,
+            "exits": [],
+            "interpreter_entries": []
+          },
+          "host_profile": {
+            "updateMs": 2.9504589998468873,
+            "renderMs": 0.32942100017680787,
+            "ioWaitMs": 0,
+            "imports": {
+              "asset_open": {
+                "samples": 1,
+                "sampleMs": 0.010125000000698492,
+                "estimatedMs": 0.010125000000698492
+              },
+              "asset_size": {
+                "samples": 1,
+                "sampleMs": 0.0003330000035930425,
+                "estimatedMs": 0.0003330000035930425
+              },
+              "asset_read": {
+                "samples": 1,
+                "sampleMs": 0.010458000004291534,
+                "estimatedMs": 0.07320600003004074
+              },
+              "asset_seek": {
+                "samples": 1,
+                "sampleMs": 0.0004160000025876798,
+                "estimatedMs": 0.0024960000155260786
+              },
+              "asset_close": {
+                "samples": 1,
+                "sampleMs": 0.001167000002169516,
+                "estimatedMs": 0.001167000002169516
+              },
+              "log": {
+                "samples": 1,
+                "sampleMs": 0.0029999999969732016,
+                "estimatedMs": 0.005999999993946403
+              },
+              "yield": {
+                "samples": 1,
+                "sampleMs": 0.0018330000020796433,
+                "estimatedMs": 1.0979670012457063
+              },
+              "submit_commands": {
+                "samples": 1,
+                "sampleMs": 0.016875000001164153,
+                "estimatedMs": 5.07937500035041
+              }
+            }
+          }
+        }
+      }
+    ],
+    "method": "Whole wasm (profile + Asyncify included); update/render/consume 300 fixed frames; median of five fresh instances after a discarded warmup; init/compile excluded. Console fixtures include CRT startup, not just idle."
+  },
+  "relative_overhead": [
+    {
+      "id": "x64-crt",
+      "fraction": 0.08306101725344095
+    },
+    {
+      "id": "x64-cpp",
+      "fraction": 0.03598349467353312
+    }
+  ]
+}

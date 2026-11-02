@@ -120,8 +120,10 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const withCrt = !!pipe;
   const compileBase = CFLAGS.map((f) => withCrt && f === '--target=wasm32-freestanding'
     ? '--target=wasm32-wasi' : f);
+  const profileNames=process.env.BGT_PROFILE_NAMES === '1';
+  const linkFlags=LDFLAGS.filter(f=>!profileNames || f!=='-Wl,--strip-debug');
   const linkBase = withCrt
-    ? ['-mexec-model=reactor', ...LDFLAGS.filter((f) => f !== '-nostdlib')] : LDFLAGS;
+    ? ['-mexec-model=reactor', ...linkFlags.filter((f) => f !== '-nostdlib')] : linkFlags;
   const libcSources = withCrt ? [] : [join(ROOT, 'bgt/sdk/bgt_libc.c')];
   const args = [
     'cc',
@@ -130,7 +132,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     ...includes.flatMap((i) => ['-I', join(ROOT, i)]),
     ...sources,
     join(ROOT, 'bgt', 'sdk', 'bgt_libc.c'),
-    ...LDFLAGS,
+    ...linkFlags,
     ...(cfg.ldflags ?? []),
     '-o',
     wasmPath,
@@ -164,7 +166,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from('O2/asyncify/bgt.yield/v1')]));
+    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from(`O2/asyncify/bgt.yield/v1/names=${profileNames}`)]));
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
@@ -172,7 +174,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
         cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, args: [process.execPath, wasmOpt, wasmPath,
-          ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield'] }], jobs: 1 }),
+          ...WASM_OPT_FEATURES, ...(profileNames ? ['-g'] : []), '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield'] }], jobs: 1 }),
         encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
       }));
       asyncifyCached = post.objects_cached === 1;

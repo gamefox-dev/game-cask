@@ -436,6 +436,8 @@ typedef struct {
     const w32_api_t *api;
     const w32_crt_entry_t *crt;
     uint32_t hits;
+    uint64_t timing_samples;
+    double timing_us;
 } slot_t;
 static slot_t *slots;
 static uint32_t nslots;
@@ -538,7 +540,16 @@ void w32_trace_result(uint64_t result) {
     if (X.mode64) trace((uint32_t)(result >> 32));
 }
 
+static int thunk_handler_impl(uint32_t addr);
 static int thunk_handler(uint32_t addr) {
+    slot_t *s=&slots[(addr-W32_THUNK_LO)/16u];
+    int sample=X86_PROFILE_ENABLED && (s->hits % X86_PROFILE_SAMPLE)==0;
+    double start=sample?x86_profile_clock():0;
+    int result=thunk_handler_impl(addr);
+    if(sample){s->timing_us+=x86_profile_clock()-start;s->timing_samples++;}
+    return result;
+}
+static int thunk_handler_impl(uint32_t addr) {
     uint32_t i = (addr - W32_THUNK_LO) / 16u;
     slot_t *s = &slots[i];
     trace(i);
@@ -798,7 +809,9 @@ void w32_wait_frame(void) {
     w32_m.yields++;
     X.frame_insns=0;
     w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
+    x86_profile_idle_begin();
     bgt_yield();
+    x86_profile_idle_end();
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
     /* LANE-E: snapshot once after yield, before guest message dispatch. */
     w32_audio_pump();
@@ -840,7 +853,7 @@ void w32_update(void) {
 void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
 /* ------------------------------------------------------------------ metrics / debug */
-static char json[131072];
+static char json[524288];
 static uint32_t jn;
 static void jput(const char *s) { while (*s && jn + 1 < sizeof json) json[jn++] = *s++; }
 static void jnum(uint64_t v) {
@@ -855,6 +868,7 @@ const char *w32_metrics_json(void) {
     jput("{\"platform\":\"win32\",");
     jkv("lifted_functions", x86_metrics.lifted_functions);
     jkv("lifted_calls", x86_metrics.lifted_calls);
+    jkv("guest_instruction_clock", x86_guest_instruction_clock());
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interp_code_entries", x86_metrics.interp_code_entries);
     jkv("interp_functions", x86_metrics.interp_functions);
@@ -906,7 +920,44 @@ const char *w32_metrics_json(void) {
         first = 0;
         jput("\""); jput(slots[i].name); jput("\"");
     }
-    jput("]}");
+    jput("],\"cpu_profile\":{\"sample_period\":");jnum(X86_PROFILE_SAMPLE);
+    jput(",\"idle_yield_us\":");jnum((uint64_t)x86_profile_idle_us);
+    jput(",\"categories\":[");
+    static const char *const categories[]={"lifted_native","generic_shared","interpreter","reserved_api"};
+    for(unsigned i=0;i<3;i++) {
+        x86_timing_t *t=&x86_timings[i];if(i)jput(",");
+        jput("{\"name\":\"");jput(categories[i]);jput("\",");
+        jkv("calls",t->calls);jkv("samples",t->samples);jkv("sample_us",(uint64_t)t->sample_us);
+        jput("\"estimated_us\":");jnum(t->samples?(uint64_t)(t->sample_us*(double)t->calls/(double)t->samples):0);jput("}");
+    }
+    jput("],\"apis\":[");first=1;
+    for(uint32_t i=0;i<nslots;i++)if(slots[i].hits){
+        slot_t *s=&slots[i];if(!first)jput(",");first=0;
+        jput("{\"dll\":\"");jput(s->dll);jput("\",\"name\":\"");jput(s->name);jput("\",");
+        jkv("count",s->hits);jkv("samples",s->timing_samples);jkv("sample_us",(uint64_t)s->timing_us);
+        jput("\"estimated_us\":");jnum(s->timing_samples?(uint64_t)(s->timing_us*(double)s->hits/(double)s->timing_samples):0);jput("}");
+    }
+    jput("],");jkv("census_dropped",x86_census_dropped);
+    jput("\"exits\":[");
+    uint32_t top[X86_CENSUS_TOP]={0};
+    for(uint32_t i=0;i<X86_CENSUS_CAP;i++)if(x86_census[i].reason && x86_census[i].reason!=XE_INTERPRETER){
+        for(unsigned k=0;k<X86_CENSUS_TOP;k++)if(!top[k]||x86_census[i].count>x86_census[top[k]-1].count){
+            for(unsigned m=X86_CENSUS_TOP-1;m>k;m--)top[m]=top[m-1];top[k]=i+1;break;
+        }
+    }
+    for(unsigned k=0;k<X86_CENSUS_TOP && top[k];k++){
+        x86_census_t *e=&x86_census[top[k]-1];if(k)jput(",");jput("{");jkv("address",e->address);jkv("reason",e->reason);jkv("count",e->count);jput("\"instructions\":");jnum(e->instructions);jput("}");
+    }
+    __builtin_memset(top,0,sizeof top);jput("],\"interpreter_entries\":[");
+    for(uint32_t i=0;i<X86_CENSUS_CAP;i++)if(x86_census[i].reason==XE_INTERPRETER){
+        for(unsigned k=0;k<X86_CENSUS_TOP;k++)if(!top[k]||x86_census[i].instructions>x86_census[top[k]-1].instructions){
+            for(unsigned m=X86_CENSUS_TOP-1;m>k;m--)top[m]=top[m-1];top[k]=i+1;break;
+        }
+    }
+    for(unsigned k=0;k<X86_CENSUS_TOP && top[k];k++){
+        x86_census_t *e=&x86_census[top[k]-1];if(k)jput(",");jput("{");jkv("address",e->address);jkv("count",e->count);jput("\"instructions\":");jnum(e->instructions);jput("}");
+    }
+    jput("]}}");
     json[jn] = 0;
     return json;
 }

@@ -92,6 +92,65 @@ still runs (interpreted, visible as `interp_insns`).
 - **Exceptions**: every override with a reason; every kit gap in `reports/errors.json` and as an iteration request in
   the work queue (`CLAUDE.md`).
 
+## Execution profiling (K10)
+
+Profiling is engine-independent, additive metrics JSON, not a new import/command ABI. Both browser backends
+and the headless/port-test hosts expose it. Build and probe normally; a port test reads
+`(await diagnostics(page)).metrics`. Coverage snapshots retain `metrics.execution` and runtime I/O/GPU timing.
+
+- `guest_instruction_clock` is the **raw active CPU context's `X.tsc`** (AMD64); it is included in probes and bench
+  runtime output. It is not yet a process-total retired-instruction counter: cooperative context restore can
+  change it, a pre-execution quantum attempt advances it, and i386 currently leaves it zero. Do not derive exact
+  threaded instructions/s from it. Exact process retirement accounting is a separate code-model task.
+- `cpu_profile.categories`: lifted-native dispatch, generic/shared semantics, interpreter. Each has `calls`,
+  `samples`, `sample_us`, `estimated_us`. Timers sample about 1/1024 calls with jitter to avoid regular-loop aliasing;
+  totals extrapolate sample mean × calls. Small sample counts are noisy; these are not CPU hardware counters.
+  AMD64 native regions cannot suspend; i386 native dispatch and generic/interpreter calls may include nested API
+  callbacks, so these are **inclusive attribution**, not mutually exclusive partitions. Decode/dispatch overhead
+  outside timed calls remains in `host_profile.updateMs`, not silently assigned to native code.
+- `cpu_profile.apis`: every hit import slot's DLL/name, exact count, sampled microseconds and extrapolated total.
+  API time includes nested guest callbacks, excludes time parked across frame yields, and overlaps category totals.
+  API sampling is first/every 1024th call; use CDP to check periodic-work bias. `idle_yield_us` is observed wall time
+  parked at frame waits (including probe think time), **not** virtual guest Sleep duration or CPU consumption.
+- `cpu_profile.exits`: top 32 retained `(address,reason)` pairs by exact exit count, with generic instruction counts.
+  Reasons: **1** opcode form; **2** failed whole-block memory guard; **3** quantum crossing; **4** interior landing;
+  **5** indirect dispatcher exit; **6** other dispatcher exit. Native calls/returns are not generic exits.
+  `interpreter_entries` lists the top 32 entry addresses by interpreted instructions; counts denote attempted block
+  entries (an entry interrupted before execution can have zero instructions). The 16,384-slot, 16-probe bounded
+  census never evicts; `census_dropped` counts rejected events. Nonzero means the retained top-N is incomplete,
+  not a trustworthy global ranking. Existing execution and coverage counters remain independent/exact.
+- `host_profile`: cumulative update/render wall ms, awaited range-I/O ms, sampled BGT imports by name (1/1024).
+  Hot coverage/time imports are counted but not individually timed. `runtime_profile` adds cumulative backend
+  `gpuSubmitMs` (JS encode/submit) and `gpuDrawWallMs` (including requested readback/waits), **not GPU timestamps**.
+  Its VFS `readMs` includes awaited fetches; `fetchMs` includes response consumption/integrity. Concurrent totals
+  overlap and must not be summed. `decompressMs:null` is deliberate: browser HTTP decompression cannot be timed
+  separately from fetch; guest decompression remains in CPU categories/CDP. No guessed zero is reported.
+
+```sh
+# Optional named wasm for guest-address mapping in Chromium's CPU profile (larger private output):
+BGT_PROFILE_NAMES=1 npm run build:port
+npm run probe -- --game mygame --script ./explore.mjs --cpu-profile 1100:1700 --out reports/probe/perf
+```
+
+`--cpu-profile START:END` brackets **update frame boundaries**, splitting `p.step`, `p.click` and `p.key` as needed.
+It saves DevTools-compatible `cpu.cpuprofile` and `cpu-mapping.json`. Names `F_<guest>` / `R_<guest>_<region>` map
+back to addresses; unnamed wasm nodes explicitly remain unmapped (build with `BGT_PROFILE_NAMES=1`). Use the `p.*`
+stepping helpers: direct `p.page.evaluate(step)` and resource-tour internals bypass the range interceptor. Reports
+record actual start/end and whether the requested end was reached; failures save partial profiles when possible.
+CDP uses a 1ms sampling interval and is opt-in, not part of the always-on timing overhead claim.
+
+Every probe records `resources.start/end`: load averages, CPU model/count, free/total RAM, swap used, heavy-gate
+occupied slots/queued tickets and top CPU processes. Unsupported/sandbox-denied observations are `null` with an
+error, not fabricated availability. The snapshot reads existing gate locks without changing queue ownership.
+Both legacy harness lockf and current kit flock gates are recognized; non-atomic snapshots are advisory.
+
+`BGT_CPU_PROFILE=0` disables C census/timing for A/B measurement, not execution/coverage counters. The committed
+[`k10-profile-overhead.json`](../tools/bench/k10-profile-overhead.json) records same-machine/toolchain resources and
+samples: 300-update median overhead **8.3% x64-crt / 3.6% x64-cpp** in short startup workloads. JS timing remains on
+in both variants; this isolates the C instrumentation, not total instrumentation cost. These millisecond fixtures
+are noisy, not a bound for an engine workload. `tools/bench/codegen.test.ts` now records resources alongside runtime
+metrics; rebuild before changing variants and do not measure while another task republishes the same fixture.
+
 ## Pixel reads: CPU replay of the recorded GDI ops
 GDI draws on GPU render targets and nothing is read back from the GPU. When a module imports a pixel-read API
 (`GetPixel`, `GetDIBits`, or obtains one through `GetProcAddress`), the profile also logs every op it records per

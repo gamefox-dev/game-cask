@@ -386,6 +386,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     fixtureDir: p.fixture ? join(work,'fixture') : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
+      ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
         '-D_GNU_SOURCE', '-fno-math-errno'] : []),
       '-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable',

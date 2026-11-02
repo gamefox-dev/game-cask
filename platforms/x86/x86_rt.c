@@ -15,7 +15,42 @@ uint8_t *x86_pages[1u << 20];
 uint8_t x86_protection[1u << 20];
 int x86_protection_active;
 x86_metrics_t x86_metrics;
+uint64_t x86_guest_instruction_clock(void) { return X.tsc; }
 int x86_force_interp;
+x86_timing_t x86_timings[XP_CATEGORIES];
+x86_census_t x86_census[X86_CENSUS_CAP];
+uint64_t x86_census_dropped;
+double x86_profile_idle_us;
+static double idle_start;
+double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
+void x86_profile_idle_begin(void) { idle_start = bgt_time_us(); }
+void x86_profile_idle_end(void) { x86_profile_idle_us += bgt_time_us() - idle_start; }
+double x86_profile_begin(unsigned category) {
+    if(!X86_PROFILE_ENABLED)return -1;
+    static uint32_t countdown[XP_CATEGORIES], random=0x19730119;
+    x86_timing_t *t = &x86_timings[category];t->calls++;
+    if(countdown[category]) {countdown[category]--;return -1;}
+    random=random*1664525u+1013904223u;
+    countdown[category]=X86_PROFILE_SAMPLE/2+(random%X86_PROFILE_SAMPLE);
+    t->samples++; return x86_profile_clock();
+}
+void x86_profile_end(unsigned category, double start) {
+    if (start >= 0) x86_timings[category].sample_us += x86_profile_clock() - start;
+}
+uint32_t x86_profile_exit(uint32_t address, uint32_t reason) {
+    if(!X86_PROFILE_ENABLED)return 0;
+    uint32_t h = ((address * 2654435761u) ^ (reason * 2246822519u)) & (X86_CENSUS_CAP-1);
+    for (unsigned i=0;i<16;i++,h=(h+1)&(X86_CENSUS_CAP-1)) {
+        x86_census_t *e=&x86_census[h];
+        if (!e->reason || (e->address==address && e->reason==reason)) {
+            e->address=address;e->reason=reason;e->count++;return h+1;
+        }
+    }
+    x86_census_dropped++;return 0;
+}
+void x86_profile_instruction(uint32_t bucket) { if(bucket)x86_census[bucket-1].instructions++; }
+static uint32_t interpreter_bucket;
+unsigned x86_lift_reason = XE_FORM;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 void x86_lift_block(uint32_t count);
@@ -32,6 +67,10 @@ void x86_cooperate(void) {
     scheduler();
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
+
+static void profiled_native(x86_lifted_fn fn) {
+    double start=x86_profile_begin(XP_NATIVE);fn();x86_profile_end(XP_NATIVE,start);
+}
 
 /* ------------------------------------------------------------------ host arena */
 extern unsigned char __heap_base;
@@ -192,11 +231,12 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if (entry) bgt_coverage_entry(addr, 2);
+    if (entry) { bgt_coverage_entry(addr, 2); interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER); }
     return entry;
 }
 static void interpreted_count(int entry, const x86_code_range_t *owner) {
     x86_metrics.interp_insns++;
+    x86_profile_instruction(interpreter_bucket);
     if (owner && !interpreted_owners[owner->owner]) {
         interpreted_owners[owner->owner] = 1; x86_metrics.interp_functions++;
     }
@@ -266,7 +306,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t old = X.eip;
                 uint64_t old_clock = X.tsc;
                 x86_metrics.lifted_calls++;
-                f();
+                profiled_native(f);
                 if (x86_lift_pending) {
                     const x86_insn_t *pending = x86_lift_pending; x86_lift_pending = 0;
                     x86_exec_one(pending);
@@ -284,7 +324,11 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t budget = X.frame_insns, addr = in->addr;
                 int next_entry = ends_block(in), string = is_string(in->op), rep = in->rep;
                 x86_word_t count = X.r[ECX];
+                double interpreter_start=x86_profile_begin(XP_INTERPRETER);
+                uint32_t saved_bucket=interpreter_bucket;
                 x86_exec64(in);
+                x86_profile_end(XP_INTERPRETER,interpreter_start);
+                interpreter_bucket=saved_bucket;
                 /* Both dispatch and the first string iteration can transfer before execution.
                  * A partially executed REP changes its count and still counts once. A zero-
                  * count REP completes at next, so it also remains a completed dispatch.
@@ -310,7 +354,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
         }
         /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
         x86_lifted_fn resume = x86_find_lifted(eip);
-        if (resume) { x86_metrics.lifted_calls++; resume(); entry = 1; continue; }
+        if (resume) { x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
         const x86_insn_t *in = decode_at(eip);
@@ -327,14 +371,18 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 uint32_t next = in->addr + in->len;
                 x86_push(next);
                 x86_metrics.lifted_calls++;
-                fn();
+                profiled_native(fn);
                 entry = 1;
                 if (X.transfer) return; /* LANE-C */
                 if (X.eip != next) x86_fault("lifted callee returned to an unexpected address", in->addr);
                 continue;
             }
         }
+        double interpreter_start=x86_profile_begin(XP_INTERPRETER);
+        uint32_t saved_bucket=interpreter_bucket;
         x86_exec_insn(in);
+        x86_profile_end(XP_INTERPRETER,interpreter_start);
+        interpreter_bucket=saved_bucket;
         /* i386's outer quantum check already ran; strings have an inner check too. */
         if (string && !(X.transfer && X.eip == addr && (!rep || X.r[ECX] == count)))
             interpreted_count(counted_entry, owner);
@@ -352,7 +400,7 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
     if (fn) {
         bgt_coverage_entry(target,1);
         x86_metrics.lifted_calls++;
-        fn();
+        profiled_native(fn);
         return;
     }
     X.eip = target;
@@ -370,7 +418,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
     /* a jump straight to a lifted function entry with the frame torn down is a tail call */
     if (X.r[ESP] == esp0) {
         x86_lifted_fn fn = x86_find_lifted(X.eip);
-        if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; fn(); return; }
+        if (fn) { x86_metrics.tail_calls_lifted++; x86_metrics.lifted_calls++; profiled_native(fn); return; }
     }
     /* a tail jump to an import thunk is an API call, not interpretation */
     if (!x86_is_thunk(X.eip)) x86_metrics.continues_interpreted++;
@@ -381,11 +429,16 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
  * entries this is bounded by the statically emitted block length and uses the generic semantic
  * counter. It preserves the exact instruction at which the reference cooperates. */
 void x86_lift_block(uint32_t count) {
+    uint32_t bucket=x86_profile_exit(X.eip,x86_lift_reason);
     while (count--) {
         const x86_insn_t *in = decode_at(X.eip);
         uint32_t next = in->addr + in->len;
         int call = in->op == XO_CALL || in->op == XO_CALL_IND;
-        x86_exec_one(in);
+        x86_profile_instruction(bucket);
+        x86_metrics.generic_insn_execs++;
+        double generic_start=x86_profile_begin(XP_GENERIC);
+        x86_exec_insn(in);
+        x86_profile_end(XP_GENERIC,generic_start);
         /* LANE-F/C: a quantum transfer can precede this pending CALL's execution. */
         if (X.transfer) return;
         if (call) x86_invoke(X.eip, next);
@@ -394,8 +447,11 @@ void x86_lift_block(uint32_t count) {
 }
 
 void x86_exec_one(const x86_insn_t *in) {
+    x86_profile_instruction(x86_profile_exit(in->addr,XE_FORM));
     x86_metrics.generic_insn_execs++;
+    double start=x86_profile_begin(XP_GENERIC);
     x86_exec_insn(in);
+    x86_profile_end(XP_GENERIC,start);
 }
 
 const uint8_t *x86_debug_peek(uint32_t addr, uint32_t len) {
