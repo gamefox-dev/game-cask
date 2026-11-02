@@ -2,6 +2,7 @@
 import {describe,it,expect} from 'vitest';
 import {feedbackLayout,feedbackVertices,validateFeedbackInterface} from '../../bgt/runtime/feedback';
 import {lowerFeedback} from '../../bgt/renderers/webgpu/feedback';
+import {feedbackShader} from '../../bgt/renderers/webgl2/feedback';
 import {translateGLSL} from '../../bgt/renderers/webgpu/shaders';
 describe('transform feedback layouts and compute lowering',()=>{
   it.each([0,1,2,3,4])('complete primitive assembly topology %i',topology=>{
@@ -19,6 +20,13 @@ describe('transform feedback layouts and compute lowering',()=>{
     const layout=feedbackLayout('value 3\n',false,1);
     expect(()=>validateFeedbackInterface('out vec4 value;',layout)).not.toThrow();
     for(const source of ['out float value;','// out vec4 value;','/* out vec4 value; */','out vec4 missing;'])expect(()=>validateFeedbackInterface(source,layout)).toThrow();
+  });
+  it('native feedback preserves raw noperspective values without disturbing value*w raster proxies',()=>{
+    const source='#version 330 core\nnoperspective out float ramp;void main(){ramp=7.0;gl_Position=vec4(0.0,0.0,0.0,2.0);}';
+    const shader=feedbackShader(source,1,feedbackLayout('ramp 0\n',false,1));
+    expect(shader.names).toEqual(['bgt_internal_tf_raw_0']);expect(shader.source).toContain('bgt_internal_tf_raw_0=ramp;');
+    expect(shader.source).toContain('bgt_internal_np_ramp = ramp * gl_Position.w;');
+    expect(feedbackShader(source,1,feedbackLayout('other 0\n',false,1)).specialized).toBe(false);
   });
   it('dispatch flattens the second dimension and byte fetch includes the containing-word remainder',()=>{
     const code=translateGLSL('#version 330 core\nlayout(location=0) in vec4 bytes;out vec4 result;void main(){result=bytes;gl_Position=vec4(0.0);}',1,1);

@@ -282,7 +282,6 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         capture_words[1 + i * 3] = buffers[id].gpu; capture_words[2 + i * 3] = tf_offset[i] + tf_cursor[i];
         capture_words[3 + i * 3] = size - tf_cursor[i];
     }
-    if (rasterizer_discard && !tf_active) return 0;
     Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
     if (index_type && index_type != U16 && index_type != U32) { fail(BAD_ENUM); return 0; }
     if (viewport[0] < 0 || viewport[1] < 0 || viewport[2] <= 0 || viewport[3] <= 0 ||
@@ -414,7 +413,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             a->count * (a->type == U8 ? 1 : 4);
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }
-    if (tf_active && !tf_vertices) return 0; /* Complete primitives only: no write, cursor advance or authority change. */
+    /* Discard suppresses rasterization, never argument/fetch validation. Complete primitives only:
+     * a zero-output capture must not write, advance cursors or change buffer authority. */
+    if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices)) return 0;
     float h = (float)tg.h; copy(p->values, &h, 4);
     uint32_t swz_base = p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {

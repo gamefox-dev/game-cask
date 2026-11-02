@@ -3,6 +3,7 @@ import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
 import { blitStencil } from './blit-stencil';
+import { feedbackShader } from './feedback';
 import { feedbackLayout, feedbackVertices, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
 import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
@@ -167,6 +168,9 @@ export class WebGL2Gpu implements GpuBackend {
       if (pixels) item.readback?.(...pixels);
       return 0;
     } catch (e) {
+      // Dispatch may throw before the normal post-command error check. Never leak this command's native
+      // error into a later otherwise-valid operation (notably a failed feedback candidate link).
+      for(let i=0;i<32 && this.gl.getError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.SHADER_CREATE) item.complete?.(-6, message);
       else { item.readback?.(undefined, -6); this.error(message); }
@@ -393,17 +397,22 @@ export class WebGL2Gpu implements GpuBackend {
   private createPipeline(w: number[]): void {
     const g = this.gl, object = g.createProgram()!;
     try {
-      g.attachShader(object, this.shaders.get(w[1])!.object);
+      const feedback=this.feedback.get(w[0]),vertex=this.shaders.get(w[1])!;
+      const capture=feedback?feedbackShader(vertex.source,vertex.words[2],feedback):undefined;
+      if(capture?.specialized){
+        const shader=g.createShader(g.VERTEX_SHADER)!;g.shaderSource(shader,capture.source);g.compileShader(shader);
+        if(!g.getShaderParameter(shader,g.COMPILE_STATUS)){const log=g.getShaderInfoLog(shader);g.deleteShader(shader);throw new Error(log??'Feedback vertex compile failed');}
+        g.attachShader(object,shader);g.deleteShader(shader);
+      } else g.attachShader(object,vertex.object);
       g.attachShader(object, this.shaders.get(w[2])!.object);
-      const feedback=this.feedback.get(w[0]);
-      if(feedback)g.transformFeedbackVaryings(object,feedback.varyings.map(v=>v.name),feedback.separate?g.SEPARATE_ATTRIBS:g.INTERLEAVED_ATTRIBS);
+      if(feedback)g.transformFeedbackVaryings(object,capture!.names,feedback.separate?g.SEPARATE_ATTRIBS:g.INTERLEAVED_ATTRIBS);
       g.linkProgram(object);
+      if (!g.getProgramParameter(object, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(object) ?? 'Link failed');
       if(feedback)for(let i=0;i<feedback.varyings.length;i++){
         const actual=g.getTransformFeedbackVarying(object,i),v=feedback.varyings[i];
         const types=[g.FLOAT,g.FLOAT_VEC2,g.FLOAT_VEC3,g.FLOAT_VEC4,0,g.INT,g.INT_VEC2,g.INT_VEC3,g.INT_VEC4,g.UNSIGNED_INT,g.UNSIGNED_INT_VEC2,g.UNSIGNED_INT_VEC3,g.UNSIGNED_INT_VEC4];
         if(!actual||actual.size!==1||actual.type!==types[v.format])throw new Error(`Feedback varying mismatch ${v.name}`);
       }
-      if (!g.getProgramParameter(object, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(object) ?? 'Link failed');
       g.useProgram(object);
       const kinds = new Map<number, { dimension: number; shadow: boolean }>();
       g.uniform1i(g.getUniformLocation(object, 'bgt_internal_ids'), 8);

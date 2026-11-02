@@ -28,12 +28,15 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
     send(O.PIPELINE_CREATE,pipe(1,1,0,true));const names='result 3\n';send(O.FEEDBACK_VARYINGS,[1,0,1,0,names.length],{source:names});
     send(O.BUFFER_CREATE,[1,1,5,0,5],{data:new Uint8Array([0xee,0,255,0,255])});send(O.BUFFER_CREATE,[2,9,64,0,0]);
     const capture=()=>{begin();send(O.PIPELINE,[1]);send(O.VERTEX_BUFFER,[0,1,0,5]);send(O.FEEDBACK_CAPTURE,[1,2,0,64,0,0,0,0,0,0,0,0,0]);send(O.DRAW,[1,1,0,0]);send(O.PASS_END,[]);};
-    capture();const normalized=await read(2,0,16);
+    capture();const normalized=await read(2,0,16),oddRead=await read(2,1,7);
     let replacementRejected=true,cleanup=true;
     if(gl){
       // Direct backend defense: a failed candidate must leave its old native program/interface alive.
-      const wrong='result 0\n';replacementRejected=send(O.FEEDBACK_VARYINGS,[1,0,1,0,wrong.length],{source:wrong})!==0;errors.splice(0);
-      capture();const original=gl.beginTransformFeedback.bind(gl);
+      for(const wrong of ['result 0\n','missing 3\n']){
+        replacementRejected &&= send(O.FEEDBACK_VARYINGS,[1,0,1,0,wrong.length],{source:wrong})!==0;
+        errors.splice(0);capture();if(errors.length)replacementRejected=false;
+      }
+      const original=gl.beginTransformFeedback.bind(gl);
       gl.beginTransformFeedback=()=>original(0xffffffff);capture();gl.beginTransformFeedback=original;
       cleanup=!gl.isEnabled(gl.RASTERIZER_DISCARD)&&gl.getParameter(gl.TRANSFORM_FEEDBACK_BINDING)===null&&errors.length===1;
       errors.splice(0);capture();
@@ -49,9 +52,9 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
     const n=1400000,total=(n-2)*3;send(O.BUFFER_CREATE,[3,8,total*4,0,0]);send(O.PIPELINE_CREATE,pipe(2,3,4,false));
     const scalar='result 0\n';send(O.FEEDBACK_VARYINGS,[2,0,1,0,scalar.length],{source:scalar});begin();send(O.PIPELINE,[2]);send(O.FEEDBACK_CAPTURE,[1,3,0,total*4,0,0,0,0,0,0,0,0,0]);send(O.DRAW,[n,1,0,0]);send(O.PASS_END,[]);
     const last=await read(3,(total-3)*4,12);if(device)await device.queue.onSubmittedWorkDone();
-    if(device)device.destroy();return {normalized,retained,replacementRejected,cleanup,restoreRejected,last,errors};
+    if(device)device.destroy();return {normalized,oddRead,retained,replacementRejected,cleanup,restoreRejected,last,errors};
   },{backend:backendParam,root:'/@fs'+resolve('bgt')});
   expect(result.errors).toEqual([]);expect(result.replacementRejected).toBe(true);expect(result.cleanup).toBe(true);expect(result.restoreRejected).toBe(true);
-  const expected=[...new Uint8Array(new Float32Array([0,1,0,1]).buffer)];expect(result.normalized).toEqual(expected);expect(result.retained).toEqual(expected);
+  const expected=[...new Uint8Array(new Float32Array([0,1,0,1]).buffer)];expect(result.normalized).toEqual(expected);expect(result.oddRead).toEqual(expected.slice(1,8));expect(result.retained).toEqual(expected);
   expect(result.last).toEqual([...new Uint8Array(new Float32Array([1399998,1399997,1399999]).buffer)]);
 });

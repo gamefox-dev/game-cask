@@ -81,6 +81,10 @@ describe('GPU command validation', () => {
     const read=t.frame.items.at(-1) as GpuItem;read.readback?.(new Uint8Array([1,2,3,4]));expect(t.requests.status(22)).toBe(0);
     expect(t.send(O.BUFFER_READBACK,[3,127,2,23]).status).toBe(A.E_BOUNDS);
     expect(t.send(O.BUFFER_READBACK,[3,0,0,23]).status).toBe(A.E_INVALID);
+    expect(t.send(O.BUFFER_READBACK,[3,1,7,23]).status).toBe(0);
+    t.send(O.BUFFER_CREATE,[5,8,9*1024*1024,0,0]);
+    expect(t.send(O.BUFFER_READBACK,[5,0,9*1024*1024,24]).status).toBe(A.E_LIMIT);
+    expect(t.inPass(O.BUFFER_READBACK,[3,0,16,25]).status).toBe(A.E_STATE);
     expect(t.send(O.BUFFER_UPDATE,[3,1,16384,1]).status).toBe(A.E_UNSUPPORTED);
   });
   it('blits validate aspects, classes, scissor and pass ordering atomically', () => {

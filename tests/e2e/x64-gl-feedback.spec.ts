@@ -7,7 +7,7 @@ async function capture(page:Page,backend:string,info:TestInfo){
   const logs=new Set<string>();
   for(let i=0;i<180;i++){await step(page,1);(await diagnostics(page)).logs.forEach(l=>logs.add(l.message));if([...logs].some(s=>s.includes('x64-gl-feedback PASS')))break;}
   const d=await diagnostics(page),text=[...logs].join('\n');
-  expect(text).toContain('x64-gl-feedback PASS failures=0 checks=92');expect(text).not.toContain('x64-gl-feedback FAIL');
+  expect(text).toContain('x64-gl-feedback PASS failures=0 checks=100');expect(text).not.toContain('x64-gl-feedback FAIL');
   expect(d.commandErrors.count).toBe(0);expect(d.errors).toEqual([]);expect((d.metrics as Record<string,number>).gl_unimplemented).toBe(0);
   const image=await readPixels(page);
   for(const [x,y,rgb] of [[160,100,[255,0,0]],[8,8,[0,0,0]]] as [number,number,number[]][]){

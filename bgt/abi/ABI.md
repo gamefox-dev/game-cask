@@ -1045,7 +1045,8 @@ these counts are exactly determined at validated command submission, so results 
 
 WebGL 2 uses native transform feedback. Indexed/strip captures are assembled into dense attribute fetches while
 retaining original vertex IDs; stale native bindings are reconciled and setup/draw failure always cleans up discard
-and temporary TF objects. WebGPU ends/submits prior render work, copies **native** input buffers to aligned storage,
+and temporary TF objects. Selected noperspective outputs retain an additional raw native output, separate from the
+value-times-w raster interpolation proxy. WebGPU ends/submits prior render work, copies **native** input buffers to aligned storage,
 invokes the translated canonical vertex function in compute, packs selected output words, then copies to native
 destinations and resumes rendering with load operations. Dispatch uses a flattened two-dimensional grid for expanded
 strips beyond 65,535 workgroups. Inputs include ordinary/current/divisor attributes, uniform blocks and texture slots;

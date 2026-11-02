@@ -57,6 +57,7 @@ int main(void){
  glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER,0,output,2,64);error(GL_INVALID_VALUE,"range alignment");glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,4,output);error(GL_INVALID_VALUE,"binding index");
  glBeginTransformFeedback(GL_LINE_STRIP);error(GL_INVALID_ENUM,"begin primitive enum");glEndTransformFeedback();error(GL_INVALID_OPERATION,"end inactive");
  glClearColor(0,0,0,1);glClear(GL_COLOR_BUFFER_BIT);glEnable(GL_RASTERIZER_DISCARD);note("discard enabled",glIsEnabled(GL_RASTERIZER_DISCARD));
+ glDrawElements(GL_POINTS,1,GL_FLOAT,0);error(GL_INVALID_ENUM,"discard still validates index type");glDrawArrays(GL_POINTS,0,1);error(GL_NO_ERROR,"discard without feedback valid draw");
  GLuint q;glGenQueries(1,&q);note("query generated not object",!glIsQuery(q));glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,q);note("query object",glIsQuery(q));
  glBeginTransformFeedback(GL_POINTS);glBeginTransformFeedback(GL_POINTS);error(GL_INVALID_OPERATION,"begin active");
  glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,separate);error(GL_INVALID_OPERATION,"binding active");glUseProgram(0);error(GL_INVALID_OPERATION,"program active");glLinkProgram(p);error(GL_INVALID_OPERATION,"relink active");
@@ -117,7 +118,11 @@ int main(void){
  for(unsigned off=1;off<=3;off++){memset(packed,0xee,sizeof packed);packed[off]=0;packed[off+1]=255;packed[off+2]=0;packed[off+3]=255;
   glBindBuffer(GL_ARRAY_BUFFER,packed_buffer);glBufferSubData(GL_ARRAY_BUFFER,0,sizeof packed,packed);glVertexAttribPointer(0,4,GL_UNSIGNED_BYTE,GL_TRUE,8,(void*)(uintptr_t)off);
   glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);captured(GL_POINTS,GL_POINTS,0,1);bytes(output,0,sizeof normalized,normalized,"byte aligned normalized capture");}
- glUseProgram(p);
+ GLuint linear=glCreateProgram();glAttachShader(linear,shader(GL_VERTEX_SHADER,"#version 330 core\nlayout(location=0) in vec2 pos;noperspective out float ramp;void main(){ramp=7.0;gl_Position=vec4(pos*2.0,0.0,2.0);}"));
+ glAttachShader(linear,shader(GL_FRAGMENT_SHADER,"#version 330 core\nnoperspective in float ramp;layout(location=0) out vec4 c;void main(){c=vec4(ramp/7.0,0.0,0.0,1.0);}"));
+ const char *ln[]={"ramp"};glTransformFeedbackVaryings(linear,1,ln,GL_INTERLEAVED_ATTRIBS);link(linear);glBindBuffer(GL_ARRAY_BUFFER,input);glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,8,0);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);
+ glDisable(GL_RASTERIZER_DISCARD);glClear(GL_COLOR_BUFFER_BIT);captured(GL_TRIANGLES,GL_TRIANGLES,0,3);const float ramps[]={7,7,7};bytes(output,0,sizeof ramps,ramps,"noperspective raw value nonunit w");
+ glReadPixels(160,100,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);note("noperspective capture raster",pixel[0]==255&&pixel[1]==0&&pixel[2]==0);glEnable(GL_RASTERIZER_DISCARD);glUseProgram(p);
  // Populate real captured positions and draw directly from the resulting GPU buffer. No CPU reupload.
  const float final_positions[]={-2,-2,6,-2,-2,6};GLuint final_input=store(sizeof final_positions,final_positions);
  glBindBuffer(GL_ARRAY_BUFFER,final_input);glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,8,0);
