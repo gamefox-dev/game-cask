@@ -25,7 +25,7 @@ import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
 import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
-import { analyzeCached, liftChunks } from './chunks.mjs';
+import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -189,6 +189,7 @@ function overrides(gameDir) {
  */
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const policy = liftPolicy(p);
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
@@ -251,7 +252,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     }
     if (!p.interpretOnly) {
       lifted = join(work, `lifted_${id}.c`);
-      const args = ['lift', file, '--name', id, '--base', base.toString(16)];
+      const args = ['lift', file, '--name', id, '--base', base.toString(16), ...liftPolicyArgs(policy)];
       const measured = analyzeCached(tool,file,id,base,work,identity);
       ownershipAnalysis = measured.analysis;
       let selectedSet = null;
@@ -268,7 +269,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       if (mode64 && p.chunkInstructions !== 0 && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
         const result = liftChunks({tool,file,id,base,work,analysis:measured.analysis,key:measured.key,
-          selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,budget:p.chunkInstructions ?? 32768});
+          selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,policy,budget:p.chunkInstructions ?? 32768});
         // Remove the old monolithic intermediate after successful chunk publication.
         rmSync(lifted,{force:true});rmSync(lifted+'.stats.json',{force:true});
         chunkSources = result.sources; lifted = chunkSources[0]; stats = result.stats;
@@ -276,7 +277,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         scale = {...result.metrics,analysis_ms:measured.analysis_ms,analysis_cached:measured.analysis_cached};
       } else {
         const key = sha256(JSON.stringify([measured.key, selectedSet ? [...selectedSet].sort((a,b)=>a-b) : null,
-          ov.addrs, p.flagLiveness === true, 'monolithic-v1']));
+          ov.addrs, p.flagLiveness === true, policy, 'monolithic-v2']));
         const metrics = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/lift.py')], {
           input: JSON.stringify({ tasks: [{ out: lifted, key, args: [tool, ...args] }], jobs: 1 }),
           encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
@@ -369,6 +370,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     schema: 'game-cask/pipeline/1',
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
+    liftPolicy: policy,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
     interpretOnly: !!p.interpretOnly,
     ...(plan ? {discovery:{input_recordings:plan.recordings,recorded_entries:plan.code.size}} : {}),

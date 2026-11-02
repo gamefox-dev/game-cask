@@ -1,5 +1,5 @@
 // Generated C versus the unchanged instruction interpreter: full CPU bytes and RAM, not API hashes alone.
-import { it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -27,11 +27,13 @@ function pe(code: Buffer): Buffer {
   b.writeUInt32LE(0x1000, 0x200); b.writeUInt32LE(0x1000 + code.length, 0x204);
   code.copy(b, 0x400); return b;
 }
+describe.each(['size', 'fast'])('lift preset %s', (preset) => {
+const fast = preset === 'fast';
 async function harness(hex: string) {
   const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'case-')), code = Buffer.from(hex, 'hex');
   writeFileSync(join(dir, 'input.exe'), pe(code));
-  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c')]);
+  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
@@ -122,7 +124,7 @@ it('native locals, byte aliases, branches, memory and generic barriers preserve 
 it('affine counting preserves RDTSC, forward diamonds, loop yields and every interior entry', async () => {
   // Three loop iterations take both forward paths. RDTSC is a generic observation boundary.
   const h = await harness('b90300000031c0ffc083f802740583c003eb03909090ffc975ed0f31c3');
-  expect(h.text).toContain('debt+=');
+  expect(h.text.includes('debt+=')).toBe(fast);
   const snapshot = () => ({ cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
     ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536), yields: h.ex.yields(), clock: h.ex.clock() });
   for (const budget of [0, 1999960, 1999990, 1999999, 2000000]) for (const stop of [0, 1]) {
@@ -177,8 +179,8 @@ it('cold inverse-ALU recipes recover exact fault flags without saved hot operand
   ];
   for (const [i, hex] of cases.entries()) {
     const h = await harness(hex);
-    if (i < 6) expect(h.text).toContain('{uint64_t z=');
-    expect(h.text).not.toContain('xl_alu_full(');
+    if (i < 6) expect(h.text.includes('{uint64_t z=')).toBe(fast);
+    if (fast) expect(h.text).not.toContain('xl_alu_full(');
     const execute = (interp: number) => {
       h.ex.reset(base, 0);
       if (i === 9) h.ex.protect(3, 2); else h.ex.unmap(3);
@@ -194,7 +196,7 @@ it('cold inverse-ALU recipes recover exact fault flags without saved hot operand
 it('global protection flag disables lifted span fast paths and protected writes fault with identical state', async () => {
   // Straight-line guarded block writes across two mapped pages: first RW, second read-only.
   const h = await harness('48c7c3fc2f0000eb0048b88877665544332211488903c3');
-  expect(h.text).toContain('if(x86_protection_active||!xl_pointer(');
+  expect(h.text).toContain(`if(x86_protection_active||!${fast ? 'xl_pointer_fast' : 'xl_pointer'}(`);
   const execute = (interp: number) => {
     h.ex.reset(base, 0); h.ex.protect(3, 2); // PAGE_READONLY
     expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
@@ -285,4 +287,5 @@ it('specialized SSE loads, scalar upper lanes, arithmetic and stores match every
   };
   expect(h.stats.generic).toBe(0);
   expect(execute(0)).toEqual(execute(1));
+});
 });

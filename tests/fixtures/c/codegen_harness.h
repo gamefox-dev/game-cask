@@ -41,7 +41,7 @@ static void reference(void) {
         X.eip, 1, &in)) __builtin_trap();
     x86_exec64(&in);
 }
-void x86_lift_block(uint32_t count) { while (count--) reference(); }
+void x86_lift_block(uint32_t count) { while (count--) { reference(); if (X.transfer) return; } }
 BGT_EXPORT(reset) void reset(uint32_t pc, uint32_t budget) {
     __builtin_memset(&X, 0, sizeof X); __builtin_memset(ram, 0, sizeof ram);
     for (int i = 0; i < 16; i++) { x86_pages[i] = ram + i * 4096; x86_protection[i] = 0; }

@@ -212,12 +212,23 @@ identity/flags invalidate exactly affected objects; clone-relative paths allow o
 and the whole-module Asyncify boundary. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
-available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane F adds
+available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane K11 adds
+four opt-in AMD64 lifted-code policies, all defaulting to the size-oriented behavior: `liftInlineMemory`,
+`liftInlineAlu`, `liftAffineCounting`, and `liftOptimizeSmall`. `pipeline.liftPreset: "fast"` enables all four;
+`"size"` (the default when omitted) disables them. These are codegen policies, not game-specific behavior, and
+are part of the lift cache key. `liftInlineMemory` uses an inline same-page mapped/unprotected check with a cold
+full check; `liftInlineAlu` uses specialized live-flag helpers and cold recoverable fault recipes; `liftAffineCounting`
+settles the instruction debt at control/observation boundaries; `liftOptimizeSmall` drops `minsize` only for tiny
+regions. Every option has both-mode snapshot/oracle coverage in the codegen and lift-policy benchmarks. Lane F adds
 register-local AMD64 emission and guarded spans; non-default protection disables unchecked block spans before
 local mutation. LSC adds bounded chunk/cache/writer lifetimes and verified streaming loads; measured 1.6M synthetic
 instruction results and 7.1M extrapolation caveats are in [the scale handoff](handoff/scale.md), not a real-game claim.
 `node tools/bench/lift-scale.mjs 1024` writes `reports/scale.json` from an
-original generated CC0 fixture. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
+original generated CC0 fixture. K11's `tools/bench/codegen.test.ts` accepts `BGT_CODEGEN_PRESET=size|fast`,
+`BGT_CODEGEN_ROUNDS`, and `BGT_CODEGEN_TRIALS`; its committed reports record resource snapshots, exact oracle
+hashes, ALU materialization fractions, and known-count dispatch throughput. The measured fixtures are engineering
+A/B evidence only: they do not project the 7.1M-instruction target, whose observed hot phase is dominated by
+engine/build-specific lifted-call/API behavior rather than the synthetic per-instruction loop. See [v03-status.md](v03-status.md) for measured sizes (including the flag-liveness
 regression) and outstanding scale/GL/threading work.
 
 Build `manifest.pipeline.metrics`: `wasm_bytes_per_insn` = **whole wasm size** / lifted instructions, not marginal
