@@ -124,8 +124,9 @@ it('publishes final function-map stdout with its wasm and rebuilds an absent sid
   const input={objects:[{out,stdout,args:['python3','-I','-c','import sys;open(sys.argv[-1],"wb").write(b"wasm");print("5:F_01001000")']}]};
   expect((await compile(input)).objects_compiled).toBe(1);expect(readFileSync(stdout,'utf8')).toBe('5:F_01001000\n');
   expect((await compile(input)).objects_cached).toBe(1);rmSync(stdout);expect((await compile(input)).objects_compiled).toBe(1);
-  const release=leaseCache(dir,[out]);expect(pruneCache(dir,0).pinnedBytes).toBeGreaterThan(4);expect(existsSync(stdout)).toBe(true);
-  release();pruneCache(dir,0);expect(existsSync(out)).toBe(false);expect(existsSync(stdout)).toBe(false);
+  const abandoned=out+'.abandoned.tmp.stdout';writeFileSync(abandoned,'orphan-map');
+  const release=leaseCache(dir,[out]);expect(pruneCache(dir,0).pinnedBytes).toBeGreaterThan(4);expect(existsSync(stdout)).toBe(true);expect(existsSync(abandoned)).toBe(true);
+  release();pruneCache(dir,0);expect(existsSync(out)).toBe(false);expect(existsSync(stdout)).toBe(false);expect(existsSync(abandoned)).toBe(false);
   await expect(compile({objects:[{out,stdout,args:['python3','-I','-c','import sys;print("partial");sys.exit(1)']}]})).rejects.toThrow();
   expect(existsSync(out)).toBe(false);expect(existsSync(stdout)).toBe(false);expect(readdirSync(dir).some(f=>f.includes('.tmp'))).toBe(false);
  }finally{rmSync(dir,{recursive:true,force:true});}
