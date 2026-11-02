@@ -23,6 +23,12 @@
 
 /* ------------------------------------------------------------------ utilities */
 static void die(const char *m) { fprintf(stderr, "x86tool: %s\n", m); exit(2); }
+static int on_off(const char *option, const char *value) {
+    if (!strcmp(value, "on")) return 1;
+    if (!strcmp(value, "off")) return 0;
+    fprintf(stderr, "x86tool: %s must be on or off (got '%s')\n", option, value);
+    exit(2);
+}
 static void *xcalloc(size_t n, size_t s) { void *p = calloc(n ? n : 1, s); if (!p) die("out of memory"); return p; }
 static uint32_t r16(const uint8_t *p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8); }
 static uint32_t r32(const uint8_t *p) { return r16(p) | (r16(p + 2) << 16); }
@@ -891,6 +897,14 @@ int main(int argc, char **argv) {
             selection=1;FILE *list=fopen(argv[i+1],"rb");if(!list)die("cannot open function selection");
             unsigned addr;while(fscanf(list,"%x",&addr)==1)vpush(&selected,(uint32_t)addr);fclose(list);vsort_uniq(&selected);
         }
+        else if (!strcmp(argv[i], "--lift-preset")) {
+            if (strcmp(argv[i + 1], "fast") && strcmp(argv[i + 1], "size")) die("--lift-preset must be fast or size");
+            lift_inline_memory = lift_inline_alu = lift_affine_counting = lift_optimize_small = !strcmp(argv[i + 1], "fast");
+        }
+        else if (!strcmp(argv[i], "--lift-inline-memory")) lift_inline_memory = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-inline-alu")) lift_inline_alu = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-affine-counting")) lift_affine_counting = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--lift-optimize-small")) lift_optimize_small = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--flag-liveness")) flag_liveness = strcmp(argv[i + 1], "off") != 0;
         else if (!strcmp(argv[i], "--skip")) {
             for (char *s = argv[i + 1]; *s;) { vpush(&skip, (uint32_t)strtoul(s, &s, 16)); while (*s == ',') s++; }

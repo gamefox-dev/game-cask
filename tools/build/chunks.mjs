@@ -30,7 +30,21 @@ export function analyzeCached(tool, file, id, base, dir, identity) {
   return { analysis: JSON.parse(readFileSync(out,'utf8')), key, analysis_ms: performance.now()-start, analysis_cached: cached };
 }
 
-export function liftChunks({ tool, file, id, base, work, analysis, key, selected, skip = [], flagLiveness, budget = 32768 }) {
+export function liftPolicy(p = {}) {
+  if (p.liftPreset !== undefined && !['size', 'fast'].includes(p.liftPreset)) throw new Error('pipeline.liftPreset must be size or fast');
+  const policy = {};
+  for (const key of ['liftInlineMemory', 'liftInlineAlu', 'liftAffineCounting', 'liftOptimizeSmall']) {
+    if (p[key] !== undefined && typeof p[key] !== 'boolean') throw new Error(`pipeline.${key} must be boolean`);
+    policy[key] = p[key] ?? p.liftPreset === 'fast';
+  }
+  return policy;
+}
+export function liftPolicyArgs(policy) {
+  return Object.entries(policy).flatMap(([key, value]) => [
+    '--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off',
+  ]);
+}
+export function liftChunks({ tool, file, id, base, work, analysis, key, selected, skip = [], flagLiveness, policy = liftPolicy(), budget = 32768 }) {
   const dir = join(work, `chunks_${id}`); mkdirSync(dir, {recursive:true});
   const functions = selected ? analysis.functions.filter((f) => selected.has(f.addr)) : analysis.functions;
   const chunks = partitionFunctions(functions, budget), keep = new Set();
@@ -38,10 +52,10 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     const name = `${id}_${String(i).padStart(4,'0')}`, out = join(dir, name + '.c'), list = join(dir, name + '.txt');
     writeFileSync(list, addresses.map((a)=>a.toString(16)).join('\n')+'\n');
     for (const p of [out, out+'.key', out+'.stats.json', list]) keep.add(p);
-    const args = [tool,'lift',file,'--name',name,'--base',base.toString(16),'--select',list];
+    const args = [tool,'lift',file,'--name',name,'--base',base.toString(16),'--select',list,...liftPolicyArgs(policy)];
     if (flagLiveness) args.push('--flag-liveness','on');
     if (skip.length) args.push('--skip',skip.map((a)=>a.toString(16)).join(','));
-    return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,'chunks-v1']))};
+    return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,policy,'chunks-v2']))};
   });
   const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')], {
     input:JSON.stringify({tasks,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],

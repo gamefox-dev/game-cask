@@ -16,9 +16,9 @@ static inline int xl_contains(const uint32_t *entries, unsigned n, uint32_t pc) 
 /* Returning NULL sends generated code to its single spill/fault boundary. The slow operation there
  * retains the reference's diagnostic and partial cross-page-store behaviour. No host pointer is cached
  * across a call, memory growth, yield, exception or generic instruction. */
-static __attribute__((noinline)) uint8_t *xl_pointer_access(uint64_t a, unsigned n, unsigned access) {
+static __attribute__((noinline)) uint8_t *xl_pointer_checked(uint64_t a, unsigned n, unsigned access) {
 #ifdef X86_FLAT_GUEST
-    if (a + n < a || a + n > X86_FLAT_BYTES || !x86_pages[a >> 12] ||
+    if (!n || a >= X86_FLAT_BYTES || n > X86_FLAT_BYTES - a || !x86_pages[a >> 12] ||
         !x86_pages[(a + n - 1) >> 12]) return 0;
     /* Whole-block guards request read/write; operand guards request their actual access.
      * Validate every page for cross-page spans, including holes/protection in the middle. */
@@ -29,7 +29,22 @@ static __attribute__((noinline)) uint8_t *xl_pointer_access(uint64_t a, unsigned
     (void)a; (void)n; (void)access; return 0;
 #endif
 }
-static inline uint8_t *xl_pointer(uint64_t a,unsigned n) { return xl_pointer_access(a,n,3); }
+static __attribute__((noinline,cold)) uint8_t *xl_pointer_slow(uint64_t a, unsigned n, unsigned access) {
+    return xl_pointer_checked(a, n, access);
+}
+/* The common operand needs one page lookup, not a call plus two endpoint lookups.
+ * Keep the full-width range check: wasm bounds alone cannot detect unmapped guest holes,
+ * and truncating a high guest pointer could alias a valid low mapping. */
+static inline __attribute__((always_inline)) uint8_t *xl_pointer_access(uint64_t a, unsigned n, unsigned access) {
+#ifdef X86_FLAT_GUEST
+    if (__builtin_expect(a < X86_FLAT_BYTES && n && n <= X86_PAGE - (a & (X86_PAGE - 1u)) &&
+            x86_pages[a >> 12] && !x86_protection[a >> 12], 1))
+        return x86_flat + (uint32_t)a;
+#endif
+    return xl_pointer_slow(a, n, access);
+}
+static inline uint8_t *xl_pointer(uint64_t a,unsigned n) { return xl_pointer_checked(a,n,3); }
+static inline uint8_t *xl_pointer_fast(uint64_t a,unsigned n) { return xl_pointer_access(a,n,3); }
 static inline __attribute__((always_inline)) uint64_t xl_load(const uint8_t *p, int n) {
     uint64_t v = 0;
     if (n == 8) __builtin_memcpy(&v, p, 8);

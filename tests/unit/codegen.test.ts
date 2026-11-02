@@ -1,7 +1,7 @@
 // Generated C versus the unchanged instruction interpreter: full CPU bytes and RAM, not API hashes alone.
-import { it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { describe, it, expect } from 'vitest';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { compileC } from '../support/compile';
 import { ROOT } from '../support/headless';
@@ -27,18 +27,43 @@ function pe(code: Buffer): Buffer {
   b.writeUInt32LE(0x1000, 0x200); b.writeUInt32LE(0x1000 + code.length, 0x204);
   code.copy(b, 0x400); return b;
 }
+it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', '--lift-optimize-small'])(
+  'CLI %s rejects invalid values and accepts on/off', (option) => {
+    const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
+    const dir = mkdtempSync(join(root, 'cli-'));
+    try {
+      const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
+      writeFileSync(input, pe(Buffer.from('4883c001c3', 'hex')));
+      const tool = x86tool();
+      const args = ['lift', input, '--name', 'probe', '--out', output, option];
+      const invalid = spawnSync(tool, [...args, 'banana'], { encoding: 'utf8' });
+      expect(invalid.error).toBeUndefined();
+      expect(invalid.status).toBe(2);
+      expect(invalid.stderr).toContain(`${option} must be on or off`);
+      for (const value of ['on', 'off']) {
+        const valid = spawnSync(tool, [...args, value], { encoding: 'utf8' });
+        expect(valid.error).toBeUndefined();
+        expect(valid.status, valid.stderr).toBe(0);
+        expect(readFileSync(output, 'utf8')).toContain('void F_01001000(void)');
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  },
+);
+
+describe.each(['size', 'fast'])('lift preset %s', (preset) => {
+const fast = preset === 'fast';
 async function harness(hex: string) {
   const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'case-')), code = Buffer.from(hex, 'hex');
   writeFileSync(join(dir, 'input.exe'), pe(code));
-  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c')]);
+  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
     + text.replace('#include "x86_lift64.h"', `#include "${ROOT}/platforms/x86/x86_lift64.h"`) + `
 BGT_EXPORT(run) unsigned run(unsigned interpreted) {
     unsigned fallback_blocks=0;
-    for(unsigned guard=0;X.eip>=${base}u && X.eip<${base + code.length}u;guard++) {
+    for(unsigned guard=0;!X.transfer && X.eip>=${base}u && X.eip<${base + code.length}u;guard++) {
         if(guard>5000000u)__builtin_trap();
         if(interpreted){reference();continue;}
         F_01001000();
@@ -81,6 +106,27 @@ BGT_EXPORT(check) unsigned check(void) {
   expect((instance.exports.check as () => number)()).toBe(0);
 });
 
+it('inline memory checks match the slow path for width, holes, protection and full-width bounds', async () => {
+  const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-pointer'); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'probe.c'), `
+static const unsigned char test_code[]={0xc3};
+#include "${ROOT}/tests/fixtures/c/codegen_harness.h"
+BGT_EXPORT(check) unsigned check(void) {
+ uint64_t addresses[]={0,1,4095,4096,8190,8192,65520,65535,65536,0xffffffffull,
+                       0x100002000ull,UINT64_MAX-7,UINT64_MAX};
+ unsigned widths[]={0,1,2,4,8,16,4096,4097,12288};
+ unsigned modes[]={0,1,2,4,0x10,0x20,0x40,0xff};
+ for(unsigned mode=0;mode<8;mode++)for(unsigned hole=0;hole<2;hole++) {
+  reset(0,0);x86_protection[1]=modes[mode];if(hole)x86_pages[2]=0;
+  for(unsigned i=0;i<13;i++)for(unsigned n=0;n<9;n++)for(unsigned a=1;a<=3;a++)
+   if(xl_pointer_access(addresses[i],widths[n],a)!=xl_pointer_slow(addresses[i],widths[n],a))return 1;
+ }
+ return 0;
+}`);
+  const { instance } = await WebAssembly.instantiate(await compileC(relative(ROOT, join(dir, 'probe.c'))));
+  expect((instance.exports.check as () => number)()).toBe(0);
+});
+
 it('native locals, byte aliases, branches, memory and generic barriers preserve every CPU byte', async () => {
   // Includes a carry reader after INC, dead flag writes, a join, a backwards loop, and CPUID as a generic barrier.
   const h = await harness('48b88877665544332211b4aa40b4554883c00148ffc04883d000'
@@ -96,6 +142,25 @@ it('native locals, byte aliases, branches, memory and generic barriers preserve 
   expect(execute(0, base, 1999995)).toEqual(execute(1, base, 1999995));
   // Entry in the middle of a native basic block must resume correctly, not run its prefix again.
   expect(execute(0, base + 10)).toEqual(execute(1, base + 10));
+});
+
+it('affine counting preserves RDTSC, forward diamonds, loop yields and every interior entry', async () => {
+  // Three loop iterations take both forward paths. RDTSC is a generic observation boundary.
+  const h = await harness('b90300000031c0ffc083f802740583c003eb03909090ffc975ed0f31c3');
+  expect(h.text.includes('debt+=')).toBe(fast);
+  const snapshot = () => ({ cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+    ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536), yields: h.ex.yields(), clock: h.ex.clock() });
+  for (const budget of [0, 1999960, 1999990, 1999999, 2000000]) for (const stop of [0, 1]) {
+    h.ex.reset(base, budget); h.ex.stop_at_quantum(stop); h.ex.run(0); const lifted = snapshot();
+    h.ex.reset(base, budget); h.ex.stop_at_quantum(stop); h.ex.run(1);
+    expect(lifted, `budget=${budget} stop=${stop}`).toEqual(snapshot());
+  }
+  // Known instruction starts, including interior fallthrough (reference single-step resume).
+  for (const offset of [0, 5, 7, 9, 12, 14, 17, 19, 20, 21, 22, 24, 26]) {
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(0); const lifted = snapshot();
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(1);
+    expect(lifted, `interior=${offset}`).toEqual(snapshot());
+  }
 });
 
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {
@@ -117,10 +182,44 @@ it('flat-memory faults spill locals, live flags and reference partial cross-page
   }
 });
 
+it('cold inverse-ALU recipes recover exact fault flags without saved hot operands', async () => {
+  // Changing RBX within each block prevents the whole-span guard. Each first ALU's flags are
+  // killed after the memory operation on the success path, but observable on its abort path.
+  const cases = [
+    '48c7c0ff0000004883c00148c7c300300000488b134883c001c3',
+    '48c7c0000000004883e80148c7c3003000004889134883c001c3',
+    '48c7c0000000004883f80148c7c300300000488b134883c001c3',
+    '48c7c01000000048a91000000048c7c3003000004889134883c001c3',
+    '48c7c0ff00000048ffc048c7c300300000488b134883c001c3',
+    '48c7c00000000048ffc848c7c300300000488b134883c001c3',
+    // Destroyed dependencies must keep conservative flags (AL and AH aliases, POP).
+    '48c7c0100000004883c001b00048c7c300300000488b134883c001c3',
+    '48c7c0100000004883e801b40048c7c300300000488b134883c001c3',
+    // RSP update before a PUSH fault cannot use its post-decrement value to invert ADD.
+    '48bc10300000000000004883ec08504883c001c3',
+    // RMW store fault sees the newly computed flags, not the predecessor recipe.
+    '48c7c0100000004883c00148c7c300300000488303014883c001c3',
+  ];
+  for (const [i, hex] of cases.entries()) {
+    const h = await harness(hex);
+    if (i < 6) expect(h.text.includes('{uint64_t z=')).toBe(fast);
+    if (fast) expect(h.text).not.toContain('xl_alu_full(');
+    const execute = (interp: number) => {
+      h.ex.reset(base, 0);
+      if (i === 9) h.ex.protect(3, 2); else h.ex.unmap(3);
+      expect(() => h.ex.run(interp), `case ${i} ${hex}`).toThrow(WebAssembly.RuntimeError);
+      return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536),
+        address: h.ex.fault_address(), diagnostic: h.ex.fault_hash() };
+    };
+    expect(execute(0), hex).toEqual(execute(1));
+  }
+});
+
 it('global protection flag disables lifted span fast paths and protected writes fault with identical state', async () => {
   // Straight-line guarded block writes across two mapped pages: first RW, second read-only.
   const h = await harness('48c7c3fc2f0000eb0048b88877665544332211488903c3');
-  expect(h.text).toContain('if(x86_protection_active||!xl_pointer(');
+  expect(h.text).toContain(`if(x86_protection_active||!${fast ? 'xl_pointer_fast' : 'xl_pointer'}(`);
   const execute = (interp: number) => {
     h.ex.reset(base, 0); h.ex.protect(3, 2); // PAGE_READONLY
     expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
@@ -211,4 +310,5 @@ it('specialized SSE loads, scalar upper lanes, arithmetic and stores match every
   };
   expect(h.stats.generic).toBe(0);
   expect(execute(0)).toEqual(execute(1));
+});
 });

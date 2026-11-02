@@ -13,13 +13,17 @@ uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
-static uint32_t yields;
-void x86_fault(const char *m, uint32_t a) { (void)m; (void)a; __builtin_trap(); }
+static uint32_t yields, fault_address, fault_hash, stop_at_quantum;
+void x86_fault(const char *m, uint32_t a) {
+    fault_address = a; fault_hash = 2166136261u;
+    while (*m) { fault_hash = (fault_hash ^ (uint8_t)*m++) * 16777619u; }
+    __builtin_trap();
+}
 uint32_t x86_address(uint64_t a) {
     if (a > UINT32_MAX) x86_fault("high pointer", X.eip);
     return (uint32_t)a;
 }
-void x86_cooperate(void) { X.frame_insns = 0; yields++; }
+void x86_cooperate(void) { X.frame_insns = 0; yields++; if (stop_at_quantum) X.transfer = 1; }
 int x86_mapped(uint32_t a, uint32_t n) {
     if ((uint64_t)a + n > 65536) return 0;
     for (uint32_t p = a >> 12; p <= (a + n - 1) >> 12; p++) if (!x86_pages[p]) return 0;
@@ -37,13 +41,13 @@ static void reference(void) {
         X.eip, 1, &in)) __builtin_trap();
     x86_exec64(&in);
 }
-void x86_lift_block(uint32_t count) { while (count--) reference(); }
+void x86_lift_block(uint32_t count) { while (count--) { reference(); if (X.transfer) return; } }
 BGT_EXPORT(reset) void reset(uint32_t pc, uint32_t budget) {
     __builtin_memset(&X, 0, sizeof X); __builtin_memset(ram, 0, sizeof ram);
     for (int i = 0; i < 16; i++) { x86_pages[i] = ram + i * 4096; x86_protection[i] = 0; }
     x86_protection_active = 0;
     X.mode64 = 1; X.mxcsr = 0x1f80; X.eip = pc; X.r[ESP] = 0x8000; X.frame_insns = budget;
-    yields = 0; x86_lift_pending = 0; x86_lift_count = 0;
+    yields = fault_address = fault_hash = stop_at_quantum = 0; x86_lift_pending = 0; x86_lift_count = 0;
 }
 BGT_EXPORT(cpu) uint32_t cpu(void) { return (uint32_t)(uintptr_t)&X; }
 BGT_EXPORT(cpu_size) uint32_t cpu_size(void) { return sizeof X; }
@@ -53,3 +57,8 @@ BGT_EXPORT(protect) void protect(uint32_t page, uint32_t mode) {
     x86_protection[page] = (uint8_t)mode; x86_protection_active = 1;
 }
 BGT_EXPORT(yields) uint32_t yield_count(void) { return yields; }
+BGT_EXPORT(fault_address) uint32_t last_fault_address(void) { return fault_address; }
+BGT_EXPORT(fault_hash) uint32_t last_fault_hash(void) { return fault_hash; }
+BGT_EXPORT(clock) uint64_t instruction_clock(void) { return X.tsc; }
+BGT_EXPORT(stop_at_quantum) void quantum_stop(uint32_t enabled) { stop_at_quantum = enabled; }
+BGT_EXPORT(set_reg) void set_reg(uint32_t index, uint64_t value) { if (index < 16) X.r[index] = value; }

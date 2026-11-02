@@ -1,5 +1,9 @@
 # v0.3 merged implementation status
 
+## K11 — opt-in lifted-code speed policies
+
+K11 delivers opt-in AMD64 memory/ALU/attribute/counting policies (`pipeline.liftPreset: "fast"`, size-oriented defaults retained); **807 units / 66 files**, **218 browser passes / 51 unchanged skips**, **25 default pipeline oracles ×300** plus **6 ×2 policy oracles ×300** pass. Full measurements, bounded independent validation and explicit no-engine-speedup boundary: [K11 handoff](handoff/K11.md).
+
 ## K12 — deterministic guest heap and CRT allocation
 
 K12 adds a bounded-work segregated guest heap for both Win32 widths, real logical `HeapCreate` ownership and

@@ -70,7 +70,7 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
     }
     return g;
 }
-static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t count) {
+static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t count, uint32_t position) {
     if (!g->safe || !g->n) return;
     /* K2/K3: permissions can change at API boundaries. Fall back before any local
      * mutation; reference semantics enforce each operand's actual read/write access. */
@@ -80,8 +80,10 @@ static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t 
         /* Build the affine expression with a full-width displacement, not truncated to disp32. */
         p.disp = 0; p.imm = 0;
         char ea[300]; l64_ea(ea, sizeof ea, &p, 1);
-        fprintf(o, "%s!xl_pointer(%s+0x%llxull,%uu)", i ? "||" : "", ea,
+        fprintf(o, "%s!%s(%s+0x%llxull,%uu)", i ? "||" : "",
+                lift_inline_memory ? "xl_pointer_fast" : "xl_pointer", ea,
                 (unsigned long long)s->low, (unsigned)(s->high - s->low));
     }
-    fprintf(o, "){pc=0x%08xu;count=%uu;action=1;goto boundary;}\n", va, count);
+    fprintf(o, "){"); l64_flush(o, position);
+    fprintf(o, "pc=0x%08xu;count=%uu;action=1;goto boundary;}\n", va, count);
 }

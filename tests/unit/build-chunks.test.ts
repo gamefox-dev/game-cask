@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { ROOT, loadHeadless } from '../support/headless';
 import { oracle } from '../oracle/oracle';
 // @ts-expect-error ESM build tool
-import { partitionFunctions } from '../../tools/build/chunks.mjs';
+import { partitionFunctions, liftPolicy, liftPolicyArgs } from '../../tools/build/chunks.mjs';
 // @ts-expect-error ESM build tool
 import { buildGame } from '../../tools/build/build.mjs';
 // @ts-expect-error ESM build tool
@@ -22,6 +22,18 @@ it('partitions deterministically without splitting or dropping oversized functio
   const f=[{addr:3,insns:800},{addr:1,insns:128},{addr:2,insns:128},{addr:4,insns:1}];
   expect(partitionFunctions(f,256)).toEqual([[1,2],[3],[4]]);
   expect(()=>partitionFunctions(f,0)).toThrow();
+});
+it('lift policies default to size, validate values, and allow individual preset overrides',()=>{
+  expect(Object.values(liftPolicy())).toEqual([false,false,false,false]);
+  expect(Object.values(liftPolicy({liftPreset:'size'}))).toEqual([false,false,false,false]);
+  expect(Object.values(liftPolicy({liftPreset:'fast'}))).toEqual([true,true,true,true]);
+  expect(liftPolicy({liftPreset:'fast',liftInlineAlu:false}).liftInlineAlu).toBe(false);
+  expect(liftPolicyArgs(liftPolicy({liftInlineMemory:true}))).toEqual([
+    '--lift-inline-memory','on','--lift-inline-alu','off','--lift-affine-counting','off','--lift-optimize-small','off',
+  ]);
+  expect(()=>liftPolicy({liftPreset:'unknown'})).toThrow(/liftPreset/);
+  for(const key of ['liftInlineMemory','liftInlineAlu','liftAffineCounting','liftOptimizeSmall'])
+    expect(()=>liftPolicy({[key]:'true'})).toThrow(/boolean/);
 });
 it('bounds cache bytes without evicting live-build leases',()=>{
   const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/cache-test-'));
@@ -79,6 +91,18 @@ it('chunked lift is cached, byte stable, oracle-equivalent, and invalidated by c
     const changed=buildGame(dir,{quiet:true});
     expect(changed.pipeline.modules[0].scale.chunks_lifted).toBe(changed.pipeline.modules[0].scale.chunks);
     expect(changed.pipeline.modules[0].scale.analysis_cached).toBe(true);
+    (cfg.pipeline as any).liftPreset='fast';writeFileSync(join(dir,'game.json'),JSON.stringify(cfg));
+    const fast=buildGame(dir,{quiet:true});
+    expect(fast.pipeline.liftPolicy).toEqual(liftPolicy({liftPreset:'fast'}));
+    expect(fast.pipeline.modules[0].scale.chunks_lifted).toBe(fast.pipeline.modules[0].scale.chunks);
+    expect((await oracle(id,300)).identical).toBe(true);
+    const cached=buildGame(dir,{quiet:true});
+    expect(cached.pipeline.modules[0].scale.chunks_lifted).toBe(0);
+    (cfg.pipeline as any).liftPreset='size';writeFileSync(join(dir,'game.json'),JSON.stringify(cfg));
+    const restored=buildGame(dir,{quiet:true});
+    expect(restored.wasm.sha256).toBe(changed.wasm.sha256);
+    expect(restored.pipeline.modules[0].scale.chunks_lifted).toBe(restored.pipeline.modules[0].scale.chunks);
+    expect((await oracle(id,300)).identical).toBe(true);
   } finally {
     rmSync(dir,{recursive:true,force:true});
     for(const name of [id,id+'-interp']) {rmSync(join(ROOT,'web/public/games',name),{recursive:true,force:true});rmSync(join(ROOT,'node_modules/.cache/bgt/pipeline',name),{recursive:true,force:true});}
