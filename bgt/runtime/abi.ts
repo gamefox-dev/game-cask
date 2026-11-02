@@ -105,6 +105,9 @@ export const IO = {
 // ---- command stream
 export const CMD_MAGIC = 0x43544742;
 export const CMD_VERSION = 1;
+/** §13.12: GPU-only bounded continuation; command prefix flags remain zero. */
+export const CMD_GPU_CONTINUATION = 1;
+export const GPU_CONTINUATION_LIMITS = { bytes: 64 * 1024 * 1024, commands: 1048576 } as const;
 export const CMD_HEADER_SIZE = 16;
 export const CMD_PREFIX_SIZE = 8;
 
@@ -204,6 +207,7 @@ export const GPU_OP = {
   FEEDBACK_VARYINGS: 0x61,
   FEEDBACK_CAPTURE: 0x62,
   BUFFER_READBACK: 0x63,
+  BUFFER_COPY: 0x64,
 } as const;
 export const GPU = {
   BLIT_COLOR: 1,
@@ -361,6 +365,7 @@ export const GPU_LAYOUT = {
   feedback_varyings: 20,
   feedback_capture: 52,
   buffer_readback: 16,
+  buffer_copy: 20,
   pipeline_create: 104,
   vertex_layout: 8,
   attribute: 16,

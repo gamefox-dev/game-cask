@@ -258,6 +258,55 @@ static uint32_t fallback_sampler(int shadow, uint32_t dimension) {
     Texture t; zero(&t, sizeof t); params_init(&t.p); t.p.min = t.p.mag = 0x2600; t.p.ws = t.p.wt = t.p.wr = 0x812f;
     t.gmips = 1; t.p.cmp_func = 0x207; return sampler_id(&t, 0, shadow, dimension);
 }
+/* Validate the installed executable's complete std140 blocks before emitting a draw. GL indexed
+ * binding points are context state; block indices/required sizes and assignments are per program.
+ * The native ABI range represents exactly the linked block, not the unrelated buffer tail. */
+static int uniform_ranges(Program *p, uint32_t handles[7], uint32_t offsets[7], int materialize) {
+    static const uint8_t zeros[65536] = {0};
+    if (materialize && !flush_padded_cleanup()) return 0;
+    for (uint32_t i = 0; i < p->nb; i++) {
+        uint32_t s = p->block[i].binding, id = ubo[s], offset = ubo_offset[s];
+        uint32_t size = ubo_whole[s] ? buffers[id].size : ubo_size[s], required = p->info->b[i].size;
+        if (!id || !buffers[id].gpu) { fail(BAD_OP); return 0; }
+        if (offset >= buffers[id].size) size = 0;
+        else if (size > buffers[id].size - offset) size = buffers[id].size - offset;
+        handles[i] = buffers[id].gpu; offsets[i] = offset;
+        if (size >= required || !materialize) continue;
+        approximate("undersized uniform block range zero-filled");
+        if (!(p->block[i].warned & (1u << s))) {
+            char text[512]; GsLog log = {text, sizeof text, 0, 0};
+            gs_put(&log, "GL undefined uniform block range zero-filled: program="); gs_putn(&log, (uint32_t)(p - programs));
+            gs_put(&log, " block="); gs_putn(&log, i); gs_put(&log, " name="); gs_put(&log, gp_name(p->info, p->info->b[i].name));
+            gs_put(&log, " binding="); gs_putn(&log, s); gs_put(&log, " buffer="); gs_putn(&log, id);
+            gs_put(&log, " offset="); gs_putn(&log, offset); gs_put(&log, " size="); gs_putn(&log, size);
+            gs_put(&log, " required="); gs_putn(&log, required); w32_log(text);
+            p->block[i].warned |= 1u << s;
+        }
+        /* Seven reusable scratch UBOs in a private namespace. Zero every draw, then copy actual
+         * native bytes (including feedback-generated data), never stale CPU shadows or app tail. */
+        if (padded_ubo_size[i] < required) {
+            if (padded_ubo[i]) {
+                if (!send(0x42, &padded_ubo[i], 1)) goto materialize_error;
+                padded_ubo[i] = padded_ubo_size[i] = 0;
+            }
+            uint32_t create[] = {1000 + i, 4, required, 0, 0};
+            if (!send(0x40, create, 5)) { padded_ubo[i] = padded_ubo_size[i] = 0; goto materialize_error; }
+            padded_ubo[i] = 1000 + i; padded_ubo_size[i] = required;
+        }
+        uint32_t clear[] = {padded_ubo[i], 0, PTR(zeros), padded_ubo_size[i]};
+        if (!send(0x41, clear, 4)) goto materialize_error;
+        padded_generated[i] = 0;
+        if (size) {
+            uint32_t cp[] = {buffers[id].gpu, offset, padded_ubo[i], 0, size};
+            if (!send(0x64, cp, 5)) goto materialize_error;
+            padded_generated[i] = buffers[id].generated;
+        }
+        handles[i] = padded_ubo[i]; offsets[i] = 0;
+    }
+    return 1;
+materialize_error:
+    retire_generated_ubos(); return 0;
+}
 static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t first, uint32_t index_type,
         uint32_t index_offset, int32_t base_vertex) {
     uint32_t topo = topology(mode); if (topo == 0xffffffffu) return 0;
@@ -294,6 +343,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (programs[program].nout > tg.ncolor) tg.ncolor = programs[program].nout;
     if (!tg.ncolor && !tg.has_depth && !tg.has_stencil) return 0;
     Program *p = &programs[program]; uint32_t smask = 0, umask = 1, sampler_ids[8] = {0}, bound[8] = {0};
+    uint32_t block_handles[7], block_offsets[7];
+    if (!uniform_ranges(p, block_handles, block_offsets, 0)) return 0;
     for (uint32_t slot = 0; slot < p->nslots; slot++) {
         uint32_t unit = p->slot_unit[slot], dim = p->info->slot_dim[slot], shadow = p->info->slot_shadow[slot];
         /* Different sampler types must not alias the same GL texture unit. */
@@ -316,11 +367,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
         smask |= 1 << slot;
     }
-    for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
-        if (ubo_whole[s]) ubo_size[s] = buffers[ubo[s]].size;
-        if (!ubo[s] || !buffers[ubo[s]].gpu || !ubo_size[s] || (ubo_size[s] & 15)) { fail(BAD_OP); return 0; }
-        umask |= 1 << (i + 1);
-    }
+    for (uint32_t i = 0; i < p->nb; i++) umask |= 1 << (i + 1);
     uint32_t ds = tg.has_depth || tg.has_stencil, depth_format = ds ? tg.ds.bgt : 0xffffffffu;
     uint32_t w[200] = {0, p->vgpu, p->fgpu, topo, cull ? cull_face : 0, front_face,
         depth_format, depth && tg.has_depth, depth && tg.has_depth && depth_write, depth_compare,
@@ -416,6 +463,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     /* Discard suppresses rasterization, never argument/fetch validation. Complete primitives only:
      * a zero-output capture must not write, advance cursors or change buffer authority. */
     if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices)) return 0;
+    if (!uniform_ranges(p, block_handles, block_offsets, 1)) return 0;
     float h = (float)tg.h; copy(p->values, &h, 4);
     uint32_t swz_base = p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
@@ -427,7 +475,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             put32(p->values + swz_base + slot * 16 + c * 4, v == 0 ? 4 : v == 1 ? 5 : v - 0x1903u);
         }
     }
-    SEND(0x41, p->ubuf, 0, PTR(p->values), p->usize); p->dirty = 0;
+    uint32_t upload[] = {p->ubuf, 0, PTR(p->values), p->usize};
+    if (!send(0x41, upload, 4)) { retire_generated_ubos(); return 0; }
+    p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
     uint32_t vp[] = {bits((float)viewport[0]), bits(h - viewport[1] - viewport[3]), bits((float)viewport[2]),
@@ -449,8 +499,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
     uint32_t ub[] = {0, p->ubuf, 0, p->usize}; op(0x55, ub, 4);
-    for (uint32_t i = 0; i < p->nb; i++) { uint32_t s = p->block[i].binding;
-        uint32_t b[] = {i + 1, buffers[ubo[s]].gpu, ubo_offset[s], ubo_size[s]}; op(0x55, b, 4);
+    for (uint32_t i = 0; i < p->nb; i++) {
+        uint32_t b[] = {i + 1, block_handles[i], block_offsets[i], p->info->b[i].size}; op(0x55, b, 4);
     }
     for (uint32_t slot = 0; slot < p->nslots; slot++) {
         uint32_t t[] = {slot, bound[slot], sampler_ids[slot]}; op(0x56, t, 3);
@@ -470,7 +520,11 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             if (tf_query) gl_queries[tf_query].result += tf_vertices / (primitive == 0 ? 1 : primitive == 1 ? 2 : 3) * (uint32_t)instances;
         }
         w32_gl_draws++;
-    } return 0;
+    }
+    /* A private temporary must not leave recovery poisoned after its application source is deleted.
+     * Uploaded prefixes remain recoverable; generated prefixes are needed only through this pass. */
+    retire_generated_ubos();
+    return 0;
 }
 static uint32_t api_DrawArrays(void) {
     if ((int32_t)ARG(1) < 0) { fail(BAD_VALUE); return 0; }
@@ -491,6 +545,7 @@ static uint32_t api_DrawElementsInstancedBaseVertex(void) {
     return draw(ARG(0), (int32_t)ARG(1), (int32_t)ARG(4), 0, ARG(2), ARG(3), (int32_t)ARG(5));
 }
 static uint32_t api_ReadPixels(void) {
+    if (pixel_pack) { fail(BAD_OP); return 0; }
     int32_t x = (int32_t)ARG(0), y = (int32_t)ARG(1), w = (int32_t)ARG(2), h = (int32_t)ARG(3);
     uint32_t format = ARG(4), type = ARG(5), dst = ARG(6);
     if (!valid_format(format) || !valid_type(type)) { fail(BAD_ENUM); return 0; }

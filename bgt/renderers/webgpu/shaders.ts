@@ -1,5 +1,6 @@
 // Local, engine-independent GLSL 330/ES 300 frontend. Unsupported syntax is a compile error, never guessed.
 // Native WebGPU validates the resulting WGSL; errors retain the original token/line where possible.
+import { specializeOpaqueSamplers } from '../glsl-opaque';
 import { integerLiteral, integerConstant, integerCode, type IntegerValue } from './glsl-integers';
 type Token = { text: string; line: number };
 type Expr = { code: string; type: string; view?: Field; place?: string; swizzle?: { root: string; components: string } };
@@ -61,6 +62,7 @@ class GLSL {
   private locals = new Set<string>();
   private helpers: string[] = [];
   private returnType = 'void';
+  private fallsThrough = true;
   private structs = new Map<string, StructInfo>();
   private signatures = new Map<string, Signature[]>();
   private intConsts = new Map<string, IntegerValue>();
@@ -90,7 +92,7 @@ class GLSL {
     source = source.slice(match[0].length);
     if (/#/.test(source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')))
       throw new Error('GLSL: preprocessor directives other than #version are not supported');
-    this.tokens = lex('\n' + source);
+    this.tokens = lex('\n' + specializeOpaqueSamplers(source));
     this.variables.set('gl_Position', { code: 'bgt_internal_position', type: 'vec4f', place: 'bgt_internal_position' });
     for (const n of ['bgt_vertex_index', 'bgt_instance_index']) this.variables.set(n, { code: n, type: 'u32' });
     for (const n of ['bgt_frag_coord', 'gl_FragCoord'])
@@ -205,7 +207,13 @@ class GLSL {
           this.variables = saved; this.locals = savedLocals; this.returnType = savedReturnType; this.intConsts = savedConsts;
           continue;
         }
-        const body = this.block(prologue); this.variables = saved;
+        let body = this.block(prologue);
+        if (type !== 'void' && this.fallsThrough) {
+          // GLSL leaves a non-void fallthrough value undefined. WGSL requires a return;
+          // select the typed zero only on that undefined path, never replacing defined work.
+          body = body.slice(0, -1) + `// GLSL undefined non-void fallthrough: deterministic zero\nreturn ${type}();\n}`;
+        }
+        this.variables = saved;
         this.locals = savedLocals; this.returnType = savedReturnType; this.intConsts = savedConsts;
         const signature = `fn ${name === 'main' ? 'bgt_internal_main' : overload.name}(${params.join(', ')})`;
         bodies.push(`${signature}${type === 'void' ? '' : ` -> ${type}`} ${body}`);
@@ -397,12 +405,15 @@ class GLSL {
   private block(prologue: string[] = []): string {
     this.need('{'); const statements: string[] = [...prologue], saved = new Map(this.variables);
     const savedLocals = new Set(this.locals), savedConsts = new Map(this.intConsts);
-    while (!this.eat('}')) statements.push(this.statement());
+    let fallsThrough = true;
+    while (!this.eat('}')) { statements.push(this.statement()); fallsThrough &&= this.fallsThrough; }
+    this.fallsThrough = fallsThrough;
     this.variables = saved; this.locals = savedLocals; this.intConsts = savedConsts;
     return `{\n${statements.join('\n')}\n}`;
   }
 
   private statement(): string {
+    this.fallsThrough = true;
     const { value, before } = this.capture(() => this.statementInner());
     return [...before, value].join('\n');
   }
@@ -410,30 +421,32 @@ class GLSL {
     if (this.peek() === '{') return this.block();
     if (this.eat(';')) return '';
     if (this.eat('if')) {
-      this.need('('); const e = this.expression(); this.need(')'); const yes = this.statement();
-      return `if (${e.code}) ${this.braces(yes)}${this.eat('else') ? ` else ${this.braces(this.statement())}` : ''}`;
+      this.need('('); const e = this.expression(); this.need(')'); const yes = this.statement(), yesFallsThrough = this.fallsThrough;
+      const no = this.eat('else') ? this.statement() : undefined;
+      this.fallsThrough = no === undefined || yesFallsThrough || this.fallsThrough;
+      return `if (${e.code}) ${this.braces(yes)}${no === undefined ? '' : ` else ${this.braces(no)}`}`;
     }
     if (this.eat('for')) {
       this.need('('); const saved = new Map(this.variables), savedLocals = new Set(this.locals), savedConsts = new Map(this.intConsts);
       const init = this.statement(), cond = this.capture(() => this.peek() === ';' ? { code: 'true', type: 'bool' } : this.expression()); this.need(';');
       const step = this.capture(() => this.peek() === ')' ? '' : this.simple(false)); this.need(')');
-      const body = this.statement(); this.variables = saved; this.locals = savedLocals; this.intConsts = savedConsts;
+      const body = this.statement(); this.fallsThrough = true; this.variables = saved; this.locals = savedLocals; this.intConsts = savedConsts;
       if (!cond.before.length && !step.before.length && !init.includes('\n'))
         return `{ for (${init} ${cond.value.code}; ${step.value}) ${this.braces(body)} }`;
       return `{ ${init}\nloop { ${cond.before.join('\n')}\nif (!(${cond.value.code})) { break; }\n${body}\ncontinuing { ${step.before.join('\n')}\n${step.value}${step.value && !/[;}]$/.test(step.value) ? ';' : ''} } } }`;
     }
     if (this.eat('while')) {
       this.need('('); const cond = this.capture(() => this.expression()); this.need(')');
-      const body = this.statement();
+      const body = this.statement(); this.fallsThrough = true;
       return cond.before.length ? `loop { ${cond.before.join('\n')}\nif (!(${cond.value.code})) { break; }\n${body}\n}` :
         `while (${cond.value.code}) ${this.braces(body)}`;
     }
     if (this.eat('return')) {
       const e = this.peek() === ';' ? '' : ` ${this.convert(this.expression(), this.returnType).code}`;
-      this.need(';'); return `return${e};`;
+      this.need(';'); this.fallsThrough = false; return `return${e};`;
     }
     if (['discard', 'break', 'continue'].includes(this.peek())) {
-      const n = this.take(); this.need(';'); return `${n};`;
+      const n = this.take(); this.need(';'); this.fallsThrough = n === 'discard'; return `${n};`;
     }
     return this.simple(true);
   }
@@ -707,12 +720,14 @@ class GLSL {
       if (!t || !['texture', 'textureI', 'textureU', 'depth', 'depthColor', 'texture3d', 'texture2darray'].includes(t.type)) {
         this.fail('texture requires bgt_tS');
       }
+      if (this.stage === 1 && name === 'texture' && args.length !== 2) this.fail('texture bias is only available in fragment shaders');
       if (t.type === 'texture3d') {
         if (name === 'textureSize') return { code: `vec3i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec3i' };
         if (name === 'texelFetch') return { code: `textureLoad(${t.code}, ${uv.code}, ${lod.code})`, type: 'vec4f' };
-        const fn3 = name === 'textureLod' ? 'textureSampleLevel' : name === 'textureGrad' ? 'textureSampleGrad' :
+        const implicitVertex = this.stage === 1 && name === 'texture';
+        const fn3 = name === 'textureLod' || implicitVertex ? 'textureSampleLevel' : name === 'textureGrad' ? 'textureSampleGrad' :
           args.length === 3 ? 'textureSampleBias' : 'textureSample';
-        return { code: `${fn3}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
+        return { code: `${fn3}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')}${implicitVertex ? ', 0.0' : ''})`, type: 'vec4f' };
       }
       if (t.type === 'texture2darray') {
         const helper = `bgt_internal_array_${this.temporary++}`, layer = `clamp(i32(floor(c.z + 0.5)), 0, i32(textureNumLayers(${t.code})) - 1)`;
@@ -731,9 +746,9 @@ class GLSL {
             ` return textureSampleLevel(${t.code}, ${t.code}_sampler, c.xy, ${layer}, l); }`);
           return { code: `${helper}(${uv.code}, ${lod.code})`, type: 'vec4f' };
         }
-        const biased = args.length === 3;
+        const biased = args.length === 3, vertex = this.stage === 1;
         this.helpers.push(`fn ${helper}(c: vec3f${biased ? ', b: f32' : ''}) -> vec4f {` +
-          ` return ${biased ? 'textureSampleBias' : 'textureSample'}(${t.code}, ${t.code}_sampler, c.xy, ${layer}${biased ? ', b' : ''}); }`);
+          ` return ${vertex ? 'textureSampleLevel' : biased ? 'textureSampleBias' : 'textureSample'}(${t.code}, ${t.code}_sampler, c.xy, ${layer}${vertex ? ', 0.0' : biased ? ', b' : ''}); }`);
         return { code: `${helper}(${args.slice(1).map(a => a.code).join(', ')})`, type: 'vec4f' };
       }
       if (name === 'textureSize') return { code: `vec2i(textureDimensions(${t.code}, ${uv.code}))`, type: 'vec2i' };
@@ -765,12 +780,13 @@ class GLSL {
         if (name !== 'texture') this.fail('shadow sampling supports texture() only');
         const helper = `bgt_internal_shadow_${this.temporary++}`;
         this.helpers.push(`fn ${helper}(uv: vec3f) -> f32 {` +
-          ` return textureSampleCompare(${t.code}, ${t.code}_sampler, uv.xy, uv.z); }`);
+          ` return ${this.stage === 1 ? 'textureSampleCompareLevel' : 'textureSampleCompare'}(${t.code}, ${t.code}_sampler, uv.xy, uv.z); }`);
         return { code: `${helper}(${uv.code})`, type: 'f32' };
       }
-      const fn = name === 'textureLod' ? 'textureSampleLevel' :
+      const implicitVertex = this.stage === 1 && name === 'texture';
+      const fn = name === 'textureLod' || implicitVertex ? 'textureSampleLevel' :
         name === 'textureGrad' ? 'textureSampleGrad' : args.length === 3 ? 'textureSampleBias' : 'textureSample';
-      const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')})`;
+      const code = `${fn}(${t.code}, ${t.code}_sampler, ${args.slice(1).map(a => a.code).join(', ')}${implicitVertex ? ', 0.0' : ''})`;
       return { code: t.type === 'depthColor' ? `vec4f(${code}, 0.0, 0.0, 1.0)` : code, type: 'vec4f' };
     }
     if (name === 'mix' && args.length === 3 && scalar(args[2].type) === 'bool') {

@@ -168,6 +168,7 @@ static const Fmt *image_format(uint32_t internal, int rbo) {
 /* Shared TexImage2D/3D. dim: 0 2D, 1 3D, 2 array. */
 static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal, int32_t w, int32_t h, int32_t d,
         int32_t border, uint32_t format, uint32_t type, uint32_t pixels) {
+    if (pixel_unpack) { fail(BAD_OP); return; } /* PBO pixel transfers remain unsupported, never interpret offsets as pointers. */
     if (!valid_format(format) || !valid_type(type) || format == 0x1901) { fail(BAD_ENUM); return; }
     const Fmt *f = image_format(internal, 0); if (!f) return;
     if (level >= MAXLV || w < 0 || h < 0 || d < 0 || border) { fail(BAD_VALUE); return; }
@@ -236,6 +237,7 @@ static uint32_t api_TexImage3D(void) {
 }
 static void tex_sub_image(uint32_t dim, uint32_t level, int32_t x, int32_t y, int32_t z, int32_t w, int32_t h,
         int32_t d, uint32_t format, uint32_t type, uint32_t pixels) {
+    if (pixel_unpack) { fail(BAD_OP); return; }
     if (!valid_format(format) || !valid_type(type) || format == 0x1901) { fail(BAD_ENUM); return; }
     uint32_t e = transfer_error(format, type); if (e) { fail(e); return; }
     uint32_t id = tex_bind[dim][active_unit]; if (!id) { fail(BAD_OP); return; }
@@ -562,6 +564,7 @@ static void sink_external(void *c, uint32_t row0, uint32_t rows, const uint8_t *
     }
 }
 static uint32_t api_GetTexImage(void) {
+    if (pixel_pack) { fail(BAD_OP); return 0; }
     int proxy; uint32_t dim = dim_of(ARG(0), &proxy), level = ARG(1), format = ARG(2), type = ARG(3);
     if (dim == 0xffffffffu || proxy) { fail(BAD_ENUM); return 0; }
     if (!valid_format(format) || !valid_type(type)) { fail(BAD_ENUM); return 0; }

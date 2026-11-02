@@ -146,14 +146,17 @@ export async function main(args, output = console.log) {
     }
     // Only process owners report lifecycle, never agent hooks.
     case 'started':
+    case 'heartbeat':
     case 'ended':
+    case 'release':
     case 'supervisor-started':
     case 'supervisor-ended': {
       await request('/lifecycle', { action: command, lane: opts.lane,
-        runId: process.env.PI_BRIDGE_RUN_ID, code: words.length ? Number(words[0]) : undefined });
+        runId: process.env.PI_BRIDGE_RUN_ID, pid: process.env.PI_BRIDGE_DRIVER_PID ? Number(process.env.PI_BRIDGE_DRIVER_PID) : undefined,
+        start: process.env.PI_BRIDGE_DRIVER_START, code: words.length ? Number(words[0]) : undefined });
       break;
     }
-    default: throw new Error('usage: bridge status|ask|answers|questions|answer|wait');
+    default: throw new Error('usage: bridge status|ask|answers|questions|answer|wait|release');
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -306,7 +306,7 @@ void main(){ c2 = vec4(0.0); b1 = vec4(1.0); auto0 = vec4(2.0); f3 = 1.0; }`;
     bad('#version 330 core\nuniform B { float a; } b[2];\nvoid main(){}\n', 'arrays of uniform blocks');
     bad('#version 330 core\nout V { vec4 a; } v;\nvoid main(){}\n', 'interface blocks');
     bad('#version 330 core\nvarying vec4 old;\nvoid main(){}\n', 'core profile');
-    bad('#version 330 core\nuniform sampler2D s; vec4 f(sampler2D t){return texture(t, vec2(0.0));}\nout vec4 c;\nvoid main(){c=f(s);}\n', 'sampler function parameters');
+    bad('#version 330 core\nuniform sampler2D s; vec4 f(out sampler2D t){return texture(t, vec2(0.0));}\nout vec4 c;\nvoid main(){c=f(s);}\n', 'opaque sampler parameters must be in');
     bad('#version 330 core\nout mat4 m;\nvoid main(){}\n', 'fragment output');
   });
 });

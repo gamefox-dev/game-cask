@@ -761,7 +761,13 @@ enum { GS_NONE, GS_UNIFORM, GS_IN, GS_OUT };
 enum { GI_SMOOTH, GI_FLAT, GI_NOPERSP };
 typedef struct { char name[GS_NAME]; uint16_t type, arr; uint8_t storage, interp, used, line; int32_t loc; uint32_t decl_line; } GsVar;
 typedef struct { char name[GS_NAME], inst[GS_NAME]; uint16_t first, count; uint8_t used; uint32_t size, align, decl_line; } GsBlock;
-typedef struct { char name[GS_NAME]; uint32_t b0, b1, s0, s1; uint8_t reach, scanned; } GsFunc;
+#define GS_MAX_PARAMS 32
+#define GS_MAX_SPECIALIZATIONS 256
+typedef struct { char name[GS_NAME]; uint32_t a, b; int type; } GsParam;
+typedef struct {
+    char name[GS_NAME]; uint32_t b0, b1, s0, s1, n0, p0, p1, np, type;
+    GsParam params[GS_MAX_PARAMS]; uint8_t reach, scanned, opaque;
+} GsFunc;
 typedef struct { uint32_t a, b; } GsSpan;
 typedef struct { char name[GS_NAME]; int64_t v; } GsConst;
 typedef struct {
@@ -1156,18 +1162,40 @@ static int ps_global(GsPs *ps, Lx *l) {
         lx_next(l);
         Lx pl = *l;
         if (!ps_skip_group(l, '(', ')')) { ps_err(ps, &nm, "unterminated parameter list", 0); return 0; }
-        for (;;) {                                                  /* sampler parameters cannot be translated */
-            Tk x = lx_next(&pl); if (!x.kind || pl.pos > l->pos) break;
-            int xt = x.kind == 'i' ? gs_type_find(u, x.p, x.len) : -1;
-            if (xt > 0 && gs_is_sampler((uint32_t)xt)) { ps_err(ps, &x, "sampler function parameters are not supported by the BGT shader translation", 0); return 0; }
+        GsFunc header; gs_zero(&header, sizeof header); header.p0 = pl.pos; header.p1 = l->pos - 1; header.n0 = nm.off; header.type = (uint32_t)ty;
+        if (gs_is_sampler((uint32_t)ty)) { ps_err(ps, &t, "functions cannot return opaque samplers", 0); return 0; }
+        while (pl.pos < header.p1) {
+            Tk x = lx_next(&pl); if (tk_is(&x, ")")) break;
+            if (tk_is(&x, "void")) { Tk e = lx_next(&pl); if (tk_is(&e, ")")) break; }
+            if (header.np == GS_MAX_PARAMS) { ps_err(ps, &x, "too many function parameters", 0); return 0; }
+            GsParam *p = &header.params[header.np++]; p->a = x.off; int output = 0;
+            while (tk_is(&x, "const") || tk_is(&x, "in") || tk_is(&x, "out") || tk_is(&x, "inout") ||
+                tk_is(&x, "highp") || tk_is(&x, "mediump") || tk_is(&x, "lowp")) {
+                if (tk_is(&x, "out") || tk_is(&x, "inout")) output = 1;
+                x = lx_next(&pl);
+            }
+            p->type = gs_type_find(u, x.p, x.len);
+            int opaque = p->type > 0 && gs_is_sampler((uint32_t)p->type);
+            if (opaque && output) { ps_err(ps, &x, "opaque sampler parameters must be in (not out or inout)", 0); return 0; }
+            header.opaque |= (uint8_t)opaque;
+            x = lx_next(&pl); if (x.kind == 'i') { tk_copy(&x, p->name); x = lx_next(&pl); }
+            if (opaque && tk_is(&x, "[")) { ps_err(ps, &x, "sampler-array parameters are not supported; pass constant-indexed elements", 0); return 0; }
+            int depth = 0;
+            while (x.kind && !(depth == 0 && (tk_is(&x, ",") || tk_is(&x, ")")))) {
+                if (tk_is(&x, "[")) depth++;
+                if (tk_is(&x, "]")) depth--;
+                x = lx_next(&pl);
+            }
+            p->b = x.off;
+            if (tk_is(&x, ")")) break;
         }
         Tk b = lx_next(l);
-        if (tk_is(&b, ";")) return 1;
+        if (tk_is(&b, ";")) { if (header.opaque) ps_span(ps, stmt0, l->pos); return 1; }
         if (!tk_is(&b, "{")) { ps_errt(ps, &b, "expected { or ; after function header"); return 0; }
         uint32_t b0 = l->pos;
         if (!ps_skip_group(l, '{', '}')) { ps_err(ps, &nm, "unterminated function body", 0); return 0; }
         if (u->nfuncs == GS_MAX_FUNCS) { ps_err(ps, &nm, "too many functions", 0); return 0; }
-        GsFunc *f = &u->funcs[u->nfuncs++]; gs_zero(f, sizeof *f); tk_copy(&nm, f->name); f->b0 = b0; f->b1 = l->pos - 1;
+        GsFunc *f = &u->funcs[u->nfuncs++]; *f = header; tk_copy(&nm, f->name); f->b0 = b0; f->b1 = l->pos - 1;
         f->s0 = stmt0; f->s1 = l->pos;
         if (gs_eq(f->name, "main")) u->has_main = 1;
         return 1;
@@ -1187,6 +1215,280 @@ static int gs_parse(GsUnit *u, uint32_t stage, const char *src, uint32_t n, GsLo
 }
 
 
+/* Lexical shadowing matters for opaque identities: a numeric local with the same spelling
+ * is not a texture. Determine visibility from bounded lexical scopes, including for-init scope.
+ * This is also used by reflection, so a sampler parameter cannot activate a namesake uniform. */
+static int gs_statement_end(Lx *l, uint32_t depth) {
+    if (depth == 128) return 0;
+    Tk t = lx_next(l);
+    if (tk_is(&t, "{")) return ps_skip_group(l, '{', '}');
+    if (tk_is(&t, "if") || tk_is(&t, "for") || tk_is(&t, "while")) {
+        int is_if = tk_is(&t, "if"); t = lx_next(l);
+        if (!tk_is(&t, "(") || !ps_skip_group(l, '(', ')') || !gs_statement_end(l, depth + 1)) return 0;
+        t = lx_peek(l); if (is_if && tk_is(&t, "else")) { lx_next(l); return gs_statement_end(l, depth + 1); }
+        return 1;
+    }
+    while (t.kind) {
+        if (tk_is(&t, ";")) return 1;
+        if (tk_is(&t, "(") && !ps_skip_group(l, '(', ')')) return 0;
+        if (tk_is(&t, "[") && !ps_skip_group(l, '[', ']')) return 0;
+        t = lx_next(l);
+    }
+    return 0;
+}
+static int gs_local_shadow(const GsUnit *u, const GsFunc *f, const char *name, uint32_t pos) {
+    struct { uint32_t end; int bound; } scopes[257];
+    uint32_t ns = 1; scopes[0].end = f->b1; scopes[0].bound = 0;
+    struct { char name[GS_NAME]; uint32_t end; } local_types[256]; uint32_t nt = 0;
+    struct { uint32_t start, end; } pending[257]; gs_zero(pending, sizeof pending);
+    Lx l = {u->src, f->b0, pos, 1};
+    for (;;) {
+        Tk t = lx_next(&l); if (!t.kind) break;
+        while (ns > 1 && t.off >= scopes[ns - 1].end) ns--;
+        for (uint32_t i = 0; i < 257; i++) if (pending[i].start && t.off >= pending[i].start) {
+            if (t.off < pending[i].end && ns < 257) { scopes[ns].end = pending[i].end; scopes[ns++].bound = 0; }
+            pending[i].start = 0;
+        }
+        int control = tk_is(&t, "if") || tk_is(&t, "for") || tk_is(&t, "while");
+        if (tk_is(&t, "{") || control) {
+            Lx end = {u->src, t.off, f->b1, 1};
+            if (ns < 257 && gs_statement_end(&end, 0)) { scopes[ns].end = end.pos; scopes[ns++].bound = 0; }
+        }
+        if (control) {
+            Lx body = {u->src, l.pos, f->b1, 1}; Tk open = lx_next(&body);
+            if (tk_is(&open, "(") && ps_skip_group(&body, '(', ')')) for (uint32_t branch = 0; branch < 2; branch++) {
+                Tk first = lx_peek(&body); uint32_t start = first.off;
+                if (!gs_statement_end(&body, 0)) break;
+                if (!tk_is(&first, "{")) for (uint32_t i = 0; i < 257; i++) if (!pending[i].start) {
+                    pending[i].start = start; pending[i].end = body.pos; break;
+                }
+                Tk e = lx_peek(&body); if (branch || !tk_is(&t, "if") || !tk_is(&e, "else")) break;
+                lx_next(&body);
+            }
+        }
+        int ty = t.kind == 'i' ? gs_type_find(u, t.p, t.len) : -1;
+        if (tk_is(&t, "struct")) {
+            Lx body = {u->src, l.pos, f->b1, 1}; Tk type = lx_next(&body), open = type;
+            if (type.kind == 'i') open = lx_next(&body);
+            if (!tk_is(&open, "{") || !ps_skip_group(&body, '{', '}')) continue;
+            if (type.kind == 'i' && nt < 256) { tk_copy(&type, local_types[nt].name); local_types[nt++].end = scopes[ns - 1].end; }
+            /* Fields do not introduce lexical bindings. An inline instance after } does. */
+            if (body.pos > pos) return 1; /* A member name here cannot refer to a global sampler. */
+            l.pos = body.pos; ty = GS_STRUCT_BASE;
+        } else if (ty < 0) for (uint32_t i = nt; i > 0; i--) {
+            if (t.off < local_types[i - 1].end && tk_is(&t, local_types[i - 1].name)) { ty = GS_STRUCT_BASE; break; }
+        }
+        if (ty < 0) continue;
+        Lx decl = l; Tk n = lx_next(&decl);
+        if (tk_is(&n, "[")) { if (!ps_skip_group(&decl, '[', ']')) continue; n = lx_next(&decl); }
+        if (n.kind != 'i') continue;
+        for (;;) {
+            if (tk_is(&n, name)) scopes[ns - 1].bound = 1;
+            l = decl;
+            int more = 0;
+            for (;;) {
+                n = lx_next(&decl);
+                if (!n.kind || tk_is(&n, ";")) break;
+                if (tk_is(&n, ",")) { more = 1; break; }
+                if (tk_is(&n, "(") && !ps_skip_group(&decl, '(', ')')) break;
+                if (tk_is(&n, "[") && !ps_skip_group(&decl, '[', ']')) break;
+                if (tk_is(&n, "{") && !ps_skip_group(&decl, '{', '}')) break;
+            }
+            l = decl;
+            if (!more) break;
+            n = lx_next(&decl); if (n.kind != 'i') break;
+        }
+    }
+    while (ns > 1 && pos >= scopes[ns - 1].end) ns--;
+    for (uint32_t i = 0; i < ns; i++) if (scopes[i].bound) return 1;
+    return 0;
+}
+
+static const char *const gs_unsupported_tex[] = {"textureProj", "textureProjLod", "textureProjGrad", "textureOffset", "textureProjOffset",
+    "textureLodOffset", "textureGradOffset", "texelFetchOffset", "textureGather", "textureGatherOffset", "textureQueryLod",
+    "textureQueryLevels", "textureProjLodOffset", "textureProjGradOffset", "textureSamples", 0};
+/* Parse an opaque identity, including parenthesized array bases. Keep the index span
+ * separate so canonicalization can apply the existing constant-expression checks. */
+typedef struct { Tk name; uint32_t ia, ib; int indexed; } GsSamplerRef;
+static int gs_sampler_ref_inner(Lx *l, GsSamplerRef *ref, uint32_t depth) {
+    if (depth == 128) return 0;
+    Tk t = lx_next(l);
+    if (t.kind == 'i') ref->name = t;
+    else if (tk_is(&t, "(")) {
+        if (!gs_sampler_ref_inner(l, ref, depth + 1)) return 0;
+        t = lx_next(l); if (!tk_is(&t, ")")) return 0;
+    } else return 0;
+    t = lx_peek(l);
+    if (tk_is(&t, "[")) {
+        if (ref->indexed) return 0;
+        lx_next(l); ref->ia = l->pos;
+        if (!ps_skip_group(l, '[', ']')) return 0;
+        ref->ib = l->pos; ref->indexed = 1;
+    }
+    return 1;
+}
+static int gs_sampler_ref(const GsUnit *u, uint32_t a, uint32_t b, GsSamplerRef *ref) {
+    gs_zero(ref, sizeof *ref); Lx l = {u->src, a, b, 1};
+    if (!gs_sampler_ref_inner(&l, ref, 0)) return 0;
+    Tk end = lx_next(&l); return !end.kind;
+}
+static int gs_sampler_ref_type(const GsUnit *u, const GsFunc *f, const GsSamplerRef *ref) {
+    char name[GS_NAME]; tk_copy(&ref->name, name);
+    if (gs_local_shadow(u, f, name, ref->name.off + ref->name.len)) return -1;
+    for (uint32_t p = 0; p < f->np; p++) if (gs_eq(name, f->params[p].name))
+        return !ref->indexed && f->params[p].type > 0 && gs_is_sampler((uint32_t)f->params[p].type) ? f->params[p].type : -1;
+    for (uint32_t v = 0; v < u->nvars; v++) if (gs_eq(name, u->vars[v].name))
+        return gs_is_sampler(u->vars[v].type) && !!u->vars[v].arr == ref->indexed ? u->vars[v].type : -1;
+    return -1;
+}
+/* Resolve opaque argument types before reflection as well as before specialization.
+ * Numeric overload choice remains native; incompatible sampler signatures cannot be active. */
+static int gs_call_types(const GsUnit *u, const GsFunc *caller, Lx args, int *types, uint32_t *count) {
+    Tk open = lx_next(&args); if (!tk_is(&open, "(")) return 0;
+    uint32_t start = args.pos; *count = 0;
+    for (;;) {
+        Tk t = lx_next(&args); if (!t.kind) return 0;
+        if (tk_is(&t, ",") || tk_is(&t, ")")) {
+            Lx empty = {u->src, start, t.off, 1}; Tk first = lx_next(&empty);
+            if (first.kind || *count || tk_is(&t, ",")) {
+                if (*count == GS_MAX_PARAMS) return 0;
+                GsSamplerRef ref;
+                types[(*count)++] = gs_sampler_ref(u, start, t.off, &ref) ? gs_sampler_ref_type(u, caller, &ref) : -1;
+            }
+            start = args.pos; if (tk_is(&t, ")")) return 1;
+        } else if (tk_is(&t, "(") || tk_is(&t, "[") || tk_is(&t, "{")) {
+            if (!ps_skip_group(&args, t.p[0], tk_is(&t, "(") ? ')' : tk_is(&t, "[") ? ']' : '}')) return 0;
+        }
+    }
+}
+static int gs_call_matches(const GsFunc *callee, const int *types, uint32_t count) {
+    if (callee->np != count) return 0;
+    for (uint32_t p = 0; p < count; p++) {
+        int opaque = callee->params[p].type > 0 && gs_is_sampler((uint32_t)callee->params[p].type);
+        if (opaque ? types[p] != callee->params[p].type : types[p] >= 0) return 0;
+    }
+    return 1;
+}
+static int gs_validate_opaque_calls(GsUnit *u, GsLog *log) {
+    for (uint32_t fi = 0; fi < u->nfuncs; fi++) {
+        const GsFunc *f = &u->funcs[fi]; Lx l = {u->src, f->b0, f->b1, 1};
+        for (;;) {
+            Tk name = lx_next(&l); if (!name.kind) break;
+            int opaque = 0;
+            for (uint32_t i = 0; i < u->nfuncs; i++) if (u->funcs[i].opaque && tk_is(&name, u->funcs[i].name)) opaque = 1;
+            Tk next = lx_peek(&l); if (!opaque || !tk_is(&next, "(")) continue;
+            uint32_t count = 0; int types[GS_MAX_PARAMS], ok = gs_call_types(u, f, l, types, &count), match = 0;
+            for (uint32_t i = 0; ok && i < u->nfuncs; i++) {
+                const GsFunc *callee = &u->funcs[i];
+                if (tk_is(&name, callee->name)) match |= gs_call_matches(callee, types, count);
+            }
+            if (!match) { gs_diag(log, 1, 0, name.line, 1, "no matching opaque helper overload (sampler types and argument count must match)", 0); return 0; }
+        }
+    }
+    return 1;
+}
+static int gs_sampler_argument(const GsUnit *u, const GsFunc *f, uint32_t pos) {
+    struct { char name[GS_NAME], kind; uint32_t arg, start; } stack[128]; uint32_t ns = 0;
+    Lx l = {u->src, f->b0, pos, 1}; Tk previous; gs_zero(&previous, sizeof previous);
+    for (;;) {
+        Tk t = lx_next(&l); if (!t.kind) break;
+        if (tk_is(&t, "(") || tk_is(&t, "[")) {
+            if (ns == 128) return 0;
+            gs_zero(&stack[ns], sizeof stack[ns]); stack[ns].kind = t.p[0]; stack[ns].start = l.pos;
+            if (previous.kind == 'i') tk_copy(&previous, stack[ns].name);
+            ns++;
+        } else if (tk_is(&t, ")") || tk_is(&t, "]")) { if (ns) ns--; }
+        else if (tk_is(&t, ",") && ns) { stack[ns - 1].arg++; stack[ns - 1].start = l.pos; }
+        previous = t;
+    }
+    while (ns && !stack[ns - 1].name[0]) ns--; /* Grouping parentheses are not calls. */
+    if (!ns || stack[ns - 1].kind != '(') return 0;
+    Lx argument = {u->src, stack[ns - 1].start, f->b1, 1}; uint32_t end = 0;
+    for (;;) {
+        Tk t = lx_next(&argument); if (!t.kind) return 0;
+        if (tk_is(&t, ",") || tk_is(&t, ")")) { end = t.off; break; }
+        if ((tk_is(&t, "(") || tk_is(&t, "[")) && !ps_skip_group(&argument, t.p[0], tk_is(&t, "(") ? ')' : ']')) return 0;
+    }
+    GsSamplerRef ref;
+    if (!gs_sampler_ref(u, stack[ns - 1].start, end, &ref) || ref.name.off != pos || gs_sampler_ref_type(u, f, &ref) < 0) return 0;
+    const char *name = stack[ns - 1].name; uint32_t arg = stack[ns - 1].arg;
+    if (!arg) {
+        if (gs_eq(name, "texture") || gs_eq(name, "textureLod") || gs_eq(name, "textureGrad") ||
+            gs_eq(name, "texelFetch") || gs_eq(name, "textureSize")) {
+            const GsType *sampler_type = &gs_types[gs_sampler_ref_type(u, f, &ref)];
+            if (sampler_type->dim != GD_2D && sampler_type->dim != GD_3D && sampler_type->dim != GD_2DA) return 1;
+            Lx args = {u->src, stack[ns - 1].start, f->b1, 1}; uint32_t count = 1; int coordinate_type = -1;
+            for (;;) {
+                Tk t = lx_next(&args); if (!t.kind) return 0;
+                if (tk_is(&t, ")")) break;
+                if (tk_is(&t, ",")) {
+                    count++;
+                    if (count == 2) {
+                        Lx coordinate = args; Tk ty = lx_next(&coordinate), open = lx_next(&coordinate);
+                        if (tk_is(&open, "(") && ps_skip_group(&coordinate, '(', ')')) {
+                            Tk tail = lx_next(&coordinate);
+                            if (tk_is(&tail, ",") || tk_is(&tail, ")")) coordinate_type = gs_type_find(u, ty.p, ty.len);
+                        }
+                    }
+                } else if ((tk_is(&t, "(") || tk_is(&t, "[")) && !ps_skip_group(&args, t.p[0], tk_is(&t, "(") ? ')' : ']')) return 0;
+            }
+            uint32_t expected = gs_eq(name, "textureGrad") ? 4 : gs_eq(name, "textureSize") ? 2 : 3;
+            if (gs_eq(name, "texture") ? count != 2 && count != 3 : count != expected) return 0;
+            if (!gs_eq(name, "textureSize") && coordinate_type > 0 && coordinate_type < GS_STRUCT_BASE) {
+                const GsType *coord = &gs_types[coordinate_type]; int fetch = gs_eq(name, "texelFetch");
+                uint32_t rows = sampler_type->dim == GD_2D && (fetch || !sampler_type->shadow) ? 2 : 3;
+                if (coord->dim || coord->cols != 1 || coord->rows != rows || coord->kind != (fetch ? 'i' : 'f')) return 0;
+            }
+            return 1;
+        }
+        for (uint32_t i = 0; gs_unsupported_tex[i]; i++) if (gs_eq(name, gs_unsupported_tex[i])) return 1;
+    }
+    for (uint32_t i = 0; i < u->nfuncs; i++) {
+        const GsFunc *callee = &u->funcs[i];
+        if (gs_eq(callee->name, name) && arg < callee->np && callee->params[arg].type > 0 && gs_is_sampler((uint32_t)callee->params[arg].type)) return 1;
+    }
+    return 0;
+}
+static int gs_opaque_arithmetic(GsUnit *u, GsLog *log) {
+    const char *s = u->src;
+    for (uint32_t fi = 0; fi < u->nfuncs; fi++) {
+        GsFunc *f = &u->funcs[fi]; Lx l = {s, f->b0, f->b1, 1}; Tk previous; gs_zero(&previous, sizeof previous);
+        uint32_t scopes[128], ns = 0;
+        for (;;) {
+            Tk t = lx_next(&l); if (!t.kind) break;
+            while (ns && t.off >= scopes[ns - 1]) ns--;
+            if (tk_is(&t, "{") || tk_is(&t, "if") || tk_is(&t, "for") || tk_is(&t, "while")) {
+                Lx end = {s, t.off, f->b1, 1};
+                if (ns == 128 || !gs_statement_end(&end, 0)) {
+                    gs_diag(log, 1, 0, t.line, 1, "shader control-flow nesting limit (128) or malformed statement", 0); return 0;
+                }
+                scopes[ns++] = end.pos;
+            }
+            int declared_type = t.kind == 'i' ? gs_type_find(u, t.p, t.len) : -1;
+            if (declared_type > 0 && gs_is_sampler((uint32_t)declared_type)) {
+                gs_diag(log, 1, 0, t.line, 1, "opaque sampler local variables and constructors are forbidden", 0); return 0;
+            }
+            int opaque = 0, parameter = 0;
+            for (uint32_t p = 0; p < f->np; p++) if (tk_is(&t, f->params[p].name)) {
+                parameter = 1; opaque = f->params[p].type > 0 && gs_is_sampler((uint32_t)f->params[p].type);
+            }
+            if (!parameter) for (uint32_t v = 0; v < u->nvars; v++) if (tk_is(&t, u->vars[v].name)) {
+                opaque = gs_is_sampler(u->vars[v].type);
+            }
+            if (opaque && !tk_is(&previous, ".")) {
+                char name[GS_NAME]; tk_copy(&t, name);
+                if (!gs_local_shadow(u, f, name, l.pos)) {
+                    if (!gs_sampler_argument(u, f, t.off)) {
+                        gs_diag(log, 1, 0, t.line, 1, "opaque sampler arithmetic/assignment is forbidden; pass unmodified sampler identities", name); return 0;
+                    }
+                }
+            }
+            previous = t;
+        }
+    }
+    return 1;
+}
+
 /* ===================================================================== usage analysis */
 typedef struct { const char *name; uint32_t len; uint8_t kind; uint16_t idx; } GsSym;
 enum { SYM_VAR = 1, SYM_BLOCK, SYM_FUNC };
@@ -1198,7 +1500,7 @@ static void gs_sym_add(const char *name, uint8_t kind, uint16_t idx) {
     while (gs_tab[h]) h = (h + 1) & 2047;
     gs_tab[h] = (uint16_t)(++gs_nsyms);
 }
-static void gs_scan_body(GsUnit *u, uint32_t b0, uint32_t b1, int mark_funcs) {
+static void gs_scan_body(GsUnit *u, GsFunc *func, uint32_t b0, uint32_t b1, int mark_funcs) {
     const char *s = u->src;
     for (uint32_t i = b0; i < b1;) {
         char c = s[i];
@@ -1215,9 +1517,19 @@ static void gs_scan_body(GsUnit *u, uint32_t b0, uint32_t b1, int mark_funcs) {
             while (gs_tab[h]) {
                 GsSym *y = &gs_syms[gs_tab[h] - 1];
                 if (y->len == j - i && gs_eqn(s + i, j - i, y->name) && y->name[y->len] == 0) {
+                    int shadow = gs_local_shadow(u, func, y->name, j);
+                    for (uint32_t p = 0; p < func->np; p++) if (gs_eq(func->params[p].name, y->name)) shadow = 1;
+                    if (shadow) { h = (h + 1) & 2047; continue; }
                     if (y->kind == SYM_VAR) u->vars[y->idx].used = 1;
                     else if (y->kind == SYM_BLOCK) u->blocks[y->idx].used = 1;
-                    else if (mark_funcs) for (uint32_t f = 0; f < u->nfuncs; f++) if (gs_eq(u->funcs[f].name, y->name)) u->funcs[f].reach |= 1;
+                    else if (mark_funcs) {
+                        int opaque_family = 0;
+                        for (uint32_t f = 0; f < u->nfuncs; f++) if (u->funcs[f].opaque && gs_eq(u->funcs[f].name, y->name)) opaque_family = 1;
+                        uint32_t count = 0; int types[GS_MAX_PARAMS]; Lx call = {s, j, b1, 1};
+                        int typed = opaque_family && gs_call_types(u, func, call, types, &count);
+                        for (uint32_t f = 0; f < u->nfuncs; f++) if (gs_eq(u->funcs[f].name, y->name) &&
+                            (!opaque_family || (typed && gs_call_matches(&u->funcs[f], types, count)))) u->funcs[f].reach |= 1;
+                    }
                 }
                 h = (h + 1) & 2047;
             }
@@ -1239,7 +1551,7 @@ static void gs_analyze(GsUnit *u) {
     for (int changed = 1; changed;) {
         changed = 0;
         for (uint32_t i = 0; i < u->nfuncs; i++) if ((u->funcs[i].reach & 1) && !u->funcs[i].scanned) {
-            u->funcs[i].scanned = 1; gs_scan_body(u, u->funcs[i].b0, u->funcs[i].b1, 1); changed = 1;
+            u->funcs[i].scanned = 1; gs_scan_body(u, &u->funcs[i], u->funcs[i].b0, u->funcs[i].b1, 1); changed = 1;
         }
     }
 }
@@ -1480,6 +1792,7 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
 /* Language-subset limits of the BGT interface (reported as GL compile errors, never silently translated). */
 static int gs_policy(GsUnit *u, GsLog *log) {
     int ok = 1;
+    if (!gs_opaque_arithmetic(u, log) || !gs_validate_opaque_calls(u, log)) return 0;
     if (gs_reflect_only) return 1;
     for (uint32_t i = 0; i < u->nvars; i++) {
         GsVar *v = &u->vars[i]; const GsType *t = v->type < GS_STRUCT_BASE ? &gs_types[v->type] : 0;
@@ -1508,8 +1821,12 @@ static void eb_put(Eb *e, const char *s, uint32_t n) {
 static void eb_str(Eb *e, const char *s) { eb_put(e, s, gs_len(s)); }
 static void eb_num(Eb *e, uint32_t v) { char b[12]; pp_number_u32(b, v); eb_str(e, b); }
 typedef struct { GsUnit *unit; uint32_t idx; } EmStruct;
+typedef struct { uint32_t func, family; int slots[GS_MAX_PARAMS]; char name[GS_NAME]; } EmSpecialization;
 typedef struct {
-    GsUnit *u; GsUnit *un[2]; Gp *g; Eb out; GsLog *log; int failed, stage;
+    GsUnit *u; GsUnit *un[2]; Gp *g; Eb out; GsLog *log; int failed, stage, range_depth;
+    EmSpecialization specializations[GS_MAX_SPECIALIZATIONS]; uint32_t nspec;
+    EmSpecialization *current;
+    char local_names[GS_MAX_FUNCS][8][GS_NAME];
     GsSpan spans[GS_MAX_SPANS + GS_MAX_STRUCTS + GS_MAX_FUNCS]; uint32_t nspans;
     EmStruct hs[GS_MAX_STRUCTS]; uint32_t nhs;
 } Em;
@@ -1537,16 +1854,22 @@ static void em_decl(Em *em, GsUnit *unit, uint32_t type, const char *name, uint3
 }
 static void em_add_span(Em *em, uint32_t a, uint32_t b) { if (em->nspans < GS_MAX_SPANS + GS_MAX_STRUCTS + GS_MAX_FUNCS) { em->spans[em->nspans].a = a; em->spans[em->nspans++].b = b; } }
 
-static const char *const gs_unsupported_tex[] = {"textureProj", "textureProjLod", "textureProjGrad", "textureOffset", "textureProjOffset",
-    "textureLodOffset", "textureGradOffset", "texelFetchOffset", "textureGather", "textureGatherOffset", "textureQueryLod",
-    "textureQueryLevels", "textureProjLodOffset", "textureProjGradOffset", "textureSamples", 0};
-
 /* Resolve a sampler reference starting at identifier s[a..b); returns 1 and the slot / shadow flag / end position. */
 static int em_sampler(Em *em, uint32_t a, uint32_t b, uint32_t limit, int *slot, int *shadow, uint32_t *end) {
     const char *s = em->u->src;
+    if (em->current) {
+        GsFunc *f = &em->u->funcs[em->current->func];
+        for (uint32_t p = 0; p < f->np; p++) if (gs_eqn(s + a, b - a, f->params[p].name)) {
+            if (gs_local_shadow(em->u, f, f->params[p].name, b)) return 0;
+            int n = em->current->slots[p];
+            if (n < 0) return 0; /* a numeric parameter can shadow a global sampler */
+            *slot = n; *shadow = em->g->slot_shadow[n]; *end = b; return 1;
+        }
+    }
     for (uint32_t k = 0; k < em->g->ndv; k++) {
         GpVar *d = &em->g->dv[k]; GsUnit *pu = em->un[d->stage]; GsVar *v = &pu->vars[d->var];
         if (v->type >= GS_STRUCT_BASE || !gs_types[v->type].dim || !gs_eqn(s + a, b - a, v->name)) continue;
+        if (em->current && gs_local_shadow(em->u, &em->u->funcs[em->current->func], v->name, b)) return 0;
         uint32_t e = b, idx = 0;
         if (v->arr) {
             uint32_t q = e; while (q < limit && (gs_space(s[q]) || s[q] == '\n')) q++;
@@ -1574,10 +1897,170 @@ static void em_call_args(Em *em, uint32_t open, uint32_t limit, uint32_t *a0, ui
     }
     *close = 0;
 }
+/* Samplers are opaque identities, not values: instantiate only the helper families actually called.
+ * Numeric overload resolution remains with the native typed compiler; all matching numeric overloads
+ * share a specialized name. Sampler arguments disappear, so numeric arguments retain copy-in/out and
+ * evaluation semantics and each texture operation still goes through the ordinary slot transforms. */
+static int em_slot_type(Em *em, int slot) {
+    for (uint32_t k = 0; k < em->g->ndv; k++) {
+        GpVar *d = &em->g->dv[k]; GsVar *v = &em->un[d->stage]->vars[d->var];
+        if (gs_is_sampler(v->type) && slot >= (int)d->slot && slot < (int)(d->slot + (v->arr ? v->arr : 1))) return v->type;
+    }
+    return -1;
+}
+static int em_actual_sampler(Em *em, uint32_t a, uint32_t b) {
+    GsSamplerRef ref; if (!gs_sampler_ref(em->u, a, b, &ref)) return -1;
+    if (!ref.indexed) {
+        int slot, shadow; uint32_t end;
+        return em_sampler(em, ref.name.off, ref.name.off + ref.name.len, ref.name.off + ref.name.len, &slot, &shadow, &end) ? slot : -1;
+    }
+    GsFunc *f = em->current ? &em->u->funcs[em->current->func] : 0;
+    if (f && gs_sampler_ref_type(em->u, f, &ref) < 0) return -1;
+    for (uint32_t k = 0; k < em->g->ndv; k++) {
+        GpVar *d = &em->g->dv[k]; GsVar *v = &em->un[d->stage]->vars[d->var];
+        if (!gs_is_sampler(v->type) || !v->arr || !tk_is(&ref.name, v->name)) continue;
+        Lx l = {em->u->src, ref.ia, ref.ib, 1}; GsPs ps = {em->u, em->log, 0, 0}; int ok = 1;
+        int64_t index = cx_expr(&ps, &l, 0, &ok); Tk close = lx_next(&l);
+        if (!ok || !tk_is(&close, "]")) { em_err(em, a, "dynamic sampler-array indexing is not supported by the BGT shader translation", v->name); return -1; }
+        if (index < 0 || index >= v->arr) { em_err(em, a, "sampler array index out of range", v->name); return -1; }
+        return (int)(d->slot + index);
+    }
+    return -1;
+}
+static int em_opaque_call(Em *em, uint32_t a, uint32_t name_end, uint32_t open, uint32_t limit, uint32_t *end) {
+    GsUnit *u = em->u; const char *s = u->src; int found = 0;
+    for (uint32_t f = 0; f < u->nfuncs; f++)
+        if (u->funcs[f].opaque && gs_eqn(s + a, name_end - a, u->funcs[f].name)) found = 1;
+    if (!found) return 0;
+    uint32_t starts[GS_MAX_PARAMS], ends[GS_MAX_PARAMS], count = 0, start = open + 1, close = 0; int depth = 1;
+    for (uint32_t i = start; i < limit; i++) {
+        char c = s[i];
+        if (c == '(' || c == '[') depth++;
+        else if (c == ')' || c == ']') { if (--depth == 0) { close = i; break; } }
+        if (c == ',' && depth == 1) {
+            if (count == GS_MAX_PARAMS) break;
+            starts[count] = start; ends[count++] = i; start = i + 1;
+        }
+    }
+    if (!close || count == GS_MAX_PARAMS) { em_err(em, a, "opaque helper argument limit or unbalanced call", 0); return 1; }
+    uint32_t nonspace = start; while (nonspace < close && (gs_space(s[nonspace]) || s[nonspace] == '\n')) nonspace++;
+    if (nonspace < close) { starts[count] = start; ends[count++] = close; }
+    int slots[GS_MAX_PARAMS];
+    for (uint32_t p = 0; p < count; p++) slots[p] = em_actual_sampler(em, starts[p], ends[p]);
+    int first = -1;
+    for (uint32_t fi = 0; fi < u->nfuncs; fi++) {
+        GsFunc *f = &u->funcs[fi];
+        if (f->np != count || !gs_eqn(s + a, name_end - a, f->name)) continue;
+        int match = 1;
+        for (uint32_t p = 0; p < count; p++) {
+            int opaque = f->params[p].type > 0 && gs_is_sampler((uint32_t)f->params[p].type);
+            if (opaque ? slots[p] < 0 || em_slot_type(em, slots[p]) != f->params[p].type : slots[p] >= 0) match = 0;
+        }
+        if (!match) continue;
+        if (!f->opaque) return 0; /* a legal nonopaque overload */
+        int existing = -1, family = -1;
+        for (uint32_t k = 0; k < em->nspec; k++) {
+            EmSpecialization *sp = &em->specializations[k]; GsFunc *other = &u->funcs[sp->func];
+            if (other->np != count || !gs_eq(other->name, f->name)) continue;
+            int same = 1; for (uint32_t p = 0; p < count; p++) if (slots[p] != sp->slots[p]) same = 0;
+            if (same) { family = (int)sp->family; if (sp->func == fi) existing = (int)k; }
+        }
+        if (existing < 0) {
+            if (em->nspec == GS_MAX_SPECIALIZATIONS) { em_err(em, a, "opaque helper specialization limit (256)", 0); return 1; }
+            existing = (int)em->nspec++; EmSpecialization *sp = &em->specializations[existing]; sp->func = fi;
+            sp->family = family < 0 ? (uint32_t)existing : (uint32_t)family;
+            for (uint32_t p = 0; p < count; p++) sp->slots[p] = slots[p];
+            if (family < 0) {
+                /* Avoid collisions with legal application identifiers, even in unreachable source. */
+                for (uint32_t id = (uint32_t)existing;; id += GS_MAX_SPECIALIZATIONS) {
+                    Eb n = {sp->name, 0, GS_NAME, 0}; eb_str(&n, "bgt_gl_opaque_"); eb_num(&n, id);
+                    Lx scan = {s, 0, u->srclen, 1}; int collision = 0;
+                    for (;;) { Tk t = lx_next(&scan); if (!t.kind) break; if (tk_is(&t, sp->name)) collision = 1; }
+                    if (!collision) break;
+                }
+            } else gs_copy(sp->name, em->specializations[family].name, GS_NAME);
+        }
+        if (first < 0) first = existing;
+    }
+    if (first < 0) { em_err(em, a, "no matching opaque helper overload (samplers must be unmodified uniform identities)", 0); return 1; }
+    eb_str(&em->out, em->specializations[first].name); eb_str(&em->out, "("); int comma = 0;
+    for (uint32_t p = 0; p < count; p++) if (slots[p] < 0) {
+        if (comma++) eb_str(&em->out, ",");
+        em_range(em, starts[p], ends[p], 0);
+    }
+    eb_str(&em->out, ")"); *end = close + 1; return 1;
+}
+static int em_struct_field(Em *em, uint32_t pos) {
+    const char *s = em->u->src; GsFunc *f = &em->u->funcs[em->current->func];
+    Lx l = {s, f->b0, pos, 1}; uint32_t depth = 0, structs[128], ns = 0; int pending = 0;
+    for (;;) {
+        Tk t = lx_next(&l); if (!t.kind) break;
+        if (tk_is(&t, "struct")) { pending = 1; continue; }
+        if (tk_is(&t, "{")) { if (pending && ns < 128) structs[ns++] = ++depth; else depth++; pending = 0; continue; }
+        if (tk_is(&t, "}")) { if (ns && structs[ns - 1] == depth) ns--; if (depth) depth--; continue; }
+    }
+    return ns != 0;
+}
+static int em_local_name(Em *em, uint32_t a, uint32_t b) {
+    const char *s = em->u->src;
+    if (!em->current || b - a != 6 || !gs_eqn(s + a, 5, "bgt_t") || s[a + 5] < '0' || s[a + 5] > '7' || em_struct_field(em, a)) return 0;
+    GsFunc *f = &em->u->funcs[em->current->func];
+    char original[GS_NAME]; gs_copy(original, s + a, b - a); original[b - a] = 0;
+    int numeric = gs_local_shadow(em->u, f, original, b);
+    for (uint32_t p = 0; p < f->np; p++) if (gs_eq(original, f->params[p].name) && em->current->slots[p] < 0) numeric = 1;
+    if (!numeric) return 0;
+    char *name = em->local_names[em->current->func][s[a + 5] - '0'];
+    if (!name[0]) for (uint32_t id = em->current->func * 8 + (uint32_t)(s[a + 5] - '0');; id += GS_MAX_FUNCS * 8) {
+        Eb n = {name, 0, GS_NAME, 0}; eb_str(&n, "bgt_gl_local_"); eb_num(&n, id);
+        Lx scan = {s, 0, em->u->srclen, 1}; int collision = 0;
+        for (;;) { Tk t = lx_next(&scan); if (!t.kind) break; if (tk_is(&t, name)) collision = 1; }
+        if (!collision) break;
+    }
+    eb_str(&em->out, name); return 1;
+}
+static void em_parameter(Em *em, const GsParam *p) {
+    const char *s = em->u->src; uint32_t start = p->a; Lx l = {s, start, p->b, 1};
+    for (;;) {
+        Tk t = lx_next(&l); if (!t.kind) break;
+        if (tk_is(&t, "[")) {
+            eb_put(&em->out, s + start, t.off - start); int ok = 1; GsPs ps = {em->u, em->log, 0, 0};
+            int64_t n = cx_expr(&ps, &l, 0, &ok); Tk end = lx_next(&l);
+            if (!ok || !tk_is(&end, "]") || n < 1 || n > 0x7fffffff) { em_err(em, t.off, "function parameter array requires a positive constant size", 0); return; }
+            eb_str(&em->out, "["); eb_num(&em->out, (uint32_t)n); eb_str(&em->out, "]"); start = l.pos;
+        } else if (t.kind == 'i' && t.len == 6 && gs_eqn(t.p, 5, "bgt_t")) {
+            /* Flush only if this token actually names a numeric local/parameter. */
+            Eb saved = em->out; uint32_t before = em->out.len;
+            if (em_local_name(em, t.off, l.pos)) {
+                uint32_t name_len = em->out.len - before; char name[GS_NAME]; gs_copy(name, em->out.p + before, name_len);
+                em->out = saved; eb_put(&em->out, s + start, t.off - start); eb_put(&em->out, name, name_len); start = l.pos;
+            }
+        }
+    }
+    eb_put(&em->out, s + start, p->b - start);
+}
+static void em_function(Em *em, EmSpecialization *sp, int prototype) {
+    GsFunc *f = &em->u->funcs[sp->func];
+    em->current = sp;
+    em_range(em, f->s0, f->n0, 0); eb_str(&em->out, sp->name); eb_str(&em->out, "("); int comma = 0;
+    for (uint32_t p = 0; p < f->np; p++) if (sp->slots[p] < 0) {
+        if (comma++) eb_str(&em->out, ",");
+        /* Parameter declarations are not expressions and may shadow global uniforms. */
+        em_parameter(em, &f->params[p]);
+    }
+    eb_str(&em->out, prototype ? ");\n" : "){\n");
+    if (!prototype) { em_range(em, f->b0, f->b1, 0); eb_str(&em->out, "}\n"); }
+    em->current = 0;
+}
+static void em_specialized_function(Em *em, uint32_t index, int prototype) { em_function(em, &em->specializations[index], prototype); }
 static void em_wrapped(Em *em, const char *fn, uint32_t a, uint32_t b) {
     eb_str(&em->out, fn); eb_str(&em->out, "("); em_range(em, a, b, 0); eb_str(&em->out, ")");
 }
+static void em_range_inner(Em *em, uint32_t a, uint32_t b, int top);
 static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
+    if (em->range_depth == 128) { em_err(em, a, "shader emission nesting limit (128)", 0); return; }
+    em->range_depth++; em_range_inner(em, a, b, top); em->range_depth--;
+}
+static void em_range_inner(Em *em, uint32_t a, uint32_t b, int top) {
     const char *s = em->u->src; uint32_t si = 0;
     uint32_t i = a;
     while (i < b && !em->failed) {
@@ -1587,6 +2070,13 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                 uint32_t e = em->spans[si].b; if (e > b) e = b;
                 for (; i < e; i++) if (s[i] == '\n') eb_put(&em->out, "\n", 1);
                 continue;
+            }
+            int function = -1;
+            for (uint32_t f = 0; f < em->u->nfuncs; f++) if (em->u->funcs[f].s0 == i) { function = (int)f; break; }
+            if (function >= 0) {
+                GsFunc *f = &em->u->funcs[function]; EmSpecialization sp; gs_zero(&sp, sizeof sp); sp.func = (uint32_t)function;
+                for (uint32_t p = 0; p < f->np; p++) sp.slots[p] = -1;
+                em->current = &sp; em_range(em, f->s0, f->s1, 0); em->current = 0; i = f->s1; continue;
             }
         }
         char c = s[i];
@@ -1599,6 +2089,7 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
         uint32_t len = j - i;
         uint32_t k = i; while (k > a && (gs_space(s[k - 1]) || s[k - 1] == '\n')) k--;
         if (k > a && s[k - 1] == '.') { eb_put(&em->out, s + i, len); i = j; continue; }     /* member / swizzle */
+        if (em_local_name(em, i, j)) { i = j; continue; }
         if (gs_eqn(s + i, len, "main") && em->stage == 1) { eb_str(&em->out, "bgt_gl_main"); i = j; continue; }
         if (gs_eqn(s + i, len, "gl_VertexID")) { eb_str(&em->out, "int(bgt_vertex_index)"); i = j; continue; }
         if (gs_eqn(s + i, len, "gl_InstanceID")) { eb_str(&em->out, "int(bgt_instance_index)"); i = j; continue; }
@@ -1610,6 +2101,10 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
             em_err(em, i, "built-in variable is not supported by the BGT shader translation", nm); return; }
         /* texture builtins */
         uint32_t q = j; while (q < b && (gs_space(s[q]) || s[q] == '\n')) q++;
+        if (q < b && s[q] == '(') {
+            uint32_t end = j;
+            if (em_opaque_call(em, i, j, q, b, &end)) { i = end; continue; }
+        }
         if (q < b && s[q] == '(' && len >= 7 && s[i] == 't' && s[i + 1] == 'e' && (s[i + 2] == 'x')) {
             int sup = 0, texfn = gs_eqn(s + i, len, "texture") || gs_eqn(s + i, len, "textureLod") || gs_eqn(s + i, len, "textureGrad") ||
                 gs_eqn(s + i, len, "texelFetch") || gs_eqn(s + i, len, "textureSize");
@@ -1621,8 +2116,9 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                 if (!close) { em_err(em, i, "unbalanced parentheses in texture call", 0); return; }
                 uint32_t t0 = a0[0], t1 = a1[0]; while (t0 < t1 && (gs_space(s[t0]) || s[t0] == '\n')) t0++;
                 while (t1 > t0 && (gs_space(s[t1 - 1]) || s[t1 - 1] == '\n')) t1--;
-                int slot = 0, shadow = 0; uint32_t end = 0, id1 = t0; while (id1 < t1 && gs_idc(s[id1])) id1++;
-                if (cnt >= 2 && id1 > t0 && em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && end == t1) {
+                int slot = cnt >= 1 ? em_actual_sampler(em, t0, t1) : -1;
+                int shadow = slot >= 0 ? em->g->slot_shadow[slot] : 0;
+                if (cnt >= 2 && slot >= 0) {
                     int swizzle = !shadow && !gs_eqn(s + i, len, "textureSize");
                     if (swizzle) { eb_str(&em->out, "bgt_gl_sw"); eb_num(&em->out, (uint32_t)slot); eb_str(&em->out, "("); }
                     eb_put(&em->out, s + i, len); eb_str(&em->out, "(");
@@ -1644,7 +2140,7 @@ static void em_range(Em *em, uint32_t a, uint32_t b, int top) {
                     }
                     eb_str(&em->out, swizzle ? "))" : ")"); i = close + 1; continue;
                 }
-                if (cnt >= 1 && id1 > t0 && !em_sampler(em, t0, id1, t1, &slot, &shadow, &end) && em->failed) return;
+                if (em->failed) return;
             }
         }
         int slot, shadow; uint32_t end;
@@ -1659,13 +2155,18 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
     Em *em = (Em *)GS_ALLOC(sizeof(Em)); if (!em) return 0;
     em->u = u; em->un[0] = vs; em->un[1] = fs; em->g = g; em->log = log; em->stage = (int)u->stage;
     uint32_t sidx = u->stage - 1;
-    uint32_t c = u->srclen * 2 + 65536 + g->nu * 256; if (c > GS_MAX_SOURCE + 65536) c = GS_MAX_SOURCE + 65536;
+    uint32_t c = GS_MAX_SOURCE + 1; /* Specialization may expand a small input to the full advertised limit. */
     char *buf = (char *)GS_ALLOC(c); if (!buf) { GS_FREE(em, sizeof *em); return 0; }
     em->out.p = buf; em->out.cap = c;
     for (uint32_t i = 0; i < u->nspans; i++) em_add_span(em, u->spans[i].a, u->spans[i].b);
     /* Inactive uniforms are omitted; omit unreachable users too, rather than leaving undeclared names. */
     for (uint32_t i = 0; i < u->nfuncs; i++)
-        if (!u->funcs[i].reach) em_add_span(em, u->funcs[i].s0, u->funcs[i].s1);
+        if (!u->funcs[i].reach || u->funcs[i].opaque) em_add_span(em, u->funcs[i].s0, u->funcs[i].s1);
+    /* Specialized forward declarations may refer to value structs before the original body. */
+    for (uint32_t i = 0; i < u->nfuncs && !em->failed; i++) if (u->funcs[i].reach && u->funcs[i].opaque) {
+        GsFunc *f = &u->funcs[i]; em_hoist(em, u, f->type);
+        for (uint32_t p = 0; p < f->np && !em->failed; p++) if (f->params[p].type >= 0) em_hoist(em, u, (uint32_t)f->params[p].type);
+    }
     /* structures required by program uniforms and this stage's blocks */
     for (uint32_t k = 0; k < g->ndv && !em->failed; k++) em_hoist(em, em->un[g->dv[k].stage], em->un[g->dv[k].stage]->vars[g->dv[k].var].type);
     for (uint32_t k = 0; k < g->nb && !em->failed; k++) if (g->b[k].unit[sidx] >= 0) {
@@ -1741,7 +2242,15 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
             eb_str(o, v->storage == GS_IN ? "in " : "out "); em_decl(em, u, v->type, v->name, v->arr); eb_str(o, " ");
         }
         /* The #version line is replaced; keep the first source newline so line numbers stay aligned. */
+        uint32_t body_start = o->len;
         em_range(em, u->src[0] == '\n' ? 1 : 0, u->srclen, 1);
+        /* Discover forwarding instantiations before emitting prototypes (GLSL ES declaration order).
+         * Storage and expansion are bounded; no sampler binding/reflection is added or reassigned. */
+        for (uint32_t k = 0; k < em->nspec && !em->failed; k++) em_specialized_function(em, k, 0);
+        o->len = body_start; o->p[o->len] = 0;
+        for (uint32_t k = 0; k < em->nspec && !em->failed; k++) em_specialized_function(em, k, 1);
+        em_range(em, u->src[0] == '\n' ? 1 : 0, u->srclen, 1);
+        for (uint32_t k = 0; k < em->nspec && !em->failed; k++) em_specialized_function(em, k, 0);
         if (u->stage == 1) eb_str(o, "\nvoid main(){bgt_gl_main();gl_Position.z=(gl_Position.z+gl_Position.w)*0.5;}\n");
         if (o->over) { gs_diag(log, 1, 0, 0, 0, "translated shader exceeds the 1 MiB BGT source limit", 0); em->failed = 1; }
         if (o->len > GS_MAX_SOURCE) { gs_diag(log, 1, 0, 0, 0, "translated shader exceeds the 1 MiB BGT source limit", 0); em->failed = 1; }

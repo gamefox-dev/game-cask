@@ -23,6 +23,7 @@ interface TextureObject {
 interface ShaderObject { object: WebGLShader; words: number[]; source: string }
 interface PipelineObject {
   object: WebGLProgram; words: number[]; vao: WebGLVertexArrayObject; kinds: Map<number, { dimension: number; shadow: boolean }>;
+  outputs: Set<number>;
 }
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
 /** IEEE binary32 -> binary16 (round to nearest even); exact for values that originated as halves. */
@@ -55,6 +56,7 @@ export class WebGL2Gpu implements GpuBackend {
   private screenSize = [0, 0];
   private frame = { width: 1, height: 1, lb: { x: 0, y: 0, w: 1, h: 1, scale: 1 } };
   private screenPass = false;
+  private passDrawBuffers: number[] = [];
   private width = 1;
   private height = 1;
   private pipeline?: PipelineObject;
@@ -188,6 +190,14 @@ export class WebGL2Gpu implements GpuBackend {
         g.deleteProgram(old.object);g.deleteVertexArray(old.vao);break;
       }
       case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.BUFFER_COPY: {
+        const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
+        g.bindBuffer(g.COPY_READ_BUFFER, src.object); g.bindBuffer(g.COPY_WRITE_BUFFER, dst.object);
+        g.copyBufferSubData(g.COPY_READ_BUFFER, g.COPY_WRITE_BUFFER, w[1], w[3], w[4]);
+        dst.data.set(src.data.slice(w[1], w[1] + w[4]), w[3]);
+        if (src.generated) dst.generated = true; else if (!w[3] && w[4] === dst.data.length) dst.generated = false;
+        break;
+      }
       case OP.BUFFER_READBACK: {
         const data=new Uint8Array(w[2]);g.bindBuffer(g.COPY_READ_BUFFER,this.buffers.get(h)!.object);
         g.getBufferSubData(g.COPY_READ_BUFFER,w[1],data);item.readback?.(data);break;
@@ -305,6 +315,7 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.PASS_BEGIN: this.beginPass(w); break;
       case OP.PASS_END: this.endPass(); break;
       case OP.CLEAR_BUFFER: {
+        g.drawBuffers(this.passDrawBuffers);
         const kind = h & 3, cls = (h >>> 2) & 3, mask = (h >>> 4) & 15;
         if (kind === 0) {
           this.indexed!.colorMaskiOES(w[1], !!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8));
@@ -447,18 +458,20 @@ export class WebGL2Gpu implements GpuBackend {
         }
       }
       // Outputs must have explicit locations, and cannot address absent color attachments.
+      const outputs = new Set<number>();
       for (const output of fragmentOutputs(this.shaders.get(w[2])!.source)) {
         const names = output.array ? Array.from({ length: g.getParameter(g.MAX_DRAW_BUFFERS) },
           (_, i) => `${output.name}[${i}]`) : [output.name];
         for (const name of names) {
           const location = g.getFragDataLocation(object, name);
+          if (location >= 0) outputs.add(location);
           const integer = location >= 0 && w[26 + w[23] * 2 + w[24] * 4 + location * 9] >= 13;
           const fmt = w[26 + w[23] * 2 + w[24] * 4 + location * 9];
           const valid = integer ? (fmt & 1 ? /^(?:uint|uvec[234])$/ : /^(?:int|ivec[234])$/).test(output.type) : /^(float|vec[234])$/.test(output.type);
           if (location >= 0 && (location >= w[25] || !valid)) throw new Error('Color output mismatch');
         }
       }
-      this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds });
+      this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds, outputs });
     } catch (e) { g.deleteProgram(object); throw e; }
   }
 
@@ -635,7 +648,8 @@ export class WebGL2Gpu implements GpuBackend {
       g.framebufferTexture2D(g.FRAMEBUFFER, depth.desc.format === 5 ? g.DEPTH_STENCIL_ATTACHMENT : g.DEPTH_ATTACHMENT,
         g.TEXTURE_2D, depth.object, w[2]);
     }
-    g.drawBuffers(w[0] ? Array.from({ length: w[0] }, (_, i) => g.COLOR_ATTACHMENT0+i) : [g.NONE]);
+    this.passDrawBuffers = w[0] ? Array.from({ length: w[0] }, (_, i) => g.COLOR_ATTACHMENT0+i) : [g.NONE];
+    g.drawBuffers(this.passDrawBuffers);
     g.readBuffer(w[0] ? g.COLOR_ATTACHMENT0 : g.NONE);
     if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Incomplete GPU pass');
     g.disable(g.SCISSOR_TEST); g.depthMask(true); g.stencilMask(255);
@@ -688,6 +702,9 @@ export class WebGL2Gpu implements GpuBackend {
   private applyPipeline(): void {
     const g = this.gl, p = this.pipeline!, w = p.words;
     g.useProgram(p.object); g.bindVertexArray(p.vao);
+    // WebGL requires active draw buffers to have a fragment output even with colorMask=0.
+    // Disable only absent outputs, preserving attachment contents and restoring this on pipeline changes.
+    g.drawBuffers(this.passDrawBuffers.map((buffer, i) => p.outputs.has(i) ? buffer : g.NONE));
     if (w[4]) { g.enable(g.CULL_FACE); g.cullFace(w[4] === 1 ? g.FRONT : g.BACK); }
     else g.disable(g.CULL_FACE);
     g.frontFace(w[5] === 0 ? g.CW : g.CCW); // attachment storage has inverted Y

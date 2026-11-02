@@ -1,6 +1,6 @@
 /* Shader/program object types and the pooled allocator behind the GLSL front end.
  * Included once by w32_gl.c. SPDX-License-Identifier: MIT — LANE-K6b */
-#define GLP_CLASSES 26
+#define GLP_CLASSES 27 /* through the ABI's 64 MiB buffer-upload ceiling */
 static void *glp_pool[GLP_CLASSES];
 static uint32_t glp_class(uint32_t n) { uint32_t c = 6; while (((uint64_t)1 << c) < n) c++; return c; }
 static void *glp_alloc(uint32_t n) {
@@ -21,7 +21,7 @@ typedef struct {
     uint32_t used, type, compiled, gpu, deleted, nstr, source_len;
     char *source; uint32_t *str_len; GsPreprocessed pp; GsUnit *unit; char log[4096];
 } Shader;
-typedef struct { uint32_t binding; } Block;
+typedef struct { uint32_t binding, warned; } Block;
 typedef struct {
     uint32_t used, linked, vs, fs, vgpu, fgpu, nb, ubuf, dirty, usize, nslots, ndef, nout, validated, deleted;
     uint32_t vertex_only, tf_count, tf_separate, tf_link_count, tf_link_separate, tf_stride[4], tf_format[16], tf_type[16];

@@ -1,5 +1,32 @@
 # v0.3 merged implementation status
 
+## Integration I9 final — K14b + K14a + K15h
+
+Ordered `--no-ff` merges **`db5dc46`** (K14b / `c09faa7`), **`5bbe48a`** (K14a / `fe3b72e`), then
+**`f6f8028`** (K15h / `12efec7`) retain K10/K11/K13 and K12 behavior. Repairs **`9b86642`**, **`323f07f`**,
+**`730c09c`**, **`3f42927`** fix anonymous struct-field hygiene, C local-struct shadowing, TS inline instance
+bindings and sampler-compatible overload reflection, each with failing-before regressions.
+
+**Tier 1 gates completed on final source `3f42927`** (`ada103d` and finalization are docs-only):
+**1,183 unit tests / 86 files**, **245 browser passes / 51 unchanged intentional skips**
+(WebGL2 **110/24**, WebGPU **127/26**, auto **8/1**), doctor, lint (clang + real GCC; **33 example checks**),
+typecheck and leakcheck (**646 committable files**) pass. Full leakcheck also rerun after final docs edits.
+**30 default ×300 = 9,000 identical oracle frame pairs**, plus CRT/C++/scale fast **900 pairs**:
+**9,900 total**. The 32 successful runner oracle reports have null errors/divergence, zero lifted interpretation
+and empty stubs. Runner results: **39 steps, 38 exit 0**; fast-scale alone hit Vitest’s **600 s timeout** during
+the cold build of the **1,609,529-instruction** fixture. Reviewer’s same-tree rerun with
+**`--testTimeout 3600000`** passed **300/300 identical frames, errors null**; the original failure is retained.
+**Backlog:** oracle test timeout must allow cold builds of large fixtures (or separate build/comparison budgets),
+without weakening frame/error assertions. No code or timeout changes in this documentation finalization.
+
+Additional focused evidence: **120 units**, **4 browser tests**, scratch-only **543 captured submissions /
+104 unique stages + one reprocessed fragment: 105/105 native stage compiles per backend**, zero errors.
+Independent reviews: **vK14b PASS** (`c09faa7`); **vK14a FAIL → fixes → vK14a2 PASS** (`3f42927`,
+105/105 captured stages per backend); **K15h’s own independent review: no blockers**.
+Exact evidence, reviewer rerun log and scope: [I9 final handoff](handoff/integration-i9.md).
+No engine speedup, F-PERF-CRT closure, first draw/title/playability, unrestricted GL3.3 or physical
+hardware/Safari/Firefox certification is claimed. Historical lane/checkpoint counts below are not final I9 evidence.
+
 ## Integration I8 final three-lane checkpoint — K11 + K10 + K13
 
 Ordered merges remain **`140b96c`** (K11 / `2124b13`), **`aa0f739`** (K10 / `f1fd1d9`), then **`fb1ce3d`**
@@ -44,6 +71,18 @@ Committed every sample, scope/tradeoffs: [K13 handoff](handoff/K13.md).
 ## K11 — opt-in lifted-code speed policies
 
 K11 delivers opt-in AMD64 memory/ALU/attribute/counting policies (`pipeline.liftPreset: "fast"`, size-oriented defaults retained); **807 units / 66 files**, **218 browser passes / 51 unchanged skips**, **25 default pipeline oracles ×300** plus **6 ×2 policy oracles ×300** pass. Full measurements, bounded independent validation and explicit no-engine-speedup boundary: [K11 handoff](handoff/K11.md).
+## K14b — Q41/Q42/Q43 completion
+
+Commit `55e11c1` completes sparse fragment-output masks, linked std140 uniform-block ranges with the approved counted desktop zero-tail policy for undersized bound ranges, bounded GPU continuation and ordered `BUFFER_COPY` / `glCopyBufferSubData` on both WebGL 2 and WebGPU. Original CC0 fixtures cover exact sparse MRT pixels, 80/176/192-byte block reflection and relinking, short-range diagnostics/recovery, 289 native byte-copy comparisons per backend, and 3,000 ordered feedback draws. Final gates: **996 unit tests / 75 files**, **241 browser passes / 51 existing intentional skips / 0 failures**, doctor, ESLint + Clang/real-GCC lint (**33 example check-builds**), typecheck and leakcheck; **30 pipeline oracles × 300 frames = 9,000 identical pairs**. The ranges browser fixture records **121 guest checks per backend**, peak **9,008 lists / 39,008 commands**, with exact cross-backend finish results. No target title/playability or unrestricted GL 3.3 claim; see [K14b handoff](handoff/K14b.md).
+## K14a checkpoint — Q40 opaque sampler helper parameters
+
+Commit `8e6f602` adds bounded GLSL 3.30 / ES 3.00 opaque sampler-parameter specialization to the GL profile and
+both native translators, with CC0 forwarding, overload, shadow/integer, array-identity, invalid-use and fallthrough
+regressions. Final full unit evidence is **1,039/1,039 tests across 73 files**; doctor, lint (32 example checks),
+leakcheck and typecheck passed. The native scratch audit found **104 unique captured stages plus the rejected
+fragment; 105/105 compiled on each backend**, but it predates the last reviewer-fix amendment and is explicitly
+pending rerun on the exact final tree. Full browser/oracle evidence likewise needs the checkpoint rerun; see
+[K14a handoff](handoff/K14a.md). Q41–Q43 remain separate K14b requests. No title-screen or game-playability claim.
 
 ## K12 — deterministic guest heap and CRT allocation
 

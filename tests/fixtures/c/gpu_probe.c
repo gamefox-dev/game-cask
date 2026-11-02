@@ -370,6 +370,9 @@ static const uint32_t layouts[] = {
     sizeof(bgt_gpu_feedback_capture_t), offsetof(bgt_gpu_feedback_capture_t, discard), offsetof(bgt_gpu_feedback_capture_t, bindings),
     sizeof(bgt_gpu_buffer_readback_t), offsetof(bgt_gpu_buffer_readback_t, handle), offsetof(bgt_gpu_buffer_readback_t, offset),
     offsetof(bgt_gpu_buffer_readback_t, size), offsetof(bgt_gpu_buffer_readback_t, request),
+    BGT_OP_GPU_BUFFER_COPY,sizeof(bgt_gpu_buffer_copy_t),offsetof(bgt_gpu_buffer_copy_t,source),
+    offsetof(bgt_gpu_buffer_copy_t,source_offset),offsetof(bgt_gpu_buffer_copy_t,destination),
+    offsetof(bgt_gpu_buffer_copy_t,destination_offset),offsetof(bgt_gpu_buffer_copy_t,size),
 };
 BGT_EXPORT(gpu_layout) uint32_t gpu_layout(void) { return (uint32_t)(uintptr_t)layouts; }
 BGT_EXPORT(gpu_layout_count) uint32_t gpu_layout_count(void) { return sizeof layouts / 4; }
@@ -506,5 +509,6 @@ BGT_EXPORT(gpu_encode) int32_t gpu_encode(void) {
     bgt_gpu_feedback_varyings_t varying = {1,2,3,4,5}; bgt_cmd_gpu_feedback_varyings(&cb, &varying);
     bgt_gpu_feedback_capture_t capture = {1,{{2,3,4},{5,6,7},{8,9,10},{11,12,13}}}; bgt_cmd_gpu_feedback_capture(&cb, &capture);
     bgt_gpu_buffer_readback_t readback = {1,2,3,4}; bgt_cmd_gpu_buffer_readback(&cb, &readback);
+    bgt_gpu_buffer_copy_t cp = {1,2,3,4,5}; bgt_cmd_gpu_buffer_copy(&cb, &cp);
     return bgt_cmd_submit(&cb);
 }

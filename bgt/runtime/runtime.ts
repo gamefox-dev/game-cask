@@ -21,6 +21,7 @@ import {
   DT_US,
   FLAG_INTEGER_SCALE,
   LIMITS,
+  GPU_CONTINUATION_LIMITS,
   OP,
 } from './abi';
 import type { CommandError, DecodeResult } from './commands';
@@ -104,7 +105,8 @@ export interface BGTDiagnostics {
     wasmInstantiateMs: number;
     wasmStreaming: boolean;
   };
-  lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number };
+  lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number;
+    commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number };
   commandErrors: { count: number; recent: CommandError[] };
   audio: { state: string; unlocked: boolean; sampleRate: number; droppedFrames: number; playedFrames: number; queued: number };
   storage: { persistent: boolean };
@@ -190,7 +192,9 @@ export class BGTRuntime {
   private cssH = 0;
   private deviceResets = 0;
   private resizeObs: ResizeObserver | null = null;
-  private lastFrameStats = { drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0 };
+  private lastFrameStats = { drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
+    commandCount: 0, continuationSubmits: 0, continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes as number,
+    continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands as number };
   private stage: HTMLElement;
   private statusEl: HTMLElement;
 
@@ -636,6 +640,10 @@ export class BGTRuntime {
       vertices: frame.vertexCount,
       commandBytes: frame.commandBytes,
       submits: frame.submits,
+      commandCount: frame.commandCount,
+      continuationSubmits: frame.continuationSubmits,
+      continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes,
+      continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands,
     };
     host.consume();
     if(this.firstFrameMs===null)this.firstFrameMs=performance.now()-this.loadStarted;
