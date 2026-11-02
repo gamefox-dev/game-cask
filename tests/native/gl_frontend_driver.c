@@ -7,7 +7,8 @@
 #include <stdarg.h>
 #include "../../platforms/win32/w32_gl.c"
 x86_cpu_t X;
-bgt_io_t *w32_io;
+static bgt_io_t native_io;
+bgt_io_t *w32_io = &native_io;
 uint8_t *x86_pages[1u<<20];
 uint8_t x86_protection[1u<<20]; int x86_protection_active;
 __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stderr,"fault %s %u\n",s,a);exit(3);}
@@ -17,7 +18,7 @@ static uint32_t top, submissions, rejected_size, request_pending, request_result
 static uint32_t live_modules[1024], module_creates;
 static uint32_t reject_transport;
 static uint8_t device_buffers[256][256];
-static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback;
+static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
 /* Bounded guest staging adapter, one live mapping in these focused tests. */
 uint32_t w32_heap_alloc(uint32_t n,int z) {
     if(heap_live||heap_oom||n>65536)return 0;heap_live=n;
@@ -49,6 +50,7 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     if(reject_transport&&code==0x48)return -3;
     if(code==0x41&&reject_update)return -3;
     if(code==0x63&&reject_readback)return -3;
+    if(code==0x42&&reject_delete)return -3;
     if((code==0x40||code==0x41)&&a[0]<256) {
         uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
         if(code==0x40)device_sizes[a[0]]=size;
@@ -68,9 +70,9 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     }
     return 0;
 }
-int32_t bgt_request_status(uint32_t r){if(r!=request_pending||!r)abort();return 1;}
+int32_t bgt_request_status(uint32_t r){if(r!=request_pending||!r)abort();return device_readback&&fail_readback==1?-1:1;}
 int32_t bgt_request_read(uint32_t r,void *p,uint32_t n){if(r!=request_pending)abort();
-    if(device_readback){if(n<device_readback)abort();memcpy(p,memory+524288,device_readback);return (int32_t)device_readback;}
+    if(device_readback){if(n<device_readback)abort();memcpy(p,memory+524288,device_readback);return (int32_t)device_readback-(fail_readback==2);}
     if(n<4)abort();memcpy(p,&request_result,4);return 4;}
 int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pending=device_readback=0;return 0;}
 uint32_t w32_pstr(uint32_t a,uint32_t n,int wide,const char *s){(void)wide;uint32_t k=0;while(k+1<n&&s[k]){memory[a+k]=s[k];k++;}if(n)memory[a+k]=0;return k;}
@@ -241,7 +243,14 @@ static void buffer_vao(void) {
     CHECK(w32_gl_approximations==before+3);CHECK(strstr(w32_gl_approximations_json(),"core VAO 0 element-buffer binding"));
     call(api_VertexAttribPointer,0,2,F32,0);CHECK(error==BAD_OP);error=0;
     call(api_EnableVertexAttribArray,0,0,0,0);CHECK(error==BAD_OP);error=0;
-    CHECK(!draw(4,3,1,0,U16,0,0)&&error==BAD_OP);error=0;
+    uint32_t p=build("#version 330 core\nout vec4 c;void main(){c=vec4(1.0);}");
+    call(api_UseProgram,p,0,0,0);rasterizer_discard=1;
+    native_io.logical_width=320;native_io.logical_height=200;viewport[2]=320;viewport[3]=200;
+    call(api_BindVertexArray,real,0,0,0);draw(0,1,1,0,0,0,0);CHECK(!error);draw(0,1,1,0,U16,0,0);CHECK(!error);
+    call(api_BindVertexArray,0,0,0,0);draw(0,1,1,0,0,0,0);CHECK(error==BAD_OP);error=0;
+    draw(0,1,1,0,U16,0,0);CHECK(error==BAD_OP);error=0;
+    rasterizer_discard=0;call(api_UseProgram,0,0,0,0);drop(p);
+    if(current_gpu){send(0x42,&current_gpu,1);current_gpu=0;glp_free(current_data,current_capacity*256u);current_capacity=0;current_data=0;}
     x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);CHECK(!vaos[0].element&&!vaos[real].element);
     for(uint32_t i=0;i<9;i++){x86_wr32(4096,i+1);call(api_DeleteBuffers,1,4096,0,0);}
     CHECK(!error&&w32_gl_frontend_bytes==0);puts("buffer VAO0 persistence targets=9 strict attributes/draws OK");
@@ -260,6 +269,11 @@ static void buffer_mapping(void) {
      * preserve native neighbours, copy only flushed bytes, and not commit later host writes. */
     buffers[1].generated=1;memset(device_buffers[1],77,64);memset(buffers[1].data,33,64);
     reject_readback=1;CHECK(!call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0)&&error==OOM&&!heap_live&&!buffers[1].map&&!request_pending);error=reject_readback=0;
+    for(uint32_t f=1;f<=2;f++){fail_readback=f;CHECK(!call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0)&&error==BAD_OP&&!heap_live&&!buffers[1].map&&!request_pending);error=0;}fail_readback=0;
+    void *held[2048];uint32_t count=0;
+    for(uint32_t n=1u<<20;n>=32;n/=2){void *q;while((q=glp_alloc(n))!=0){CHECK(count<2048);held[count++]=q;}}
+    CHECK(!call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0)&&error==OOM&&!heap_live&&!buffers[1].map);error=0;
+    for(uint32_t i=0;i<count;i++)glp_free(held[i],0);
     p=call(api_MapBufferRange,ELEMENT_BUFFER,5,7,0x12);CHECK(p&&memory[p]==77&&!error);
     memory[p]=123;memory[p+1]=124;
     call(api_FlushMappedBufferRange,ELEMENT_BUFFER,0,1,0);CHECK(!error&&device_buffers[1][5]==123&&device_buffers[1][6]==77&&device_buffers[1][4]==77);
@@ -272,8 +286,10 @@ static void buffer_mapping(void) {
     CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,UINT32_MAX,2,2)&&error==BAD_VALUE);error=0;
     heap_oom=1;CHECK(!call(api_MapBufferRange,ELEMENT_BUFFER,0,4,2)&&error==OOM&&!heap_live);heap_oom=error=0;
     p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,0x12);CHECK(p);call(api_FlushMappedBufferRange,ELEMENT_BUFFER,8,0,0);CHECK(!error);
-    call(api_FlushMappedBufferRange,ELEMENT_BUFFER,7,2,0);CHECK(error==BAD_VALUE);error=0;
-    reject_update=1;memory[p]=7;call(api_FlushMappedBufferRange,ELEMENT_BUFFER,0,4,0);CHECK(error==OOM&&device_buffers[1][0]==77&&buffers[1].data[0]==77);error=reject_update=0;
+    uint64_t changes=w32_gl_state_changes;
+    call(call_FlushMappedBufferRange,ELEMENT_BUFFER,1,2,0);CHECK(!error&&w32_gl_state_changes==changes+1);
+    changes=w32_gl_state_changes;call(call_FlushMappedBufferRange,ELEMENT_BUFFER,7,2,0);CHECK(error==BAD_VALUE&&w32_gl_state_changes==changes);error=0;
+    reject_update=1;memory[p]=7;call(call_FlushMappedBufferRange,ELEMENT_BUFFER,0,4,0);CHECK(error==OOM&&device_buffers[1][0]==77&&buffers[1].data[0]==77&&w32_gl_state_changes==changes);error=reject_update=0;
     CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&!heap_live);
     p=call(api_MapBuffer,ELEMENT_BUFFER,0x88b8,0,0);CHECK(p&&memory[p]==77);memory[p]=6;
     CHECK(call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)==1&&device_buffers[1][0]==77);
@@ -282,6 +298,8 @@ static void buffer_mapping(void) {
     p=call(api_MapBuffer,ELEMENT_BUFFER,0x88b9,0,0);CHECK(p);memory[p]=5;reject_update=1;
     CHECK(!call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)&&error==OOM&&!heap_live&&device_buffers[1][0]==77);error=reject_update=0;
     p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,0x26);CHECK(p&&!error);
+    reject_delete=1;x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(error==OOM&&buffers[1].map==p&&heap_live);error=0;
+    call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(error==OOM&&buffers[1].map==p&&heap_live);error=reject_delete=0;
     call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(!buffers[1].map&&!heap_live&&!error);
     p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,2);CHECK(p&&!error);
     x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(!heap_live&&!buffers[1].map&&!error&&w32_gl_frontend_bytes==0);

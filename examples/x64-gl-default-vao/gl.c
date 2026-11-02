@@ -93,7 +93,15 @@ int main(void) {
     glEnableVertexAttribArray(0);error(GL_INVALID_OPERATION,"VAO0 enable rejected");
     glDisableVertexAttribArray(0);error(GL_INVALID_OPERATION,"VAO0 disable rejected");
     glVertexAttribDivisor(0,0);error(GL_INVALID_OPERATION,"VAO0 divisor rejected");
-    glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_SHORT,0);error(GL_INVALID_OPERATION,"VAO0 draw rejected");
+    /* No active attributes: removing only the explicit VAO0 draw guard must break these tests. */
+    GLuint strict=link("#version 330 core\nvoid main(){gl_Position=vec4(0.0,0.0,0.0,1.0);}",
+        "#version 330 core\nout vec4 c;void main(){c=vec4(1.0);}",0);glUseProgram(strict);
+    glBindVertexArray(vaos[0]);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,buffers[9]);
+    glDrawArrays(GL_POINTS,0,1);error(GL_NO_ERROR,"named VAO no-attribute arrays control");
+    glDrawElements(GL_POINTS,1,GL_UNSIGNED_SHORT,0);error(GL_NO_ERROR,"named VAO no-attribute indexed control");
+    glBindVertexArray(0);
+    glDrawArrays(GL_POINTS,0,1);error(GL_INVALID_OPERATION,"VAO0 arrays draw rejected");
+    glDrawElements(GL_POINTS,1,GL_UNSIGNED_SHORT,0);error(GL_INVALID_OPERATION,"VAO0 draw rejected");
     glBindVertexArray(vaos[17]);
     GLuint p=link("#version 330 core\nlayout(location=0) in vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}",
         "#version 330 core\nuniform vec4 tint;out vec4 c;void main(){c=tint;}",0);glUseProgram(p);
