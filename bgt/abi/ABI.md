@@ -802,6 +802,40 @@ scalar array elements and struct members (even array members named `rgba`) are n
 native ANGLE failure; a subsequent unrelated shader must still compile and render. The equivalent WebGPU lowering
 is numerically tested. No shader-language mask, opcode, layout, C enum or TS decoder value changes here.
 
+#### 13.5.1 Opaque sampler helper parameters (K14a; no wire additions)
+
+The maintained GLSL330/ES300 frontends accept scalar opaque sampler `in` parameters (implicit `in`,
+`const in`, and precision qualifiers included), helper-to-helper forwarding, sampler-type overloads,
+numeric overloads beside them, and different actual uniform samplers at different call sites. The GL
+profile specializes helpers against the actual reflected sampler slot before coordinate and object-swizzle
+conversion. The backend translators apply equivalent specialization to direct canonical GLSL. Sampler
+identities are never copied into WGSL function storage. Ordinary numeric parameters retain their types,
+evaluation, mutable-copy and copy-in/copy-out contracts; hygienic names prevent numeric bindings from
+capturing a texture identity. Reflection, uniform locations, texture units and sampler bindings do not
+change. `out`/`inout` samplers, sampler returns, arithmetic and assignment are compile errors with logs,
+including invalid arithmetic in unused opaque helper definitions.
+
+This is a language lowering, **not additional texture storage support**. Generic helper lowering handles
+all sampler type identities, but active global sampler types must still satisfy the existing texture-layer
+contract: floating 2D/3D/2D-array, 2D shadow and signed/unsigned 2D integer sampling are supported; cube,
+array-shadow and other unrepresented storage types fail explicitly. Whole sampler-array parameters and
+dynamic sampler indexing remain unsupported; the GL profile accepts constant-indexed uniform array
+elements as actual scalar sampler arguments. Limits: 32 parameters, 256 instantiated helper definitions,
+128 emission nesting levels, and the existing 1 MiB expanded shader ceiling. Exceeding a limit fails
+compilation rather than truncating source or dropping work.
+
+In vertex shaders implicit-LOD `texture` sampling uses level zero (including zero-level comparison
+sampling); explicit LOD/gradient forms retain their specified operands. Fragment-only bias overloads
+are rejected in vertex shaders. GLSL permits a non-void function to reach its end with an **undefined
+return value**. WGSL requires a return: only an otherwise-fallthrough path receives a zero-initialized
+typed return, with a `GLSL undefined non-void fallthrough` marker in the translated module. Defined
+returns and all preceding side effects are preserved. This deterministic choice for undefined GLSL
+behavior is not a promise of native undefined-value parity. WebGL retains native GLSL behavior.
+
+Original CC0 regressions exercise both shader stages and languages through direct canonical and GL
+profile paths on both actual native backends, with numerical readback and explicit invalid-program/limit
+tests. No opcode, capability, C enum/struct, TS decoder value or binding-layout addition is introduced.
+
 ### 13.6 Extended limits, backend handoff and recovery
 
 The old 16-byte `bgt_gpu_limits_t` stays unchanged. `gpu_limits(dst,cap)` with cap 16..79 still writes 16 bytes and
