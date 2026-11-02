@@ -113,7 +113,9 @@ void main() {
   c = textureLod(bgt_t0, vec2(x), 1.0);
 }`;
     const code = translateGLSL(source, 2, 1);
-    expect(code).toContain('for (var i: i32 = 0i;');
+    expect(code).toContain('var i: i32 = 0i;');
+    expect(code).toContain('if (!((i < 3i))) { break; }');
+    expect(code).toMatch(/continuing \{[^}]*i\+\+;/);
     expect(code).toContain('textureSampleLevel');
   });
   it('lowers std140 mat2 padding and scalar diagonal matrix constructors', () => {
@@ -131,6 +133,31 @@ void main() { vec2 p = block.m * vec2(1.0); gl_Position = mat4(1.0) * vec4(p,0.0
     expect(shaderBindings(source, true)).toEqual([]);
     expect(() => shaderBindings('@group(0) @binding(slot) var<uniform> u: vec4f;')).toThrow(/literal/);
   });
+  it('accepts decimal, octal, hexadecimal and uint integer literals with 32-bit lowering', () => {
+    const code = translateGLSL(`#version 330 core\nlayout(location=0) out vec4 c; void main() {
+      uint a = 0x1abcDEFU; uint b = 0755u; uint c0 = uint(0xFFFFFFFF);
+      bool ok = a == 28036591u && b == 493u && c0 == 4294967295u && (c0 >> 31u) == 1u;
+      c = ok ? vec4(0.25, 0.5, 0.75, 1.0) : vec4(0.0);
+    }`, 2, 1);
+    expect(code).toContain('28036591u'); expect(code).toContain('493u'); expect(code).toContain('4294967295u');
+  });
+  it('reduces aggregate equality to scalar all/any with one operand evaluation', () => {
+    const code = translateGLSL(`#version 330 core
+layout(location=0) out vec4 c; struct S { vec3 p; int n; };
+      S makeS() { S s; s.p=vec3(1.0); s.n=2; return s; }
+      void main() { S a=makeS(); S b=makeS(); c = (a == b) ? vec4(1.0) : vec4(0.0); }`, 2, 1);
+    expect(code).toMatch(/all\(.*==.*\)/); expect(code).toContain('bgt_internal_equal_');
+    expect(code.match(/= makeS\(\)/g)?.length).toBe(2);
+  });
+  it('keeps ternary inout copy-in/copy-out storage mutable and branch-local', () => {
+    const code = translateGLSL(`#version 330 core
+layout(location=0) out vec4 c;
+      float bump(inout uint seed) { seed += 1u; return float(seed); }
+      void main() { uint seed=1u; float x = true ? bump(seed) : bump(seed); c=vec4(float(seed)); }`, 2, 1);
+    expect(code).toMatch(/var bgt_internal_argument_\d+: u32 = seed/);
+    expect(code).toContain('seed = bgt_internal_argument_');
+    expect(code).not.toContain('cannot take the address');
+  });
   it('preserves integer arithmetic before float conversion (independent review regression)', () => {
     const code = translateGLSL(`#version 330 core
 layout(location=0) out vec4 c; void main() { c=vec4(float(1/2)); }`, 2, 1);
@@ -143,7 +170,9 @@ layout(location=0) out vec4 c; float counter=0.0;
 float bump() { counter += 1.0; return counter; }
 void main() { float a=2.0; float x=bgt_frag_coord.x>0.0 ? a : bump(); c=vec4(counter); }`, 2, 1);
     expect(code).not.toContain('select(bump()');
-    expect(code).toContain('if (bgt_internal_condition) { return a; } return bump();');
+    // Statement-level lowering keeps the call and its result inside the unselected else branch.
+    expect(code).toMatch(/if \(bgt_internal_value_\d+\) \{\s*bgt_internal_conditional_\d+ = a; \} else \{ let bgt_internal_value_\d+ = bump\(\);/);
+    expect(code.match(/= bump\(\)/g)).toHaveLength(1);
     expect(code).not.toContain('x: f32) -> f32');
   });
   it('WGSL is used unchanged', () => {

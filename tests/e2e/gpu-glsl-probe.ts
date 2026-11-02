@@ -5,8 +5,11 @@ import { WebGL2Gpu } from '../../bgt/renderers/webgl2/gpu';
 import type { GpuBackend, GpuItem } from '../../bgt/renderers/types';
 import { GPU_OP as O } from '../../bgt/runtime/abi';
 import { glslRegressions, regressionVertex, regressionFragment } from '../support/glsl-regressions';
+import { webglBoundaryRegression } from '../support/glsl-storage-regressions';
 
 export async function glslProbe(backend: string) {
+  const rejections: string[] = [];
+  const cases = backend === 'webgl2' ? glslRegressions : [...glslRegressions, webglBoundaryRegression];
   const errors: string[] = [], pixels: { name: string; language: number; pixel: number[]; expected: number[] }[] = [];
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 8;
   let device: GPUDevice | undefined, gl: WebGL2RenderingContext | undefined, screen: GPUTexture | undefined;
@@ -30,7 +33,7 @@ export async function glslProbe(backend: string) {
   const compile = (handle: number, source: string, stage: number, language: number) =>
     new Promise<void>((resolve, reject) => {
       gpu.execute({ kind: 'gpu', op: O.SHADER_CREATE, words: [handle, stage, language], source,
-        complete: (code, log) => code ? reject(new Error(log)) : resolve() } as GpuItem);
+        complete: (code, log) => code ? reject(new Error(log || errors.join('; '))) : resolve() } as GpuItem);
     });
   const f = (value: number) => new Uint32Array(new Float32Array([value]).buffer)[0];
   try {
@@ -45,13 +48,29 @@ export async function glslProbe(backend: string) {
     for (const language of [1, 2]) {
       const version = language === 1 ? '#version 330 core\n' : '#version 300 es\nprecision highp float;\nprecision highp int;\n';
       await compile(1, version + regressionVertex, 1, language);
-      for (const c of glslRegressions) {
+      if (backend === 'webgl2') {
+        let rejected = false;
+        try { await compile(2, version + regressionFragment(webglBoundaryRegression), 2, language); }
+        catch (e) {
+          rejected = true; const message = String(e);
+          if (!message.includes(webglBoundaryRegression.webglRejection!)) errors.push(message);
+          else rejections.push(message);
+        }
+        if (!rejected) errors.push('indexed swizzle out boundary was silently accepted');
+        // The next normal program must compile AND render; a poisoned native context cannot pass.
+      }
+      for (const c of cases) {
         try {
           await compile(2, version + regressionFragment(c), 2, language);
+          if (c.uniform) {
+            const bytes = new Uint8Array(new Float32Array(c.uniform).buffer);
+            op(O.BUFFER_CREATE, [3, 4, bytes.length, 0, bytes.length], bytes);
+          }
           op(O.PIPELINE_CREATE, [1, 1, 2, 3, 0, 0, 0xffffffff, 0, 0, 7, 0, 255, 255,
-            7, 0, 0, 0, 7, 0, 0, 0, 0, c.texture ? 1 : 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 15]);
+            7, 0, 0, 0, 7, 0, 0, 0, c.uniform ? 1 : 0, c.texture ? 1 : 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 15]);
           op(O.PASS_BEGIN, [1, 0, 0, 0, 0, f(1), 0, 0, 0, 1, 0, 0, 0, f(1)]);
           op(O.PIPELINE, [1]);
+          if (c.uniform) op(O.UNIFORM_BUFFER, [0, 3, 0, c.uniform.length * 4]);
           if (c.texture) op(O.TEXTURE, [0, c.invalid ? 2 : 1, 1]);
           op(O.DRAW, [3, 1, 0, 0]); op(O.PASS_END, []);
           let pixel: number[];
@@ -71,11 +90,12 @@ export async function glslProbe(backend: string) {
           }
           pixels.push({ name: c.name, language, pixel, expected: c.expected });
           op(O.PIPELINE_DELETE, [1]); op(O.SHADER_DELETE, [2]);
+          if (c.uniform) op(O.BUFFER_DELETE, [3]);
         } catch (e) { errors.push(`${c.name} language ${language}: ${String(e)}`); }
       }
       op(O.SHADER_DELETE, [1]);
     }
     if (device) await device.queue.onSubmittedWorkDone();
-    return { errors, pixels, count: glslRegressions.length };
+    return { errors, pixels, rejections, count: cases.length };
   } finally { screen?.destroy(); device?.destroy(); gl?.getExtension('WEBGL_lose_context')!.loseContext(); }
 }
