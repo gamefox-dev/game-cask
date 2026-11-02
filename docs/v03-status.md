@@ -1,9 +1,10 @@
 # v0.3 merged implementation status
 
-K13 **continuation checkpoint, not acceptance**: native scalar SSE conversions/COMI, checked lookup cache,
-spilled thunk wrappers and bounded SSE/tiny native interior entries; **43 focused tests pass**, four baseline
-300-frame oracles identical. Post-change A/B, foreign-owner native chaining, full both-preset oracles, final
-Tier 1 and independent validation remain open. See [K13 handoff](handoff/K13.md).
+K13 adds native scalar SSE conversions/COMI, flat foreign-owner/thunk chaining, checked lookup caching and
+bounded SSE/tiny native interior entries. Local gates: **836 units /68 files**, **218 browser passes /51 unchanged
+skips**, **25 ×2 presets ×300 =15,000 identical oracle pairs**. Committed cumulative/isolated size+fast A/B:
+scalar/interior cases ~3.2–3.5× faster; imports ~1.1×, vtables ~1.3×; no engine-speedup claim. Independent
+validation pending on the final candidate. Scope/tradeoffs: [K13 handoff](handoff/K13.md).
 
 K11 delivers opt-in AMD64 memory/ALU/attribute/counting policies (`pipeline.liftPreset: "fast"`, size-oriented defaults retained); **807 units / 66 files**, **218 browser passes / 51 unchanged skips**, **25 default pipeline oracles ×300** plus **6 ×2 policy oracles ×300** pass. Full measurements, bounded independent validation and explicit no-engine-speedup boundary: [K11 handoff](handoff/K11.md).
 
