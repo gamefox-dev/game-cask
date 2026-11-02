@@ -179,16 +179,16 @@ for f in [lambda:linux_available('MemFree: 5000 kB'),lambda:mac_available(raw,1)
 print('ok')`, join(here, 'shim')]);
     expect(stdout.trim()).toBe('ok');
   });
-  it('holds FIFO tickets on low/unknown memory, logs the wait, and admits in order when headroom recovers', async () => {
+  it.each([1, 2])('holds FIFO tickets on low/unknown memory and admits in order with %i slots', async slots => {
     const d = mkdtempSync(process.platform === 'darwin' ? '/private/tmp/bgt-pi-memory-' : '/tmp/bgt-pi-memory-'); dirs.push(d);
     const mem = join(d, 'meminfo'), prefix = join(d, 'gate'), trace = join(d, 'trace');
     writeFileSync(mem, 'MemAvailable: 524288 kB\n');
     const real = executable(join(d, 'real'), '#!/bin/bash\necho "$3" >> "$TRACE"; sleep 0.2\n');
     const run = (tag: string) => {
       const child = spawn(join(here, 'shim/npm'), ['run', 'test', tag], { env: env({ BGT_REAL_NPM: real,
-        BGT_HEAVY_LOCK_PREFIX: prefix, BGT_HEAVY_SLOTS: '2', BGT_HEAVY_MIN_FREE_MB: '1024',
+        BGT_HEAVY_LOCK_PREFIX: prefix, BGT_HEAVY_SLOTS: String(slots), BGT_HEAVY_MIN_FREE_MB: '1024',
         BGT_HEAVY_MEMINFO_FILE: mem, TRACE: trace }), stdio: 'ignore' }); children.push(child);
-      return once(child, 'close');
+      return { closed: once(child, 'close'), pid: child.pid };
     };
     const a = run('a');
     await until(() => existsSync(prefix + '.log') && readFileSync(prefix + '.log', 'utf8').includes('wait memory free_mb=512'));
@@ -199,9 +199,14 @@ print('ok')`, join(here, 'shim')]);
     await until(() => readFileSync(prefix + '.log', 'utf8').includes('memory unavailable'));
     expect(existsSync(trace)).toBe(false);
     writeFileSync(mem, 'MemAvailable: 1048576 kB\n');
-    expect((await a)[0]).toBe(0); expect((await b)[0]).toBe(0);
-    expect(readFileSync(trace, 'utf8')).toBe('a\nb\n');
-    expect(readFileSync(prefix + '.log', 'utf8')).toContain('granted memory free_mb=1024');
+    expect((await a.closed)[0]).toBe(0); expect((await b.closed)[0]).toBe(0);
+    const log = readFileSync(prefix + '.log', 'utf8');
+    // FIFO governs admission. With two held slots the OS may schedule command b before command a.
+    expect([...log.matchAll(/ticket=\S+-(\d+) granted/g)].map(m => Number(m[1]))).toEqual([a.pid, b.pid]);
+    const actual = readFileSync(trace, 'utf8');
+    expect(actual.trim().split('\n').sort()).toEqual(['a', 'b']);
+    if (slots === 1) expect(actual).toBe('a\nb\n');
+    expect(log).toContain('granted memory free_mb=1024');
   }, 15_000);
   it('fails invalid thresholds closed, and defaults to 1024 MB without an operator value', async () => {
     const d = temp(), mem = join(d, 'mem'); writeFileSync(mem, 'MemAvailable: 1048575 kB\n');
