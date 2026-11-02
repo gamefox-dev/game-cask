@@ -148,3 +148,66 @@ for(const textureKind of ['float2d','int2d','uint2d'] as const) for(const name o
       'all(lessThan(abs('+sample+'-vec4('+expected.map(x=>x+'.0')+')/255.0),vec4(0.00001)))',
     {header:'uniform '+prefix+'sampler2D bgt_t0;',texture:true,textureKind,sampler:[1,0,0,1,0,0,0,0,7,0,0x42000000]});
 }
+
+// Review regressions: sampler-clamped LOD controls min/mag selection before mip choice.
+const f32word = (x: number) => new Uint32Array(new Float32Array([x]).buffer)[0];
+for (const mip of [0,1,2]) {
+  validCase('shadow-clamped-minfilter-'+mip, '',
+    'abs(textureGradOffset(bgt_t0,vec3(0.5,0.5,0.5),vec2(0.125,0.0),vec2(0.0,0.125),ivec2(0)) - 0.5) < 0.00001',
+    {header:'uniform sampler2DShadow bgt_t0;',texture:true,textureKind:'shadow',sampler:[1,1,0,mip,0,0,0,1,1,f32word(1),f32word(32)]});
+  validCase('shadow-clamped-magfilter-'+mip, '',
+    'abs(textureGradOffset(bgt_t0,vec3(0.5,0.5,0.5),vec2(0.5,0.0),vec2(0.0,0.5),ivec2(0)) - 0.5) < 0.00001',
+    {header:'uniform sampler2DShadow bgt_t0;',texture:true,textureKind:'shadow',sampler:[1,0,1,mip,0,0,0,1,1,0,0]});
+  validCase('depth-clamped-minfilter-'+mip, '',
+    'abs(textureGradOffset(bgt_t0,vec2(0.5),vec2(0.125,0.0),vec2(0.0,0.125),ivec2(0)).x - 0.5) < 0.00001',
+    {header:'uniform sampler2D bgt_t0;',texture:true,textureKind:'depthColor',sampler:[1,1,0,mip,0,0,0,0,7,f32word(1),f32word(32)]});
+  for (const name of ['texture','textureOffset','textureLod','textureGrad']) {
+    const tail = name === 'textureOffset' ? ',ivec2(0)' : name === 'textureLod' ? ',0.0' : name === 'textureGrad' ? ',vec2(0.125,0.0),vec2(0.0,0.125)' : '';
+    validCase('depth-minlod-'+mip+'-'+name, '', name+'(bgt_t0,vec2(0.375,0.125)'+tail+') == vec4(0.25,0.0,0.0,1.0)',
+      {header:'uniform sampler2D bgt_t0;',texture:true,textureKind:'depthColor',sampler:[1,0,0,mip,0,0,0,0,7,f32word(1),f32word(32)]});
+  }
+}
+for (const prototype of [false,true]) {
+  validCase('user-frexp-'+prototype, 'int e; float f=frexp(2.0,e);', 'f == 2.0 && e == 3',
+    {header:(prototype?'float frexp(float x,out int e);\n':'')+'float frexp(float x,out int e){e=3;return x;}'});
+  validCase('user-ldexp-'+prototype, '', 'ldexp(2.0,3) == 5.0',
+    {header:(prototype?'float ldexp(float x,int e);\n':'')+'float ldexp(float x,int e){return x+float(e);}'});
+}
+for (const textureKind of ['int2d','uint2d','shadow','depthColor'] as const) {
+  const shadow = textureKind === 'shadow', depth = textureKind === 'depthColor';
+  const prefix = textureKind === 'int2d' ? 'i' : textureKind === 'uint2d' ? 'u' : '';
+  const sample='textureGradOffset(bgt_t0,'+(shadow?'vec3(0.375,0.375,0.5)':'vec2(0.375)')+',vec2(0.0),vec2(0.0),ivec2(0))';
+  validCase('zero-footprint-'+textureKind,'',shadow?sample+' == 0.0':depth?sample+' == vec4(0.25,0.0,0.0,1.0)':
+    sample+' == '+prefix+'vec4(24,48,48,255)',
+    {header:'uniform '+prefix+'sampler2D'+(shadow?'Shadow':'')+' bgt_t0;',texture:true,textureKind,sampler:[1,0,0,1,0,0,0,Number(shadow),shadow?1:7,0,f32word(32)]});
+}
+validCase('offset-constant-provenance','const ivec3 a=ivec3(1,-1,0); const int b=abs(-1);',
+  'textureOffset(bgt_t0,vec2(0.375),a.xy*ivec2(b)) == ivec4(32,32,48,255)',
+  {header:'uniform isampler2D bgt_t0;',texture:true,textureKind:'int2d',sampler:[1,0,0,0,0,0,0,0,7,0,f32word(32)]});
+
+// Negative compile cases, followed by a legal draw in the native tests to detect context poisoning.
+export const invalidOffsetRegressions: GlslRegression[] = [];
+for (const sampler of ['sampler2D','isampler2D','sampler2DShadow']) {
+  const shadow=sampler.endsWith('Shadow');
+  for (const name of ['textureOffset','textureProjOffset','textureLodOffset','textureProjLodOffset','textureGradOffset','textureProjGradOffset','texelFetchOffset']) {
+    if (shadow && (name.includes('Lod') || name.startsWith('texel'))) continue;
+    const fetch=name.startsWith('texel'), proj=name.includes('Proj'), grad=name.includes('Grad');
+    const coord=fetch?'ivec2(0)':proj?'vec4(0.75,0.75,1.0,2.0)':shadow?'vec3(0.375,0.375,0.5)':'vec2(0.375)';
+    const tail=fetch?',0':name.includes('Lod')?',0.0':grad?',vec2(0.0),vec2(0.0)':'';
+    invalidOffsetRegressions.push({name:'nonconstant-'+sampler+'-'+name,header:'uniform '+sampler+' bgt_t0;',
+      body:'ivec2 delta=ivec2(int(bgt_frag_coord.x),0); '+name+'(bgt_t0,'+coord+tail+',delta); o=vec4(1.0);',
+      expected:[],rejection:'constant expression'});
+  }
+}
+
+// These seven newly-added depth cases exercise an explicit reviewer-approved WebGL approximation,
+// not cross-backend linear-filter equality. Keep their raw values independently observable.
+export const depthApproximationRegressions = builtinRegressions.filter(c=>
+  c.name.startsWith('depth-clamped-minfilter-') || c.name.startsWith('depth-minlod-2-'));
+for (const c of depthApproximationRegressions) {
+  c.body = c.name.startsWith('depth-clamped') ?
+    'o=textureGradOffset(bgt_t0,vec2(0.5),vec2(0.125,0.0),vec2(0.0,0.125),ivec2(0));' :
+    'o='+c.body.match(/texture(?:Offset|Lod|Grad)?\(bgt_t0,.*?(?= ==)/)![0]+';';
+  c.expected = [64,0,0,255];
+  builtinRegressions.splice(builtinRegressions.indexOf(c),1);
+}

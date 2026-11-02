@@ -27,6 +27,7 @@ export function textureBuiltin(original: string, actuals: Expr[], ctx: Context):
   let offset: Expr | undefined;
   if (hasOffset) offset = args.splice(name === 'texture' ? 2 : name === 'textureGrad' ? 4 : 3, 1)[0];
   if (offset && offset.type !== 'vec' + dim + 'i') ctx.fail(original + ': offset must have matching integer dimensions');
+  if (offset && !offset.constant) ctx.fail(original + ': offset must be a constant expression');
   if (projected) {
     if (array || !args[1] || !(volume || shadow ? args[1].type === 'vec4f' : /^vec[34]f$/.test(args[1].type)))
       ctx.fail(original + ': invalid projective coordinates/sampler');
@@ -78,7 +79,9 @@ function lodExpression(t: Expr, uv: Expr, name: string, args: Expr[], ctx: Conte
   const size = 'vec' + dim + 'f(textureDimensions(' + t.code + ', 0))';
   const dx = name === 'textureGrad' ? args[2].code : 'dpdx(' + uv.code + (dim === 3 ? '' : '.xy') + ')';
   const dy = name === 'textureGrad' ? args[3].code : 'dpdy(' + uv.code + (dim === 3 ? '' : '.xy') + ')';
-  return '(log2(max(length(' + dx + ' * ' + size + '), length(' + dy + ' * ' + size + ')))' +
+  // A zero footprint is defined magnification, not WGSL log2(0). The smallest normal
+  // positive f32 keeps the logarithm finite (and below the ABI's nonnegative minimum LOD).
+  return '(log2(max(1.17549435e-38, max(length(' + dx + ' * ' + size + '), length(' + dy + ' * ' + size + '))))' +
     (name === 'texture' && args[2] ? ' + ' + args[2].code : '') + ')';
 }
 function integerSample(t: Expr, uv: Expr, name: string, args: Expr[], offset: Expr | undefined, ctx: Context): Expr {
@@ -104,9 +107,10 @@ function shadowSample(t: Expr, uv: Expr, name: string, args: Expr[], offset: Exp
     'fn ' + helper + '_y(p:i32,n:i32)->i32{return ' + wrap(s[5]) + ';}\n' +
     'fn ' + helper + '_load(p:vec2i,l:i32,r:f32)->f32 { let size=vec2i(textureDimensions(' + t.code + ',l)); let d=textureLoad(' + t.code + ',vec2i(' + helper + '_x(p.x,size.x),' + helper + '_y(p.y,size.y)),l); return select(0.0,1.0,' + compare + '); }\n' +
     'fn ' + helper + '_level(c:vec3f,l:i32,o:vec2i,linear:bool)->f32 { let p=c.xy*vec2f(textureDimensions(' + t.code + ',l)); if(!linear){return ' + helper + '_load(vec2i(floor(p))+o,l,c.z);} let b=vec2i(floor(p-vec2f(0.5)))+o; let a=fract(p-vec2f(0.5)); return mix(mix(' + helper + '_load(b,l,c.z),' + helper + '_load(b+vec2i(1,0),l,c.z),a.x),mix(' + helper + '_load(b+vec2i(0,1),l,c.z),' + helper + '_load(b+vec2i(1,1),l,c.z),a.x),a.y); }\n' +
-    'fn ' + helper + '(c:vec3f,l:f32,o:vec2i)->f32 { let linear=select(' + (s[2]===1) + ',' + (s[1]===1) + ',l>0.0);' +
-    (s[3]===0 ? 'return ' + helper + '_level(c,' + Math.floor(float(s[9])) + ',o,linear);' :
-      'let level=clamp(clamp(l,' + literal(float(s[9])) + ',' + literal(float(s[10])) + '),0.0,f32(textureNumLevels(' + t.code + ')-1u));' +
+    'fn ' + helper + '(c:vec3f,l:f32,o:vec2i)->f32 { let effective=clamp(l,' + literal(float(s[9])) + ',' + literal(float(s[10])) + ');' +
+    'let linear=select(' + (s[2]===1) + ',' + (s[1]===1) + ',effective>0.0);' +
+    'let level=clamp(' + (s[3]===0 ? literal(Math.floor(float(s[9]))) : 'effective') + ',0.0,f32(textureNumLevels(' + t.code + ')-1u));' +
+    (s[3]===0 ? 'return ' + helper + '_level(c,i32(level),o,linear);' :
       (s[3]===1 ? 'return ' + helper + '_level(c,i32(floor(level+0.5)),o,linear);' :
         'let low=i32(floor(level)); let high=min(low+1,i32(textureNumLevels(' + t.code + '))-1); return mix(' + helper + '_level(c,low,o,linear),' + helper + '_level(c,high,o,linear),fract(level));')) + ' }');
   return { code: helper + '(' + uv.code + ', ' + lodExpression(t,uv,name,args,ctx) + ', ' + (offset?.code ?? 'vec2i(0)') + ')', type:'f32' };

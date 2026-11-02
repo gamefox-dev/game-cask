@@ -5,7 +5,7 @@ import { lowerBuiltin } from './glsl-builtins';
 import { specializeOpaqueSamplers } from '../glsl-opaque';
 import { integerLiteral, integerConstant, integerCode, type IntegerValue } from './glsl-integers';
 type Token = { text: string; line: number };
-type Expr = { code: string; type: string; bits?: string; view?: Field; place?: string; swizzle?: { root: string; components: string } };
+type Expr = { code: string; type: string; constant?: boolean; bits?: string; view?: Field; place?: string; swizzle?: { root: string; components: string } };
 type Parameter = { type: string; mode: string };
 type Signature = { params: Parameter[]; type: string; name: string };
 const types: Record<string, string> = {
@@ -71,9 +71,9 @@ class GLSL {
   private pending: string[] = [];
   private temp(prefix = 'value'): string { return `bgt_internal_${prefix}_${this.temporary++}`; }
   private save(e: Expr): Expr {
-    if (/^(?:-?\d+[iu]|true|false|bgt_vertex_index|bgt_instance_index)$/.test(e.code)) return e;
+    if (e.constant || /^(?:-?\d+[iu]|true|false|bgt_vertex_index|bgt_instance_index)$/.test(e.code)) return e;
     const code = this.temp(); this.pending.push(`let ${code} = ${e.code};`);
-    return { code, type: e.type };
+    return { code, type: e.type, constant: e.constant };
   }
   private capture<T>(fn: () => T): { value: T; before: string[] } {
     const saved = this.pending; this.pending = [];
@@ -228,6 +228,7 @@ class GLSL {
           if (this.pending.length) this.fail('global initializer requires a constant expression');
           const code = init ? this.convert(init, suffix).code : undefined;
           if (constant && !code) this.fail('const requires initializer');
+          this.variables.get(current)!.constant = constant && !!init?.constant;
           if (constant && /^(i32|u32)$/.test(type) && init) {
             const value = this.constInt(this.tokens.slice(start + 1, this.i).map(t => t.text));
             if (value !== undefined) this.intConsts.set(current, { value: BigInt(value), unsigned: type === 'u32' });
@@ -462,8 +463,9 @@ class GLSL {
       do {
         const n = this.name(), array = this.array(type);
         const start = this.i;
-        const init = this.eat('=') ? this.convert(this.expression(), array).code : undefined;
-        this.variables.set(n, { code: n, type: array, place: constant ? undefined : n });
+        const value = this.eat('=') ? this.convert(this.expression(), array) : undefined;
+        const init = value?.code;
+        this.variables.set(n, { code: n, type: array, constant: constant && !!value?.constant, place: constant ? undefined : n });
         this.intConsts.delete(n);
         if (constant && init && /^(i32|u32)$/.test(type)) {
           const v = this.constInt(this.tokens.slice(start + 1, this.i).map(t => t.text));
@@ -494,7 +496,7 @@ class GLSL {
   private convert(e: Expr, type: string): Expr {
     if (e.type === type) return e;
     if (/^(f32|i32|u32)$/.test(type) || (/^vec/.test(type) && /^vec/.test(e.type)))
-      return { code: `${type}(${e.code})`, type };
+      return { code: `${type}(${e.code})`, type, constant: e.constant };
     return e;
   }
 
@@ -505,23 +507,24 @@ class GLSL {
     if (n === '++' || n === '--') {
       const e = this.expression(12);
       if (!e.place) this.fail('increment requires mutable storage');
-      this.pending.push(`${e.place}${n};`); lhs = this.save(e);
+      this.pending.push(`${e.place}${n};`); lhs = { ...this.save(e), constant: false };
     } else
     if (['-', '+', '!', '~'].includes(n)) {
       const e = this.expression(12); lhs = { code: n === '-' && e.type === 'f32' && /^0(?:\.0*)?$/.test(e.code) ?
         'bitcast<f32>(0x80000000u)' : n === '+' ? e.code : `(${n}${e.code})`, type: e.type,
+        constant: e.constant,
         bits: n === '-' && e.type === 'f32' && /^0(?:\.0*)?$/.test(e.code) ? '0x80000000u' : undefined };
     } else if (n === '(') { lhs = this.expression(); this.need(')'); lhs.code = `(${lhs.code})`; }
     else if (/^(\d|\.)/.test(n)) {
       const integer = integerLiteral(n);
-      if (integer) lhs = { code: integer.code, type: integer.unsigned ? 'u32' : 'i32' };
+      if (integer) lhs = { code: integer.code, type: integer.unsigned ? 'u32' : 'i32', constant: true };
       else {
         if (/^0[xX]|^\d+[uU]?$/.test(n)) this.fail(`invalid integer literal '${n}'`);
         let code = n.replace(/[fF]$/, '');
         if (!/[.eE]/.test(code)) code += '.0';
-        lhs = { code, type: 'f32' };
+        lhs = { code, type: 'f32', constant: true };
       }
-    } else if (n === 'true' || n === 'false') lhs = { code: n, type: 'bool' };
+    } else if (n === 'true' || n === 'false') lhs = { code: n, type: 'bool', constant: true };
     else if (types[n] && this.peek() === '[') {
       const type = this.array(types[n]), count = Number(/, (\d+)>$/.exec(type)![1]);
       this.need('('); const args: Expr[] = [];
@@ -529,7 +532,7 @@ class GLSL {
         do { args.push(this.convert(this.expression(), types[n])); } while (this.eat(',')); this.need(')');
       }
       if (args.length !== count) this.fail(`array constructor requires ${count} elements`);
-      lhs = { code: `${type}(${args.map(a => a.code).join(', ')})`, type };
+      lhs = { code: `${type}(${args.map(a => a.code).join(', ')})`, type, constant: args.every(a => a.constant) };
     }
     else if (this.peek() === '(') lhs = this.call(n);
     else {
@@ -541,26 +544,26 @@ class GLSL {
       if (this.peek() === '++' || this.peek() === '--') {
         const op = this.take();
         if (!lhs.place) this.fail('increment requires mutable storage');
-        const value = this.save(lhs); this.pending.push(`${lhs.place}${op};`); lhs = value; continue;
+        const value = this.save(lhs); this.pending.push(`${lhs.place}${op};`); lhs = { ...value, constant: false }; continue;
       }
       if (this.eat('.')) {
         const member = this.name();
         if (member === 'length' && this.peek() === '(') {
           this.take(); this.need(')');
           const n = lhs.view?.arr ?? Number(/, (\d+)>$/.exec(lhs.type)?.[1]);
-          if (!n) this.fail('length() requires an array'); lhs = { code: `${n}i`, type: 'i32' }; continue;
+          if (!n) this.fail('length() requires an array'); lhs = { code: `${n}i`, type: 'i32', constant: true }; continue;
         }
         const known = this.variables.get(`${lhs.type}.${member}`);
         const type = known?.type ?? vector(member.length, lhs.type);
         if (known) {
-          lhs = { code: known.code.replace(/\$/g, lhs.code), type, view: known.view,
+          lhs = { code: known.code.replace(/\$/g, lhs.code), type, view: known.view, constant: lhs.constant,
             place: lhs.place ? `${lhs.place}.${member}` : undefined }; continue;
         }
         if (!/^vec/.test(lhs.type)) this.fail(`unknown member '${member}'`);
         const swizzle = member.replace(/[rgba]/g, c => ({ r: 'x', g: 'y', b: 'z', a: 'w' })[c]!);
         const components = lhs.swizzle ? [...swizzle].map(c => lhs.swizzle!.components['xyzw'.indexOf(c)]).join('') : swizzle;
         const root = lhs.swizzle?.root ?? lhs.code;
-        lhs = { code: `${root}.${components}`, type, bits: lhs.bits ? `(${lhs.bits}).${swizzle}` : undefined, swizzle: { root, components },
+        lhs = { code: `${root}.${components}`, type, constant: lhs.constant, bits: lhs.bits ? `(${lhs.bits}).${swizzle}` : undefined, swizzle: { root, components },
           place: lhs.place ? `${root}.${components}` : undefined }; continue;
       }
       if (this.eat('[')) {
@@ -575,11 +578,11 @@ class GLSL {
           const indices = [...lhs.swizzle.components].map(c => `${'xyzw'.indexOf(c)}u`);
           const mapped = this.save({ code: `array<u32, ${indices.length}>(${indices.join(', ')})[${index.code}]`, type: 'u32' });
           const code = `${lhs.swizzle.root}[${mapped.code}]`;
-          lhs = { code, type: scalar(lhs.type), place: lhs.place ? code : undefined }; continue;
+          lhs = { code, type: scalar(lhs.type), constant: lhs.constant && index.constant, place: lhs.place ? code : undefined }; continue;
         }
         const type = /^array<(.+),/.exec(lhs.type)?.[1] ??
           (/^mat\d+x(\d)f$/.test(lhs.type) ? `vec${/^mat\d+x(\d)f$/.exec(lhs.type)![1]}f` : scalar(lhs.type));
-        lhs = { code: `${lhs.code}[${index.code}]`, type, place: lhs.place ? `${lhs.place}[${index.code}]` : undefined }; continue;
+        lhs = { code: `${lhs.code}[${index.code}]`, type, constant: lhs.constant && index.constant, place: lhs.place ? `${lhs.place}[${index.code}]` : undefined }; continue;
       }
       const op = this.peek(), precedence: Record<string, number> = {
         '||': 1, '&&': 2, '|': 3, '^': 4, '&': 5, '==': 6, '!=': 6, '<': 7, '>': 7, '<=': 7, '>=': 7,
@@ -613,7 +616,7 @@ class GLSL {
       }
       const type = p <= 2 || (p >= 6 && p <= 7) ? 'bool' :
         /^mat/.test(lhs.type) && rv ? rhs.type : rv && !lv ? rhs.type : lhs.type;
-      lhs = { code: op === '==' || op === '!=' ? this.equality(lhs.type, left, right, op === '!=') :
+      lhs = { constant: lhs.constant && rhs.constant, code: op === '==' || op === '!=' ? this.equality(lhs.type, left, right, op === '!=') :
         `(${left} ${op} ${right})`, type };
     }
     if (min === 0 && this.eat('?')) {
@@ -625,17 +628,22 @@ class GLSL {
         if (scalar(yes.type) === 'f32') no = this.convert(no, yes.type);
         else yes = this.convert(yes, no.type);
       }
-      const result = this.temp('conditional');
-      this.pending.push(`var ${result}: ${yes.type};`,
-        `if (${condition.code}) { ${yesBranch.before.join('\n')}\n${result} = ${yes.code}; } else { ${noBranch.before.join('\n')}\n${result} = ${no.code}; }`);
-      lhs = { code: result, type: yes.type };
+      const constant = condition.constant && yes.constant && no.constant;
+      if (constant && !yesBranch.before.length && !noBranch.before.length && /^(?:[fiu]32|bool|vec)/.test(yes.type)) {
+        lhs = { code: `select(${no.code}, ${yes.code}, ${condition.code})`, type: yes.type, constant: true };
+      } else {
+        const result = this.temp('conditional');
+        this.pending.push(`var ${result}: ${yes.type};`,
+          `if (${condition.code}) { ${yesBranch.before.join('\n')}\n${result} = ${yes.code}; } else { ${noBranch.before.join('\n')}\n${result} = ${no.code}; }`);
+        lhs = { code: result, type: yes.type, constant };
+      }
     }
     const constantTokens = this.tokens.slice(start, this.i).map(t => t.text);
     if (lhs.type === 'u32' || lhs.type === 'i32') {
       const value = this.constInt(constantTokens);
       if (value !== undefined && (lhs.type === 'u32' || constantTokens.includes('?') || value === -2147483648)) {
         this.pending.splice(pendingStart);
-        lhs = { code: integerCode(BigInt(value), lhs.type === 'u32'), type: lhs.type };
+        lhs = { code: integerCode(BigInt(value), lhs.type === 'u32'), type: lhs.type, constant: true };
       }
     }
     return lhs;
@@ -662,11 +670,22 @@ class GLSL {
   }
 
   private call(name: string): Expr {
-    this.need('('); const args: Expr[] = [];
+    this.need('(');
     const evaluated: { value: Expr; before: string[] }[] = [];
     if (!this.eat(')')) {
       do { evaluated.push(this.capture(() => this.expression())); } while (this.eat(',')); this.need(')');
     }
+    const result = this.applyCall(name, evaluated);
+    // GLSL constant expressions permit constructors and input-only numeric builtins, not
+    // user functions, texture/derivative calls or output-parameter functions. Keep provenance
+    // even on manual sampling paths where WGSL cannot enforce the GLSL offset rule.
+    const numeric = /^(?:radians|degrees|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|asinh|acosh|atanh|pow|exp|log|exp2|log2|sqrt|inversesqrt|abs|sign|floor|trunc|round|roundEven|ceil|fract|mod|min|max|clamp|mix|step|smoothstep|isnan|isinf|floatBitsToInt|floatBitsToUint|intBitsToFloat|uintBitsToFloat|pack(?:Unorm|Snorm|Half)2x16|unpack(?:Unorm|Snorm|Half)2x16|length|distance|dot|cross|normalize|faceforward|reflect|refract|matrixCompMult|outerProduct|transpose|determinant|inverse|lessThan|lessThanEqual|greaterThan|greaterThanEqual|equal|notEqual|any|all|not)$/;
+    result.constant = result.constant !== false && !!(types[name] || this.structs.has(name) || numeric.test(name)) && evaluated.every(a => a.value.constant);
+    return result;
+  }
+
+  private applyCall(name: string, evaluated: { value: Expr; before: string[] }[]): Expr {
+    const args: Expr[] = [];
     const overloads = this.signatures.get(name);
     const exact = overloads?.find(s => s.params.length === evaluated.length && s.params.every((p, i) => p.type === evaluated[i].value.type));
     const compatible = (a: string, b: string) => a === b || a === 'f32' && /^(i32|u32)$/.test(b) || a === 'u32' && b === 'i32';
@@ -694,7 +713,7 @@ class GLSL {
       const type = signature.type, call = `${signature.name}(${args.map(a => a.code).join(', ')})`;
       const result = type === 'void' ? { code: '', type } : this.save({ code: call, type });
       if (type === 'void') this.pending.push(`${call};`);
-      this.pending.push(...writes); return result;
+      this.pending.push(...writes); return { ...result, constant: false };
     }
     if (outBuiltin) {
       const result = this.temp(name);

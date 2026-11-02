@@ -1,5 +1,5 @@
 // Engine-independent GLSL builtin lowering. Helpers take values, so arguments evaluate once.
-export interface BuiltinExpr { code: string; type: string; bits?: string }
+export interface BuiltinExpr { code: string; type: string; bits?: string; constant?: boolean }
 interface Context { helper(source: string): void; fail(message: string): never }
 const shape = (t: string, scalar: string) => /^vec[234]/.test(t) ?
   'vec' + t[3] + (scalar === 'bool' ? '<bool>' : scalar[0]) : scalar;

@@ -48,7 +48,10 @@ export class WebGL2Gpu implements GpuBackend {
   private indexed: IndexedBlend | null;
   private buffers = new Map<number, BufferObject>();
   private textures = new Map<number, TextureObject>();
-  private samplers = new Map<number, { object: WebGLSampler; words: number[] }>();
+  private samplers = new Map<number, { object: WebGLSampler; words: number[]; depthNearest?: WebGLSampler }>();
+  /** Draw/slot bindings approximated; cumulative for this backend instance, including restores. */
+  depth32fLinearApproximations = 0;
+  private depth32fLinearWarned = false;
   private shaders = new Map<number, ShaderObject>();
   private pipelines = new Map<number, PipelineObject>();
   private framebuffer: WebGLFramebuffer;
@@ -297,7 +300,11 @@ export class WebGL2Gpu implements GpuBackend {
         g.samplerParameterf(object, g.TEXTURE_MAX_LOD, none ? Math.floor(lo) : hi);
         this.samplers.set(h, { object, words: w }); break;
       }
-      case OP.SAMPLER_DELETE: g.deleteSampler(this.samplers.get(h)!.object); this.samplers.delete(h); break;
+      case OP.SAMPLER_DELETE: {
+        const sampler = this.samplers.get(h)!;
+        g.deleteSampler(sampler.object); if (sampler.depthNearest) g.deleteSampler(sampler.depthNearest);
+        this.samplers.delete(h); break;
+      }
       case OP.SHADER_CREATE: {
         const source = translateShader(item.source!, w[1], w[2]);
         const object = g.createShader(w[1] === 1 ? g.VERTEX_SHADER : g.FRAGMENT_SHADER)!;
@@ -834,7 +841,31 @@ export class WebGL2Gpu implements GpuBackend {
         throw new Error('Linear filtering of 32-bit float textures needs OES_texture_float_linear');
       }
       g.activeTexture(g.TEXTURE0+slot); g.bindTexture(this.target(texture.desc.dimension), texture.object);
-      g.bindSampler(slot, sampler.object);
+      let object = sampler.object;
+      // ES noncomparison DEPTH32F with linear filtering can be incomplete (black).
+      // Reviewer-approved bounded approximation, not equivalent desktop GL filtering.
+      if (texture.desc.format === 6 && !sampler.words[7] &&
+        (sampler.words[1] || sampler.words[2] || sampler.words[3] === 2)) {
+        if (!sampler.depthNearest) {
+          object = g.createSampler()!; sampler.depthNearest = object;
+          g.samplerParameteri(object, g.TEXTURE_MIN_FILTER, g.NEAREST_MIPMAP_NEAREST);
+          g.samplerParameteri(object, g.TEXTURE_MAG_FILTER, g.NEAREST);
+          const wraps = [g.CLAMP_TO_EDGE, g.REPEAT, g.MIRRORED_REPEAT];
+          g.samplerParameteri(object, g.TEXTURE_WRAP_S, wraps[sampler.words[4]]);
+          g.samplerParameteri(object, g.TEXTURE_WRAP_T, wraps[sampler.words[5]]);
+          g.samplerParameteri(object, g.TEXTURE_WRAP_R, wraps[sampler.words[6]]);
+          g.samplerParameteri(object, g.TEXTURE_COMPARE_MODE, g.NONE);
+          const minLod = float(sampler.words[9]);
+          g.samplerParameterf(object, g.TEXTURE_MIN_LOD, sampler.words[3] === 0 ? Math.floor(minLod) : minLod);
+          g.samplerParameterf(object, g.TEXTURE_MAX_LOD, sampler.words[3] === 0 ? Math.floor(minLod) : float(sampler.words[10]));
+        } else object = sampler.depthNearest;
+        this.depth32fLinearApproximations++;
+        if (!this.depth32fLinearWarned) {
+          this.depth32fLinearWarned = true;
+          console.warn('[bgt] DEPTH32F linear filtering approximated as nearest on WebGL 2');
+        }
+      }
+      g.bindSampler(slot, object);
     }
     const topology = [g.POINTS, g.LINES, this.capture?g.LINES:g.LINE_STRIP, g.TRIANGLES, this.capture?g.TRIANGLES:g.TRIANGLE_STRIP][pw[3]];
     const capture=this.capture;let tf:WebGLTransformFeedback|null=null,began=false,succeeded=false;

@@ -3,6 +3,8 @@
 export interface DepthSampling { binding: number; sampler: readonly number[] }
 
 export function lowerDepthSampling(source: string, sampling: readonly DepthSampling[]): string {
+  const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
+  const literal = (value: number) => Number.isInteger(value) ? value + '.0' : String(value);
   let helpers = '';
   for (const { binding, sampler: s } of sampling) {
     const declaration = new RegExp(
@@ -34,9 +36,10 @@ fn ${name}_level(uv: vec2f, level: i32, linear: bool, offset: vec2i) -> f32 {
     mix(${name}_load(base+vec2i(0,1),level), ${name}_load(base+vec2i(1,1),level), a.x), a.y);
 }
 fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
-  let level = clamp(lod, 0.0, f32(textureNumLevels(${texture}) - 1u));
-  let linear = select(${s[2] === 1}, ${s[1] === 1}, lod > 0.0);
-  ${s[3] === 0 ? `return ${name}_level(uv,0,linear,offset);` : s[3] === 1 ?
+  let effective = clamp(lod, ${literal(float(s[9] ?? 0))}, ${literal(float(s[10] ?? 0x42000000))});
+  let level = clamp(${s[3] === 0 ? literal(Math.floor(float(s[9] ?? 0))) : 'effective'}, 0.0, f32(textureNumLevels(${texture}) - 1u));
+  let linear = select(${s[2] === 1}, ${s[1] === 1}, effective > 0.0);
+  ${s[3] === 0 ? `return ${name}_level(uv,i32(level),linear,offset);` : s[3] === 1 ?
     `return ${name}_level(uv,i32(floor(level+0.5)),linear,offset);` :
     `let low=i32(floor(level)); let high=min(low+1,i32(textureNumLevels(${texture}))-1);
      return mix(${name}_level(uv,low,linear,offset),${name}_level(uv,high,linear,offset),fract(level));`}
@@ -63,7 +66,8 @@ fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
       const uv = args[2], size = `vec2f(textureDimensions(${texture},0))`;
       const dx = match[1] === 'textureSampleGrad' ? args[3] : `dpdx(${uv})`;
       const dy = match[1] === 'textureSampleGrad' ? args[4] : `dpdy(${uv})`;
-      let lod = `log2(max(length((${dx})*${size}),length((${dy})*${size})))`;
+      // Guard zero footprints before log2: magnification is defined for constant coordinates.
+      let lod = `log2(max(1.17549435e-38,max(length((${dx})*${size}),length((${dy})*${size}))))`;
       if (match[1] === 'textureSampleLevel') lod = args[3];
       let replacement = `${name}(${uv},${lod},${sampleOffset})`;
       if (match[1] === 'textureSample' || match[1] === 'textureSampleBias') {
@@ -79,7 +83,7 @@ fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
     if (implicit) helpers += `
 fn ${name}_lod(uv: vec2f) -> f32 {
   let size = vec2f(textureDimensions(${texture},0));
-  return log2(max(length(dpdx(uv)*size),length(dpdy(uv)*size)));
+  return log2(max(1.17549435e-38,max(length(dpdx(uv)*size),length(dpdy(uv)*size))));
 }
 fn ${name}_implicit(uv: vec2f, offset: vec2i) -> f32 { return ${name}(uv,${name}_lod(uv),offset); }
 `;

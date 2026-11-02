@@ -78,6 +78,17 @@ export async function glslProbe(backend: string, selected?: GlslRegression[]) {
         // The next normal program must compile AND render; a poisoned native context cannot pass.
       }
       for (const c of cases) {
+        if (c.rejection) {
+          try {
+            await compile(2, version + regressionFragment(c), 2, language);
+            errors.push(c.name + ': expected compile rejection, but succeeded');
+          } catch (e) {
+            const message = String(e);
+            if (message.includes(c.rejection)) rejections.push(message);
+            else errors.push(c.name + ': wrong rejection: ' + message);
+          }
+          continue;
+        }
         try {
           await compile(2, version + regressionFragment(c), 2, language);
           if (c.sampler) op(O.SAMPLER_CREATE_EX, c.sampler);
@@ -116,6 +127,7 @@ export async function glslProbe(backend: string, selected?: GlslRegression[]) {
       op(O.SHADER_DELETE, [1]);
     }
     if (device) await device.queue.onSubmittedWorkDone();
-    return { errors, pixels, rejections, count: cases.length };
+    return { errors, pixels, rejections, count: cases.length,
+      depth32fLinearApproximations: gpu instanceof WebGL2Gpu ? gpu.depth32fLinearApproximations : 0 };
   } finally { screen?.destroy(); device?.destroy(); gl?.getExtension('WEBGL_lose_context')!.loseContext(); }
 }
