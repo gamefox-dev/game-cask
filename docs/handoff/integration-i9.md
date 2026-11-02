@@ -1,12 +1,12 @@
-# Integration I9 — three-lane checkpoint, final gates still running
+# Integration I9 — final three-lane acceptance
 
-## Checkpoint / scope
+## Final / scope
 
-Branch `integration/p1`, implementation HEAD **`3f42927e97089f8bf50fb9ad2fad9f64648ded9e`**.
-This handoff is a reviewer-requested cost/context checkpoint (#122), **not completed Tier 1 acceptance**.
-A fresh codemode-only session must inspect the still-running jobs and finish the gates below.
+Branch `integration/p1`, final implementation **`3f42927e97089f8bf50fb9ad2fad9f64648ded9e`**;
+`ada103d` and this finalization are documentation-only. **Tier 1 gates completed on the final source**,
+including the reviewer’s successful extended-timeout fast-scale oracle rerun described below.
 Kit development only; no game files/captured shader text were copied into the repository, no original binaries
-were executed, no installs, dependency changes, test weakening or pushes. Leave developer `:5173` alone.
+were executed, no installs, dependency changes, test weakening or pushes. Developer `:5173` was left alone.
 
 ## Ordered merges
 
@@ -64,27 +64,36 @@ Two genuinely fresh sessions were launched here without `--fork`/parent-session 
   compile/link controls and **148/148** synthetic known-answer pixels with zero channel error. Exact old repro
   now compiles/links. `recheck.txt`, `recheck/findings.md`. Reviewer states ANGLE/SwiftShader; no physical GPU claim.
 
-Those reviews do **not** certify subsequent `323f07f..3f42927`. Reviewer #121 reports separate vK14a FAIL with
-the three P2 findings and will arrange focused re-review of the repairs. **That latest re-review remains pending.**
-Neither independent session is attributed with full Tier 1, WebGPU capture audit, oracle sweep or target performance.
-Both review drivers have completed exit 0; they are not active workers.
+Those two sessions do **not** certify subsequent `323f07f..3f42927` or the full Tier 1 matrix.
+Final independent lane review outcomes, supplied by the coordinating reviewer:
 
-## Final-tree evidence already passed
+- **vK14b PASS** on `c09faa7`.
+- **vK14a FAIL → fixes → vK14a2 PASS** on final implementation `3f42927`, including
+  **105/105 captured stages per backend**. The three P2 findings are repaired as recorded above.
+- **K15h’s own independent review: no blockers.**
+
+These are independent review results, not reviews performed by this documentation-finalization session.
+No physical GPU, target-performance or game-playability certification is implied.
+
+## Final-tree gate results
 
 Machine-local evidence root: **`/Users/dev/projects/pi-work/scratch-I9/`**. Not a permanent retention promise.
-Current acceptance runner started on implementation **`3f42927`**; no source changed afterward.
+The acceptance runner used implementation **`3f42927`**; no source changed afterward.
+**39 steps: 38 exit 0, one timeout exit 1** (`oracle-fast-x64-scale`); the same-tree reviewer rerun passed.
+The original runner failure remains recorded, not relabeled as an exit-0 run.
 
-| Gate | Actual current status / evidence |
+| Gate | Final result / evidence |
 |---|---|
-| doctor | **PASS**, exit 0, 0.57 s; `final/doctor.log`, `final/status.json` (Node 24.19.0, Zig 0.13.0, Chromium installed, original/ empty). |
-| lint | **PASS**, exit 0, 573.13 s; `final/lint.log`. ESLint, clang example checks and real GCC `/opt/homebrew/bin/gcc-14` (14.2.0). **33 example check-builds**; default lint excludes the scale check-build (the full unit/build/oracle inventory does include scale). Clang is Apple clang 21. |
+| doctor | **PASS**, exit 0, 0.57 s; `final/doctor.log` (Node 24.19.0, Zig 0.13.0, Chromium installed, original/ empty). |
+| lint | **PASS**, exit 0, 573.13 s; `final/lint.log`. ESLint, Apple clang 21 and real GCC `/opt/homebrew/bin/gcc-14` (14.2.0). **33 example check-builds**; default lint excludes the scale check-build (the full unit/build/oracle inventory includes scale). |
 | typecheck | **PASS**, exit 0, 1.88 s; `final/typecheck.log`. |
-| focused GLSL / native | **120/120** focused units and **4/4** browser tests on latest implementation as above; not substitutes for full suites. |
-| scratch capture audit | **PASS on `3f42927`**, counts/details below. Repeat after any further source repair. |
-| full unit | **RUNNING; no final count/PASS claim**. `final/unit.log`. Includes `pi-harness.test.ts`, bridge and robustness tests; no exclusions. |
-| full browser | **NOT YET RUN in current acceptance run**; queued after units. Both backends required. |
-| leakcheck | **NOT YET RUN in current acceptance run**; queued after e2e. Commit hooks passed only staged-file leakchecks, not the full gate. |
-| 300-frame default/fast oracles | **NOT YET RUN in current acceptance run**; queued after leakcheck. |
+| full unit | **1,183/1,183 tests, 86/86 files PASS**, exit 0, 1,531.39 s; `final/unit.log`. Includes sandbox pi-harness, bridge and robustness tests; no exclusions. |
+| full browser | **245 passed / 51 unchanged intentional skips**, exit 0, 301.48 s; `final/e2e.log`. WebGL2 **110/24**, WebGPU **127/26**, auto **8/1** (pass/skip). Both required backends exercised. |
+| leakcheck | **PASS, 646 committable files**, exit 0; `final/leakcheck.log`. Full `npm run leakcheck` also rerun after final documentation edits. |
+| default oracles | **30 × 300 = 9,000 identical frame pairs**, exit 0 for every fixture; `final/oracle-<id>.log/json`. Null errors/divergence, zero lifted interpreted instructions, empty stubs. |
+| fast oracles | **3 × 300 = 900 identical frame pairs**, CRT/C++ exit 0 in runner; scale passed reviewer rerun with `--testTimeout 3600000`. Original 600 s cold-build timeout retained below. **9,900 total compared frame pairs** including rerun. |
+| focused GLSL / native | **120/120** focused units and **4/4** browser tests on final implementation; additional evidence, not substitutes for full suites. |
+| scratch capture audit | **105/105 WebGL2 and 105/105 WebGPU native stage compiles**, zero errors on `3f42927`; exact scope below. |
 
 ### Scratch-only capture audit
 
@@ -101,44 +110,43 @@ the current repository translators and actual browser native stage compilers, no
 - Own Vite port **5264**, repository translator imports only. This is stage compilation, **not** captured
   pipeline linking/render certification, first draw, title screen or playability.
 
-## Live jobs / continue without duplicating work
+## Completed runner / oracle evidence
 
-At this checkpoint (2026-11-02 about 22:55 local), the owned Python acceptance runner is **PID 2442**, recorded
-in `final-runner.pid`; active unit process-group leader is **PID 19997** in **`final/active.json`**. PIDs are
-observations, not durable identities; re-read active state/logs before any signal and never kill unrelated work.
-Sandbox denies `ps`; do not loosen sandbox to inspect or run suites. **Leave the runner going across this checkpoint.**
+- Runner: `/Users/dev/projects/pi-work/scratch-I9/run-final.py`.
+- All 39 exits/durations: `final-runner.log` and `final/status.json`; suite evidence: `final/*.log`.
+- `final/done` records the original runner **FAIL** because of the fast-scale timeout, not the later rerun.
+  Old PID/active files are historical, not live-job instructions.
+- FIFO/memory admission: `final/heavy.log`. Default 1024 MiB floor retained; no fake memory data,
+  bypass, alternate lock namespace or changed slot count. Runner used the merged workspace shim via npm/npx.
+- Commands: doctor → lint → typecheck → `npm test -- --maxWorkers=1` →
+  `BGT_E2E_PORT=5263 BGT_REQUIRE_WEBGPU=1 npm run test:e2e` → leakcheck → 30 default CLI oracles →
+  three fast CLI oracles, each requesting 300 frames.
 
-- Runner script: **`/Users/dev/projects/pi-work/scratch-I9/run-final.py`**.
-- Driver output: **`/Users/dev/projects/pi-work/scratch-I9/final-runner.log`**.
-- Completed command exits/durations: **`final/status.json`**.
-- Current command/PID: **`final/active.json`**; unit progress **`final/unit.log`**.
-- FIFO/memory admission evidence: **`final/heavy.log`**. Default 1024 MiB floor retained; no fake memory data,
-  bypass, alternate lock namespace or changed slot count. Runner prepends the **merged workspace shim** to PATH
-  and invokes heavy suites via npm/npx.
-- On finish: **`final/done`** (`PASS`/`FAIL` is only a summary; inspect actual logs/JSON).
+All **30 default** pipeline examples match: `win32-conformance`, `win32-hello`, `x64-audio`,
+`x64-audio-init`, `x64-basics`, `x64-contracts`, `x64-cpp`, `x64-cpprt`, `x64-crt`, `x64-gl`,
+`x64-gl-blit`, `x64-gl-current`, `x64-gl-fbo`, `x64-gl-feedback`, `x64-gl-integer`, `x64-gl-ranges`,
+`x64-glsl`, `x64-gui`, `x64-handles`, `x64-heap`, `x64-input`, `x64-memory`, `x64-scale`,
+`x64-smoke`, `x64-sysdlls`, `x64-threads`, `x64-tls`, `x86-handles`, `x86-heap`, `x86-threads`.
+Fast fixtures are `x64-crt`, `x64-cpp` and `x64-scale`. Four native examples have no fabricated interpreter oracle.
 
-It runs sequentially: doctor → lint → typecheck → `npm test -- --maxWorkers=1` →
-`BGT_E2E_PORT=5263 BGT_REQUIRE_WEBGPU=1 npm run test:e2e` → leakcheck → each default pipeline CLI oracle
-for 300 frames → `x64-crt`, `x64-cpp`, `x64-scale` fast-preset CLI oracles for 300 frames.
-The script **continues after a failed command**; its existence/progress is not acceptance. Inspect every exit.
+The **32 successful runner oracle reports** independently verify **9,600 frame pairs**, `identical=true`,
+300 pairs each, null errors/divergence, lifted `interp_insns=0` and empty stubs. Evidence:
+`final/oracle-<id>.log/json`, `final/oracle-fast-<id>.log/json`, `final/oracle-summary.json`.
+These scratch reports preserve the original fast-scale failure rather than incorporating the later rerun.
 
-All **30** pipeline examples must match: `win32-conformance`, `win32-hello`, `x64-audio`, `x64-audio-init`,
-`x64-basics`, `x64-contracts`, `x64-cpp`, `x64-cpprt`, `x64-crt`, `x64-gl`, `x64-gl-blit`, `x64-gl-current`,
-`x64-gl-fbo`, `x64-gl-feedback`, `x64-gl-integer`, `x64-gl-ranges`, `x64-glsl`, `x64-gui`, `x64-handles`,
-`x64-heap`, `x64-input`, `x64-memory`, `x64-scale`, `x64-smoke`, `x64-sysdlls`, `x64-threads`, `x64-tls`,
-`x86-handles`, `x86-heap`, `x86-threads`. Expected **9,000 default + 900 fast = 9,900 compared frame pairs**,
-not yet achieved. Four native examples have no fabricated interpreter oracle.
+### Fast-scale timeout and successful reviewer rerun
 
-Oracle evidence: `final/oracle-<id>.log/json`, `final/oracle-fast-<id>.log/json`,
-**`final/oracle-summary.json`**. Check each exit 0, identical=true, 300 pairs, null errors/divergence, lifted
-`interp_insns=0` and empty stubs. Do not rely on old `reports/oracle-*.json`; scratch copies isolate this run.
+`oracle-fast-x64-scale` hit Vitest’s **600,000 ms (600 s)** test timeout during a cold build of the
+**1,609,529-instruction** scale fixture; the runner step exited 1 after 947.70 s, before comparing any frames.
+This was a test-budget/build issue, not an observed frame divergence. The coordinating reviewer reran the test
+on the same tree with **`--testTimeout 3600000`** and reports **300/300 identical frames, errors null**.
+The rerun log shows **1/1 test PASS** and a cached fast build; it is not a cold-build timing claim.
+Rerun log (outside Git):
+`/private/tmp/claude-501/-Users-dev-projects-game-cask/0bae9a29-a345-4e40-af8e-dce4c0597b6a/scratchpad/oracle-fast-scale.log`.
+Together: **9,000 default + 900 fast = 9,900 identical compared frame pairs**.
 
-**Fast-mode warning:** the runner temporarily changes each fixture `game.json` to `pipeline.liftPreset: fast`
-while running its CLI oracle and restores exact original bytes in `finally`. It saves originals as
-`final/<id>-game.original.json`. Do not commit during a fast run. On interruption, verify/restore only those
-three tracked configs from their saved originals. The optional fast-manifest copy in the runner points to
-`game.json` in built output (normally absent); if policy-manifest evidence is needed, inspect/copy the actual
-`manifest.json`/pipeline metadata. It is the configured build and oracle, not that optional copy, that runs fast.
+Fast fixture `game.json` files were restored byte-for-byte against `final/<id>-game.original.json` for
+CRT/C++/scale; no preset/config changes are part of this documentation finalization.
 
 ### Interrupted runs — not acceptance
 
@@ -152,17 +160,12 @@ three tracked configs from their saved originals. The optional fast-manifest cop
   incomplete unit run is counted as passing. Old PID files `runner.pid`, `review-driver.pid`,
   `recheck-driver.pid` are historical, not commands to kill.
 
-## Fresh-session finish checklist
+## Backlog / remaining boundaries
 
-1. Read this handoff, CLAUDE.md and current Git status/HEAD. Inspect current `final/status.json`, active command,
-   runner log and suite tails **in one codemode script**; let the live owned run finish rather than duplicate it.
-2. Obtain/inspect reviewer-arranged focused re-review of `323f07f`, `730c09c`, `3f42927`. Fix concrete findings
-   with before/after regressions if any; any source repair invalidates unfinished/existing final-tree claims.
-3. Require full **npm test including sandbox pi-harness**, full **test:e2e both backends**, leakcheck and all
-   **30 defaults + three fast oracles ×300**. Record exact counts/project breakdowns and unchanged skips.
-4. Capture audit already passed on current source; rerun `BGT_E2E_PORT=5264 node .../audit.mjs` if source changes
-   or a final checkpoint needs it, keeping all captures/translations/results outside Git.
-5. Restore fast fixture configs, check clean diffs/markers, finish `docs/v03-status.md` and replace this checkpoint
-   with accurate final results/remaining boundaries. Run full leakcheck after final documentation edits.
-6. Commit final docs. Final response under 150 words; do not claim engine speedup, F-PERF-CRT closure, first
-   draw/title/playability, unrestricted GL3.3 or physical iPhone/Safari/Firefox verification.
+- **Oracle cold-build timeout (test infrastructure):** allow cold builds of large fixtures in the oracle test
+  timeout budget (or separate build and frame-comparison budgets). The 600 s default rejected fast-scale’s cold
+  build; a 3,600 s reviewer override passed. Follow-up must verify the cold 1.6M-instruction fixture and retain
+  strict frame/error assertions. No timeout or code changes are made in this documentation-only finalization.
+- Final acceptance is bounded to these kit gates and independent review scopes. No engine speedup,
+  F-PERF-CRT closure, first draw/title/playability, unrestricted GL3.3, physical iPhone, Safari or Firefox
+  verification is claimed. Capture-stage compilation is not pipeline linking/render certification.
