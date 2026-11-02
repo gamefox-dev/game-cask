@@ -17,6 +17,10 @@
 
 #define BGT_CMD_MAGIC   0x43544742u /* "BGTC" */
 #define BGT_CMD_VERSION 1u
+/* §13.12 GPU-only continuation. Existing per-submit/upload/vertex/resource limits still apply. */
+#define BGT_CMD_GPU_CONTINUATION 1u
+#define BGT_GPU_CONTINUATION_BYTES 67108864u
+#define BGT_GPU_CONTINUATION_COMMANDS 1048576u
 #define BGT_CMD_HEADER_SIZE 16u
 #define BGT_CMD_PREFIX_SIZE 8u
 
@@ -227,18 +231,20 @@ static inline bgt_vertex_t *bgt_cmd_triangles(bgt_cmdbuf_t *b, uint32_t vertex_c
 }
 
 /* Finalize header and submit. Returns BGT_OK or a negative error; resets the buffer. */
-static inline int32_t bgt_cmd_submit(bgt_cmdbuf_t *b) {
+static inline int32_t bgt_cmd_submit_flags(bgt_cmdbuf_t *b, uint16_t flags) {
     int32_t rc;
     if (b->error) { rc = b->error; bgt_cmd_reset(b); return rc; }
     if (b->count == 0) return BGT_OK;
     bgt__put32(b->buf, BGT_CMD_MAGIC);
-    bgt__put32(b->buf + 4, BGT_CMD_VERSION);
+    bgt__put32(b->buf + 4, BGT_CMD_VERSION | ((uint32_t)flags << 16));
     bgt__put32(b->buf + 8, b->len);
     bgt__put32(b->buf + 12, b->count);
     rc = bgt_submit_commands(b->buf, b->len);
     bgt_cmd_reset(b);
     return rc;
 }
+
+static inline int32_t bgt_cmd_submit(bgt_cmdbuf_t *b) { return bgt_cmd_submit_flags(b, 0); }
 
 #include "bgt_gpu_cmd.h"
 

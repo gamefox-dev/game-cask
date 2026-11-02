@@ -45,6 +45,9 @@ static uint32_t query(uint32_t key, int32_t *v) {
         else if (tg.status == 0x8cd5 && key == 0xd57 && tg.has_stencil && tg.ds.fmt) v[0] = tg.ds.fmt->bits[5];
         break; }
     case 0x8b8d: v[0] = (int32_t)program; break; case 0x85b5: v[0] = (int32_t)vao; break;
+    case 0x8f36: v[0] = (int32_t)copy_read; break; case 0x8f37: v[0] = (int32_t)copy_write; break;
+    case 0x88ed: v[0] = (int32_t)pixel_pack; break; case 0x88ef: v[0] = (int32_t)pixel_unpack; break;
+    case 0x8c2a: v[0] = (int32_t)texture_buffer; break;
     case 0x8894: v[0] = (int32_t)array; break; case 0x8895: v[0] = (int32_t)vaos[vao].element; break;
     case 0x8c8f: v[0] = (int32_t)tf_buffer; break;
     case 0x8c8a: v[0] = 64; break;

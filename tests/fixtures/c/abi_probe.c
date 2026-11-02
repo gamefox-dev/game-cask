@@ -22,6 +22,7 @@ static const uint32_t table[] = {
     BGT_KEY_A, BGT_KEY_Z, BGT_KEY_ENTER, BGT_KEY_SPACE, BGT_KEY_RIGHT, BGT_KEY_UP, BGT_KEY_LSHIFT, BGT_DT_US,
     BGT_OP_READBACK, BGT_CAP_READBACK, BGT_CAP_STREAM_FILES, sizeof(bgt_gpu_limits_t),
     offsetof(bgt_gpu_limits_t,texture_budget_bytes),
+    BGT_CMD_GPU_CONTINUATION, BGT_GPU_CONTINUATION_BYTES, BGT_GPU_CONTINUATION_COMMANDS,
 };
 BGT_EXPORT(probe_table) uint32_t probe_table(void) { return (uint32_t)(uintptr_t)table; }
 BGT_EXPORT(probe_count) uint32_t probe_count(void) { return sizeof table / sizeof table[0]; }
@@ -54,6 +55,12 @@ BGT_EXPORT(probe_last_len) uint32_t probe_last_len(void) { return last_len; }
 
 BGT_EXPORT(probe_readback) int32_t probe_readback(void) {
     bgt_cmd_init(&cb,storage,sizeof storage);bgt_cmd_readback(&cb,77,9,1,2,3,4);return bgt_cmd_submit(&cb);
+}
+
+BGT_EXPORT(probe_continuation) int32_t probe_continuation(void) {
+    bgt_gpu_buffer_create_t b = {1,1,16,0,0};
+    bgt_cmd_init(&cb,storage,sizeof storage); bgt_cmd_gpu_buffer_create(&cb,&b);
+    return bgt_cmd_submit_flags(&cb,BGT_CMD_GPU_CONTINUATION);
 }
 
 /* overflow: a tiny buffer must report BGT_E_LIMIT rather than write past the end */

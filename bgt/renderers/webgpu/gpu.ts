@@ -3,6 +3,8 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
+import { fragmentOutputs } from './outputs';
+import { WebGPUBufferCopy } from './buffer-copy';
 import { WebGPUBlit, type BlitImage } from './blit';
 import { lowerFeedback, type FeedbackInput } from './feedback';
 import { feedbackLayout, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
@@ -37,7 +39,7 @@ interface TextureResource {
   native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
-interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[] }
+interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
 interface PipelineResource {
   native: GPURenderPipeline; words: readonly number[]; bindings: ShaderBinding[]; repack: Repack[];
@@ -46,6 +48,7 @@ interface PipelineResource {
 
 export class WebGPUCommands implements GpuBackend {
   readonly languages = 7;
+  private bufferCopy?: WebGPUBufferCopy;
   readonly buffers = new Map<number, BufferResource>();
   readonly textures = new Map<number, TextureResource>();
   private samplers = new Map<number, { native: GPUSampler; nonfilter?: GPUSampler; words: readonly number[] }>();
@@ -106,7 +109,7 @@ export class WebGPUCommands implements GpuBackend {
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     this.device = device;
-    this.framebufferBlit = undefined; this.feedbackPipelines.clear();
+    this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
@@ -157,6 +160,14 @@ export class WebGPUCommands implements GpuBackend {
     switch (op) {
       case OP.FEEDBACK_VARYINGS: this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
       case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.BUFFER_COPY: {
+        const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
+        this.bufferCopy ??= new WebGPUBufferCopy(d);
+        this.bufferCopy.copy(src.native, w[1], dst.native, w[3], w[4]);
+        dst.shadow.set(src.shadow.slice(w[1], w[1] + w[4]), w[3]);
+        if (src.generated) dst.generated = true; else if (!w[3] && w[4] === dst.shadow.length) dst.generated = false;
+        break;
+      }
       case OP.BUFFER_READBACK: this.bufferReadback(item); break;
       case OP.BLIT: {
         const image = (h: number, mip: number): BlitImage => h ? {
@@ -264,7 +275,8 @@ export class WebGPUCommands implements GpuBackend {
         d.pushErrorScope('validation');
         const native = d.createShaderModule({ code });
         const validation = d.popErrorScope();
-        const shader: ShaderResource = { native, item, done: false, bindings: shaderBindings(code, true) };
+        const shader: ShaderResource = { native, item, done: false, bindings: shaderBindings(code, true),
+          outputs: w[1] & 2 ? fragmentOutputs(code) : new Set() };
         this.shaders.set(h, shader);
         this.pending.add(shader);
         void Promise.all([native.getCompilationInfo(), validation]).then(([info, error]) => {
@@ -695,7 +707,9 @@ struct VO { @builtin(position) pos: vec4f };
       if (w[j] >= 10 && w[j] <= 12 && w[j + 1] && !d.features.has('float32-blendable')) {
         throw new Error('Blending 32-bit float targets needs the float32-blendable WebGPU feature');
       }
-      targets.push({ format: formats[w[j]], writeMask: w[j + 8],
+      // GL leaves attachments without a corresponding fragment output unchanged. WebGPU
+      // instead rejects a nonzero write mask; intersect the immutable GL mask with the interface.
+      targets.push({ format: formats[w[j]], writeMask: this.shaders.get(w[2])!.outputs.has(i) ? w[j + 8] : 0,
         blend: w[j + 1] ? { color: component(w[j + 2], w[j + 3], w[j + 4]),
           alpha: component(w[j + 5], w[j + 6], w[j + 7]) } : undefined });
     }

@@ -7,7 +7,7 @@
 // opcode, bad handle, limit) skips just that command and is reported.
 
 import { executeGpu, type GpuState } from './commands-gpu';
-import { GPU_OP } from './abi';
+import { GPU_OP, CMD_GPU_CONTINUATION, GPU_CONTINUATION_LIMITS } from './abi';
 import type { GpuItem } from '../renderers/types';
 
 import {
@@ -63,6 +63,8 @@ export class Frame {
   vertexCount = 0;
   items: FrameItem[] = [];
   submits = 0;
+  commandCount = 0;
+  continuationSubmits = 0;
   commandBytes = 0;
   gpuUploadBytes = 0;
   gpuVertices = 0;
@@ -76,6 +78,8 @@ export class Frame {
     this.vertexCount = 0;
     this.items = [];
     this.submits = 0;
+    this.commandCount = 0;
+    this.continuationSubmits = 0;
     this.commandBytes = 0;
     this.gpuUploadBytes = 0;
     this.gpuVertices = 0;
@@ -315,7 +319,6 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
 
   ptr >>>= 0;
   len >>>= 0;
-  if (ctx.frame.submits >= LIMITS.submitsPerFrame) return fail(E_LIMIT, 'too many submissions in one frame');
   if (len < CMD_HEADER_SIZE) return fail(E_INVALID, `command buffer shorter than header (${len} bytes)`);
   if (len > LIMITS.submitBytes) return fail(E_LIMIT, `command buffer of ${len} bytes exceeds ${LIMITS.submitBytes}`);
   if (ptr + len > mem.byteLength) return fail(E_BOUNDS, `command buffer [${ptr}, +${len}) outside linear memory`);
@@ -325,7 +328,11 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
   if (dv.getUint32(0, true) !== CMD_MAGIC) return fail(E_INVALID, 'bad command buffer magic');
   const version = dv.getUint16(4, true);
   if (version !== CMD_VERSION) return fail(E_UNSUPPORTED, `unsupported command stream version ${version}`);
-  if (dv.getUint16(6, true) !== 0) return fail(E_UNSUPPORTED, 'non-zero header flags');
+  const headerFlags = dv.getUint16(6, true), continuation = headerFlags === CMD_GPU_CONTINUATION;
+  if (headerFlags && !continuation) return fail(E_UNSUPPORTED, 'unknown header flags');
+  if (continuation && !ctx.gpu?.backend.languages) return fail(E_UNSUPPORTED, 'GPU continuation requires CAP_GPU');
+  if (!continuation && ctx.frame.submits - ctx.frame.continuationSubmits >= LIMITS.submitsPerFrame)
+    return fail(E_LIMIT, 'too many submissions in one frame');
   const byteLen = dv.getUint32(8, true);
   const count = dv.getUint32(12, true);
   if (byteLen !== len) return fail(E_INVALID, `header byte_len ${byteLen} != submitted length ${len}`);
@@ -335,6 +342,9 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
   let off = CMD_HEADER_SIZE;
   for (let i = 0; i < count; i++) {
     if (off + CMD_PREFIX_SIZE > len) return fail(E_BOUNDS, `command ${i} prefix past end`, off);
+    const opcode = dv.getUint16(off, true);
+    if (continuation && (opcode < GPU_OP.BUFFER_CREATE || opcode > GPU_OP.BUFFER_COPY))
+      return fail(E_UNSUPPORTED, 'GPU continuation contains a non-GPU opcode', off, opcode);
     const payload = dv.getUint32(off + 4, true);
     if (payload & 3) return fail(E_INVALID, `command ${i} payload_len ${payload} not 4-aligned`, off, dv.getUint16(off, true));
     if (payload > len - off - CMD_PREFIX_SIZE) return fail(E_BOUNDS, `command ${i} payload past end`, off, dv.getUint16(off, true));
@@ -342,8 +352,16 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
   }
   if (off !== len) return fail(E_INVALID, `${len - off} trailing bytes after ${count} commands`, off);
 
+  // The shared frame is also the ordering authority on both native backends. Continuations
+  // bypass only the legacy list-count limit, never bounded aggregate work or owned upload bytes.
+  if ((continuation || ctx.frame.continuationSubmits) && (ctx.frame.commandBytes + len > GPU_CONTINUATION_LIMITS.bytes ||
+    ctx.frame.commandCount + count > GPU_CONTINUATION_LIMITS.commands))
+    return fail(E_LIMIT, 'GPU continuation aggregate wire-byte/command budget exceeded');
+
   // Pass 2: execute.
   ctx.frame.submits++;
+  if (continuation) ctx.frame.continuationSubmits++;
+  ctx.frame.commandCount += count;
   ctx.frame.commandBytes += len;
   off = CMD_HEADER_SIZE;
   let executed = 0;
@@ -391,7 +409,7 @@ function execute(op: number, dv: DataView, p: number, n: number, mem: Uint8Array
   const i = (o: number) => dv.getInt32(p + o, true);
   const f = (o: number) => dv.getFloat32(p + o, true);
 
-  if (op >= GPU_OP.BUFFER_CREATE && op <= GPU_OP.BUFFER_READBACK) {
+  if (op >= GPU_OP.BUFFER_CREATE && op <= GPU_OP.BUFFER_COPY) {
     return executeGpu(op, dv, p, n, mem, ctx);
   }
   if (ctx.gpu?.pass) return E_STATE; // No legacy operation may interrupt an explicit GPU pass.
@@ -649,12 +667,12 @@ export class CommandEncoder {
     return this;
   }
 
-  finish(): Uint8Array {
+  finish(flags = 0): Uint8Array {
     const out = new Uint8Array(CMD_HEADER_SIZE + this.bytes.length);
     const dv = new DataView(out.buffer);
     dv.setUint32(0, CMD_MAGIC, true);
     dv.setUint16(4, CMD_VERSION, true);
-    dv.setUint16(6, 0, true);
+    dv.setUint16(6, flags, true);
     dv.setUint32(8, out.length, true);
     dv.setUint32(12, this.count, true);
     out.set(this.bytes, CMD_HEADER_SIZE);

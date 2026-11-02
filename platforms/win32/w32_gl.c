@@ -59,8 +59,19 @@ static void begin(void) { bgt_cmd_init(&cmd, cmd_mem, sizeof cmd_mem); }
 static void op(uint32_t code, const uint32_t *w, uint32_t n) {
     bgt__gpu_copy(bgt_cmd_push(&cmd, (uint16_t)code, n * 4), w, n * 4);
 }
+static int flush_padded_cleanup(void);
 static int submit(void) {
-    int32_t rc = bgt_cmd_submit(&cmd);
+    if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
+    /* Keep immediate validation/owned uploads and exact ordering. Only GPU-only lists opt into
+     * §13.12's bounded aggregate budget; legacy screen readback retains its frozen header. */
+    uint16_t flags = BGT_CMD_GPU_CONTINUATION;
+    for (uint32_t off = 16; off < cmd.len;) {
+        uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size;
+        copy(&size, cmd.buf + off + 4, 4);
+        if (code < 0x40 || code > 0x64) flags = 0;
+        off += 8 + size;
+    }
+    int32_t rc = bgt_cmd_submit_flags(&cmd, flags);
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
     return 1;
 }
@@ -123,7 +134,27 @@ CURRENT_ATTR(1) CURRENT_ATTR(2) CURRENT_ATTR(3) CURRENT_ATTR(4)
 static Shader shaders[N]; static Program programs[N];
 static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
 static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
-static uint32_t ubo_whole[8];
+static uint32_t ubo_whole[8], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
+/* Retire generated private temporaries even when materialization or a later submission fails.
+ * If the aggregate wire budget is exhausted, retry before the next public submission: a source
+ * cannot be successfully deleted/reuploaded while an inaccessible generated temporary remains. */
+static int flush_padded_cleanup(void) {
+    uint32_t storage[25]; bgt_cmdbuf_t cleanup; bgt_cmd_init(&cleanup, storage, sizeof storage);
+    for (uint32_t i = 0; i < 7; i++) if (padded_cleanup[i]) {
+        uint8_t *payload = bgt_cmd_push(&cleanup, 0x42, 4); bgt__gpu_copy(payload, &padded_ubo[i], 4);
+    }
+    if (!cleanup.count) return 1;
+    int32_t rc = bgt_cmd_submit_flags(&cleanup, BGT_CMD_GPU_CONTINUATION);
+    if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
+    for (uint32_t i = 0; i < 7; i++) if (padded_cleanup[i])
+        padded_ubo[i] = padded_ubo_size[i] = padded_generated[i] = padded_cleanup[i] = 0;
+    return 1;
+}
+static void retire_generated_ubos(void) {
+    for (uint32_t i = 0; i < 7; i++) if (padded_generated[i]) padded_cleanup[i] = 1;
+    flush_padded_cleanup();
+}
+static uint32_t copy_read, copy_write, pixel_pack, pixel_unpack, texture_buffer;
 static uint32_t program;
 static uint32_t tf_buffer, tf_active, tf_mode, rasterizer_discard;
 static uint32_t tf_bound[4], tf_offset[4], tf_size[4], tf_whole[4], tf_cursor[4];
@@ -146,8 +177,11 @@ static uint32_t alloc_name(void *base, uint32_t stride) {
 }
 static Buffer *bound_buffer(uint32_t target) {
     uint32_t id = target == ARRAY_BUFFER ? array : target == ELEMENT_BUFFER ? vaos[vao].element :
-        target == UNIFORM_BUFFER ? uniform : target == FEEDBACK_BUFFER ? tf_buffer : 0;
-    if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER) fail(BAD_ENUM);
+        target == UNIFORM_BUFFER ? uniform : target == FEEDBACK_BUFFER ? tf_buffer :
+        target == 0x8f36 ? copy_read : target == 0x8f37 ? copy_write : target == 0x88eb ? pixel_pack :
+        target == 0x88ec ? pixel_unpack : target == 0x8c2a ? texture_buffer : 0;
+    if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER &&
+        target != 0x8f36 && target != 0x8f37 && target != 0x88eb && target != 0x88ec && target != 0x8c2a) fail(BAD_ENUM);
     else if (!id || id >= N || !buffers[id].used) fail(BAD_OP);
     return id && id < N && buffers[id].used ? &buffers[id] : 0;
 }
@@ -162,6 +196,11 @@ static uint32_t api_BindBuffer(void) {
     else if (target == ELEMENT_BUFFER && vao) vaos[vao].element = id;
     else if (target == UNIFORM_BUFFER) uniform = id;
     else if (target == FEEDBACK_BUFFER) tf_buffer = id;
+    else if (target == 0x8f36) copy_read = id;
+    else if (target == 0x8f37) copy_write = id;
+    else if (target == 0x88eb) pixel_pack = id;
+    else if (target == 0x88ec) pixel_unpack = id;
+    else if (target == 0x8c2a) texture_buffer = id;
     else { fail(target == ELEMENT_BUFFER ? BAD_OP : BAD_ENUM); return 0; }
     if (id) buffers[id].used = 1; return 0;
 }
@@ -172,9 +211,11 @@ static uint32_t api_BufferData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
     uint32_t id = (uint32_t)(b - buffers);
-    if (b->gpu) SEND(0x42, id);
-    b->gpu = id; b->size = (uint32_t)size; b->data = data; b->generated = 0;
-    SEND(0x40, id, 15, b->size, PTR(data), b->size); return 0;
+    if (b->gpu && !send(0x42, &id, 1)) return 0;
+    b->gpu = 0; b->size = 0; b->generated = 0;
+    uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
+    if (!send(0x40, create, 5)) return 0;
+    b->gpu = id; b->size = (uint32_t)size; b->data = data; return 0;
 }
 static uint32_t api_BufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); uint64_t off = ARG64(1), n = ARG64(2);
@@ -182,9 +223,31 @@ static uint32_t api_BufferSubData(void) {
     if (off + n < off || off + n > b->size) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     if (b->generated && ((off & 3) || (n & 3)) && (off || n != b->size)) { fail(BAD_OP); return 0; }
-    for (uint32_t i = 0; i < n; i++) b->data[off + i] = x86_rd8(ARG(3) + i);
-    if (n) SEND(0x41, b->gpu, (uint32_t)off, PTR(b->data + off), (uint32_t)n);
+    if (n) {
+        uint8_t *data = glp_alloc((uint32_t)n); if (!data) { fail(OOM); return 0; }
+        for (uint32_t i = 0; i < n; i++) data[i] = x86_rd8(ARG(3) + i);
+        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send(0x41, w, 4);
+        if (accepted) copy(b->data + off, data, (uint32_t)n);
+        glp_free(data, (uint32_t)n); if (!accepted) return 0;
+    }
     if (!off && n == b->size) b->generated = 0; return 0;
+}
+static uint32_t api_CopyBufferSubData(void) {
+    Buffer *src = bound_buffer(ARG(0)), *dst = bound_buffer(ARG(1));
+    int64_t so = (int64_t)ARG64(2), off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
+    if (!src || !dst) return 0;
+    if (so < 0 || off < 0 || size < 0 || (uint64_t)so > src->size || (uint64_t)off > dst->size ||
+        (uint64_t)size > src->size - (uint64_t)so || (uint64_t)size > dst->size - (uint64_t)off ||
+        (src == dst && so < off + size && off < so + size)) { fail(BAD_VALUE); return 0; }
+    if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(src - buffers) ||
+        tf_bound[i] == (uint32_t)(dst - buffers)) { fail(BAD_OP); return 0; }
+    if (!size) return 0;
+    uint32_t w[] = {src->gpu, (uint32_t)so, dst->gpu, (uint32_t)off, (uint32_t)size};
+    if (send(0x64, w, 5)) {
+        copy(dst->data + off, src->data + so, (uint32_t)size);
+        if (src->generated) dst->generated = 1; else if (!off && (uint64_t)size == dst->size) dst->generated = 0;
+    }
+    return 0;
 }
 static uint32_t api_DeleteBuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
@@ -192,7 +255,7 @@ static uint32_t api_DeleteBuffers(void) {
         uint32_t id = x86_rd32(ARG(1) + 4 * i); if (!id || id >= N) continue;
         if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
             if (bound) { fail(BAD_OP); continue; } }
-        if (buffers[id].gpu) SEND(0x42, buffers[id].gpu);
+        if (buffers[id].gpu && !send(0x42, &buffers[id].gpu, 1)) continue;
         zero(&buffers[id], sizeof(Buffer)); if (array == id) array = 0; if (uniform == id) uniform = 0;
         for (uint32_t j = 0; j < N; j++) {
             if (vaos[j].element == id) vaos[j].element = 0;
@@ -200,6 +263,9 @@ static uint32_t api_DeleteBuffers(void) {
         }
         for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
+        if (copy_read == id) copy_read = 0; if (copy_write == id) copy_write = 0;
+        if (pixel_pack == id) pixel_pack = 0; if (pixel_unpack == id) pixel_unpack = 0;
+        if (texture_buffer == id) texture_buffer = 0;
         for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) tf_bound[j] = 0;
     } return 0;
 }
@@ -227,11 +293,14 @@ static uint32_t api_BindBufferRange(void) {
         tf_buffer = tf_bound[s] = id; tf_offset[s] = id ? (uint32_t)off : 0; tf_size[s] = id ? (uint32_t)size : 0; tf_whole[s] = 0; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    uint32_t s = ARG(1), id = ARG(2), off = ARG(3), size = ARG(4);
-    if (s >= 8 || id >= N || (off & 255) || !size || (uint64_t)off + size > buffers[id].size) {
+    uint32_t s = ARG(1), id = ARG(2); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
+    if (s >= 8 || id >= N || (id && (off < 0 || size <= 0 || (off & 255) ||
+        (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }
-    uniform = id; ubo[s] = id; ubo_offset[s] = off; ubo_size[s] = size; ubo_whole[s] = 0; return 0;
+    if (id) buffers[id].used = 1;
+    uniform = id; ubo[s] = id; ubo_offset[s] = id ? (uint32_t)off : 0;
+    ubo_size[s] = id ? (uint32_t)size : 0; ubo_whole[s] = 0; return 0;
 }
 static uint32_t api_GenVertexArrays(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
@@ -307,7 +376,10 @@ static uint32_t api_VertexAttribDivisor(void) {
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
-        uint32_t pending = error; error = 0; uint32_t result = api_##fn(); \
+        uint32_t pending = error; error = 0; \
+        int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
+            eq(name, "glDeleteBuffers") || eq(name, "glCopyBufferSubData"); \
+        uint32_t result = (!protects_source || flush_padded_cleanup()) ? api_##fn() : 0; \
         if (!error) w32_gl_state_changes += mutates; \
         if (pending) error = pending; return result; \
     }

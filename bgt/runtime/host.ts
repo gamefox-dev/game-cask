@@ -745,10 +745,13 @@ export class GameHost {
     const pending = this.frame.items.filter((it) => it.kind !== 'draw');
     /* LANE-S1: retained update/init GPU work still counts toward the consumed frame's budgets. */
     const gpuUploads = this.frame.gpuUploadBytes, gpuVertices = this.frame.gpuVertices;
+    const {submits, commandBytes, commandCount, continuationSubmits} = this.frame;
     this.frame.reset(this.logicalWidth, this.logicalHeight);
+    this.frame.submits = submits; this.frame.commandBytes = commandBytes;
+    this.frame.commandCount = commandCount; this.frame.continuationSubmits = continuationSubmits;
     this.frame.gpuUploadBytes = gpuUploads;
     this.frame.gpuVertices = gpuVertices;
-    this.frame.items.push(...pending);
+    this.frame.items = pending; // bounded continuation may exceed the JS varargs-call ceiling
     this.state = defaultState(this.logicalWidth, this.logicalHeight);
     this.decodeTime = 0;
     const t0 = this.services.now();

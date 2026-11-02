@@ -63,7 +63,8 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   expect(sources.some((s) => s?.includes('sprite,0.0,1.0)'))).toBe(true);
   expect(sources.some((s) => /0 \\. 0/.test(s ?? ''))).toBe(false);
   expect(new Set(ops(O.UNIFORM_BUFFER).filter((it) => it.words[0] === 1).map((it) => it.words[3])))
-    .toEqual(new Set([16, 32]));
+    .toEqual(new Set([16])); // Linked Scene is 16 bytes, independent of base buffer realloc size.
+  expect(ops(O.BUFFER_CREATE).some(it => it.words[2] === 32 && it.words[1] === 15)).toBe(true);
   expect(sources.some((s) => s?.includes('sampler2D bgt_t0'))).toBe(true);
   // Real WebGPU rejects the old #define-based lowering. Both backends accept ordinary GLSL.
   expect(sources.every(s => !s?.includes('#define'))).toBe(true);

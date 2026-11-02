@@ -41,6 +41,7 @@ describe('ABI layout', () => {
       A.BUTTONS.UP, A.BUTTONS.START, A.BUTTONS.R, A.CAP_DIRECT_DRAW, A.EVENT_FOCUS_LOST, A.FLAG_INTEGER_SCALE,
       4, 29, 40, 44, 79, 82, 225, A.DT_US,
       A.OP.READBACK, A.CAP_READBACK, A.CAP_STREAM_FILES, 16, 12,
+      A.CMD_GPU_CONTINUATION, A.GPU_CONTINUATION_LIMITS.bytes, A.GPU_CONTINUATION_LIMITS.commands,
     ];
     expect([...t].map((v, i) => (expected[i] < 0 ? signed(v) : v))).toEqual(expected);
   });
@@ -78,6 +79,11 @@ describe('ABI layout', () => {
   it('C/TS v0.3 readback encoders agree without changing the v0.2 stream layout',()=>{
     expect(ex.probe_readback()).toBe(0);
     expect(Buffer.from(submitted!)).toEqual(Buffer.from(new CommandEncoder().readback(77,9,1,2,3,4).finish()));
+  });
+
+  it('C/TS GPU continuation headers are byte-identical',()=>{
+    expect(ex.probe_continuation()).toBe(0);
+    expect(Buffer.from(submitted!)).toEqual(Buffer.from(new CommandEncoder().gpu(A.GPU_OP.BUFFER_CREATE,[1,1,16,0,0]).finish(A.CMD_GPU_CONTINUATION)));
   });
 
   it('C encoder reports overflow instead of writing past its buffer', () => {
@@ -164,6 +170,7 @@ describe('v0.3 GPU ABI layout', () => {
       A.GPU_LAYOUT.blit, 0, 4, 8, 12, 16, 32, 48, 52, 56,
       A.GPU_OP.FEEDBACK_VARYINGS, A.GPU_OP.FEEDBACK_CAPTURE, A.GPU_OP.BUFFER_READBACK, A.GPU.BUFFER_FEEDBACK,
       A.GPU_LAYOUT.feedback_varyings,0,4,8,12,16,A.GPU_LAYOUT.feedback_capture,0,4,A.GPU_LAYOUT.buffer_readback,0,4,8,12,
+      A.GPU_OP.BUFFER_COPY,A.GPU_LAYOUT.buffer_copy,0,4,8,12,16,
     ]);
   });
   it('all 30 C GPU encoders exactly match the TS wire-word encoder', () => {
@@ -204,7 +211,7 @@ describe('v0.3 GPU ABI layout', () => {
       .gpu(A.GPU_OP.CLEAR_BUFFER, [1,2,3,4,5,6])
       .gpu(A.GPU_OP.BLIT, [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18])
       .gpu(A.GPU_OP.FEEDBACK_VARYINGS,[1,2,3,4,5]).gpu(A.GPU_OP.FEEDBACK_CAPTURE,[1,2,3,4,5,6,7,8,9,10,11,12,13])
-      .gpu(A.GPU_OP.BUFFER_READBACK,[1,2,3,4])
+      .gpu(A.GPU_OP.BUFFER_READBACK,[1,2,3,4]).gpu(A.GPU_OP.BUFFER_COPY,[1,2,3,4,5])
       .finish();
     expect(submitted).toEqual(expected);
   });
