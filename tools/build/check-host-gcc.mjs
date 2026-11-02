@@ -30,6 +30,10 @@ export function checkHostGcc(cc = findGcc(), run = execFileSync) {
     run(cc, ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o', join(dir, 'x86tool'),
       join(ROOT, 'tools/x86/x86tool.c'), join(ROOT, 'platforms/x86/x86_decode.c')],
     { cwd: ROOT, stdio: 'inherit' });
+    // Compile the actual shared guest allocator and native invariant driver in both widths.
+    for (const width of [0, 1]) run(cc, ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+      '-o', join(dir, `heap-${width}`), `-DW32_64=${width}`, join(ROOT, 'tests/native/heap_driver.c')],
+    { cwd: ROOT, stdio: 'inherit' });
     // Compile the same libc-free GLSL frontend used by the guest; clang alone misses GCC's
     // unused-but-set and misleading-indentation diagnostics in this header.
     run(cc, ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o', join(dir, 'glsl-driver'),

@@ -27,10 +27,12 @@ it('GCC lint accepts unversioned Linux GCC and skips quietly when it is unavaila
   expect(called).toBe(false);
 });
 
-it.each([-1, 0, 1])('GCC lint checks x86 and GLSL and cleans outputs even on compiler failure at call %s', (failAt) => {
+it.each([-1, 0, 1, 2, 3])('GCC lint checks x86, both heap widths and GLSL and cleans outputs even on compiler failure at call %s', (failAt) => {
   const outputs: string[] = [];
   const sources = [
     [expect.stringMatching(/\/tools\/x86\/x86tool\.c$/), expect.stringMatching(/\/platforms\/x86\/x86_decode\.c$/)],
+    ['-DW32_64=0', expect.stringMatching(/\/tests\/native\/heap_driver\.c$/)],
+    ['-DW32_64=1', expect.stringMatching(/\/tests\/native\/heap_driver\.c$/)],
     [expect.stringMatching(/\/tests\/native\/glsl_driver\.c$/)],
   ];
   const run = (cc: string, args: string[]) => {
@@ -44,6 +46,6 @@ it.each([-1, 0, 1])('GCC lint checks x86 and GLSL and cleans outputs even on com
   };
   if (failAt >= 0) expect(() => checkHostGcc('gcc-14', run)).toThrow('warning treated as error');
   else checkHostGcc('gcc-14', run);
-  expect(outputs).toHaveLength(failAt < 0 ? 2 : failAt + 1);
+  expect(outputs).toHaveLength(failAt < 0 ? 4 : failAt + 1);
   for (const output of outputs) expect(existsSync(output)).toBe(false);
 });

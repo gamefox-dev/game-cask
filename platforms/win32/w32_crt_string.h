@@ -1,41 +1,7 @@
 /* String, memory and numeric-conversion bridges. MIT. */
-static uint64_t c_malloc(void) {
-    if (ARG64(0) > UINT32_MAX) { crt_errno(12); return 0; }
-    uint32_t p = w32_heap_alloc(ARG(0), 0);
-    if (!p) crt_errno(12);
-    return p;
-}
-static uint64_t c_calloc(void) {
-    uint64_t a = ARG64(0), b = ARG64(1);
-    if (b && a > UINT32_MAX / b) { crt_errno(12); return 0; }
-    uint32_t p = w32_heap_alloc((uint32_t)(a * b), 1);
-    if (!p) crt_errno(12);
-    return p;
-}
-static uint64_t c_realloc(void) {
-    if (!ARG64(1)) { w32_heap_free(ARG(0)); return 0; }
-    if (ARG64(1) > UINT32_MAX) { crt_errno(12); return 0; }
-    uint32_t p = w32_heap_realloc(ARG(0), ARG(1));
-    if (!p) crt_errno(12);
-    return p;
-}
-static uint64_t c_free(void) { w32_heap_free(ARG(0)); return 0; }
-static uint64_t c_msize(void) { return w32_heap_size(ARG(0)); }
-static uint64_t c_aligned_malloc(void) {
-    uint64_t n = ARG64(0), a = ARG64(1);
-    if (!a || (a & (a - 1))) { crt_errno(22); return 0; }
-    if (a < 8) a = 8;
-    if (n > UINT32_MAX - 8 || a > UINT32_MAX - n - 8) { crt_errno(12); return 0; }
-    uint32_t p = w32_heap_alloc((uint32_t)(n + a + 8), 0);
-    if (!p) { crt_errno(12); return 0; }
-    uint32_t q = (p + 8 + (uint32_t)a - 1) & ~((uint32_t)a - 1);
-    x86_wr64(q - 8, p);
-    return q;
-}
-static uint64_t c_aligned_free(void) {
-    if (ARG(0)) w32_heap_free(cp(x86_rd64(ARG(0) - 8)));
-    return 0;
-}
+#define CA_RETURN uint64_t
+#define CA_ERRNO(e) crt_errno(e)
+#include "w32_crt_alloc.h"
 static uint64_t c_memset(void) {
     if (ARG64(2) > UINT32_MAX) x86_fault("CRT memory size overflow", X.eip);
     if (ARG(2)) memset(cwmem(ARG(0), ARG(2)), (int)ARG(1), ARG(2));

@@ -1,0 +1,133 @@
+{
+  "revision": "d4c30dc",
+  "commit": "d4c30dcc20afc238bc9df3f0efe01c31d4a64fca",
+  "allocator_sha256": "0200eedc63b7e4c3fb91cf6d17851408b70d7e585bdfa2d0d84627f48bd033fd",
+  "workload_sha256": "3b8d3fefcc80c290125421984ac0ada56de126b6bfced1946e1d10af972cb5a3",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
+  "childResources": "46.25 real        45.45 user         0.20 sys\n            11304960  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 916  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                  11  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n               13899  involuntary context switches\n         82867986867  instructions retired\n        166407672774  cycles elapsed\n            11452752  peak memory footprint",
+  "mode": "native -O2, real guest allocator, simulated always-successful mapping; not browser or target timing",
+  "before": {
+    "at": "2026-11-02T06:43:00.908Z",
+    "cpu": "Apple M4",
+    "cpus": 10,
+    "platform": "darwin",
+    "totalmem": 17179869184,
+    "freemem": 194347008,
+    "loadavg": [
+      7.28662109375,
+      7.37939453125,
+      8.0302734375
+    ],
+    "disk": "Filesystem   1024-blocks      Used Available Capacity iused     ifree %iused  Mounted on\n/dev/disk3s5   239362496 196246072  10119044    96% 3024384 101190440    3%   /System/Volumes/Data"
+  },
+  "after": {
+    "at": "2026-11-02T06:43:47.214Z",
+    "cpu": "Apple M4",
+    "cpus": 10,
+    "platform": "darwin",
+    "totalmem": 17179869184,
+    "freemem": 189530112,
+    "loadavg": [
+      8.6220703125,
+      7.6396484375,
+      8.0869140625
+    ],
+    "disk": "Filesystem   1024-blocks      Used Available Capacity iused     ifree %iused  Mounted on\n/dev/disk3s5   239362496 196272412  10092704    96% 3024576 100927040    3%   /System/Volumes/Data"
+  },
+  "wall_ms": 46304.020833999995,
+  "rows": [
+    {
+      "phase": 0,
+      "live": 4005,
+      "allocations": 25000,
+      "operations": 67662,
+      "ns_per_operation": 3620.363,
+      "ns_per_allocation_mixed_work": 9798.44,
+      "extent": 1022016
+    },
+    {
+      "phase": 1,
+      "live": 8005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 11339.146,
+      "ns_per_allocation_mixed_work": 30691.44,
+      "extent": 2041648
+    },
+    {
+      "phase": 2,
+      "live": 12005,
+      "allocations": 25000,
+      "operations": 67666,
+      "ns_per_operation": 20551.547,
+      "ns_per_allocation_mixed_work": 55625.64,
+      "extent": 3062496
+    },
+    {
+      "phase": 3,
+      "live": 16005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 39004.315,
+      "ns_per_allocation_mixed_work": 105572.2,
+      "extent": 4080544
+    },
+    {
+      "phase": 4,
+      "live": 20005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 60822.986,
+      "ns_per_allocation_mixed_work": 164628.36,
+      "extent": 5101296
+    },
+    {
+      "phase": 5,
+      "live": 24005,
+      "allocations": 25000,
+      "operations": 67666,
+      "ns_per_operation": 70618.006,
+      "ns_per_allocation_mixed_work": 191137.52,
+      "extent": 6119536
+    },
+    {
+      "phase": 6,
+      "live": 28005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 82548.569,
+      "ns_per_allocation_mixed_work": 223432.56,
+      "extent": 7139408
+    },
+    {
+      "phase": 7,
+      "live": 32005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 102398.17,
+      "ns_per_allocation_mixed_work": 277159.08,
+      "extent": 8160224
+    },
+    {
+      "phase": 8,
+      "live": 36005,
+      "allocations": 25000,
+      "operations": 67666,
+      "ns_per_operation": 133952.487,
+      "ns_per_allocation_mixed_work": 362561.16,
+      "extent": 9177472
+    },
+    {
+      "phase": 9,
+      "live": 40005,
+      "allocations": 25000,
+      "operations": 67667,
+      "ns_per_operation": 149858.129,
+      "ns_per_allocation_mixed_work": 405618,
+      "extent": 10198224
+    },
+    {
+      "checksum": 1249975000
+    }
+  ]
+}
