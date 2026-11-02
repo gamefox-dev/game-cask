@@ -13,7 +13,11 @@ describe('WebGL native indexed-swizzle out/inout boundary is contained before co
     expect(() => validateNativeLvalues(`void put(out float a){} void main(){vec4 v; int i=0; put(${place});}`)).not.toThrow();
   });
   it('handles nested calls/argument commas and parenthesized indices', () => {
-    expect(() => validateNativeLvalues('struct B { vec4 v; }; void put(float a, inout float b){} void main(){B box; put(max(a,b), box.v.yx[(next())]);}')).toThrow(indexedSwizzleDiagnostic);
+    expect(() => validateNativeLvalues('struct B { vec4 v; }; void put(inout float b){} void main(){B box; put((box.v).yx[(next())]);}')).toThrow(indexedSwizzleDiagnostic);
+  });
+  it('records comma-separated struct members and chooses the matching overload', () => {
+    expect(() => validateNativeLvalues('struct B { vec4 unused, v; }; void put(out float a){} void main(){B box; put(box.v.wy[i++]);}')).toThrow(indexedSwizzleDiagnostic);
+    expect(() => validateNativeLvalues('void put(out float a){} float put(float a,float b){return a+b;} void main(){vec4 v; o=vec4(put(v.wy[i++],0.5));}')).not.toThrow();
   });
   it('does not confuse indexed struct-array members with vector swizzles', () => {
     const source = '#version 330 core\nstruct S { float rgba[2]; }; void put(out float a) { a=1.0; } void main(){S s; int i=0; put(s.rgba[i]);}';

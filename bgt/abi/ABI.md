@@ -785,6 +785,23 @@ conversion. Backend rewriting/wrappers may use private names prefixed `bgt_inter
 that prefix. Pipeline reflection/link/target incompatibility detected after decoding reports E_IO with diagnostic
 through the renderer's onError channel; module compile errors always complete the shader request with log.
 
+**GLSL frontend contracts and native boundary (K9a; no wire additions).** The maintained GLSL330/ES300 paths
+preserve 32-bit decimal/octal/hex integer literals (either-case hex prefix and unsigned suffix), aggregate scalar
+`==`/`!=` semantics, selected-branch-only conditional evaluation, and function `out`/`inout` copy-in/copy-out.
+Call arguments evaluate once; output storage indices are fixed at argument evaluation. Aliased output parameters
+have independent parameter storage; where GLSL leaves copy-out order undefined, the WG frontend copies left-to-right.
+Mutable `in` parameters are local copies. Vector swizzles, scalar array elements and struct members are supported
+lvalues. Unsupported syntax/types still fail compilation, not successful no-ops. WebGPU suppresses its stricter
+`derivative_uniformity` diagnostic for translated GLSL: derivatives in nonuniform flow retain GLSL's undefined-result
+boundary, not a portable derivative-value guarantee.
+
+**WebGL 2 native boundary:** passing a dynamically indexed multi-component vector swizzle as an `out`/`inout`
+argument, for example `put(v.wy[i++])` (including parenthesized bases or struct-contained vectors), is rejected before
+native compilation with an explicit `WebGL 2 native boundary` diagnostic and shader status `E_IO`. Direct swizzles,
+scalar array elements and struct members (even array members named `rgba`) are not this boundary. This contains a
+native ANGLE failure; a subsequent unrelated shader must still compile and render. The equivalent WebGPU lowering
+is numerically tested. No shader-language mask, opcode, layout, C enum or TS decoder value changes here.
+
 ### 13.6 Extended limits, backend handoff and recovery
 
 The old 16-byte `bgt_gpu_limits_t` stays unchanged. `gpu_limits(dst,cap)` with cap 16..79 still writes 16 bytes and

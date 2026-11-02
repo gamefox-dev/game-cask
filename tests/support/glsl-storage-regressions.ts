@@ -15,6 +15,8 @@ export const storageRegressions: GlslRegression[] = [
     float a=0.25; vec2 b=vec2(0.0); adjust(a); adjust(b);`,
     'user == 2 && builtin == vec4(1.0) && a == 0.75 && b == vec2(0.25,0.5)',
     'int mix(int x,int y,bool p){return p ? y : x;} void adjust(inout float a){a += 0.5;} void adjust(out vec2 b){b=vec2(0.25,0.5);}'),
+  check('by-value-overload-indexed-swizzle', 'vec4 v=vec4(0.0); int i=1; float a=put(v.wy[i++],0.5);',
+    'a == 0.5 && i == 2', 'void put(out float a){a=0.25;} float put(float a,float b){return a+b;}'),
   check('indexed-struct-member-not-swizzle', 'Indexed s; int i=0; put(s.rgba[i++]); put(s.xy[i++]);',
     's.rgba[0] == 0.25 && s.xy[1] == 0.25 && i == 2',
     'struct Indexed { float rgba[2]; float xy[2]; }; void put(out float a){a=0.25;}'),
