@@ -1,5 +1,14 @@
 # v0.3 merged implementation status
 
+## K16a checkpoint — Q50 bounded GL frontend (lane, not merged acceptance)
+
+Implementation `0f7d459` releases transient GLSL parse tables after compile/link, retains compiled-source snapshots,
+reuses bounded host spans across sizes, exposes compile/link failure reasons and host allocator metrics, and adds
+CC0 shader-cache stress/lifetime/OOM regressions. Reproduced pre-fix 64 MiB exhaustion at warm-up cycle 113; after
+768 cycles all 15 supplied fragment stages pass the profile frontend and both native browser stage compilers.
+Six focused native tests and three real-browser stress/pixel tests pass; fresh independent bounded source/failure
+review is **PASS**. Full Tier 1 is **still running**, so no final acceptance/title/playability claim. Resume from [K16a handoff](handoff/K16a.md).
+
 ## Integration I9 final — K14b + K14a + K15h
 
 Ordered `--no-ff` merges **`db5dc46`** (K14b / `c09faa7`), **`5bbe48a`** (K14a / `fe3b72e`), then
