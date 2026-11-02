@@ -1,9 +1,11 @@
 # v0.3 merged implementation status
 
-K10 execution profiling/coverage lane is delivered on its branch through `b543d1a`: sampled timing and resettable
-census windows, no-`-g` named profiling, wasm-local coverage buffering and exact native Asyncify exclusions. Final
-lane-wide gates are being finalized; no merged-tree/Tier1/game acceptance is asserted here. See [K10 handoff](handoff/K10.md)
-and committed same-toolchain [benchmark report](../tools/bench/README-execution.md).
+K10 execution profiling/coverage lane is delivered on its branch: sampled timing/resettable census windows,
+no-`-g` named profiling, wasm-local coverage buffering and exact native Asyncify exclusions. Final implementation
+`d9b0603` is locally Tier1 green: doctor, clang/GCC lint (29 builds), typecheck, **803 units/73 files**, **218 browser
+passes/51 intentional skips**, leakcheck and **25×300=7500 identical oracle pairs**. This is lane evidence, not a new
+merged-tree/game acceptance claim. F-PERF-CRT remains open (final0.97× reference); the138MiB named game rebuild
+remains porter verification. See [K10 handoff](handoff/K10.md) and [benchmarks](../tools/bench/README-execution.md).
 
 ## K8a Q21 final completion
 
