@@ -33,8 +33,9 @@ it('core default element-buffer uploads are owned and retained across real VAOs;
   }
   expect(updates.some(i => i.words[1] === 0 && i.data!.length === 49152)).toBe(true);
   const indexed = stream.items.filter(i => i.op === O.DRAW_INDEXED);
-  expect(indexed.length).toBeGreaterThanOrEqual(5);
-  expect(indexed.slice(0, 5).map(i => i.words)).toEqual([0,6,12,18,24].map(first => [6,1,first,0,0]));
+  expect(indexed.length).toBeGreaterThanOrEqual(6);
+  expect(indexed[0].words).toEqual([1,1,0,0,0]); // valid no-attribute named-VAO control
+  expect(indexed.slice(1, 6).map(i => i.words)).toEqual([0,6,12,18,24].map(first => [6,1,first,0,0]));
   const indexBindings = stream.items.filter(i => i.op === O.INDEX_BUFFER);
   expect(indexBindings.length).toBe(indexed.length);
   expect(indexBindings.every(i => i.words.join() === '10,0,0,49152')).toBe(true);
