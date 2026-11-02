@@ -812,6 +812,21 @@ const char *w32_metrics_json(void) {
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);
+    jkv("host_bytes", x86_host_used);
+    jkv("host_peak", x86_host_peak);
+    jkv("host_reserved", x86_host_reserved);
+    jkv("host_limit", x86_host_limit());
+    jput("\"host_consumers\":{");
+    for (unsigned c = 0; c < XH_COUNT; c++) {
+        if (c) jput(",");
+        jput("\""); jput(x86_host_consumer(c)); jput("\":{");
+        jkv("used", x86_host_stats[c].used); jkv("peak", x86_host_stats[c].peak);
+        jkv("limit", x86_host_limit()); jkv("allocations", x86_host_stats[c].allocations);
+        jkv("frees", x86_host_stats[c].frees); jkv("oom", x86_host_stats[c].oom);
+        jkv("backing_requested", x86_host_stats[c].backing_requested);
+        jput("\"shared_limit\":true}");
+    }
+    jput("},");
     jkv("gl_frontend_bytes", w32_gl_frontend_bytes);
     jkv("gl_frontend_peak", w32_gl_frontend_peak);
     jkv("gl_frontend_reserved", w32_gl_frontend_reserved);

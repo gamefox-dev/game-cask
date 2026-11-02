@@ -7,7 +7,7 @@ static void file_sync_aliases(crt_file_t *f) {
 static uint8_t *file_buffer(crt_file_t *f) {
     if(f->user_buffer)return cwmem(f->user_buffer,f->capacity);
     if(!f->capacity)f->capacity=16384;
-    if(!f->buffer)f->buffer=malloc(f->capacity);
+    if(!f->buffer)f->buffer=x86_host_alloc(XH_FILE,f->capacity);
     if(!f->buffer){f->error=1;crt_errno(12);}
     return f->buffer;
 }

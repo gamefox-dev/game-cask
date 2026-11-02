@@ -187,6 +187,13 @@ function overrides(gameDir) {
  * Run the pipeline for one game. Returns extra compile inputs/flags for build.mjs plus a report.
  * `outAssetsDir` receives the original module images (private build output).
  */
+export function hostArenaSize(memory = {}) {
+  const n = memory?.hostArenaMiB ?? 64;
+  if (!Number.isInteger(n) || n < 16 || n > 512) {
+    throw new Error('pipeline.memory.hostArenaMiB must be an integer in 16..512');
+  }
+  return n;
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
   const policy = liftPolicy(p);
@@ -194,6 +201,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
   }
+  const hostArenaMiB = hostArenaSize(p.memory);
   const recorded=cfg.slice?.coverage ?? p.coverage;
   const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
   const sliceCode=new Set(), sliceRanges=[], codeRanges=[];
@@ -379,7 +387,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
     liftPolicy: policy,
-    memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB: 64 } : null,
+    memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB } : null,
     interpretOnly: !!p.interpretOnly,
     ...(plan ? {discovery:{input_recordings:plan.recordings,recorded_entries:plan.code.size}} : {}),
     ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
@@ -400,6 +408,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
       `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
+        `-DX86_HOST_ARENA_BYTES=${hostArenaMiB}u*1048576u`,
         '-D_GNU_SOURCE', '-fno-math-errno'] : []),
       '-Wno-unused-label', '-Wno-unused-but-set-variable', '-Wno-unused-variable',
     ],

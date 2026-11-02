@@ -15,7 +15,13 @@ static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
 static uint32_t live_modules[1024], module_creates;
 static uint32_t reject_transport;
-void *x86_alloc(uint32_t n) { n=(n+15)&~15u; if(n>sizeof host-top){rejected_size=n;return 0;} void *p=host+top;top+=n;memset(p,0,n);return p; }
+static void *x86_host_backing(uint32_t n) { n=(n+15)&~15u; if(n>sizeof host-top){rejected_size=n;return 0;} void *p=host+top;top+=n;memset(p,0,n);return p; }
+uint64_t x86_host_limit(void) { return sizeof host; }
+static char host_diagnostic[512];
+void bgt_log(uint32_t level,const char *p,uint32_t n) { (void)level;/* no allocator recursion */
+    if(n>=sizeof host_diagnostic)abort();memcpy(host_diagnostic,p,n);host_diagnostic[n]=0;
+}
+#include "../../platforms/x86/x86_host.h"
 uint32_t x86_rd8_slow(uint32_t a){return memory[a];}
 uint32_t x86_rd16_slow(uint32_t a){uint16_t v;memcpy(&v,memory+a,2);return v;}
 uint32_t x86_rd32_slow(uint32_t a){uint32_t v;memcpy(&v,memory+a,4);return v;}
@@ -145,6 +151,42 @@ static void backend_failure(void) {
     call(api_DeleteShader,s,0,0,0);CHECK(w32_gl_frontend_bytes==0);
     printf("backend rejected compile and command submission failures remain visible OK\n");
 }
+static void consumers(void) {
+    /* Drain the shared reservation as GL, not just one private pool. CRT and FILE must fail
+     * truthfully, then recover from exactly those GL spans without new arena backing. */
+    void *held[2048];uint32_t count=0;
+    for(uint32_t n=1u<<20;n>=32;n/=2) { void *p;while((p=x86_host_alloc(XH_GL,n))!=0){CHECK(count<2048);held[count++]=p;} }
+    uint32_t old=top;
+    CHECK(!x86_host_alloc(XH_FILE,16384));
+    CHECK(strstr(host_diagnostic,"consumer=file size=16384")&&strstr(host_diagnostic," used=")&&strstr(host_diagnostic," limit=67108864"));
+    CHECK(x86_host_stats[XH_FILE].oom==1);
+    CHECK(!x86_host_alloc(XH_CRT,65536));CHECK(strstr(host_diagnostic,"consumer=crt size=65536"));
+    for(uint32_t i=0;i<count;i++)x86_host_free(held[i]);
+    CHECK(x86_host_used==0);
+    void *files[48];for(uint32_t i=0;i<48;i++){files[i]=x86_host_alloc(XH_FILE,16384);CHECK(files[i]);}
+    void *crt=x86_host_alloc(XH_CRT,1000000);CHECK(crt);memset(crt,0x45,1000000);
+    CHECK(!x86_host_realloc(crt,UINT64_MAX));CHECK(((uint8_t *)crt)[999999]==0x45);
+    CHECK(x86_host_realloc(crt,1)==crt);
+    CHECK(!x86_host_realloc(crt,0));
+    for(uint32_t i=0;i<48;i++)x86_host_free(files[i]);
+    CHECK(top==old&&x86_host_used==0);
+    CHECK(x86_host_stats[XH_FILE].used==0&&x86_host_stats[XH_FILE].peak>=48*16384);
+    /* Bidirectional reuse and accounting conservation, including permanent runtime blocks. */
+    uint32_t rng=29;void *slots[128]={0};uint32_t sizes[128]={0};
+    void *permanent=x86_alloc(4096);CHECK(permanent);
+    for(uint32_t i=0;i<30000;i++) {
+        rng=rng*1664525u+1013904223u;unsigned k=rng%128;
+        if(slots[k]){for(uint32_t j=0;j<sizes[k];j++)CHECK(((uint8_t *)slots[k])[j]==(uint8_t)k);x86_host_free(slots[k]);slots[k]=0;}
+        else{rng=rng*1664525u+1013904223u;sizes[k]=rng%90000+1;slots[k]=x86_host_alloc(1+i%3,sizes[k]);CHECK(slots[k]);memset(slots[k],k,sizes[k]);}
+        uint64_t sum=0,backing=0;for(unsigned c=0;c<XH_COUNT;c++){sum+=x86_host_stats[c].used;backing+=x86_host_stats[c].backing_requested;}
+        CHECK(backing==x86_host_reserved);
+        CHECK(sum==x86_host_used&&x86_host_used<=x86_host_reserved&&x86_host_reserved<=x86_host_limit());
+    }
+    for(unsigned i=0;i<128;i++)x86_host_free(slots[i]);
+    CHECK(x86_host_used==x86_host_stats[XH_RUNTIME].used&&top==old);
+    printf("consumers bidirectional GL/CRT/FILE reuse random=30000 runtime=%llu peak=%llu limit=%llu OK\n",
+        (unsigned long long)x86_host_used,(unsigned long long)x86_host_peak,(unsigned long long)x86_host_limit());
+}
 static void allocator(void) {
     void *a=glp_alloc(65520),*b=glp_alloc(65520),*c=glp_alloc(65520);CHECK(a&&b&&c);
     memset(a,0xff,65520);glp_free(a,65520);glp_free(b,65520);glp_free(c,65520);uint32_t old=top;
@@ -164,7 +206,7 @@ int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
     if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
-    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else return 2;
+    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
 }

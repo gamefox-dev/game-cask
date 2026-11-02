@@ -510,13 +510,39 @@ Configure guest memory in game.json:
 ```json
 "pipeline": {
   "platform": "win32",
-  "memory": { "guestWindowMiB": 2048 },
+  "memory": { "guestWindowMiB": 2048, "hostArenaMiB": 64 },
   "modules": [{ "from": "./program.exe", "main": true }]
 }
 ```
 
-The integer range is 128..2048, default 1024; the manifest repeats `memory.guestWindowMiB`, `growth:"on-demand"` and
-`hostArenaMiB:64`. Guest malloc/heap is 16-byte aligned and returns NULL on ordinary exhaustion/overflow.
+The guest-window integer range is 128..2048, default 1024; the manifest repeats `memory.guestWindowMiB`,
+`growth:"on-demand"` and the configured `hostArenaMiB`. Guest malloc/heap is 16-byte aligned and returns NULL on
+ordinary exhaustion/overflow.
+
+For AMD64, `pipeline.memory.hostArenaMiB` is an integer in **16..512**, default **64 MiB**. It bounds host
+allocations before the checked flat guest window, not guest malloc. Reserving address space does not eagerly
+commit the whole reservation. Change it at build time; it cannot move underneath a running guest. The 64 MiB
+default is retained from measured evidence: the original retained-frontends workload exhausted it at cycle 113;
+after lifetime repair a stronger 768-cycle / 96-live-program workload plateaus near 18 MiB. Increase only for
+measured legitimate live host demand, not to hide missing releases. This is not a mobile-RSS guarantee.
+
+All host allocations use one address-ordered split/coalescing pool; freed GL source/frontend/buffer spans,
+CRT libc allocations and CRT FILE buffers can be reused across consumers. Permanent runtime/index allocations
+remain live for the instance (the wasm instance owns teardown). `host_bytes/host_peak/host_reserved/host_limit`
+report charged live bytes / live high-water / backing retained for reuse / shared limit. `host_consumers` has
+`runtime/gl/crt/file` entries with `used/peak/limit/allocations/frees/oom/backing_requested/shared_limit`. Headers and 16-byte
+rounding are charged; these are allocator bytes, not RSS. Per-consumer limits are the **same shared limit**, not
+independent quotas or guaranteed headroom; genuinely exhausted live demand can fail any consumer. On paged i386,
+host and mapped guest pages share the pre-existing wasm32 address-space bound; the flat reservation option is AMD64-only.
+Legacy `gl_frontend_*` metrics retain GL live/peak/count semantics; `gl_frontend_reserved` records cumulative
+backing obtained on GL allocation requests (`gl.backing_requested`), not the total shared backing or a private
+GL reservation. A consumer can borrow backing obtained by others, so its live peak can exceed its own backing
+contribution. The sum of consumer backing contributions equals `host_reserved`. Every allocation failure emits a no-allocation diagnostic naming consumer,
+requested size, consumer use, total use, backing and limit. CRT preserves ENOMEM/ferror, and compile/link retains
+app-readable logs plus GL_OUT_OF_MEMORY. No wire ABI, renderer opcode or capability changes are involved.
+Known GDI CPU/replay lifetime issues are separately handed off in [K16a](handoff/K16a.md); accounting those
+legacy permanent allocations as runtime does not claim their missing frees are repaired.
+
 K12 uses deterministic bounded-work segregated free lists, eager boundary-tag coalescing and separate logical
 heap ownership/quotas; requested sizes survive size-class rounding. HEAP_GENERATE_EXCEPTIONS failure uses
 existing AMD64 SEH or an explicit unavailable-continuation diagnostic. The native performance benchmark is

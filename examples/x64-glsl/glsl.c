@@ -59,6 +59,10 @@ static void expect_uniform(GLuint p, const char *name, GLenum type, GLint size) 
  * This runs through actual BGT/native compiler requests on both browser backends. */
 static void frontend_stress(void) {
     GLuint cache[80] = {0}; static char text[100000];
+    /* Eight parent streams remain buffered while resource streams churn during shader warm-up.
+     * All bytes are original CC0 fixture data; immutable VFS reads must not starve behind GL. */
+    FILE *parents[8];
+    for (unsigned i = 0; i < 8; i++) { parents[i] = fopen("host-read.txt", "rb"); check(parents[i] && fgetc(parents[i]) == 'C', "parent FILE first byte failed"); }
     const char *vertex = "#version 330 core\nvoid main(){gl_Position=vec4(0.0);}";
     for (unsigned i = 0; i < 256; i++) {
         if (cache[i % 80]) glDeleteProgram(cache[i % 80]);
@@ -75,8 +79,18 @@ static void frontend_stress(void) {
         glDeleteShader(vs); glDeleteShader(fs);
         if (i % 4 == 0) { GLint ok = 0; glLinkProgram(p); glGetProgramiv(p, GL_LINK_STATUS, &ok); check(ok, "stress relink failed"); }
         check(glGetError() == GL_NO_ERROR, "frontend stress GL error");
+        for (unsigned j = 0; j < 8; j++) {
+            FILE *f = fopen("host-read.txt", "rb"); check(f != 0, "stress fopen failed");
+            unsigned char bytes[302]; check(fgetc(f) == 'C', "stress FILE first byte failed");
+            rewind(f); check(fread(bytes, 1, sizeof bytes, f) == sizeof bytes, "stress FILE full read failed");
+            check(!ferror(f) && fgetc(f) == EOF && feof(f), "stress FILE EOF/error failed");
+            for (unsigned k = 0; k < sizeof bytes; k++) check(bytes[k] == (unsigned char)('A' + (k + 2) % 26), "stress FILE payload corrupt");
+            check(fclose(f) == 0, "stress fclose failed");
+        }
     }
     for (unsigned i = 0; i < 80; i++) glDeleteProgram(cache[i]);
+    for (unsigned i = 0; i < 8; i++) check(fclose(parents[i]) == 0, "parent fclose failed");
+    OutputDebugStringA("x64-glsl shared host stress PASS files=2048 parents=8 bytes=302");
     OutputDebugStringA("x64-glsl frontend stress PASS cycles=256 retained=80");
 }
 static void put_f(unsigned char *b, int off, float v) { memcpy(b + off, &v, 4); }

@@ -5,36 +5,21 @@
 #include "w32_handles.h"
 #ifdef X86_FLAT_GUEST
 
-/* musl's allocator must never grow across the flat guest window. Host blocks live in x86_alloc's
- * bounded 64 MiB arena. Free blocks are reusable; guest malloc uses the separate guest heap. */
-typedef struct host_block { struct host_block *next; uint32_t size, used, reserved; } host_block_t;
-static host_block_t *host_blocks;
+/* Host libc and FILE buffers share reusable spans with GL, never musl's growing heap
+ * across the guest window. Guest malloc still uses the separate Windows guest heap. */
 void *malloc(size_t n) {
-    if (n > UINT32_MAX - 32) return 0;
-    n = (n + 15u) & ~15u;
-    if (!n) n = 16;
-    for (host_block_t *b = host_blocks; b; b = b->next) if (!b->used && b->size >= n) {
-        b->used = 1; return b + 1;
-    }
-    host_block_t *b = x86_alloc((uint32_t)n + sizeof *b);
-    if (!b) return 0;
-    b->size = n; b->used = 1; b->next = host_blocks; host_blocks = b;
-    return b + 1;
-}
-void free(void *p) { if (p) ((host_block_t *)p - 1)->used = 0; }
-void *calloc(size_t a, size_t b) {
-    if (b && a > SIZE_MAX / b) return 0;
-    void *p = malloc(a * b);
-    if (p) memset(p, 0, a * b);
+    void *p = x86_host_alloc(XH_CRT, n);
+    if (!p) errno = ENOMEM;
     return p;
 }
+void free(void *p) { x86_host_free(p); }
+void *calloc(size_t a, size_t b) {
+    if (b && a > SIZE_MAX / b) { x86_host_alloc(XH_CRT, UINT64_MAX); errno = ENOMEM; return 0; }
+    return malloc(a * b); /* host spans are explicitly zeroed on every reuse */
+}
 void *realloc(void *p, size_t n) {
-    if (!p) return malloc(n);
-    if (!n) { free(p); return 0; }
-    host_block_t *b = (host_block_t *)p - 1;
-    if (b->size >= n) return p;
-    void *q = malloc(n);
-    if (q) { memcpy(q, p, b->size); free(p); }
+    void *q = x86_host_realloc(p, n);
+    if (!q && n) errno = ENOMEM;
     return q;
 }
 

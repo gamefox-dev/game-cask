@@ -22,6 +22,7 @@ for (const [mode, marker] of [
   ['allocator', 'allocator split/coalesce/zero/overflow OK'],
   ['backend-failure', 'backend rejected compile and command submission failures remain visible OK'],
   ['buffers', 'buffer reupload/delete cycles=600 reusable host memory OK'],
+  ['consumers', 'consumers bidirectional GL/CRT/FILE reuse random=30000'],
 ]) it('GL frontend bounded host memory: ' + mode, () => {
   const result = execFileSync(exe, [mode], { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
   expect(result).toContain(marker);
