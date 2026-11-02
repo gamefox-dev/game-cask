@@ -24,6 +24,8 @@ typedef struct {
 typedef struct { uint32_t binding; } Block;
 typedef struct {
     uint32_t used, linked, vs, fs, vgpu, fgpu, nb, ubuf, dirty, usize, nslots, ndef, nout, validated, deleted;
+    uint32_t vertex_only, tf_count, tf_separate, tf_link_count, tf_link_separate, tf_stride[4], tf_format[16], tf_type[16];
+    char tf_names[16][GS_NAME], tf_link_names[16][GS_NAME], tf_builtin_names[2][GS_NAME];
     Gp *info; uint8_t *values; uint32_t slot_unit[8]; Block block[7];
     GpBinding abind[GP_MAX_BINDINGS], obind[GP_MAX_BINDINGS]; uint32_t nab, nob; char log[4096];
 } Program;

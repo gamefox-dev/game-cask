@@ -1,6 +1,7 @@
 // GLSL 3.30 and ES 3.00 share the portable §13 graphics subset. Unsupported desktop-only
 // constructs fail compilation with a request log, rather than being silently reinterpreted.
 // WGSL is WebGPU-only: no pinned, maintained translator is shipped with this kit.
+import { validateNativeLvalues } from './glsl-boundaries';
 function globalDeclarations(source: string): string[] {
   const clean = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, ' ').replace(/^\s*#.*$/gm, '');
   const result: string[] = [];
@@ -54,6 +55,7 @@ function selectorMixOverloads(source: string): string {
 export function translateShader(source: string, stage: number, language: number): string {
   if (language !== 1 && language !== 2) throw new Error('WGSL requires WebGPU');
   const clean = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, comment => comment.replace(/[^\n]/g, ' '));
+  validateNativeLvalues(clean);
   const version = language === 1 ? /^\s*#version[ \t]+330[ \t]+core[ \t]*(?:\r?\n|$)/ :
     /^\s*#version[ \t]+300[ \t]+es[ \t]*(?:\r?\n|$)/;
   if (!version.test(clean)) throw new Error('Shader version does not match declared language');

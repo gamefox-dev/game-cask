@@ -1,5 +1,35 @@
 # v0.3 merged implementation status
 
+## Integration I7 — K9a + K9b
+
+Integration commit **`2638514`** merges K9a with lane K9b/K9c using `--no-ff`, preserving K9a's GLSL integer,
+aggregate-equality, lazy-expression and copy-in/copy-out lowering through K9b's WebGPU transform-feedback
+vertex-to-compute path, plus K9b's Q34 transform feedback and Q35 blits. The conflict resolution exports the shared
+identifier mangler while retaining K9a's complete reserved-word mapping. An original CC0 regression combines hex
+literals, vector/struct equality and an inout helper in a captured vertex shader; exact interleaved/separate bytes
+pass in GLSL330 and ES300 on both backends. Final gates: **965 unit tests / 71 files**, **228 browser passes / 51
+unchanged intentional skips**, doctor, Clang + real GCC lint (**30 example checks**), typecheck and leakcheck pass;
+**27 pipeline oracles × 300 frames = 8,100 identical pairs**, with zero lifted interpretation and empty stubs.
+Details: [I7 handoff](handoff/integration-i7.md).
+
+## K9a GLSL translation contracts
+
+K9a adds full 32-bit integer literal/constant handling, scalar aggregate equality, lazy conditional/short-circuit
+expression lowering and `out`/`inout` copy-in/copy-out with mutable caller storage, plus original CC0 cross-backend
+numerical regressions. Scratch-only audit: **135 captured submissions / 61 unique sources**, all translate and compile
+on both actual native compilers (stage compilation, not captured pipeline/render certification). WebGL 2 explicitly
+rejects the native boundary `put(v.wy[dynamicIndex])` for out/inout parameters before native compilation; later unrelated
+shader compilation/rendering is tested. Direct swizzles, array elements, members and aliases remain supported.
+Final gates on `3dbd9e0`: doctor, clang + GCC lint (28 example checks), typecheck and leakcheck pass;
+**939 units / 68 files**, **218 browser passes / 51 intentional skips**, **25 pipeline oracles × 300 frames = 7,500
+identical pairs**. Original numeric corpus: **350 rendered results** (348 common + 2 WebGPU native-boundary controls),
+plus two explicit WebGL rejections and subsequent successful renders. Fresh independent bounded review passes.
+No wire ABI changes or target first-draw/title/playability claim. Details: [K9a handoff](handoff/K9a.md).
+
+## K9b / K9c Q34 and Q35
+
+Lane K9c (`3fea2b8`, `a256b2a`) implements ordered transform feedback (§13.11 / opcodes 0x61..0x63) on both backends: native WebGL2 capture and separate WebGPU vertex→compute lowering, pending/linked interfaces, original builtin capture, interleaved/separate buffers, ordering/discard/queries/errors and exact native readback. The original CC0 `x64-gl-feedback` fixture has **100 guest checks per backend**, exact captured bytes and cross-backend finish pixels; native edge regressions cover unaligned fetches, failed-link/setup cleanup, fail-closed generated-buffer recovery and 4.2M expanded strip outputs. Fresh independent source review at `a256b2a`: **PASS within bounded read-only scope**, no Tier1 attribution. Lane K9b's single-sample blits (§13.10 / 0x60, `3776c8e`) remain covered. Final Tier 1: **813 units / 69 files**, **226 browser passes / 51 existing skips**, **27 × 300 = 8,100 identical pipeline oracle pairs**, doctor, ESLint + clang/real-GCC lint (30 check-builds), typecheck and leakcheck green. Generated-buffer recovery fails closed rather than restoring stale bytes; array/matrix varyings and native-WGSL capture remain explicit errors. No target first-draw/title or unrestricted GL33 claim. See [K9b/K9c handoff](handoff/K9b.md).
+
 ## K8a Q21 final completion
 
 Lane K8a continuation 3 completes the bounded Q21 GL contracts on top of `39c42d5`. The final implementation commits
@@ -163,8 +193,8 @@ stage. The shader frontend uses pooled storage (1 MiB source/expansion, 512 unif
 8 samplers/7 user blocks); texture uploads remain bounded by the ABI. K6a adds color texture/FBO readback and
 validated pixel-store conversion, nonzero mips, renderbuffers and multiple draw buffers. No cube/1D/rectangle/MSAA,
 layered/3D attachment, depth transfer or integer/SNORM/compressed-format support is claimed. Array-shadow/integer
-samplers, dynamic sampler indexing/parameters, row-major/block-array/interface-block translation and specified
-non-square matrix forms remain unsupported. Mapping/query/sync APIs, conversions outside
+samplers, dynamic sampler indexing/parameters, row-major/block-array/interface-block translation remain unsupported. K9a adds all 2..4-column/row matrix forms to the WG frontend, including padded std140 two-row matrices;
+the separate GL profile's existing non-square limitations are unchanged. Mapping/query/sync APIs, conversions outside
 float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1, scissored/masked clears, reversed depth ranges
 and constant-alpha combinations are unsupported or visibly rejected. Legal border wrap and LOD bias parameters
 remain queryable counted approximations. See [K6a](handoff/K6a.md), [K6b](handoff/K6b.md) and the superseding

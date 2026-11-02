@@ -3,6 +3,9 @@ import { E_IO, GPU_OP as OP } from '../../runtime/abi';
 import type { GpuBackend, GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
+import { WebGPUBlit, type BlitImage } from './blit';
+import { lowerFeedback, type FeedbackInput } from './feedback';
+import { feedbackLayout, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
 import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
@@ -29,7 +32,7 @@ const vertexFormats: GPUVertexFormat[] = [
   'sint32x4', 'uint32', 'uint32x2', 'uint32x3', 'uint32x4',
 ];
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
-interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer> }
+interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean }
 interface TextureResource {
   native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
@@ -67,6 +70,13 @@ export class WebGPUCommands implements GpuBackend {
   private pending = new Set<ShaderResource>();
   private failedShaders = new Map<number, GpuItem>();
   private readbacks = new Set<GpuItem>();
+  private framebufferBlit?: WebGPUBlit;
+  private feedback = new Map<number, FeedbackLayout>();
+  private feedbackPipelines = new Map<string,GPUComputePipeline>();
+  private capture?: readonly number[];
+  private passDescriptor?: GPURenderPassDescriptor;
+  private scissor = [0,0,1,1];
+  private blendConstant = [0,0,0,0];
 
   constructor(private device: GPUDevice, private error: (message: string) => void) {}
 
@@ -94,7 +104,9 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   async restore(device: GPUDevice): Promise<void> {
+    if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     this.device = device;
+    this.framebufferBlit = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
@@ -143,9 +155,21 @@ export class WebGPUCommands implements GpuBackend {
   private run(item: GpuItem): void {
     const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
     switch (op) {
+      case OP.FEEDBACK_VARYINGS: this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
+      case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.BUFFER_READBACK: this.bufferReadback(item); break;
+      case OP.BLIT: {
+        const image = (h: number, mip: number): BlitImage => h ? {
+          texture: this.textures.get(h)!.native, mip, format: formats[this.textures.get(h)!.desc.format],
+          kind: this.textures.get(h)!.desc.format,
+        } : {texture: this.screen!, mip: 0, format: 'rgba8unorm', kind: 0};
+        this.framebufferBlit ??= new WebGPUBlit(d);
+        this.framebufferBlit.execute(w, image(h, w[1]), image(w[2], w[3]));
+        break;
+      }
       case OP.BUFFER_CREATE: {
         const native = d.createBuffer({ size: Math.ceil(w[2] / 4) * 4,
-          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
+          usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
         const shadow = new Uint8Array(w[2]);
         if (item.data) shadow.set(item.data);
         this.buffers.set(h, { native, words: w, shadow });
@@ -154,7 +178,8 @@ export class WebGPUCommands implements GpuBackend {
       }
       case OP.BUFFER_UPDATE: {
         const b = this.buffers.get(h)!;
-        b.shadow.set(item.data!, w[1]);
+        if(b.generated && (w[1]%4 || item.data!.length%4) && !(w[1]===0&&item.data!.length===b.shadow.length)) throw new Error('Unaligned updates of GPU-generated buffers are unsupported');
+        b.shadow.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.shadow.length)b.generated=false;
         // ABI allows byte updates. WebGPU writeBuffer needs 4-aligned regions.
         const start = w[1] & ~3, end = Math.min(b.shadow.length, Math.ceil((w[1] + item.data!.length) / 4) * 4);
         this.writeBuffer(b.native, start, b.shadow.slice(start, end));
@@ -255,10 +280,10 @@ export class WebGPUCommands implements GpuBackend {
       }
       case OP.SHADER_DELETE: this.shaders.delete(h); this.failedShaders.delete(h); break;
       case OP.PIPELINE_CREATE: this.pipelines.set(h, this.pipeline(w)); break;
-      case OP.PIPELINE_DELETE: this.pipelines.delete(h); break;
+      case OP.PIPELINE_DELETE: this.pipelines.delete(h); this.feedback.delete(h); break;
       case OP.PASS_BEGIN: {
         this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
-        this.index = undefined; this.current = undefined;
+        this.index = undefined; this.current = undefined; this.capture=undefined;
         this.encoder = d.createCommandEncoder();
         const colors: GPURenderPassColorAttachment[] = [];
         this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
@@ -280,7 +305,9 @@ export class WebGPUCommands implements GpuBackend {
             stencilStoreOp: 'store', stencilClearValue: w[6] });
         }
         this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
-        this.pass = this.encoder.beginRenderPass({ colorAttachments: colors, depthStencilAttachment: depth });
+        this.passDescriptor={ colorAttachments: colors, depthStencilAttachment: depth };
+        this.scissor=[0,0,width,height]; this.blendConstant=[0,0,0,0];
+        this.pass = this.encoder.beginRenderPass(this.passDescriptor);
         this.pass.setViewport(0, 0, width, height, 0, 1);
         this.pass.setScissorRect(0, 0, width, height);
         this.pass.setStencilReference(0);
@@ -299,9 +326,9 @@ export class WebGPUCommands implements GpuBackend {
       case OP.PIPELINE: this.current = this.pipelines.get(h)!; this.pass!.setPipeline(this.current.native); break;
       case OP.VIEWPORT:
         this.viewport = w.map(f); this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
-      case OP.SCISSOR: this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
+      case OP.SCISSOR: this.scissor=[...w]; this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
       case OP.STENCIL_REF: this.stencilRef = h; this.pass!.setStencilReference(h); break;
-      case OP.BLEND_CONSTANT: this.pass!.setBlendConstant(w.map(f)); break;
+      case OP.BLEND_CONSTANT: this.blendConstant=w.map(f); this.pass!.setBlendConstant(this.blendConstant); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER:
         this.index = [...w];
@@ -310,6 +337,9 @@ export class WebGPUCommands implements GpuBackend {
         this.uniforms.set(h, { buffer: this.buffers.get(w[1])!.native, offset: w[2], size: w[3] }); break;
       case OP.TEXTURE: this.sampled.set(h, [...w]); break;
       case OP.DRAW: case OP.DRAW_INDEXED: {
+        const discard = this.capture?.[0];
+        if(this.capture) { this.captureDraw(item); this.capture=undefined; }
+        if(discard) break;
         this.bind();
         if (this.current!.words[3] === 2 || this.current!.words[3] === 4) this.strip(item);
         else if (item.op === OP.DRAW) this.pass!.draw(h, w[1], w[2], w[3]);
@@ -318,6 +348,81 @@ export class WebGPUCommands implements GpuBackend {
       }
       default: throw new Error('Unknown §13 opcode');
     }
+  }
+
+  private bufferReadback(item:GpuItem):void {
+    const w=item.words, d=this.device, buffer=d.createBuffer({size:Math.ceil((w[1]%4+w[2])/4)*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    const encoder=d.createCommandEncoder();encoder.copyBufferToBuffer(this.buffers.get(w[0])!.native,w[1]&~3,buffer,0,buffer.size);
+    d.queue.submit([encoder.finish()]);this.readbacks.add(item);
+    void buffer.mapAsync(GPUMapMode.READ).then(()=>{
+      const bytes=new Uint8Array(buffer.getMappedRange()).slice(w[1]%4,w[1]%4+w[2]);buffer.destroy();
+      if(this.readbacks.delete(item))item.readback?.(bytes);
+    }).catch(()=>{buffer.destroy();if(this.readbacks.delete(item))item.readback?.(undefined,E_IO);});
+  }
+
+  private captureDraw(item:GpuItem):void {
+    const p=this.current!, pw=p.words, w=item.words, capture=this.capture!, layout=this.feedback.get(pw[0]);
+    if(!layout)throw new Error('Missing transform feedback interface');
+    const s=this.shaders.get(pw[1])!;
+    if(!s.item.words[2])throw new Error('Feedback currently requires canonical GLSL vertex IO');
+    const count=feedbackVertexCount(pw[3],w[0]), total=count*w[1];if(!total)return;
+    const d=this.device, offsets:number[]=[], inputs:FeedbackInput[]=[], copies:{source:GPUBuffer;offset:number;size:number;target:number}[]=[];
+    let bytes=0;
+    for(let slot=0;slot<pw[23];slot++) {
+      const b=this.vertices.get(slot)!;offsets[slot]=bytes;
+      copies.push({source:this.buffers.get(b[1])!.native,offset:b[2],size:Math.ceil(b[3]/4)*4,target:bytes});bytes+=Math.ceil(b[3]/4)*4;
+    }
+    const indexed=item.op===OP.DRAW_INDEXED;let indexWord:number|undefined;
+    // Indices are validated from an authoritative upload shadow; generated index buffers are rejected by the decoder.
+    let ids:Uint32Array<ArrayBuffer>|undefined;
+    if(indexed){const ib=this.index!,shadow=this.buffers.get(ib[0])!.shadow,view=new DataView(shadow.buffer),size=ib[1]?4:2;
+      ids=Uint32Array.from({length:w[0]},(_,i)=>size===4?view.getUint32(ib[2]+(w[2]+i)*size,true):view.getUint16(ib[2]+(w[2]+i)*size,true));
+      indexWord=bytes/4;bytes+=ids.byteLength;
+    }
+    for(let i=0;i<pw[24];i++){const a=26+pw[23]*2+i*4,slot=pw[a+1];inputs.push({location:pw[a],format:pw[a+3],offset:offsets[slot]+pw[a+2],stride:pw[26+slot*2],step:pw[27+slot*2]});}
+    if(bytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback input exceeds storage binding limit');
+    const depthSlots=new Set(s.bindings.filter(b=>b.group===1 && b.binding%2===0 && isDepthFormat(this.textures.get(this.sampled.get(b.binding>>1)![1])!.desc.format)).map(b=>b.binding>>1));
+    const sampling=[...depthSlots].filter(slot=>s.bindings.some(b=>b.group===1&&b.binding===slot*2+1&&b.type!=='comparison')).map(slot=>({binding:slot*2,sampler:this.samplers.get(this.sampled.get(slot)![2])!.words}));
+    const integerSamplers=new Map(s.bindings.filter(b=>b.type==='textureI'||b.type==='textureU').map(b=>[b.binding>>1,this.samplers.get(this.sampled.get(b.binding>>1)![2])!.words] as const));
+    const code=lowerDepthSampling(translateGLSL(s.item.source!,1,s.item.words[2],undefined,depthSlots,integerSamplers),sampling);
+    const lowered=lowerFeedback(code,layout,inputs,pw[3],w[0],w[1],w[2],w[indexed?4:3],indexWord,indexed?w[3]|0:0);
+    const module=d.createShaderModule({code:lowered}), bindings=shaderBindings(code,true).map(b=>b.type==='sampler'&&depthSlots.has(b.binding>>1)?{...b,type:'nonfiltering' as const}:b);
+    const layouts=[0,1].map(group=>d.createBindGroupLayout({entries:bindings.filter(b=>b.group===group).map(b=>({binding:b.binding,visibility:GPUShaderStage.COMPUTE,
+      ...(b.type==='uniform'?{buffer:{type:'uniform' as const}}:
+        b.type.startsWith('texture')||b.type==='depth'?{texture:{sampleType:b.type==='depth'?'depth' as const:b.type==='textureI'?'sint' as const:b.type==='textureU'?'uint' as const:'float' as const,viewDimension:b.type==='texture3d'?'3d' as const:b.type==='texture2darray'?'2d-array' as const:'2d' as const}}:
+        {sampler:{type:b.type==='comparison'?'comparison' as const:b.type==='nonfiltering'?'non-filtering' as const:'filtering' as const}})}))}));
+    layouts.push(d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}));
+    let pipeline=this.feedbackPipelines.get(lowered);
+    if(!pipeline){pipeline=d.createComputePipeline({layout:d.createPipelineLayout({bindGroupLayouts:layouts}),compute:{module,entryPoint:'bgt_internal_capture'}});
+      if(this.feedbackPipelines.size>=64)this.feedbackPipelines.delete(this.feedbackPipelines.keys().next().value!);
+      this.feedbackPipelines.set(lowered,pipeline);
+    }
+    const outputBytes=total*layout.strides.reduce((a,b)=>a+b,0);
+    if(outputBytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback output exceeds storage binding limit');
+    const source=d.createBuffer({size:Math.max(4,bytes),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE});
+    const output=d.createBuffer({size:outputBytes,usage:GPUBufferUsage.COPY_SRC|GPUBufferUsage.STORAGE});
+    this.pass!.end();d.queue.submit([this.encoder!.finish()]);
+    const encoder=d.createCommandEncoder();for(const c of copies)if(c.size)encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);
+    if(ids)d.queue.writeBuffer(source,indexWord!*4,ids);
+    const pass=encoder.beginComputePass();pass.setPipeline(pipeline);
+    for(const group of [0,1]) {const entries:GPUBindGroupEntry[]=bindings.filter(b=>b.group===group).map(b=>{
+      if(group===0)return {binding:b.binding,resource:this.uniforms.get(b.binding)!};
+      const t=this.sampled.get(b.binding>>1)!,texture=this.textures.get(t[1])!;
+      const sampler=this.samplers.get(t[2])!;if(b.type==='nonfiltering')sampler.nonfilter??=d.createSampler();
+      return {binding:b.binding,resource:b.binding%2?(b.type==='nonfiltering'?sampler.nonfilter!:sampler.native):texture.native.createView({aspect:isDepthFormat(texture.desc.format)?'depth-only':'all',dimension:texture.desc.dimension===1?'3d':texture.desc.dimension===2?'2d-array':'2d'})};
+    });pass.setBindGroup(group,d.createBindGroup({layout:pipeline!.getBindGroupLayout(group),entries}));}
+    pass.setBindGroup(2,d.createBindGroup({layout:pipeline.getBindGroupLayout(2),entries:[{binding:0,resource:{buffer:source}},{binding:1,resource:{buffer:output}}]}));
+    pass.dispatchWorkgroups(Math.min(65535,Math.ceil(total/64)),Math.ceil(total/(65535*64)));pass.end();
+    let off=0;layout.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!,n=total*stride;
+      encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);b.generated=true;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
+    d.queue.submit([encoder.finish()]);source.destroy();output.destroy();
+    const desc=this.passDescriptor!;
+    for(const c of desc.colorAttachments)if(c)c.loadOp='load';
+    if(desc.depthStencilAttachment){desc.depthStencilAttachment.depthLoadOp='load';if(this.passDepth===5)desc.depthStencilAttachment.stencilLoadOp='load';}
+    this.encoder=d.createCommandEncoder();this.pass=this.encoder.beginRenderPass(desc);
+    const v=this.viewport;this.pass.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
+    const sc=this.scissor;this.pass.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass.setStencilReference(this.stencilRef);this.pass.setBlendConstant(this.blendConstant);
+    if(this.index)this.pass.setIndexBuffer(this.buffers.get(this.index[0])!.native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);
   }
 
   /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */

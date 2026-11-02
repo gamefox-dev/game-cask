@@ -47,7 +47,7 @@ export function gpuDigest(items: GpuItem[]): string {
   const word = (w: number) => { for (let i = 0; i < 4; i++) byte((w >>> (8 * i)) & 255); };
   for (const item of items) {
     word(item.op); word(item.words.length);
-    const pointer = item.op === O.BUFFER_CREATE || item.op === O.SHADER_CREATE ? 3 :
+    const pointer = item.op === O.BUFFER_CREATE || item.op === O.SHADER_CREATE || item.op === O.FEEDBACK_VARYINGS ? 3 :
       item.op === O.BUFFER_UPDATE ? 2 : item.op === O.TEXTURE_UPDATE ? 6 :
       item.op === O.TEXTURE_UPDATE_EX ? 8 : -1;
     item.words.forEach((w, i) => word(i === pointer ? 0 : w));
@@ -71,6 +71,7 @@ StreamOptions & { items: GpuItem[]; readbacks: number; frameHash: () => string }
       items.push(item);
       item.complete?.(compileStatus, compileLog);
       memory.apply(item);
+      if (item.op === O.BUFFER_READBACK) item.readback?.(new Uint8Array(item.words[2])); // transport only, never computed output
       if (item.op === O.TEXTURE_READBACK) {
         // Uploaded content when known; otherwise transport bytes. NEVER rendered output.
         let bytes = memory.read(item.words);

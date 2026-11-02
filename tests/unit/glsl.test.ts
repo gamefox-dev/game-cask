@@ -350,12 +350,17 @@ describe('canonical BGT output', () => {
   it('preserves shader texture() bias for 2D, 3D and array samplers in WGSL', () => {
     const r = program([VS], [`#version 330 core\nuniform sampler2D d; uniform sampler3D v; uniform sampler2DArray a;\nout vec4 c;\nvoid main(){c=texture(d,vec2(0.5),1.0)+texture(v,vec3(0.5),2.0)+texture(a,vec3(0.5),3.0);}`]);
     const wgsl = translateGLSL(r.fsOut!, 2, 1);
-    expect(wgsl).toContain('textureSampleBias(bgt_t0, bgt_t0_sampler, bgt_gl_uv(vec2f(0.5)), 1.0)');
-    expect(wgsl).toContain('textureSampleBias(bgt_t1, bgt_t1_sampler, bgt_gl_uv3(vec3f(0.5)), 2.0)');
+    // Calls now have explicit evaluation-order temporaries. Resolve those definitions, retaining the
+    // original exact coordinate/bias assertions instead of merely checking that a sample exists.
+    const values = new Map([...wgsl.matchAll(/let (bgt_internal_value_\d+) = ([^;]+);/g)].map(m => [m[1], m[2]]));
+    const expand = (code: string): string => code.replace(/\bbgt_internal_value_\d+\b/g, n => values.has(n) ? expand(values.get(n)!) : n);
+    const expanded = expand(wgsl);
+    expect(expanded).toContain('textureSampleBias(bgt_t0, bgt_t0_sampler, bgt_gl_uv(vec2f(0.5)), 1.0)');
+    expect(expanded).toContain('textureSampleBias(bgt_t1, bgt_t1_sampler, bgt_gl_uv3(vec3f(0.5)), 2.0)');
     expect(wgsl).toContain('b: f32) -> vec4f');
     expect(wgsl).toContain('textureSampleBias(bgt_t2, bgt_t2_sampler, c.xy,');
     expect(wgsl).toContain(', b);');
-    expect(wgsl).toMatch(/bgt_internal_array_\d+\(bgt_gl_uv3\(vec3f\(0.5\)\), 3.0\)/);
+    expect(expanded).toMatch(/bgt_internal_array_\d+\(bgt_gl_uv3\(vec3f\(0.5\)\), 3.0\)/);
     expect(translateShader(r.fsOut!, 2, 1)).toContain('texture(bgt_t2,bgt_gl_uv3(vec3(0.5)),3.0)');
   });
   it('preserves z/layer while flipping 3D/array gradients and integer texel coordinates', () => {
@@ -468,10 +473,12 @@ void bump(in float a, inout float b, out float c) { a += 1.0; b += a; c = b; }
 layout(location=0) out vec4 o;
 void main(){ float x = 1.0, y = 2.0, z; bump(x, y, z); float t[M]; t[M - 1] = z; o = vec4(t[5], float(t.length()), x, y); }`);
     expect(code).toContain('fn bump(bgt_internal_p_a: f32, b: ptr<function, f32>, c: ptr<function, f32>)');
-    expect(code).toContain('bump(x, &y, &z)');
+    expect(code).toMatch(/let bgt_internal_value_(\d+) = x;\s*var bgt_internal_argument_(\d+): f32 = y;\s*var bgt_internal_argument_(\d+): f32;\s*bump\(bgt_internal_value_\1, &bgt_internal_argument_\2, &bgt_internal_argument_\3\);\s*y = bgt_internal_argument_\2;\s*z = bgt_internal_argument_\3;/);
     expect(code).toContain('var t: array<f32, 6>');
-    expect(code).toContain('var x: f32 = 1.0; var y: f32 = 2.0; var z: f32');
-    expect(() => wgsl('layout(location=0) out vec4 o;\nvoid f(out float r){ r = 1.0; }\nvoid main(){ o = vec4(0.0); f(o.x); }')).toThrow('local variables');
+    expect(compact(code)).toContain(compact('var x: f32 = 1.0; var y: f32 = 2.0; var z: f32'));
+    const global = wgsl('layout(location=0) out vec4 o;\nvoid f(out float r){ r = 1.0; }\nvoid main(){ o = vec4(0.0); f(o.x); }');
+    expect(global).toMatch(/o\.x = bgt_internal_argument_\d+;/);
+    expect(global).not.toContain('f(&o.x)');
   });
   it('supports prototypes, relational built-ins, user structures and gl_PointSize', () => {
     const code = wgsl(`struct P { vec2 a; float b[2]; };

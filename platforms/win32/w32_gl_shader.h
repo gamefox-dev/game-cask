@@ -3,9 +3,12 @@
 #define GL_INVALID_INDEX 0xffffffffu
 static int eq_n(const char *a, const char *b, uint32_t n) { for (uint32_t i = 0; i < n; i++) if (a[i] != b[i]) return 0; return 1; }
 
+static Program *link_old;
+static void release_program(uint32_t id);
 static uint32_t shader_handle(void) {
     for (uint32_t id = 1; id <= 1023; id++) {
         uint32_t i;
+        if (link_old && (link_old->vgpu == id || link_old->fgpu == id)) continue;
         for (i = 1; i < N; i++)
             if (shaders[i].gpu == id || programs[i].vgpu == id || programs[i].fgpu == id) break;
         if (i == N) return id;
@@ -48,9 +51,31 @@ static int shader_front(Shader *s, GsLog *log) {
     return gs_policy(s->unit, log);
 }
 /* Translate and compile one stage against a layout (`g`); on failure the info log has the reason. */
-static int stage_module(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, uint32_t *gpu, GsLog *log) {
+static int stage_module(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, uint32_t *gpu, GsLog *log, const Program *feedback) {
     uint32_t len, cap; char *src = gs_emit(u, vs, fs, g, log, &len, &cap);
     if (!src) { if (!log->errors) log->errors++; return 0; }
+    uint32_t capture_position = 0;
+    if (feedback) for (uint32_t i = 0; i < feedback->tf_count; i++) {
+        if (eq(feedback->tf_names[i], "gl_Position")) capture_position |= 1;
+        if (eq(feedback->tf_names[i], "gl_PointSize")) capture_position |= 2;
+    }
+    if (capture_position) {
+        /* Preserve GL clip coordinates before either backend's depth/viewport conversion. */
+        const char *needle = "void main(){bgt_gl_main();"; uint32_t pos = 0, k = w32_slen(needle);
+        while (pos + k <= len && !eq_n(src + pos, needle, k)) pos++;
+        char decl[384] = {0}, assign[384] = {0};
+        GsLog dl = {decl, sizeof decl, 0, 0}, al = {assign, sizeof assign, 0, 0};
+        for (uint32_t i = 0; i < 2; i++) if (capture_position & (1u << i)) {
+            gs_put(&dl, i ? "out float " : "out vec4 "); gs_put(&dl, feedback->tf_builtin_names[i]); gs_put(&dl, ";\n");
+            gs_put(&al, feedback->tf_builtin_names[i]); gs_put(&al, i ? "=gl_PointSize;" : "=gl_Position;");
+        }
+        uint32_t a = w32_slen(decl), b = w32_slen(assign), next_cap = len + a + b + 1;
+        char *next = glp_alloc(next_cap);
+        if (!next || pos + k > len) { glp_free(next, next_cap); glp_free(src, cap); gs_put(log, "error: cannot lower captured position\n"); return 0; }
+        copy(next, src, pos); copy(next + pos, decl, a); copy(next + pos + a, src + pos, k);
+        copy(next + pos + a + k, assign, b); copy(next + pos + a + k + b, src + pos + k, len - pos - k + 1);
+        glp_free(src, cap); src = next; len += a + b; cap = next_cap;
+    }
     int ok = send_module(src, len, u->stage, gpu, log); glp_free(src, cap); return ok;
 }
 static uint32_t api_CreateShader(void) {
@@ -92,7 +117,7 @@ static uint32_t api_CompileShader(void) {
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { fail(OOM); return 0; }
     GsUnit *vs = s->type == 0x8b31 ? s->unit : 0, *fs = s->type == 0x8b31 ? 0 : s->unit;
-    if (gp_link(g, vs, fs, 0, 0, 0, 0, &log)) s->compiled = (uint32_t)stage_module(s->unit, vs, fs, g, &s->gpu, &log);
+    if (gp_link(g, vs, fs, 0, 0, 0, 0, &log)) s->compiled = (uint32_t)stage_module(s->unit, vs, fs, g, &s->gpu, &log, 0);
     glp_free(g, sizeof(Gp)); if (!s->compiled && !log.errors) log.errors++;
     return 0;
 }
@@ -143,26 +168,45 @@ static void program_free_link(Program *p) {
     if (p->values) { glp_free(p->values, p->usize); p->values = 0; }
     p->nb = p->nslots = p->ndef = 0;
 }
-static uint32_t api_LinkProgram(void) {
+static uint32_t link_program_build(void) {
     uint32_t id = ARG(0); if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
+    if (tf_active && id == program) { fail(BAD_OP); return 0; }
     Program *p = &programs[id]; GsLog log = {p->log, sizeof p->log, 0, 0};
     p->linked = 0; p->log[0] = 0; program_free_link(p);
-    if (!p->vs || !p->fs || !shaders[p->vs].compiled || !shaders[p->fs].compiled) {
+    if (!p->vs || (!p->fs && !p->tf_count) || !shaders[p->vs].compiled || (p->fs && !shaders[p->fs].compiled)) {
         gs_put(&log, "error: both a vertex and a fragment shader must be attached and compiled before link\n"); return 0;
     }
     invalidate_pipelines();
     if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu); p->vgpu = p->fgpu = 0;
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { fail(OOM); return 0; }
-    GsUnit *vs = shaders[p->vs].unit, *fs = shaders[p->fs].unit;
-    if (!gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
-        !stage_module(vs, vs, fs, g, &p->vgpu, &log) || !stage_module(fs, vs, fs, g, &p->fgpu, &log)) {
+    GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));
+    if (!fs) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
+    if (!p->fs) {
+        /* Browser render pipelines need a fragment stage. This stage is never rasterized: vertex-only
+         * programs are accepted only by the discarded feedback draw path, below. */
+        static const char unused[] = "\nlayout(location=0) out vec4 bgt_tf_unused;void main(){bgt_tf_unused=vec4(0.0);}";
+        if (!gs_parse(fs, 2, unused, sizeof unused - 1, &log)) { glp_free(fs, sizeof(GsUnit)); glp_free(g, sizeof(Gp)); return 0; }
+        gs_analyze(fs);
+    }
+    if (!tf_link(p, vs, &log) || !gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
+        !stage_module(vs, vs, fs, g, &p->vgpu, &log, p) || !stage_module(fs, vs, fs, g, &p->fgpu, &log, 0)) {
         if (p->vgpu) { SEND(0x49, p->vgpu); p->vgpu = 0; }
+        if (!p->fs) glp_free(fs, sizeof(GsUnit));
         glp_free(g, sizeof(Gp)); if (!log.errors) gs_put(&log, "error: program failed to link\n"); return 0;
     }
+    if (!p->fs) glp_free(fs, sizeof(GsUnit));
     p->values = glp_alloc(g->usize); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
     if (p->ubuf && p->usize != g->usize) { SEND(0x42, p->ubuf); p->ubuf = 0; }
     p->usize = g->usize;
-    if (!p->ubuf) { p->ubuf = 700 + id; SEND(0x40, p->ubuf, 4, p->usize, 0, 0); }
+    if (!p->ubuf) {
+        for (uint32_t h = 256; h < 700 && !p->ubuf; h++) {
+            if (link_old && link_old->ubuf == h) continue;
+            uint32_t j; for (j = 1; j < N; j++) if (programs[j].ubuf == h) break;
+            if (j == N) p->ubuf = h;
+        }
+        if (!p->ubuf) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
+        SEND(0x40, p->ubuf, 4, p->usize, 0, 0);
+    }
     p->info = g; p->nb = g->nb; p->nslots = g->nslots; p->ndef = 0;
     /* K6a pass lowering needs the highest linked output location, not a scan of raw
      * source (macros, implicit locations and glBindFragDataLocation affect it). */
@@ -174,7 +218,28 @@ static uint32_t api_LinkProgram(void) {
     while (p->ndef < g->nu && g->u[p->ndef].block < 0) p->ndef++;
     for (uint32_t i = 0; i < 8; i++) p->slot_unit[i] = 0;
     for (uint32_t i = 0; i < 7; i++) p->block[i].binding = 0;
-    p->dirty = 1; p->linked = 1; return 0;
+    p->vertex_only = !p->fs; p->dirty = 1; p->linked = 1; return 0;
+}
+static uint32_t api_LinkProgram(void) {
+    uint32_t id = ARG(0);
+    if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
+    if (tf_active && id == program) { fail(BAD_OP); return 0; }
+    Program *p = &programs[id], *old = glp_alloc(sizeof(Program));
+    if (!old) { fail(OOM); return 0; } copy(old, p, sizeof *p); link_old = old;
+    p->info = 0; p->values = 0; p->vgpu = p->fgpu = p->ubuf = p->usize = 0;
+    link_program_build();
+    if (p->linked) {
+        invalidate_pipelines();
+        if (old->vgpu) SEND(0x49, old->vgpu); if (old->fgpu) SEND(0x49, old->fgpu);
+        if (old->ubuf) SEND(0x42, old->ubuf);
+        program_free_link(old);
+    } else {
+        char log[4096]; copy(log, p->log, sizeof log);
+        if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
+        if (p->ubuf) SEND(0x42, p->ubuf); program_free_link(p);
+        copy(p, old, sizeof *p); p->linked = 0; copy(p->log, log, sizeof log);
+    }
+    link_old = 0; glp_free(old, sizeof(Program)); return 0;
 }
 static uint32_t api_ValidateProgram(void) {
     if (!program_ok(ARG(0))) { fail(BAD_VALUE); return 0; }
@@ -186,6 +251,10 @@ static uint32_t api_GetProgramiv(void) {
     Program *p = &programs[id]; Gp *g = p->linked ? p->info : 0;
     switch (key) {
     case 0x8b82: value = p->linked; break;
+    case 0x8c83: value = p->tf_link_count; break;
+    case 0x8c7f: value = p->tf_link_separate ? 0x8c8d : 0x8c8c; break;
+    case 0x8c76:
+        for (uint32_t i = 0; i < p->tf_link_count; i++) { uint32_t n = w32_slen(p->tf_link_names[i]) + 1; if (n > value) value = n; } break;
     case 0x8b83: value = p->validated; break;
     case 0x8b80: value = p->deleted; break;
     case 0x8b84: value = p->log[0] ? w32_slen(p->log) + 1 : 0; break;
@@ -206,7 +275,9 @@ static uint32_t api_GetProgramInfoLog(void) {
 }
 static uint32_t api_UseProgram(void) {
     uint32_t id = ARG(0);
-    if (id >= N || (id && !programs[id].linked)) fail(BAD_OP); else program = id; return 0;
+    if (tf_active) { fail(BAD_OP); return 0; }
+    if (id >= N || (id && !programs[id].linked)) fail(BAD_OP);
+    else { uint32_t old = program; program = id; if (old && old != id && programs[old].deleted) release_program(old); } return 0;
 }
 
 /* ------------------------------------------------------------------- reflection queries */
@@ -367,7 +438,7 @@ static GpUniform *uniform_at(Program *p, int32_t loc, uint32_t *elem) {
 /* kind: 0 float, 1 int, 2 uint. components counts scalars per element (matrix: cols * rows). */
 static uint32_t uniform_value(uint32_t components, int pointer, int kind, int matrix) {
     int32_t loc = (int32_t)ARG(0); if (loc == -1) return 0;
-    if (!program || !programs[program].linked) { fail(BAD_OP); return 0; }
+    if (!program || !programs[program].info) { fail(BAD_OP); return 0; }
     Program *p = &programs[program]; uint32_t first;
     GpUniform *u = loc < 0 ? 0 : uniform_at(p, loc, &first);
     if (!u) { fail(BAD_OP); return 0; }
@@ -464,10 +535,14 @@ static uint32_t api_DeleteShader(void) {
 static uint32_t api_DeleteProgram(void) {
     uint32_t id = ARG(0); if (!id) return 0;
     if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
+    if (program == id) { programs[id].deleted = 1; return 0; }
+    release_program(id); return 0;
+}
+static void release_program(uint32_t id) {
     invalidate_pipelines(); Program *p = &programs[id];
     if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
     uint32_t vs = p->vs, fs = p->fs;
     if (p->ubuf) SEND(0x42, p->ubuf);
     program_free_link(p); zero(p, sizeof *p); release_shader(vs); release_shader(fs);
-    if (program == id) program = 0; return 0;
+    if (program == id) program = 0;
 }

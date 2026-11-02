@@ -12,6 +12,9 @@ test('GLSL contracts: typed selector and construct known-answer pixels', async (
     return glslProbe(backend);
   }, { path: `/@fs${resolve('tests/e2e/gpu-glsl-probe.ts')}`, backend: backendParam });
   expect(result.errors).toEqual([]);
+  expect(result.count).toBe(87 + Number(backendParam !== 'webgl2'));
+  expect(result.rejections).toHaveLength(backendParam === 'webgl2' ? 2 : 0);
+  for (const rejection of result.rejections) expect(rejection).toContain('out/inout argument indexes a multi-component swizzle');
   expect(result.pixels).toHaveLength(result.count * 2);
   for (const { name, language, pixel, expected } of result.pixels) {
     for (let i = 0; i < 4; i++) expect(Math.abs(pixel[i] - expected[i]), `${name}, language ${language}, channel ${i}`)

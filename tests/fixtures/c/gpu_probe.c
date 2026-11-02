@@ -359,6 +359,17 @@ static const uint32_t layouts[] = {
     BGT_OP_GPU_TEXTURE_READBACK, BGT_OP_GPU_TEXTURE_GENERATE_MIPS, BGT_OP_GPU_TEXTURE_ALLOCATE_MIPS,
     BGT_OP_GPU_CLEAR_BUFFER, sizeof(bgt_gpu_clear_buffer_t), offsetof(bgt_gpu_clear_buffer_t, kind_class_masks),
     offsetof(bgt_gpu_clear_buffer_t, index), offsetof(bgt_gpu_clear_buffer_t, value),
+    BGT_OP_GPU_BLIT, BGT_GPU_BLIT_COLOR, BGT_GPU_BLIT_DEPTH, BGT_GPU_BLIT_STENCIL,
+    sizeof(bgt_gpu_blit_t), offsetof(bgt_gpu_blit_t, source), offsetof(bgt_gpu_blit_t, source_mip),
+    offsetof(bgt_gpu_blit_t, destination), offsetof(bgt_gpu_blit_t, destination_mip),
+    offsetof(bgt_gpu_blit_t, source_rect), offsetof(bgt_gpu_blit_t, destination_rect),
+    offsetof(bgt_gpu_blit_t, mask), offsetof(bgt_gpu_blit_t, filter), offsetof(bgt_gpu_blit_t, scissor),
+    BGT_OP_GPU_FEEDBACK_VARYINGS, BGT_OP_GPU_FEEDBACK_CAPTURE, BGT_OP_GPU_BUFFER_READBACK, BGT_GPU_BUFFER_FEEDBACK,
+    sizeof(bgt_gpu_feedback_varyings_t), offsetof(bgt_gpu_feedback_varyings_t, pipeline), offsetof(bgt_gpu_feedback_varyings_t, separate),
+    offsetof(bgt_gpu_feedback_varyings_t, count), offsetof(bgt_gpu_feedback_varyings_t, names_ptr), offsetof(bgt_gpu_feedback_varyings_t, names_len),
+    sizeof(bgt_gpu_feedback_capture_t), offsetof(bgt_gpu_feedback_capture_t, discard), offsetof(bgt_gpu_feedback_capture_t, bindings),
+    sizeof(bgt_gpu_buffer_readback_t), offsetof(bgt_gpu_buffer_readback_t, handle), offsetof(bgt_gpu_buffer_readback_t, offset),
+    offsetof(bgt_gpu_buffer_readback_t, size), offsetof(bgt_gpu_buffer_readback_t, request),
 };
 BGT_EXPORT(gpu_layout) uint32_t gpu_layout(void) { return (uint32_t)(uintptr_t)layouts; }
 BGT_EXPORT(gpu_layout_count) uint32_t gpu_layout_count(void) { return sizeof layouts / 4; }
@@ -490,5 +501,10 @@ BGT_EXPORT(gpu_encode) int32_t gpu_encode(void) {
     bgt__gpu_copy((uint8_t *)&v_texture_allocate_mips, w_texture_allocate_mips, sizeof v_texture_allocate_mips);
     bgt_cmd_gpu_texture_allocate_mips(&cb, &v_texture_allocate_mips);
     bgt_gpu_clear_buffer_t clear = {1,2,{3,4,5,6}}; bgt_cmd_gpu_clear_buffer(&cb, &clear);
+    bgt_gpu_blit_t blit = {1,2,3,4,{5,6,7,8},{9,10,11,12},13,14,{15,16,17,18}};
+    bgt_cmd_gpu_blit(&cb, &blit);
+    bgt_gpu_feedback_varyings_t varying = {1,2,3,4,5}; bgt_cmd_gpu_feedback_varyings(&cb, &varying);
+    bgt_gpu_feedback_capture_t capture = {1,{{2,3,4},{5,6,7},{8,9,10},{11,12,13}}}; bgt_cmd_gpu_feedback_capture(&cb, &capture);
+    bgt_gpu_buffer_readback_t readback = {1,2,3,4}; bgt_cmd_gpu_buffer_readback(&cb, &readback);
     return bgt_cmd_submit(&cb);
 }
