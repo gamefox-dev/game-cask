@@ -1,6 +1,10 @@
 /* Original CC0: full supported import-slot census through the real JSON serializer.
  * Dependencies here are read-only metric providers, not profile behavior replacements. */
 #include "../../../platforms/win32/w32_core.c"
+/* Real allocator's zero-state accounting; no allocations are used by this serializer census. */
+static void *x86_host_backing(uint32_t n){(void)n;return 0;}
+uint64_t x86_host_limit(void){return X86_HOST_ARENA_BYTES;}
+#include "../../../platforms/x86/x86_host.h"
 x86_metrics_t x86_metrics;
 x86_timing_t x86_timings[XP_CATEGORIES];
 x86_census_t x86_census[X86_CENSUS_CAP];

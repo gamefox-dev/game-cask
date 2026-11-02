@@ -37,7 +37,9 @@ for(const nested of [false,true])it(`AMD64 exhausted backing: ${nested?'nested S
       expect(h.logs.filter(s=>s.includes('FAIL')),h.logs.join('\n')).toEqual([]);
     }
   } finally {rmSync(dir,{recursive:true,force:true});}
-},120_000);
+// Two cold fixture builds (lifted + interpreted), then 300 exhaustion frames each.
+// Keep the real exhaustion/filter assertions; allow compiler FIFO contention on cold CI.
+},300_000);
 for (const id of ['x64-heap','x86-heap']) {
   it(`${id} heap/CRT contracts and exact-address 300-frame determinism`, async () => {
     const h=await loadHeadless(id);

@@ -2152,11 +2152,13 @@ static void em_range_inner(Em *em, uint32_t a, uint32_t b, int top) {
 
 /* Emit the canonical BGT source for one stage. Returns a GS_ALLOC buffer (size *cap) or NULL. */
 static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint32_t *len, uint32_t *cap) {
-    Em *em = (Em *)GS_ALLOC(sizeof(Em)); if (!em) return 0;
+    Em *em = (Em *)GS_ALLOC(sizeof(Em));
+    if (!em) { gs_diag(log, 1, 0, 0, 0, "out of memory allocating canonical emitter", 0); return 0; }
     em->u = u; em->un[0] = vs; em->un[1] = fs; em->g = g; em->log = log; em->stage = (int)u->stage;
     uint32_t sidx = u->stage - 1;
     uint32_t c = GS_MAX_SOURCE + 1; /* Specialization may expand a small input to the full advertised limit. */
-    char *buf = (char *)GS_ALLOC(c); if (!buf) { GS_FREE(em, sizeof *em); return 0; }
+    char *buf = (char *)GS_ALLOC(c);
+    if (!buf) { GS_FREE(em, sizeof *em); gs_diag(log, 1, 0, 0, 0, "out of memory allocating canonical source", 0); return 0; }
     em->out.p = buf; em->out.cap = c;
     for (uint32_t i = 0; i < u->nspans; i++) em_add_span(em, u->spans[i].a, u->spans[i].b);
     /* Inactive uniforms are omitted; omit unreachable users too, rather than leaving undeclared names. */

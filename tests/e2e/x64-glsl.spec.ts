@@ -22,21 +22,45 @@ for (const cross of [false, true])
   test(`x64-glsl: ${cross ? 'cross-backend images agree @webgpu' : 'all eight shader tiles have exact pixels'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
+    // 256 real-compiler cycles plus 2048 deferred FILE reads are part of this test, not a cold build.
+    test.setTimeout(360_000);
     const capture = async (p: Page, backend: string) => {
       const status = await openGame(p, backend, { game: 'x64-glsl' });
       await assertBackend(p, backend, info);
       expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 12000; i++) {
         await step(p, 1); await p.waitForTimeout(10);
         if ((await diagnostics(p)).logs.some(l => l.message.includes('x64-glsl PASS'))) break;
       }
       await step(p, 3);
       const d = await diagnostics(p), m = d.metrics as Record<string, any>;
       expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
-      for (const text of ['x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
-        expect(d.logs.some(l => l.message.includes(text)), JSON.stringify(d.logs)).toBe(true);
+      for (const text of ['x64-glsl shared host stress PASS files=2048 parents=8 bytes=302', 'x64-glsl frontend stress PASS cycles=256 retained=80', 'x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
+        expect(d.logs.some(l => l.message.includes(text)), JSON.stringify({logs:d.logs,metrics:m})).toBe(true);
       expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
       expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]); expect(m.gl_pipelines).toBe(8);
+      // Parsing tables are transient; retaining every compiled frontend used >10 MiB here.
+      expect(m.gl_frontend_bytes).toBeGreaterThan(0); expect(m.gl_frontend_bytes).toBeLessThan(2 * 1024 ** 2);
+      expect(m.gl_frontend_peak).toBeGreaterThan(m.gl_frontend_bytes);
+      expect(m.gl_frontend_reserved).toBeGreaterThanOrEqual(m.gl_frontend_peak);
+      expect(m.gl_frontend_reserved).toBeLessThan(24 * 1024 ** 2); expect(m.gl_frontend_oom).toBe(0);
+      expect(m.gl_frontend_allocations).toBeGreaterThan(m.gl_frontend_frees);
+      expect(m.host_limit).toBe(64 * 1024 ** 2);
+      expect(m.host_bytes).toBeLessThanOrEqual(m.host_peak);
+      expect(m.host_peak).toBeLessThanOrEqual(m.host_reserved);
+      expect(m.host_reserved).toBeLessThan(m.host_limit);
+      expect(m.host_consumers.file).toMatchObject({used: 0, oom: 0, shared_limit: true, limit: m.host_limit});
+      expect(m.host_consumers.file.allocations).toBeGreaterThanOrEqual(2056);
+      expect(m.host_consumers.file.frees).toBe(m.host_consumers.file.allocations);
+      expect(m.host_consumers.file.peak).toBeGreaterThanOrEqual(9 * 16384);
+      let charged = 0;
+      for (const name of ['runtime', 'gl', 'crt', 'file']) {
+        const c = m.host_consumers[name]; charged += c.used;
+        expect(c.limit).toBe(m.host_limit); expect(c.oom).toBe(0); expect(c.peak).toBeGreaterThanOrEqual(c.used);
+      }
+      expect(charged).toBe(m.host_bytes);
+      expect(d.logs.some(l => l.message.includes("glCompileShader: ") && l.message.includes("#error"))).toBe(true);
+      expect(d.logs.some(l => l.message.includes("glLinkProgram: ") && l.message.includes("types differ"))).toBe(true);
       const px = await readPixels(p);
       if (hardwarePixels()) for (const probe of tiles) {
         const x = Math.floor(d.letterbox.x + (probe.x + (probe.ox ?? 0) + .5) * d.letterbox.w / 320);

@@ -256,7 +256,7 @@ static uint64_t c_setvbuf(void) {
     if(!f||(mode!=0&&mode!=0x40&&mode!=4)|| (mode!=4&&(size<2||size>INT_MAX))){crt_errno(22);return UINT64_MAX;}
     if(mode!=4&&size>65536){crt_errno(12);return UINT64_MAX;}
     size&=~1ull; /* MSVCRT rounds buffer sizes down to an even byte count. */
-    uint8_t *buffer=mode!=4&&!ARG(1)?malloc((size_t)size):0;
+    uint8_t *buffer=mode!=4&&!ARG(1)?x86_host_alloc(XH_FILE,size):0;
     if(mode!=4&&!ARG(1)&&!buffer){crt_errno(12);return UINT64_MAX;}
     if(file_flush(f)){free(buffer);return UINT64_MAX;}
     free(f->buffer);f->buffer=buffer;f->user_buffer=mode==4?0:ARG(1);
