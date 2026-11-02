@@ -1,17 +1,55 @@
-/* Shader/program object types and the pooled allocator behind the GLSL front end.
- * Included once by w32_gl.c. SPDX-License-Identifier: MIT — LANE-K6b */
-#define GLP_CLASSES 27 /* through the ABI's 64 MiB buffer-upload ceiling */
-static void *glp_pool[GLP_CLASSES];
-static uint32_t glp_class(uint32_t n) { uint32_t c = 6; while (((uint64_t)1 << c) < n) c++; return c; }
+/* Shader/program object types and reusable host storage for the GLSL frontend.
+ * Included once by w32_gl.c. SPDX-License-Identifier: MIT */
+/* All backing comes from x86_alloc: no libc heap, guest address space or extra reservation.
+ * Address-ordered free spans split/coalesce (including adjacent growth extents); mixed shader
+ * sizes must not strand free memory in power-of-two size classes. Headers remain 16-byte aligned. */
+typedef union GlpBlock GlpBlock;
+union GlpBlock { struct { GlpBlock *next; uint32_t size; } h; uint64_t alignment[2]; };
+static GlpBlock *glp_pool;
+uint64_t w32_gl_frontend_bytes, w32_gl_frontend_peak, w32_gl_frontend_reserved;
+uint64_t w32_gl_frontend_allocations, w32_gl_frontend_frees, w32_gl_frontend_oom;
+static void glp_insert(GlpBlock *b) {
+    GlpBlock **p = &glp_pool, *prev = 0;
+    while (*p && (uintptr_t)*p < (uintptr_t)b) { prev = *p; p = &(*p)->h.next; }
+    b->h.next = *p; *p = b;
+    if (b->h.next && (uintptr_t)b + b->h.size == (uintptr_t)b->h.next) {
+        b->h.size += b->h.next->h.size; b->h.next = b->h.next->h.next;
+    }
+    if (prev && (uintptr_t)prev + prev->h.size == (uintptr_t)b) {
+        prev->h.size += b->h.size; prev->h.next = b->h.next;
+    }
+}
 static void *glp_alloc(uint32_t n) {
-    uint32_t c = glp_class(n); if (c >= GLP_CLASSES) return 0;
-    void *p = glp_pool[c];
-    if (p) { glp_pool[c] = *(void **)p; uint8_t *b = (uint8_t *)p; for (uint32_t i = 0; i < (1u << c); i++) b[i] = 0; return p; }
-    return x86_alloc(1u << c);
+    if (n > 67108864u) { w32_gl_frontend_oom++; return 0; }
+    uint32_t need = ((n ? n : 1) + 15u) / 16u * 16u + sizeof(GlpBlock);
+    GlpBlock **best = 0;
+    for (GlpBlock **p = &glp_pool; *p; p = &(*p)->h.next)
+        if ((*p)->h.size >= need && (!best || (*p)->h.size < (*best)->h.size)) best = p;
+    if (!best) {
+        uint32_t grow = (need + 65535u) & ~65535u;
+        GlpBlock *b = x86_alloc(grow);
+        if (!b && grow != need) { grow = need; b = x86_alloc(grow); }
+        if (!b) { w32_gl_frontend_oom++; return 0; }
+        b->h.size = grow; w32_gl_frontend_reserved += grow; glp_insert(b);
+        /* Insertion may have merged a neighboring free extent. */
+        for (GlpBlock **p = &glp_pool; *p; p = &(*p)->h.next)
+            if ((*p)->h.size >= need && (!best || (*p)->h.size < (*best)->h.size)) best = p;
+    }
+    GlpBlock *b = *best; *best = b->h.next;
+    if (b->h.size - need >= sizeof(GlpBlock) + 16u) {
+        GlpBlock *tail = (GlpBlock *)((uint8_t *)b + need);
+        tail->h.size = b->h.size - need; b->h.size = need; glp_insert(tail);
+    }
+    w32_gl_frontend_bytes += b->h.size; w32_gl_frontend_allocations++;
+    if (w32_gl_frontend_bytes > w32_gl_frontend_peak) w32_gl_frontend_peak = w32_gl_frontend_bytes;
+    uint8_t *out = (uint8_t *)(b + 1);
+    for (uint32_t i = 0; i < b->h.size - sizeof *b; i++) out[i] = 0;
+    return out;
 }
 static void glp_free(void *p, uint32_t n) {
-    if (!p) return; uint32_t c = glp_class(n); if (c >= GLP_CLASSES) return;
-    *(void **)p = glp_pool[c]; glp_pool[c] = p;
+    (void)n; if (!p) return;
+    GlpBlock *b = (GlpBlock *)p - 1;
+    w32_gl_frontend_bytes -= b->h.size; w32_gl_frontend_frees++; glp_insert(b);
 }
 #define GS_ALLOC(n) glp_alloc(n)
 #define GS_FREE(p, n) glp_free(p, n)

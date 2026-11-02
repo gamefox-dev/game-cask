@@ -812,6 +812,12 @@ const char *w32_metrics_json(void) {
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);
+    jkv("gl_frontend_bytes", w32_gl_frontend_bytes);
+    jkv("gl_frontend_peak", w32_gl_frontend_peak);
+    jkv("gl_frontend_reserved", w32_gl_frontend_reserved);
+    jkv("gl_frontend_allocations", w32_gl_frontend_allocations);
+    jkv("gl_frontend_frees", w32_gl_frontend_frees);
+    jkv("gl_frontend_oom", w32_gl_frontend_oom);
     jput("\"gl_approximation_kinds\":"); jput(w32_gl_approximations_json()); jput(",");
     jkv("gdi_ops", w32_m.gdi_ops);
     jkv("chrome_ops", w32_m.chrome_ops);

@@ -5,6 +5,8 @@
 extern const w32_api_t w32_api_gl[];
 extern const uint32_t w32_api_gl_n;
 extern uint64_t w32_gl_calls, w32_gl_draws, w32_gl_state_changes, w32_gl_pipelines, w32_gl_unimplemented, w32_gl_approximations;
+extern uint64_t w32_gl_frontend_bytes, w32_gl_frontend_peak, w32_gl_frontend_reserved;
+extern uint64_t w32_gl_frontend_allocations, w32_gl_frontend_frees, w32_gl_frontend_oom;
 int w32_gl_active(void);
 const char *w32_gl_stubs_json(void);
 const char *w32_gl_approximations_json(void);

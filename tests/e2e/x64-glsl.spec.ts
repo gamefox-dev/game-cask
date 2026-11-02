@@ -22,21 +22,31 @@ for (const cross of [false, true])
   test(`x64-glsl: ${cross ? 'cross-backend images agree @webgpu' : 'all eight shader tiles have exact pixels'}`,
   async ({ page, backendParam, collector }, info) => {
     void collector;
+    // The added 256-cycle real-compiler warm-up is part of this test, not a cold build.
+    test.setTimeout(180_000);
     const capture = async (p: Page, backend: string) => {
       const status = await openGame(p, backend, { game: 'x64-glsl' });
       await assertBackend(p, backend, info);
       expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 3000; i++) {
         await step(p, 1); await p.waitForTimeout(10);
         if ((await diagnostics(p)).logs.some(l => l.message.includes('x64-glsl PASS'))) break;
       }
       await step(p, 3);
       const d = await diagnostics(p), m = d.metrics as Record<string, any>;
       expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
-      for (const text of ['x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
+      for (const text of ['x64-glsl frontend stress PASS cycles=256 retained=80', 'x64-glsl diagnostics ok', 'x64-glsl reflection ok', 'x64-glsl PASS tiles=8'])
         expect(d.logs.some(l => l.message.includes(text)), JSON.stringify(d.logs)).toBe(true);
       expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
       expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]); expect(m.gl_pipelines).toBe(8);
+      // Parsing tables are transient; retaining every compiled frontend used >10 MiB here.
+      expect(m.gl_frontend_bytes).toBeGreaterThan(0); expect(m.gl_frontend_bytes).toBeLessThan(2 * 1024 ** 2);
+      expect(m.gl_frontend_peak).toBeGreaterThan(m.gl_frontend_bytes);
+      expect(m.gl_frontend_reserved).toBeGreaterThanOrEqual(m.gl_frontend_peak);
+      expect(m.gl_frontend_reserved).toBeLessThan(24 * 1024 ** 2); expect(m.gl_frontend_oom).toBe(0);
+      expect(m.gl_frontend_allocations).toBeGreaterThan(m.gl_frontend_frees);
+      expect(d.logs.some(l => l.message.includes("glCompileShader: ") && l.message.includes("#error"))).toBe(true);
+      expect(d.logs.some(l => l.message.includes("glLinkProgram: ") && l.message.includes("types differ"))).toBe(true);
       const px = await readPixels(p);
       if (hardwarePixels()) for (const probe of tiles) {
         const x = Math.floor(d.letterbox.x + (probe.x + (probe.ox ?? 0) + .5) * d.letterbox.w / 320);
