@@ -311,6 +311,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   }
   codeRanges.sort((a,b)=>a.addr-b.addr);
   sliceRanges.sort((a,b)=>a.addr-b.addr);
+  // Preserve observed block/continuation entries as well as selected owners.
+  // New i386 edge hooks record real interior entries, not additional functions.
+  if(plan)for(const address of plan.code)sliceCode.add(address);
   /* driver */
   const driver = join(work, 'pipeline_main.c');
   const ext = mods.filter((m) => m.lifted).map((m) => `extern const x86_lifted_entry_t x86_lifted_${m.id}[];`).join('\n');
