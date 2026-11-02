@@ -46,7 +46,7 @@ test('opaque sampler helpers: direct and GL canonical known-answer pixels', asyn
   const result = await page.evaluate(async ({ path, backend, cases }) => {
     const { opaqueProbe } = await import(/* @vite-ignore */ path); return opaqueProbe(backend, cases);
   }, { path: `/@fs${resolve('tests/e2e/gpu-opaque-probe.ts')}`, backend: backendParam, cases });
-  expect(result.errors).toEqual([]); expect(cases).toHaveLength(backendParam === 'webgpu' ? 128 : 148); expect(result.pixels).toHaveLength(cases.length);
+  expect(result.errors).toEqual([]); expect(cases).toHaveLength(backendParam === 'webgpu' ? 128 : 152); expect(result.pixels).toHaveLength(cases.length);
   for (const { name, pixel, expected } of result.pixels) for (let i = 0; i < 4; i++)
     expect(Math.abs(pixel[i] - expected[i]), `${name} channel ${i}`).toBeLessThanOrEqual(1);
 });

@@ -1239,6 +1239,7 @@ static int gs_statement_end(Lx *l, uint32_t depth) {
 static int gs_local_shadow(const GsUnit *u, const GsFunc *f, const char *name, uint32_t pos) {
     struct { uint32_t end; int bound; } scopes[257];
     uint32_t ns = 1; scopes[0].end = f->b1; scopes[0].bound = 0;
+    struct { char name[GS_NAME]; uint32_t end; } local_types[256]; uint32_t nt = 0;
     struct { uint32_t start, end; } pending[257]; gs_zero(pending, sizeof pending);
     Lx l = {u->src, f->b0, pos, 1};
     for (;;) {
@@ -1266,6 +1267,17 @@ static int gs_local_shadow(const GsUnit *u, const GsFunc *f, const char *name, u
             }
         }
         int ty = t.kind == 'i' ? gs_type_find(u, t.p, t.len) : -1;
+        if (tk_is(&t, "struct")) {
+            Lx body = {u->src, l.pos, f->b1, 1}; Tk type = lx_next(&body), open = type;
+            if (type.kind == 'i') open = lx_next(&body);
+            if (!tk_is(&open, "{") || !ps_skip_group(&body, '{', '}')) continue;
+            if (type.kind == 'i' && nt < 256) { tk_copy(&type, local_types[nt].name); local_types[nt++].end = scopes[ns - 1].end; }
+            /* Fields do not introduce lexical bindings. An inline instance after } does. */
+            if (body.pos > pos) return 1; /* A member name here cannot refer to a global sampler. */
+            l.pos = body.pos; ty = GS_STRUCT_BASE;
+        } else if (ty < 0) for (uint32_t i = nt; i > 0; i--) {
+            if (t.off < local_types[i - 1].end && tk_is(&t, local_types[i - 1].name)) { ty = GS_STRUCT_BASE; break; }
+        }
         if (ty < 0) continue;
         Lx decl = l; Tk n = lx_next(&decl);
         if (tk_is(&n, "[")) { if (!ps_skip_group(&decl, '[', ']')) continue; n = lx_next(&decl); }

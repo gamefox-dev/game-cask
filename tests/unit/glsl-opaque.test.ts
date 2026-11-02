@@ -101,6 +101,19 @@ describe('opaque sampler helper identity specialization', () => {
       const r = runGlsl({ fs: [source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy();
       expect(r.fsOut).toMatch(/float bgt_t0\s*;/); expect(r.fsOut).toContain('q.bgt_t0');
     });
+  for (const es of [false, true]) for (const helper of [false, true])
+    it(`profile recognizes local struct types shadowing samplers (ES ${es}, helper ${helper})`, () => {
+      const source = (es ? '#version 300 es\nprecision highp float;\n' : version) +
+        'uniform sampler2D bgt_t0;layout(location=0) out vec4 o;' +
+        (helper ? 'vec4 read(sampler2D s){return texture(s,vec2(0.5));}' : '') +
+        'void main(){vec4 a=' + (helper ? 'read(bgt_t0)' : 'texture(bgt_t0,vec2(0.5))') +
+        ';{struct S{float x;};S bgt_t0=S(1.0);o=a*bgt_t0.x;}o+=texture(bgt_t0,vec2(0.5));}';
+      const r = runGlsl({ fs: [source] }); expect(r.fs?.ok, r.fs?.log).toBe(true);
+      expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.slots).toBe(1);
+      expect(r.uniforms?.map(u => u.name)).toEqual(['bgt_t0']);
+      expect(r.fsOut).toMatch(/S bgt_gl_local_\d+=S\(1.0\)/);
+      expect(r.fsOut).toMatch(/bgt_gl_local_\d+\.x/);
+    });
   it('ordinary value functions do not acquire uniform-only inline-struct restrictions', () => {
     const source = 'out vec4 o;struct S{float x;}v;S f(S a){return a;}void main(){v.x=0.5;o=vec4(f(v).x);}';
     const r = runGlsl({ fs: [version + source] }); expect(r.fsOut, r.fsEmitLog).toBeTruthy(); expect(r.fsOut).toMatch(/struct S/);

@@ -14,6 +14,8 @@ export const opaqueRegressions: OpaqueRegression[] = [
   { name: 'webgl-ordinary-anonymous-struct-field', globals: 'uniform sampler2D bgt_t0;', slots: [0], expected: [64, 128, 191, 255], fragmentOnly: true, webglOnly: true,
     helpers: 'float value(){struct {float bgt_t0;float s;}q;q.bgt_t0=1.0;q.s=1.0;return q.bgt_t0*q.s;}vec4 read(sampler2D s){return texture(s,vec2(0.5))*value();}',
     body: 'vec4 a=read(bgt_t0);o=vec4(a.r,a.b*128.0/191.0,a.b,1.0);' },
+  { name: 'webgl-local-struct-type-shadow-without-helper', globals: 'uniform sampler2D bgt_t0;', slots: [0], expected: [64, 128, 191, 255], fragmentOnly: true, webglOnly: true,
+    helpers: '', body: 'vec4 a=texture(bgt_t0,vec2(0.5));{struct S{float x;};S bgt_t0=S(1.0);a*=bgt_t0.x;}o=vec4(a.r,a.b*128.0/191.0,a.b,1.0);' },
   { name: 'webgl-ordinary-inline-value-struct', globals: '', slots: [], expected: [64, 128, 191, 255], fragmentOnly: true, webglOnly: true,
     helpers: 'struct S{float x;}v;S read(S a){return a;}', body: 'v.x=0.5;o=vec4(0.25,read(v).x,0.75,1.0);' },
   { name: 'discard-in-nonvoid-sampler-helper', globals: 'uniform sampler2D bgt_t0;', slots: [0], expected: [64, 128, 191, 255], fragmentOnly: true,
