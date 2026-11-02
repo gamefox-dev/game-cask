@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 // @ts-expect-error plain ESM
@@ -92,6 +92,7 @@ import assert from 'node:assert/strict';
 const a=process.argv.slice(2), d=a[a.indexOf('--session-dir')+1];
 const n=Number(d.match(/\\.attempt-(\\d+)\\.d/)?.[1] ?? 1);
 if(n>1) { assert(a.includes('--fork')); assert.match(readFileSync(a[a.indexOf('--fork')+1],'utf8'),/SESSION_FACT/); }
+else assert(!a.includes('--fork'));
 appendFileSync(process.env.FAKE_TRACE,JSON.stringify({n,at:Date.now(),args:a,agent:process.env.PI_CODING_AGENT_DIR,settings:JSON.parse(readFileSync(process.env.PI_CODING_AGENT_DIR+'/settings.json'))})+'\\n');
 const message={role:'assistant',stopReason:'stop',content:[{type:'text',text:'SESSION_FACT attempt='+n}]};
 writeFileSync(d+'/session.jsonl',JSON.stringify({type:'session',id:'s'+n})+'\\n'+JSON.stringify({type:'message',id:'m'+n,parentId:null,message})+'\\n');
@@ -107,6 +108,15 @@ async function drive(patch: NodeJS.ProcessEnv = {}) {
   return { dir, out, code, trace: readFileSync(trace, 'utf8').trim().split('\n').map(l => JSON.parse(l)), history: json(out + '.d/driver.json') };
 }
 describe('provider stream retry and reset scheduling', () => {
+  it('does not inherit a parent driver retry fork, but forks its own failed attempt', async () => {
+    const r = await drive({ PI_FORK_SESSION: '/parent-driver/private-session.jsonl' });
+    expect(r.code).toBe(0);
+    expect(r.trace[0].args).not.toContain('--fork');
+    const index = r.trace[1].args.indexOf('--fork');
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(r.trace[1].args[index + 1]).toBe(realpathSync(r.out + '.d/sessions/session.jsonl'));
+    expect(r.history.attempts.map((a: any) => a.exit)).toEqual([17, 0]);
+  });
   it.each(['currently overloaded', 'Request timed out', 'HTTP 501 upstream', 'HTTP 599 upstream',
     '429 usage_limit_reached', 'status: 429', 'error 500'])('retries transient %s from this attempt stream only', async error => {
     const r = await drive({ FAKE_ERROR: error });

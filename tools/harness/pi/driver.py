@@ -32,7 +32,8 @@ def main():
     if Path(out).exists() or Path(out + '.d').exists():
         raise ValueError('refusing to overwrite ' + out + ' or its .d directory')
     env = dict(os.environ)
-    for key in ('PI_SESSION_ID', 'PI_SESSION_FILE'):
+    # Retry forks are private to this driver, never inherited by a nested/new run.
+    for key in ('PI_SESSION_ID', 'PI_SESSION_FILE', 'PI_FORK_SESSION'):
         env.pop(key, None)
     env['PI_BRIDGE_RUN_ID'] = str(uuid.uuid4())
     env['PI_BRIDGE_DRIVER_PID'] = str(os.getpid())

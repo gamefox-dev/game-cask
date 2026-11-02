@@ -129,7 +129,8 @@ of a clean tree. Costs are provider/session-reported, not a billing guarantee. N
 `agent_settled` is process completion: these update `agentPhase` only. **Only the driver process owner**, after
 reaping the worker and exhausting retries, publishes `finished` (also on failure), e.g. `G finished exit=17`.
 A unique driver run ID is independent of forked session IDs; stale status/exits cannot finish a replacement run.
-Nested harnesses must use `PI_BRIDGE=0` or a **distinct lane ID**, not impersonate the parent lane. `status` shows
+Nested harnesses must use `PI_BRIDGE=0` or a **distinct lane ID**, not impersonate the parent lane.
+New drivers discard inherited internal `PI_FORK_SESSION` retry state; only their own failed attempt can set the next fork. `status` shows
 `exit=N` after exit. `error` may still wake on a tool/provider error while pi works; it does **not** mean exited.
 An agent error with pi exit zero remains in error history/agentPhase; the process code remains zero. Completion
 proves neither acceptance nor clean commits. Old bridge-state files without driver lifecycle records cannot prove
