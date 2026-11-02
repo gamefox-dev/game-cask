@@ -985,3 +985,108 @@ not clear values; exact value bits use per-operation uniform snapshots.
 Conformance: `tests/unit/abi-layout.test.ts` (C/TS layouts, enums, encoders), `tests/unit/gpu-commands.test.ts` (every
 accepted and rejected form), the backend suites, and the `x64-gl-fbo` fixture (pixels on both backends plus a documented
 cross-backend tolerance, see `docs/handoff/K6a.md`).
+
+### 13.10 Framebuffer transfer (additive v0.3, opcode 0x60)
+
+`BLIT` is a 72-byte **outside-pass**, ordered operation. Its 18 words are:
+`source, source_mip, destination, destination_mip, i32 sx0,sy0,sx1,sy1, i32 dx0,dy0,dx1,dy1,
+mask, filter, scissor_x,scissor_y,scissor_width,scissor_height`.
+Handles name GPU textures; color handle 0 is the shared logical RGBA8 screen (mip 0).
+Coordinates are top-left pixel **edges**, signed, and each rectangle may be reversed independently.
+Clipping to source/destination bounds and destination scissor preserves the original mapping;
+empty rectangles/scissor are no-ops. Rectangles may scale; source pixel centres map affinely to destination centres.
+Filter NEAREST=0 / LINEAR=1; linear uses clamped bilinear texels. Color mask=1; depth=2; stencil=4.
+Color cannot be combined with depth/stencil in one operation (profiles split them in stream order).
+Blits ignore viewport, color/depth/stencil write masks and tests; only the explicit scissor clips writes.
+
+All textures must be allocated 2D attachments. Unknown handles give E_NOT_FOUND; wrong usage/dimension E_STATE;
+unallocated mip, invalid mask/filter/aspect/class E_INVALID; scissor outside destination E_BOUNDS; inside a pass E_STATE.
+Color classes (float/normalized, signed integer, unsigned integer) must match; integer requires NEAREST.
+Depth/stencil require identical depth formats; stencil requires DEPTH24_STENCIL8; either requires NEAREST.
+This ABI remains single-sample: no sample-count conversion is advertised. GL validates original internal depth formats
+before mapping to these portable storage formats. A same-image transfer snapshots the source; GL overlapping results
+are unspecified, but this deterministic ABI rule prevents backend validation hazards. Native copy is allowed only for
+compatible 1:1 transfers; other forms render into the destination. WebGL uses native blitFramebuffer with logical-screen
+staging. WebGPU samples depth for depth-only transfers and extracts real stencil bit planes with read-only stencil tests,
+then writes them with bit-masked replace passes. No CPU upload shadow is treated as rendered content.
+Rendered/blitted contents are lost on device reset under the existing TARGETS_LOST contract, not replayed as uploads.
+C layout/encoder: `bgt_gpu_blit_t`, `bgt_cmd_gpu_blit`; TS `GPU_OP.BLIT`, `GPU_LAYOUT.blit`, `GPU.BLIT_*`.
+
+### 13.11 Transform feedback (additive v0.3, opcodes 0x61..0x63)
+
+Implemented on **both** WebGL 2 and WebGPU. Old opcodes/layouts, IO, language mask and 80-byte limits stay unchanged.
+This is an ordered capture interface for canonical GLSL330/ES300 vertex stages, not a public compute/storage language.
+Native WGSL capture returns `E_UNSUPPORTED`. Scalar/vector float32, int32 and uint32 outputs are tightly packed as
+little-endian component words (vec3 is **12** bytes, no std140 padding). Existing frontend array/matrix/interface-block
+varying restrictions remain compile/link failures, not approximations. `BUFFER_CREATE` additionally accepts usage
+`FEEDBACK=8`; combinations with VERTEX/INDEX/UNIFORM are legal, but simultaneous input/output aliasing is not.
+
+#### 13.11.1 FEEDBACK_VARYINGS (0x61, 20 bytes, outside a pass)
+
+Words: `pipeline, separate, count, names_ptr, names_len`. Names are owned, strict UTF-8 bytes, at most 4096;
+exactly `count` newline-terminated records `identifier format\n`. Format uses the existing vertex format numbers
+(float=0..3, signed=5..8, unsigned=9..12; UNORM8X4 is not an output format). `separate` is boolean. Names are distinct;
+the private `bgt_internal_` prefix is forbidden. Each selected name/type must be a declared canonical vertex output.
+Mismatch, malformed list/enum or duplicate gives `E_INVALID`, without replacing the prior interface. Unknown pipeline
+is `E_NOT_FOUND`; inside-pass use is `E_STATE`. Separate count <=4 with <=4 components each; interleaved count <=16,
+<=64 components total. This defines capture order independently of alphabetical shader varying locations. Browser
+compilation/reflection failure gives `E_IO` and a diagnostic; native replacement is transactional.
+
+The GL profile stores pending declarations until relink, validates outputs/duplicates/component limits, and keeps a
+separate linked interface for reflection and drawing. Failed relink sets LINK_STATUS false but retains a currently
+installed executable, including its uniform storage and saved uniform locations; glUseProgram cannot reinstall the
+failed-link program. gl_Position/gl_PointSize capture is lowered to collision-free user varyings **before** GL depth,
+viewport or backend conversion. Original GL builtin names remain visible through glGetTransformFeedbackVarying.
+Vertex-only feedback programs synthesize an unreachable browser fragment stage and reject nondiscarded raster draws.
+
+#### 13.11.2 FEEDBACK_CAPTURE (0x62, 52 bytes, inside a pass)
+
+Words: `discard, bindings[4]`, each binding `handle, offset, size`. Arms the **next successful DRAW/DRAW_INDEXED** on
+the same pipeline. `discard` is boolean: 1 captures without rasterization, 0 captures and rasterizes in normal order.
+Interleaved uses binding 0, stride = sum of selected component bytes; separate uses one binding per selected varying.
+Unused records must be all zero. Used buffers need FEEDBACK usage, positive 4-aligned range offset/size within storage.
+Missing handle gives `E_NOT_FOUND`, bad shape/usage/alignment `E_INVALID`, range/required capture bytes `E_BOUNDS`,
+missing declaration/pipeline or current vertex/index/uniform alias/duplicate destination `E_STATE`. Aliases are checked
+again at the draw after any rebinding. No state/output/authority change occurs for a rejected draw.
+
+Only complete primitives are captured: POINTS, LINES (pairs), TRIANGLES (triples), LINE_STRIP (adjacent pairs),
+TRIANGLE_STRIP (triples with alternating winding). Incomplete tails have no writes and do not invalidate upload
+shadows. Strips expand to ordered lists; order is instance-major, primitive-major, vertex-major, then declared varying
+and component. Indexed capture retains index order and base_vertex, not unique post-transform-cache order. IDs and
+instance-rate attributes use the same §13.4 values as the original draw. The GL profile advances per-binding cursors
+across draws in a Begin/End interval, rejects incompatible primitive classes, missing bindings, range overflow and
+active mutation/relink/use errors. Pause/resume/feedback objects are not exposed by this GL 3.3 profile. Rasterizer
+discard, binding/range and varying queries are real state; primitives-written queries count the complete captured
+primitives (not vertex invocations), summed over draws/instances. With no geometry stage/overflow/conditional render,
+these counts are exactly determined at validated command submission, so results may be immediately available.
+
+WebGL 2 uses native transform feedback. Indexed/strip captures are assembled into dense attribute fetches while
+retaining original vertex IDs; stale native bindings are reconciled and setup/draw failure always cleans up discard
+and temporary TF objects. Selected noperspective outputs retain an additional raw native output, separate from the
+value-times-w raster interpolation proxy. WebGPU ends/submits prior render work, copies **native** input buffers to aligned storage,
+invokes the translated canonical vertex function in compute, packs selected output words, then copies to native
+destinations and resumes rendering with load operations. Dispatch uses a flattened two-dimensional grid for expanded
+strips beyond 65,535 workgroups. Inputs include ordinary/current/divisor attributes, uniform blocks and texture slots;
+no captured source or engine behavior is baked in. Output becomes visible to later draws/captures/readbacks in order.
+
+Generated buffers are never read through stale CPU upload shadows. GPU-generated index buffers and byte-unaligned
+partial updates/repacking of generated inputs return `E_UNSUPPORTED` where an authoritative validation shadow is
+required; full reupload restores upload authority. Aligned updates and direct vertex/uniform consumption remain legal.
+Native compute storage/allocation limits fail with `E_IO` and diagnostic, never a successful empty capture.
+**Recovery fails closed** with an explicit diagnostic if any live buffer still contains GPU-generated data without an
+authoritative checkpoint; neither backend silently restores zero/stale uploaded contents. Delete or completely reupload
+such buffers before loss to recover normally. This preserves §13.6's stop-on-unrestorable-resource rule.
+
+#### 13.11.3 BUFFER_READBACK (0x63, 16 bytes, outside a pass)
+
+Words: `handle, offset, size, request`. Captures exact native buffer bytes in stream order, including shader-written
+content. Any byte-aligned subrange is legal; size positive, <=8 MiB. Unknown handle → `E_NOT_FOUND`, zero size →
+`E_INVALID`, overflow/out-of-range → `E_BOUNDS`, >8 MiB → `E_LIMIT`, inside pass → `E_STATE`. Uses the shared §12
+request namespace/lifetime; no guest writes from callbacks and visibility is deferred until a later update boundary.
+WebGL uses getBufferSubData; WebGPU copies the aligned covering range to a staging buffer, maps it, then slices the
+requested bytes. Failures/loss complete requests with an error. It is not a CPU-shadow substitute.
+
+C layouts/encoders: `bgt_gpu_feedback_varyings_t`, `bgt_gpu_feedback_capture_t`, `bgt_gpu_buffer_readback_t` and matching
+`bgt_cmd_gpu_*` helpers. TS mirror: `GPU_OP`, `GPU_LAYOUT`, `GPU.BUFFER_FEEDBACK`. Conformance includes C/TS exact layout
+and encoder comparisons, validator atomicity/alias/range/deferred-request tests, the original CC0 `x64-gl-feedback`
+normal Win64 pipeline fixture and direct native `gpu-feedback` regressions on both real backends.

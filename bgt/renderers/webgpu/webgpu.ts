@@ -328,8 +328,9 @@ export class WebGPURenderer implements Renderer {
           old.w/this.snapshot.width, old.h/this.snapshot.height]);
       return readback ? this.readback(output, this.format === 'bgra8unorm') : null;
     }
-    const gpuFrame = !!this.screen || frame.items.some(it => it.kind === 'gpu' && it.op === GPU_OP.PASS_BEGIN &&
-      it.words[0] === 1 && it.words[7] === 0);
+    const gpuFrame = !!this.screen || frame.items.some(it => it.kind === 'gpu' &&
+      ((it.op === GPU_OP.BLIT && (!it.words[0] || !it.words[2])) || it.op === GPU_OP.PASS_BEGIN &&
+      it.words[0] === 1 && it.words[7] === 0));
     const preserve = !gpuFrame && !!this.snapshot && !!this.snapshotLB;
     if (preserve) {
       const old=this.snapshotLB!, saved=this.snapshot!;
@@ -341,7 +342,7 @@ export class WebGPURenderer implements Renderer {
     if (gpuFrame && !retainedScreen) {
       this.screen?.destroy();
       this.screen = device.createTexture({ size: [frame.logicalW, frame.logicalH], format: 'rgba8unorm',
-        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC });
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
     }
     const target = gpuFrame ? this.screen! : output;
     this.gpu.frame(target);

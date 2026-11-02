@@ -20,7 +20,7 @@ const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool
 const vector = (n: number, t: string) => n === 1 ? scalar(t) :
   scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
-const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast', 'shared'].includes(text) ? `bgt_internal_glsl_${text}` : text;
+export const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast', 'shared'].includes(text) ? `bgt_internal_glsl_${text}` : text;
 
 function lex(source: string): Token[] {
   const result: Token[] = [];

@@ -2,6 +2,9 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
+import { blitStencil } from './blit-stencil';
+import { feedbackShader } from './feedback';
+import { feedbackLayout, feedbackVertices, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
 import { TEXEL_BYTES, TEXEL_COMPONENTS, canonicalize, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture,
   type CanonicalTexture } from '../gpu-texture';
 
@@ -12,7 +15,7 @@ interface IndexedBlend {
   blendFuncSeparateiOES(index: number, sr: number, dr: number, sa: number, da: number): void;
   colorMaskiOES(index: number, r: boolean, g: boolean, b: boolean, a: boolean): void;
 }
-interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer> }
+interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer>; generated?: boolean }
 interface TextureObject {
   object: WebGLTexture; words: number[]; desc: CanonicalTexture; levels: Uint8Array<ArrayBuffer>[]; allocatedMips: number;
   generated?: { base: number; data: Uint8Array<ArrayBuffer>; overridden: Set<number> };
@@ -66,6 +69,8 @@ export class WebGL2Gpu implements GpuBackend {
   private scratchAttributes = new Map<number, WebGLBuffer>();
   private deferred: GpuItem[] = [];
   private floatLinear = false;
+  private feedback = new Map<number, FeedbackLayout>();
+  private capture?: readonly number[];
 
   constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void) {
     this.indexed = gl.getExtension('OES_draw_buffers_indexed') as IndexedBlend | null;
@@ -144,7 +149,7 @@ export class WebGL2Gpu implements GpuBackend {
       // A shader failed by device loss remains a CPU-side failed handle, never a live native module.
       // Recompiling that failed source on restore could abort before its queued deletion is reached.
       if ((item.op <= OP.PIPELINE_DELETE || (item.op >= OP.TEXTURE_CREATE_EX && item.op !== OP.CLEAR_BUFFER)) &&
-        item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK) {
+        item.op !== OP.SHADER_CREATE && item.op !== OP.TEXTURE_READBACK && item.op !== OP.BUFFER_READBACK && item.op !== OP.FEEDBACK_CAPTURE && item.op !== OP.BLIT) {
         this.deferred.push({ ...item, complete: undefined });
       }
       return -6;
@@ -163,6 +168,9 @@ export class WebGL2Gpu implements GpuBackend {
       if (pixels) item.readback?.(...pixels);
       return 0;
     } catch (e) {
+      // Dispatch may throw before the normal post-command error check. Never leak this command's native
+      // error into a later otherwise-valid operation (notably a failed feedback candidate link).
+      for(let i=0;i<32 && this.gl.getError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.SHADER_CREATE) item.complete?.(-6, message);
       else { item.readback?.(undefined, -6); this.error(message); }
@@ -173,6 +181,18 @@ export class WebGL2Gpu implements GpuBackend {
   private dispatch(item: GpuItem): void {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
     switch (op) {
+      case OP.FEEDBACK_VARYINGS: {
+        const layout=feedbackLayout(item.source!,!!w[1],w[2]),previous=this.feedback.get(h),old=this.pipelines.get(h)!;
+        this.feedback.set(h,layout);
+        try {this.createPipeline(old.words);}catch(e){if(previous)this.feedback.set(h,previous);else this.feedback.delete(h);throw e;}
+        g.deleteProgram(old.object);g.deleteVertexArray(old.vao);break;
+      }
+      case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.BUFFER_READBACK: {
+        const data=new Uint8Array(w[2]);g.bindBuffer(g.COPY_READ_BUFFER,this.buffers.get(h)!.object);
+        g.getBufferSubData(g.COPY_READ_BUFFER,w[1],data);item.readback?.(data);break;
+      }
+      case OP.BLIT: this.blit(w); break;
       case OP.BUFFER_CREATE: {
         const object = g.createBuffer()!;
         const data = new Uint8Array(w[2]);
@@ -181,7 +201,7 @@ export class WebGL2Gpu implements GpuBackend {
         this.buffers.set(h, { object, words: w, data }); break;
       }
       case OP.BUFFER_UPDATE: {
-        const b = this.buffers.get(h)!; b.data.set(item.data!, w[1]);
+        const b = this.buffers.get(h)!; b.data.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.data.length)b.generated=false;
         g.bindBuffer(g.COPY_WRITE_BUFFER, b.object); g.bufferSubData(g.COPY_WRITE_BUFFER, w[1], item.data!); break;
       }
       case OP.BUFFER_DELETE: g.deleteBuffer(this.buffers.get(h)!.object); this.buffers.delete(h); break;
@@ -280,7 +300,7 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.PIPELINE_CREATE: this.createPipeline(w); break;
       case OP.PIPELINE_DELETE: {
         const p = this.pipelines.get(h)!; g.deleteProgram(p.object); g.deleteVertexArray(p.vao);
-        this.pipelines.delete(h); break;
+        this.pipelines.delete(h); this.feedback.delete(h); break;
       }
       case OP.PASS_BEGIN: this.beginPass(w); break;
       case OP.PASS_END: this.endPass(); break;
@@ -319,12 +339,80 @@ export class WebGL2Gpu implements GpuBackend {
     }
   }
 
+  private blit(w: number[]): void {
+    const g = this.gl, src = this.textures.get(w[0]), dst = this.textures.get(w[2]);
+    if (!w[16] || !w[17] || w[4] === w[6] || w[5] === w[7] || w[8] === w[10] || w[9] === w[11]) return;
+    // Screen transfers use the same top-down logical staging image as ordinary GPU screen passes.
+    if ((!w[0] || !w[2]) && (!this.screen || this.screenSize[0] !== this.frame.width || this.screenSize[1] !== this.frame.height)) {
+      g.deleteTexture(this.screen); this.screen = g.createTexture()!;
+      g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D, this.screen);
+      g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA8, this.frame.width, this.frame.height); this.screenSize = [this.frame.width, this.frame.height];
+    }
+    let source = src?.object ?? this.screen!, sm = w[1];
+    const target = dst?.object ?? this.screen!, sf = src?.desc.format ?? 0, df = dst?.desc.format ?? 0;
+    const sw=src?Math.max(1,src.desc.width>>sm):this.frame.width, sh=src?Math.max(1,src.desc.height>>sm):this.frame.height;
+    const read=g.createFramebuffer()!, draw=g.createFramebuffer()!; let snapshot: WebGLTexture | null = null;
+    const attach=(fb:number, object:WebGLFramebuffer, texture:WebGLTexture, mip:number, format:number)=>{
+      g.bindFramebuffer(fb,object);
+      for(const a of [g.COLOR_ATTACHMENT0,g.DEPTH_STENCIL_ATTACHMENT,g.DEPTH_ATTACHMENT]) g.framebufferTexture2D(fb,a,g.TEXTURE_2D,null,0);
+      g.framebufferTexture2D(fb,format===5?g.DEPTH_STENCIL_ATTACHMENT:format===6?g.DEPTH_ATTACHMENT:g.COLOR_ATTACHMENT0,g.TEXTURE_2D,texture,mip);
+      if(fb===g.READ_FRAMEBUFFER)g.readBuffer(format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0);
+      else g.drawBuffers([format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0]);
+      if(g.checkFramebufferStatus(fb)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Incomplete blit framebuffer');
+    };
+    try {
+      g.disable(g.SCISSOR_TEST);g.depthMask(true);g.stencilMask(255);g.colorMask(true,true,true,true);
+      if(!w[0] || !w[2]) {
+        attach(g.DRAW_FRAMEBUFFER,draw,this.screen!,0,0);g.bindFramebuffer(g.READ_FRAMEBUFFER,null);
+        const b=this.frame.lb,H=g.drawingBufferHeight;
+        g.blitFramebuffer(b.x,H-b.y,b.x+b.w,H-b.y-b.h,0,0,this.frame.width,this.frame.height,g.COLOR_BUFFER_BIT,g.NEAREST);
+      }
+      if(source===target){
+        snapshot=g.createTexture()!;g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,snapshot);
+        g.texStorage2D(g.TEXTURE_2D,1,this.format(sf)[0],sw,sh);
+        attach(g.READ_FRAMEBUFFER,read,source,sm,sf);attach(g.DRAW_FRAMEBUFFER,draw,snapshot,0,sf);
+        g.blitFramebuffer(0,0,sw,sh,0,0,sw,sh,sf===5?g.DEPTH_BUFFER_BIT|g.STENCIL_BUFFER_BIT:sf===6?g.DEPTH_BUFFER_BIT:g.COLOR_BUFFER_BIT,g.NEAREST);
+        source=snapshot;sm=0;
+      }
+      attach(g.READ_FRAMEBUFFER,read,source,sm,sf);attach(g.DRAW_FRAMEBUFFER,draw,target,w[3],df);
+      g.viewport(0,0,dst?Math.max(1,dst.desc.width>>w[3]):this.frame.width,dst?Math.max(1,dst.desc.height>>w[3]):this.frame.height);
+      g.enable(g.SCISSOR_TEST);g.scissor(w[14],w[15],w[16],w[17]);
+      const r=w.slice(4,12).map(v=>v|0);
+      // Normalize destination orientation; simultaneous reversal of both rectangles preserves the mapping.
+      for(const a of [0,1]) if(r[6+a]<r[4+a]) { [r[4+a],r[6+a]]=[r[6+a],r[4+a]];[r[a],r[2+a]]=[r[2+a],r[a]]; }
+      // Native Chromium stencil scaling was isolated to mis-map texels without a GL error.
+      // Keep exact 1:1 native copies; the render fallback also handles reversed source axes.
+      const fallback=!!(w[12]&4) && (r[2]-r[0]!==r[6]-r[4] || r[3]-r[1]!==r[7]-r[5]);
+      const mask=(w[12]&1?g.COLOR_BUFFER_BIT:0)|(w[12]&2?g.DEPTH_BUFFER_BIT:0)|((w[12]&4)&&!fallback?g.STENCIL_BUFFER_BIT:0);
+      if(mask)g.blitFramebuffer(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],mask,w[13]?g.LINEAR:g.NEAREST);
+      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)]);
+      if(!w[2]){
+        const b=this.frame.lb,H=g.drawingBufferHeight;
+        g.disable(g.SCISSOR_TEST);g.bindFramebuffer(g.READ_FRAMEBUFFER,draw);g.bindFramebuffer(g.DRAW_FRAMEBUFFER,null);
+        g.blitFramebuffer(0,0,this.frame.width,this.frame.height,b.x,H-b.y,b.x+b.w,H-b.y-b.h,g.COLOR_BUFFER_BIT,g.NEAREST);
+      }
+    } finally {g.bindFramebuffer(g.FRAMEBUFFER,null);g.deleteFramebuffer(read);g.deleteFramebuffer(draw);g.deleteTexture(snapshot);}
+  }
+
   private createPipeline(w: number[]): void {
     const g = this.gl, object = g.createProgram()!;
     try {
-      g.attachShader(object, this.shaders.get(w[1])!.object);
-      g.attachShader(object, this.shaders.get(w[2])!.object); g.linkProgram(object);
+      const feedback=this.feedback.get(w[0]),vertex=this.shaders.get(w[1])!;
+      const capture=feedback?feedbackShader(vertex.source,vertex.words[2],feedback):undefined;
+      if(capture?.specialized){
+        const shader=g.createShader(g.VERTEX_SHADER)!;g.shaderSource(shader,capture.source);g.compileShader(shader);
+        if(!g.getShaderParameter(shader,g.COMPILE_STATUS)){const log=g.getShaderInfoLog(shader);g.deleteShader(shader);throw new Error(log??'Feedback vertex compile failed');}
+        g.attachShader(object,shader);g.deleteShader(shader);
+      } else g.attachShader(object,vertex.object);
+      g.attachShader(object, this.shaders.get(w[2])!.object);
+      if(feedback)g.transformFeedbackVaryings(object,capture!.names,feedback.separate?g.SEPARATE_ATTRIBS:g.INTERLEAVED_ATTRIBS);
+      g.linkProgram(object);
       if (!g.getProgramParameter(object, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(object) ?? 'Link failed');
+      if(feedback)for(let i=0;i<feedback.varyings.length;i++){
+        const actual=g.getTransformFeedbackVarying(object,i),v=feedback.varyings[i];
+        const types=[g.FLOAT,g.FLOAT_VEC2,g.FLOAT_VEC3,g.FLOAT_VEC4,0,g.INT,g.INT_VEC2,g.INT_VEC3,g.INT_VEC4,g.UNSIGNED_INT,g.UNSIGNED_INT_VEC2,g.UNSIGNED_INT_VEC3,g.UNSIGNED_INT_VEC4];
+        if(!actual||actual.size!==1||actual.type!==types[v.format])throw new Error(`Feedback varying mismatch ${v.name}`);
+      }
       g.useProgram(object);
       const kinds = new Map<number, { dimension: number; shadow: boolean }>();
       g.uniform1i(g.getUniformLocation(object, 'bgt_internal_ids'), 8);
@@ -521,7 +609,7 @@ export class WebGL2Gpu implements GpuBackend {
   private beginPass(w: number[]): void {
     const g = this.gl;
     this.pipeline = undefined; this.vertices.clear(); this.uniforms.clear(); this.textureBindings.clear();
-    this.index = undefined; this.stencil = 0; this.screenPass = w[0] === 1 && w[7] === 0;
+    this.index = undefined; this.stencil = 0; this.capture=undefined; this.screenPass = w[0] === 1 && w[7] === 0;
     const texture = w[0] ? this.textures.get(w[7]) : this.textures.get(w[1]);
     const mip = w[0] ? w[8] : w[2];
     this.width = this.screenPass ? this.frame.width : Math.max(1, texture!.desc.width >> mip);
@@ -651,6 +739,16 @@ export class WebGL2Gpu implements GpuBackend {
         ids = indices; indices = Uint32Array.from(ids, (_, i) => i); first = 0; count = w[0];
       } else for (let i = 0; i < indices.length; i++) indices[i] -= first;
     }
+    let drawCount=w[0];
+    if(this.capture && !feedbackVertexCount(pw[3],w[0])){this.capture=undefined;return;}
+    if(this.capture && (indexed || pw[3]===2 || pw[3]===4)) {
+      const order=feedbackVertices(pw[3],w[0]);
+      const b=this.index, view=indexed?new DataView(this.buffers.get(b![0])!.data.buffer):undefined,size=b?.[1]?4:2;
+      ids=Uint32Array.from(order,i=>{if(!view)return w[2]+i;
+        const at=b![2]+(w[2]+i)*size;return (size===4?view.getUint32(at,true):view.getUint16(at,true))+(w[3]|0);});
+      first=0;count=drawCount=ids.length;
+    }
+    if(!drawCount){this.capture=undefined;return;}
     g.uniform1i(g.getUniformLocation(p.object, 'bgt_internal_remap'), ids ? 1 : 0);
     g.activeTexture(g.TEXTURE8); g.bindSampler(8, null);
     if (!this.scratchIds) {
@@ -681,11 +779,13 @@ export class WebGL2Gpu implements GpuBackend {
       if (stride > 255 || (ids && !step)) {
         // WebGL caps vertexAttribPointer stride at 255; §13 allows 2048. Pack each active
         // attribute from owned upload shadows. No guest reads or geometry reinterpretation.
+        let source=buffer.data;
+        if(buffer.generated){source=new Uint8Array(buffer.data.length);g.bindBuffer(g.COPY_READ_BUFFER,buffer.object);g.getBufferSubData(g.COPY_READ_BUFFER,0,source);}
         const bytes = format === 4 ? 4 : components*4, elements = step ? w[1] : count;
         const packed = new Uint8Array(elements*bytes);
         for (let j = 0; j < elements; j++) {
           const at = offset+(ids && !step ? ids[j] : j)*stride;
-          packed.set(buffer.data.subarray(at, at+bytes), j*bytes);
+          packed.set(source.subarray(at, at+bytes), j*bytes);
         }
         let scratch = this.scratchAttributes.get(pw[a]);
         if (!scratch) { scratch = g.createBuffer()!; this.scratchAttributes.set(pw[a], scratch); }
@@ -719,16 +819,38 @@ export class WebGL2Gpu implements GpuBackend {
       g.activeTexture(g.TEXTURE0+slot); g.bindTexture(this.target(texture.desc.dimension), texture.object);
       g.bindSampler(slot, sampler.object);
     }
-    const topology = [g.POINTS, g.LINES, g.LINE_STRIP, g.TRIANGLES, g.TRIANGLE_STRIP][pw[3]];
-    if (!indexed) g.drawArraysInstanced(topology, 0, w[0], w[1]);
-    else {
-      g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, this.scratchIndex);
-      g.bufferData(g.ELEMENT_ARRAY_BUFFER, indices!, g.STREAM_DRAW);
-      g.drawElementsInstanced(topology, w[0], g.UNSIGNED_INT, 0, w[1]);
+    const topology = [g.POINTS, g.LINES, this.capture?g.LINES:g.LINE_STRIP, g.TRIANGLES, this.capture?g.TRIANGLES:g.TRIANGLE_STRIP][pw[3]];
+    const capture=this.capture;let tf:WebGLTransformFeedback|null=null,began=false,succeeded=false;
+    try {if(capture){
+      // Clear stale UBO slots from previous passes, preserving only this pass's actual logical inputs.
+      for(let slot=0;slot<8;slot++)if(!this.uniforms.has(slot))g.bindBufferBase(g.UNIFORM_BUFFER,slot,null);
+      g.bindBuffer(g.UNIFORM_BUFFER,null);
+      // WebGL forbids feedback destinations from simultaneously occupying non-feedback buffer targets.
+      g.bindBuffer(g.COPY_READ_BUFFER,null);g.bindBuffer(g.COPY_WRITE_BUFFER,null);g.bindBuffer(g.ARRAY_BUFFER,null);
+      tf=g.createTransformFeedback();g.bindTransformFeedback(g.TRANSFORM_FEEDBACK,tf);
+      const layout=this.feedback.get(pw[0])!;
+      layout.strides.forEach((_,i)=>g.bindBufferRange(g.TRANSFORM_FEEDBACK_BUFFER,i,this.buffers.get(capture[1+i*3])!.object,capture[2+i*3],capture[3+i*3]));
+      if(capture[0])g.enable(g.RASTERIZER_DISCARD);
+      const before=g.getError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
+      g.beginTransformFeedback(pw[3]===0?g.POINTS:pw[3]<=2?g.LINES:g.TRIANGLES);
+      const after=g.getError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
     }
+      if (!indexed || capture) g.drawArraysInstanced(topology, 0, drawCount, w[1]);
+      else {
+        g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, this.scratchIndex);
+        g.bufferData(g.ELEMENT_ARRAY_BUFFER, indices!, g.STREAM_DRAW);
+        g.drawElementsInstanced(topology, w[0], g.UNSIGNED_INT, 0, w[1]);
+      }
+      const drawError=g.getError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);succeeded=true;
+    } finally {if(capture){if(began)g.endTransformFeedback();g.disable(g.RASTERIZER_DISCARD);g.bindTransformFeedback(g.TRANSFORM_FEEDBACK,null);g.deleteTransformFeedback(tf);
+      this.feedback.get(pw[0])!.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!;
+        if(succeeded){b.generated=true;b.data.fill(0,capture[2+i*3],capture[2+i*3]+feedbackVertexCount(pw[3],w[0])*w[1]*stride);}
+        g.bindBufferBase(g.TRANSFORM_FEEDBACK_BUFFER,i,null);});this.capture=undefined;
+    }}
   }
 
   restore(): void {
+    if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
     const shaders = [...this.shaders], pipelines = [...this.pipelines];
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();

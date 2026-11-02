@@ -9,7 +9,7 @@ import { Requests } from '../../bgt/runtime/requests';
 
 const O = A.GPU_OP;
 const F = (f: number) => new Uint32Array(new Float32Array([f]).buffer)[0];
-const source = new TextEncoder().encode('valid source for a recording backend');
+const source = new TextEncoder().encode('out vec4 value; // valid source for a recording backend');
 const pipeline = (patch: Record<number, number> = {}, buffers: number[] = [16, 0],
   attrs: number[] = [0, 0, 0, 3], colors: number[] = [0, 0, 1, 0, 0, 1, 0, 0, 15]) => {
   const words = [1, 1, 2, 3, 0, 0, A.GPU.FORMAT_NONE, 0, 0, 7, 0, 255, 255,
@@ -31,20 +31,20 @@ function setup() {
   };
   const run = (encoder: CommandEncoder) => {
     const bytes = encoder.finish(), mem = new Uint8Array(32768);
-    mem.set(bytes); mem.set(source, 16384);
+    mem.set(bytes); mem.set(source, 16384); mem.set(new TextEncoder().encode('value 3\n'),20000);mem.set(new TextEncoder().encode('missing 3\n'),20100);mem.set(new TextEncoder().encode('value 0\n'),20200);
     return decodeCommands(mem, 0, bytes.length, ctx);
   };
   const send = (op: number, words: number[] = []) => run(new CommandEncoder().gpu(op, words));
   const inPass = (op: number, words: number[] = []) => run(new CommandEncoder()
     .gpu(O.PASS_BEGIN, begin).gpu(op, words).gpu(O.PASS_END, []));
-  const compile = () => {
+  const compile = (language=0) => {
     expect(run(new CommandEncoder()
-      .gpu(O.SHADER_CREATE, [1, 1, 0, 16384, source.length, 1])
-      .gpu(O.SHADER_CREATE, [2, 2, 0, 16384, source.length, 2])).errors).toEqual([]);
+      .gpu(O.SHADER_CREATE, [1, 1, language, 16384, source.length, 1])
+      .gpu(O.SHADER_CREATE, [2, 2, language, 16384, source.length, 2])).errors).toEqual([]);
     for (const item of frame.items) if (item.kind === 'gpu' && item.complete) item.complete(0, 'compiled');
   };
-  const resources = () => {
-    compile();
+  const resources = (language=0) => {
+    compile(language);
     expect(run(new CommandEncoder()
       .gpu(O.BUFFER_CREATE, [1, 7, 4096, 0, 0])
       .gpu(O.TEXTURE_CREATE, [1, 8, 8, 4, 0, 3])
@@ -59,6 +59,56 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it('feedback declaration, capture ranges, aliasing and readback fail atomically',()=>{
+    const t=setup();t.resources(1);t.send(O.BUFFER_CREATE,[3,8,128,0,0]);
+    const declaration=[1,0,1,20000,8],capture=[1,3,0,128,0,0,0,0,0,0,0,0,0];
+    expect(t.send(O.FEEDBACK_VARYINGS,declaration).status).toBe(0);
+    expect(t.inPass(O.FEEDBACK_VARYINGS,declaration).status).toBe(A.E_STATE);
+    expect(t.send(O.FEEDBACK_VARYINGS,[1,0,1,20100,10]).status).toBe(A.E_INVALID);
+    expect(t.send(O.FEEDBACK_VARYINGS,[1,0,1,20200,8]).status).toBe(A.E_INVALID);
+    expect(t.ctx.gpu!.pipelines.get(1)!.feedback?.strides).toEqual([16]);
+    const wg=setup();wg.resources();expect(wg.send(O.FEEDBACK_VARYINGS,declaration).status).toBe(A.E_UNSUPPORTED);
+    for(const [i,value,status] of [[0,9,A.E_NOT_FOUND],[1,2,A.E_INVALID],[2,2,A.E_INVALID],[3,32768,A.E_BOUNDS],[4,7,A.E_INVALID]] as const){const w=[...declaration];w[i]=value;const before=t.frame.items.length;expect(t.send(O.FEEDBACK_VARYINGS,w).status).toBe(status);expect(t.frame.items.length).toBe(before);}
+    expect(t.send(O.FEEDBACK_CAPTURE,capture).status).toBe(A.E_STATE);
+    const run=(w:number[],count=3)=>t.run(t.bound().gpu(O.FEEDBACK_CAPTURE,w).gpu(O.DRAW,[count,1,0,0]).gpu(O.PASS_END,[]));
+    expect(run(capture).status).toBe(0);
+    for(const [i,value,status] of [[0,2,A.E_INVALID],[1,7,A.E_NOT_FOUND],[2,1,A.E_INVALID],[2,128,A.E_BOUNDS],[3,0,A.E_INVALID],[4,3,A.E_INVALID]] as const){const w=[...capture];w[i]=value;expect(run(w).status).toBe(status);}
+    expect(run([1,1,0,128,0,0,0,0,0,0,0,0,0]).status).toBe(A.E_INVALID); // no feedback usage
+    t.send(O.BUFFER_CREATE,[4,9,128,0,0]);
+    expect(t.run(t.bound().gpu(O.VERTEX_BUFFER,[0,4,0,128]).gpu(O.FEEDBACK_CAPTURE,[1,4,0,128,0,0,0,0,0,0,0,0,0]).gpu(O.PASS_END,[])).status).toBe(A.E_STATE);
+    expect(run(capture,9).status).toBe(A.E_BOUNDS); // 3 triangles * 3 * vec4
+    expect(t.send(O.BUFFER_READBACK,[3,0,16,22]).status).toBe(0);expect(t.requests.status(22)).toBe(0);
+    const read=t.frame.items.at(-1) as GpuItem;read.readback?.(new Uint8Array([1,2,3,4]));expect(t.requests.status(22)).toBe(0);
+    expect(t.send(O.BUFFER_READBACK,[3,127,2,23]).status).toBe(A.E_BOUNDS);
+    expect(t.send(O.BUFFER_READBACK,[3,0,0,23]).status).toBe(A.E_INVALID);
+    expect(t.send(O.BUFFER_READBACK,[3,1,7,23]).status).toBe(0);
+    t.send(O.BUFFER_CREATE,[5,8,9*1024*1024,0,0]);
+    expect(t.send(O.BUFFER_READBACK,[5,0,9*1024*1024,24]).status).toBe(A.E_LIMIT);
+    expect(t.inPass(O.BUFFER_READBACK,[3,0,16,25]).status).toBe(A.E_STATE);
+    expect(t.send(O.BUFFER_UPDATE,[3,1,16384,1]).status).toBe(A.E_UNSUPPORTED);
+  });
+  it('blits validate aspects, classes, scissor and pass ordering atomically', () => {
+    const t=setup(), valid=[1,0,2,0,0,0,8,8,0,0,16,16,1,0,0,0,16,16];
+    t.send(O.TEXTURE_CREATE,[1,8,8,1,0,3]);t.send(O.TEXTURE_CREATE,[2,16,16,1,0,2]);
+    expect(t.send(O.BLIT,valid).status).toBe(0);
+    expect(t.send(O.BLIT,[...valid.slice(0,4),8,8,0,0,16,16,0,0,...valid.slice(12)]).status).toBe(0);
+    expect(t.send(O.BLIT,valid.slice(1)).status).toBe(A.E_INVALID);
+    for (const [index,value,status] of [[0,9,A.E_NOT_FOUND],[1,1,A.E_INVALID],[12,8,A.E_INVALID],[12,3,A.E_INVALID],
+      [13,2,A.E_INVALID],[14,1,A.E_BOUNDS]] as const) {
+      const w=[...valid];w[index]=value;const before=t.frame.items.length;
+      expect(t.send(O.BLIT,w).status).toBe(status);expect(t.frame.items.length).toBe(before);
+    }
+    expect(t.inPass(O.BLIT,valid).status).toBe(A.E_STATE);
+    for (const [h,fmt] of [[3,5],[4,5],[5,6],[6,17],[7,18],[8,0]]) t.send(O.TEXTURE_CREATE_EX,[h,0,16,16,1,1,fmt,3]);
+    const x=[3,0,4,0,...valid.slice(4)];x[12]=6;
+    expect(t.send(O.BLIT,x).status).toBe(0);x[13]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[13]=0;x[2]=5;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=5;x[12]=4;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=6;x[2]=7;x[12]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[2]=6;x[13]=1;expect(t.send(O.BLIT,x).status).toBe(A.E_INVALID);
+    x[0]=8;x[2]=2;expect(t.send(O.BLIT,x).status).toBe(0);
+    const old=setup();old.ctx.gpu=undefined;expect(old.send(O.BLIT,[]).status).toBe(A.E_UNSUPPORTED);
+  });
   it('typed indexed clears validate class, masks, finite depth and pass ordering without side effects', () => {
     const t = setup();
     expect(t.send(O.CLEAR_BUFFER, [0xf0,0,0,0,0,0]).status).toBe(A.E_STATE);
@@ -96,15 +146,19 @@ describe('GPU command validation', () => {
     expect(t.inPass(O.TEXTURE, [0, 1, 2]).status).toBe(0);
   });
   it('accepts every GPU op, preserves exact 2D/GPU ordering, copies uploads and sends validated backend items', () => {
-    const t = setup(); t.resources();
+    const t = setup(); t.resources(1);
     expect(t.run(new CommandEncoder().clear(0xff112233)
       .gpu(O.BUFFER_UPDATE, [1, 1024, 16384, source.length])
-      .gpu(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 4])).errors).toEqual([]);
+      .gpu(O.TEXTURE_UPDATE, [1, 3, 0, 0, 1, 1, 16384, 4])
+      .gpu(O.BLIT, [1,0,0,0,0,0,8,8,0,0,64,64,1,0,0,0,64,64])).errors).toEqual([]);
+    expect(t.send(O.BUFFER_CREATE,[3,8,4096,0,0]).status).toBe(0);
+    expect(t.send(O.FEEDBACK_VARYINGS,[1,0,1,20000,8]).status).toBe(0);
     expect(t.run(t.bound().gpu(O.VIEWPORT, [0, 0, F(64), F(64), 0, F(1)])
       .gpu(O.SCISSOR, [0, 0, 64, 64]).gpu(O.CLEAR_BUFFER, [0xf0, 0, F(.25), F(.5), F(.75), F(1)]).gpu(O.STENCIL_REF, [42])
       .gpu(O.BLEND_CONSTANT, [F(0.25), F(0.5), F(0.75), F(1)])
-      .gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
+      .gpu(O.FEEDBACK_CAPTURE,[1,3,0,4096,0,0,0,0,0,0,0,0,0]).gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
       .gpu(O.PASS_END, []).clear(0xff223344)).errors).toEqual([]);
+    expect(t.send(O.BUFFER_READBACK,[3,0,48,9]).status).toBe(0);
     expect(t.run(new CommandEncoder() // §13.7 operations, all outside passes
       .gpu(O.TEXTURE_CREATE_EX, [2, 0, 4, 4, 1, 2, 0, 1]).gpu(O.TEXTURE_ALLOCATE_MIPS, [2, 2])
       .gpu(O.TEXTURE_UPDATE_EX, [2, 0, 0, 0, 0, 1, 1, 1, 16384, 4])
@@ -113,7 +167,7 @@ describe('GPU command validation', () => {
       .toEqual([]);
     expect(t.run(new CommandEncoder().gpu(O.PIPELINE_DELETE, [1])
       .gpu(O.SHADER_DELETE, [1]).gpu(O.SHADER_DELETE, [2]).gpu(O.SAMPLER_DELETE, [1])
-      .gpu(O.TEXTURE_DELETE, [1]).gpu(O.BUFFER_DELETE, [1])).errors).toEqual([]);
+      .gpu(O.TEXTURE_DELETE, [1]).gpu(O.BUFFER_DELETE, [1]).gpu(O.BUFFER_DELETE,[3])).errors).toEqual([]);
     const items = t.frame.items.filter((it): it is GpuItem => it.kind === 'gpu');
     expect(new Set(items.map((it) => it.op))).toEqual(new Set(Object.values(O)));
     expect(items.find((it) => it.op === O.BUFFER_UPDATE)?.data).toEqual(source);
@@ -150,7 +204,7 @@ describe('GPU command validation', () => {
 
   it.each([
     [O.BUFFER_CREATE, [0, 1, 16, 0, 0], A.E_INVALID],
-    [O.BUFFER_CREATE, [1, 8, 16, 0, 0], A.E_INVALID],
+    [O.BUFFER_CREATE, [1, 16, 16, 0, 0], A.E_INVALID],
     [O.BUFFER_CREATE, [1, 1, 0x4000001, 0, 0], A.E_LIMIT],
     [O.BUFFER_CREATE, [1, 1, 16, 0, 4], A.E_INVALID],
     [O.BUFFER_CREATE, [1, 1, 16, 32760, 16], A.E_BOUNDS],
