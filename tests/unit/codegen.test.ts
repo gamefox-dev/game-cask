@@ -38,7 +38,7 @@ async function harness(hex: string) {
     + text.replace('#include "x86_lift64.h"', `#include "${ROOT}/platforms/x86/x86_lift64.h"`) + `
 BGT_EXPORT(run) unsigned run(unsigned interpreted) {
     unsigned fallback_blocks=0;
-    for(unsigned guard=0;X.eip>=${base}u && X.eip<${base + code.length}u;guard++) {
+    for(unsigned guard=0;!X.transfer && X.eip>=${base}u && X.eip<${base + code.length}u;guard++) {
         if(guard>5000000u)__builtin_trap();
         if(interpreted){reference();continue;}
         F_01001000();
@@ -117,6 +117,25 @@ it('native locals, byte aliases, branches, memory and generic barriers preserve 
   expect(execute(0, base, 1999995)).toEqual(execute(1, base, 1999995));
   // Entry in the middle of a native basic block must resume correctly, not run its prefix again.
   expect(execute(0, base + 10)).toEqual(execute(1, base + 10));
+});
+
+it('affine counting preserves RDTSC, forward diamonds, loop yields and every interior entry', async () => {
+  // Three loop iterations take both forward paths. RDTSC is a generic observation boundary.
+  const h = await harness('b90300000031c0ffc083f802740583c003eb03909090ffc975ed0f31c3');
+  expect(h.text).toContain('debt+=');
+  const snapshot = () => ({ cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+    ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536), yields: h.ex.yields(), clock: h.ex.clock() });
+  for (const budget of [0, 1999960, 1999990, 1999999, 2000000]) for (const stop of [0, 1]) {
+    h.ex.reset(base, budget); h.ex.stop_at_quantum(stop); h.ex.run(0); const lifted = snapshot();
+    h.ex.reset(base, budget); h.ex.stop_at_quantum(stop); h.ex.run(1);
+    expect(lifted, `budget=${budget} stop=${stop}`).toEqual(snapshot());
+  }
+  // Known instruction starts, including interior fallthrough (reference single-step resume).
+  for (const offset of [0, 5, 7, 9, 12, 14, 17, 19, 20, 21, 22, 24, 26]) {
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(0); const lifted = snapshot();
+    h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(1);
+    expect(lifted, `interior=${offset}`).toEqual(snapshot());
+  }
 });
 
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {

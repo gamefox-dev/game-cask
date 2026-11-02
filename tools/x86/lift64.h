@@ -30,7 +30,12 @@ static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
 typedef struct { int op, reg, n; uint64_t imm; uint32_t mask; } l64_replay_t;
 static l64_replay_t l64_replay;
 static uint32_t l64_fault_writes;
-static uint32_t l64_remaining;
+static uint32_t l64_position;
+/* Affine instruction debt: sequential instructions need no runtime counter update. */
+static void l64_flush(FILE *o, uint32_t position) {
+    fprintf(o, "clock+=(uint32_t)(debt+%uu);budget+=(uint32_t)(debt+%uu);debt=-%d;",
+            position, position, (int)position);
+}
 static int l64_guarded;
 static void l64_replay_flags(FILE *o) {
     l64_replay_t p = l64_replay;
@@ -49,7 +54,7 @@ static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writi
      * operands still validate full-width effective addresses through l64_ea. */
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
-    uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_remaining << 8) | (writing << 5) | n;
+    uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (writing << 5) | n;
     fprintf(o, "address=%s;p=xl_pointer_access(address,%d,%d);if(!p){", ea, n, writing ? 2 : 1);
     if (!writing || !l64_fault_writes) l64_replay_flags(o);
     fprintf(o, "fault=0x%llxull;value=%s;goto memory_fault;}\n", (unsigned long long)meta, value);
@@ -166,9 +171,20 @@ static uint32_t *l64_liveness(func_t *f, x86_insn_t *ins, const uint8_t *guarded
     } while (changed);
     free(live); return out;
 }
-static void l64_edge(FILE *o, func_t *f, uint32_t target) {
-    if (l64_index(f, target) >= 0) fprintf(o, "goto L_%08x;\n", target);
-    else fprintf(o, "pc=0x%08xu;goto exit;\n", target);
+static void l64_edge(FILE *o, func_t *f, uint32_t target, uint32_t from) {
+    int t = l64_index(f, target);
+    if (t >= 0) {
+        if ((uint32_t)t <= from) {
+            l64_flush(o, from + 1);
+            fprintf(o, "goto L_%08x;\n", target);
+        } else {
+            if ((uint32_t)t != from + 1) fprintf(o, "debt+=%d;", (int)(from + 1) - t);
+            fprintf(o, "goto B_%08x;\n", target);
+        }
+    } else {
+        l64_flush(o, from + 1);
+        fprintf(o, "pc=0x%08xu;goto exit;\n", target);
+    }
 }
 static int l64_simd_supported(const x86_insn_t *in) {
     unsigned op = in->simd_op;
@@ -308,7 +324,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "\nstatic %svoid R_%08x_%08x(uint32_t pc){\n",
                 f->insns.n <= 4 ? "" : "__attribute__((minsize,noinline)) ", original->addr, f->addr);
         fprintf(o, "uint64_t r[16],clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
-                   "uint32_t flags,budget,count=0,dirty=0;int action=0,width=0,writing=0;"
+                   "uint32_t flags,budget,count=0,dirty=0;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"
                    "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;\n");
         l64_sync(o, 1);
@@ -323,10 +339,15 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         for (uint32_t k = 0; k < f->insns.n; k++) {
             x86_insn_t *in = &ins[k]; uint32_t va = f->insns.v[k], next = va + in->len;
             const x86_opnd_t *aa = &in->o[0], *bb = &in->o[1]; int n = aa->size ? aa->size : in->osz;
-            if (starts[k]) fprintf(o, "L_%08x:;\n", va);
-            if (!in->len) { fprintf(o, "pc=0x%08xu;goto exit;\n", va); continue; }
+            if (starts[k]) {
+                /* L_ is an external entry/backedge; forward native edges bypass it through B_. */
+                fprintf(o, "L_%08x:;debt=-%d;if(budget+%uu>2000000u){pc=0x%08xu;count=1;action=1;goto boundary;}\n"
+                           "B_%08x: __attribute__((unused));\n", va, (int)k, f->insns.n, va, va);
+            }
+            if (!in->len) { l64_flush(o, k); fprintf(o, "pc=0x%08xu;goto exit;\n", va); continue; }
             if (!l64_specialized(in)) {
                 st->generic++;
+                l64_flush(o, k);
                 fprintf(o, "{static const x86_insn_t I="); emit_insn_struct(o, in);
                 fprintf(o, ";pending=&I;}pc=0x%08xu;action=0;goto boundary;\n", va); continue;
             }
@@ -336,9 +357,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 uint32_t count = block_end - k;
                 l64_guard_t guard = l64_guard(ins, k, block_end);
                 l64_guarded = guard.safe && guard.n;
-                l64_emit_guard(o, &guard, va, count);
-                fprintf(o, "if(budget+%uu>2000000u){pc=0x%08xu;count=%uu;action=1;goto boundary;}"
-                           "clock+=%uu;budget+=%uu;\n", count, va, count, count, count);
+                l64_emit_guard(o, &guard, va, count, k);
             }
             uint32_t writes = 0;
             if (aa->kind == XK_REG && in->op != XO_CMP && in->op != XO_TEST && in->op != XO_PUSH &&
@@ -352,7 +371,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             if (writes) fprintf(o, "dirty|=0x%xu;", writes);
             l64_replay = replays[k];
             { uint32_t reads; l64_flag_io(in, &reads, &l64_fault_writes); }
-            l64_remaining = block_end - k - 1;
+            l64_position = k + 1;
             uint32_t mask = live[k] & L64_FLAGS;
             /* Read-modify-write faults expose the computed flags before the store fails. */
             if (aa->kind == XK_MEM && !l64_guarded) mask = L64_FLAGS;
@@ -427,20 +446,23 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 fprintf(o, "t=xl_cond(%u,flags);", in->cc); l64_write(o, aa, "t", next); break;
             case XO_SIMD: l64_simd(o, in, next); break;
             case XO_JCC:
-                fprintf(o, "if(xl_cond(%u,flags)){", in->cc); l64_edge(o, f, in->target); fprintf(o, "}"); break;
-            case XO_JMP: l64_edge(o, f, in->target); continue;
+                fprintf(o, "if(xl_cond(%u,flags)){", in->cc); l64_edge(o, f, in->target, k); fprintf(o, "}"); break;
+            case XO_JMP: l64_edge(o, f, in->target, k); continue;
             case XO_JMP_IND:
                 l64_read(o, aa, "t", next);
+                l64_flush(o, k + 1);
                 fprintf(o, "if(t>UINT32_MAX){pc=0x%08xu;action=4;goto boundary;}"
                            "pc=(uint32_t)t;goto dispatch;\n", next); continue;
             case XO_CALL: case XO_CALL_IND:
                 if (in->op == XO_CALL) { fprintf(o, "t=0x%08xu;", in->target); st->calls_direct++; }
                 else { l64_read(o, aa, "t", next); st->calls_indirect++; }
+                l64_flush(o, k + 1);
                 fprintf(o, "r[4]-=8;");
                 { char ret[40]; snprintf(ret, sizeof ret, "0x%08xull", next);
                   l64_pointer(o, "r[4]", 8, next, 1, ret); fprintf(o, "xl_store(p,%s,8);", ret); }
                 fprintf(o, "pc=0x%08xu;action=2;goto boundary;\n", next); continue;
             case XO_RET:
+                l64_flush(o, k + 1);
                 l64_pointer(o, "r[4]", 8, next, 0, "0"); fprintf(o, "t=xl_load(p,8);r[4]+=8;");
                 /* Pop is visible even when the returned full-width pointer is invalid. */
                 fprintf(o, "pc=0x%08xu;value=0x%llxull;action=3;goto boundary;\n",
@@ -449,7 +471,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             default: break;
             }
             fprintf(o, "\n");
-            if (starts[k + 1]) l64_edge(o, f, next);
+            if (starts[k + 1]) l64_edge(o, f, next, k);
         }
         fprintf(o, "landing:\n");
         fprintf(o, "{static const uint32_t entries[]={");
@@ -461,7 +483,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else{X.eip=x86_address(t);if(action==3)X.r[4]+=value;}return;\n");
         fprintf(o, "memory_fault: __attribute__((unused));\n"
                    "pc=(uint32_t)(fault>>32);width=fault&31;writing=(fault>>5)&3;"
-                   "clock-=(fault>>8)&0xffffffu;budget-=(fault>>8)&0xffffffu;\n"); l64_sync(o, 0);
+                   "clock+=(uint32_t)(debt+((fault>>8)&0xffffffu));"
+                   "budget+=(uint32_t)(debt+((fault>>8)&0xffffffu));\n"); l64_sync(o, 0);
         fprintf(o, "X.eip=pc;{uint32_t a=x86_address(address);"
                    "if(writing==2){for(int j=0;j<width;j++)x86_wr8(a+(uint32_t)j,av.u8[j]);}"
                    "else if(writing==3){for(int j=0;j<width;j++)(void)x86_rd8(a+(uint32_t)j);}"
