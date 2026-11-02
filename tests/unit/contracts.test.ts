@@ -52,7 +52,7 @@ it('census includes every runtime registry, with width/precedence and genuinely 
     expect(importStatus('GetThreadContext','kernel32.dll',machine).capability).toBe('failure-only');
     expect(importStatus('TrackMouseEvent','user32.dll',machine).capability).toBeUndefined();
     expect(importStatus('FlushInstructionCache', 'kernel32.dll', machine).status).toBe('stub');
-    expect(importStatus('glMapBuffer', 'opengl32.dll', machine).status).toBe('stub');
+    expect(importStatus('glMapBuffer', 'opengl32.dll', machine).status).toBe('implemented');
     expect(importStatus('ThisNameDoesNotExist', 'user32.dll', machine).status).toBe('unknown');
     expect(importStatus('Sleep', 'absent-dll.dll', machine).status).toBe('unknown');
   }
