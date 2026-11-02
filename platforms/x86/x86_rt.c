@@ -137,10 +137,14 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 /* ------------------------------------------------------------------ lifted registry */
 static const x86_lifted_entry_t *lifted;
 static uint32_t nlifted;
+/* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
+ * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
+static struct { uint32_t addr; x86_lifted_fn fn; int valid; } lifted_cache[1024];
 
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
+    __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
     for (uint32_t i = 0; i < n; i++)
@@ -150,6 +154,9 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
     if (x86_force_interp) return 0;
+    unsigned slot = (addr ^ (addr >> 10)) & 1023u;
+    if (lifted_cache[slot].valid && lifted_cache[slot].addr == addr) return lifted_cache[slot].fn;
+    x86_lifted_fn found = 0;
     /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
     uint32_t lo = 0, hi = nlifted;
     while (lo < hi) {
@@ -158,9 +165,10 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
     }
     if (lo) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
-        if (addr == e->addr || addr < e->end) return e->fn;
+        if (addr == e->addr || addr < e->end) found = e->fn;
     }
-    return 0;
+    lifted_cache[slot].addr = addr; lifted_cache[slot].fn = found; lifted_cache[slot].valid = 1;
+    return found;
 }
 
 /* ------------------------------------------------------------------ thunks */
@@ -168,6 +176,16 @@ static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
+/* Native regions have already spilled and returned. Only this tiny wrapper may suspend,
+ * invoke callbacks, grow memory or transfer; it never holds a local guest register/pointer. */
+void x86_lift_thunk(void) {
+#ifdef X86_FLAT_GUEST
+    if (!X.transfer && !x86_lift_pending && !x86_lift_count && x86_is_thunk(X.eip)) {
+        x86_metrics.thunk_dispatches++;
+        thunk_fn(X.eip);
+    }
+#endif
+}
 
 /* Coverage is block/continuation entry evidence, not an instruction trace. The host
  * deduplicates addresses. Function census uses a bounded byte per analyzed owner. */

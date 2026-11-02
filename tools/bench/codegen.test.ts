@@ -50,6 +50,19 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       }, modules: [{ from: './build/cpu.exe', main: true }],
     },
   }));
+  const boundaryDir = join(ROOT, 'node_modules/.cache/bgt/codegen-boundary');
+  mkdirSync(boundaryDir, { recursive: true });
+  cpSync(join(ROOT, 'tools/bench/boundary.c'), join(boundaryDir, 'boundary.c'));
+  writeFileSync(join(boundaryDir, 'game.json'), JSON.stringify({
+    id: 'codegen-boundary', name: 'CC0 scalar SSE/thunk/vtable benchmark', pipeline: {
+      platform: 'win32', fixture: { target: 'x86_64-windows-gnu', sources: ['boundary.c'],
+        out: 'boundary.exe', crt: true, libs: ['kernel32'] },
+      modules: [{ from: './build/boundary.exe', main: true }],
+    },
+  }));
+  let boundarySum = 0;
+  for (let i = 0; i < 100000; i++) boundarySum = (boundarySum + ((i & 1) ? ((i & 1023) ^ 0x55) : (i & 1023) + 3)) >>> 0;
+  const boundaryChecksum = `guest: boundary checksum ${boundarySum.toString(16).padStart(8, '0')}`;
   const liftPreset = process.env.BGT_CODEGEN_PRESET;
   const resourcesBefore = resources();
   const rows = [];
@@ -58,9 +71,9 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
   const trials = Number(process.env.BGT_CODEGEN_TRIALS ?? 8);
   expect(Number.isInteger(trials) && trials > 0 && trials <= 64).toBe(true);
   for (const id of ids) {
-    let game = id === 'codegen-cpu' ? dir : `examples/${id}`;
+    let game = id === 'codegen-cpu' ? dir : id === 'codegen-boundary' ? boundaryDir : `examples/${id}`;
     if (liftPreset) {
-      if (id !== 'codegen-cpu') {
+      if (id !== 'codegen-cpu' && id !== 'codegen-boundary') {
         game = join(ROOT, 'node_modules/.cache/bgt/codegen-inputs', id);
         cpSync(join(ROOT, 'examples', id), game, { recursive: true, filter: (p) => !p.endsWith('/build') });
       }
@@ -89,6 +102,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       expect((runtime as { interp_insns: number }).interp_insns, id).toBe(0);
       expect(logs.some((s) => /\bFAIL\b/.test(s)), id).toBe(false);
       if (id === 'codegen-cpu') expect(logs).toContain(checksum);
+      if (id === 'codegen-boundary') expect(logs).toContain(boundaryChecksum);
       }
       if (sample) { allTrials.push(runs); times.push(runs.reduce((a, b) => a + b, 0) / trials); }
     }
@@ -106,6 +120,8 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       specialized: modules.reduce((n, m) => n + m.lift.specialized, 0),
       generic: modules.reduce((n, m) => n + m.lift.generic, 0),
       wasm_bytes: manifest.wasm.size, ...manifest.pipeline.metrics,
+      generic_per_lifted_call: (runtime as { generic_insn_execs: number }).generic_insn_execs /
+        (runtime as { lifted_calls: number }).lifted_calls,
       frames: 300, trials_per_sample: trials, run_ms_median: times[2], run_ms_samples: times,
       run_ms_trials: allTrials, logs, runtime,
       oracle: { identical: differential.identical, compared_frames: differential.comparedFrames, hashes: differential.hashes },

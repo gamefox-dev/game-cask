@@ -2,11 +2,13 @@
 #ifndef X86_LIFT64_H
 #define X86_LIFT64_H
 #include "x86_sem64.h"
+#include "x86_sse.h"
 /* Cleared/consumed by the registry before any callback or suspension. Lifted register-local
  * frames return at generic and quantum boundaries rather than adding Asyncify stack frames. */
 extern const x86_insn_t *x86_lift_pending;
 extern uint32_t x86_lift_count;
 void x86_lift_block(uint32_t count);
+void x86_lift_thunk(void);
 static inline int xl_contains(const uint32_t *entries, unsigned n, uint32_t pc) {
     unsigned lo = 0, hi = n;
     while (lo < hi) { unsigned m = (lo + hi) / 2; if (entries[m] < pc) lo = m + 1; else hi = m; }

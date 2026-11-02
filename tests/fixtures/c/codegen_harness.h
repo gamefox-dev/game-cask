@@ -13,6 +13,10 @@ uint8_t *x86_flat = ram;
 uint64_t x86_guest_committed;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
+/* This single-owner snapshot harness has no host APIs/registry. Integration fixtures use x86_rt.c. */
+int x86_is_thunk(uint32_t addr) { (void)addr; return 0; }
+void x86_lift_thunk(void) { __builtin_trap(); }
+x86_lifted_fn x86_find_lifted(uint32_t addr) { (void)addr; return 0; }
 static uint32_t yields, fault_address, fault_hash, stop_at_quantum;
 void x86_fault(const char *m, uint32_t a) {
     fault_address = a; fault_hash = 2166136261u;
@@ -62,3 +66,11 @@ BGT_EXPORT(fault_hash) uint32_t last_fault_hash(void) { return fault_hash; }
 BGT_EXPORT(clock) uint64_t instruction_clock(void) { return X.tsc; }
 BGT_EXPORT(stop_at_quantum) void quantum_stop(uint32_t enabled) { stop_at_quantum = enabled; }
 BGT_EXPORT(set_reg) void set_reg(uint32_t index, uint64_t value) { if (index < 16) X.r[index] = value; }
+BGT_EXPORT(set_xmm) void set_xmm(uint32_t index, uint64_t low, uint64_t high) {
+    if (index < 16) { X.xmm[index].u64[0] = low; X.xmm[index].u64[1] = high; }
+}
+BGT_EXPORT(get_xmm) uint64_t get_xmm(uint32_t index, uint32_t lane) { return X.xmm[index].u64[lane]; }
+BGT_EXPORT(get_reg) uint64_t get_reg(uint32_t index) { return X.r[index]; }
+BGT_EXPORT(set_mxcsr) void set_mxcsr(uint32_t value) { X.mxcsr = value; }
+BGT_EXPORT(set_flags) void set_flags(uint32_t value) { X.flags = value; }
+BGT_EXPORT(get_flags) uint32_t get_flags(void) { return X.flags; }

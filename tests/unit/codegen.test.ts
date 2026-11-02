@@ -78,7 +78,8 @@ BGT_EXPORT(run) unsigned run(unsigned interpreted) {
   const ex = instance.exports as any;
   const memory = () => new Uint8Array(ex.memory.buffer);
   const view = () => new DataView(ex.memory.buffer);
-  return { ex, memory, view, code, text, stats: JSON.parse(readFileSync(join(dir, 'lifted.c.stats.json'), 'utf8')) };
+  return { ex, memory, view, code, text, input: join(dir, 'input.exe'),
+    stats: JSON.parse(readFileSync(join(dir, 'lifted.c.stats.json'), 'utf8')) };
 }
 
 it('specialized ALU flag masks agree with all arithmetic reference flags and preserve dead bits', async () => {
@@ -160,6 +161,23 @@ it('affine counting preserves RDTSC, forward diamonds, loop yields and every int
     h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(0); const lifted = snapshot();
     h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(1);
     expect(lifted, `interior=${offset}`).toEqual(snapshot());
+  }
+});
+
+it('interior native entries count only their suffix and never replay flags from an unexecuted prefix', async () => {
+  // ADD sets up a cold flag recipe; both later loads can fault. Entering after ADD must retain caller flags.
+  const h = await harness('4883c001488b134883c203488b0b4883c102c3');
+  for (const offset of [0, 4, 7, 11, 14, 18]) for (const hole of [false, true]) {
+    const execute = (interp: number) => {
+      h.ex.reset(base + offset, 0); h.ex.set_reg(0, 42n); h.ex.set_reg(3, 0x3000n); h.ex.set_flags(0x8d5);
+      if (hole) h.ex.unmap(3);
+      let faulted = false, blocks = 0;
+      try { blocks = h.ex.run(interp); } catch (e) { expect(e).toBeInstanceOf(WebAssembly.RuntimeError); faulted = true; }
+      if (!hole && !interp) expect(blocks).toBe(0);
+      return { faulted, cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+    };
+    expect(execute(0), `entry=${offset} hole=${hole}`).toEqual(execute(1));
   }
 });
 
@@ -297,6 +315,142 @@ it('prefix variants of SSE logical memory operations preserve reference scalar r
   };
   expect(h.stats.generic).toBe(0);
   expect(execute(0)).toEqual(execute(1));
+});
+
+it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and integer indefinite', async () => {
+  // Original CC0 encodings. Every form tested with register and exact-width memory operands.
+  for (const prefix of ['f2', 'f3']) for (const wide of ['', '48']) {
+    for (const op of ['2a', '2c', '2d']) {
+      const h = await harness(`${prefix}${wide}0f${op}c1c3`);
+      expect(h.stats.generic).toBe(0);
+      if (op === '2a') {
+        const listing = execFileSync(x86tool(), ['disasm', h.input], { encoding: 'utf8' });
+        expect(listing).toContain(`cvtsi2${prefix === 'f2' ? 'sd' : 'ss'} xmm0, ${wide ? 'rcx' : 'ecx'}`);
+      }
+      for (const rc of [0, 1, 2, 3]) for (const bits of [0n, 0x3ff8000000000000n,
+        0xbff8000000000000n, 0x7ff8000000000000n, 0x7ff0000000000000n, 0x43e0000000000000n,
+        0xc1e0000000100000n, 0x7fffffffn, 0x8000000000000000n, 0xffffffffffffffffn]) {
+        const execute = (interp: number) => {
+          h.ex.reset(base, 0); h.ex.set_mxcsr(0x1f80 | rc << 13);
+          h.ex.set_reg(1, bits); h.ex.set_xmm(0, 0x76543210abcdef01n, 0x123456789abcdef0n);
+          h.ex.set_xmm(1, bits, 0xfedcba9876543210n); h.ex.run(interp);
+          return h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size());
+        };
+        expect(execute(0), `${prefix}/${wide}/${op}/${rc}/${bits}`).toEqual(execute(1));
+      }
+    }
+  }
+  for (const prefix of ['', '66']) for (const op of ['2e', '2f']) {
+    const h = await harness(`${prefix}0f${op}c1c3`);
+    expect(h.stats.generic).toBe(0);
+    const values = prefix ? [0n, 0x3ff0000000000000n, 0xbff0000000000000n, 0x7ff8000000000000n,
+      0x7ff0000000000001n] : [0n, 0x3f800000n, 0xbf800000n, 0x7fc00000n, 0x7f800001n];
+    for (const x of values) for (const y of values) {
+      h.ex.reset(base, 0); h.ex.set_flags(0xffff); h.ex.set_xmm(0, x, 123n); h.ex.set_xmm(1, y, 456n);
+      h.ex.run(0);
+      const unordered = x === values[3] || x === values[4] || y === values[3] || y === values[4];
+      const rank = (v: bigint) => v === values[2] ? -1 : v === values[1] ? 1 : 0;
+      const expected = unordered ? 0x45 : rank(x) === rank(y) ? 0x40 : rank(x) < rank(y) ? 1 : 0;
+      expect(h.ex.get_flags()).toBe((0xffff & ~0x8d5) | expected);
+    }
+  }
+  for (const prefix of ['f2', 'f3']) for (const rex of ['', '48']) for (const op of ['2a', '2c', '2d']) {
+    const h = await harness(`${prefix}${rex}0f${op}03c3`);
+    expect(h.stats.generic).toBe(0);
+    const width = op === '2a' ? rex ? 8 : 4 : prefix === 'f2' ? 8 : 4;
+    for (const address of [0x3000 - width, 0x3000 - width + 1]) {
+      const execute = (interp: number) => {
+        h.ex.reset(base, 0); h.ex.set_reg(3, BigInt(address)); h.ex.unmap(3);
+        h.view().setBigUint64(h.ex.ram() + address, 0x3ff8000000000000n, true);
+        let faulted = false;
+        try { h.ex.run(interp); } catch (e) { expect(e).toBeInstanceOf(WebAssembly.RuntimeError); faulted = true; }
+        expect(faulted).toBe(address > 0x3000 - width);
+        return { faulted, cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()) };
+      };
+      expect(execute(0), `${prefix}/${rex}/${op}/${address}`).toEqual(execute(1));
+    }
+  }
+  // CVTSS2SD reads 4 bytes at page edge (not 16); CVTSD2SS reads 8. Upper lanes survive.
+  for (const [prefix, width, bits, result] of [
+    ['f3', 4, 0x3fc00000n, 0x3ff8000000000000n], ['f2', 8, 0x3ff8000000000000n, 0xabcdef013fc00000n],
+  ] as const) {
+    const h = await harness(`${prefix}0f5a03c3`);
+    expect(h.stats.generic).toBe(0);
+    h.ex.reset(base, 0); h.ex.set_reg(3, BigInt(0x3000 - width)); h.ex.unmap(3);
+    h.view().setBigUint64(h.ex.ram() + 0x3000 - width, bits, true);
+    h.ex.set_xmm(0, 0xabcdef0100000000n, 0xfedcba9876543210n); h.ex.run(0);
+    expect(h.ex.get_xmm(0, 0)).toBe(BigInt.asIntN(64, result));
+    expect(h.ex.get_xmm(0, 1)).toBe(BigInt.asIntN(64, 0xfedcba9876543210n));
+  }
+});
+
+it('REX.R/B scalar conversions track extended GPR and XMM operands, and MMX is not mislabeled SSE', async () => {
+  const toFloat = await harness('f34d0f2ac1c3');
+  toFloat.ex.reset(base, 0); toFloat.ex.set_reg(9, 16777217n); toFloat.ex.run(0);
+  expect(toFloat.ex.get_xmm(8, 0)).toBe(0x4b800000n); expect(toFloat.stats.generic).toBe(0);
+  const toInt = await harness('f2450f2cc1c3');
+  toInt.ex.reset(base, 0); toInt.ex.set_reg(8, 0xffffffffffffffffn);
+  toInt.ex.set_xmm(9, 0xbff8000000000000n, 0n); toInt.ex.run(0);
+  expect(toInt.ex.get_reg(8)).toBe(0xffffffffn); expect(toInt.stats.generic).toBe(0);
+  const mmx = await harness('0f2ac1c3');
+  expect(mmx.stats.generic).toBe(1); mmx.ex.reset(base, 0);
+  expect(() => mmx.ex.run(0)).toThrow(WebAssembly.RuntimeError);
+});
+
+it('rounding known answers are independent of the shared conversion implementation', async () => {
+  const i2s = await harness('f3480f2ac1c3'), i2d = await harness('f2480f2ac1c3');
+  for (const [h, value, expected] of [
+    [i2s, 16777217n, [0x4b800000n, 0x4b800000n, 0x4b800001n, 0x4b800000n]],
+    [i2s, -16777217n, [0xcb800000n, 0xcb800001n, 0xcb800000n, 0xcb800000n]],
+    // This tie-plus-one must not double-round through binary64.
+    [i2s, 0x4000004000000001n, [0x5e800001n, 0x5e800000n, 0x5e800001n, 0x5e800000n]],
+    [i2d, 9007199254740993n, [0x4340000000000000n, 0x4340000000000000n, 0x4340000000000001n, 0x4340000000000000n]],
+  ] as const) for (const rc of [0, 1, 2, 3]) {
+    h.ex.reset(base, 0); h.ex.set_mxcsr(0x1f80 | rc << 13); h.ex.set_reg(1, BigInt.asUintN(64, value));
+    h.ex.run(0); expect(h.ex.get_xmm(0, 0)).toBe(expected[rc]);
+  }
+  const d2s = await harness('f20f5ac1c3');
+  for (const [bits, expected] of [
+    [0x3ff0000010000000n, [0x3f800000n, 0x3f800000n, 0x3f800001n, 0x3f800000n]],
+    [0xbff0000010000000n, [0xbf800000n, 0xbf800001n, 0xbf800000n, 0xbf800000n]],
+    [0x3690000000000000n, [0n, 0n, 1n, 0n]],
+    [0x47f0000000000000n, [0x7f800000n, 0x7f7fffffn, 0x7f800000n, 0x7f7fffffn]],
+    [0x8000000000000000n, [0x80000000n, 0x80000000n, 0x80000000n, 0x80000000n]],
+  ] as const) for (const rc of [0, 1, 2, 3]) {
+    d2s.ex.reset(base, 0); d2s.ex.set_mxcsr(0x1f80 | rc << 13); d2s.ex.set_xmm(1, bits, 0n);
+    d2s.ex.run(0); expect(d2s.ex.get_xmm(0, 0)).toBe(expected[rc]);
+  }
+  for (const [op, bits, expected] of [
+    ['2d', 0x3ff8000000000000n, [2n, 1n, 2n, 1n]],
+    ['2d', 0xbff8000000000000n, [0xfffffffen, 0xfffffffen, 0xffffffffn, 0xffffffffn]],
+    ['2c', 0xc1e0000000100000n, [0x80000000n, 0x80000000n, 0x80000000n, 0x80000000n]],
+    ['2d', 0x7ff8000000000000n, [0x80000000n, 0x80000000n, 0x80000000n, 0x80000000n]],
+  ] as const) {
+    const h = await harness(`f20f${op}c1c3`);
+    for (const rc of [0, 1, 2, 3]) {
+      h.ex.reset(base, 0); h.ex.set_mxcsr(0x1f80 | rc << 13); h.ex.set_xmm(1, bits, 0n);
+      h.ex.run(0); expect(h.ex.get_reg(0)).toBe(expected[rc]);
+    }
+  }
+});
+
+it('scalar/packed compare predicates and square root stay native with NaN and upper-lane preservation', async () => {
+  let code = '48c7c300200000';
+  for (const prefix of ['', '66', 'f2', 'f3']) {
+    code += `${prefix}0f51c1`;
+    for (let predicate = 0; predicate < 8; predicate++)
+      code += `660f28c1${prefix}0fc2c1${predicate.toString(16).padStart(2, '0')}660f11034883c310`;
+  }
+  const h = await harness(code + 'c3');
+  expect(h.stats.generic).toBe(0);
+  for (const bits of [0n, 0x3ff000003f800000n, 0x7ff800007fc00000n]) {
+    const execute = (interp: number) => {
+      h.ex.reset(base, 0); h.ex.set_xmm(1, bits, 0x7ff000007f800000n); h.ex.run(interp);
+      return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+    };
+    expect(execute(0)).toEqual(execute(1));
+  }
 });
 
 it('specialized SSE loads, scalar upper lanes, arithmetic and stores match every CPU byte', async () => {
