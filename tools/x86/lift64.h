@@ -56,9 +56,12 @@ static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writi
      * operands still validate full-width effective addresses through l64_ea. */
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
+    /* Fault-replay discriminators are not access bits: 0=scalar read, 1=scalar store,
+     * 2=vector store, 3=vector read. A vector read must never demand WRITE permission. */
+    unsigned access = writing == 1 || writing == 2 ? 2 : 1;
     uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (writing << 5) | n;
-    fprintf(o, "address=%s;p=%s(address,%d,%d);if(!p){", ea,
-            lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, writing ? 2 : 1);
+    fprintf(o, "address=%s;p=%s(address,%d,%u);if(!p){", ea,
+            lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, access);
     if (writing == 0 || writing == 3 || !l64_fault_writes) l64_replay_flags(o);
     fprintf(o, "fault=0x%llxull;value=%s;goto memory_fault;}\n", (unsigned long long)meta, value);
 }

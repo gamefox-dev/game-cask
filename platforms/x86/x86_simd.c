@@ -7,7 +7,7 @@ static x86_vec_t loadv(const x86_opnd_t *o,int bytes) {
     if (o->kind == XK_XMM) return X.xmm[o->reg];
     uint32_t p = x64_ea(o);
 #ifdef X86_FLAT_GUEST
-    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_accessible(p, (uint32_t)bytes, 1)) {
         __builtin_memcpy(&v, x86_flat + p, (unsigned)bytes);
         return v;
     }
@@ -19,7 +19,7 @@ static void storev(const x86_opnd_t *o,x86_vec_t v,int bytes) {
     if (o->kind == XK_XMM) { X.xmm[o->reg] = v; return; }
     uint32_t p = x64_ea(o);
 #ifdef X86_FLAT_GUEST
-    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_mapped(p, (uint32_t)bytes)) {
+    if ((uint64_t)p + bytes <= X86_FLAT_BYTES && x86_accessible(p, (uint32_t)bytes, 2)) {
         __builtin_memcpy(x86_flat + p, &v, (unsigned)bytes);
         return;
     }

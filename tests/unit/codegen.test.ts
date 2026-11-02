@@ -165,15 +165,21 @@ it('affine counting preserves RDTSC, forward diamonds, loop yields and every int
 });
 
 it('interior native entries count only their suffix and never replay flags from an unexecuted prefix', async () => {
-  // ADD sets up a cold flag recipe; both later loads can fault. Entering after ADD must retain caller flags.
-  const h = await harness('4883c001488b134883c203488b0b4883c102c3');
-  for (const offset of [0, 4, 7, 11, 14, 18]) for (const hole of [false, true]) {
+  // MOV RBX inside the block makes its whole-span guard unsafe. Enter at +4 (before MOV),
+  // so the unmapped load must reach the native operand fault edge, not guarded semantic replay.
+  // The ADD recipe at position 0 must never reconstruct flags from this unexecuted prefix.
+  const h = await harness('4883c00148c7c300300000488b134883c001c3');
+  for (const offset of [0, 4, 11, 14, 18]) for (const hole of [false, true]) {
     const execute = (interp: number) => {
       h.ex.reset(base + offset, 0); h.ex.set_reg(0, 42n); h.ex.set_reg(3, 0x3000n); h.ex.set_flags(0x8d5);
       if (hole) h.ex.unmap(3);
       let faulted = false, blocks = 0;
       try { blocks = h.ex.run(interp); } catch (e) { expect(e).toBeInstanceOf(WebAssembly.RuntimeError); faulted = true; }
       if (!hole && !interp) expect(blocks).toBe(0);
+      if (hole && offset === 4) {
+        expect(faulted).toBe(true);
+        expect(h.ex.get_flags()).toBe(0x8d5);
+      }
       return { faulted, cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
         ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
     };
@@ -396,6 +402,50 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
   }
 });
 
+it('native SSE memory reads accept read-only pages while stores and RMW still fault truthfully', async () => {
+  const forms = ['0f2e03', '0f2f03', '660f2e03', '660f2f03', 'f30f5a03', 'f20f5a03',
+    '0f5103', '660f5103', 'f30f5103', 'f20f5103', '0fc20300', '660fc20300', 'f30fc20300', 'f20fc20300'];
+  for (const prefix of ['f2', 'f3']) for (const rex of ['', '48']) for (const op of ['2a', '2c', '2d'])
+    forms.push(`${prefix}${rex}0f${op}03`);
+  // Include existing SIMD readers to audit the shared discriminator beyond the newly native set.
+  forms.push('0f1003', '0f2803', '660f6f03', '660f5403', '660f5803', 'f20f5c03');
+  for (const form of forms) {
+    // Changing RBX inside the block defeats the whole-span guard, exposing the operand access check.
+    const h = await harness(`48c7c300300000${form}c3`);
+    expect(h.stats.generic, form).toBe(0);
+    const execute = (interp: number, protection: number) => {
+      h.ex.reset(base, 0); h.ex.protect(3, protection);
+      h.view().setBigUint64(h.ex.ram() + 0x3000, 0x3ff000003f800000n, true);
+      h.view().setBigUint64(h.ex.ram() + 0x3008, 0x4010000040800000n, true);
+      h.ex.set_xmm(0, 0x4010000040800000n, 0x4022000041100000n);
+      expect(() => h.ex.run(interp), `${form} protection=${protection}`).not.toThrow();
+      return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+    };
+    for (const protection of [2, 0x20]) expect(execute(0, protection)).toEqual(execute(1, protection));
+    for (const protection of [1, 0x10]) {
+      const denied = (interp: number) => {
+        h.ex.reset(base, 0); h.ex.protect(3, protection);
+        expect(() => h.ex.run(interp), `${form} denied=${protection}`).toThrow(WebAssembly.RuntimeError);
+        return h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size());
+      };
+      expect(denied(0), form).toEqual(denied(1));
+    }
+  }
+  for (const form of ['488903', 'f20f1103', '660f2903', '48830301']) {
+    const h = await harness(`48c7c300300000${form}c3`);
+    const execute = (interp: number) => {
+      h.ex.reset(base, 0); h.ex.protect(3, 2);
+      h.view().setBigUint64(h.ex.ram() + 0x3000, 0x3ff000003f800000n, true);
+      h.ex.set_xmm(0, 0x4010000040800000n, 0x4022000041100000n);
+      expect(() => h.ex.run(interp), form).toThrow(WebAssembly.RuntimeError);
+      return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+        ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
+    };
+    expect(execute(0), form).toEqual(execute(1));
+  }
+});
+
 it('COMI/UCOMI memory forms read exact scalar widths and preserve fault state at page edges', async () => {
   for (const prefix of ['', '66']) for (const op of ['2e', '2f']) {
     const h = await harness(`${prefix}0f${op}03c3`), width = prefix ? 8 : 4;
@@ -471,7 +521,8 @@ it('rounding known answers are independent of the shared conversion implementati
 it('scalar/packed compare predicates and square root stay native with NaN and upper-lane preservation', async () => {
   let code = '48c7c300200000';
   for (const prefix of ['', '66', 'f2', 'f3']) {
-    code += `${prefix}0f51c1`;
+    // Store SQRT before MOVAPD prepares comparison operands; otherwise every result was dead.
+    code += `${prefix}0f51c1` + '660f11034883c310';
     for (let predicate = 0; predicate < 8; predicate++)
       code += `660f28c1${prefix}0fc2c1${predicate.toString(16).padStart(2, '0')}660f11034883c310`;
   }
@@ -484,6 +535,22 @@ it('scalar/packed compare predicates and square root stay native with NaN and up
         ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536) };
     };
     expect(execute(0)).toEqual(execute(1));
+  }
+});
+
+it('SQRT scalar and packed known answers observe every result and retained upper lane', async () => {
+  for (const [prefix, low, high, wantLow, wantHigh] of [
+    ['', 0x4110000040800000n, 0x4180000041800000n, 0x4040000040000000n, 0x4080000040800000n],
+    ['66', 0x4010000000000000n, 0x4022000000000000n, 0x4000000000000000n, 0x4008000000000000n],
+    ['f3', 0x4110000040800000n, 0x4180000041800000n, 0x1234567840000000n, 0xfedcba9876543210n],
+    ['f2', 0x4010000000000000n, 0x4022000000000000n, 0x4000000000000000n, 0xfedcba9876543210n],
+  ] as const) {
+    const h = await harness(`${prefix}0f51c1c3`);
+    expect(h.stats.generic).toBe(0);
+    h.ex.reset(base, 0); h.ex.set_xmm(0, 0x1234567887654321n, 0xfedcba9876543210n);
+    h.ex.set_xmm(1, low, high); h.ex.run(0);
+    expect(h.ex.get_xmm(0, 0), prefix).toBe(BigInt.asIntN(64, wantLow));
+    expect(h.ex.get_xmm(0, 1), prefix).toBe(BigInt.asIntN(64, wantHigh));
   }
 });
 
