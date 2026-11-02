@@ -10,7 +10,8 @@ import {buildGame} from '../../tools/build/build.mjs';
 // @ts-expect-error ESM analyzer
 import {x86tool} from '../../tools/build/pipeline.mjs';
 it.each(['size', 'fast'])('preset %s keeps a real yield inside an override while excluding only generated wrappers',async(liftPreset)=>{
- const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/asyncify-override-')),id=basename(dir).toLowerCase();
+ const cache=join(ROOT,'node_modules/.cache/bgt');mkdirSync(cache,{recursive:true});
+ const dir=mkdtempSync(join(cache,'asyncify-override-')),id=basename(dir).toLowerCase();
  try {
   writeFileSync(join(dir,'guest.c'),'/* Original CC0 */\n#include <windows.h>\nint _tls_index;\n__declspec(dllexport) __declspec(noinline) unsigned target(unsigned x){return x+7;}\nunsigned (*volatile target_ptr)(unsigned)=target;\nvoid entry(void){char s[80];unsigned x=target_ptr(5);wsprintfA(s,"override result %u",x);OutputDebugStringA(s);for(;;)Sleep(5);}\n');
   const cfg={id,name:'CC0 suspending override',pipeline:{platform:'win32',liftPreset,fixture:{target:'x86_64-windows-gnu',sources:['guest.c'],out:'guest.exe',entry:'entry',libs:['kernel32','user32']},modules:[{from:'./build/guest.exe',main:true}]}};
