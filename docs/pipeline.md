@@ -219,7 +219,22 @@ four opt-in AMD64 lifted-code policies, all defaulting to the size-oriented beha
 are part of the lift cache key. `liftInlineMemory` uses an inline same-page mapped/unprotected check with a cold
 full check; `liftInlineAlu` uses specialized live-flag helpers and cold recoverable fault recipes; `liftAffineCounting`
 settles the instruction debt at control/observation boundaries; `liftOptimizeSmall` drops `minsize` only for tiny
-regions. Every option has both-mode snapshot/oracle coverage in the codegen and lift-policy benchmarks. Lane F adds
+regions. On one shared macOS arm64 machine, sequential cumulative A/B measurements were:
+
+| Stage (cumulative) | x64-crt wasm B / ms | x64-cpp wasm B / ms | CC0 33k-insn CPU wasm B / ms |
+|---|---:|---:|---:|
+| Baseline | 1,259,211 / 2.685 | 2,669,278 / 3.384 | 1,378,260 / 5.456 |
+| + `liftInlineMemory` | 1,272,469 / 2.664 | 2,896,989 / 3.385 | 1,378,408 / 5.354 |
+| + `liftInlineAlu` | 1,320,637 / 2.751 | 3,178,418 / 3.424 | 1,381,127 / 5.290 |
+| + `liftOptimizeSmall` | 1,312,317 / 2.760 | 3,179,222 / 4.079 | 1,381,127 / 5.470 |
+| + `liftAffineCounting` | 1,330,365 / 2.717 | 3,282,489 / 3.318 | 1,390,993 / 5.383 |
+
+Timings fluctuate under shared-machine load, so no universal speedup is claimed. The 1024-round / 36,709,146-dispatch CPU workload measured
+97.997→95.594 ms (baseline→all on); final opt-in policy reruns measured 95.347 ms (`size`) versus 95.659 ms (`fast`).
+Full per-stage samples, repeat runs, resource snapshots, hashes and the final policy comparison are committed in
+[`handoff/K11-measurements.json`](handoff/K11-measurements.json); compact interpretation is in
+[`handoff/K11-benchmarks.json`](handoff/K11-benchmarks.json). These results justify **opt-in**, not faster defaults.
+Every option has both-mode snapshot/oracle coverage in the codegen and lift-policy benchmarks. Lane F adds
 register-local AMD64 emission and guarded spans; non-default protection disables unchecked block spans before
 local mutation. LSC adds bounded chunk/cache/writer lifetimes and verified streaming loads; measured 1.6M synthetic
 instruction results and 7.1M extrapolation caveats are in [the scale handoff](handoff/scale.md), not a real-game claim.
