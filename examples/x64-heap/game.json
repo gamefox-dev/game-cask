@@ -1,0 +1,9 @@
+{
+  "id": "x64-heap",
+  "name": "CC0 AMD64 guest heap contracts",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86_64-windows-gnu", "entry": "entry", "libs": ["kernel32"], "sources": ["heap.c"], "out": "heap.exe"},
+    "modules": [{"from": "./build/heap.exe", "main": true}]
+  }
+}
