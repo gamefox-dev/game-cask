@@ -2,7 +2,8 @@
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const lanePattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 export function validLane(lane) {
@@ -20,6 +21,8 @@ export class BridgeStore {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.file = join(dir, 'bridge-state.json');
     this.now = now;
+    this.driverTimeoutMs = Number(process.env.PI_BRIDGE_HEARTBEAT_TIMEOUT_S ?? 120) * 1000;
+    if (!Number.isFinite(this.driverTimeoutMs) || this.driverTimeoutMs <= 0) throw new Error('invalid driver heartbeat timeout');
     this.state = existsSync(this.file) ? JSON.parse(readFileSync(this.file, 'utf8')) : {
       version: 1, seq: 0, nextId: 1, lanes: {}, questions: [], answers: [], events: [],
     };
@@ -42,9 +45,11 @@ export class BridgeStore {
     // Driver identity is independent of pi's session (forked on provider retries).
     // Reject late messages from an older driver, including inherited nested-lane environments.
     if (old?.runId && body.runId !== old.runId) throw new Error('stale driver status');
+    if (old?.releasedAt != null) throw new Error('released driver status');
     if (old?.driverExitedAt != null) return old;
     const fresh = body.sessionId && body.sessionId !== old?.sessionId;
-    const previous = fresh ? { runId: old?.runId, driverStartedAt: old?.driverStartedAt } : old ?? {};
+    const previous = fresh ? Object.fromEntries(Object.entries(old ?? {}).filter(([key]) =>
+      ['runId', 'driverStartedAt', 'driverPid', 'driverStart', 'heartbeatAt'].includes(key))) : old ?? {};
     const allowed = ['steps', 'context', 'cost', 'model', 'tools', 'commit', 'errors', 'phase',
       'sessionFile', 'sessionId', 'leafId', 'cwd'];
     if (body.phase !== undefined && !['running', 'finished', 'error'].includes(body.phase)) {
@@ -73,8 +78,30 @@ export class BridgeStore {
     this.save();
     return status;
   }
+  driverAlive(old) {
+    if (!old?.driverPid) return true; // Legacy records lack proof; never reclaim them automatically.
+    if (this.now() - (old.heartbeatAt ?? old.driverStartedAt ?? 0) > this.driverTimeoutMs) return false;
+    try {
+      process.kill(old.driverPid, 0);
+      if (old.driverStart) {
+        const current = execFileSync(process.env.PYTHON ?? 'python3', ['-I', fileURLToPath(new URL('../process-start.py', import.meta.url)), String(old.driverPid)], { encoding: 'utf8', timeout: 1000 }).trim();
+        return current === old.driverStart;
+      }
+      return true;
+    } catch (error) {
+      // A denied/unavailable probe is not proof of death. The driver's independent lease is the fallback.
+      return error.code !== 'ESRCH';
+    }
+  }
   lifecycle(body) {
     const { action, runId, code } = body;
+    if (action === 'release') {
+      const lane = validLane(body.lane), old = this.state.lanes[lane];
+      if (!old || old.driverExitedAt != null || old.releasedAt != null) return old ?? null;
+      Object.assign(old, { phase: 'error', releasedAt: this.now() });
+      this.event('error', lane, { runId: old.runId, message: 'driver released by operator (exit unknown)' });
+      this.save(); return old;
+    }
     text(runId, 'runId');
     if (action === 'supervisor-started' || action === 'supervisor-ended') {
       const old = this.state.supervisor;
@@ -95,14 +122,24 @@ export class BridgeStore {
     const lane = validLane(body.lane);
     const old = this.state.lanes[lane];
     if (action === 'started') {
-      if (old?.runId === runId) return old;
-      if (old?.runId && old.driverExitedAt == null && old.runId !== runId) {
-        throw new Error('lane driver already running');
+      if (body.pid !== undefined && (!Number.isInteger(body.pid) || body.pid <= 0)) throw new Error('invalid driver pid');
+      if (body.start !== undefined) text(body.start, 'driver start');
+      if (old?.runId === runId) {
+        if (old.releasedAt != null) throw new Error('released driver');
+        return old;
+      }
+      if (old?.runId && old.driverExitedAt == null && old.releasedAt == null && old.runId !== runId) {
+        if (this.driverAlive(old)) throw new Error('lane driver already running');
+        this.event('stale-driver', lane, { runId: old.runId, pid: old.driverPid });
       }
       this.state.lanes[lane] = { lane, runId, phase: 'running', driverStartedAt: this.now(),
+        driverPid: body.pid, driverStart: body.start, heartbeatAt: this.now(),
         updatedAt: this.now(), lastTurnAt: this.now(), errors: [] };
+    } else if (action === 'heartbeat') {
+      if (!old?.runId || old.runId !== runId || (old.driverExitedAt != null || old.releasedAt != null)) throw new Error('stale driver heartbeat');
+      old.heartbeatAt = this.now(); old.updatedAt = this.now(); this.save(); return old;
     } else if (action === 'ended') {
-      if (!old?.runId || old.runId !== runId) throw new Error('stale driver exit');
+      if (!old?.runId || old.runId !== runId || old.releasedAt != null) throw new Error('stale driver exit');
       if (!Number.isInteger(code) || code < 0 || code > 255) throw new Error('invalid exit code');
       if (old.driverExitedAt == null) {
         Object.assign(old, { driverExit: code, driverExitedAt: this.now(), phase: code ? 'error' : 'finished' });

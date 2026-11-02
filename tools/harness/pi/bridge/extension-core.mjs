@@ -3,9 +3,11 @@ import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { request } from './client.mjs';
 import { validLane } from './server.mjs';
+import { contextExtension } from './context-core.mjs';
 
 export function bridgeExtension(pi, Type) {
   const lane = validLane(process.env.PI_LANE);
+  const contextHooks = {};
   let pending, unsentAnswer, commit = '', errors = [], tools = [], failed = false;
   const call = async (path, body) => {
     try {
@@ -51,6 +53,7 @@ export function bridgeExtension(pi, Type) {
   };
   pi.on('session_start', async (_event, ctx) => {
     pending = undefined; unsentAnswer = undefined; tools = []; errors = [];
+    contextHooks.session_start?.(_event, ctx);
     await status(ctx, 'session_start');
   });
   pi.on('agent_start', async (_event, ctx) => { await status(ctx, 'agent_start'); });
@@ -58,11 +61,12 @@ export function bridgeExtension(pi, Type) {
     tools = [...tools, { name: event.toolName, at: Date.now() }].slice(-5);
     await status(ctx, 'tool_call');
   });
-  pi.on('tool_result', async event => {
+  pi.on('tool_result', async (event, ctx) => {
     if (event.isError) {
       errors = [...errors, { at: Date.now(), message: `${event.toolName}: ` +
         event.content.filter(c => c.type === 'text').map(c => c.text).join(' ').slice(0, 1000) }].slice(-10);
     }
+    return contextHooks.tool_result?.(event, ctx);
   });
   pi.on('turn_end', async (event, ctx) => {
     const message = event.message;
@@ -78,6 +82,7 @@ export function bridgeExtension(pi, Type) {
     }
     await status(ctx, 'turn_end');
     await deliver();
+    contextHooks.turn_end?.(event, ctx);
   });
   pi.on('agent_end', async (_event, ctx) => { await status(ctx, 'agent_end'); });
   // Settled is agent state only. The process owner alone can publish finished.
@@ -117,4 +122,6 @@ export function bridgeExtension(pi, Type) {
       }
     },
   });
+  contextExtension({ on: (name, handler) => { contextHooks[name] = handler; },
+    registerTool: tool => pi.registerTool(tool), sendUserMessage: (...args) => pi.sendUserMessage(...args) }, Type);
 }

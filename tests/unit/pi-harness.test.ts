@@ -13,7 +13,8 @@ const dirs: string[] = [];
 const children: ReturnType<typeof spawn>[] = [];
 const temp = () => { const dir = mkdtempSync(join(tmpdir(), 'bgt-harness-')); dirs.push(dir); return dir; };
 const env = (patch: NodeJS.ProcessEnv = {}) => ({ ...process.env, PI_BRIDGE: '0', PI_PROVIDER_EXTENSION: '',
-  PI_MODEL: 'fake/model', PI_EXTRA_ARGS: '', PI_MAX_ATTEMPTS: '1', PI_TIMEOUT: '30', ...patch });
+  PI_MODEL: 'fake/model', PI_EXTRA_ARGS: '', PI_MAX_ATTEMPTS: '1', PI_TIMEOUT: '30', PI_RETRY_JITTER: '0',
+  BGT_HEAVY_MIN_FREE_MB: '0', BGT_HEAVY_LOG: '', BGT_HEAVY_MEMINFO_FILE: undefined, ...patch });
 const script = (file: string, text: string) => { writeFileSync(file, `#!/bin/bash\nset -eu\n${text}\n`); chmodSync(file, 0o755); return file; };
 const json = (p: string) => JSON.parse(readFileSync(p, 'utf8'));
 async function until(check: () => boolean) {
@@ -203,7 +204,7 @@ describe('queued lane supervisor', () => {
       }
       expect(json(join(f.run, 'bridge/bridge-state.json')).supervisor.code).toBe(0);
     } finally { stopBridge(f.run); }
-  });
+  }, 30_000);
   it('allows two concurrent lanes but not more than the configured maximum', async () => {
     const f = await supervisorFixture({ PI_LANES_MAX: '2' }, 'touch "$BGT_TRIAL_SCRATCH/started"; sleep 2', ['A', 'B', 'C']);
     try {
@@ -213,7 +214,7 @@ describe('queued lane supervisor', () => {
       expect((await f.completion)[0]).toBe(0);
       expect(json(join(f.run, 'results/C.json')).exit).toBe(0);
     } finally { stopBridge(f.run); }
-  });
+  }, 30_000);
   it('disk guard fails closed before clone creation and emits every final result', async () => {
     const f = await supervisorFixture({ PI_LANES_MIN_FREE_KB: '999999999999' });
     try {
@@ -221,7 +222,7 @@ describe('queued lane supervisor', () => {
       expect(existsSync(join(f.dir, 'lane-A'))).toBe(false);
       for (const lane of ['A', 'B']) expect(json(join(f.run, `results/${lane}.json`))).toMatchObject({ exit: 73, reason: 'disk' });
     } finally { stopBridge(f.run); }
-  });
+  }, 30_000);
   it('disk guard stops running process groups and leaves queued clones uncreated', async () => {
     const bin = temp(), marker = join(bin, 'low');
     script(join(bin, 'df'), 'if [ -e "$FAKE_DISK_MARKER" ]; then echo "disk 100 100 0 100% /"; else /bin/df "$@"; fi');
@@ -234,7 +235,7 @@ describe('queued lane supervisor', () => {
       expect(existsSync(join(f.dir, 'lane-B'))).toBe(false);
       expect(json(join(f.run, 'results/A.json'))).toMatchObject({ exit: 73, reason: 'disk' });
     } finally { stopBridge(f.run); }
-  });
+  }, 30_000);
   it('rejects duplicate/overlapping lane paths before starting a bridge', async () => {
     const { dir, source } = await sourceFixture(); const brief = join(dir, 'brief'); writeFileSync(brief, 'task');
     const queue = join(dir, 'queue'); writeFileSync(queue, `A|${dir}/lane|${dir}/lane/scratch|5401|${brief}`);

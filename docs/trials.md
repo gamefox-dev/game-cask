@@ -35,16 +35,41 @@ PI_MODEL=provider/model tools/harness/pi/run-pi.sh /path/to/trial /path/to/trial
 
 Defaults: print mode, thinking `high`, timeout 7200 s, poll 5 s; `PI_DRIVE_MODE=tui` uses a PTY and a minimal screen
 parser. `PI_BIN` selects an installed executable. `PI_LEAN=1` disables discovered extensions and MCP; explicitly set
-`PI_PROVIDER_EXTENSION` if the model needs one. `PI_LEAN=0` loads user extensions; review them first.
+`PI_PROVIDER_EXTENSION` if the model needs one. `PI_LEAN=0` permits trusted project extension discovery; review it
+first. Per-attempt agent directories never inherit global packages/extensions (even in non-lean mode); use explicit
+`-e` paths in `PI_EXTRA_ARGS` for already-installed operator-approved extensions.
 `PI_EXTRA_ARGS` is a whitespace-separated argument list (not shell syntax). `PI_TUI_SELECT=1` selects the model in the
 TUI. An existing result `.d` directory is never overwritten. Output: final answer, JSONL sessions, transcript, run.json,
 and TUI screen/raw logs when applicable. Session files contain private prompts/tool results: never publish them raw.
 Print mode is preferred; TUI completion detection depends on the installed pi's screen format.
 
+`PI_CODEMODE=only|on|off` (default **only**) explicitly loads `-e builtin:codemode` with `--tools +codemode`
+for print/TUI runs. `only` hides other tools from direct model calls; `on` keeps them available; `off` disables
+codemode. Every attempt creates `OUT.d/agent/` (or the retry equivalent), copies only auth/models and the optional
+cpa connection configuration from `PI_CODING_AGENT_DIR` (default `~/.pi/agent`), and writes fresh `settings.json`
+with matching `codemode.mode` and `defaultTools`. It does not inherit packages or settings, or modify the source/global
+agent directory. These private artifacts can contain credentials: protect them like session logs. Generated settings
+disable compaction, internal retry, telemetry and cache warming. Explicit `PI_EXTRA_ARGS` and trusted project
+settings can override tool configuration; operators should not supply conflicting tool/mode settings.
+
+The workspace context extension loads even without a bridge. `context_status` returns host-reported context
+tokens/window/percent (host **estimates**, not measured billing tokens). Unknown remains `?`, not zero. An outer tool
+result gets a compact `[context: …]` note on the first turn, then every `PI_CONTEXT_EVERY_TURNS=5` completed turns;
+parallel sibling/nested codemode results do not multiply notes. Set `PI_CHECKPOINT_TOKENS=600000` to request a
+checkpoint at or above that token estimate: commit, write the handoff and stop. Crossing latches until session
+replacement, even if compaction reduces the estimate. A one-shot steering message covers text-only final turns;
+this is an instruction, not forced termination (the lane must be able to commit/write its handoff).
+
 `PI_MAX_ATTEMPTS=N` (default **1**, including the initial attempt) enables print-mode retries. Only a **failed**
-attempt whose own stderr contains HTTP/status/error **429/500/502/503/504** is eligible. It must have saved a
-session: the next attempt uses `--fork LAST_SESSION` and a continuation brief, never restarts the original task.
-`PI_RETRY_BACKOFF=30` seconds is doubled per retry, capped at one hour. Outputs are `OUT`, `OUT.attempt-2`, etc.;
+attempt whose own stderr, structured provider-error stream, or final assistant session error contains HTTP/status/error
+**429 or any 5xx**, **currently overloaded**, **Request timed out**, or **usage_limit_reached** is eligible. It must have
+saved a session: the next attempt uses `--fork LAST_SESSION` and a continuation brief, never restarts the original task.
+`PI_RETRY_BACKOFF=30` seconds is doubled per retry, capped at one hour. For rate/usage-limit errors with
+`resets_at` (epoch seconds/milliseconds or ISO UTC) or `resets_in_seconds`, wait until the reset instead.
+`PI_RETRY_JITTER=1` adds uniform 0–1 s jitter (`0` for deterministic tests). `PI_RETRY_MAX_WAIT=21600` caps total
+retry sleep across the run (0–604800 s). If the next delay exceeds the remaining budget, stop with the failure
+code; never truncate the delay and retry before reset. `OUT.d/retries.jsonl` durably records every scheduled/budget-
+rejected retry **before** sleep; `driver.json` includes retries and elapsed wait. Outputs are `OUT`, `OUT.attempt-2`, etc.;
 each has a fresh `.d`. Existing paths are refused, never read as new evidence. `OUT` receives the latest answer;
 `OUT.d/driver.json` lists attempts and exits, and all original per-attempt artifacts remain intact. No retry for a
 permanent error, missing session, timeout, cancellation or successful exit. TUI retries are not supported. Print
@@ -74,6 +99,7 @@ The sandbox inherits bridge variables unchanged and continues to allow localhost
 
 ```sh
 npm run bridge -- status                       # two compact lines per lane; optional --lane G
+npm run bridge -- release --lane G             # operator only: revoke stale lease; does NOT kill the worker
 npm run bridge -- ask --lane G --live "What remains before your final commit?"
 npm run bridge -- ask --lane G --fork "Which acceptance checks have passed?"
 npm run bridge -- answers                      # optional --lane G
@@ -108,7 +134,14 @@ Nested harnesses must use `PI_BRIDGE=0` or a **distinct lane ID**, not impersona
 An agent error with pi exit zero remains in error history/agentPhase; the process code remains zero. Completion
 proves neither acceptance nor clean commits. Old bridge-state files without driver lifecycle records cannot prove
 completion: restart a new run, not a waiter on legacy finished phases. An uncatchable SIGKILL of the outer monitor
-cannot report completion; the supervisor's final-result file is authoritative for that case.
+cannot report completion; the supervisor's final-result file is authoritative for that case. New drivers publish
+their PID, kernel start identity and independent heartbeats (every 15 s, including provider backoff). On replacement,
+the bridge rejects a live matching owner, but reclaims dead/reused PIDs or leases older than
+`PI_BRIDGE_HEARTBEAT_TIMEOUT_S=120`. Status/tool traffic does not refresh that driver lease; session forks preserve it.
+Denied/unavailable PID probes fall back to the heartbeat deadline rather than proving death. Legacy records without
+PID evidence require explicit `release --lane X`. Release revokes late status/heartbeat/exit writes and permits a
+new run ID, but publishes no fabricated `finished`/exit. Stop/verify the old worker first: release and heartbeat
+expiry cannot kill it, and a stopped/unresponsive owner might still have live descendants.
 
 - **Live (default):** durable queue, one outstanding delivery at a time, steering at the next turn boundary.
   The agent is told to answer briefly in its next assistant text, then continue the original task. The bridge
@@ -177,10 +210,18 @@ its old queue format is `LANE|PORT|BRIEF`, auto paths `NEW_RUN/lane-LANE`, `NEW_
 
 The supervisor prepends `tools/harness/pi/shim` to PATH. `npm`/`npx` wrap commands whose arguments include test,
 build, oracle, playwright, lint, bench or probe. Up to `BGT_HEAVY_SLOTS=2` run simultaneously across lanes/processes,
-using Python stdlib `fcntl.flock` slots under **/private/tmp/bgt-heavy-v1-slot-N.lock** on macOS, `/tmp/` on Linux
+with FIFO tickets and Python stdlib `fcntl.flock` slots under **/private/tmp/bgt-heavy-v1-slot-N.lock** on macOS, `/tmp/` on Linux
 (LANE-K7i: one tested locking path, no system install). Slot files are kept (never unlink an in-use lock inode).
 Use the **same slot count and namespace machine-wide**. Nested commands inherit `BGT_HEAVY_HELD=1` and pass through;
-light commands pass through without holding a slot. A real command exit 75 is returned, not mistaken for lock
+light commands pass through without holding a slot. Before granting a slot, the head waiter requires
+`BGT_HEAVY_MIN_FREE_MB=1024` MiB of available physical memory (0 explicitly disables the check). macOS uses
+`vm_stat` free + inactive + speculative pages, sanity-checked against `sysctl hw.memsize`; Linux uses
+`/proc/meminfo` `MemAvailable`. Active/wired/compressed memory and swap are not counted. Low or unreadable
+headroom keeps the FIFO ticket in place until recovery, never runs ungated or lets a later waiter bypass it.
+`BGT_HEAVY_LOG` defaults to `PREFIX.log` beside the locks and records FIFO/slot/memory waits and grants.
+`BGT_HEAVY_MEMINFO_FILE` explicitly supplies a Linux-format snapshot for isolated tests/operator diagnosis; do not
+set it on production lanes. This is admission scheduling, not memory reservation or a guarantee against later pressure.
+A real command exit 75 is returned, not mistaken for lock
 contention. Missing Python or unavailable kernel locks fail closed, never run ungated. Kernel process start identities
 (libproc on macOS, `/proc` on Linux) preserve stale/reused-PID detection without sandbox-denied `ps`. Direct node/zig/browser invocations are not
 intercepted: lanes must invoke heavy kit tasks through npm/npx. This is scheduling, not a security boundary.
