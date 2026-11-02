@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include "x86_decode.h"
+#include "x86_profile.h"
 
 enum { EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI, R8, R9, R10, R11, R12, R13, R14, R15 };
 typedef union { uint8_t u8[16]; uint16_t u16[8]; uint32_t u32[4]; uint64_t u64[2]; int8_t i8[16]; int16_t i16[8]; int32_t i32[4]; int64_t i64[2]; float f32[4]; double f64[2]; } x86_vec_t;
@@ -225,6 +226,21 @@ extern uint8_t *x86_flat;
  * dense function index, not a guest pointer. .pdata ownership wins over weak seeds. */
 typedef struct { uint32_t addr, end, owner; } x86_code_range_t;
 void x86_register_code_ranges(const x86_code_range_t *ranges, uint32_t count, uint32_t functions);
+/* Coverage de-duplicates in wasm; only newly observed entries cross into the host.
+ * Strict builds replace recording with a local code-membership check. */
+void x86_coverage_entry(uint32_t address, uint32_t kind);
+void x86_coverage_flush(void);
+void x86_set_slice(const uint32_t *entries,uint32_t nentries,const x86_code_range_t *ranges,uint32_t nranges);
+uint32_t x86_prepare_host_slice(uint32_t nentries,uint32_t nranges);
+uint32_t x86_slice_first_entry(void);
+extern uint64_t x86_coverage_events, x86_coverage_crossings, x86_coverage_cache_hits;
+#ifndef X86_COVERAGE_MODE
+#define X86_COVERAGE_MODE 1
+#endif
+/* Strict mode performs only a wasm-local membership check, never recording.
+ * Keep it at internal indirect dispatches as well as registry entries: a host
+ * policy can be narrower than a compiled function range. */
+#define x86_coverage_lifted(address,kind) x86_coverage_entry(address,kind)
 
 /* ------------------------------------------------------------------ metrics */
 /* Names say what they count (kit v0.2.1; v0.2 had `interp_entries`, `exec_one`, `continues`). */
@@ -242,6 +258,8 @@ typedef struct {
     uint32_t lifted_functions;      /* registered lifted functions */
 } x86_metrics_t;
 extern x86_metrics_t x86_metrics;
+/* Monotonic instruction clock of the currently active guest CPU context. */
+uint64_t x86_guest_instruction_clock(void);
 
 /* Interpreter-only mode (differential oracle): ignore lifted functions. */
 extern int x86_force_interp;

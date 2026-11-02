@@ -46,6 +46,15 @@ No wire ABI changes or target first-draw/title/playability claim. Details: [K9a 
 
 Lane K9c (`3fea2b8`, `a256b2a`) implements ordered transform feedback (§13.11 / opcodes 0x61..0x63) on both backends: native WebGL2 capture and separate WebGPU vertex→compute lowering, pending/linked interfaces, original builtin capture, interleaved/separate buffers, ordering/discard/queries/errors and exact native readback. The original CC0 `x64-gl-feedback` fixture has **100 guest checks per backend**, exact captured bytes and cross-backend finish pixels; native edge regressions cover unaligned fetches, failed-link/setup cleanup, fail-closed generated-buffer recovery and 4.2M expanded strip outputs. Fresh independent source review at `a256b2a`: **PASS within bounded read-only scope**, no Tier1 attribution. Lane K9b's single-sample blits (§13.10 / 0x60, `3776c8e`) remain covered. Final Tier 1: **813 units / 69 files**, **226 browser passes / 51 existing skips**, **27 × 300 = 8,100 identical pipeline oracle pairs**, doctor, ESLint + clang/real-GCC lint (30 check-builds), typecheck and leakcheck green. Generated-buffer recovery fails closed rather than restoring stale bytes; array/matrix varyings and native-WGSL capture remain explicit errors. No target first-draw/title or unrestricted GL33 claim. See [K9b/K9c handoff](handoff/K9b.md).
 
+## K10 — execution profiling and coverage
+
+K10 execution profiling/coverage lane is delivered on its branch: sampled timing/resettable census windows,
+no-`-g` named profiling, wasm-local coverage buffering and exact native Asyncify exclusions. Final implementation
+`d9b0603` is locally Tier1 green: doctor, clang/GCC lint (29 builds), typecheck, **803 units/73 files**, **218 browser
+passes/51 intentional skips**, leakcheck and **25×300=7500 identical oracle pairs**. This is lane evidence, not a new
+merged-tree/game acceptance claim. F-PERF-CRT remains open (final0.97× reference); the138MiB named game rebuild
+remains porter verification. See [K10 handoff](handoff/K10.md) and [benchmarks](../tools/bench/README-execution.md).
+
 ## K8a Q21 final completion
 
 Lane K8a continuation 3 completes the bounded Q21 GL contracts on top of `39c42d5`. The final implementation commits

@@ -532,6 +532,59 @@ is **not** yet a minimum-image slice. Discovery records unknown indirect entries
 analyzer improvements before selective convergence. Self-modifying code and instruction-level strict packaging
 remain unsupported; see [pipeline.md](../../docs/pipeline.md) for ownership/selection and exact counter definitions.
 
+### Strict compiled slice host policy (K10, additive optional export)
+
+A strict module may export `u32 bgt_slice_policy(u32 entry_count,u32 range_count)`. After successful `bgt_init`
+and before the first update, the host calls it **once** when a host code allowlist is configured. Counts are each
+bounded by 1,048,576. Return 0 means limit/allocation/already-configured failure (host load fails truthfully).
+A positive return is a 4-aligned wasm pointer to `bgt_slice_policy_t` (C `bgt.h`, TS `SLICE_POLICY`):
+
+| Offset | Field | Meaning |
+|---:|---|---|
+| 0 | byte_size | 24 |
+| 4 | version | 1 |
+| 8 | entry_count | equals requested count |
+| 12 | entries_ptr | writable array of entry_count u32 guest addresses |
+| 16 | range_count | equals requested count |
+| 20 | ranges_ptr | writable range_count records `{u32 addr,end}` (8 bytes) |
+
+The descriptor is read-only. The host validates its shape and all buffer spans before writing the arrays;
+nonempty writable spans may overlap neither the descriptor nor one another. Entries
+are sorted ascending; ranges are sorted disjoint half-open intervals. The module checks this **additional** host
+policy before executing a guest entry, intersected with its original compiled policy: neither can widen the other.
+Missing code calls existing `slice_missing(1,address)` before execution. Both browser backends and the headless
+host use this identical decoder. Older strict modules retain the imported coverage-hook membership check; modules
+without the export are unchanged. Frozen IO/imports and existing slice_missing layout/semantics are unchanged.
+
+This permits strict recording to be compiled out without losing a stricter host restriction (even an empty host
+allowlist). Wasm-local membership checks remain at registry and internally handled dynamic entries on both widths,
+including AMD64 in-region indirect dispatch and i386 direct lifted calls; none are host recording crossings.
+Discovery builds buffer/de-duplicate records in wasm and flush at frame boundaries, metrics reads, pressure and explicit
+faults; cache collisions re-report rather than discard evidence. The host's independent coverage overflow limit is
+unchanged. Abrupt external wasm traps may leave a final unflushed tail; do not package an errored recording.
+C/TS layout, normal/malformed descriptors, both backend selections, intersection and strict-stop fixtures cover this.
+
+### Strict slice first-entry observation (K10, additive optional export)
+
+`u32 bgt_slice_first_entry(void)` optionally returns a pointer to read-only
+`bgt_slice_first_entry_t` (`u32 address,kind`, 8 bytes; TS `SLICE_FIRST_ENTRY`), or 0 before any accepted guest entry.
+It records the first **actually checked/executed entry**, with kind 1 lifted / 2 interpreted, never a fabricated
+compiled entry. The shared host validates the pointer/kind and incorporates that single observation when reading
+metrics/coverage. Both backends use the same decoder. No hot-path import, per-entry buffer or command addition;
+strict successful-path recording remains absent apart from this one bounded startup observation. Missing-code
+observations still use slice_missing. C/TS layout and strict browser coverage regressions retain their assertions.
+
+### Profiling census windows (K10, additive optional export)
+
+Optional `void bgt_profile_reset(void)` clears only the diagnostic exit/interpreter-entry census, increments its
+`census_generation`, and records `census_window_start_clock`. It does not reset execution counts, coverage, API
+traces, guest state, or cumulative sampled timings. The shared browser/headless host calls it only outside update
+execution, through test/probe `profileReset():boolean` (false if unavailable). Both GPU backends share this host.
+Older modules need not export it. C declaration is in bgt.h; TS optional export and decoder are in host.ts.
+Census bucket tokens include their generation, so a previously suspended semantic operation cannot increment a
+new window's reused slot. A window that still reports nonzero `census_dropped` is incomplete and must be shortened;
+no reset/eviction silently fabricates a complete ranking. The lifetime execution counters remain independent.
+
 ## 13. v0.3 GPU layer (additive interface)
 
 This section is normative for the wire interface, validator and future backend/profile implementations. Execution

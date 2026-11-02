@@ -10,6 +10,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
+import { resourceSnapshot } from './resources.mjs';
+import { createCpuProfiler, profileRange } from './cpu-profile.mjs';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from '../build/toolchain.mjs';
 import { startServer, stopServer, validatePort } from './server.mjs';
@@ -26,9 +28,10 @@ function parseArgs(argv) {
     else if (k === '--out') { a.out = v; i++; }
     else if (k === '--port') { a.port = Number(v); i++; }
     else if (k === '--params') { for (const kv of v.split(',')) { const [x, y] = kv.split('='); if (x) a.params[x] = y ?? ''; } i++; }
+    else if (k === '--cpu-profile') { a.cpuProfile = profileRange(v); i++; }
     else throw new Error(`unknown argument ${k}`);
   }
-  if (!a.game || !a.script) throw new Error('usage: npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out DIR] [--params k=v,...] [--port N]');
+  if (!a.game || !a.script) throw new Error('usage: npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out DIR] [--params k=v,...] [--cpu-profile START:END] [--port N]');
   if (!['webgl2', 'webgpu'].includes(a.backend)) throw new Error('--backend must be webgl2 or webgpu');
   return a;
 }
@@ -45,8 +48,9 @@ async function freePort(start) {
 }
 
 /** The object handed to the script. Coordinates are logical pixels. */
-export function makeProbe(page, { game, backend, out, params, log }) {
-  const api = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
+export function makeProbe(page, { game, backend, out, params, log, profiler = null }) {
+  const rawApi = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
+  const api = (fn, ...args) => fn === 'step' && profiler ? profiler.step(args[0],rawApi) : rawApi(fn,...args);
   const save = (name, b64) => {
     const file = join(out, name.endsWith('.png') ? name : `${name}.png`);
     writeFileSync(file, Buffer.from(b64, 'base64'));
@@ -81,6 +85,12 @@ export function makeProbe(page, { game, backend, out, params, log }) {
     },
     diagnostics: () => api('diagnostics'),
     metrics: async () => (await api('diagnostics')).metrics,
+    async profileWindow() {
+      const before=(await api('diagnostics')).metrics;
+      const reset=await api('profileReset');
+      if(!reset)throw new Error('module has no resettable census export');
+      return before;
+    },
     debugState: () => api('debugState'),
     stateHash: () => api('stateHash'),
     readPixels: () => api('readPixels'),
@@ -143,12 +153,13 @@ export function makeProbe(page, { game, backend, out, params, log }) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  let server, browser, code = 0;
+  let server, browser, profiler, page, code = 0;
   const log = { lines: [], console: [], errors: [], artifacts: [], notes: [] };
   let a;
   try {
     a = parseArgs(process.argv.slice(2));
     const out = resolve(ROOT, a.out);
+    log.resources={start:resourceSnapshot()};
     mkdirSync(out, { recursive: true });
     const script = await import(pathToFileURL(resolve(a.script)).href);
     if (typeof script.default !== 'function') throw new Error(`${a.script} must default-export async function (p)`);
@@ -158,12 +169,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { chromium } = await import('@playwright/test');
     browser = await chromium.launch(a.backend === 'webgpu' ? { channel: 'chromium', args: WEBGPU_ARGS } : {});
     const ctx = await browser.newContext({ baseURL: server.url, viewport: { width: 960, height: 540 } });
-    const page = await ctx.newPage();
+    page = await ctx.newPage();
     page.on('console', (m) => log.console.push(`${m.type()}: ${m.text()}`));
     page.on('pageerror', (e) => log.errors.push(e.message));
-    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log });
+    const api = (fn, ...args) => page.evaluate(([f, x]) => window.__BGT_TEST__[f](...x), [fn, args]);
+    profiler = a.cpuProfile ? await createCpuProfiler(page, a.cpuProfile, out, log) : null;
+    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler });
     await p.start();
     await script.default(p);
+    if(profiler) { await profiler.finish((await api('diagnostics')).frame);profiler=null; }
     const coverage=await page.evaluate(() => window.__BGT_TEST__?.coverage?.());
     if(coverage){const file=join(out,'coverage.json');writeFileSync(file,JSON.stringify(coverage,null,2)+'\n');log.artifacts.push(file);}
     const d = await p.diagnostics().catch(() => null);
@@ -173,6 +187,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error(`probe: ${e.message}`);
     code = 1;
   } finally {
+    if(log.resources)log.resources.end=resourceSnapshot();
+    if(profiler)await profiler.finish(await page.evaluate(()=>window.__BGT_TEST__?.diagnostics().frame ?? 0).catch(()=>0)).catch(e=>log.errors.push(`CPU profile: ${e.message}`));
     await browser?.close().catch(() => {});
     await stopServer(server?.child);
   }

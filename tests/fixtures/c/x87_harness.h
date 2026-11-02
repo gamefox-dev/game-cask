@@ -2,6 +2,7 @@
 #define X86_WIDE_CPU 1
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
+#include "../../../platforms/x86/x86_coverage.h"
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
 uint8_t *x86_pages[1u<<20];
@@ -15,6 +16,8 @@ static uint8_t *x86_flat=ram;
 #include "wasi_offline.h"
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
+unsigned x86_lift_reason;
+uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
 void x86_fault(const char *m,uint32_t p){(void)m;(void)p;__builtin_trap();}
 uint32_t x86_address(uint64_t a){if(a>0xffffffffu)__builtin_trap();return (uint32_t)a;}
 void x86_cooperate(void){__builtin_trap();}

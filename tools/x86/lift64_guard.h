@@ -85,5 +85,5 @@ static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t 
                 (unsigned long long)s->low, (unsigned)(s->high - s->low));
     }
     fprintf(o, "){"); l64_flush(o, position);
-    fprintf(o, "pc=0x%08xu;count=%uu;action=1;goto boundary;}\n", va, count);
+    fprintf(o, "pc=0x%08xu;count=%uu;action=1;x86_lift_reason=XE_GUARD;goto boundary;}\n", va, count);
 }

@@ -52,7 +52,7 @@ it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', 
 
 describe.each(['size', 'fast'])('lift preset %s', (preset) => {
 const fast = preset === 'fast';
-async function harness(hex: string) {
+async function harness(hex: string, defines: string[] = []) {
   const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'case-')), code = Buffer.from(hex, 'hex');
   writeFileSync(join(dir, 'input.exe'), pe(code));
@@ -73,8 +73,8 @@ BGT_EXPORT(run) unsigned run(unsigned interpreted) {
     return fallback_blocks;
 }`;
   writeFileSync(join(dir, 'probe.c'), source);
-  const wasm = await compileC(relative(ROOT, join(dir, 'probe.c')));
-  const { instance } = await WebAssembly.instantiate(wasm, { bgt: { coverage_entry: () => {} } });
+  const wasm = await compileC(relative(ROOT, join(dir, 'probe.c')),defines);
+  const { instance } = await WebAssembly.instantiate(wasm, { bgt: { coverage_entry: () => {}, slice_missing: () => {throw new Error('strict slice stop');} } });
   const ex = instance.exports as any;
   const memory = () => new Uint8Array(ex.memory.buffer);
   const view = () => new DataView(ex.memory.buffer);
@@ -161,6 +161,20 @@ it('affine counting preserves RDTSC, forward diamonds, loop yields and every int
     h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(1);
     expect(lifted, `interior=${offset}`).toEqual(snapshot());
   }
+});
+
+it('strict host restrictions stop an in-region indirect landing before its memory write',async()=>{
+  // MOV EAX, internal target; JMP RAX; MOV [0x2000],123; RET. Target is in the same native region.
+  const h=await harness('b807100001ffe0c70425002000007b000000c3',['X86_COVERAGE_MODE=2']);
+  h.ex.reset(base,0);h.ex.configure_policy();
+  expect(()=>h.ex.run(0)).toThrow('strict slice stop');
+  expect(h.view().getUint32(h.ex.ram()+0x2000,true)).toBe(0);
+});
+it('an internal indirect jump does not taint a later direct region-exit census reason',async()=>{
+  // Internal indirect target ends with a direct JMP outside the PE image.
+  const h=await harness('b807100001ffe0e9f4efff00');
+  h.ex.reset(base,0);h.ex.run(0);
+  expect(h.ex.last_exit_reason()).toBe(6); // XE_OTHER, not stale XE_INDIRECT
 });
 
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {

@@ -13,6 +13,8 @@ function resources() {
 import { loadHeadless, ROOT } from '../../tests/support/headless';
 import { oracle } from '../../tests/oracle/oracle';
 // @ts-expect-error plain ESM
+import { resourceSnapshot } from '../probe/resources.mjs';
+// @ts-expect-error plain ESM
 import { buildGame } from '../build/build.mjs';
 
 it('reports size, emission counts, build/cache state and 300-frame execution for every fixture', async () => {
@@ -52,6 +54,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
   }));
   const liftPreset = process.env.BGT_CODEGEN_PRESET;
   const resourcesBefore = resources();
+  const resourceSnapshots = { start: resourceSnapshot(), end: null as unknown };
   const rows = [];
   const ids = process.env.BGT_CODEGEN_IDS?.split(',') ?? ['codegen-cpu', 'x64-basics', 'x64-cpp',
     'x64-cpprt', 'x64-crt', 'x64-gui', 'x64-memory', 'x64-tls', 'win32-hello'];
@@ -118,7 +121,11 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
     rows.push(row);
     console.log(`${id}: ${JSON.stringify({ ...row, logs: undefined, runtime: undefined })}`);
   }
+  resourceSnapshots.end = resourceSnapshot();
   const report = {
+    resources: resourceSnapshots, profileEnabled:process.env.BGT_CPU_PROFILE !== '0',
+    coverageMode:process.env.BGT_COVERAGE_DIRECT==='1'?'direct':'buffered',
+    asyncifyMode:process.env.BGT_ASYNCIFY_FULL==='1'?'conservative':'amd64-native-boundaries',
     schema: 'game-cask/codegen/1', base: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     node: process.version, platform: `${process.platform}/${process.arch}`, fixtures: rows,
     resources_before: resourcesBefore, resources_after: resources(), cpu_fixture_rounds: rounds,

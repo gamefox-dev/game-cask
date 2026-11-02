@@ -33,6 +33,7 @@ it('static call closure lifts recorded callees but not unrelated functions',()=>
 it('strict slice packages covered functions/data only, boots, pauses at an uncovered entry and rejects mismatched evidence',async()=>{
  const f=await prepareSlice();
  expect(f.snapshot.code.length).toBeGreaterThan(0);expect(f.sliced.slice.code.length).toBeGreaterThanOrEqual(f.snapshot.code.length);
+ for(const entry of f.snapshot.code)expect(f.sliced.slice.code).toContain(entry.address);
  expect(f.sliced.packaging.file_chunk_bytes).toBe(0);expect(f.sliced.streams.length).toBeGreaterThan(0);
  for(const file of f.sliced.streams)for(const chunk of file.chunks)expect(existsSync(join(ROOT,'web/public/games',f.id,chunk.url))).toBe(false);
  expect(f.sliced.assets[0].path).toMatch(/^loader\//);

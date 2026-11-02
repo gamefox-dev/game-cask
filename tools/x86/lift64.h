@@ -269,6 +269,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
      * cover every landing pad; edges across regions return to the registry without interpreting. */
     for (uint32_t i = 0; i < a->nf; i++) {
         func_t *original = &a->f[i]; if (!lift_selected(original->addr)) continue;
+        if (vhas(&skip,original->addr)) {
+            fprintf(o,"extern void F_%08x(void); /* measured override, no native body */\n",original->addr);
+            vpush(&order,original->addr);vpush(&ends,original->addr+1);continue;
+        }
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256) {
         uint32_t end = begin + 256 < original->insns.n ? begin + 256 : original->insns.n;
         func_t region = *original;
@@ -329,7 +333,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "\nstatic %svoid R_%08x_%08x(uint32_t pc){\n",
                 lift_optimize_small && f->insns.n <= 4 ? "" : "__attribute__((minsize,noinline)) ", original->addr, f->addr);
         fprintf(o, "uint64_t r[16],clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
-                   "uint32_t flags,budget,count=0,dirty=0;int32_t debt=0;int action=0,width=0,writing=0;"
+                   "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"
                    "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;(void)debt;\n");
         l64_sync(o, 1);
@@ -338,7 +342,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
          * supplies coverage, not this region's unsuccessful lookup. */
         fprintf(o, "goto dispatch;\ndispatch:switch(pc){\n");
         for (uint32_t k = 0; k < f->insns.n; k++) if (starts[k])
-            fprintf(o, "case 0x%08xu:bgt_coverage_entry(pc,1);goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
+            fprintf(o, "case 0x%08xu:exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);goto L_%08x;\n", f->insns.v[k], f->insns.v[k]);
         fprintf(o, "default:goto landing;}\n");
         uint32_t block_end = 0;
         for (uint32_t k = 0; k < f->insns.n; k++) {
@@ -346,7 +350,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             const x86_opnd_t *aa = &in->o[0], *bb = &in->o[1]; int n = aa->size ? aa->size : in->osz;
             if (starts[k] && lift_affine_counting) {
                 /* L_ is an external entry/backedge; forward native edges bypass it through B_. */
-                fprintf(o, "L_%08x:;debt=-%d;if(budget+%uu>2000000u){pc=0x%08xu;count=1;action=1;goto boundary;}\n"
+                fprintf(o, "L_%08x:;debt=-%d;if(budget+%uu>2000000u){pc=0x%08xu;count=1;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}\n"
                            "B_%08x: __attribute__((unused));\n", va, (int)k, f->insns.n, va, va);
             } else if (starts[k]) fprintf(o, "L_%08x:;\n", va);
             if (!in->len) { l64_flush(o, k); fprintf(o, "pc=0x%08xu;goto exit;\n", va); continue; }
@@ -364,7 +368,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 l64_guarded = guard.safe && guard.n;
                 l64_emit_guard(o, &guard, va, count, k);
                 if (!lift_affine_counting) fprintf(o,
-                    "if(budget+%uu>2000000u){pc=0x%08xu;count=%uu;action=1;goto boundary;}"
+                    "if(budget+%uu>2000000u){pc=0x%08xu;count=%uu;action=1;x86_lift_reason=XE_QUANTUM;goto boundary;}"
                     "clock+=%uu;budget+=%uu;\n", count, va, count, count, count);
             }
             uint32_t writes = 0;
@@ -462,7 +466,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 l64_read(o, aa, "t", next);
                 l64_flush(o, k + 1);
                 fprintf(o, "if(t>UINT32_MAX){pc=0x%08xu;action=4;goto boundary;}"
-                           "pc=(uint32_t)t;goto dispatch;\n", next); continue;
+                           "pc=(uint32_t)t;exit_reason=XE_INDIRECT;goto dispatch;\n", next); continue;
             case XO_CALL: case XO_CALL_IND:
                 if (in->op == XO_CALL) { fprintf(o, "t=0x%08xu;", in->target); st->calls_direct++; }
                 else { l64_read(o, aa, "t", next); st->calls_indirect++; }
@@ -486,7 +490,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "landing:\n");
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
-        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}bgt_coverage_entry(pc,1);count=1;action=1;\n", f->insns.n);
+        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
         fprintf(o, "boundary:\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
@@ -502,7 +506,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else if(writing==3){for(int j=0;j<width;j++)(void)x86_rd8(a+(uint32_t)j);}"
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"
                    "x86_fault(\"unmapped flat guest memory\",(uint32_t)address);\n");
-        fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;return;\n}\n");
+        fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
         fprintf(o, "void F_%08x(void){\n", original->addr);

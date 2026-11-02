@@ -1,4 +1,7 @@
-/* Original CC0-1.0. Known instruction/entry/function counts through the REAL dispatcher. */
+/* Original CC0-1.0. Known instruction/entry/function counts through the REAL dispatcher.
+ * Deliberately direct hooks: this measures dynamic entries, not de-duplicated transport. */
+#define X86_COVERAGE_MODE 0
+#define X86_PROFILE_ENABLED 0
 #if MODE64
 #define X86_FLAT_GUEST 1
 #define X86_FLAT_BYTES 65536ull
