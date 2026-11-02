@@ -80,7 +80,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1292967,
+          "wasm_bytes": 1293245,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -96,7 +96,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1424746,
+          "wasm_bytes": 1425024,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -117,7 +117,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1072329,
+          "wasm_bytes": 1072607,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -133,7 +133,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1140420,
+          "wasm_bytes": 1140698,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -154,7 +154,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 885011,
+          "wasm_bytes": 885291,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -170,7 +170,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 886523,
+          "wasm_bytes": 886803,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -191,7 +191,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1411911,
+          "wasm_bytes": 1412189,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -207,7 +207,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1525243,
+          "wasm_bytes": 1525521,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -228,7 +228,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 2799757,
+          "wasm_bytes": 2800035,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -244,7 +244,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 3425483,
+          "wasm_bytes": 3425761,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -265,7 +265,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 7429954,
+          "wasm_bytes": 7430232,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -281,7 +281,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 9378984,
+          "wasm_bytes": 9379262,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -302,7 +302,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1297189,
+          "wasm_bytes": 1297467,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -318,7 +318,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1364820,
+          "wasm_bytes": 1365098,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -339,7 +339,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1068259,
+          "wasm_bytes": 1068537,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -355,7 +355,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1107697,
+          "wasm_bytes": 1107975,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -376,7 +376,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1263443,
+          "wasm_bytes": 1263721,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -392,7 +392,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1325204,
+          "wasm_bytes": 1325482,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -413,7 +413,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1132703,
+          "wasm_bytes": 1132981,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -429,7 +429,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1181146,
+          "wasm_bytes": 1181424,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -450,7 +450,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1058357,
+          "wasm_bytes": 1058635,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -466,7 +466,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1090315,
+          "wasm_bytes": 1090593,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -487,7 +487,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1127892,
+          "wasm_bytes": 1128170,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -503,7 +503,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1173580,
+          "wasm_bytes": 1173858,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -524,7 +524,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1003656,
+          "wasm_bytes": 1003934,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -540,7 +540,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1034663,
+          "wasm_bytes": 1034941,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -561,7 +561,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1155160,
+          "wasm_bytes": 1155438,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -577,7 +577,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1229911,
+          "wasm_bytes": 1230189,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -598,7 +598,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1013580,
+          "wasm_bytes": 1013858,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -614,7 +614,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1045882,
+          "wasm_bytes": 1046160,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -635,7 +635,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1000930,
+          "wasm_bytes": 1001208,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -651,7 +651,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1031235,
+          "wasm_bytes": 1031513,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -672,7 +672,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 43065781,
+          "wasm_bytes": 43066057,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -688,7 +688,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 76186170,
+          "wasm_bytes": 76186446,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -709,7 +709,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1153196,
+          "wasm_bytes": 1153474,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -725,7 +725,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1227236,
+          "wasm_bytes": 1227514,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -746,7 +746,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1175840,
+          "wasm_bytes": 1176118,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -762,7 +762,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1267380,
+          "wasm_bytes": 1267658,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -783,7 +783,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1044742,
+          "wasm_bytes": 1045020,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -799,7 +799,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1086475,
+          "wasm_bytes": 1086753,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -820,7 +820,7 @@
       "modes": [
         {
           "preset": "size",
-          "wasm_bytes": 1028454,
+          "wasm_bytes": 1028732,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
@@ -836,7 +836,7 @@
         },
         {
           "preset": "fast",
-          "wasm_bytes": 1061195,
+          "wasm_bytes": 1061473,
           "identical": true,
           "compared_frames": 300,
           "hashes": {
