@@ -1,5 +1,15 @@
 # v0.3 merged implementation status
 
+## K14a checkpoint — Q40 opaque sampler helper parameters
+
+Commit `8e6f602` adds bounded GLSL 3.30 / ES 3.00 opaque sampler-parameter specialization to the GL profile and
+both native translators, with CC0 forwarding, overload, shadow/integer, array-identity, invalid-use and fallthrough
+regressions. Final full unit evidence is **1,039/1,039 tests across 73 files**; doctor, lint (32 example checks),
+leakcheck and typecheck passed. The native scratch audit found **104 unique captured stages plus the rejected
+fragment; 105/105 compiled on each backend**, but it predates the last reviewer-fix amendment and is explicitly
+pending rerun on the exact final tree. Full browser/oracle evidence likewise needs the checkpoint rerun; see
+[K14a handoff](handoff/K14a.md). Q41–Q43 remain separate K14b requests. No title-screen or game-playability claim.
+
 ## K12 — deterministic guest heap and CRT allocation
 
 K12 adds a bounded-work segregated guest heap for both Win32 widths, real logical `HeapCreate` ownership and
