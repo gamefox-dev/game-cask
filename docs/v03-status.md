@@ -1,5 +1,16 @@
 # v0.3 merged implementation status
 
+## K17a checkpoint — Q54 GLSL matrix/builtin coverage (not merged/final Tier1)
+
+Lane `lane/K17a` delivers generated `inverse(mat2/3/4)` at **b3d05bd** and the builtin-audit
+implementation at **1cb3d8f**: typed matrix/packing/bitcasts/out-parameter/scalar geometric lowering and
+applicable projection/offset/gradient texture variants for existing storage, with no ABI expansion.
+**244 original CC0 fixtures / 976 cross-backend GLSL330/ES300 pixel results** pass in the scratch renderer
+run; **120 unique private captured/canonicalized stages compile natively per backend**. ESLint, typecheck
+and leakcheck pass. Full Tier1/oracle jobs and fresh independent review remain **pending**, not certified.
+Reviewer requested a stable handoff/fresh-session continuation. Complete builtin-name outcome table,
+storage/noise decisions #135/#139, evidence and exact next steps: [K17a handoff](handoff/K17a.md).
+
 ## Integration I9 final — K14b + K14a + K15h
 
 Ordered `--no-ff` merges **`db5dc46`** (K14b / `c09faa7`), **`5bbe48a`** (K14a / `fe3b72e`), then
