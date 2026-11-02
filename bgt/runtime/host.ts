@@ -163,6 +163,7 @@ interface GameExports {
   bgt_debug_state?(): number;
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
+  bgt_profile_reset?():void;
   bgt_slice_policy?(entries:number,ranges:number):number;
   bgt_slice_first_entry?():number;
   bgt_async_buffer?(): number;
@@ -763,6 +764,12 @@ export class GameHost {
       this.logicalHeight = lh;
       this.sizeChanged = true;
     }
+  }
+
+  profileReset():boolean {
+    const reset=this.exports.bgt_profile_reset;
+    if(!reset || this.inUpdate)return false;
+    reset();return true;
   }
 
   /** Optional kit metrics JSON exported by the game (bgt_metrics). */

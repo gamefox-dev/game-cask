@@ -954,7 +954,8 @@ const char *w32_metrics_json(void) {
         jkv("count",s->hits);jkv("samples",s->timing_samples);jkv("sample_us",(uint64_t)s->timing_us);
         jput("\"estimated_us\":");jnum(s->timing_samples?(uint64_t)(s->timing_us*(double)s->hits/(double)s->timing_samples):0);jput("}");
     }
-    jput("],");jkv("census_dropped",x86_census_dropped);
+    jput("],");jkv("census_generation",x86_census_generation);jkv("census_window_start_clock",x86_census_window_start_clock);
+    jkv("census_capacity",X86_CENSUS_CAP);jkv("census_dropped",x86_census_dropped);
     jput("\"exits\":[");
     uint32_t top[X86_CENSUS_TOP]={0};
     for(uint32_t i=0;i<X86_CENSUS_CAP;i++)if(x86_census[i].reason && x86_census[i].reason!=XE_INTERPRETER){

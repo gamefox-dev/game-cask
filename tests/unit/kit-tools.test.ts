@@ -138,7 +138,9 @@ describe('probe mode', () => {
     const dir = tmp();
     try {
       writeFileSync(join(dir, 's.mjs'), `export default async function (p) {
-        await p.step(5); await p.screenshot('shot'); await p.crop('crop', { x: 0, y: 0, w: 4, h: 4 }, 4);
+        await p.step(5); const before=await p.metrics();await p.profileWindow();const after=await p.metrics();
+        if(after.cpu_profile.census_generation!==before.cpu_profile.census_generation+1 || after.lifted_calls!==before.lifted_calls || after.interp_insns!==before.interp_insns)throw new Error('census reset changed execution');
+        await p.screenshot('shot'); await p.crop('crop', { x: 0, y: 0, w: 4, h: 4 }, 4);
         const st = await p.debugState(), d = await p.diagnostics();
         p.log('mz', (await p.peek(st.modules[0].base, 2)).toString('latin1'), (await p.metrics()).interp_insns);
         p.log(d.game.id, d.backend, st.modules[0].name);

@@ -9,6 +9,13 @@ export function stripDwarf(bytes) {
   }
   return Buffer.concat(parts);
 }
+export function encodeFunctionNames(names) {
+  const leb=n=>{const b=[];do{let v=n%128;n=Math.floor(n/128);if(n)v|=128;b.push(v);}while(n);return Buffer.from(b);};
+  const string=s=>{const b=Buffer.from(s);return Buffer.concat([leb(b.length),b]);};
+  const payload=Buffer.concat([leb(names.length),...names.flatMap(n=>[leb(n.index),string(n.name)])]);
+  const body=Buffer.concat([string('name'),Buffer.from([1]),leb(payload.length),payload]);
+  return Buffer.concat([Buffer.from([0]),leb(body.length),body]);
+}
 export function functionNames(bytes) {
   const names=[];let p=8;
   const uleb=(end)=>{let n=0,shift=0;for(let i=0;i<5;i++){if(p>=end)throw new Error('truncated wasm name metadata');const b=bytes[p++];n+=(b&127)*2**shift;if(!(b&128))return n;shift+=7;}throw new Error('oversized wasm metadata integer');};

@@ -18,8 +18,12 @@ it('retains separate address/reason counts, instruction totals and visible bound
   expect(elapsed).toBe(ex.samples());
   const before=ex.clock();ex.idle_start();now+=5000;ex.idle_end();
   expect(ex.clock()-before).toBe(2); // only the explicit clock and idle-begin calls remain active
-  for(let i=0;i<20000;i++)ex.census(i,7,1);
+  for(let i=0;i<300000;i++)ex.census(i,7,1);
   expect(ex.dropped()).toBeGreaterThan(0);expect(ex.count(a)).toBe(2);
+  ex.reset_census();expect(ex.generation()).toBe(1);expect(ex.dropped()).toBe(0);
+  const fresh=ex.census(0x1234,1,7);expect(ex.count(fresh)).toBe(1);expect(ex.instructions(fresh)).toBe(7);
+  ex.stale_instruction(a);expect(ex.instructions(fresh)).toBe(7); // suspended old-window tokens cannot contaminate the new one
+  expect(ex.samples()).toBeGreaterThan(70);
 });
 it('validates frame ranges and maps native region/function names without inventing guest addresses',()=>{
   expect(profileRange('100:200')).toEqual({start:100,end:200});

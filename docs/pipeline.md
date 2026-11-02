@@ -119,7 +119,7 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
   Reasons: **1** opcode form; **2** failed whole-block memory guard; **3** quantum crossing; **4** interior landing;
   **5** indirect dispatcher exit; **6** other dispatcher exit. Native calls/returns are not generic exits.
   `interpreter_entries` lists the top 32 entry addresses by interpreted instructions; counts denote attempted block
-  entries (an entry interrupted before execution can have zero instructions). The 16,384-slot, 16-probe bounded
+  entries (an entry interrupted before execution can have zero instructions). The 262,144-slot, 16-probe bounded
   census never evicts; `census_dropped` counts rejected events. Nonzero means the retained top-N is incomplete,
   not a trustworthy global ranking. Existing execution and coverage counters remain independent/exact.
 - `host_profile`: cumulative update/render wall ms, awaited range-I/O ms, sampled BGT imports by name (1/1024).
@@ -141,6 +141,21 @@ back to addresses; unnamed wasm nodes explicitly remain unmapped (build with `BG
 stepping helpers: direct `p.page.evaluate(step)` and resource-tour internals bypass the range interceptor. Reports
 record actual start/end and whether the requested end was reached; failures save partial profiles when possible.
 CDP uses a 1ms sampling interval and is opt-in, not part of the always-on timing overhead claim.
+At its start frame, the probe snapshots historical census diagnostics then resets the census via the optional
+profiling export. Thus a later hot window is not starved by startup addresses. The report records whether reset was
+available. For multiple shorter windows in a probe/port test, call `await p.profileWindow()` (returns the completed
+window's metrics and resets), or test API `profileReset()`. Save each window separately; do not subtract top-N tables
+across generations. Counts inside retained rows are exact; any nonzero per-window drop count still invalidates a
+complete-ranking claim. Generation-tagged buckets exclude completions from an older suspended window; core execution
+and coverage counters are not reset or artificially incremented.
+
+Named profiling no longer passes **`-g` through Binaryen**. The build captures `--print-function-map` after all
+optimization/Asyncify passes, caches the final index/name sidecar with its wasm, then appends only the standard
+function-name subsection in a lightweight byte pass. No local-variable/DWARF metadata is emitted by wasm-opt.
+`profile-map.json` is also saved next to the wasm; function indices are post-transform, not an incorrect linker-index
+mapping. Cache publication, missing-sidecar rebuild, lease accounting and pruning include the sidecar. A 1.6M-insn,
+39 MiB named scale build completed with 13,900 final mapped functions and only 186,370 name-section bytes; the named
+browser smoke mapped 35 nodes with zero unmapped wasm nodes. This does not claim a successful 138 MiB target build.
 
 Every probe records `resources.start/end`: load averages, CPU model/count, free/total RAM, swap used, heavy-gate
 occupied slots/queued tickets and top CPU processes. Unsupported/sandbox-denied observations are `null` with an

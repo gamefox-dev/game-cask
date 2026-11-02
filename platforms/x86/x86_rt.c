@@ -20,7 +20,11 @@ uint64_t x86_guest_instruction_clock(void) { return X.tsc; }
 int x86_force_interp;
 x86_timing_t x86_timings[XP_CATEGORIES];
 x86_census_t x86_census[X86_CENSUS_CAP];
-uint64_t x86_census_dropped;
+uint64_t x86_census_dropped,x86_census_generation,x86_census_window_start_clock;
+void x86_profile_reset(void) {
+    __builtin_memset(x86_census,0,sizeof x86_census);x86_census_dropped=0;
+    x86_census_generation++;x86_census_window_start_clock=X.tsc;
+}
 double x86_profile_idle_us;
 static double idle_start;
 double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
@@ -38,19 +42,23 @@ double x86_profile_begin(unsigned category) {
 void x86_profile_end(unsigned category, double start) {
     if (start >= 0) x86_timings[category].sample_us += x86_profile_clock() - start;
 }
-uint32_t x86_profile_exit(uint32_t address, uint32_t reason) {
+uint64_t x86_profile_exit(uint32_t address, uint32_t reason) {
     if(!X86_PROFILE_ENABLED)return 0;
     uint32_t h = ((address * 2654435761u) ^ (reason * 2246822519u)) & (X86_CENSUS_CAP-1);
     for (unsigned i=0;i<16;i++,h=(h+1)&(X86_CENSUS_CAP-1)) {
         x86_census_t *e=&x86_census[h];
         if (!e->reason || (e->address==address && e->reason==reason)) {
-            e->address=address;e->reason=reason;e->count++;return h+1;
+            e->address=address;e->reason=reason;e->count++;return (uint64_t)(h+1) | (x86_census_generation<<32);
         }
     }
     x86_census_dropped++;return 0;
 }
-void x86_profile_instruction(uint32_t bucket) { if(bucket)x86_census[bucket-1].instructions++; }
-static uint32_t interpreter_bucket;
+void x86_profile_instruction(uint64_t bucket) {
+    if((bucket>>32)!=(uint32_t)x86_census_generation)return;
+    uint32_t index=(uint32_t)bucket;if(index)x86_census[index-1].instructions++;
+}
+static uint64_t interpreter_bucket;
+static uint64_t interpreter_generation;
 unsigned x86_lift_reason = XE_FORM;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
@@ -238,7 +246,11 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if (entry) { x86_coverage_entry(addr, 2); interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER); }
+    if(entry)x86_coverage_entry(addr,2);
+    if(entry || interpreter_generation!=x86_census_generation) {
+        interpreter_generation=x86_census_generation;
+        interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER);
+    }
     return entry;
 }
 static void interpreted_count(int entry, const x86_code_range_t *owner) {
@@ -332,7 +344,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
                 int next_entry = ends_block(in), string = is_string(in->op), rep = in->rep;
                 x86_word_t count = X.r[ECX];
                 double interpreter_start=x86_profile_begin(XP_INTERPRETER);
-                uint32_t saved_bucket=interpreter_bucket;
+                uint64_t saved_bucket=interpreter_bucket;
                 x86_exec64(in);
                 x86_profile_end(XP_INTERPRETER,interpreter_start);
                 interpreter_bucket=saved_bucket;
@@ -386,7 +398,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
             }
         }
         double interpreter_start=x86_profile_begin(XP_INTERPRETER);
-        uint32_t saved_bucket=interpreter_bucket;
+        uint64_t saved_bucket=interpreter_bucket;
         x86_exec_insn(in);
         x86_profile_end(XP_INTERPRETER,interpreter_start);
         interpreter_bucket=saved_bucket;
@@ -436,7 +448,7 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
  * entries this is bounded by the statically emitted block length and uses the generic semantic
  * counter. It preserves the exact instruction at which the reference cooperates. */
 void x86_lift_block(uint32_t count) {
-    uint32_t bucket=x86_profile_exit(X.eip,x86_lift_reason);
+    uint64_t bucket=x86_profile_exit(X.eip,x86_lift_reason);
     while (count--) {
         const x86_insn_t *in = decode_at(X.eip);
         uint32_t next = in->addr + in->len;

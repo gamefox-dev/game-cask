@@ -38,9 +38,9 @@ export function pruneCache(dir, maxBytes) {
     } catch(e) {if(e.code!=='ENOENT')throw e;}
   }
   const files = [];
-  for (const name of readdirSync(dir).filter((s)=>/\.(o|wasm)(\.[^.]+\.tmp)?$/.test(s))) {
+  for (const name of readdirSync(dir).filter((s)=>/\.(o|wasm)(\.names)?(\.[^.]+\.tmp)?$/.test(s))) {
     const path = join(dir,name);
-    const payload = path.replace(/(\.(?:o|wasm))\.[^.]+\.tmp$/, '$1');
+    const payload = path.replace(/(\.(?:o|wasm)(?:\.names)?)\.[^.]+\.tmp$/, '$1').replace(/\.wasm\.names$/,'.wasm');
     try {const s=statSync(path);files.push({path,size:s.size,time:s.mtimeMs,pinned:pinned.has(payload)});} catch(e) {if(e.code!=='ENOENT')throw e;}
   }
   files.sort((a,b)=>a.time-b.time || a.path.localeCompare(b.path));

@@ -1,12 +1,15 @@
 /* Original CC0 census/timing contract fixture. No guest or captured code. */
 #include "../../../platforms/x86/x86_rt.c"
-BGT_EXPORT(census) uint32_t census(uint32_t address,uint32_t reason,uint32_t instructions) {
-    uint32_t bucket=x86_profile_exit(address,reason);
+BGT_EXPORT(census) uint64_t census(uint32_t address,uint32_t reason,uint32_t instructions) {
+    uint64_t bucket=x86_profile_exit(address,reason);
     for(uint32_t i=0;i<instructions;i++)x86_profile_instruction(bucket);
     return bucket;
 }
-BGT_EXPORT(count) uint32_t count(uint32_t bucket) {return (uint32_t)x86_census[bucket-1].count;}
-BGT_EXPORT(instructions) uint32_t instructions(uint32_t bucket) {return (uint32_t)x86_census[bucket-1].instructions;}
+BGT_EXPORT(count) uint32_t count(uint64_t bucket) {return (uint32_t)x86_census[(uint32_t)bucket-1].count;}
+BGT_EXPORT(instructions) uint32_t instructions(uint64_t bucket) {return (uint32_t)x86_census[(uint32_t)bucket-1].instructions;}
+BGT_EXPORT(reset_census) void reset_census(void) {x86_profile_reset();}
+BGT_EXPORT(stale_instruction) void stale_instruction(uint64_t token) {x86_profile_instruction(token);}
+BGT_EXPORT(generation) uint32_t generation(void) {return (uint32_t)x86_census_generation;}
 BGT_EXPORT(dropped) uint32_t dropped(void) {return (uint32_t)x86_census_dropped;}
 BGT_EXPORT(timing) double timing(uint32_t count) {
     for(uint32_t i=0;i<count;i++){double start=x86_profile_begin(XP_GENERIC);x86_profile_end(XP_GENERIC,start);}

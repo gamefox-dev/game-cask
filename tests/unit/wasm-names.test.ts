@@ -1,6 +1,6 @@
 import {it,expect} from 'vitest';
 // @ts-expect-error ESM build helper
-import {functionNames,stripDwarf} from '../../tools/build/wasm-names.mjs';
+import {functionNames,stripDwarf,encodeFunctionNames} from '../../tools/build/wasm-names.mjs';
 const str=(s:string)=>Buffer.concat([Buffer.from([Buffer.byteLength(s)]),Buffer.from(s)]);
 const custom=(name:string,data:Buffer)=>{const body=Buffer.concat([str(name),data]);return Buffer.concat([Buffer.from([0,body.length]),body]);};
 it('retains indexed function names while removing only DWARF custom sections',()=>{
@@ -12,6 +12,7 @@ it('retains indexed function names while removing only DWARF custom sections',()
  expect(result.includes(Buffer.from('.debug_info'))).toBe(false);expect(result.includes(Buffer.from('target_features'))).toBe(true);
  expect(functionNames(binary)).toEqual([{index:4,name:'F_01001000'},{index:7,name:'R_01001000_01001000'}]);
  expect(functionNames(result)).toEqual(functionNames(binary));
+ expect(functionNames(Buffer.concat([header,encodeFunctionNames([{index:4,name:'F_01001000'},{index:70000,name:'helper'}])]))).toEqual([{index:4,name:'F_01001000'},{index:70000,name:'helper'}]);
  expect(()=>functionNames(binary.subarray(0,binary.length-1))).toThrow(/truncated/);
  expect(()=>stripDwarf(binary.subarray(0,binary.length-1))).toThrow(/truncated/);
 });

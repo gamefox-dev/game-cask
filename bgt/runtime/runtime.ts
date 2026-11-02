@@ -720,6 +720,8 @@ export class BGTRuntime {
     await this.renderer?.simulateLoss(opts);
   }
 
+  profileReset():boolean {return this.host?.profileReset() ?? false;}
+
   coverageSnapshot() {
     // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
     const execution=this.host?.metrics() ?? null;

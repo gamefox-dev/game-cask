@@ -21,7 +21,7 @@ import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
 import { cacheDirectory, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
-import { functionNames, stripDwarf } from './wasm-names.mjs';
+import { functionNames, stripDwarf, encodeFunctionNames } from './wasm-names.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -171,6 +171,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   if(onLinkedWasm)onLinkedWasm(wasmPath);
   let asyncifyCached = false;
   const asyncifyStarted = performance.now();
+  const profileMap=[];
   if (cfg.asyncify) {
     if(asyncifyRestricted && !pipe.report.interpretOnly) {
       const names=new Set(functionNames(readFileSync(wasmPath)).map(f=>f.name));
@@ -185,24 +186,34 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from(JSON.stringify({version:'O2/asyncify/bgt.yield/v2',profileNames,asyncifyRemove}))]));
+    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from(JSON.stringify({version:'O2/asyncify/bgt.yield/v3-sidecar',profileNames,asyncifyRemove}))]));
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
       // The same atomic per-key writer protocol is used for objects and whole-module
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, args: [process.execPath, wasmOpt, wasmPath,
-          ...WASM_OPT_FEATURES, ...(profileNames ? ['-g'] : []), '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
-          ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : [])] }], jobs: 1 }),
+        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, wasmOpt, wasmPath,
+          ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
+          ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
+          ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
         encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
       }));
       asyncifyCached = post.objects_cached === 1;
       cpSync(cached, wasmPath);
+      if(profileNames) {
+        for(const line of readFileSync(cached+'.names','utf8').split('\n')) {
+          const m=/^(\d+):(.*)$/.exec(line);if(m)profileMap.push({index:Number(m[1]),name:m[2]});
+        }
+        if(!profileMap.length)throw new Error('wasm-opt emitted no final function map');
+        const names=encodeFunctionNames(profileMap);
+        writeFileSync(wasmPath,Buffer.concat([readFileSync(wasmPath),names]));
+        writeFileSync(join(outDir,'profile-map.json'),JSON.stringify({schema:'game-cask/wasm-functions/1',functions:profileMap})+'\n');
+      }
     } catch {
       throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
     } finally { releasePost(); }
-    touchCache([cached]);
+    touchCache([cached,...(profileNames?[cached+'.names']:[])]);
     pruneCache(postDir,Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576);
   }
   const asyncifyMs = performance.now()-asyncifyStarted;

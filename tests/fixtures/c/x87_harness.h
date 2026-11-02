@@ -17,7 +17,7 @@ static uint8_t *x86_flat=ram;
 const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 unsigned x86_lift_reason;
-uint32_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
+uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
 void x86_fault(const char *m,uint32_t p){(void)m;(void)p;__builtin_trap();}
 uint32_t x86_address(uint64_t a){if(a>0xffffffffu)__builtin_trap();return (uint32_t)a;}
 void x86_cooperate(void){__builtin_trap();}

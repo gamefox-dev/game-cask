@@ -16,7 +16,7 @@ const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 unsigned x86_lift_reason;
 static unsigned last_reason;
-uint32_t x86_profile_exit(uint32_t address, uint32_t reason) { (void)address; last_reason=reason; return 0; }
+uint64_t x86_profile_exit(uint32_t address, uint32_t reason) { (void)address; last_reason=reason; return 0; }
 BGT_EXPORT(last_exit_reason) uint32_t last_exit_reason(void) {return last_reason;}
 static uint32_t policy_storage[32];
 void *x86_alloc(uint32_t size) {return size<=sizeof policy_storage?policy_storage:0;}

@@ -4,6 +4,7 @@
 x86_metrics_t x86_metrics;
 x86_timing_t x86_timings[XP_CATEGORIES];
 x86_census_t x86_census[X86_CENSUS_CAP];
+uint64_t x86_census_generation,x86_census_window_start_clock;
 uint64_t x86_census_dropped,x86_coverage_events,x86_coverage_crossings,x86_coverage_cache_hits;
 double x86_profile_idle_us;
 uint64_t x86_guest_instruction_clock(void){return 123;}

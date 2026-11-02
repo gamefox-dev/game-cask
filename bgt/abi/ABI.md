@@ -574,6 +574,17 @@ metrics/coverage. Both backends use the same decoder. No hot-path import, per-en
 strict successful-path recording remains absent apart from this one bounded startup observation. Missing-code
 observations still use slice_missing. C/TS layout and strict browser coverage regressions retain their assertions.
 
+### Profiling census windows (K10, additive optional export)
+
+Optional `void bgt_profile_reset(void)` clears only the diagnostic exit/interpreter-entry census, increments its
+`census_generation`, and records `census_window_start_clock`. It does not reset execution counts, coverage, API
+traces, guest state, or cumulative sampled timings. The shared browser/headless host calls it only outside update
+execution, through test/probe `profileReset():boolean` (false if unavailable). Both GPU backends share this host.
+Older modules need not export it. C declaration is in bgt.h; TS optional export and decoder are in host.ts.
+Census bucket tokens include their generation, so a previously suspended semantic operation cannot increment a
+new window's reused slot. A window that still reports nonzero `census_dropped` is incomplete and must be shortened;
+no reset/eviction silently fabricates a complete ranking. The lifetime execution counters remain independent.
+
 ## 13. v0.3 GPU layer (additive interface)
 
 This section is normative for the wire interface, validator and future backend/profile implementations. Execution

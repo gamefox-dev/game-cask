@@ -85,6 +85,12 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     },
     diagnostics: () => api('diagnostics'),
     metrics: async () => (await api('diagnostics')).metrics,
+    async profileWindow() {
+      const before=(await api('diagnostics')).metrics;
+      const reset=await api('profileReset');
+      if(!reset)throw new Error('module has no resettable census export');
+      return before;
+    },
     debugState: () => api('debugState'),
     stateHash: () => api('stateHash'),
     readPixels: () => api('readPixels'),

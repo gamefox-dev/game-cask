@@ -763,10 +763,10 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (vhas(&f->labels, in.target) && (in.target != f->addr || 1)) {
                 int inside = 0;
                 for (uint32_t q = 0; q < f->insns.n; q++) if (f->insns.v[q] == in.target) { inside = 1; break; }
-                if (inside) { fprintf(o, "goto L_%08x;", in.target); break; }
+                if (inside) { fprintf(o, "x86_coverage_lifted(0x%08xu,1);goto L_%08x;", in.target,in.target); break; }
             }
             /* tail call to another function */
-            if (lifted_has(a, in.target)) fprintf(o, "X.eip = 0x%08xu; F_%08x(); return;", in.target, in.target);
+            if (lifted_has(a, in.target)) fprintf(o, "X.eip = 0x%08xu; x86_coverage_lifted(X.eip,1); F_%08x(); return;", in.target, in.target);
             else fprintf(o, "X.eip = 0x%08xu; x86_continue(ra, esp0); return;", in.target);
             break;
         case XO_CALL:
@@ -774,7 +774,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (lifted_has(a, in.target))
                 /* LANE-C */
                 fprintf(o, "x86_push(0x%08xu); X.eip = 0x%08xu; x86_metrics.lifted_calls++; "
-                    "F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
+                    "x86_coverage_lifted(X.eip,1); F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
                     "x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, in.target, next, va);
             else fprintf(o, "x86_call(0x%08xu, 0x%08xu);", in.target, next);
             break;
@@ -791,7 +791,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
                 vec_t uniq = {0};
                 for (uint32_t q = 0; q < j->targets.n; q++) vpush(&uniq, j->targets.v[q]);
                 vsort_uniq(&uniq);
-                for (uint32_t q = 0; q < uniq.n; q++) fprintf(o, " case 0x%08xu: goto L_%08x;", uniq.v[q], uniq.v[q]);
+                for (uint32_t q = 0; q < uniq.n; q++) fprintf(o, " case 0x%08xu: x86_coverage_lifted(0x%08xu,1); goto L_%08x;", uniq.v[q], uniq.v[q], uniq.v[q]);
                 free(uniq.v);
                 fprintf(o, " default: break; }");
             } else st->unresolved += !(j && j->resolved);

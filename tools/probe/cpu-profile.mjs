@@ -38,6 +38,8 @@ export async function createCpuProfiler(page,range,out,log) {
       let frame=(await api('diagnostics')).frame;
       while(n>0) {
         if(!active && !done && frame>=range.start && frame<range.end) {
+          report.censusBeforeReset=(await api('diagnostics')).metrics?.cpu_profile ?? null;
+          report.censusReset=await api('profileReset');
           await cdp.send('Profiler.start');active=true;report.startedFrame=frame;
         }
         const boundary=frame<range.start?range.start:frame<range.end?range.end:Infinity;
