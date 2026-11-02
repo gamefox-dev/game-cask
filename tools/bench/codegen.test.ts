@@ -4,6 +4,12 @@ import { it, expect } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { cpus, freemem, totalmem, loadavg } from 'node:os';
+
+function resources() {
+  return { at: new Date().toISOString(), cpu: cpus()[0]?.model, cores: cpus().length,
+    free_bytes: freemem(), total_bytes: totalmem(), loadavg: loadavg(), process: process.resourceUsage() };
+}
 import { loadHeadless, ROOT } from '../../tests/support/headless';
 // @ts-expect-error plain ESM
 import { buildGame } from '../build/build.mjs';
@@ -32,6 +38,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
       }, modules: [{ from: './build/cpu.exe', main: true }],
     },
   }));
+  const resourcesBefore = resources();
   const rows = [];
   const ids = process.env.BGT_CODEGEN_IDS?.split(',') ?? ['codegen-cpu', 'x64-basics', 'x64-cpp',
     'x64-cpprt', 'x64-crt', 'x64-gui', 'x64-memory', 'x64-tls', 'win32-hello'];
@@ -67,6 +74,7 @@ it('reports size, emission counts, build/cache state and 300-frame execution for
   const report = {
     schema: 'game-cask/codegen/1', base: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     node: process.version, platform: `${process.platform}/${process.arch}`, fixtures: rows,
+    resources_before: resourcesBefore, resources_after: resources(),
     method: 'Whole wasm (profile + Asyncify included); update/render/consume 300 fixed frames; median of five fresh '
       + 'instances after a discarded warmup; init/compile excluded. Console fixtures include CRT startup, '
       + 'not just idle.',

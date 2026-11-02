@@ -81,6 +81,27 @@ BGT_EXPORT(check) unsigned check(void) {
   expect((instance.exports.check as () => number)()).toBe(0);
 });
 
+it('inline memory checks match the slow path for width, holes, protection and full-width bounds', async () => {
+  const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-pointer'); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'probe.c'), `
+static const unsigned char test_code[]={0xc3};
+#include "${ROOT}/tests/fixtures/c/codegen_harness.h"
+BGT_EXPORT(check) unsigned check(void) {
+ uint64_t addresses[]={0,1,4095,4096,8190,8192,65520,65535,65536,0xffffffffull,
+                       0x100002000ull,UINT64_MAX-7,UINT64_MAX};
+ unsigned widths[]={0,1,2,4,8,16,4096,4097,12288};
+ unsigned modes[]={0,1,2,4,0x10,0x20,0x40,0xff};
+ for(unsigned mode=0;mode<8;mode++)for(unsigned hole=0;hole<2;hole++) {
+  reset(0,0);x86_protection[1]=modes[mode];if(hole)x86_pages[2]=0;
+  for(unsigned i=0;i<13;i++)for(unsigned n=0;n<9;n++)for(unsigned a=1;a<=3;a++)
+   if(xl_pointer_access(addresses[i],widths[n],a)!=xl_pointer_slow(addresses[i],widths[n],a))return 1;
+ }
+ return 0;
+}`);
+  const { instance } = await WebAssembly.instantiate(await compileC(relative(ROOT, join(dir, 'probe.c'))));
+  expect((instance.exports.check as () => number)()).toBe(0);
+});
+
 it('native locals, byte aliases, branches, memory and generic barriers preserve every CPU byte', async () => {
   // Includes a carry reader after INC, dead flag writes, a join, a backwards loop, and CPUID as a generic barrier.
   const h = await harness('48b88877665544332211b4aa40b4554883c00148ffc04883d000'
