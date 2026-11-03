@@ -15,13 +15,13 @@ import time
 import uuid
 
 
-def command(args, pass_fds=(), stdout_path=None):
+def command(args, pass_fds=(), stdout_path=None, cwd=None):
     start = time.monotonic()
     if stdout_path:
         with open(stdout_path, 'w') as output:
-            subprocess.run(args, check=True, stdout=output, pass_fds=pass_fds)
+            subprocess.run(args, check=True, stdout=output, pass_fds=pass_fds, cwd=cwd)
     else:
-        subprocess.run(args, check=True, stdout=sys.stderr, pass_fds=pass_fds)
+        subprocess.run(args, check=True, stdout=sys.stderr, pass_fds=pass_fds, cwd=cwd)
     return round((time.monotonic() - start) * 1000, 3)
 
 
@@ -31,7 +31,7 @@ def main():
 
     def compile_one(o):
         def valid():
-            return os.path.exists(o['out']) and (not o.get('stdout') or os.path.exists(o['stdout']))
+            return o.get('cacheable', True) and os.path.exists(o['out']) and (not o.get('stdout') or os.path.exists(o['stdout']))
         def hit():
             return {'object': o['out'], 'cache': 'hit', 'compile_ms': 0, 'miss_reasons': []}
         if valid():
@@ -48,7 +48,7 @@ def main():
                 return hit()
             temp = o['out'] + '.' + uuid.uuid4().hex + '.tmp'
             try:
-                elapsed = command(o['args'] + ['-o', temp], (lock.fileno(),), temp+'.stdout' if o.get('stdout') else None)
+                elapsed = command(o['args'] + ['-o', temp], (lock.fileno(),), temp+'.stdout' if o.get('stdout') else None, o.get('cwd'))
                 if o.get('stdout'):
                     os.replace(temp+'.stdout', o['stdout'])
                 os.replace(temp, o['out'])
@@ -72,6 +72,7 @@ def main():
                                                   'hit': d['cache'] == 'hit', 'reasons': d['miss_reasons']}
                                                  for o, d in zip(cfg.get('objects', []), decisions)],
                       'parallel_rss_upper_bound_bytes': peak * jobs,
+                      'objects_uncacheable': sum(o.get('cacheable') is False for o in cfg.get('objects', [])),
                       'objects_compiled': len(timings), 'objects_cached': len(decisions)-len(timings), 'jobs': jobs}))
 
 
