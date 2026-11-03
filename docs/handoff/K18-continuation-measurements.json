@@ -1,0 +1,546 @@
+{
+  "schema": "game-cask/k18-continuation-evidence/1",
+  "scope": "Original CC0 kit fixtures only, shared macOS arm64 machine, BGT_BUILD_JOBS=2. No game/porter acceptance. Measurements preceded b189141 commit with its implementation in the working tree.",
+  "incremental": {
+    "machine": {
+      "hostname": "Mac-mini-2.local",
+      "platform": "darwin",
+      "arch": "arm64",
+      "totalmem": 17179869184,
+      "node": "v24.19.0"
+    },
+    "count": 15000,
+    "method": "sequential same-clone builds; runtime-only edit appends a comment to bgt_gpu.h, restored byte-exactly; cold means fixture initially absent, not OS/toolchain cold; shared machine, not quiescent",
+    "revision": "de279486f801cf237e6e85ef08e037515f9e6bd6",
+    "revision_note": "reported HEAD de27948 at launch; working tree includes fixes/JSPI later committed as b189141. Cold run predates transitive shadow-header fix; fixture dependencies do not use that case.",
+    "samples": [
+      {
+        "scenario": "cold",
+        "before": {
+          "at": "2026-11-03T00:30:43.753Z",
+          "loadavg": [
+            10.388671875,
+            9.06787109375,
+            9.34912109375
+          ],
+          "disk_free_bytes": 7035080704,
+          "memory": "{\"available_bytes\": 5557649408}"
+        },
+        "after": {
+          "at": "2026-11-03T00:42:09.853Z",
+          "loadavg": [
+            9.61962890625,
+            13.39794921875,
+            11.00830078125
+          ],
+          "disk_free_bytes": 6081191936,
+          "memory": "{\"available_bytes\": 5653348352}"
+        },
+        "wall_ms": 686096.033042,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "metrics": {
+          "phase_timings": {
+            "analysis_ms": 5172.3501250000045,
+            "lift_ms": 156616.193,
+            "c_generation_cpu_ms": 1866.689,
+            "compile_ms": 210304.025,
+            "link_ms": 738.717,
+            "wasm_opt_ms": 235879.806208
+          },
+          "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+          "objects_compiled": 93,
+          "objects_cached": 0,
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 449373.503875,
+          "jspi_emit_ms": 210.00829099997645,
+          "asyncify_cached": false,
+          "peak_child_rss_bytes": 448397312,
+          "jobs": 2,
+          "memory": {
+            "available_bytes": 5903646720,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          }
+        },
+        "miss_reason_counts": {
+          "cold": 64,
+          "compiler": 1,
+          "flags": 29,
+          "header": 67
+        },
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "analysis_cached": false,
+              "chunks_lifted": 62,
+              "chunks_cached": 0,
+              "lift_ms": 156616.193,
+              "c_generation_cpu_ms": 1866.689,
+              "lift_jobs": 2
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-change",
+        "before": {
+          "at": "2026-11-03T00:42:09.885Z",
+          "loadavg": [
+            9.61962890625,
+            13.39794921875,
+            11.00830078125
+          ],
+          "disk_free_bytes": 6080995328,
+          "memory": "{\"available_bytes\": 5659836416}"
+        },
+        "after": {
+          "at": "2026-11-03T00:42:14.177Z",
+          "loadavg": [
+            10.61083984375,
+            13.54052734375,
+            11.072265625
+          ],
+          "disk_free_bytes": 6076981248,
+          "memory": "{\"available_bytes\": 4627054592}"
+        },
+        "wall_ms": 4292.5287089999765,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "metrics": {
+          "phase_timings": {
+            "analysis_ms": 10.433709000004455,
+            "lift_ms": 1.372,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 2.642,
+            "link_ms": 722.868,
+            "wasm_opt_ms": 243.4440000000177
+          },
+          "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+          "objects_compiled": 0,
+          "objects_cached": 93,
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 3287.058667000034,
+          "jspi_emit_ms": 179.52295799995773,
+          "asyncify_cached": true,
+          "peak_child_rss_bytes": 351272960,
+          "jobs": 2,
+          "memory": {
+            "available_bytes": 4921901056,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          }
+        },
+        "miss_reason_counts": {},
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_ms": 1.372,
+              "c_generation_cpu_ms": 0,
+              "lift_jobs": 2
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "runtime-only-change",
+        "before": {
+          "at": "2026-11-03T00:42:14.207Z",
+          "loadavg": [
+            10.61083984375,
+            13.54052734375,
+            11.072265625
+          ],
+          "disk_free_bytes": 6076940288,
+          "memory": "{\"available_bytes\": 4624269312}"
+        },
+        "after": {
+          "at": "2026-11-03T00:42:26.786Z",
+          "loadavg": [
+            10.99365234375,
+            13.5361328125,
+            11.10009765625
+          ],
+          "disk_free_bytes": 6009540608,
+          "memory": "{\"available_bytes\": 4756684800}"
+        },
+        "wall_ms": 12579.531666000024,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "metrics": {
+          "phase_timings": {
+            "analysis_ms": 6.754542000009678,
+            "lift_ms": 1.384,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 7398.189,
+            "link_ms": 502.398,
+            "wasm_opt_ms": 239.22837499994785
+          },
+          "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+          "objects_compiled": 23,
+          "objects_cached": 70,
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 11569.91633399995,
+          "jspi_emit_ms": 136.2870830000611,
+          "asyncify_cached": true,
+          "peak_child_rss_bytes": 351600640,
+          "jobs": 2,
+          "memory": {
+            "available_bytes": 4661460992,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          }
+        },
+        "miss_reason_counts": {
+          "header": 23
+        },
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_ms": 1.384,
+              "c_generation_cpu_ms": 0,
+              "lift_jobs": 2
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "speed": {
+    "schema": "game-cask/suspension-benchmark/1",
+    "revision": "b1891410fe6b3f1a7ca521b93287f7e1ad6cc072",
+    "before": {
+      "at": "2026-11-03T00:48:25.122Z",
+      "load": [
+        11.466796875,
+        12.748046875,
+        11.62841796875
+      ],
+      "totalmem": 17179869184,
+      "physical_headroom": "3727130624"
+    },
+    "fixtures": [
+      {
+        "id": "win32-hello",
+        "variants": [
+          {
+            "mode": "asyncify",
+            "bytes": 1166237,
+            "compileMs": 0.809999942779541,
+            "medianMs": 4.620000123977661,
+            "samples": [
+              {
+                "elapsedMs": 11.700000047683716,
+                "instantiateMs": 0.06999993324279785,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 4.7749998569488525,
+                "instantiateMs": 0.09499979019165039,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 4.620000123977661,
+                "instantiateMs": 0.08499979972839355,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 3.0249998569488525,
+                "instantiateMs": 0.08500003814697266,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 2.9049999713897705,
+                "instantiateMs": 0.07500004768371582,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              }
+            ]
+          },
+          {
+            "mode": "jspi",
+            "bytes": 1334798,
+            "compileMs": 0.8450000286102295,
+            "medianMs": 2.5299999713897705,
+            "samples": [
+              {
+                "elapsedMs": 7.6600000858306885,
+                "instantiateMs": 0.7250001430511475,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 3.190000057220459,
+                "instantiateMs": 0.08500003814697266,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 2.4549999237060547,
+                "instantiateMs": 3.629999876022339,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 2.5299999713897705,
+                "instantiateMs": 0.08000016212463379,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              },
+              {
+                "elapsedMs": 2.384999990463257,
+                "instantiateMs": 0.06500005722045898,
+                "yields": 300,
+                "hashesSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+                "last": "cfe741f7",
+                "logs": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "k18-scale-15000",
+        "variants": [
+          {
+            "mode": "asyncify",
+            "bytes": 56159339,
+            "compileMs": 31.949999809265137,
+            "medianMs": 33.77999997138977,
+            "samples": [
+              {
+                "elapsedMs": 508.8399999141693,
+                "instantiateMs": 2.069999933242798,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 52.08999991416931,
+                "instantiateMs": 2.054999828338623,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 33.77999997138977,
+                "instantiateMs": 1.309999942779541,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 30.639999866485596,
+                "instantiateMs": 2.069999933242798,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 29.09500002861023,
+                "instantiateMs": 1.2899999618530273,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              }
+            ]
+          },
+          {
+            "mode": "jspi",
+            "bytes": 66598422,
+            "compileMs": 34.05000019073486,
+            "medianMs": 38.764999866485596,
+            "samples": [
+              {
+                "elapsedMs": 558.8849999904633,
+                "instantiateMs": 1.7850000858306885,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 51.334999799728394,
+                "instantiateMs": 3.4250001907348633,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 38.764999866485596,
+                "instantiateMs": 3.2900002002716064,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 32.08999991416931,
+                "instantiateMs": 1.244999885559082,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              },
+              {
+                "elapsedMs": 37.63499999046326,
+                "instantiateMs": 1.244999885559082,
+                "yields": 300,
+                "hashesSha256": "a1ddae2ce6498937fd603b9387a5fd21141d3373acc84c13fbbe95521dce88c4",
+                "last": "4268aa75",
+                "logs": [
+                  "guest: scale checksum 560ea540 functions 15000",
+                  "guest: scale tick 0 1b1043b9",
+                  "guest: scale tick 60 916ecf2f",
+                  "guest: scale tick 120 4b1e441f",
+                  "guest: scale tick 180 8e99709b",
+                  "guest: scale tick 240 450d0b39",
+                  "guest: scale tick 300 52361d4a"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "method": "five fresh headless GameHost instances per variant in Chromium; 300 frames including range I/O, render/decode/consume; modules compiled before instance timing; no rasterization; zero input; same per-frame trace digest required; shared machine, not quiescent",
+    "after": {
+      "at": "2026-11-03T00:48:28.532Z",
+      "load": [
+        11.466796875,
+        12.748046875,
+        11.62841796875
+      ],
+      "totalmem": 17179869184,
+      "physical_headroom": "3039821824"
+    },
+    "scope_note": "Five Chromium GameHost samples per variant, headless backend without rasterization. Both complete 300 frames and identical per-frame trace digests. Includes range I/O and render/decode; not pure guest CPU or game speed. JSPI is raw linked wasm with no wasm-opt O2/Asyncify, which can increase size and change speed."
+  }
+}
