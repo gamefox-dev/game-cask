@@ -9,7 +9,7 @@ import {instantiateFixture} from '../support/wasm-fixture';
 import {GameHost,CODE_COVERAGE_LIMIT,OutsideSlice} from '../../bgt/runtime/host';
 import {Vfs} from '../../bgt/runtime/vfs';
 // @ts-expect-error plain ESM
-import {coveragePlan,staticClosure,owningRanges,rangeOwner} from '../../tools/build/coverage.mjs';
+import {coveragePlan,staticClosure,owningRanges,rangeOwner,publishCoverage,automaticCoverageFiles,selectionMode,selectionProvenance} from '../../tools/build/coverage.mjs';
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
 
@@ -111,6 +111,27 @@ it('unions successive recordings but rejects real overflow and conflicting modul
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
+it('automatically merges only successful per-game evidence with deterministic provenance and never broadens strict/all policy',()=>{
+ const root=mkdtempSync(join(tmpdir(),'bgt-inbox-'));
+ try{
+  const snapshot={schema:'game-cask/coverage/1',game:'cc0-loop',modules:[{name:'loop.exe',base:100,sha256:'abc'}],files:[],code:[],
+   interpreter:{dropped:0,entries:[{address:125,owner:100,count:50,instructions:500}]},metrics:{errors:0}};
+  const file=publishCoverage(root,snapshot);expect(automaticCoverageFiles(root,'cc0-loop')).toEqual([file]);
+  expect(automaticCoverageFiles(root,'other-loop')).toEqual([]);
+  const plan=coveragePlan([file],root);expect([...plan.code]).toEqual([125]);expect(plan.recordings[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+  const analysis={functions:[{addr:100,end:200,calls:[300]},{addr:300,end:320,calls:[]},{addr:400,end:420,calls:[]}]};
+  expect(selectionMode({},false)).toBe('coverage');
+  expect(selectionProvenance(analysis,plan,'coverage')).toMatchObject({owners:[100,300],interpreter_owners:[100],static_closure_owners:[300]});
+  expect(selectionProvenance(analysis,plan,'all').owners).toEqual([100,300,400]);
+  expect(()=>selectionMode({selection:'all'},true)).toThrow(/strict slice/);
+  expect(()=>selectionMode({selection:'unknown'},false)).toThrow(/coverage or all/);
+  for(const metrics of [{errors:1},{outsideSlice:1},{code_entries_dropped:1}])expect(publishCoverage(root,{...snapshot,metrics})).toBeNull();
+  expect(publishCoverage(root,{...snapshot,interpreter:{...snapshot.interpreter,dropped:1}})).toBeNull();
+  writeFileSync(file,JSON.stringify({...snapshot,interpreter:{...snapshot.interpreter,dropped:1}}));
+  expect(()=>coveragePlan([file],root)).toThrow(/overflowed/);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
 it('host deduplicates kinds beyond the old cap, bounds recordings, and enforces strict owning-range stops',async()=>{
  const wasm=await compileC('tests/fixtures/c/coverage_probe.c');
  const config={backend:3,caps:0,seed:1,displayWidth:64,displayHeight:64,arg0:0,arg1:0};
@@ -131,6 +152,7 @@ it('host deduplicates kinds beyond the old cap, bounds recordings, and enforces 
 });
 
 it('two successive selective builds converge on a >65k-instruction workload from real entry/continuation recordings',async()=>{
+ mkdirSync(join(ROOT,'node_modules/.cache/bgt'),{recursive:true});
  const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/coverage-discovery-'));
  const id=basename(dir).toLowerCase();
  const cfg:any={id,name:'CC0 discovery',private:false,license:'CC0-1.0',pipeline:{platform:'win32',interpretOnly:true,
@@ -139,7 +161,7 @@ it('two successive selective builds converge on a >65k-instruction workload from
  const config=join(dir,'game.json');
  const save=()=>writeFileSync(config,JSON.stringify(cfg));
  const snapshot=(h:any,manifest:any)=>({schema:'game-cask/coverage/1',modules:manifest.pipeline.modules,files:[],
-  code:[...h.host.codeCoverage].map(([address,kind]:any)=>({address,kind})),metrics:{code_entries_dropped:h.host.codeCoverageDropped,execution:h.host.metrics()}});
+  game:id,interpreter:h.host.interpreterCoverage(),code:[...h.host.codeCoverage].map(([address,kind]:any)=>({address,kind})),metrics:{code_entries_dropped:h.host.codeCoverageDropped,execution:h.host.metrics()}});
  try {
   save();buildGame(dir,{quiet:true});
   const manifest=JSON.parse(readFileSync(join(ROOT,'web/public/games',id,'manifest.json'),'utf8'));
@@ -154,13 +176,28 @@ it('two successive selective builds converge on a >65k-instruction workload from
   copyFileSync(join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp','fixture/discovery.exe'),join(dir,'discovery.exe'));
   delete cfg.pipeline.fixture;cfg.pipeline.modules[0].from='./discovery.exe';
   delete cfg.pipeline.interpretOnly;cfg.pipeline.coverage=['early.json'];save();buildGame(dir,{quiet:true});
-  const first=await loadHeadless(id);await first.stepAsync(8);
-  const one:any=first.host.metrics();expect(one.interp_insns).toBe(70003);expect(one.interp_code_entries).toBe(2);expect(one.interp_functions).toBe(1);
+  const runTrace=async(h:any)=>{const hashes=[];for(let i=0;i<8;i++){await h.stepAsync(1);hashes.push(h.host.stateHash());}return hashes;};
+  const first=await loadHeadless(id);const firstTrace=await runTrace(first);
+  const one:any=first.host.metrics();
+  expect(one.execution_summary.interpreter.instructions_per_update).toBe(70003/8);
+  expect(one.execution_summary.interpreter.estimated_ms_per_update).toBeGreaterThan(0);
+  expect(one.execution_summary.interpreter.top_owners[0].instructions).toBe(70003);
+  expect(first.host.interpreterCoverage()?.entries).toHaveLength(2);
+  expect(one.interp_insns).toBe(70003);expect(one.interp_code_entries).toBe(2);expect(one.interp_functions).toBe(1);
   expect(first.logs).toContain('guest: coverage known result 123');expect(first.host.codeCoverage.size).toBeLessThan(30);
   writeFileSync(join(dir,'more.json'),JSON.stringify(snapshot(first,manifest)));
-  cfg.pipeline.coverage=['early.json','more.json'];save();buildGame(dir,{quiet:true});
-  const second=await loadHeadless(id);await second.stepAsync(8);
-  const two:any=second.host.metrics();expect(two.interp_insns).toBe(0);expect(two.interp_code_entries).toBe(0);expect(two.interp_functions).toBe(0);
+  const evidence=publishCoverage(ROOT,snapshot(first,manifest));
+  expect(evidence).toBeTruthy();expect(automaticCoverageFiles(ROOT,id)).toContain(evidence);
+  // No configuration edit: build:port's default consumes the normal recording.
+  save();buildGame(dir,{quiet:true});
+  const second=await loadHeadless(id);const secondTrace=await runTrace(second);expect(secondTrace).toEqual(firstTrace);
+  const two:any=second.host.metrics();
+  expect(two.execution_summary.interpreter.instructions_per_update).toBe(0);
+  expect(two.execution_summary.interpreter.estimated_ms_per_update).toBe(0);
+  const rebuilt=JSON.parse(readFileSync(join(ROOT,"web/public/games",id,"manifest.json"),"utf8"));
+  expect(rebuilt.pipeline.discovery.input_recordings).toHaveLength(2);
+  expect(rebuilt.pipeline.modules[0].selection.interpreter_owners).toHaveLength(2);
+  expect(two.interp_insns).toBe(0);expect(two.interp_code_entries).toBe(0);expect(two.interp_functions).toBe(0);
   expect(second.logs).toEqual(first.logs);expect(second.host.codeCoverageDropped).toBe(0);
   expect(one.trace_hash).toBe(baseline.trace_hash);expect(two.trace_hash).toBe(baseline.trace_hash);
   const interpreted=[...first.host.codeCoverage].filter(([,kind])=>kind&2).map(([addr])=>addr);
@@ -171,17 +208,18 @@ it('two successive selective builds converge on a >65k-instruction workload from
   const sliced=await loadHeadless(id);await sliced.stepAsync(8);expect(sliced.logs).toEqual(second.logs);
   expect((sliced.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
   cfg.pipeline.interpretOnly=true;save();buildGame(dir,{quiet:true});
-  const reference=await loadHeadless(id);await reference.stepAsync(8);expect(reference.logs).toEqual(second.logs);
+  const reference=await loadHeadless(id);expect(await runTrace(reference)).toEqual(firstTrace);expect(reference.logs).toEqual(second.logs);
   expect((reference.host.metrics() as any).interp_insns).toBe(baseline.interp_insns);
   expect((reference.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
   mkdirSync(join(ROOT,'reports'),{recursive:true});
   writeFileSync(join(ROOT,'reports/coverage-discovery.json'),JSON.stringify({
-    workload:'CC0 70000-NOP indirect function + interior continuation, 8 frames',
+    workload:'CC0 70000-NOP indirect function + interior continuation, 8 updates',
+    traces:{first:firstTrace,rebuilt:secondTrace},
     initial:baseline,selective:[one,two],
     uniqueEntries:[initial.host.codeCoverage.size,first.host.codeCoverage.size,second.host.codeCoverage.size],
     dropped:[initial.host.codeCoverageDropped,first.host.codeCoverageDropped,second.host.codeCoverageDropped],
   },null,2)+'\n');
  }finally{
-  for(const path of [dir,join(ROOT,'web/public/games',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp')])rmSync(path,{recursive:true,force:true});
+  for(const path of [dir,join(ROOT,'reports/coverage-inbox',id),join(ROOT,'web/public/games',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp')])rmSync(path,{recursive:true,force:true});
  }
 },180_000);

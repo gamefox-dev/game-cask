@@ -79,10 +79,10 @@ static uint32_t stage_used;
 static uint8_t tex_used[TEX_LIMIT + 1];
 static int32_t scr_w, scr_h;
 static int screen_ready;
-static int chrome_depth;
+static int chrome_depth,guest_screen_dirty;
 void w32_gdi_chrome_begin(void) { chrome_depth++; }
 void w32_gdi_chrome_end(void) { if (chrome_depth) chrome_depth--; }
-static void count_op(void) { if (chrome_depth) w32_m.chrome_ops++; else w32_m.gdi_ops++; }
+static void count_op(uint32_t tex) { if (chrome_depth) w32_m.chrome_ops++; else {w32_m.gdi_ops++;if(tex==TEX_SCREEN)guest_screen_dirty=1;} }
 
 static bgt_cmdbuf_t *rb(uint32_t need) {
     rec_t *r = &rec[nrec_used ? nrec_used - 1 : 0];
@@ -134,7 +134,7 @@ void g_fill(uint32_t tex, int32_t cl, int32_t ct, int32_t cr, int32_t cb, int32_
     if (w < 0) { x += w; w = -w; }
     if (h < 0) { y += h; h = -h; }
     if (!clip_rect(&x, &y, &w, &h, cl, ct, cr, cb)) return;
-    count_op();
+    count_op(tex);
     st_target(tex); st_blend(blend); st_tex(0);
     bgt_cmd_rect(rb(64), (float)x, (float)y, (float)w, (float)h, rgba_of(rgb));
     w32_rp_fill(tex, x, y, w, h, rgba_of(rgb), blend);
@@ -150,7 +150,7 @@ static void g_blit(uint32_t dtex, int32_t cl, int32_t ct, int32_t cr, int32_t cb
     float fx1 = (float)(x + w - dx) / (float)dw, fy1 = (float)(y + h - dy) / (float)dh;
     float u0 = ((float)sx + fx0 * (float)sw) / (float)sw_tex, v0 = ((float)sy + fy0 * (float)sh) / (float)sh_tex;
     float u1 = ((float)sx + fx1 * (float)sw) / (float)sw_tex, v1 = ((float)sy + fy1 * (float)sh) / (float)sh_tex;
-    count_op();
+    count_op(dtex);
     st_target(dtex); st_blend(blend); st_tex(stex);
     bgt_cmd_sprite(rb(64), (float)x, (float)y, (float)w, (float)h, u0, v0, u1, v1, tint);
     w32_rp_blit(dtex, x, y, w, h, stex, u0, v0, u1, v1, blend, tint);
@@ -237,6 +237,9 @@ int32_t w32_gdi_screen_w(void) { return scr_w; }
 int32_t w32_gdi_screen_h(void) { return scr_h; }
 
 void w32_gdi_flush_and_present(void) {
+    /* Repainting the host canvas/chrome or offscreen-only drawing is not a new guest frame. */
+    if(screen_ready && guest_screen_dirty)w32_guest_present(0);
+    guest_screen_dirty=0;
     w32_user_present_overlay();
     for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
     nrec_used = 0;

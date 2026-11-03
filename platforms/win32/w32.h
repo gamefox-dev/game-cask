@@ -46,6 +46,8 @@ int32_t w32_boot(const w32_config_t *cfg, bgt_io_t *io);
 void w32_update(void);
 /* bgt_render: flushes deferred GDI drawing and presents the desktop */
 void w32_render(void);
+void w32_guest_present(int swap);
+const void *w32_guest_presentations(void);
 /* JSON metrics for bgt_metrics (combines x86 and win32 counters) */
 const char *w32_metrics_json(void);
 uint32_t w32_state_hash(void);

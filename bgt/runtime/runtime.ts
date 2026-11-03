@@ -775,6 +775,7 @@ export class BGTRuntime {
     // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
     const execution=this.host?.metrics() ?? null;
     return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
+      interpreter:this.host?.interpreterCoverage() ?? undefined,
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
       readAhead:this.vfs.readAheadCoverage(),

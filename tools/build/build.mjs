@@ -77,10 +77,12 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, onLinkedWasm = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null } = {}) {
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  cfg.coverageGameId=cfg.id;
+  if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])
     if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
   const emitJspi = cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1');
@@ -391,6 +393,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const all = argv.includes('--all');
   const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
+  const mi=argv.indexOf('--selection');
+  const selection=mi>=0?argv[mi+1]:null;
+  if(mi>=0 && !['all','coverage'].includes(selection))throw new Error('--selection needs all or coverage');
+  if(mi>=0)argv.splice(mi,2);
   const si=argv.indexOf('--slice');
   const sliceCoverage=si>=0?argv.slice(si+1).flatMap((s)=>s.split(',')):null;
   if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
@@ -402,7 +408,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check, interpretOnly, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
+      buildGame(t, { check, interpretOnly, selection, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);

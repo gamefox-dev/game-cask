@@ -2,6 +2,7 @@
 // validation, lifecycle calls and per-frame command decoding. Used by the
 // browser runtime and directly by Node unit tests (headless backend).
 
+import {readInterpreterCoverage,interpreterSummary,readGuestPresentations} from './execution-metrics';
 import {
   ABI_VERSION,
   BGT_OK,
@@ -165,6 +166,8 @@ interface GameExports {
   bgt_debug_state?(): number;
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
+  bgt_interpreter_coverage?(): number;
+  bgt_guest_presentations?(): number;
   bgt_profile_reset?():void;
   bgt_slice_policy?(entries:number,ranges:number):number;
   bgt_slice_first_entry?():number;
@@ -218,6 +221,7 @@ export class GameHost {
   logicalHeight = 0;
   flags = 0;
   frameIndex = 0;
+  private observationStarted: number | null = null;
   commandErrors: CommandError[] = [];
   /** kit coverage: BGT commands executed per opcode, and runtime imports called */
   readonly opCounts: Record<number, number> = {};
@@ -772,6 +776,7 @@ export class GameHost {
   }
 
   private finishUpdate(t0: number): void {
+    this.observationStarted ??= t0;
     this.timings.updateMs = this.services.now() - t0;
     this.profile.updateMs += this.timings.updateMs;
     this.frameIndex++;
@@ -830,6 +835,11 @@ export class GameHost {
     reset();return true;
   }
 
+  interpreterCoverage() {
+    const ptr=this.exports.bgt_interpreter_coverage?.() ?? 0;
+    return ptr?readInterpreterCoverage(this.exports.memory.buffer,ptr):null;
+  }
+
   /** Optional kit metrics JSON exported by the game (bgt_metrics). */
   metrics(): unknown {
     const fn = this.exports.bgt_metrics;
@@ -850,7 +860,12 @@ export class GameHost {
     try {
       const metrics=JSON.parse(utf8.decode(mem.subarray(ptr, ptr + end)));
       for(const [name,t] of Object.entries(this.profile.imports))t.estimatedMs=t.sampleMs*(this.importCounts[name] ?? 0)/t.samples;
-      return { ...metrics, host_profile: this.profile };
+      const elapsed=this.observationStarted===null?0:this.services.now()-this.observationStarted;
+      const presentPtr=this.exports.bgt_guest_presentations?.() ?? 0;
+      return { ...metrics, host_profile: this.profile,
+        execution_summary:{updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
+          interpreter:interpreterSummary(metrics,this.interpreterCoverage(),this.frameIndex,this.profile.updateMs),
+          guest_frames:presentPtr?readGuestPresentations(this.exports.memory.buffer,presentPtr,elapsed):null} };
     } catch {
       return null;
     }
