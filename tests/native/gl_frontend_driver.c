@@ -15,8 +15,8 @@ __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stder
 static uint8_t memory[2u<<20];
 static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
-static uint32_t live_modules[1024], module_creates;
-static uint32_t reject_transport;
+static uint32_t live_modules[1024], live_textures[1024], live_buffers[1024], live_samplers[1024], module_creates;
+static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws;
 static uint8_t device_buffers[256][256];
 static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
 /* Bounded guest staging adapter, one live mapping in these focused tests. */
@@ -45,12 +45,39 @@ void w32_wait_frame(void){abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {
-    const uint32_t *w=p; if(n<16||w[2]!=n||w[3]!=1)abort(); submissions++;
+    const uint32_t *w=p;
+    if(n<16||(n&3u)||w[0]!=BGT_CMD_MAGIC||(w[1]&65535u)!=BGT_CMD_VERSION||
+        (w[1]>>16&~BGT_CMD_GPU_CONTINUATION)||w[2]!=n||!w[3])abort();
+    /* Validate the entire frame before recording any side effect. Subtraction avoids wrapping
+     * hostile payload lengths; never read even a prefix until it fits in the submission. */
+    uint32_t parsed=0;
+    for(uint32_t off=16;off<n;parsed++) {
+        if(n-off<8)abort();
+        const uint32_t *c=w+off/4;uint32_t bytes=c[1];
+        if(c[0]>>16||(bytes&3u)||bytes>n-off-8)abort();
+        off+=8+bytes;
+    }
+    if(parsed!=w[3])abort();
+    if(w[3]>1){
+        for(uint32_t off=16;off<n;){const uint32_t *c=w+off/4;uint32_t code=c[0]&65535u,bytes=c[1];
+            if(code==0x56&&bytes>=12&&(!c[4]||c[4]>GPU_MAX||!live_samplers[c[4]]))invalid_sampler_bindings++;
+            if(code==0x57||code==0x58)native_draws++;
+            off+=8+bytes;}
+        if(invalid_sampler_bindings)abort();
+        submissions++;return 0;
+    }
+    submissions++;
     uint32_t code=w[4]&65535u; const uint32_t *a=w+6;
-    if(reject_transport&&code==0x48)return -3;
+    if((reject_transport&&code==0x48)||code==reject_opcode)return -3;
     if(code==0x41&&reject_update)return -3;
     if(code==0x63&&reject_readback)return -3;
     if(code==0x42&&reject_delete)return -3;
+    if(code==0x40){if(!a[0]||a[0]>GPU_MAX||live_buffers[a[0]])abort();live_buffers[a[0]]=1;}
+    if(code==0x42){if(!a[0]||a[0]>GPU_MAX||!live_buffers[a[0]])abort();live_buffers[a[0]]=0;}
+    if(code==0x43||code==0x59){if(!a[0]||a[0]>GPU_MAX||live_textures[a[0]])abort();live_textures[a[0]]=1;}
+    if(code==0x45){if(!a[0]||a[0]>GPU_MAX||!live_textures[a[0]])abort();live_textures[a[0]]=0;}
+    if(code==0x46||code==0x5b){if(!a[0]||a[0]>GPU_MAX||live_samplers[a[0]])abort();live_samplers[a[0]]=1;}
+    if(code==0x47){if(!a[0]||a[0]>GPU_MAX||!live_samplers[a[0]])abort();live_samplers[a[0]]=0;}
     if((code==0x40||code==0x41)&&a[0]<256) {
         uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
         if(code==0x40)device_sizes[a[0]]=size;
@@ -251,7 +278,12 @@ static void buffer_vao(void) {
     draw(0,1,1,0,U16,0,0);CHECK(error==BAD_OP);error=0;
     rasterizer_discard=0;call(api_UseProgram,0,0,0,0);drop(p);
     if(current_gpu){send(0x42,&current_gpu,1);current_gpu=0;glp_free(current_data,current_capacity*256u);current_capacity=0;current_data=0;}
-    x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);CHECK(!vaos[0].element&&!vaos[real].element);
+    x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);
+    CHECK(!vaos[0].element&&vaos[real].element==10&&!call(api_IsBuffer,10,0,0,0));
+    /* Deleting while VAO0 is bound detaches only VAO0. The unbound VAO retains the
+     * old object generation until explicitly detached, even after the name disappears. */
+    call(api_BindVertexArray,real,0,0,0);CHECK(bound_buffer(ELEMENT_BUFFER)->size==64);
+    call(api_BindBuffer,ELEMENT_BUFFER,0,0,0);collect_deleted();CHECK(!buffers[10].used);
     for(uint32_t i=0;i<9;i++){x86_wr32(4096,i+1);call(api_DeleteBuffers,1,4096,0,0);}
     CHECK(!error&&w32_gl_frontend_bytes==0);puts("buffer VAO0 persistence targets=9 strict attributes/draws OK");
 }
@@ -305,11 +337,16 @@ static void buffer_mapping(void) {
     x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(!heap_live&&!buffers[1].map&&!error&&w32_gl_frontend_bytes==0);
     puts("buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK");
 }
+#include "gl_capacity_cases.h"
+#include "gl_review_cases.h"
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
-    if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
-    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else return 2;
+    if(!strcmp(argv[1],"object-identity"))object_identity();
+    else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
+    else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
+    else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
+    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
 }
