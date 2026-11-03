@@ -1,0 +1,765 @@
+{
+  "schema": "game-cask/integration-i11-evidence/1",
+  "commit": "8fa70b9d44829a13029d4402d95380eb2510872e",
+  "merge": "c59d4ab",
+  "steps": 46,
+  "unit": {
+    "passed": 1976,
+    "files": 98,
+    "skipped": 0
+  },
+  "browsers": {
+    "focused-browser": {
+      "startTime": "2026-11-03T06:52:04.610Z",
+      "duration": 65492.655999999995,
+      "expected": 10,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "e2e-asyncify": {
+      "startTime": "2026-11-03T07:27:14.066Z",
+      "duration": 705744.65,
+      "expected": 285,
+      "skipped": 51,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "e2e-jspi": {
+      "startTime": "2026-11-03T07:40:18.949Z",
+      "duration": 704439.979,
+      "expected": 285,
+      "skipped": 51,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "browser_inventory": {
+    "asyncify": {
+      "chromium-webgl2": {
+        "expected": 128,
+        "skipped": 24
+      },
+      "chromium-webgpu": {
+        "expected": 149,
+        "skipped": 26
+      },
+      "chromium-auto": {
+        "expected": 8,
+        "skipped": 1
+      }
+    },
+    "jspi": {
+      "chromium-webgl2": {
+        "expected": 128,
+        "skipped": 24
+      },
+      "chromium-webgpu": {
+        "expected": 149,
+        "skipped": 26
+      },
+      "chromium-auto": {
+        "expected": 8,
+        "skipped": 1
+      }
+    },
+    "skips": [
+      [
+        "fallback.spec.ts",
+        "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+        "chromium-auto"
+      ],
+      [
+        "fallback.spec.ts",
+        "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+        "chromium-webgl2"
+      ],
+      [
+        "fallback.spec.ts",
+        "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-capability.spec.ts",
+        "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-capability.spec.ts",
+        "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: nonzero first instance render through the native C fixture",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2-contract.spec.ts",
+        "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: native C submits and executes every section 13 opcode",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 0 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 1 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 2 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 3 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 4 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 6 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 7 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 8 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgl2.spec.ts",
+        "GPU WebGL2: scene 9 resources survive browser context loss",
+        "chromium-webgpu"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu-conformance.spec.ts",
+        "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: 1000 instanced sprites",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: 2D GPU interleaving",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: depth and stencil",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: indexed coloured triangle",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: mipmapped alpha quad",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: two colour attachments",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 native: uniform animation",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+        "chromium-webgl2"
+      ],
+      [
+        "gpu-webgpu.spec.ts",
+        "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+        "chromium-webgl2"
+      ],
+      [
+        "robustness.spec.ts",
+        "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+        "chromium-webgpu"
+      ],
+      [
+        "robustness.spec.ts",
+        "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+        "chromium-webgl2"
+      ],
+      [
+        "tour.spec.ts",
+        "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+        "chromium-webgpu"
+      ],
+      [
+        "visual.spec.ts",
+        "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+        "chromium-webgl2"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken device",
+        "chromium-webgl2"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken device",
+        "chromium-webgpu"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken lost",
+        "chromium-webgl2"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken lost",
+        "chromium-webgpu"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken submission",
+        "chromium-webgl2"
+      ],
+      [
+        "webgpu-availability.spec.ts",
+        "WebGPU-only availability policy: injected broken submission",
+        "chromium-webgpu"
+      ]
+    ]
+  },
+  "oracles": [
+    {
+      "file": "oracle-win32-conformance-asyncify.json",
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-win32-hello-asyncify.json",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-win32-hello-jspi.json",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-audio-asyncify.json",
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-audio-init-asyncify.json",
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-basics-asyncify.json",
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-contracts-asyncify.json",
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-cpp-asyncify.json",
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-cpprt-asyncify.json",
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-crt-asyncify.json",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-crt-jspi.json",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-asyncify.json",
+      "hashes": {
+        "lifted": "46ddfd08:01c4aa76",
+        "interpreted": "46ddfd08:01c4aa76",
+        "liftedTrace": "a931c7afae4d3ba38a223eea0c4ecc93e736fbd930f3110325d3152fbfbb315c",
+        "interpretedTrace": "a931c7afae4d3ba38a223eea0c4ecc93e736fbd930f3110325d3152fbfbb315c"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-blit-asyncify.json",
+      "hashes": {
+        "lifted": "134faa07:b46fb07b",
+        "interpreted": "134faa07:b46fb07b",
+        "liftedTrace": "b08f3358b375e05291d3255e5bfaaa7b41227c3090118a24e8306b68fecddbe0",
+        "interpretedTrace": "b08f3358b375e05291d3255e5bfaaa7b41227c3090118a24e8306b68fecddbe0"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-current-asyncify.json",
+      "hashes": {
+        "lifted": "651c3eca:5a8d64ad",
+        "interpreted": "651c3eca:5a8d64ad",
+        "liftedTrace": "f413d2e42e2893ccd052be28d8346eab4125b8a34d0df62bab8adcaf5987885e",
+        "interpretedTrace": "f413d2e42e2893ccd052be28d8346eab4125b8a34d0df62bab8adcaf5987885e"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-default-vao-asyncify.json",
+      "hashes": {
+        "lifted": "8a548300",
+        "interpreted": "8a548300",
+        "liftedTrace": "d4f64fe1b005450385a056afc3503eb90276664c1ca9aca6e3ba264858f5b342",
+        "interpretedTrace": "d4f64fe1b005450385a056afc3503eb90276664c1ca9aca6e3ba264858f5b342"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-fbo-asyncify.json",
+      "hashes": {
+        "lifted": "dfbf2808:ec039dc1",
+        "interpreted": "dfbf2808:ec039dc1",
+        "liftedTrace": "25149a38a0520d81a184af4653e644b6d79429e183a49fa43a7aa1404e30d572",
+        "interpretedTrace": "25149a38a0520d81a184af4653e644b6d79429e183a49fa43a7aa1404e30d572"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-feedback-asyncify.json",
+      "hashes": {
+        "lifted": "ac2a6fdd:811c9dc5",
+        "interpreted": "ac2a6fdd:811c9dc5",
+        "liftedTrace": "dac6183922d494f191a15735f907c611011bdb9d00bd53e512c4b3d317e24b2f",
+        "interpretedTrace": "dac6183922d494f191a15735f907c611011bdb9d00bd53e512c4b3d317e24b2f"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-integer-asyncify.json",
+      "hashes": {
+        "lifted": "53f1dc25:5dd3228a",
+        "interpreted": "53f1dc25:5dd3228a",
+        "liftedTrace": "879daef77e2710a2bd0511c373396e9f2f5762dc9fc50de2c464a7aef57b924e",
+        "interpretedTrace": "879daef77e2710a2bd0511c373396e9f2f5762dc9fc50de2c464a7aef57b924e"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gl-ranges-asyncify.json",
+      "hashes": {
+        "lifted": "abcaaca0:811c9dc5",
+        "interpreted": "abcaaca0:811c9dc5",
+        "liftedTrace": "790504cad583465bfef9e64d60fff08115a4e436b75bb18a0604c6a6f149c5fd",
+        "interpretedTrace": "790504cad583465bfef9e64d60fff08115a4e436b75bb18a0604c6a6f149c5fd"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-glsl-asyncify.json",
+      "hashes": {
+        "lifted": "80241b6f:62477e5d",
+        "interpreted": "80241b6f:62477e5d",
+        "liftedTrace": "85c7a6cb479c746631885f2f004db42e5737fc540276e336924bd3893162382c",
+        "interpretedTrace": "85c7a6cb479c746631885f2f004db42e5737fc540276e336924bd3893162382c"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-gui-asyncify.json",
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-handles-asyncify.json",
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-heap-asyncify.json",
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-input-asyncify.json",
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-memory-asyncify.json",
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-scale-asyncify.json",
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-smoke-asyncify.json",
+      "hashes": {
+        "lifted": "19b3de24:01c4aa76",
+        "interpreted": "19b3de24:01c4aa76",
+        "liftedTrace": "779c3f5097f4dcfcf936729e40e46425ada8deccae026d4f508c64d646e6856a",
+        "interpretedTrace": "779c3f5097f4dcfcf936729e40e46425ada8deccae026d4f508c64d646e6856a"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-sysdlls-asyncify.json",
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-threads-asyncify.json",
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x64-tls-asyncify.json",
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x86-handles-asyncify.json",
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x86-heap-asyncify.json",
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "frames": 300
+    },
+    {
+      "file": "oracle-x86-threads-asyncify.json",
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "frames": 300
+    }
+  ],
+  "benchmark": {
+    "machine": {
+      "hostname": "Mac-mini-2.local",
+      "platform": "darwin",
+      "arch": "arm64",
+      "totalmem": 17179869184,
+      "node": "v24.19.0"
+    },
+    "method": "sequential same-clone builds; runtime-only edit appends a comment to bgt_gpu.h, restored byte-exactly; cold means fixture initially absent, not OS/toolchain cold; shared machine, not quiescent",
+    "count": 15000,
+    "fixture_preexisting": false,
+    "samples": [
+      {
+        "scenario": "cold",
+        "wall_ms": 611115.899875,
+        "build_ms": 611048.595,
+        "objects_compiled": 64,
+        "objects_cached": 29,
+        "objects_uncacheable": 0,
+        "analysis_cached": false,
+        "chunks_lifted": 62,
+        "chunks_cached": 0,
+        "wasm": {
+          "url": "game.wasm?h=b76c487ee315f51f",
+          "size": 56163957,
+          "sha256": "b76c487ee315f51f07c43a2669b6f8d8b9ab1607a0ec9a912efb459f69446b64"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=2dc222289b25f078",
+            "size": 66601566,
+            "sha256": "2dc222289b25f078aebbc9bfb136d6c6f9302e16e3c3a8579eec219c8dd79237"
+          }
+        }
+      },
+      {
+        "scenario": "no-change",
+        "wall_ms": 6632.62179200002,
+        "build_ms": 6576.985,
+        "objects_compiled": 0,
+        "objects_cached": 93,
+        "objects_uncacheable": 0,
+        "analysis_cached": true,
+        "chunks_lifted": 0,
+        "chunks_cached": 62,
+        "wasm": {
+          "url": "game.wasm?h=b76c487ee315f51f",
+          "size": 56163957,
+          "sha256": "b76c487ee315f51f07c43a2669b6f8d8b9ab1607a0ec9a912efb459f69446b64"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=2dc222289b25f078",
+            "size": 66601566,
+            "sha256": "2dc222289b25f078aebbc9bfb136d6c6f9302e16e3c3a8579eec219c8dd79237"
+          }
+        }
+      },
+      {
+        "scenario": "runtime-only-change",
+        "wall_ms": 14848.709333000006,
+        "build_ms": 14792.898,
+        "objects_compiled": 23,
+        "objects_cached": 70,
+        "objects_uncacheable": 0,
+        "analysis_cached": true,
+        "chunks_lifted": 0,
+        "chunks_cached": 62,
+        "wasm": {
+          "url": "game.wasm?h=b76c487ee315f51f",
+          "size": 56163957,
+          "sha256": "b76c487ee315f51f07c43a2669b6f8d8b9ab1607a0ec9a912efb459f69446b64"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=2dc222289b25f078",
+            "size": 66601566,
+            "sha256": "2dc222289b25f078aebbc9bfb136d6c6f9302e16e3c3a8579eec219c8dd79237"
+          }
+        }
+      }
+    ]
+  },
+  "audit": {
+    "capturedSubmissions": 543,
+    "recanonicalizedRawFragments": 16,
+    "unique": 120,
+    "uniqueByStage": {
+      "vertex": 53,
+      "fragment": 67
+    },
+    "backends": {
+      "webgl2": {
+        "passed": 120,
+        "errors": []
+      },
+      "webgpu": {
+        "passed": 120,
+        "errors": []
+      }
+    }
+  },
+  "raw_report_sha256": {
+    "benchmark.json": "0e41ea444b079f89f59aed5ed372dc821b5a757081b04a6c63ff9a1ecc599a3c",
+    "status.json": "5266376f7c212f960308e7b63cbb0986d7bd44a90eae3e503a11615930b38971",
+    "e2e-asyncify-results.json": "f92fab00c7b82852b60803b12bc6eb139e32cf39a2d669599a8ec293ea609ecd",
+    "e2e-jspi-results.json": "d8f0c44e8d13bd7cbc1047698afb87dbbeec7bfc38438a191c23488b92e1d822",
+    "audit-results.json": "ac893fc3e181730a71f14f11444e3e31acc2627678d21b35465ef6cb6102e592"
+  }
+}

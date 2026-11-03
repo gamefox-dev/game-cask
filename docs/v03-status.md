@@ -1,5 +1,35 @@
 # v0.3 merged implementation status
 
+## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
+
+**c59d4ab** merges **f1c36f3** (lane/K18) over **ef8ab6b** with `--no-ff`. Only this ledger
+conflicted; all implementation files auto-merged and needed **no integration production repair**.
+Final tested tree **8fa70b9** adds original CC0 startup-recording coverage across both actual suspension
+artifacts/native backends. K19's opaque-screen/recorder/replay, K17a's builtin/offset/overload/const repairs,
+K17b's mapped/default element storage, and K16a's shared bounded host memory remain intact.
+
+**46/46 final-source background steps PASS:** doctor; ESLint + real GCC + explicit clang host checks;
+**34 example check-builds**; typecheck; **1,976 units /98 files /no skips**; full required-WebGPU browser
+**285 passed /51 existing skips /0 failed /0 flaky in each of Asyncify and JSPI modes** (per mode:
+WebGL2 **128/24**, WebGPU **149/26**, auto **8/1** pass/skip); leakcheck. Skip inventories match exactly.
+**31 pipeline examples ×300 =9,300 identical Asyncify oracle pairs**, plus x64-crt/win32-hello JSPI
+**600 pairs**; all errors/divergence null, lifted interp_insns0, empty stubs, equal cross-variant trace digests.
+Default-only and opt-in builds for both fixtures verify identical Asyncify artifacts and real JSPI selection.
+Native private shader audit is **120/120 stages per backend**, zero errors, not captured-program rendering.
+
+Merged **2,011,529-insn /62-chunk /93-object** benchmark: unchanged **6.633s (0 compiled /93 cached)**;
+fresh runtime-header edit **14.849s (23/70)**, analysis/all62 lifted chunks cached, zero uncacheable objects,
+unchanged hashes for each artifact. New-fixture build **611.116s (64/29)** reused runtime objects;
+shared-machine observations, not normalized cold or guest-speed claims. Hermetic volatile builtins remain pinned.
+
+Coordinator-supplied external lane review: **vK18 FAIL → vK18b FAIL → vK18c PASS**; K17a's
+**vK17a2 PASS on49dec3b /aaf2473 annotation-only**, K17b's bounded independent PASS and decisions
+**#135/#139/#142/#146** retain their scope. No new independent integration review is claimed.
+JSPI stays experimental/opt-in with Asyncify fallback. K19's separate legacy2D control difference
+(**606 pixels**) remains open; no exact full-replay parity, title/playability or physical-device certification.
+Finalization is documentation/evidence only. Commands, exact gate evidence and retained boundaries:
+[I11 handoff](handoff/integration-i11.md).
+
 ## Integration I10 final — K17a over K16a + K17b (Tier 1 green)
 
 **0c53519** is the `--no-ff` merge of **4dd92aa** (K17a) over **53457a7**
@@ -52,9 +82,10 @@ A fresh independent follow-up is **PASS within bounded F1/F2 repair/native scope
 and the VAO0-guard mutation as required on clean1fd7205, but did not run Tier1/browser and its npm retry
 never got admission. No title, first-frame, playability, Windows-hardware or unchanged-porter replay claim.
 Audit recommendations and historical failed attempts remain in [K17b handoff](handoff/K17b.md).
+
 ## K18 historical local validation — incremental builds and experimental opt-in JSPI
 
-Final implementation **b40e5fd** adds exact per-object/transitive dependency caching, atomic payload publication,
+Historical implementation **b40e5fd** adds exact per-object/transitive dependency caching, atomic payload publication,
 phase/resource reporting and stable guest/runtime header boundaries. Parent-relative/computed include shadows
 found by the prior fresh review are repaired with native/wasm regressions and conservative compiler rediscovery.
 JSPI emits a second verified artifact and requires explicit runtime opt-in; Asyncify remains the default and
