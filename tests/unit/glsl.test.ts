@@ -357,10 +357,8 @@ describe('canonical BGT output', () => {
     const expanded = expand(wgsl);
     expect(expanded).toContain('textureSampleBias(bgt_t0, bgt_t0_sampler, bgt_gl_uv(vec2f(0.5)), 1.0)');
     expect(expanded).toContain('textureSampleBias(bgt_t1, bgt_t1_sampler, bgt_gl_uv3(vec3f(0.5)), 2.0)');
-    expect(wgsl).toContain('b: f32) -> vec4f');
-    expect(wgsl).toContain('textureSampleBias(bgt_t2, bgt_t2_sampler, c.xy,');
-    expect(wgsl).toContain(', b);');
-    expect(expanded).toMatch(/bgt_internal_array_\d+\(bgt_gl_uv3\(vec3f\(0.5\)\), 3.0\)/);
+    expect(expanded).toContain('textureSampleBias(bgt_t2, bgt_t2_sampler, bgt_gl_uv3(vec3f(0.5)).xy, ' +
+      'clamp(i32(floor(bgt_gl_uv3(vec3f(0.5)).z + 0.5)), 0, i32(textureNumLayers(bgt_t2)) - 1), 3.0)');
     expect(translateShader(r.fsOut!, 2, 1)).toContain('texture(bgt_t2,bgt_gl_uv3(vec3(0.5)),3.0)');
   });
   it('preserves z/layer while flipping 3D/array gradients and integer texel coordinates', () => {
@@ -374,7 +372,11 @@ describe('canonical BGT output', () => {
     const wgsl = translateGLSL(r.fsOut!, 2, 1);
     expect(wgsl).toContain('textureSampleGrad(bgt_t1, bgt_t1_sampler,');
     expect(wgsl).toContain('textureLoad(bgt_t0,');
-    expect(wgsl).toContain('textureLoad(bgt_t2, p.xy, p.z, l)');
+    // Same evaluated ivec3 supplies x/y and layer; the level remains the original zero.
+    expect(wgsl).toMatch(/textureLoad\(bgt_t2, (bgt_internal_value_\d+)\.xy, \1\.z, 0i\)/);
+    const values = new Map([...wgsl.matchAll(/let (bgt_internal_value_\d+) = ([^;]+);/g)].map(m => [m[1], m[2]]));
+    const expand = (code: string): string => code.replace(/\bbgt_internal_value_\d+\b/g, n => values.has(n) ? expand(values.get(n)!) : n);
+    expect(expand(wgsl)).toContain('textureLoad(bgt_t2, bgt_gl_fy3(vec3i(1i), vec3i(vec2i(textureDimensions(bgt_t2, 0i)), i32(textureNumLayers(bgt_t2)))).xy,');
     expect(translateShader(r.fsOut!, 2, 1)).toContain('ivec3 bgt_gl_fy3');
   });
   it('flips shadow coordinates, gradients and texel fetches and refuses unsupported texture functions', () => {

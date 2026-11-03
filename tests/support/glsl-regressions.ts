@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 // Original, engine-independent known-answer shader corpus. No captured or third-party shader sources.
 import { storageRegressions } from './glsl-storage-regressions';
-export interface GlslRegression { name: string; body: string; header?: string; expected: number[]; texture?: boolean; invalid?: boolean; uniform?: number[]; webglRejection?: string }
+export interface GlslRegression { name: string; body: string; header?: string; expected: number[]; texture?: boolean; textureKind?: 'float2d' | 'float3d' | 'floatArray' | 'int2d' | 'uint2d' | 'int3d' | 'uint3d' | 'intArray' | 'uintArray' | 'shadow' | 'depthColor'; sampler?: number[]; invalid?: boolean; uniform?: number[]; webglRejection?: string; rejection?: string }
 export const regressionVertex = `out vec4 ref;\nvoid main() {
   ref = vec4(1.0);
   vec2 p[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
