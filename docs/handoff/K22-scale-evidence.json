@@ -1,0 +1,91 @@
+{
+  "schema": "game-cask/k22-scale-evidence/1",
+  "implementation": "41a3a53",
+  "fixture": {
+    "license": "CC0",
+    "generator": "tools/build/suspension-fixture.mjs",
+    "oracle": "tools/build/suspension-oracle.mjs",
+    "owners": 10438,
+    "rounds": 1800,
+    "liveLocalsPerOwner": 32,
+    "indirectTableCalls": true,
+    "directDepthBelowOwner": 3,
+    "padding": false
+  },
+  "failure": {
+    "tool": "pinned npm Binaryen 132 (Emscripten wasm32)",
+    "command": "node tools/build/binaryen-runner.mjs INPUT -O2 --asyncify --pass-arg=asyncify-imports@bgt.yield -o OUTPUT",
+    "exit": 1,
+    "heapBytes": 4294901760,
+    "maxHeapBytes": 4294901760,
+    "failedRequestedBytes": [
+      4294934528,
+      4294938624
+    ],
+    "wallSeconds": 104.27,
+    "maxRssBytes": 681279488,
+    "peakPhysicalFootprintBytes": 4406386368,
+    "parseOnlyAlsoFails": true,
+    "shorterControl": {
+      "rounds": 900,
+      "bytes": 210554102,
+      "parseOnlyPasses": true
+    },
+    "log": {
+      "bytes": 1264,
+      "sha256": "4ba5f8e539e33493ac353a3f84ede97cd5ee61d1aafca5f6278db0e6d58d0d2d"
+    },
+    "boundary": "IR-shape-dependent wasm32 allocator limit; not a universal raw-byte or function-count cutoff; private MP2 exception was not rerun"
+  },
+  "bounded": {
+    "mode": "partitioned-local",
+    "targetPartitionBytes": 8388608,
+    "partitions": 50,
+    "wallSeconds": 1445.22,
+    "maxRssBytes": 1502265344,
+    "peakPhysicalFootprintBytes": 1874503232,
+    "exit": 0,
+    "input": {
+      "bytes": 417126367,
+      "sha256": "3ad324543885fac6676823b52158e8988f2c2049108a19a463780f70fece5156"
+    },
+    "asyncifyOutput": {
+      "bytes": 423672537,
+      "sha256": "56f80b894ba5622574c9bf995291ffde97eeccf6f67472443d5b05c8121d086d"
+    },
+    "jspiArtifact": "unchanged raw input (no wasm-opt)",
+    "log": {
+      "bytes": 3112,
+      "sha256": "719742b0969d300ba1e42cd08e7c41c1c4d935fb984fb0bebb72e9002621fd1e"
+    }
+  },
+  "oracle": {
+    "frames": 300,
+    "ownersExecuted": 10438,
+    "yields": {
+      "plain": 10500,
+      "asyncify": 10500,
+      "jspi": 10500
+    },
+    "identical": true,
+    "checksumsSha256": {
+      "mathematicalAndRaw": "250969a903a150ca42e40e8988a13abb981482f704d6bf104aba1bc27ed3cb0c",
+      "asyncify": "250969a903a150ca42e40e8988a13abb981482f704d6bf104aba1bc27ed3cb0c",
+      "realNodeJspi": "250969a903a150ca42e40e8988a13abb981482f704d6bf104aba1bc27ed3cb0c"
+    },
+    "wallMs": 55618.7235,
+    "maxRssBytes": 2331394048,
+    "peakPhysicalFootprintBytes": 3858323096,
+    "exit": 0,
+    "report": {
+      "bytes": 9856,
+      "sha256": "3b059cfe83492df93da5f9d042c077b7c42b1bc332d8fb7402adaba89cfbae63"
+    }
+  },
+  "caveats": [
+    "Shared machine, not quiescent or a normalized build-speed comparison.",
+    "Bounds function-body IR per Binaryen child, not metadata/data/tables or retained assembly buffers.",
+    "Driver frames are checksum frames, not game display frames.",
+    "CC0 post-link scale plus ordinary pipeline/browser gates is reviewer decision #176; no game files."
+  ]
+}
