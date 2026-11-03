@@ -176,6 +176,10 @@ export class BGTRuntime {
   private sliceEvents = 0;
   private renderTail: Promise<void> = Promise.resolve();
   private renderBusy = false;
+  // A recorder sink can yield to ResizeObserver. Keep the backing store and
+  // scale fixed until that recorded frame has actually finished drawing.
+  private recordingFrame = false;
+  private recordingResizePending = false;
   private noteOutside(kind:number,address:number,message:string):void {
     this.outsideSlice={kind,address,message};this.sliceEvents++;this.pause();this.status(message);
   }
@@ -552,6 +556,10 @@ export class BGTRuntime {
   }
 
   private applySize(): void {
+    if (this.recordingFrame) {
+      this.recordingResizePending = true;
+      return;
+    }
     const prevW = this.canvas.width, prevH = this.canvas.height;
     this.measure();
     if (!this.host) return;
@@ -627,11 +635,24 @@ export class BGTRuntime {
     let out: Pixels | null | Promise<Pixels | null> = null;
     const gpuStart=performance.now();
     try {
-      await this.frameObserver?.(frame, this.letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
-      out = await r.drawFrame(frame, this.letterbox, readback);
+      let letterbox = this.letterbox;
+      if (this.frameObserver) {
+        this.recordingFrame = true;
+        letterbox = { ...letterbox };
+        await this.frameObserver(frame, letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
+      }
+      out = await r.drawFrame(frame, letterbox, readback);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
+    } finally {
+      if (this.recordingFrame) {
+        this.recordingFrame = false;
+        if (this.recordingResizePending) {
+          this.recordingResizePending = false;
+          this.applySize();
+        }
+      }
     }
     this.gpuWallMs+=performance.now()-gpuStart;
     this.gpuSubmitTotalMs+=r.stats.submitMs;

@@ -63,6 +63,7 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     page,
     game,
     backend,
+    params,
     async start(extra = {}) {
       const q = new URLSearchParams({ game, backend, paused: '1', ephemeral: '1', ...params, ...extra });
       await page.goto(`/?${q}`);
