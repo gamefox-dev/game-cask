@@ -461,10 +461,10 @@ supported object namespaces. Textures/renderbuffers share 1001 storage handles a
 GL_OUT_OF_MEMORY with per-namespace live/peak/failure metrics and diagnostics. Pipeline caches remain 128 descriptors
 (sampler descriptors now ABI-sized and pressure-evicted, with current-draw states protected), one current WGL
 context and one shader per stage. Generated VAO/FBO/RBO names become objects on first bind, matching
-texture/buffer/query reserved-name semantics; samplers/shaders/programs exist immediately. **Prior K20d Tier 1**: 1981 units,
+texture/buffer/query reserved-name semantics; samplers/shaders/programs exist immediately. **K20e author Tier 1 passes**: 1994 units,
 287 browser passes/51 existing skips, and 32 pipeline oracles ×300 frames; cold before/after native capacity pixels
 and exhaustion metrics pass both backends. External review found reserved-name identity, sampler-cache churn and
-test-adapter batch-framing defects; K20e repairs all three with before/after regressions (fresh Tier 1 pending).
+test-adapter batch-framing defects; K20e repairs all three with before/after regressions and fresh full Tier 1.
 Independent revalidation remains reviewer-owned. See
 [K20 handoff](handoff/K20.md) for limits, the accepted unbound-FBO lifetime wire delta, and porter follow-up.
 The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
