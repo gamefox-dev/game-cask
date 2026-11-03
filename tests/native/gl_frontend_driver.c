@@ -45,7 +45,19 @@ void w32_wait_frame(void){abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {
-    const uint32_t *w=p; if(n<16||w[2]!=n||!w[3])abort();
+    const uint32_t *w=p;
+    if(n<16||(n&3u)||w[0]!=BGT_CMD_MAGIC||(w[1]&65535u)!=BGT_CMD_VERSION||
+        (w[1]>>16&~BGT_CMD_GPU_CONTINUATION)||w[2]!=n||!w[3])abort();
+    /* Validate the entire frame before recording any side effect. Subtraction avoids wrapping
+     * hostile payload lengths; never read even a prefix until it fits in the submission. */
+    uint32_t parsed=0;
+    for(uint32_t off=16;off<n;parsed++) {
+        if(n-off<8)abort();
+        const uint32_t *c=w+off/4;uint32_t bytes=c[1];
+        if(c[0]>>16||(bytes&3u)||bytes>n-off-8)abort();
+        off+=8+bytes;
+    }
+    if(parsed!=w[3])abort();
     if(w[3]>1){
         for(uint32_t off=16;off<n;){const uint32_t *c=w+off/4;uint32_t code=c[0]&65535u,bytes=c[1];
             if(code==0x56&&bytes>=12&&(!c[4]||c[4]>GPU_MAX||!live_samplers[c[4]]))invalid_sampler_bindings++;
@@ -65,6 +77,7 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     if(code==0x43||code==0x59){if(!a[0]||a[0]>GPU_MAX||live_textures[a[0]])abort();live_textures[a[0]]=1;}
     if(code==0x45){if(!a[0]||a[0]>GPU_MAX||!live_textures[a[0]])abort();live_textures[a[0]]=0;}
     if(code==0x46||code==0x5b){if(!a[0]||a[0]>GPU_MAX||live_samplers[a[0]])abort();live_samplers[a[0]]=1;}
+    if(code==0x47){if(!a[0]||a[0]>GPU_MAX||!live_samplers[a[0]])abort();live_samplers[a[0]]=0;}
     if((code==0x40||code==0x41)&&a[0]<256) {
         uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
         if(code==0x40)device_sizes[a[0]]=size;
@@ -325,10 +338,14 @@ static void buffer_mapping(void) {
     puts("buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK");
 }
 #include "gl_capacity_cases.h"
+#include "gl_review_cases.h"
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
-    if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
+    if(!strcmp(argv[1],"object-identity"))object_identity();
+    else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
+    else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
+    else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
     else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;

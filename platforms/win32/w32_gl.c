@@ -128,7 +128,7 @@ typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
 static void approximate(const char *kind);
 static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
-typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
+typedef struct { uint32_t used, element, bound; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
 static Buffer buffers[N]; static Vao vaos[N];
 /* Generic current values belong to the context, not the VAO (GL 3.3 §2.8). */
@@ -383,7 +383,9 @@ static uint32_t api_GenVertexArrays(void) {
     return 0;
 }
 static uint32_t api_BindVertexArray(void) {
-    if (SLOT(vaos, ARG(0)) >= N || (SLOT(vaos, ARG(0)) && !vaos[SLOT(vaos, ARG(0))].used)) fail(BAD_OP); else vao = SLOT(vaos, ARG(0)); return 0;
+    uint32_t id = SLOT(vaos, ARG(0));
+    if (id >= N) { fail(BAD_OP); return 0; }
+    vao = id; if (id) vaos[id].bound = 1; return 0;
 }
 static uint32_t api_DeleteVertexArrays(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }

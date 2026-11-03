@@ -125,11 +125,11 @@ static uint32_t api_GetBufferSubData(void) {
 }
 static uint32_t api_IsBuffer(void) { return SLOT(buffers, ARG(0)) < N && buffers[SLOT(buffers, ARG(0))].bound != 0; }
 static uint32_t api_IsTexture(void) { return SLOT(textures, ARG(0)) && SLOT(textures, ARG(0)) < N && textures[SLOT(textures, ARG(0))].kind1 != 0; }
-static uint32_t api_IsVertexArray(void) { return SLOT(vaos, ARG(0)) < N && vaos[SLOT(vaos, ARG(0))].used != 0; }
+static uint32_t api_IsVertexArray(void) { return SLOT(vaos, ARG(0)) < N && vaos[SLOT(vaos, ARG(0))].bound != 0; }
 static uint32_t api_IsShader(void) { return SLOT(shaders, ARG(0)) < N && shaders[SLOT(shaders, ARG(0))].used != 0; }
 static uint32_t api_IsProgram(void) { return SLOT(programs, ARG(0)) < N && programs[SLOT(programs, ARG(0))].used != 0; }
-static uint32_t api_IsFramebuffer(void) { return SLOT(fbos, ARG(0)) && SLOT(fbos, ARG(0)) < N && fbos[SLOT(fbos, ARG(0))].used != 0; }
-static uint32_t api_IsRenderbuffer(void) { return SLOT(rbos, ARG(0)) < N && rbos[SLOT(rbos, ARG(0))].used != 0; }
+static uint32_t api_IsFramebuffer(void) { return SLOT(fbos, ARG(0)) && SLOT(fbos, ARG(0)) < N && fbos[SLOT(fbos, ARG(0))].bound != 0; }
+static uint32_t api_IsRenderbuffer(void) { return SLOT(rbos, ARG(0)) < N && rbos[SLOT(rbos, ARG(0))].bound != 0; }
 static uint32_t api_IsSampler(void) { return SLOT(samplers, ARG(0)) < N && samplers[SLOT(samplers, ARG(0))].used != 0; }
 static uint32_t api_ChoosePixelFormat(void) { return ARG(0) && ARG(1) ? 1 : 0; }
 static uint32_t api_SetPixelFormat(void) {

@@ -184,7 +184,12 @@ static uint32_t topology(uint32_t mode) {
     switch (mode) { case 0: return 0; case 1: return 1; case 3: return 2; case 4: return 3; case 5: return 4;
         default: fail(BAD_ENUM); return 0xffffffffu; }
 }
-static uint32_t sampler_cache[N - 1][12], sampler_count;
+/* Immutable wire states are a bounded, evictable cache, not guest sampler objects.
+ * Reuse remains wire-identical until pressure. Ordered SAMPLER_DELETE releases a descriptor
+ * after earlier submitted draws, even if they have not executed on the backend yet. Pin states
+ * selected for the draw currently being built so later slots cannot evict an earlier slot. */
+static uint32_t sampler_cache[N - 1][12], sampler_count, sampler_victim;
+static uint8_t sampler_pinned[N - 1];
 static uint32_t wrap(uint32_t v) { return v == 0x2901 ? 1 : v == 0x8370 ? 2 : 0; } /* CLAMP_TO_BORDER -> edge */
 /* Sampling parameters -> §13 sampler. shadow: sampler2DShadow (comparison) uniform. */
 static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint32_t dimension) {
@@ -200,18 +205,33 @@ static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint3
     if (lo <= 0) lo = 0;
     uint32_t w[12] = {0, min == 0x2601 || min == 0x2701 || min == 0x2703, p->mag == 0x2601, mip, wrap(p->ws),
         wrap(p->wt), dimension == 1 ? wrap(p->wr) : 0, shadow, shadow ? p->cmp_func - 0x200 : 7, bits(lo), bits(hi), 0};
-    for (uint32_t i = 0; i < sampler_count; i++) {
+    uint32_t slot = GPU_MAX;
+    for (uint32_t i = 0; i < GPU_MAX; i++) {
+        if (!sampler_cache[i][0]) { if (slot == GPU_MAX) slot = i; continue; }
         uint32_t j; for (j = 1; j < 11 && w[j] == sampler_cache[i][j]; j++);
-        if (j == 11) return i + 1;
+        if (j == 11) { sampler_pinned[i] = 1; return i + 1; }
     }
-    if (sampler_count == GPU_MAX) { object_exhaustion("samplers", "GPU sampler descriptors", 1); return 0; }
-    w[0] = sampler_count + 1;
+    if (slot == GPU_MAX) {
+        for (uint32_t n = 0; n < GPU_MAX; n++) {
+            uint32_t i = (sampler_victim + n) % GPU_MAX;
+            if (!sampler_pinned[i]) { slot = i; break; }
+        }
+        if (slot == GPU_MAX) { object_exhaustion("samplers", "GPU sampler descriptors pinned", 1); return 0; }
+        /* Keep ownership/cache identity intact if retirement is rejected. A rejected recreate
+         * instead leaves a reusable hole, never a zero or stale descriptor in a draw. */
+        if (!send(0x47, &sampler_cache[slot][0], 1)) {
+            if (error == OOM) object_exhaustion("samplers", "GPU sampler retirement budget", 1);
+            return 0;
+        }
+        sampler_cache[slot][0] = 0; sampler_count--; sampler_victim = (slot + 1) % GPU_MAX;
+    }
+    w[0] = slot + 1;
     int legacy = !w[6] && w[9] == bits(0) && (!mip || w[10] == bits(1000));
     int ok;
     if (legacy) { uint32_t l[8] = {w[0], w[1], w[2], w[3], w[4], w[5], w[7], w[8]}; ok = send(0x46, l, 8); }
     else ok = send(0x5b, w, 11);
     if (!ok) { if (error == OOM) object_exhaustion("samplers", "GPU byte/submission budget", 1); return 0; }
-    copy(sampler_cache[sampler_count++], w, sizeof w); return w[0];
+    copy(sampler_cache[slot], w, sizeof w); sampler_count++; sampler_pinned[slot] = 1; return w[0];
 }
 /* GL 3.3 completeness for sampling (8.17): returns nonzero when the texture is usable as a sampler source. */
 static int tex_complete(const Texture *t, const Sampler *s, int shadow) {
@@ -352,6 +372,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     Program *p = &programs[program]; uint32_t smask = 0, umask = 1, sampler_ids[8] = {0}, bound[8] = {0};
     uint32_t block_handles[7], block_offsets[7];
     if (!uniform_ranges(p, block_handles, block_offsets, 0)) return 0;
+    zero(sampler_pinned, sizeof sampler_pinned);
     for (uint32_t slot = 0; slot < p->nslots; slot++) {
         uint32_t unit = p->slot_unit[slot], dim = p->info->slot_dim[slot], shadow = p->info->slot_shadow[slot];
         /* Different sampler types must not alias the same GL texture unit. */

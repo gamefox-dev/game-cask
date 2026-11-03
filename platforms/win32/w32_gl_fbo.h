@@ -1,8 +1,8 @@
 /* Renderbuffers, framebuffer objects, completeness, draw/read buffers. Included once by w32_gl.c.
  * SPDX-License-Identifier: MIT — LANE-K6A */
 typedef struct { uint32_t type, name, level; } Attach; /* type: 0 none, 1 texture, 2 renderbuffer */
-typedef struct { uint32_t used; Attach color[4], depth, stencil; uint32_t draw[4], read; } Fbo;
-typedef struct { uint32_t used, gpu, w, h, internal; } Rbo;
+typedef struct { uint32_t used; Attach color[4], depth, stencil; uint32_t draw[4], read, bound; } Fbo;
+typedef struct { uint32_t used, gpu, w, h, internal, bound; } Rbo;
 typedef struct { uint32_t gpu, mip, bgt, w, h; const Fmt *fmt; } Image;
 typedef struct {
     uint32_t status, ncolor, w, h; Image color[4]; int gap[4]; int has_depth, has_stencil; Image ds;
@@ -18,7 +18,9 @@ static uint32_t api_GenRenderbuffers(void) {
     for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, NAME(rbos, alloc_name(rbos, sizeof(Rbo)))); return 0;
 }
 static uint32_t api_BindRenderbuffer(void) {
-    if (ARG(0) != RENDERBUFFER) fail(BAD_ENUM); else { uint32_t id = BIND(rbos, ARG(1)); if (id < N) rbo = id; } return 0;
+    if (ARG(0) != RENDERBUFFER) { fail(BAD_ENUM); return 0; }
+    uint32_t id = BIND(rbos, ARG(1)); if (id >= N) return 0;
+    rbo = id; if (id) rbos[id].bound = 1; return 0;
 }
 static void renderbuffer_storage(uint32_t internal, uint32_t w, uint32_t h) {
     const Fmt *f = image_format(internal, 1); if (!f) return;
@@ -82,6 +84,7 @@ static uint32_t api_BindFramebuffer(void) {
     int fresh = id && SLOT(fbos, id) == N;
     id = BIND(fbos, id); if (id >= N) return 0;
     if (fresh) { fbos[id].draw[0] = fbos[id].read = 0x8ce0; }
+    if (id) fbos[id].bound = 1;
     if (t != FB_READ) fbo = id;
     if (t != FB_DRAW) fbo_read = id;
     return 0;
