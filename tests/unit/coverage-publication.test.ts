@@ -1,7 +1,7 @@
 // @bgt-examples: none
 // Real Playwright teardown with synthetic CC0 coverage; no browser/game required.
 import {it,expect} from 'vitest';
-import {mkdtempSync,writeFileSync,readdirSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readdirSync,readFileSync,rmSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {spawnSync} from 'node:child_process';
@@ -24,6 +24,7 @@ test('teardown',async({collector})=>{});
 test('pass',async({collector})=>{});
 `);
   const result=spawnSync(process.execPath,[join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--config',join(dir,'playwright.config.ts')],{cwd:dir,encoding:'utf8',timeout:60000});
+  mkdirSync(join(ROOT,'reports/k21'),{recursive:true});
   writeFileSync(join(ROOT,'reports/k21/publication-child.log'),result.stdout+result.stderr);
   expect(result.stdout+result.stderr).not.toMatch(/Error:.*(?:Cannot find|not find|must use|First argument)/);
   expect(result.status,result.stdout+result.stderr).toBe(1); // exactly the deliberate failures remain failures
