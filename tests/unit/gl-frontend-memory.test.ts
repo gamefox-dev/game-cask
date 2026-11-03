@@ -23,6 +23,8 @@ for (const [mode, marker] of [
   ['backend-failure', 'backend rejected compile and command submission failures remain visible OK'],
   ['buffers', 'buffer reupload/delete cycles=600 reusable host memory OK'],
   ['consumers', 'consumers bidirectional GL/CRT/FILE reuse random=30000'],
+  ['vao', 'buffer VAO0 persistence targets=9 strict attributes/draws OK'],
+  ['mapping', 'buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK'],
 ]) it('GL frontend bounded host memory: ' + mode, () => {
   const result = execFileSync(exe, [mode], { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
   expect(result).toContain(marker);

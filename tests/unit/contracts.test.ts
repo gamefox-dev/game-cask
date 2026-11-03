@@ -1,10 +1,12 @@
-// @bgt-examples: x64-contracts
+// @bgt-examples: x64-contracts x64-gl-default-vao
 // Each fixture assertion states an API contract and checks output/error/ownership, not just lookup.
 import { it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../support/headless';
 import { loadHeadless } from '../support/headless';
+import { glStream } from '../support/x64-gl-stream';
+import { GPU_OP } from '../../bgt/runtime/abi';
 import { oracle } from '../oracle/oracle';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
@@ -52,7 +54,9 @@ it('census includes every runtime registry, with width/precedence and genuinely 
     expect(importStatus('GetThreadContext','kernel32.dll',machine).capability).toBe('failure-only');
     expect(importStatus('TrackMouseEvent','user32.dll',machine).capability).toBeUndefined();
     expect(importStatus('FlushInstructionCache', 'kernel32.dll', machine).status).toBe('stub');
-    expect(importStatus('glMapBuffer', 'opengl32.dll', machine).status).toBe('stub');
+    for (const name of ['glMapBuffer', 'glMapBufferRange', 'glFlushMappedBufferRange', 'glUnmapBuffer', 'glGetBufferPointerv'])
+      expect(importStatus(name, 'opengl32.dll', machine).status, `${machine} ${name}`).toBe('implemented');
+    expect(importStatus('glFenceSync', 'opengl32.dll', machine).status).toBe('stub');
     expect(importStatus('ThisNameDoesNotExist', 'user32.dll', machine).status).toBe('unknown');
     expect(importStatus('Sleep', 'absent-dll.dll', machine).status).toBe('unknown');
   }
@@ -60,6 +64,32 @@ it('census includes every runtime registry, with width/precedence and genuinely 
   expect(importStatus('llround', 'msvcrt.dll', 'x86-64').status).toBe('implemented');
   expect(importStatus('VirtualQuery', 'kernel32.dll').group).toBe('kernel');
 });
+
+// Real compiled Win64 profile calls, not registry metadata or fabricated map success.
+// Pixel/generated-value checks belong to the required-device fixture; this recorder checks owned CPU bytes.
+it('glMapBuffer/glUnmapBuffer commit real mapped writes and retain them across named VAOs', async () => {
+  const stream = glStream(), h = await loadHeadless('x64-gl-default-vao', stream);
+  for (let i = 0; i < 160 && !h.logs.some(l => /x64-gl-default-vao (PASS|FAIL) failures=/.test(l)); i++)
+    await h.stepAsync(1);
+  expect(h.logs.some(l => /x64-gl-default-vao (PASS|FAIL) failures=/.test(l)), h.logs.join('\n')).toBe(true);
+  for (const label of ['VAO0 map whole', 'VAO0 unmap whole', 'VAO0 map explicit', 'VAO0 unmap explicit',
+    'VAO0 map invalidate', 'VAO0 unmap invalidate', 'all five index ranges retained', 'VAO0 upload errors',
+    'real VAO map', 'real VAO unmap', 'Win64 mapped pointer query', 'mapped flags query',
+    'mapped index draw rejected', 'mapped subdata rejected'])
+    expect(h.logs, label).toContain('guest: x64-gl-default-vao ok ' + label);
+  // Whole-buffer map changes bytes24..35 before unmap. A fake pointer/success return cannot emit these bytes.
+  const whole = stream.items.find(i => i.op === GPU_OP.BUFFER_UPDATE && i.words[0] === 10 &&
+    i.words[1] === 0 && i.data?.length === 49152);
+  expect(whole).toBeDefined();
+  expect(Array.from(whole!.data!.slice(24, 36))).toEqual([0,0,1,0,2,0,2,0,1,0,3,0]);
+  // Explicit flush commits the quad at36; subsequent guest memset must NOT leak on unmap.
+  const explicit = stream.items.find(i => i.op === GPU_OP.BUFFER_UPDATE && i.words[0] === 10 && i.words[1] === 36);
+  expect(explicit).toBeDefined();
+  expect(Array.from(explicit!.data!)).toEqual([0,0,1,0,2,0,2,0,1,0,3,0]);
+  expect(h.host.commandErrorCount).toBe(0);
+  const metrics = h.host.metrics() as any;
+  expect(metrics.gl_unimplemented).toBe(0); expect(metrics.gl_stubs).toEqual([]);
+}, 120_000);
 
 for (const [machine, target] of [['i386', 'x86-windows-gnu'], ['x86-64', 'x86_64-windows-gnu']]) {
   it(`census and runtime GetProcAddress agree for every ${machine} registered symbol`, async () => {

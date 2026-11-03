@@ -97,10 +97,17 @@ static uint32_t api_GetDoublev(void) {
 static uint32_t api_GetBufferParameteriv(void) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
     if (ARG(1) == 0x8764) x86_wr32(ARG(2), b->size);
-    else if (ARG(1) == 0x8765) x86_wr32(ARG(2), 0x88e4); else fail(BAD_ENUM); return 0;
+    else if (ARG(1) == 0x8765) x86_wr32(ARG(2), 0x88e4);
+    else if (ARG(1) == 0x88bc) x86_wr32(ARG(2), !!b->map);
+    else if (ARG(1) == 0x88bb) x86_wr32(ARG(2), b->map_access ? b->map_access : 0x88ba);
+    else if (ARG(1) == 0x911f) x86_wr32(ARG(2), b->map_flags);
+    else if (ARG(1) == 0x9120) x86_wr32(ARG(2), b->map_size);
+    else if (ARG(1) == 0x9121) x86_wr32(ARG(2), b->map_offset);
+    else fail(BAD_ENUM); return 0;
 }
 static uint32_t api_GetBufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
+    if (b->map) { fail(BAD_OP); return 0; }
     uint64_t offset = ARG64(1), size = ARG64(2);
     if (offset + size < offset || offset + size > b->size) { fail(BAD_VALUE); return 0; }
     if (!size) return 0;
