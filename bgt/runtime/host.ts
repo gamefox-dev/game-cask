@@ -2,7 +2,7 @@
 // validation, lifecycle calls and per-frame command decoding. Used by the
 // browser runtime and directly by Node unit tests (headless backend).
 
-import {readInterpreterCoverage,interpreterSummary,readGuestPresentations} from './execution-metrics';
+import {readInterpreterCoverage,readInterpreterSummary,readGuestPresentations} from './execution-metrics';
 import {
   ABI_VERSION,
   BGT_OK,
@@ -864,7 +864,7 @@ export class GameHost {
       const presentPtr=this.exports.bgt_guest_presentations?.() ?? 0;
       return { ...metrics, host_profile: this.profile,
         execution_summary:{updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
-          interpreter:interpreterSummary(metrics,this.interpreterCoverage(),this.frameIndex,this.profile.updateMs),
+          interpreter:readInterpreterSummary(metrics,this.exports.memory.buffer,this.exports.bgt_interpreter_coverage?.() ?? 0,this.frameIndex,this.profile.updateMs),
           guest_frames:presentPtr?readGuestPresentations(this.exports.memory.buffer,presentPtr,elapsed):null} };
     } catch {
       return null;

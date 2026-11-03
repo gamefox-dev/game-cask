@@ -35,7 +35,9 @@ analyzed owner address (null if unowned), dynamic entry count and instruction co
 is independent of the top-32 sampled CPU census and survives `profileReset()`. It also works with
 `BGT_CPU_PROFILE=0`. The wasm-local table is bounded at 1,048,576 distinct entries with 16-probe hashing;
 collisions/capacity/OOM drops are explicit, never evicted evidence. A 4 MiB index is allocated lazily, rows
-grow geometrically to at most 24 MiB (growth temporarily needs old and new allocations). Any drop rejects
+grow geometrically to at most 24 MiB (growth temporarily needs old and new allocations). Standard diagnostics scan rows in place and retain only
+owner aggregates, avoiding a full address-list copy/sort on each metrics read. Explicit coverage snapshots still
+copy/sort all recorded entries. Any drop rejects
 coverage-guided/strict builds; shorten the workload rather than filtering evidence. Strict builds omit this
 recording, retain local membership checks and retain their first accepted startup entry.
 

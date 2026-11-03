@@ -2,7 +2,7 @@
 // Original CC0 counter/ring fixtures. Updates must never be mislabeled guest frames.
 import {it,expect} from 'vitest';
 import {compileC} from '../support/compile';
-import {readGuestPresentations,readInterpreterCoverage,interpreterSummary} from '../../bgt/runtime/execution-metrics';
+import {readGuestPresentations,readInterpreterCoverage,readInterpreterSummary,interpreterSummary} from '../../bgt/runtime/execution-metrics';
 it('reports guest presents independently of 600 updates and handles ring wrap and zero/one-frame windows',()=>{
  const memory=new ArrayBuffer(100000),v=new DataView(memory),ptr=8,times=64;
  v.setUint32(ptr+24,times,true);
@@ -32,6 +32,7 @@ it('keeps owner/interior entries and exact counts separate from resettable sampl
  v.setUint32(ptr,rows,true);v.setUint32(ptr+4,2,true);v.setUint32(ptr+8,1048576,true);v.setBigUint64(ptr+16,3n,true);
  for(let i=0;i<2;i++){const p=rows+i*24;v.setUint32(p,0x1020-i*16,true);v.setUint32(p+4,0x1000,true);v.setBigUint64(p+8,BigInt(i+1),true);v.setBigUint64(p+16,BigInt(20+i),true);}
  const coverage=readInterpreterCoverage(memory,ptr)!;
+ expect(readInterpreterSummary({interp_insns:41},memory,ptr,10,20)).toEqual(interpreterSummary({interp_insns:41},coverage,10,20));
  expect(coverage.entries.map(e=>e.address)).toEqual([0x1010,0x1020]);
  expect(interpreterSummary({interp_insns:41,interpreter_timing_enabled:1,interpreter_samples:10,interpreter_exclusive_estimated_us:5000},coverage,10,20)).toMatchObject({instructions_per_update:4.1,estimated_ms_per_update:.5,estimated_share:.25,coverage_dropped:3,top_owners:[{owner:0x1000,entries:3,instructions:41}]});
  expect(interpreterSummary({interp_insns:41},coverage,10,20).estimated_share).toBeNull();
