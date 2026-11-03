@@ -4,20 +4,42 @@ import {resolve,relative,join} from 'node:path';
 import {createHash} from 'node:crypto';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const address=a=>Number.isInteger(a)&&a>=0&&a<=0xffffffff;
+const moduleIdentities=modules=>modules.map(m=>({name:m.name,base:m.base,sha256:m.sha256})).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+function validModules(modules) {
+  return Array.isArray(modules)&&modules.every(m=>m&&typeof m.name==='string'&&m.name.length&&address(m.base)&&typeof m.sha256==='string'&&m.sha256.length)&&new Set(modules.map(m=>m.name)).size===modules.length;
+}
+function moduleMismatch(file,expected,actual) {
+  return new Error('coverage '+file+' module identity mismatch: expected '+JSON.stringify(expected)+'; found '+JSON.stringify(actual)+'. Record the exact module set/hashes/bases again; coverage-adopt cannot change module identities.');
+}
+export function validateCoverageIdentity(plan,game,modules,{strict=false}={}) {
+  const expected=moduleIdentities(modules);
+  for(const r of plan.recordings) {
+    if(!validModules(r.modules)||JSON.stringify(moduleIdentities(r.modules))!==JSON.stringify(expected))throw moduleMismatch(r.file,expected,r.modules);
+    if(!strict && r.game!==game)throw new Error('coverage '+r.file+' game identity mismatch: expected '+game+' with modules '+JSON.stringify(expected)+'; found '+JSON.stringify(r.game)+'. Adopt only this same binary recording: node tools/build/coverage-adopt.mjs --input RECORDING --manifest web/public/games/'+game+'/manifest.json --out ADOPTED.json (then replace its configured path).');
+  }
+}
+
+export function validateCoverageModule(plan,name,sha256,base) {
+  for(const r of plan.recordings) {
+    const found=r.modules.find(m=>m.name===name);
+    if(!found||found.sha256!==sha256||found.base!==base)throw moduleMismatch(r.file,[{name,sha256,base}],r.modules);
+  }
+}
 export function coveragePlan(files,gameDir) {
   const code=new Set(),ranges=[],modules=[],recordings=[],interpreter=[];
   for(const file of [...new Set(files.map(f=>resolve(gameDir,f)))].sort()) {
     const bytes=readFileSync(file),c=JSON.parse(bytes);
     if(c.schema!=='game-cask/coverage/1'||!Array.isArray(c.code)||!Array.isArray(c.files)||!Array.isArray(c.modules))throw new Error('invalid coverage snapshot');
+    if(!validModules(c.modules))throw moduleMismatch(file,'unique named module identities with bases/hashes',c.modules);
     if(c.metrics?.code_entries_dropped>0 || c.interpreter?.dropped>0)throw new Error('coverage overflowed; cannot package an incomplete recording');
     if(c.metrics?.errors>0)throw new Error('coverage has runtime errors; record a successful workload');
     const execution=c.metrics?.execution;
-    recordings.push({file:relative(gameDir,file).split('\\').join('/'),sha256:hash(bytes),game:c.game ?? null,
+    recordings.push({file:relative(gameDir,file).split('\\').join('/'),sha256:hash(bytes),game:c.game ?? null,modules:moduleIdentities(c.modules),
       interp_insns:execution?.interp_insns ?? null,interp_code_entries:execution?.interp_code_entries ?? null,
       interp_functions:execution?.interp_functions ?? null,interp_unowned_entries:execution?.interp_unowned_entries ?? null});
     for(const m of c.modules) {
       const old=modules.find((x)=>x.name===m.name);
-      if(old&&(old.sha256!==m.sha256||old.base!==m.base))throw new Error('coverage module identities disagree');
+      if(old&&(old.sha256!==m.sha256||old.base!==m.base))throw new Error('coverage '+file+' module identities disagree: expected '+JSON.stringify(moduleIdentities(modules))+'; found '+JSON.stringify(moduleIdentities(c.modules))+'. Record the exact module set/hashes/bases again.');
       if(!old)modules.push(m);
     }
     for(const e of c.code) {if(!address(e.address))throw new Error('invalid code coverage address');code.add(e.address);}
@@ -28,6 +50,9 @@ export function coveragePlan(files,gameDir) {
     }
     for(const r of c.files) {if(typeof r.path!=='string'||!Number.isSafeInteger(r.offset)||r.offset<0||!Number.isSafeInteger(r.length)||r.length<0)throw new Error('invalid file range');ranges.push(r);}
   }
+  // Every input must describe the same complete module set; a full recording must
+  // never mask a partial/duplicate module list in another one.
+  for(const r of recordings)if(!validModules(r.modules)||JSON.stringify(r.modules)!==JSON.stringify(moduleIdentities(modules)))throw moduleMismatch(r.file,moduleIdentities(modules),r.modules);
   return {code:new Set([...code].sort((a,b)=>a-b)),ranges,modules,recordings,interpreter};
 }
 

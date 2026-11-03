@@ -5,6 +5,7 @@ import {it,expect} from 'vitest';
 import {mkdirSync,readFileSync,writeFileSync,copyFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {ROOT,loadHeadless} from '../../tests/support/headless';
 // @ts-expect-error plain ESM
 import {buildGame} from '../build/build.mjs';
@@ -35,6 +36,7 @@ for(unsigned i=0;i<`));
    writeFileSync(join(dir,'early.json'),JSON.stringify(snapshot));
    copyFileSync(join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp','fixture/scale.exe'),join(dir,'scale.exe'));
    delete cfg.pipeline.fixture;cfg.pipeline.modules[0].from='./scale.exe';cfg.pipeline.coverage=['early.json'];
+   const inputSha256=createHash('sha256').update(readFileSync(join(dir,'scale.exe'))).digest('hex');
    let expected:string[]|null=null;
    for(const mode of ['coverage','all']){
     cfg.pipeline.selection=mode;save();
@@ -48,9 +50,9 @@ for(unsigned i=0;i<`));
     if(expected)expect(trace).toEqual(expected);else expected=trace;
     if(mode==='coverage')expect(metrics.interp_insns).toBeGreaterThan(0);else expect(metrics.interp_insns).toBe(0);
     resources.end=resourceSnapshot();
-    rows.push({count,mode,resources,wall_ms:wallMs,run_ms_300_updates:runMs,wasm_bytes:manifest.wasm.size,
+    rows.push({count,mode,input_sha256:inputSha256,early_interpreter_instructions:(snapshot.metrics.execution as any).interp_insns,resources,wall_ms:wallMs,run_ms_300_updates:runMs,wasm_bytes:manifest.wasm.size,
      packaging:manifest.packaging,selection:manifest.pipeline.modules[0].selection,build:manifest.pipeline.metrics,
-     trace_sha256:(await import('node:crypto')).createHash('sha256').update(JSON.stringify(trace)).digest('hex'),execution_summary:metrics.execution_summary});
+     trace_sha256:createHash('sha256').update(JSON.stringify(trace)).digest('hex'),execution_summary:metrics.execution_summary});
     writeFileSync(report,JSON.stringify({schema:'game-cask/selection-benchmark/1',revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,
      method:'Same generated PE per size, early 1-update recording then coverage/all, sequential shared-machine builds; cache states in build; 300 per-update trace hashes identical, no GPU rasterization. Not cold/idle speed claims.',rows},null,2)+'\n');
    }

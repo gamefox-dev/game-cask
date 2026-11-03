@@ -23,13 +23,16 @@ export function interpreterSummary(metrics:Record<string,unknown>,coverage:Inter
     const row=owners.get(e.owner) ?? {owner:e.owner,entries:0,instructions:0};
     row.entries+=e.count;row.instructions+=e.instructions;owners.set(e.owner,row);
   }
+  const instructions=typeof metrics.interp_insns==='number'?metrics.interp_insns:null;
   const enabled=metrics.interpreter_timing_enabled===1,samples=Number(metrics.interpreter_samples ?? 0);
-  const ms=enabled?(samples?Number(metrics.interpreter_exclusive_estimated_us)/1000:Number(metrics.interp_insns)===0?0:null):null;
-  return {instructions:Number(metrics.interp_insns ?? 0),instructions_per_update:updates?Number(metrics.interp_insns ?? 0)/updates:null,
+  const ms=enabled?(samples?Number(metrics.interpreter_exclusive_estimated_us)/1000:instructions===0?0:null):null;
+  const observed=coverage?.entries.reduce((n,e)=>n+e.instructions,0);
+  const owned=[...owners.keys()].some(owner=>owner!==null);
+  return {instructions,instructions_per_update:instructions!==null&&updates?instructions/updates:null,
     estimated_ms:ms,estimated_ms_per_update:ms!==null&&updates?ms/updates:null,
     estimated_share:ms!==null&&updateMs>0?ms/updateMs:null,samples,timing:'sampled-exclusive-dispatch' as const,
-    coverage_dropped:coverage?.dropped ?? null,analyzed_code_interpreted:[...owners.keys()].some(owner=>owner!==null),
-    top_owners:[...owners.values()].sort((a,b)=>b.instructions-a.instructions||(a.owner ?? -1)-(b.owner ?? -1)).slice(0,32)};
+    coverage_dropped:coverage?.dropped ?? null,analyzed_code_interpreted:owned?true:coverage&&!coverage.dropped&&observed===instructions?false:null,
+    top_owners:coverage?[...owners.values()].sort((a,b)=>b.instructions-a.instructions||(a.owner ?? -1)-(b.owner ?? -1)).slice(0,32):null};
 }
 export function readGuestPresentations(memory:ArrayBuffer,ptr:number,elapsedMs:number) {
   const v=new DataView(memory);if(!fits(v,ptr,40))return null;

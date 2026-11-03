@@ -203,7 +203,16 @@ it('two successive selective builds converge on a >65k-instruction workload from
   const interpreted=[...first.host.codeCoverage].filter(([,kind])=>kind&2).map(([addr])=>addr);
   expect(interpreted).toHaveLength(2); // body start AND an interior entry in the same .pdata range
   for(const addr of interpreted)expect((second.host.codeCoverage.get(addr) ?? 0)&1).toBe(1);
-  // The same recorded workload also works when range-normalized selection is enforced strictly.
+  // Explicit all neither reads stale configured paths nor discovers stale automatic evidence.
+  publishCoverage(ROOT,{...snapshot(first,manifest),modules:[{name:'wrong.exe',base:0,sha256:'f'.repeat(64)}]});
+  cfg.pipeline.selection='all';cfg.pipeline.coverage=['missing-recording.json'];save();
+  const all=buildGame(dir,{quiet:true});expect(all.pipeline.modules[0].selection.mode).toBe('all');
+  expect(all.pipeline.discovery).toBeUndefined();
+  const full=await loadHeadless(id);expect(await runTrace(full)).toEqual(firstTrace);
+  expect((full.host.metrics() as any).interp_insns).toBe(0);
+  delete cfg.pipeline.selection;cfg.pipeline.coverage=['early.json'];save();
+  expect(()=>buildGame(dir,{quiet:true})).toThrow(/module identit/);
+  // The supplied strict recordings still work; the poisoned automatic inbox cannot broaden or reject them.
   cfg.slice={coverage:['early.json','more.json']};save();buildGame(dir,{quiet:true});
   const sliced=await loadHeadless(id);await sliced.stepAsync(8);expect(sliced.logs).toEqual(second.logs);
   expect((sliced.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);

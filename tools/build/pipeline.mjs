@@ -23,7 +23,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
-import { coveragePlan, staticClosure, owningRanges, automaticCoverageFiles, selectionMode, selectionProvenance } from './coverage.mjs';
+import { coveragePlan, staticClosure, owningRanges, automaticCoverageFiles, selectionMode, selectionProvenance, validateCoverageIdentity, validateCoverageModule } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
 import { hermeticTimeFlags, PINNED_TIME, prepareObjects } from './objects.mjs';
@@ -208,11 +208,11 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   }
   const hostArenaMiB = hostArenaSize(p.memory);
   const mode=selectionMode(p,!!cfg.slice);
-  const recorded=cfg.slice?.coverage ?? p.coverage;
+  const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
   const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
     ...(!cfg.slice && mode==='coverage'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
   const plan=files.length ? coveragePlan(files,gameDir) : null;
-  if(!cfg.slice && plan?.recordings.some(r=>r.game && r.game!==(cfg.coverageGameId ?? cfg.id)))throw new Error('coverage game identity mismatch');
+  if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,plan.modules,{strict:!!cfg.slice});
   const sliceCode=new Set(), sliceRanges=[], codeRanges=[], codeOwners=[];
   let codeFunctions=0;
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
@@ -261,8 +261,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     const identity = hashFile(file);
     let ownershipAnalysis = null, selection = null;
     if(plan && p.interpretOnly) {
-      const identity=plan.modules.find((m)=>m.name===name);
-      if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
+      validateCoverageModule(plan,name,identity,base);
       const an=analyzeCached(tool,file,id,base,work,identity).analysis;
       ownershipAnalysis=an;
       for(const a of staticClosure(an,plan.code))sliceCode.add(a);
@@ -275,8 +274,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       let selectedSet = null;
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if(plan) {
-        const identity=plan.modules.find((m)=>m.name===name);
-        if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
+        validateCoverageModule(plan,name,identity,base);
         const an=measured.analysis;
         selection=selectionProvenance(an,plan,mode);
         const selected=selection.owners;
@@ -320,7 +318,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     mods.push({ selection, name, id, asset, base, size: info.size, main: !!m.main, lifted, chunkSources, stats, scale, provenance, sha256: identity,
       functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
-  if(plan && plan.modules.some(m=>!mods.some(o=>o.name===m.name)))throw new Error('coverage contains a module not configured in this pipeline');
+  if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,mods,{strict:!!cfg.slice});
   if (!mods.some((m) => m.main)) mods[0].main = true;
   /* static imports must resolve to a shipped module or a DLL the profile implements (Win32 would refuse to start
      the program with "The program can't start because X.dll is missing") */

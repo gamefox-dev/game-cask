@@ -9,8 +9,24 @@ private inbox. No address list or configuration edit is needed to lift a late in
 recordings, retain full analyzed lifting, not an empty startup selection. The reviewer chose this default
 rather than imposing all-analysis build/wasm costs on large games.
 
-Inputs must match the exact module set, hashes and load bases. Stale evidence fails: archive/remove stale
-inbox/latest files when deliberately replacing binaries; never edit evidence to make it fit. Failed,
+Every nonslice input must name the exact game ID; each individual input (not just their union) must match
+all module names, hashes and load bases. Strict supplied recordings may keep the original recording's game ID
+when packaging under a new ID, but must match the same complete modules. Stale evidence fails: archive/remove
+stale inbox/latest files when deliberately replacing binaries; never change hashes, bases or addresses to fit.
+
+For an old recording missing a game ID, or an intentional game-ID rename of the **same binaries**, explicitly
+adopt its identity against an existing build manifest (paths are from the current directory):
+
+```sh
+node tools/build/coverage-adopt.mjs --input port/coverage/legacy.json --manifest web/public/games/GAME-ID/manifest.json --out port/coverage/adopted.json
+```
+
+Then replace the configured path with `coverage/adopted.json`. The command never overwrites, changes module
+identity, edits executed entries/ranges/counters, or filters evidence. It requires exact per-input module equality
+and writes deterministic adoption provenance (source game/path/SHA-256, target manifest path/SHA-256 and previous
+adoption if any). A stale manifest cannot authorize changed modules at the next build: current module validation
+still runs. If no manifest exists, a separate explicit `--selection all` build can create one; it may be expensive.
+A changed binary/base or incomplete module set requires a new recording, not adoption. Failed,
 outside-slice and overflowed runs remain diagnostic artifacts but are not automatically published.
 A manually supplied overflowed or errored recording fails the build. Explicit recording lists still work.
 
@@ -33,7 +49,7 @@ identity and historical counters in `pipeline.discovery.input_recordings`. Deter
 the evidence and static closure; input interpretation counts are not predictions of rebuilt performance.
 
 **All-analysis mode:** `pipeline.selection: "all"` or `npm run build:port -- --selection all` lifts every
-statically analyzed function, regardless of configured coverage. Automatic recordings are ignored. This
+statically analyzed function, regardless of configured coverage. Configured and automatic recordings are ignored, including stale evidence; no coverage provenance is claimed in this mode. This
 does not prove analysis complete and can substantially increase compile/postprocess time and wasm size.
 
 **Strict slices:** `--slice` / `slice.coverage` consume **only the supplied recordings**. Automatic evidence
@@ -51,6 +67,8 @@ Standard `diagnostics().metrics.execution_summary`, probe.json and probe console
 - `interpreter.instructions_per_update`, `estimated_ms_per_update`, `estimated_share` (fraction of cumulative
   host update wall time), `samples`, `coverage_dropped`, `analyzed_code_interpreted`, and `top_owners`
   (owner address and exact entry/instruction counts, ranked by instructions). Owner=null stays unowned.
+  Missing observation exports yield null owner rankings/classification; an empty strict recorder with nonzero
+  interpretation is unknown, not proof that no analyzed code was interpreted.
 - Interpreter timing samples the **exclusive fallback dispatch/semantics path**, including decode/entry work,
   excluding nested native/callback/scheduler work and parked-yield time. This is a sampled estimate, not CDP
   self-time or hardware counters. Sparse/biased samples can still extrapolate above wall time; the fraction

@@ -82,9 +82,13 @@ describe('Win32 profile: pixel reads by CPU replay', () => {
 describe('Win32 profile: program metrics exclude presentation chrome', () => {
   it('extra bgt_render calls cannot increase gdi_ops or change the guest trace', async () => {
     const h = await loadHeadless('win32-hello'); h.step(5);
-    const before = h.host.metrics() as Record<string, number>;
+    const before = h.host.metrics() as Record<string, any>;
+    expect(before.execution_summary.guest_frames.gdi_presents).toBeGreaterThan(0);
+    expect(before.execution_summary.guest_frames.swaps).toBe(0);
+    expect(before.execution_summary.guest_frames.count).toBe(before.execution_summary.guest_frames.gdi_presents);
     for (let i = 0; i < 3; i++) { h.host.render(); h.host.consume(); }
-    const after = h.host.metrics() as Record<string, number>;
+    const after = h.host.metrics() as Record<string, any>;
+    expect(after.execution_summary.guest_frames.count).toBe(before.execution_summary.guest_frames.count);
     expect(after.gdi_ops).toBe(before.gdi_ops);
     expect(after.trace_hash).toBe(before.trace_hash);
     expect(after.chrome_ops).toBeGreaterThan(before.chrome_ops);
