@@ -11,7 +11,7 @@ for (const [group, count] of [['user-', 17], ['local-const-', 3]] as const) test
   const result = await page.evaluate(async ({ root, backend, group }) => {
     const { glslProbe } = await import(/* @vite-ignore */ root + '/tests/e2e/gpu-glsl-probe.ts');
     const { reviewRegressions } = await import(/* @vite-ignore */ root + '/tests/support/glsl-review-regressions.ts');
-    return glslProbe(backend, reviewRegressions.filter(c => c.name.startsWith(group)));
+    return glslProbe(backend, reviewRegressions.filter((c: { name: string }) => c.name.startsWith(group)));
   }, { root: '/@fs' + resolve('.'), backend: backendParam, group });
   expect(result.errors).toEqual([]);
   expect(result.rejections).toEqual([]);
