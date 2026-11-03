@@ -11,7 +11,9 @@ BGT_EXPORT(exclusive) double exclusive(void) {
 BGT_EXPORT(inclusive) double inclusive(void) {double start=x86_profile_clock();nested_work();return x86_profile_clock()-start;}
 BGT_EXPORT(record) void record(uint32_t address) {
     static const x86_code_range_t range={0x1000,0x2000,0};
-    static const uint32_t owners[]={0x1000};code_owner_addresses=owners;
+    static const uint32_t owners[]={0x1000};
+    if(!interpreted_owners)x86_register_code_ranges(&range,1,1);
+    x86_register_code_owner_addresses(owners);
     interpreted_count(address,1,&range);
 }
 BGT_EXPORT(snapshot) uint32_t snapshot(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}

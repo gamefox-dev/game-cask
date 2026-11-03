@@ -34,7 +34,7 @@ for(unsigned i=0;i<`));
    const h=await loadHeadless(id+'-interp');await h.stepAsync(1);
    const snapshot={schema:'game-cask/coverage/1',game:id,modules:seed.pipeline.modules,files:[],interpreter:h.host.interpreterCoverage(),code:[...h.host.codeCoverage].map(([address,kind])=>({address,kind})),metrics:{code_entries_dropped:h.host.codeCoverageDropped,execution:h.host.metrics()}};
    writeFileSync(join(dir,'early.json'),JSON.stringify(snapshot));
-   copyFileSync(join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp','fixture/scale.exe'),join(dir,'scale.exe'));
+   copyFileSync(join(ROOT,'node_modules/.cache/bgt/pipeline',seed.id+'-interp','fixture/scale.exe'),join(dir,'scale.exe'));
    delete cfg.pipeline.fixture;cfg.pipeline.modules[0].from='./scale.exe';cfg.pipeline.coverage=['early.json'];
    const inputSha256=createHash('sha256').update(readFileSync(join(dir,'scale.exe'))).digest('hex');
    let expected:string[]|null=null;
@@ -57,7 +57,7 @@ for(unsigned i=0;i<`));
      method:'Same generated PE per size, early 1-update recording then coverage/all, sequential shared-machine builds; cache states in build; 300 per-update trace hashes identical, no GPU rasterization. Not cold/idle speed claims.',rows},null,2)+'\n');
    }
   }finally{
-   for(const path of [dir,join(ROOT,'web/public/games',id),join(ROOT,'web/public/games',id+'-interp'),join(ROOT,'node_modules/.cache/bgt/pipeline',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp')])rmSync(path,{recursive:true,force:true});
+   for(const path of [dir,join(ROOT,'web/public/games',id),join(ROOT,'web/public/games',id+'-interp'),join(ROOT,'node_modules/.cache/bgt/pipeline',id),join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp'),join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp-interp')])rmSync(path,{recursive:true,force:true});
   }
  }
 });
