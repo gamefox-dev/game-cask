@@ -458,7 +458,8 @@ but lose rendered attachments and emit reset/targets-lost events; unrecoverable 
 K20 **WIP, not Tier 1 validated** replaces the 255-name tables with ABI-sized 1023-slot tables and full-GLuint
 name lookup; textures/renderbuffers share 1001 storage handles and buffers/program uniforms share 1015, excluding
 retained private reservations. Pipeline caches remain 128 descriptors (sampler descriptors now ABI-sized), one current
-WGL context and one shader per stage. See [K20 checkpoint](handoff/K20.md) for incomplete validation and next steps. The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
+WGL context and one shader per stage. Fresh >600-object native pixels and exhaustion metrics pass both backends;
+full Tier 1 remains incomplete. See [K20 checkpoint](handoff/K20.md) for results and the accepted unbound-FBO lifetime wire delta. The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
 8 samplers/7 user blocks); texture uploads remain bounded by the ABI. K6a adds color texture/FBO readback and
 validated pixel-store conversion, nonzero mips, renderbuffers and multiple draw buffers. No cube/1D/rectangle/MSAA,
 layered/3D attachment, depth transfer or integer/SNORM/compressed-format support is claimed. Array-shadow/integer
