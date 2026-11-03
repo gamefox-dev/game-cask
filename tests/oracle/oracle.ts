@@ -8,7 +8,7 @@ import { loadHeadless, ROOT, Headless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 import { createHash } from 'node:crypto';
 const suspension = process.env.BGT_ORACLE_SUSPENSION === 'jspi' ? 'jspi' : 'asyncify';
-const streamOptions = (id: string) => ['x64-gl', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
+const streamOptions = (id: string) => ['x64-gl', 'x64-gl-capacity', 'x64-gl-default-vao', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {

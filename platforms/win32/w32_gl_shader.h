@@ -20,14 +20,8 @@ static void gl_front_failure(const char *operation, char *text, uint32_t cap, ui
     w32_logf2(operation, text);
 }
 static uint32_t shader_handle(void) {
-    for (uint32_t id = 1; id <= 1023; id++) {
-        uint32_t i;
-        if (link_old && (link_old->vgpu == id || link_old->fgpu == id)) continue;
-        for (i = 1; i < N; i++)
-            if (shaders[i].gpu == id || programs[i].vgpu == id || programs[i].fgpu == id) break;
-        if (i == N) return id;
-    }
-    fail(OOM); return 0;
+    for (uint32_t id = 1; id <= GPU_MAX; id++) if (!gpu_shader[id]) return id;
+    object_exhaustion("shaders", "GPU shader handles", 1); return 0;
 }
 static int shader_ok(uint32_t id) { return id && id < N && shaders[id].used; }
 static int program_ok(uint32_t id) { return id && id < N && programs[id].used; }
@@ -43,7 +37,7 @@ static int send_module(const char *src, uint32_t len, uint32_t stage, uint32_t *
     }
     char text[4096]; int ok = wait_request(req, text, sizeof text);
     if (text[0]) { gs_put(log, text); if (text[w32_slen(text) - 1] != '\n') gs_put(log, "\n"); }
-    if (!ok) { log->errors++; SEND(0x49, *gpu); *gpu = 0; }
+    if (!ok) { log->errors++; release_wire(0x49, *gpu, "shaders"); *gpu = 0; }
     return ok;
 }
 static void shader_free_front(Shader *s) {
@@ -98,10 +92,10 @@ static int stage_module(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, uint32_t *gpu,
 }
 static uint32_t api_CreateShader(void) {
     if (ARG(0) != 0x8b31 && ARG(0) != 0x8b30) { fail(BAD_ENUM); return 0; }
-    uint32_t id = alloc_name(shaders, sizeof(Shader)); shaders[id].type = ARG(0); return id;
+    uint32_t id = alloc_name(shaders, sizeof(Shader)); if (id) shaders[id].type = ARG(0); return NAME(shaders, id);
 }
 static uint32_t api_ShaderSource(void) {
-    uint32_t id = ARG(0); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
+    uint32_t id = SLOT(shaders, ARG(0)); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     int32_t count = (int32_t)ARG(1); if (count < 0 || count > 1024) { fail(BAD_VALUE); return 0; }
     uint32_t total = 0;
     for (int32_t i = 0; i < count; i++) {
@@ -126,10 +120,10 @@ static uint32_t api_ShaderSource(void) {
     s->source = source; s->source_len = at; s->str_len = lens; s->nstr = (uint32_t)count; return 0;
 }
 static uint32_t compile_shader_build(void) {
-    uint32_t id = ARG(0); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
+    uint32_t id = SLOT(shaders, ARG(0)); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id]; GsLog log = {s->log, sizeof s->log, 0, 0};
     s->log[0] = 0; s->compiled = 0;
-    if (s->gpu) { SEND(0x49, s->gpu); s->gpu = 0; }
+    if (s->gpu) { release_wire(0x49, s->gpu, "shaders"); s->gpu = 0; }
     if (!s->source) { gs_put(&log, "0:1(1): error: no source has been supplied\n"); return 0; }
     if (!shader_front(s, &log)) { if (!log.errors) gs_put(&log, "0:1(1): error: shader failed to compile\n"); return 0; }
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
@@ -142,7 +136,7 @@ static uint32_t compile_shader_build(void) {
 /* Parsing tables are scratch, not shader state. Keep only the successfully compiled,
  * preprocessed source snapshot: glShaderSource may replace the editable source before relink. */
 static uint32_t api_CompileShader(void) {
-    uint32_t id = ARG(0); uint64_t oom = w32_gl_frontend_oom;
+    uint32_t id = SLOT(shaders, ARG(0)); uint64_t oom = w32_gl_frontend_oom;
     compile_shader_build();
     if (shader_ok(id)) {
         Shader *s = &shaders[id];
@@ -159,7 +153,7 @@ static int shader_link_front(Shader *s, GsLog *log) {
     gs_analyze(s->unit); return gs_policy(s->unit, log);
 }
 static uint32_t api_GetShaderiv(void) {
-    uint32_t id = ARG(0), key = ARG(1), value = 0;
+    uint32_t id = SLOT(shaders, ARG(0)), key = ARG(1), value = 0;
     if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id];
     if (key == 0x8b81) value = s->compiled; else if (key == 0x8b80) value = s->deleted;
@@ -173,16 +167,16 @@ static uint32_t put_string(uint32_t buf_size, uint32_t len_ptr, uint32_t buf, co
 }
 static uint32_t info_log(const char *log) { return put_string(ARG(1), ARG(2), ARG(3), log); }
 static uint32_t api_GetShaderInfoLog(void) {
-    if (!shader_ok(ARG(0))) { fail(BAD_VALUE); return 0; }
-    return info_log(shaders[ARG(0)].log);
+    if (!shader_ok(SLOT(shaders, ARG(0)))) { fail(BAD_VALUE); return 0; }
+    return info_log(shaders[SLOT(shaders, ARG(0))].log);
 }
 static uint32_t api_GetShaderSource(void) {
-    if (!shader_ok(ARG(0))) { fail(BAD_VALUE); return 0; }
-    return put_string(ARG(1), ARG(2), ARG(3), shaders[ARG(0)].source ? shaders[ARG(0)].source : "");
+    if (!shader_ok(SLOT(shaders, ARG(0)))) { fail(BAD_VALUE); return 0; }
+    return put_string(ARG(1), ARG(2), ARG(3), shaders[SLOT(shaders, ARG(0))].source ? shaders[SLOT(shaders, ARG(0))].source : "");
 }
-static uint32_t api_CreateProgram(void) { return alloc_name(programs, sizeof(Program)); }
+static uint32_t api_CreateProgram(void) { return NAME(programs, alloc_name(programs, sizeof(Program))); }
 static uint32_t api_AttachShader(void) {
-    uint32_t p = ARG(0), s = ARG(1);
+    uint32_t p = SLOT(programs, ARG(0)), s = SLOT(shaders, ARG(1));
     if (!program_ok(p) || !shader_ok(s)) fail(BAD_VALUE);
     else if ((shaders[s].type == 0x8b31 ? programs[p].vs : programs[p].fs) == s) fail(BAD_OP);
     else {
@@ -191,15 +185,15 @@ static uint32_t api_AttachShader(void) {
     } return 0;
 }
 static uint32_t api_GetAttachedShaders(void) {
-    uint32_t id = ARG(0), max = ARG(1), n = 0;
+    uint32_t id = SLOT(programs, ARG(0)), max = ARG(1), n = 0;
     if (!program_ok(id) || (int32_t)max < 0) { fail(BAD_VALUE); return 0; }
-    if (programs[id].vs && n < max) x86_wr32(ARG(3) + 4 * n++, programs[id].vs);
-    if (programs[id].fs && n < max) x86_wr32(ARG(3) + 4 * n++, programs[id].fs);
+    if (programs[id].vs && n < max) x86_wr32(ARG(3) + 4 * n++, NAME(shaders, programs[id].vs));
+    if (programs[id].fs && n < max) x86_wr32(ARG(3) + 4 * n++, NAME(shaders, programs[id].fs));
     if (ARG(2)) x86_wr32(ARG(2), n); return 0;
 }
 static void invalidate_pipelines(void) {
     for (uint32_t i = 0; i < pipeline_count; i++) if (pipelines[i].used) {
-        SEND(0x4b, pipelines[i].id); pipelines[i].used = 0;
+        release_wire(0x4b, pipelines[i].id, "programs"); pipelines[i].used = 0;
     }
     pipeline_count = 0;
 }
@@ -209,7 +203,7 @@ static void program_free_link(Program *p) {
     p->nb = p->nslots = p->ndef = 0;
 }
 static uint32_t link_program_build(void) {
-    uint32_t id = ARG(0); if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
+    uint32_t id = SLOT(programs, ARG(0)); if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
     if (tf_active && id == program) { fail(BAD_OP); return 0; }
     Program *p = &programs[id]; GsLog log = {p->log, sizeof p->log, 0, 0};
     p->linked = 0; p->log[0] = 0; program_free_link(p);
@@ -217,7 +211,7 @@ static uint32_t link_program_build(void) {
         gs_put(&log, "error: both a vertex and a fragment shader must be attached and compiled before link\n"); return 0;
     }
     invalidate_pipelines();
-    if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu); p->vgpu = p->fgpu = 0;
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs"); p->vgpu = p->fgpu = 0;
     if (!shader_link_front(&shaders[p->vs], &log) || (p->fs && !shader_link_front(&shaders[p->fs], &log))) return 0;
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "program link layout"); return 0; }
     GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));
@@ -231,23 +225,20 @@ static uint32_t link_program_build(void) {
     }
     if (!tf_link(p, vs, &log) || !gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
         !stage_module(vs, vs, fs, g, &p->vgpu, &log, p) || !stage_module(fs, vs, fs, g, &p->fgpu, &log, 0)) {
-        if (p->vgpu) { SEND(0x49, p->vgpu); p->vgpu = 0; }
+        if (p->vgpu) { release_wire(0x49, p->vgpu, "programs"); p->vgpu = 0; }
         if (!p->fs) glp_free(fs, sizeof(GsUnit));
         glp_free(g, sizeof(Gp)); if (!log.errors) gs_put(&log, "error: program failed to link\n"); return 0;
     }
     if (!p->fs) glp_free(fs, sizeof(GsUnit));
     p->values = glp_alloc(g->usize); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
-    if (p->ubuf && p->usize != g->usize) { SEND(0x42, p->ubuf); p->ubuf = 0; }
+    if (p->ubuf && p->usize != g->usize) { release_wire(0x42, p->ubuf, "programs"); p->ubuf = 0; }
     p->usize = g->usize;
     if (!p->ubuf) {
-        for (uint32_t h = 256; h < 700 && !p->ubuf; h++) {
-            if (link_old && link_old->ubuf == h) continue;
-            uint32_t j; for (j = 1; j < N; j++) if (programs[j].ubuf == h) break;
-            if (j == N) p->ubuf = h;
-        }
+        for (uint32_t h = 256; h < 700 && !p->ubuf; h++) if (!gpu_buffer[h]) p->ubuf = h;
+        if (!p->ubuf) p->ubuf = buffer_handle(0, "programs");
         if (!p->ubuf) { glp_free(g, sizeof(Gp)); gs_put(&log, "error: out of GPU uniform buffer handles\n"); fail(OOM); return 0; }
         uint32_t payload[] = {p->ubuf, 4, p->usize, 0, 0};
-        if (!send(0x40, payload, 5)) {
+        if (!send(0x40, payload, 5)) { p->ubuf = 0; if (error == OOM) object_exhaustion("programs", "GPU byte/submission budget", 1);
             glp_free(g, sizeof(Gp)); gs_put(&log, error == OOM ? "error: uniform buffer submission out of memory\n" : "error: uniform buffer submission failed\n"); return 0;
         }
     }
@@ -265,7 +256,7 @@ static uint32_t link_program_build(void) {
     p->vertex_only = !p->fs; p->dirty = 1; p->linked = 1; return 0;
 }
 static uint32_t api_LinkProgram(void) {
-    uint32_t id = ARG(0);
+    uint32_t id = SLOT(programs, ARG(0));
     if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
     if (tf_active && id == program) { fail(BAD_OP); return 0; }
     uint64_t oom = w32_gl_frontend_oom;
@@ -278,13 +269,13 @@ static uint32_t api_LinkProgram(void) {
     link_program_build();
     if (p->linked) {
         invalidate_pipelines();
-        if (old->vgpu) SEND(0x49, old->vgpu); if (old->fgpu) SEND(0x49, old->fgpu);
-        if (old->ubuf) SEND(0x42, old->ubuf);
+        if (old->vgpu) release_wire(0x49, old->vgpu, "programs"); if (old->fgpu) release_wire(0x49, old->fgpu, "programs");
+        if (old->ubuf) release_wire(0x42, old->ubuf, "programs");
         program_free_link(old);
     } else {
         char log[4096]; copy(log, p->log, sizeof log);
-        if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
-        if (p->ubuf) SEND(0x42, p->ubuf); program_free_link(p);
+        if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+        if (p->ubuf) release_wire(0x42, p->ubuf, "programs"); program_free_link(p);
         copy(p, old, sizeof *p); p->linked = 0; copy(p->log, log, sizeof log);
     }
     /* All stage parse tables die at the end of EVERY link attempt, including rollback. */
@@ -296,11 +287,11 @@ static uint32_t api_LinkProgram(void) {
     link_old = 0; glp_free(old, sizeof(Program)); return 0;
 }
 static uint32_t api_ValidateProgram(void) {
-    if (!program_ok(ARG(0))) { fail(BAD_VALUE); return 0; }
-    programs[ARG(0)].validated = programs[ARG(0)].linked; return 0;
+    if (!program_ok(SLOT(programs, ARG(0)))) { fail(BAD_VALUE); return 0; }
+    programs[SLOT(programs, ARG(0))].validated = programs[SLOT(programs, ARG(0))].linked; return 0;
 }
 static uint32_t api_GetProgramiv(void) {
-    uint32_t id = ARG(0), key = ARG(1), value = 0;
+    uint32_t id = SLOT(programs, ARG(0)), key = ARG(1), value = 0;
     if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
     Program *p = &programs[id]; Gp *g = p->linked ? p->info : 0;
     switch (key) {
@@ -324,11 +315,11 @@ static uint32_t api_GetProgramiv(void) {
     x86_wr32(ARG(2), value); return 0;
 }
 static uint32_t api_GetProgramInfoLog(void) {
-    if (!program_ok(ARG(0))) { fail(BAD_VALUE); return 0; }
-    return info_log(programs[ARG(0)].log);
+    if (!program_ok(SLOT(programs, ARG(0)))) { fail(BAD_VALUE); return 0; }
+    return info_log(programs[SLOT(programs, ARG(0))].log);
 }
 static uint32_t api_UseProgram(void) {
-    uint32_t id = ARG(0);
+    uint32_t id = SLOT(programs, ARG(0));
     if (tf_active) { fail(BAD_OP); return 0; }
     if (id >= N || (id && !programs[id].linked)) fail(BAD_OP);
     else { uint32_t old = program; program = id; if (old && old != id && programs[old].deleted) release_program(old); } return 0;
@@ -360,14 +351,14 @@ static int find_uniform(Gp *g, const char *name, uint32_t *elem, int include_blo
     return -1;
 }
 static uint32_t api_GetUniformLocation(void) {
-    uint32_t id = ARG(0); char name[160]; w32_gstr(ARG(1), 0, name, sizeof name);
+    uint32_t id = SLOT(programs, ARG(0)); char name[160]; w32_gstr(ARG(1), 0, name, sizeof name);
     if (!program_ok(id)) { fail(BAD_VALUE); return 0xffffffffu; }
     if (!programs[id].linked) { fail(BAD_OP); return 0xffffffffu; }
     uint32_t k; int i = find_uniform(programs[id].info, name, &k, 0);
     return i < 0 ? 0xffffffffu : (uint32_t)(programs[id].info->u[i].location + (int32_t)k);
 }
 static uint32_t api_GetUniformIndices(void) {
-    Gp *g = linked_info(ARG(0)); int32_t n = (int32_t)ARG(1); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); int32_t n = (int32_t)ARG(1); if (!g) return 0;
     if (n < 0) { fail(BAD_VALUE); return 0; }
     for (int32_t i = 0; i < n; i++) {
         char name[160]; w32_gstr((uint32_t)w32_rdptr(ARG(2) + i * w32_ptr_size()), 0, name, sizeof name);
@@ -377,7 +368,7 @@ static uint32_t api_GetUniformIndices(void) {
     return 0;
 }
 static uint32_t api_GetActiveUniform(void) {
-    Gp *g = linked_info(ARG(0)); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0;
     if ((int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     if (ARG(1) >= g->nu) { fail(BAD_VALUE); return 0; }
     GpUniform *u = &g->u[ARG(1)];
@@ -385,12 +376,12 @@ static uint32_t api_GetActiveUniform(void) {
     put_string(ARG(2), ARG(3), ARG(6), gp_name(g, u->name)); return 0;
 }
 static uint32_t api_GetActiveUniformName(void) {
-    Gp *g = linked_info(ARG(0)); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0;
     if (ARG(1) >= g->nu || (int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     put_string(ARG(2), ARG(3), ARG(4), gp_name(g, g->u[ARG(1)].name)); return 0;
 }
 static uint32_t api_GetActiveUniformsiv(void) {
-    Gp *g = linked_info(ARG(0)); int32_t n = (int32_t)ARG(1); uint32_t key = ARG(3); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); int32_t n = (int32_t)ARG(1); uint32_t key = ARG(3); if (!g) return 0;
     if (n < 0) { fail(BAD_VALUE); return 0; }
     if (key < 0x8a37 || key > 0x8a3e) { fail(BAD_ENUM); return 0; }
     for (int32_t i = 0; i < n; i++) if (x86_rd32(ARG(2) + 4 * i) >= g->nu) { fail(BAD_VALUE); return 0; }
@@ -409,15 +400,15 @@ static uint32_t api_GetActiveUniformsiv(void) {
     return 0;
 }
 static uint32_t api_GetUniformBlockIndex(void) {
-    uint32_t id = ARG(0); char name[GS_NAME]; w32_gstr(ARG(1), 0, name, sizeof name);
+    uint32_t id = SLOT(programs, ARG(0)); char name[GS_NAME]; w32_gstr(ARG(1), 0, name, sizeof name);
     Gp *g = linked_info(id); if (!g) return GL_INVALID_INDEX;
     for (uint32_t i = 0; i < g->nb; i++) if (eq(name, gp_name(g, g->b[i].name))) return i;
     return GL_INVALID_INDEX;
 }
 static uint32_t api_GetActiveUniformBlockiv(void) {
-    Gp *g = linked_info(ARG(0)); uint32_t key = ARG(2); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); uint32_t key = ARG(2); if (!g) return 0;
     if (ARG(1) >= g->nb) { fail(BAD_VALUE); return 0; }
-    GpBlock *b = &g->b[ARG(1)]; Program *p = &programs[ARG(0)];
+    GpBlock *b = &g->b[ARG(1)]; Program *p = &programs[SLOT(programs, ARG(0))];
     switch (key) {
     case 0x8a3f: x86_wr32(ARG(3), p->block[ARG(1)].binding); break;
     case 0x8a40: x86_wr32(ARG(3), b->size); break;
@@ -432,18 +423,18 @@ static uint32_t api_GetActiveUniformBlockiv(void) {
     return 0;
 }
 static uint32_t api_GetActiveUniformBlockName(void) {
-    Gp *g = linked_info(ARG(0)); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0;
     if (ARG(1) >= g->nb || (int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     put_string(ARG(2), ARG(3), ARG(4), gp_name(g, g->b[ARG(1)].name)); return 0;
 }
 static uint32_t api_UniformBlockBinding(void) {
-    uint32_t id = ARG(0);
+    uint32_t id = SLOT(programs, ARG(0));
     if (!program_ok(id)) fail(BAD_VALUE); else if (!programs[id].linked) fail(BAD_OP);
     else if (ARG(1) >= programs[id].nb || ARG(2) >= 8) fail(BAD_VALUE);
     else programs[id].block[ARG(1)].binding = ARG(2); return 0;
 }
 static uint32_t api_GetActiveAttrib(void) {
-    Gp *g = linked_info(ARG(0)); if (!g) return 0;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0;
     if (ARG(1) >= g->na || (int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     GpAttrib *a = &g->a[ARG(1)];
     if (ARG(4)) x86_wr32(ARG(4), (uint32_t)a->size); if (ARG(5)) x86_wr32(ARG(5), a->gl_type);
@@ -451,7 +442,7 @@ static uint32_t api_GetActiveAttrib(void) {
 }
 static uint32_t api_GetAttribLocation(void) {
     char name[GS_NAME]; w32_gstr(ARG(1), 0, name, sizeof name);
-    Gp *g = linked_info(ARG(0)); if (!g) return 0xffffffffu;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0xffffffffu;
     for (uint32_t i = 0; i < g->na; i++) if (eq(name, gp_name(g, g->a[i].name))) return (uint32_t)g->a[i].location;
     return 0xffffffffu;
 }
@@ -462,19 +453,19 @@ static void set_binding(GpBinding *list, uint32_t *count, const char *name, uint
 }
 static uint32_t api_BindAttribLocation(void) {
     char name[GS_NAME]; w32_gstr(ARG(2), 0, name, sizeof name);
-    if (!program_ok(ARG(0)) || ARG(1) >= 16) { fail(BAD_VALUE); return 0; }
+    if (!program_ok(SLOT(programs, ARG(0))) || ARG(1) >= 16) { fail(BAD_VALUE); return 0; }
     if (name[0] == 'g' && name[1] == 'l' && name[2] == '_') { fail(BAD_OP); return 0; }
-    set_binding(programs[ARG(0)].abind, &programs[ARG(0)].nab, name, ARG(1)); return 0;
+    set_binding(programs[SLOT(programs, ARG(0))].abind, &programs[SLOT(programs, ARG(0))].nab, name, ARG(1)); return 0;
 }
 static uint32_t api_BindFragDataLocation(void) {
     char name[GS_NAME]; w32_gstr(ARG(2), 0, name, sizeof name);
-    if (!program_ok(ARG(0)) || ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
+    if (!program_ok(SLOT(programs, ARG(0))) || ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
     if (name[0] == 'g' && name[1] == 'l' && name[2] == '_') { fail(BAD_OP); return 0; }
-    set_binding(programs[ARG(0)].obind, &programs[ARG(0)].nob, name, ARG(1)); return 0;
+    set_binding(programs[SLOT(programs, ARG(0))].obind, &programs[SLOT(programs, ARG(0))].nob, name, ARG(1)); return 0;
 }
 static uint32_t api_GetFragDataLocation(void) {
     char name[GS_NAME]; w32_gstr(ARG(1), 0, name, sizeof name);
-    Gp *g = linked_info(ARG(0)); if (!g) return 0xffffffffu;
+    Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0xffffffffu;
     for (uint32_t i = 0; i < g->no; i++) if (eq(name, gp_name(g, g->o[i].name))) return (uint32_t)g->o[i].location;
     return 0xffffffffu;
 }
@@ -540,8 +531,8 @@ UV(UniformMatrix2fv,4,1,0,1) UV(UniformMatrix3fv,9,1,0,1) UV(UniformMatrix4fv,16
 #undef UV
 /* glGetUniform{f,i,ui}v: current value of one default-block uniform element. */
 static uint32_t get_uniform(int kind) {
-    Gp *g = linked_info(ARG(0)); (void)g; if (!g) return 0;
-    Program *p = &programs[ARG(0)]; uint32_t first; int32_t loc = (int32_t)ARG(1);
+    Gp *g = linked_info(SLOT(programs, ARG(0))); (void)g; if (!g) return 0;
+    Program *p = &programs[SLOT(programs, ARG(0))]; uint32_t first; int32_t loc = (int32_t)ARG(1);
     GpUniform *u = loc < 0 ? 0 : uniform_at(p, loc, &first);
     if (!u) { fail(BAD_OP); return 0; }
     uint32_t comps = u->dim != 0 ? 1 : u->cols > 1 ? u->cols * u->rows : u->rows, out = ARG(2);
@@ -568,35 +559,35 @@ static void release_shader(uint32_t id) {
     if (!id || !shaders[id].deleted) return;
     for (uint32_t i = 1; i < N; i++)
         if (programs[i].used && (programs[i].vs == id || programs[i].fs == id)) return;
-    if (shaders[id].gpu) SEND(0x49, shaders[id].gpu);
+    if (shaders[id].gpu) release_wire(0x49, shaders[id].gpu, "shaders");
     shader_free_front(&shaders[id]);
     if (shaders[id].source) glp_free(shaders[id].source, shaders[id].source_len + 1);
     if (shaders[id].str_len) glp_free(shaders[id].str_len, (shaders[id].nstr ? shaders[id].nstr : 1) * 4);
     zero(&shaders[id], sizeof(Shader));
 }
 static uint32_t api_DetachShader(void) {
-    uint32_t p = ARG(0), s = ARG(1);
+    uint32_t p = SLOT(programs, ARG(0)), s = SLOT(shaders, ARG(1));
     if (!program_ok(p) || !shader_ok(s)) fail(BAD_VALUE);
     else if (programs[p].vs != s && programs[p].fs != s) fail(BAD_OP);
     else { if (programs[p].vs == s) programs[p].vs = 0; else programs[p].fs = 0; release_shader(s); }
     return 0;
 }
 static uint32_t api_DeleteShader(void) {
-    uint32_t id = ARG(0); if (!id) return 0;
+    uint32_t id = SLOT(shaders, ARG(0)); if (!id) return 0;
     if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     shaders[id].deleted = 1; release_shader(id); return 0;
 }
 static uint32_t api_DeleteProgram(void) {
-    uint32_t id = ARG(0); if (!id) return 0;
+    uint32_t id = SLOT(programs, ARG(0)); if (!id) return 0;
     if (!program_ok(id)) { fail(BAD_VALUE); return 0; }
     if (program == id) { programs[id].deleted = 1; return 0; }
     release_program(id); return 0;
 }
 static void release_program(uint32_t id) {
     invalidate_pipelines(); Program *p = &programs[id];
-    if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
     uint32_t vs = p->vs, fs = p->fs;
-    if (p->ubuf) SEND(0x42, p->ubuf);
+    if (p->ubuf) release_wire(0x42, p->ubuf, "programs");
     program_free_link(p); zero(p, sizeof *p); release_shader(vs); release_shader(fs);
     if (program == id) program = 0;
 }

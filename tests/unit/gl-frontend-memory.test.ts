@@ -1,6 +1,6 @@
 // Original CC0-1.0. Real profile object lifecycle, not the unbounded calloc-only language driver.
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +16,9 @@ beforeAll(() => {
 }, 30_000);
 afterAll(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 for (const [mode, marker] of [
+  ['object-identity', 'object identity namespaces=9 reserved/instantiated/unbind/delete/regen OK'],
+  ['sampler-churn', 'sampler churn sampler+texture states draws=2176 bounded/reclaimed OK'],
+  ['batch-valid', 'batch framing valid multi-command OK'],
   ['stress', 'stress cycles=768 retained=96'],
   ['lifecycle', 'lifecycle snapshot/relink/rollback/deferred/shared/detach OK'],
   ['exhaustion', 'exhaustion truthful compile/link logs, GL_OUT_OF_MEMORY, recovery OK'],
@@ -25,6 +28,10 @@ for (const [mode, marker] of [
   ['consumers', 'consumers bidirectional GL/CRT/FILE reuse random=30000'],
   ['vao', 'buffer VAO0 persistence targets=9 strict attributes/draws OK'],
   ['mapping', 'buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK'],
+  ['capacity-names', 'capacity names namespaces=9 slots=1023 high/shared/deferred/atomic/recovery OK'],
+  ['capacity-storage', 'capacity storage textures=1001 shared/private/byte-budget/rejected/recovery OK'],
+  ['capacity-shaders', 'capacity shader handles=1023 shared/deferred/exhaustion/recovery OK'],
+  ['capacity-failures', 'capacity failure attribution/sampler draw/retirement recovery/IsBuffer OK'],
 ]) it('GL frontend bounded host memory: ' + mode, () => {
   const result = execFileSync(exe, [mode], { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
   expect(result).toContain(marker);
@@ -34,3 +41,11 @@ for (const [mode, marker] of [
     expect(result).toContain('live=0 oom=0');
   }
 }, 60_000);
+for (const mode of ['count-high', 'count-low', 'prefix', 'payload', 'overflow', 'alignment', 'single-prefix', 'single-payload', 'magic', 'version']) {
+  it('GL recording adapter rejects malformed batch: ' + mode, () => {
+    const result = spawnSync(exe, ['batch-' + mode], { encoding: 'utf8', timeout: 10_000 });
+    expect(result.error).toBeUndefined();
+    expect(result.signal).toBe('SIGABRT');
+    expect(result.stdout).not.toContain('malformed batch was accepted');
+  });
+}

@@ -812,6 +812,7 @@ const char *w32_metrics_json(void) {
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);
+    jput("\"gl_objects\":"); jput(w32_gl_objects_json()); jput(",");
     jkv("host_bytes", x86_host_used);
     jkv("host_peak", x86_host_peak);
     jkv("host_reserved", x86_host_reserved);

@@ -15,6 +15,8 @@ uint64_t x86_guest_instruction_clock(void){return 123;}
 void x86_coverage_flush(void){}
 uint64_t w32_gl_calls,w32_gl_draws,w32_gl_state_changes,w32_gl_pipelines,w32_gl_unimplemented,w32_gl_approximations;
 const char *w32_gl_stubs_json(void){return "[]";}
+/* Idle GL metric provider only; object behavior is exercised by x64-gl-capacity. */
+const char *w32_gl_objects_json(void){return "{}";}
 const char *w32_gl_approximations_json(void){return "[]";}
 int w32_rp_enabled(void){return 0;}
 static slot_t test_slots[W32_THUNK_SLOTS];

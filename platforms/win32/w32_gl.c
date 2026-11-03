@@ -1,7 +1,9 @@
 /* OpenGL 3.3 -> BGT §13. Engine-independent, bounded profile. SPDX-License-Identifier: MIT — LANE-GL */
 #include "w32_gl.h"
 
-#define N 256
+/* ABI §13.1: bounded live objects, NOT a bound on GLuint values. Slot zero is default state. */
+#define GPU_MAX BGT_GPU_LIMIT_HANDLES
+#define N (BGT_GPU_LIMIT_HANDLES + 1u)
 #define BAD_ENUM 0x500u
 #define BAD_VALUE 0x501u
 #define BAD_OP 0x502u
@@ -77,7 +79,19 @@ static int submit(void) {
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
     return 1;
 }
-static int send(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code, w, n); return submit(); }
+/* Track accepted wire generations, including private resources. Private reservations are kept
+ * even while unmaterialized: textures900..921; buffers1000..1006 and1023. */
+static uint8_t gpu_texture[N], gpu_buffer[N], gpu_shader[N], gpu_pipeline[N];
+static int send(uint32_t code, const uint32_t *w, uint32_t n) {
+    begin(); op(code, w, n); int ok = submit();
+    if (ok && n && w[0] && w[0] < N) {
+        if (code == 0x40 || code == 0x42) gpu_buffer[w[0]] = code == 0x40;
+        if (code == 0x43 || code == 0x59 || code == 0x45) gpu_texture[w[0]] = code != 0x45;
+        if (code == 0x48 || code == 0x49) gpu_shader[w[0]] = code == 0x48;
+        if (code == 0x4a || code == 0x4b) gpu_pipeline[w[0]] = code == 0x4a;
+    }
+    return ok;
+}
 #define SEND(code, ...) do { \
     const uint32_t payload[] = {__VA_ARGS__}; send(code, payload, sizeof payload / 4); \
 } while (0)
@@ -110,11 +124,11 @@ static void missing(const char *name) {
 }
 
 typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
-    uint32_t map, map_offset, map_size, map_flags, map_access; } Buffer;
+    uint32_t map, map_offset, map_size, map_flags, map_access, bound; } Buffer;
 static void approximate(const char *kind);
 static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
-typedef struct { uint32_t used, element; Attribute a[16]; } Vao;
+typedef struct { uint32_t used, element, bound; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
 static Buffer buffers[N]; static Vao vaos[N];
 /* Generic current values belong to the context, not the VAO (GL 3.3 §2.8). */
@@ -174,11 +188,34 @@ static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t cl
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
 static Pipeline pipelines[128]; static uint32_t pipeline_count;
-static uint32_t alloc_name(void *base, uint32_t stride) {
-    for (uint32_t i = 1; i < N; i++) if (!*(uint32_t *)((uint8_t *)base + stride * i)) {
-        zero((uint8_t *)base + stride * i, stride); *(uint32_t *)((uint8_t *)base + stride * i) = 1; return i;
+#include "w32_gl_names.h"
+/* Abandoned wire generations stay occupied until their destroy is accepted. This also
+ * covers relink snapshots which no longer have a guest object owner. */
+static uint8_t abandoned_buffer[N], abandoned_shader[N], abandoned_pipeline[N];
+static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
+    uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
+    if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
+    if (pending) error = pending;
+    return ok;
+}
+static void release_wire(uint32_t code, uint32_t handle, const char *kind) {
+    if (!handle) return;
+    uint8_t *pending = code == 0x42 ? abandoned_buffer : code == 0x49 ? abandoned_shader : abandoned_pipeline;
+    pending[handle] = cleanup_send(kind, code, handle) ? 0 : eq(kind, "shaders") ? 1 : 2;
+}
+static void collect_wire(void) {
+    for (uint32_t h = 1; h < N; h++) {
+        if (abandoned_buffer[h] && cleanup_send("programs", 0x42, h)) abandoned_buffer[h] = 0;
+        if (abandoned_shader[h] && cleanup_send(abandoned_shader[h] == 1 ? "shaders" : "programs", 0x49, h)) abandoned_shader[h] = 0;
+        if (abandoned_pipeline[h] && cleanup_send("programs", 0x4b, h)) abandoned_pipeline[h] = 0;
     }
-    fail(OOM); return 0;
+}
+static uint32_t buffer_handle(uint32_t preferred, const char *kind) {
+    if (preferred && preferred <= GPU_MAX && !(preferred >= 1000 && preferred <= 1006) &&
+        preferred != 1023 && !gpu_buffer[preferred]) return preferred;
+    for (uint32_t h = 1; h <= GPU_MAX; h++)
+        if (!(h >= 1000 && h <= 1006) && h != 1023 && !gpu_buffer[h]) return h;
+    object_exhaustion(kind, "GPU buffer handles", 1); return 0;
 }
 static Buffer *bound_buffer(uint32_t target) {
     uint32_t id = target == ARRAY_BUFFER ? array : target == ELEMENT_BUFFER ? vaos[vao].element :
@@ -191,8 +228,8 @@ static Buffer *bound_buffer(uint32_t target) {
     return id && id < N && buffers[id].used ? &buffers[id] : 0;
 }
 static uint32_t api_GenBuffers(void) {
-    int32_t n = (int32_t)ARG(0); if (n < 0) { fail(BAD_VALUE); return 0; }
-    for (int32_t i = 0; i < n; i++) x86_wr32(ARG(1) + 4 * i, alloc_name(buffers, sizeof(Buffer)));
+    GEN_CHECK(buffers); int32_t n = (int32_t)ARG(0);
+    for (int32_t i = 0; i < n; i++) x86_wr32(ARG(1) + 4 * i, NAME(buffers, alloc_name(buffers, sizeof(Buffer))));
     return 0;
 }
 /* Reviewer #136: Windows default-element storage survives even a core VAO-0 bind.
@@ -202,7 +239,11 @@ static void default_element_compat(uint32_t target, const char *kind) {
     if (!vao && target == ELEMENT_BUFFER) approximate(kind);
 }
 static uint32_t api_BindBuffer(void) {
-    uint32_t target = ARG(0), id = ARG(1); if (id >= N) { fail(BAD_VALUE); return 0; }
+    uint32_t target = ARG(0), id = ARG(1);
+    if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER &&
+        target != 0x8f36 && target != 0x8f37 && target != 0x88eb && target != 0x88ec && target != 0x8c2a) { fail(BAD_ENUM); return 0; }
+    id = BIND(buffers, id); if (id >= N) return 0;
+    if (id) buffers[id].bound = 1;
     if (target == ARRAY_BUFFER) array = id;
     else if (target == ELEMENT_BUFFER) vaos[vao].element = id;
     else if (target == UNIFORM_BUFFER) uniform = id;
@@ -213,7 +254,7 @@ static uint32_t api_BindBuffer(void) {
     else if (target == 0x88ec) pixel_unpack = id;
     else if (target == 0x8c2a) texture_buffer = id;
     else { fail(target == ELEMENT_BUFFER ? BAD_OP : BAD_ENUM); return 0; }
-    if (id) buffers[id].used = 1;
+
     default_element_compat(target, "core VAO 0 element-buffer binding"); return 0;
 }
 static uint32_t api_BufferData(void) {
@@ -222,14 +263,16 @@ static uint32_t api_BufferData(void) {
     if (size <= 0 || size > 67108864) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
-    uint32_t id = (uint32_t)(b - buffers);
+    uint32_t id = b->gpu;
     if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
     /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
     unmap_storage(b); b->map_access = 0x88ba;
     glp_free(b->data, b->size); b->data = 0;
     b->gpu = 0; b->size = 0; b->generated = 0;
+    id = buffer_handle((uint32_t)(b - buffers) < 256 ? (uint32_t)(b - buffers) : 0, "buffers");
+    if (!id) { glp_free(data, (uint32_t)size); return 0; }
     uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
-    if (!send(0x40, create, 5)) { glp_free(data, (uint32_t)size); return 0; }
+    if (!send(0x40, create, 5)) { if (error == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(data, (uint32_t)size); return 0; }
     b->gpu = id; b->size = (uint32_t)size; b->data = data;
     default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
 }
@@ -268,17 +311,26 @@ static uint32_t api_CopyBufferSubData(void) {
     }
     return 0;
 }
+static void collect_deleted(void);
 static uint32_t api_DeleteBuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) {
-        uint32_t id = x86_rd32(ARG(1) + 4 * i); if (!id || id >= N) continue;
+        uint32_t id = SLOT(buffers, x86_rd32(ARG(1) + 4 * i)); if (!id || id >= N) continue;
         if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
             if (bound) { fail(BAD_OP); continue; } }
-        if (buffers[id].gpu && !send(0x42, &buffers[id].gpu, 1)) continue;
-        unmap_storage(&buffers[id]);
-        glp_free(buffers[id].data, buffers[id].size);
-        zero(&buffers[id], sizeof(Buffer)); if (array == id) array = 0; if (uniform == id) uniform = 0;
-        for (uint32_t j = 0; j < N; j++) {
+        int retained = 0;
+        for (uint32_t v = 0; v < N && !retained; v++) if (v != vao && (!v || vaos[v].used)) {
+            retained = vaos[v].element == id;
+            for (uint32_t a = 0; a < 16; a++) retained |= vaos[v].a[a].buffer == id;
+        }
+        if (!retained && buffers[id].gpu) {
+            if (!send(0x42, &buffers[id].gpu, 1)) continue;
+            buffers[id].gpu = 0;
+        }
+        retire_name(OBJECTS(buffers), id);
+        if (array == id) array = 0;
+        if (uniform == id) uniform = 0;
+        { uint32_t j = vao;
             if (vaos[j].element == id) vaos[j].element = 0;
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) vaos[j].a[a].buffer = 0;
         }
@@ -288,52 +340,56 @@ static uint32_t api_DeleteBuffers(void) {
         if (pixel_pack == id) pixel_pack = 0; if (pixel_unpack == id) pixel_unpack = 0;
         if (texture_buffer == id) texture_buffer = 0;
         for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) tf_bound[j] = 0;
-    } return 0;
+    } collect_deleted(); return 0;
 }
 static uint32_t api_BindBufferBase(void) {
     if (ARG(0) == FEEDBACK_BUFFER) {
-        uint32_t s = ARG(1), id = ARG(2);
-        if (s >= 4 || id >= N) { fail(BAD_VALUE); return 0; }
+        uint32_t s = ARG(1);
+        if (s >= 4) { fail(BAD_VALUE); return 0; }
         if (tf_active) { fail(BAD_OP); return 0; }
-        if (id) buffers[id].used = 1;
+        uint32_t id = BIND(buffers, ARG(2)); if (id >= N) return 0;
+
+        if (id) buffers[id].bound = 1;
         tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    if (ARG(1) >= 8 || ARG(2) >= N) { fail(BAD_VALUE); return 0; }
-    uint32_t s = ARG(1), id = ARG(2); uniform = id; ubo[s] = id; ubo_offset[s] = 0;
-    if (id) buffers[id].used = 1;
+    if (ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
+    uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= N) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
+
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
 }
 static uint32_t api_BindBufferRange(void) {
     if (ARG(0) == FEEDBACK_BUFFER) {
-        uint32_t s = ARG(1), id = ARG(2); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
+        uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
         if (s >= 4 || id >= N) { fail(BAD_VALUE); return 0; }
         if (tf_active) { fail(BAD_OP); return 0; }
         if (id && (off < 0 || size <= 0 || (off & 3) || (size & 3) || (uint64_t)off + (uint64_t)size > buffers[id].size)) { fail(BAD_VALUE); return 0; }
-        if (id) buffers[id].used = 1;
+
         tf_buffer = tf_bound[s] = id; tf_offset[s] = id ? (uint32_t)off : 0; tf_size[s] = id ? (uint32_t)size : 0; tf_whole[s] = 0; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    uint32_t s = ARG(1), id = ARG(2); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
+    uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
     if (s >= 8 || id >= N || (id && (off < 0 || size <= 0 || (off & 255) ||
         (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }
-    if (id) buffers[id].used = 1;
+
     uniform = id; ubo[s] = id; ubo_offset[s] = id ? (uint32_t)off : 0;
     ubo_size[s] = id ? (uint32_t)size : 0; ubo_whole[s] = 0; return 0;
 }
 static uint32_t api_GenVertexArrays(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, alloc_name(vaos, sizeof(Vao)));
+    GEN_CHECK(vaos);
+    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, NAME(vaos, alloc_name(vaos, sizeof(Vao))));
     return 0;
 }
 static uint32_t api_BindVertexArray(void) {
-    if (ARG(0) >= N || (ARG(0) && !vaos[ARG(0)].used)) fail(BAD_OP); else vao = ARG(0); return 0;
+    uint32_t id = SLOT(vaos, ARG(0));
+    if (id >= N) { fail(BAD_OP); return 0; }
+    vao = id; if (id) vaos[id].bound = 1; return 0;
 }
 static uint32_t api_DeleteVertexArrays(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
+    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(vaos, x86_rd32(ARG(1) + i * 4));
         if (id && id < N) { zero(&vaos[id], sizeof(Vao)); if (vao == id) vao = 0; } } return 0;
 }
 static uint32_t attribute(int integer) {
@@ -367,7 +423,7 @@ static void ensure_current_buffer(uint32_t instances) {
         if (!data) { fail(OOM); return; }
         if (current_gpu) SEND(0x42, current_gpu);
         glp_free(current_data, current_capacity * 256u); current_data = data; current_capacity = capacity;
-        /* Buffer namespaces: public 1..255, uniform 256..699, current attributes 1023. */
+        /* Private current-attribute handle, excluded from the shared public/uniform pool. */
         current_gpu = 1023;
         SEND(0x40, current_gpu, 1, capacity * 256u, 0, 0);
         if (error) {
@@ -386,6 +442,11 @@ static uint32_t api_VertexAttribDivisor(void) {
 
 #include "w32_gl_buffer.h"
 #include "w32_gl_fmt.h"
+static uint32_t texture_handle(uint32_t preferred, const char *kind) {
+    if (preferred && preferred <= GPU_MAX && !(preferred >= 900 && preferred <= 921) && !gpu_texture[preferred]) return preferred;
+    for (uint32_t h = 1; h <= GPU_MAX; h++) if (!(h >= 900 && h <= 921) && !gpu_texture[h]) return h;
+    object_exhaustion(kind, "GPU texture handles", 1); return 0;
+}
 #include "w32_gl_tex.h"
 #include "w32_gl_fbo.h"
 
@@ -394,15 +455,71 @@ static uint32_t api_VertexAttribDivisor(void) {
 #include "w32_gl_draw.h"
 #include "w32_gl_query.h"
 
+static void init_objects(void) {
+    OBJECTS(textures); OBJECTS(buffers); OBJECTS(vaos); OBJECTS(fbos); OBJECTS(rbos);
+    OBJECTS(samplers); OBJECTS(gl_queries); OBJECTS(shaders); OBJECTS(programs);
+}
+
+/* Deleted names are reusable immediately; unbound container references retain the old
+ * object/handle generation until detached. Slots are never reused underneath an attachment. */
+static int attached_image(uint32_t type, uint32_t id) {
+    for (uint32_t f = 1; f < N; f++) if (fbos[f].used) {
+        Fbo *p = &fbos[f];
+        for (uint32_t c = 0; c < 4; c++) if (p->color[c].type == type && p->color[c].name == id) return 1;
+        if ((p->depth.type == type && p->depth.name == id) || (p->stencil.type == type && p->stencil.name == id)) return 1;
+    }
+    return 0;
+}
+static void collect_deleted(void) {
+    if (!gl_retired) return;
+    GlObjects *bo = OBJECTS(buffers), *to = OBJECTS(textures), *ro = OBJECTS(rbos);
+    for (uint32_t id = 1; id < N; id++) {
+        if (bo->retired[id]) {
+            int referenced = 0;
+            for (uint32_t v = 0; v < N && !referenced; v++) if (!v || vaos[v].used) {
+                referenced = vaos[v].element == id;
+                for (uint32_t a = 0; a < 16; a++) referenced |= vaos[v].a[a].buffer == id;
+            }
+            if (!referenced && (!buffers[id].gpu || cleanup_send("buffers", 0x42, buffers[id].gpu))) {
+                unmap_storage(&buffers[id]); glp_free(buffers[id].data, buffers[id].size);
+                zero(&buffers[id], sizeof(Buffer)); bo->retired[id] = 0; gl_retired--;
+            }
+        }
+        if (to->retired[id] && !attached_image(1, id) && (!textures[id].gpu || cleanup_send("textures", 0x45, textures[id].gpu))) {
+            zero(&textures[id], sizeof(Texture)); to->retired[id] = 0; gl_retired--;
+        }
+        if (ro->retired[id] && !attached_image(2, id) && (!rbos[id].gpu || cleanup_send("rbos", 0x45, rbos[id].gpu))) {
+            zero(&rbos[id], sizeof(Rbo)); ro->retired[id] = 0; gl_retired--;
+        }
+    }
+}
+static int object_entry(const char *name, const char *part) {
+    for (; *name; name++) { const char *a = name, *b = part; while (*b && *a == *b) { a++; b++; } if (!*b) return 1; }
+    return 0;
+}
+static const char *entry_objects(const char *name) {
+    if (object_entry(name, "Renderbuffer")) { OBJECTS(rbos); return "rbos"; }
+    if (object_entry(name, "Framebuffer")) { OBJECTS(fbos); return "fbos"; }
+    if (object_entry(name, "Tex")) { OBJECTS(textures); return "textures"; }
+    if (object_entry(name, "Buffer")) { OBJECTS(buffers); return "buffers"; }
+    if (object_entry(name, "Sampler")) { OBJECTS(samplers); return "samplers"; }
+    if (object_entry(name, "VertexArray")) { OBJECTS(vaos); return "vaos"; }
+    if (object_entry(name, "Shader")) { OBJECTS(shaders); return "shaders"; }
+    if (object_entry(name, "Quer")) { OBJECTS(gl_queries); return "gl_queries"; }
+    OBJECTS(programs); return "programs";
+}
 #define API(name, fn, nargs, mutates) \
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
-        uint32_t pending = error; error = 0; \
+        uint32_t pending = error, exhaustion_before = gl_exhaustion_events; error = 0; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
             eq(name, "glDeleteBuffers") || eq(name, "glCopyBufferSubData") || \
             eq(name, "glUnmapBuffer") || eq(name, "glFlushMappedBufferRange"); \
         uint32_t result = (!protects_source || flush_padded_cleanup()) ? api_##fn() : 0; \
+        collect_deleted(); collect_wire(); \
+        if (error == OOM && exhaustion_before == gl_exhaustion_events) \
+            object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
         if (pending) error = pending; return result; \
     }
