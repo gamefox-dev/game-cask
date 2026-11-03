@@ -1,0 +1,126 @@
+{
+  "schema": "game-cask/incremental-bench/1",
+  "machine": {
+    "hostname": "Mac-mini-2.local",
+    "platform": "darwin",
+    "arch": "arm64",
+    "totalmem": 17179869184,
+    "node": "v24.19.0"
+  },
+  "revision": "66982f6b8a46433db9c8b3efa4c87f32ab40ae9b",
+  "functions": 12000,
+  "method": "sequential same-clone builds; runtime-only edit appends a comment to bgt_gpu.h, restored byte-exactly; cold means fixture initially absent, not OS/toolchain cold; shared machine, not quiescent",
+  "samples": [
+    {
+      "scenario": "cold",
+      "wall_ms": 567048.108375,
+      "wasm": {
+        "url": "game.wasm?h=795cdd7d89fcb576",
+        "size": 45035603,
+        "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+      },
+      "analysis_ms": 3595.3170000000027,
+      "lift_ms": 90895.401,
+      "c_generation_cpu_ms": null,
+      "compile_ms": 198789.877,
+      "link_ms": 9923.883,
+      "wasm_opt_ms": 202175.66995899996,
+      "objects_compiled": 81,
+      "objects_cached": 0,
+      "before": {
+        "at": "2026-11-02T23:45:26.434Z",
+        "loadavg": [
+          7.7060546875,
+          8.373046875,
+          8.65478515625
+        ],
+        "disk_free_bytes": 8310022144,
+        "memory": "{\"available_bytes\": 5100699648}"
+      },
+      "after": {
+        "at": "2026-11-02T23:54:53.539Z",
+        "loadavg": [
+          7.78125,
+          10.62890625,
+          9.783203125
+        ],
+        "disk_free_bytes": 8466182144,
+        "memory": "{\"available_bytes\": 5483577344}"
+      }
+    },
+    {
+      "scenario": "no-change",
+      "wall_ms": 3090.974042000016,
+      "wasm": {
+        "url": "game.wasm?h=795cdd7d89fcb576",
+        "size": 45035603,
+        "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+      },
+      "analysis_ms": 9.913541999994777,
+      "lift_ms": 1.417,
+      "c_generation_cpu_ms": null,
+      "compile_ms": 1.923,
+      "link_ms": 602.418,
+      "wasm_opt_ms": 201.6458340000827,
+      "objects_compiled": 0,
+      "objects_cached": 81,
+      "before": {
+        "at": "2026-11-02T23:54:53.571Z",
+        "loadavg": [
+          7.78125,
+          10.62890625,
+          9.783203125
+        ],
+        "disk_free_bytes": 8466071552,
+        "memory": "{\"available_bytes\": 5533024256}"
+      },
+      "after": {
+        "at": "2026-11-02T23:54:56.662Z",
+        "loadavg": [
+          7.47802734375,
+          10.5185546875,
+          9.7490234375
+        ],
+        "disk_free_bytes": 8459554816,
+        "memory": "{\"available_bytes\": 4804591616}"
+      }
+    },
+    {
+      "scenario": "runtime-only-change",
+      "wall_ms": 180826.869375,
+      "wasm": {
+        "url": "game.wasm?h=795cdd7d89fcb576",
+        "size": 45035603,
+        "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+      },
+      "analysis_ms": 4.576832999940962,
+      "lift_ms": 1.213,
+      "c_generation_cpu_ms": null,
+      "compile_ms": 168234.83,
+      "link_ms": 757.46,
+      "wasm_opt_ms": 314.1063749999739,
+      "objects_compiled": 73,
+      "objects_cached": 8,
+      "before": {
+        "at": "2026-11-02T23:54:56.696Z",
+        "loadavg": [
+          7.47802734375,
+          10.5185546875,
+          9.7490234375
+        ],
+        "disk_free_bytes": 8459497472,
+        "memory": "{\"available_bytes\": 4805804032}"
+      },
+      "after": {
+        "at": "2026-11-02T23:57:57.523Z",
+        "loadavg": [
+          7.5263671875,
+          9.0751953125,
+          9.27783203125
+        ],
+        "disk_free_bytes": 7915356160,
+        "memory": "{\"available_bytes\": 5035442176}"
+      }
+    }
+  ]
+}
