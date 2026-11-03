@@ -1,5 +1,29 @@
 # v0.3 merged implementation status
 
+## Integration I10 final — K17a over K16a + K17b (Tier 1 green)
+
+**0c53519** is the `--no-ff` merge of **4dd92aa** (K17a) over **53457a7**
+(K16a shared bounded host memory + K17b default element storage/mapped buffers). Only this status document
+conflicted; every lane entry is retained. Code auto-merged and needed **no integration repair**.
+K17a's external **vK17a FAIL → vK17a2 PASS at 49dec3b**, annotation-only **aaf2473**, and decisions
+**#135/#139/#142** retain their original scope; no new independent review is claimed.
+
+**Final merged-source gates on 0c53519:** doctor ready; ESLint + clang/real GCC lint with **34 example
+check-builds**; typecheck; **1,931 unit tests /91 files**, no skips/failures; required-WebGPU full browser
+**269 passed /51 existing skips /0 failed /0 flaky** (WebGL2 **122/24**, WebGPU **139/26**, auto **8/1**);
+leakcheck PASS. **All 31 pipeline examples ×300 =9,300 identical oracle pairs**, requested/compared300,
+null errors/divergence/failureStage, exit0, lifted interp_insns0 and empty stubs/gl_stubs throughout.
+The serial background sweep completed **38/38 steps exit0**, without exclusions, retries or policy changes.
+
+Native external capture audit: **543 submissions** (mm6 129, mm7 414), exported rejection controls,
+and **16 freshly canonicalized raw fragments** (mm7 1, mm8 15) deduplicate to **120 stages**
+(**53 vertex /67 fragment**); **120/120 compile on each of WebGL2 and WebGPU**, zero errors.
+The actual merged C frontend regenerated raw emissions; all private inputs/emissions/results stayed outside
+Git. This is stage compilation, not captured-program linking, pixels, a title replay or playability proof.
+Documentation finalization is source-neutral; post-doc leakcheck **672 files PASS** and the explicit clang
+host-check companion PASS on unchanged implementation. Commands/evidence/boundaries:
+[I10 handoff](handoff/integration-i10.md).
+
 ## K17b final — Q57 Windows core default element storage (Tier 1 green)
 
 Implementation **97a07ee** accepts/counters/diagnoses VAO0 element-buffer binding and uploads in core
