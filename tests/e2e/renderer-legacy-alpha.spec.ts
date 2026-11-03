@@ -15,7 +15,7 @@ test('legacy draws preserve opaque physical and logical screens, not offscreen a
     const canvas = document.createElement('canvas'); document.body.append(canvas);
     const renderer = kind === 'webgpu' ? await WebGPURenderer.create(canvas, { debug: true }) : WebGL2Renderer.create(canvas, { debug: true });
     if (!renderer) throw Error(kind + ' unavailable');
-    renderer.resize(16, 8); let offscreen: number[] = [];
+    renderer.resize(16, 8); let offscreen: number[] = [], logicalNative: number[] = [];
     const draw = (frame: any, target: number) => {
       const first = frame.vertexCount;
       for (const [x, y] of [[0,0],[16,0],[16,8],[0,0],[16,8],[0,8]]) frame.vertex(x, y, 0, 0, 0x80000040);
@@ -34,10 +34,15 @@ test('legacy draws preserve opaque physical and logical screens, not offscreen a
     f.items.push({ kind: 'gpu', op: GPU_OP.PASS_BEGIN, words: [1,0,0,0,0,0,0,0,0,0,0,0,0,0] },
       { kind: 'gpu', op: GPU_OP.PASS_END, words: [] });
     await renderer.drawFrame(f, lb, false); f.reset(16, 8); draw(f, 0);
+    // Ordered target-0 readback runs before presentation: WebGPU copies the retained
+    // logical texture, and WebGL reads its native default framebuffer. Presented
+    // output alone cannot catch a missing logical-screen mask (presentation forces alpha1).
+    f.items.push({ kind: 'readback', target: 0, x: 0, y: 0, w: 1, h: 1, complete: (data: Uint8Array) => logicalNative = [...data] });
     const logical = await renderer.drawFrame(f, lb, true); await renderer.finish(); renderer.destroy();
-    return { offscreen, physical: [...physical!.data.subarray(0,4)], logical: [...logical!.data.subarray(0,4)] };
+    return { offscreen, logicalNative, physical: [...physical!.data.subarray(0,4)], logical: [...logical!.data.subarray(0,4)] };
   }, { root: '/@fs' + resolve('bgt'), kind: backendParam });
   expect(result.offscreen).toEqual([64, 0, 0, 128]);
   expect(result.physical).toEqual([64, 0, 0, 255]);
+  expect(result.logicalNative).toEqual([64, 0, 0, 255]);
   expect(result.logical).toEqual([64, 0, 0, 255]);
 });
