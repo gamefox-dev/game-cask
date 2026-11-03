@@ -7,7 +7,7 @@
 // web/public/games/ (run `npm run build:port` first). The script default-exports `async function (p)`; see
 // .claude/skills/browser-validation/SKILL.md for the API. Artifacts (PNGs, probe.json with the log, console and
 // errors) go to --out (default reports/probe/, private). Never touches kit or port test results.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
@@ -28,10 +28,12 @@ function parseArgs(argv) {
     else if (k === '--out') { a.out = v; i++; }
     else if (k === '--port') { a.port = Number(v); i++; }
     else if (k === '--params') { for (const kv of v.split(',')) { const [x, y] = kv.split('='); if (x) a.params[x] = y ?? ''; } i++; }
+    else if (k === '--record-frame') { a.recordFrame = Number(v); i++; }
     else if (k === '--cpu-profile') { a.cpuProfile = profileRange(v); i++; }
     else throw new Error(`unknown argument ${k}`);
   }
   if (!a.game || !a.script) throw new Error('usage: npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out DIR] [--params k=v,...] [--cpu-profile START:END] [--port N]');
+  if (a.recordFrame !== undefined && (!Number.isSafeInteger(a.recordFrame) || a.recordFrame < 0)) throw new Error('--record-frame must be a nonnegative update index');
   if (!['webgl2', 'webgpu'].includes(a.backend)) throw new Error('--backend must be webgl2 or webgpu');
   return a;
 }
@@ -170,6 +172,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     browser = await chromium.launch(a.backend === 'webgpu' ? { channel: 'chromium', args: WEBGPU_ARGS } : {});
     const ctx = await browser.newContext({ baseURL: server.url, viewport: { width: 960, height: 540 } });
     page = await ctx.newPage();
+    let recordingEnded = false, recordingSequence = 0;
+    if (a.recordFrame !== undefined) {
+      const file = join(out, 'frame-recording.ndjson');
+      writeFileSync(file, JSON.stringify({ schema: 'game-cask/renderer-recording/1', type: 'header',
+        fromStartup: true, targetUpdate: a.recordFrame }) + '\n');
+      log.artifacts.push(file);
+      await page.exposeBinding('__BGT_RECORD_FRAME__', (_source, frame) => {
+        if (recordingEnded) return false;
+        if (frame.update > a.recordFrame) throw new Error('Recorder skipped target update');
+        appendFileSync(file, JSON.stringify({ ...frame, sequence: recordingSequence++ }) + '\n');
+        if (frame.update === a.recordFrame) {
+          appendFileSync(file, JSON.stringify({ type: 'end', frames: recordingSequence, targetUpdate: a.recordFrame }) + '\n');
+          recordingEnded = true;
+        }
+        return !recordingEnded;
+      });
+    }
     page.on('console', (m) => log.console.push(`${m.type()}: ${m.text()}`));
     page.on('pageerror', (e) => log.errors.push(e.message));
     const api = (fn, ...args) => page.evaluate(([f, x]) => window.__BGT_TEST__[f](...x), [fn, args]);
@@ -177,6 +196,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler });
     await p.start();
     await script.default(p);
+    if (a.recordFrame !== undefined && !recordingEnded) throw new Error('Recording incomplete: script did not render target update');
     if(profiler) { await profiler.finish((await api('diagnostics')).frame);profiler=null; }
     const coverage=await page.evaluate(() => window.__BGT_TEST__?.coverage?.());
     if(coverage){const file=join(out,'coverage.json');writeFileSync(file,JSON.stringify(coverage,null,2)+'\n');log.artifacts.push(file);}

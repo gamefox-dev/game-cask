@@ -30,6 +30,7 @@
     "test:e2e:webgpu": "npm run build:examples && BGT_RESULTS_PREFIX=e2e BGT_REQUIRE_WEBGPU=1 playwright test --project=chromium-webgpu",
     "test:port": "npm run build:port && BGT_PORT_TESTS=1 BGT_RESULTS_PREFIX=e2e-port playwright test --project=port-webgl2 --project=port-webgpu",
     "probe": "node tools/probe/probe.mjs",
+    "probe:replay": "node tools/probe/frame-replay.mjs",
     "inspect": "node tools/inspect/inspect.mjs",
     "report": "node tools/report/report.mjs",
     "leakcheck": "node tools/report/leakcheck.mjs",

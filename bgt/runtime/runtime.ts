@@ -24,7 +24,7 @@ import {
   GPU_CONTINUATION_LIMITS,
   OP,
 } from './abi';
-import type { CommandError, DecodeResult } from './commands';
+import type { CommandError, DecodeResult, Frame } from './commands';
 import { GameHost, InputSnapshot, emptyInput, OutsideSlice } from './host';
 import { Vfs } from './vfs';
 import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
@@ -149,6 +149,8 @@ export class BGTRuntime {
   manifest: Manifest | null = null;
   host: GameHost | null = null;
   renderer: Renderer | null = null;
+  /** Debug recorder only; awaited before rendering so uploads cannot race frame consumption. */
+  frameObserver?: (frame: Frame, letterbox: Letterbox, update: number, width: number, height: number) => Promise<void>;
   canvas: HTMLCanvasElement;
   readonly vfs = new Vfs();
   readonly audio = new WebAudioSink();
@@ -625,6 +627,7 @@ export class BGTRuntime {
     let out: Pixels | null | Promise<Pixels | null> = null;
     const gpuStart=performance.now();
     try {
+      await this.frameObserver?.(frame, this.letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
       out = await r.drawFrame(frame, this.letterbox, readback);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
