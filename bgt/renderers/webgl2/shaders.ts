@@ -56,7 +56,7 @@ function selectorMixOverloads(source: string): string {
 
 export function translateShader(source: string, stage: number, language: number): string {
   if (language !== 1 && language !== 2) throw new Error('WGSL requires WebGPU');
-  source = specializeOpaqueSamplers(source);
+  source = specializeOpaqueSamplers(source, language);
   const clean = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, comment => comment.replace(/[^\n]/g, ' '));
   validateNativeLvalues(clean);
   const version = language === 1 ? /^\s*#version[ \t]+330[ \t]+core[ \t]*(?:\r?\n|$)/ :

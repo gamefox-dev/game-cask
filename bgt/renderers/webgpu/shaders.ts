@@ -94,7 +94,7 @@ class GLSL {
     source = source.slice(match[0].length);
     if (/#/.test(source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')))
       throw new Error('GLSL: preprocessor directives other than #version are not supported');
-    this.tokens = lex('\n' + specializeOpaqueSamplers(source));
+    this.tokens = lex('\n' + specializeOpaqueSamplers(source, language));
     this.variables.set('gl_Position', { code: 'bgt_internal_position', type: 'vec4f', place: 'bgt_internal_position' });
     for (const n of ['bgt_vertex_index', 'bgt_instance_index']) this.variables.set(n, { code: n, type: 'u32' });
     for (const n of ['bgt_frag_coord', 'gl_FragCoord'])
@@ -475,7 +475,10 @@ class GLSL {
           if (v !== undefined) this.intConsts.set(n, { value: BigInt(v), unsigned: type === 'u32' });
         }
         this.locals.add(n);
-        parts.push(...this.pending.splice(0), `${constant && value?.constant ? 'const' : constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
+        // GLSL constant provenance is for GLSL validation/offset expansion, not
+        // WGSL const-evaluability. Matrix constructors/comparisons and numeric
+        // builtins may lower to runtime helper calls, so use immutable let storage.
+        parts.push(...this.pending.splice(0), `${constant ? 'let' : 'var'} ${n}: ${array}${init ? ` = ${init}` : ''};`);
       } while (this.eat(','));
       result = parts.join('\n');
     } else {
