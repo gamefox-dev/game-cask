@@ -455,11 +455,15 @@ flattens those uniforms, arrays/structs, blocks and constant sampler-array eleme
 the WG frontend supports user structs and local out/inout arguments. Both renderers restore uploaded resources
 but lose rendered attachments and emit reset/targets-lost events; unrecoverable resources are never silently migrated.
 
-K20 **WIP, not Tier 1 validated** replaces the 255-name tables with ABI-sized 1023-slot tables and full-GLuint
-name lookup; textures/renderbuffers share 1001 storage handles and buffers/program uniforms share 1015, excluding
-retained private reservations. Pipeline caches remain 128 descriptors (sampler descriptors now ABI-sized), one current
-WGL context and one shader per stage. Fresh >600-object native pixels and exhaustion metrics pass both backends;
-full Tier 1 remains incomplete. See [K20 checkpoint](handoff/K20.md) for results and the accepted unbound-FBO lifetime wire delta. The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
+K20 replaces the 255-name tables with ABI-sized **1023-slot tables and full-GLuint name lookup** in all nine
+supported object namespaces. Textures/renderbuffers share 1001 storage handles and buffers/program uniforms share
+1015, excluding retained private reservations; ABI ceilings and byte budgets are unchanged. Exhaustion raises
+GL_OUT_OF_MEMORY with per-namespace live/peak/failure metrics and diagnostics. Pipeline caches remain 128 descriptors
+(sampler descriptors now ABI-sized), one current WGL context and one shader per stage. **Tier 1 passes**: 1981 units,
+287 browser passes/51 existing skips, and 32 pipeline oracles ×300 frames; cold before/after native capacity pixels
+and exhaustion metrics pass both backends. Independent validation is reviewer-owned and pending. See
+[K20 handoff](handoff/K20.md) for limits, the accepted unbound-FBO lifetime wire delta, and porter follow-up.
+The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 16 KiB ordinary uniform data,
 8 samplers/7 user blocks); texture uploads remain bounded by the ABI. K6a adds color texture/FBO readback and
 validated pixel-store conversion, nonzero mips, renderbuffers and multiple draw buffers. No cube/1D/rectangle/MSAA,
 layered/3D attachment, depth transfer or integer/SNORM/compressed-format support is claimed. Array-shadow/integer
