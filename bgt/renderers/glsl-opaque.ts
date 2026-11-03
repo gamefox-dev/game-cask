@@ -7,6 +7,7 @@ interface Parameter { type: string; name: string; text: string; opaque: boolean 
 interface FunctionDecl { name: string; prefix: string; params: Parameter[]; body?: string; a: number; b: number }
 const sampler = /^(?:[iu]?sampler)(?:1D|2D|3D|Cube|2DRect|Buffer|1DArray|2DArray|2DMS|2DMSArray)(?:Shadow)?$/;
 const qualifiers = new Set(['const', 'in', 'out', 'inout', 'highp', 'mediump', 'lowp']);
+const textureBuiltin = /^(?:texture(?:Lod|Grad|Size|Proj|Offset|ProjLod|ProjGrad|ProjOffset|LodOffset|GradOffset|Gather|GatherOffset|QueryLod|QueryLevels|ProjLodOffset|ProjGradOffset|Samples)?|texelFetch(?:Offset)?)$/;
 function tokens(source: string): Token[] {
   return [...source.matchAll(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|[A-Za-z_]\w*|0[xX][\da-fA-F]+[uU]?|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?[uUfF]?|\S/g)]
     .filter(m => !m[0].startsWith('/*') && !m[0].startsWith('//'))
@@ -31,7 +32,7 @@ function parts(t: Token[], a: number, b: number): [number, number][] {
   if (start < b) result.push([start, b]);
   return result;
 }
-export function specializeOpaqueSamplers(source: string): string {
+export function specializeOpaqueSamplers(source: string, language = /^\s*#version\s+300\s+es\b/.test(source) ? 2 : 1): string {
   const t = tokens(source), declarations: FunctionDecl[] = [], uniforms = new Map<string, string>(), uniformArrays = new Set<string>();
   // Find top-level declarations without attempting to reinterpret expression syntax.
   for (let i = 0; i < t.length; i++) {
@@ -95,6 +96,9 @@ export function specializeOpaqueSamplers(source: string): string {
   const parameterText = (d: FunctionDecl, p: Parameter) => p.text.replace(/\b[A-Za-z_]\w*\b/g, name => parameterNames.get(d)?.get(name) ?? name);
   const rewrite = (text: string, env: Map<string, string | undefined>, validationOnly = false, opaqueParameters: ReadonlyMap<string, string> = new Map()): string => {
     const ts = tokens(text); let out = '', from = 0;
+    const userCalls = new Set<number>();
+    // Desktop overload sets include builtins; ES user declarations hide them.
+    const builtinFallback = (name: string) => language === 1 && textureBuiltin.test(name);
     const structRanges: [number, number][] = [];
     for (let i = 0; i < ts.length; i++) if (ts[i].text === 'struct') {
       const brace = ts[i + 1]?.text === '{' ? i + 1 : i + 2;
@@ -148,7 +152,8 @@ export function specializeOpaqueSamplers(source: string): string {
           const type = candidate ? (opaqueParameters.get(candidate) ?? uniforms.get(candidate)) : undefined;
           return p.opaque ? type === p.type : type === undefined;
         }));
-        if (!matching.length) throw new Error(`GLSL: no matching opaque helper overload '${token.text}' (pass unmodified sampler identities with matching types and argument count)`);
+        if (!matching.length && !builtinFallback(token.text)) throw new Error(`GLSL: no matching opaque helper overload '${token.text}' (pass unmodified sampler identities with matching types and argument count)`);
+        if (matching.length) userCalls.add(i + 1);
       }
       if (validationOnly && opaqueValue) {
         if ((ts[i + 1]?.text === '[') !== (!opaqueParameters.has(actual!) && uniformArrays.has(actual!)))
@@ -163,18 +168,22 @@ export function specializeOpaqueSamplers(source: string): string {
           else if (ts[p].text === ',' && callStack.length) callStack[callStack.length - 1].arg++;
         }
         const call = callStack[callStack.length - 1];
-        const builtin = call?.arg === 0 && /^(?:texture(?:Lod|Grad|Size|Proj|Offset|ProjLod|ProjGrad|ProjOffset|LodOffset|GradOffset|Gather|GatherOffset|QueryLod|QueryLevels|ProjLodOffset|ProjGradOffset|Samples)?|texelFetch(?:Offset)?)$/.test(call.name);
-        if (builtin && ['texture', 'textureLod', 'textureGrad', 'texelFetch', 'textureSize'].includes(call.name)) {
+        // Resolve user overloads before validating any texture-builtin shape. A
+        // legal helper can use a builtin name with entirely different arguments.
+        const builtin = call?.arg === 0 && !userCalls.has(call.open) && textureBuiltin.test(call.name);
+        if (builtin && /^(?:texture(?:Proj)?(?:Lod|Grad)?(?:Offset)?|textureSize|texelFetch(?:Offset)?)$/.test(call.name)) {
           const args = parts(ts, call.open + 1, closing(ts, call.open));
-          const count = call.name === 'texture' ? [2, 3] : [call.name === 'textureGrad' ? 4 : call.name === 'textureSize' ? 2 : 3];
+          const base = call.name.replace('Proj','').replace('Offset',''), offset = Number(call.name.endsWith('Offset'));
+          const count = (base === 'texture' ? [2, 3] : [base === 'textureGrad' ? 4 : base === 'textureSize' ? 2 : 3]).map(n=>n+offset);
           const type = opaqueParameters.get(actual!) ?? uniforms.get(actual!);
-          if (/^(?:[iu]?sampler2D|sampler3D|sampler2DArray|sampler2DShadow)$/.test(type ?? '')) {
+          if (/^(?:[iu]?sampler(?:2D|3D|2DArray)|sampler2DShadow)$/.test(type ?? '')) {
             if (!count.includes(args.length)) throw new Error('GLSL: invalid opaque texture builtin argument count');
             if (call.name !== 'textureSize') {
               const [ca, cb] = args[1], constructor = ts[ca]?.text;
-              const expected = call.name === 'texelFetch' ? (type === 'sampler3D' || type === 'sampler2DArray' ? 'ivec3' : 'ivec2') :
-                type === 'sampler3D' || type === 'sampler2DArray' || type === 'sampler2DShadow' ? 'vec3' : 'vec2';
-              if (/^(?:[iub]?vec[234]|float|int|uint|bool|mat\w+)$/.test(constructor) && ts[ca + 1]?.text === '(' && closing(ts, ca + 1) === cb - 1 && constructor !== expected)
+              const dimensional = /(?:3D|2DArray|2DShadow)$/.test(type!);
+              const expected = call.name.includes('Proj') ? dimensional ? ['vec4'] : ['vec3','vec4'] :
+                [base === 'texelFetch' ? dimensional ? 'ivec3' : 'ivec2' : dimensional ? 'vec3' : 'vec2'];
+              if (/^(?:[iub]?vec[234]|float|int|uint|bool|mat\w+)$/.test(constructor) && ts[ca + 1]?.text === '(' && closing(ts, ca + 1) === cb - 1 && !expected.includes(constructor))
                 throw new Error('GLSL: invalid opaque texture builtin coordinate type');
             }
           }
@@ -187,7 +196,10 @@ export function specializeOpaqueSamplers(source: string): string {
         const end = closing(ts, i + 1), args = parts(ts, i + 2, end), actuals = args.map(([a, b]) => identity(a, b));
         const matching = declarations.filter(d => d.name === token.text && d.params.length === args.length &&
           d.params.every((p, k) => p.opaque ? !!actuals[k] && uniforms.get(actuals[k]!) === p.type : !actuals[k]));
-        if (!matching.length) throw new Error(`GLSL: no matching opaque helper overload '${token.text}' (pass unmodified sampler identities with matching types and argument count)`);
+        if (!matching.length) {
+          if (builtinFallback(token.text)) continue;
+          throw new Error(`GLSL: no matching opaque helper overload '${token.text}' (pass unmodified sampler identities with matching types and argument count)`);
+        }
         if (matching.some(d => !d.params.some(p => p.opaque))) continue;
         let family: string | undefined;
         for (const decl of matching.filter(d => d.body !== undefined)) {

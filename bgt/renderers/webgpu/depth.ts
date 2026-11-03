@@ -3,6 +3,8 @@
 export interface DepthSampling { binding: number; sampler: readonly number[] }
 
 export function lowerDepthSampling(source: string, sampling: readonly DepthSampling[]): string {
+  const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
+  const literal = (value: number) => Number.isInteger(value) ? value + '.0' : String(value);
   let helpers = '';
   for (const { binding, sampler: s } of sampling) {
     const declaration = new RegExp(
@@ -12,6 +14,8 @@ export function lowerDepthSampling(source: string, sampling: readonly DepthSampl
       new RegExp(`@binding\\s*\\(\\s*${binding}u?\\s*\\)`).test(m[1]));
     if (!found) continue;
     const texture = found[2], name = `bgt_internal_depth_${binding}`;
+    const lo = s[3] === 0 ? Math.floor(float(s[9] ?? 0)) : float(s[9] ?? 0);
+    const hi = s[3] === 0 ? lo : float(s[10] ?? 0x42000000);
     const wrap = (axis: string, mode: number) => mode === 0 ? `clamp(${axis}, 0, size - 1)` : mode === 1 ?
       `((${axis} % size) + size) % size` :
       `size - 1 - abs((((${axis} % (size * 2)) + size * 2) % (size * 2)) - size)`;
@@ -26,20 +30,21 @@ fn ${name}_load(p: vec2i, level: i32) -> f32 {
   let size = vec2i(textureDimensions(${texture}, level));
   return textureLoad(${texture}, vec2i(${name}_x(p.x,size.x), ${name}_y(p.y,size.y)), level);
 }
-fn ${name}_level(uv: vec2f, level: i32, linear: bool) -> f32 {
+fn ${name}_level(uv: vec2f, level: i32, linear: bool, offset: vec2i) -> f32 {
   let p = uv * vec2f(textureDimensions(${texture}, level));
-  if (!linear) { return ${name}_load(vec2i(floor(p)), level); }
-  let base = vec2i(floor(p - vec2f(0.5))); let a = fract(p - vec2f(0.5));
+  if (!linear) { return ${name}_load(vec2i(floor(p)) + offset, level); }
+  let base = vec2i(floor(p - vec2f(0.5))) + offset; let a = fract(p - vec2f(0.5));
   return mix(mix(${name}_load(base,level), ${name}_load(base+vec2i(1,0),level), a.x),
     mix(${name}_load(base+vec2i(0,1),level), ${name}_load(base+vec2i(1,1),level), a.x), a.y);
 }
-fn ${name}(uv: vec2f, lod: f32) -> f32 {
-  let level = clamp(lod, 0.0, f32(textureNumLevels(${texture}) - 1u));
-  let linear = select(${s[2] === 1}, ${s[1] === 1}, lod > 0.0);
-  ${s[3] === 0 ? `return ${name}_level(uv,0,linear);` : s[3] === 1 ?
-    `return ${name}_level(uv,i32(floor(level+0.5)),linear);` :
+fn ${name}(uv: vec2f, lod: f32, offset: vec2i) -> f32 {
+  let effective = clamp(lod, ${literal(lo)}, ${literal(hi)});
+  let level = clamp(${s[3] === 0 ? literal(Math.floor(float(s[9] ?? 0))) : 'effective'}, 0.0, f32(textureNumLevels(${texture}) - 1u));
+  let linear = select(${s[2] === 1}, ${s[1] === 1}, effective > 0.0);
+  ${s[3] === 0 ? `return ${name}_level(uv,i32(level),linear,offset);` : s[3] === 1 ?
+    `return ${name}_level(uv,i32(floor(level+0.5)),linear,offset);` :
     `let low=i32(floor(level)); let high=min(low+1,i32(textureNumLevels(${texture}))-1);
-     return mix(${name}_level(uv,low,linear),${name}_level(uv,high,linear),fract(level));`}
+     return mix(${name}_level(uv,low,linear,offset),${name}_level(uv,high,linear,offset),fract(level));`}
 }
 `;
     let implicit = false, bias = false;
@@ -57,19 +62,21 @@ fn ${name}(uv: vec2f, lod: f32) -> f32 {
         }
       }
       if (args[0] !== texture) continue;
-      if (args.length !== (match[1] === 'textureSample' ? 3 : match[1] === 'textureSampleGrad' ? 5 : 4))
-        throw new Error('WGSL: depth sample offsets must be flattened by the profile');
+      const count = match[1] === 'textureSample' ? 3 : match[1] === 'textureSampleGrad' ? 5 : 4;
+      if (args.length !== count && args.length !== count + 1) throw new Error('WGSL: invalid depth sample argument count');
+      const sampleOffset = args.length === count + 1 ? args.pop()! : 'vec2i(0)';
       const uv = args[2], size = `vec2f(textureDimensions(${texture},0))`;
       const dx = match[1] === 'textureSampleGrad' ? args[3] : `dpdx(${uv})`;
       const dy = match[1] === 'textureSampleGrad' ? args[4] : `dpdy(${uv})`;
-      let lod = `log2(max(length((${dx})*${size}),length((${dy})*${size})))`;
+      // Guard zero footprints before log2: magnification is defined for constant coordinates.
+      let lod = `log2(max(1.17549435e-38,max(length((${dx})*${size}),length((${dy})*${size}))))`;
       if (match[1] === 'textureSampleLevel') lod = args[3];
-      let replacement = `${name}(${uv},${lod})`;
+      let replacement = `${name}(${uv},${lod},${sampleOffset})`;
       if (match[1] === 'textureSample' || match[1] === 'textureSampleBias') {
         implicit = true;
         if (match[1] === 'textureSampleBias') bias = true;
         replacement = `${name}_${match[1] === 'textureSampleBias' ? 'bias' : 'implicit'}` +
-          `(${uv}${match[1] === 'textureSampleBias' ? ', ' + args[3] : ''})`;
+          `(${uv}${match[1] === 'textureSampleBias' ? ', ' + args[3] : ''}, ${sampleOffset})`;
       }
       output += source.slice(offset, match.index) + replacement;
       offset = end; call.lastIndex = end;
@@ -78,12 +85,12 @@ fn ${name}(uv: vec2f, lod: f32) -> f32 {
     if (implicit) helpers += `
 fn ${name}_lod(uv: vec2f) -> f32 {
   let size = vec2f(textureDimensions(${texture},0));
-  return log2(max(length(dpdx(uv)*size),length(dpdy(uv)*size)));
+  return log2(max(1.17549435e-38,max(length(dpdx(uv)*size),length(dpdy(uv)*size))));
 }
-fn ${name}_implicit(uv: vec2f) -> f32 { return ${name}(uv,${name}_lod(uv)); }
+fn ${name}_implicit(uv: vec2f, offset: vec2i) -> f32 { return ${name}(uv,${name}_lod(uv),offset); }
 `;
     if (bias) helpers += `
-fn ${name}_bias(uv: vec2f, bias: f32) -> f32 { return ${name}(uv,${name}_lod(uv)+bias); }
+fn ${name}_bias(uv: vec2f, bias: f32, offset: vec2i) -> f32 { return ${name}(uv,${name}_lod(uv)+bias,offset); }
 `;
   }
   return source + helpers;
