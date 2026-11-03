@@ -5,6 +5,7 @@
 import type { BGTDiagnostics, BGTRuntime } from './runtime';
 import type { DecodeResult } from './commands';
 import type { TestInputEvent } from '../input/input';
+import { recordFrame, type RecordedFrame } from '../renderers/recording';
 
 export type BGTTestInputEvent = TestInputEvent;
 
@@ -56,6 +57,10 @@ function unb64(s: string): Uint8Array<ArrayBuffer> {
 }
 
 export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
+  // The probe exposes this binding BEFORE navigation/startup. No late resource checkpoint,
+  // no native readback replaced by CPU shadows, and no recorder in ordinary production builds.
+  const sink = (window as unknown as { __BGT_RECORD_FRAME__?: (frame: RecordedFrame) => Promise<boolean> }).__BGT_RECORD_FRAME__;
+  if (sink) rt.frameObserver = async (...args) => { if (!await sink(recordFrame(...args))) rt.frameObserver = undefined; };
   const api: BGTTestAPI = {
     ready: () => rt.ready && !rt.failed,
     pause: () => rt.pause(),
