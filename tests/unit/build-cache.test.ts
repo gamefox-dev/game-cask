@@ -64,6 +64,18 @@ it('real compiler dependencies invalidate exactly affected objects, including tr
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 30_000);
 
+it('reports exact per-object miss inputs while preserving unaffected objects', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-miss-reasons-'));
+  try {
+    const src = join(dir, 'lifted.c'), hdr = join(dir, 'lift.h');
+    writeFileSync(hdr, '#define VALUE 1\n'); writeFileSync(src, '#include "lift.h"\nint value(void){return VALUE;}\n');
+    const cfg = {sources:[src],flags:['-O0'],includes:[dir],compiler:{path:'cc',prefix:[],version:'reason-test'},cache:join(dir,'objects'),root:dir};
+    const first = prepareObjects(cfg); expect(first[0].miss_reasons[0].input).toBe('cold');
+    writeFileSync(hdr, '#define VALUE 2\n'); const changed = prepareObjects(cfg);
+    expect(changed[0].miss_reasons.some((r: any) => r.input === 'header' && r.path.endsWith('lift.h'))).toBe(true);
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
 it('native host reference objects use the same dependency cache without a zig-only cc prefix', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-native-cache-'));
   try {

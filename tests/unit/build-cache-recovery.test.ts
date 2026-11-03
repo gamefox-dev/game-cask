@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as d:
  assert not os.path.exists(out+'.key'),'stale A key still validates B code'
  cfg['tasks'][0]['key']='A'
  with patch('sys.stdin',io.StringIO(json.dumps(cfg))),patch('subprocess.run',command):m['main']()
- assert open(out+'.key').read()=='A'
+ assert json.load(open(out+'.key'))['key']=='A'
 `;
   const out=execFileSync('python3',['-I','-c',script],{cwd:ROOT,encoding:'utf8'});
   expect(JSON.parse(out).chunks_lifted).toBe(1);

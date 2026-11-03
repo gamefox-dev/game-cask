@@ -26,6 +26,7 @@ import { peMetadata } from '../inspect/pe.mjs';
 import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
+import { prepareObjects } from './objects.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -43,15 +44,19 @@ function hostCC() {
 
 /** Build (or reuse) the native x86tool. */
 export function x86tool() {
-  const srcs = ['tools/x86/x86tool.c', 'platforms/x86/x86_decode.c',
-    'platforms/x86/x86_decode.h', 'platforms/x86/x86.h',
-    'tools/x86/lift64.h', 'tools/x86/lift64_guard.h'].map((s) => join(ROOT, s));
-  const h = sha256(Buffer.concat(srcs.map((s) => readFileSync(s)))).slice(0, 16);
-  const out = join(CACHE, `x86tool-${h}`);
+  const [cc, ...prefix] = hostCC();
+  const flags = ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror'];
+  const compiler = { path: cc, prefix, version: execFileSync(cc, [...prefix, '--version'], { encoding: 'utf8' }) };
+  const toolSources = ['tools/x86/x86tool.c', 'platforms/x86/x86_decode.c'].map((s) => join(ROOT, s));
+  const objectDir = join(CACHE, 'x86tool-objects');
+  const objects = prepareObjects({ sources: toolSources, includes: [], flags, compiler, cache: objectDir });
+  const h = sha256(JSON.stringify(objects.map((o) => basename(o.out))));
+  const out = join(CACHE, 'x86tool-' + h);
   if (!existsSync(out)) {
-    mkdirSync(CACHE, { recursive: true });
-    const [cc, ...pre] = hostCC();
-    execFileSync(cc, [...pre, '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o', out, srcs[0], srcs[1]], { stdio: 'inherit' });
+    for (const batch of [objects, [{ out, args: [cc, ...prefix, ...objects.map((o) => o.out)] }]])
+      execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
+        input: JSON.stringify({ objects: batch, jobs: 1 }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
+      });
   }
   return out;
 }
@@ -108,7 +113,7 @@ export function buildFixture(gameDir, fx, outDir) {
     const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
     const link = ['zig',...args.filter((a)=>!inputs.includes(a))];
     link.splice(link.indexOf('-o'),0,...objects.map((o)=>o.out));
-    const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
+    const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
     writeFileSync(join(outDir,'fixture-metrics.json'),JSON.stringify(metrics));
     const keep = new Set(objects.map((o)=>o.out));
     for (const f of readdirSync(dir)) if (f !== '.locks' && !keep.has(join(dir,f))) rmSync(join(dir,f),{force:true});
@@ -382,8 +387,15 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
   const nativeLiftSymbols=mode64 ? liftedSources.flatMap(f=>[...readFileSync(f,'utf8').matchAll(/\bvoid ([FNR]_[0-9a-f]{8}(?:_[0-9a-f]{8})?)\([^)]*\)\s*\{/g)].map(m=>m[1])) : [];
   const generated = liftedSources.reduce((n, f) => n + lines(f), 0) + lines(driver);
   const handwritten = [...ov.files, ...(cfg.sources ?? []).map((s) => join(gameDir, s))].filter(existsSync).reduce((n, f) => n + lines(f), 0);
+  const phaseTimings = mods.reduce((t, m) => {
+    t.analysis_ms += m.scale?.analysis_ms ?? 0;
+    t.lift_ms += m.scale?.lift_ms ?? 0;
+    t.c_generation_cpu_ms += m.scale?.c_generation_cpu_ms ?? 0;
+    return t;
+  }, {analysis_ms: 0, lift_ms: 0, c_generation_cpu_ms: 0});
   const report = {
     schema: 'game-cask/pipeline/1',
+    timings: phaseTimings,
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
     liftPolicy: policy,

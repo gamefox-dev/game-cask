@@ -1,5 +1,5 @@
 /* AMD64 labelled C with scalar register locals and explicit synchronization boundaries. MIT. */
-#include "../../platforms/x86/x86.h"
+#include "../../platforms/x86/x86_arch.h"
 #define L64_FLAGS (F_CF | F_PF | F_AF | F_ZF | F_SF | F_OF)
 static uint32_t l64_used, l64_written;
 static int lift_inline_memory, lift_inline_alu, lift_affine_counting, lift_optimize_small;
@@ -303,7 +303,7 @@ static int l64_entry_cmp(const void *a, const void *b) {
     return x > y ? 1 : x < y ? -1 : 0;
 }
 static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
-    fprintf(o, "/* GENERATED AMD64 register-local code. */\n#include \"x86_lift64.h\"\n#include \"bgt.h\"\n");
+    fprintf(o, "/* GENERATED AMD64 register-local code. */\n#include \"x86_lift64.h\"\n");
     vec_t order = {0}, ends = {0};
     /* Bound optimizer CFG size independently of guest function size. Internal region entries still
      * cover every landing pad; edges across regions return to the registry without interpreting. */

@@ -156,7 +156,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const release = leaseCache(cache,objects.map((o)=>o.out));
       try {
         pruneCache(cache,budget);
-        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
         touchCache(objects.map((o)=>o.out));
       } finally {release();}
       compileMetrics.object_cache = pruneCache(cache,budget);
@@ -322,10 +322,15 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   if (pipe) {
     manifest.pipeline = pipe.report;
     const instructions = pipe.report.modules.reduce((n,m) => n+(m.lift ? m.lift.specialized+m.lift.generic : 0),0);
-    manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+    manifest.pipeline.metrics = { ...compileMetrics, phase_timings: {
+      analysis_ms: pipe.report.timings?.analysis_ms ?? 0, lift_ms: pipe.report.timings?.lift_ms ?? 0,
+      c_generation_cpu_ms: pipe.report.timings?.c_generation_cpu_ms ?? 0, compile_ms: compileMetrics?.compile_ms ?? 0,
+      link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
+      phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
+      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
-    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, Asyncify ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'})`);
+    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, phases analysis wall/lift wall/Cgen CPU ${pipe.report.timings?.analysis_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.lift_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.c_generation_cpu_ms?.toFixed(1) ?? 0} ms, wasm-opt ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'}), cache misses ${compileMetrics.object_cache_decisions?.filter((o) => !o.hit).length ?? compileMetrics.objects_compiled}`);
   }
   if (check) {
     rmSync(outDir, { recursive: true, force: true });

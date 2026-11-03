@@ -105,6 +105,28 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       writeFileSync(temp, JSON.stringify({ inventory, sourceHash, dependencies: deps })); renameSync(temp, manifest);
     }
     const key = objectKey({ compiler: identity, flags, file, dependencies: deps, root });
-    return { out: join(cache, key + '.o'), args: [compiler.path, ...prefix, ...flags, '-c', file] };
+    const out = join(cache, key + '.o');
+    // Diagnostic history only: never used to decide validity or choose a key.
+    const history = join(dependencyDir, digest(file) + '.last.json');
+    const current = { compiler: identity, flags, sourceHash, dependencies: deps, key };
+    let previous;
+    try { previous = JSON.parse(readFileSync(history, 'utf8')); }
+    catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
+    const reasons = [];
+    if (!existsSync(out)) {
+      if (!previous) reasons.push({ input: 'cold', detail: 'no previous input snapshot' });
+      else {
+        for (const input of ['compiler', 'flags']) if (JSON.stringify(previous[input]) !== JSON.stringify(current[input])) reasons.push({ input });
+        if (previous.sourceHash !== sourceHash) reasons.push({ input: 'source', path: logicalPath(file, root) });
+        const before = new Map(previous.dependencies), after = new Map(deps);
+        for (const path of new Set([...before.keys(), ...after.keys()])) if (path !== file && before.get(path) !== after.get(path))
+          reasons.push({ input: 'header', path: logicalPath(path, root), change: !before.has(path) ? 'added' : !after.has(path) ? 'removed' : 'content' });
+        if (!reasons.length) reasons.push({ input: 'payload', detail: 'not present (evicted, interrupted or never compiled)' });
+      }
+    }
+    const temp = history + '.' + process.pid + '.tmp';
+    writeFileSync(temp, JSON.stringify(current)); renameSync(temp, history);
+    return { out, source: logicalPath(file, root), miss_reasons: reasons,
+      args: [compiler.path, ...prefix, ...flags, '-c', file] };
   });
 }
