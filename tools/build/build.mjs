@@ -81,6 +81,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  for (const value of [cfg.pipeline?.jspi, cfg.jspi])
+    if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
+  const emitJspi = cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1');
   // Measurement/debug override; 0 preserves the old monolithic orchestration.
   if (cfg.pipeline && process.env.BGT_CHUNK_INSNS !== undefined) cfg.pipeline.chunkInstructions=Number(process.env.BGT_CHUNK_INSNS);
   if(cfg.pipeline?.chunkInstructions !== undefined && cfg.pipeline.chunkInstructions !== 0 &&
@@ -168,6 +171,16 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   // wasm-ld --strip-debug removes both, so strip only DWARF custom sections here.
   if(pipe)writeFileSync(wasmPath,stripDwarf(readFileSync(wasmPath)));
   const preAsyncifyBytes=statSync(wasmPath).size;
+  const jspiStarted = performance.now();
+  let jspiArtifact = null;
+  if (emitJspi) {
+    // Same compiled/linked program, without whole-module Asyncify. No alternate guest semantics.
+    const bytes = readFileSync(wasmPath), hash = sha256(bytes);
+    cpSync(wasmPath, join(outDir, 'game.jspi.wasm'));
+    jspiArtifact = { url: 'game.jspi.wasm?h=' + hash.slice(0, 16), size: bytes.length, sha256: hash };
+  }
+  const jspiMs = performance.now() - jspiStarted;
+  const linkedMs = performance.now() - buildStarted;
   if(onLinkedWasm)onLinkedWasm(wasmPath);
   let asyncifyCached = false;
   const asyncifyStarted = performance.now();
@@ -310,6 +323,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     private: cfg.private ?? false,
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
+    ...(jspiArtifact ? { variants: { jspi: jspiArtifact } } : {}),
     ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
     ...(cfg.gpu ? { gpu: cfg.gpu } : {}),
     packaging,
@@ -326,6 +340,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       analysis_ms: pipe.report.timings?.analysis_ms ?? 0, lift_ms: pipe.report.timings?.lift_ms ?? 0,
       c_generation_cpu_ms: pipe.report.timings?.c_generation_cpu_ms ?? 0, compile_ms: compileMetrics?.compile_ms ?? 0,
       link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
+      ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
       phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
       asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,

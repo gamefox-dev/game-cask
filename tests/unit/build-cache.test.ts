@@ -64,6 +64,25 @@ it('real compiler dependencies invalidate exactly affected objects, including tr
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 30_000);
 
+it('discovers a new quoted-include shadow beside a transitive header outside -I roots', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-transitive-shadow-'));
+  try {
+    for (const d of ['src', 'headers', 'fallback']) mkdirSync(join(dir,d));
+    writeFileSync(join(dir,'headers/outer.h'),'#include "value.h"\n');
+    writeFileSync(join(dir,'fallback/value.h'),'#define VALUE 1\n');
+    writeFileSync(join(dir,'src/main.c'),'#include "../headers/outer.h"\nint main(void){return VALUE;}\n');
+    writeFileSync(join(dir,'src/other.c'),'int other(void){return 42;}\n');
+    const cfg = { sources: ['main.c','other.c'].map(f=>join(dir,'src',f)), flags: ['-I',join(dir,'fallback')],
+      includes: [join(dir,'fallback')], compiler: {path:'cc',prefix:[],version:'native-test'}, cache:join(dir,'objects'), root:dir };
+    const first=prepareObjects(cfg);await compile({objects:first});
+    writeFileSync(join(dir,'headers/value.h'),'#define VALUE 2\n');
+    const next=prepareObjects(cfg);
+    expect(next[0].out).not.toBe(first[0].out);expect(next[1].out).toBe(first[1].out);
+    expect((await compile({objects:next})).objects_compiled).toBe(1);
+    rmSync(join(dir,'headers/value.h'));expect(prepareObjects(cfg)[0].out).toBe(first[0].out);
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+},30_000);
+
 it('reports exact per-object miss inputs while preserving unaffected objects', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-miss-reasons-'));
   try {

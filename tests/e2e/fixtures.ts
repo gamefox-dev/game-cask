@@ -25,6 +25,15 @@ export interface Pixels {
 type Fixtures = { backendParam: string; collector: Collector };
 
 export const test = base.extend<Fixtures>({
+  // Run the unchanged browser assertions against either loader artifact. Explicit test-only opt-in.
+  page: async ({ page }, use) => {
+    if (process.env.BGT_E2E_SUSPENSION === 'jspi') await page.addInitScript(() => {
+      const url = new URL(location.href);
+      if (!url.searchParams.has('suspension')) url.searchParams.set('suspension', 'jspi');
+      history.replaceState(null, '', url);
+    });
+    await use(page);
+  },
   backendParam: ['webgl2', { option: true }],
   collector: async ({ page }, use, testInfo) => {
     const allowed: RegExp[] = [];
@@ -84,7 +93,8 @@ export async function openGame(
   params: Record<string, string> = {},
 ): Promise<'ready' | 'failed'> {
   if (backend === 'webgpu') await assertWebGPUAvailable(page, test.info());
-  const q = new URLSearchParams({ game: 'sample2d', backend, ephemeral: '1', paused: '1', ...params });
+  const q = new URLSearchParams({ game: 'sample2d', backend, ephemeral: '1', paused: '1',
+    ...(process.env.BGT_E2E_SUSPENSION === 'jspi' ? {suspension:'jspi'} : {}), ...params });
   await page.goto(`/?${q}`);
   await page.waitForFunction(() => {
     const t = (window as unknown as { __BGT_TEST__?: { ready(): boolean; failed(): boolean } }).__BGT_TEST__;

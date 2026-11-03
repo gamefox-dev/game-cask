@@ -8,7 +8,8 @@ import { execFileSync } from 'node:child_process';
 const root = resolve(process.env.BGT_BENCH_ROOT ?? '.');
 const { buildGame } = await import(pathToFileURL(join(root, 'tools/build/build.mjs')));
 const count = Number(process.env.BGT_BENCH_FUNCTIONS ?? 12000);
-const id = 'k18-scale-' + count;
+const id = process.env.BGT_BENCH_ID ?? 'k18-scale-' + count;
+if (!/^[a-z0-9_-]+$/.test(id)) throw new Error('invalid benchmark id');
 const dir = join(root, 'node_modules/.cache/k18-fixtures', id); mkdirSync(dir, {recursive:true});
 const generator = join(root, 'examples/x64-scale/generate.mjs');
 const cfg = {id, name:'Original CC0 incremental build benchmark', pipeline:{platform:'win32',
@@ -30,7 +31,7 @@ function run(scenario){
  const before=snapshot(),start=performance.now();
  try {
   const manifest=buildGame(dir,{quiet:false});
-  report.samples.push({scenario,before,after:snapshot(),wall_ms:performance.now()-start,wasm:manifest.wasm,modules:manifest.pipeline.modules,metrics:manifest.pipeline.metrics});
+  report.samples.push({scenario,before,after:snapshot(),wall_ms:performance.now()-start,wasm:manifest.wasm,variants:manifest.variants,modules:manifest.pipeline.modules,metrics:manifest.pipeline.metrics});
  }catch(error){report.samples.push({scenario,before,after:snapshot(),wall_ms:performance.now()-start,error:String(error)});throw error;}
  finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');}
 }

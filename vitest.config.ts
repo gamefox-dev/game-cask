@@ -9,5 +9,6 @@ export default defineConfig({
     ...(process.env.BGT_CI_LIGHT === '1' ? { exclude: ['tests/unit/build-chunks.test.ts'] } : {}),
     globalSetup: ['tests/unit/global-setup.ts'],
     testTimeout: 60000,
+    ...(process.env.BGT_TEST_JSPI === '1' ? { execArgv: ['--experimental-wasm-jspi'] } : {}),
   },
 });

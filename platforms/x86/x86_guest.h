@@ -211,6 +211,9 @@ int x86_is_thunk(uint32_t addr);
  * interpreter runs (and switches back to lifted code at every call into a lifted function). */
 void x86_invoke(uint32_t target, uint32_t ret_addr);
 
+/* Stable lifted instrumentation call boundary. Runtime census layout stays in x86_profile.h. */
+uint64_t x86_profile_exit(uint32_t address, uint32_t reason);
+
 /* Lifted-code helpers ------------------------------------------------------------------------- */
 /* Call from lifted code: push next, run target, verify we came back to `next`. */
 void x86_call(uint32_t target, uint32_t next);

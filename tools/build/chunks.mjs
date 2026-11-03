@@ -1,7 +1,7 @@
 // Chunk orchestration only: no instruction emission or guest semantics live here.
 import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { hashFile } from './files.mjs';
@@ -30,7 +30,11 @@ export function analyzeCached(tool, file, id, base, dir, identity) {
     const an = execFileSync(tool, ['analyze',file,'--name',id,'--base',base.toString(16)], {encoding:'utf8',maxBuffer:256<<20});
     // Do not leave the old key validating a newly written analysis after interruption.
     rmSync(out + '.key',{force:true});
-    writeFileSync(out, an); writeFileSync(out + '.key', JSON.stringify({key,sha256:digest(an)}));
+    const temp = out + '.' + process.pid + '.tmp';
+    try {
+      writeFileSync(temp, an); renameSync(temp, out);
+      writeFileSync(temp, JSON.stringify({key,sha256:digest(an)})); renameSync(temp, out + '.key');
+    } finally { rmSync(temp, {force:true}); }
   }
   return { analysis: JSON.parse(readFileSync(out,'utf8')), key, analysis_ms: performance.now()-start, analysis_cached: cached };
 }

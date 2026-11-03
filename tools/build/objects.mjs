@@ -87,13 +87,17 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
   const names = new Map();
   const inventoryOf = (dir) => { if (!names.has(dir)) names.set(dir, headerNames(dir)); return names.get(dir); };
   return sources.map((file) => {
-    const inventory = digest(JSON.stringify([...new Set([...searchDirs, dirname(file)].flatMap(inventoryOf))].sort()));
+    // Quoted includes search each including header's directory before -I paths.
+    // Inventory their parents too: a newly added sibling can shadow an old -I result.
+    const inventory = (dependencies = []) => digest(JSON.stringify([...new Set(
+      [...new Set([...searchDirs, dirname(file), ...dependencies.map(([f]) => dirname(f))])].flatMap(inventoryOf),
+    )].sort()));
     const manifest = join(dependencyDir, digest(JSON.stringify([file, flags, identity])) + '.json');
     const sourceHash = hash(file);
     let deps;
     try {
       const previous = JSON.parse(readFileSync(manifest, 'utf8'));
-      if (previous.inventory === inventory && previous.sourceHash === sourceHash &&
+      if (previous.inventory === inventory(previous.dependencies) && previous.sourceHash === sourceHash &&
           previous.dependencies.every(([f, h]) => existsSync(f) && hash(f) === h)) deps = previous.dependencies;
     } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
     if (!deps) {
@@ -102,7 +106,7 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       });
       deps = [...new Set([file, ...parseDependencies(make).map((f) => resolve(root, f))])].sort().map((f) => [f, hash(f)]);
       const temp = manifest + '.' + process.pid + '.tmp';
-      writeFileSync(temp, JSON.stringify({ inventory, sourceHash, dependencies: deps })); renameSync(temp, manifest);
+      writeFileSync(temp, JSON.stringify({ inventory: inventory(deps), sourceHash, dependencies: deps })); renameSync(temp, manifest);
     }
     const key = objectKey({ compiler: identity, flags, file, dependencies: deps, root });
     const out = join(cache, key + '.o');
