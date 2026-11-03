@@ -19,7 +19,9 @@ static void obj_uint(char *s, uint32_t *at, uint32_t v) {
     char b[10]; uint32_t n = 0; do { b[n++] = (char)('0' + v % 10); v /= 10; } while (v);
     while (n) s[(*at)++] = b[--n]; s[*at] = 0;
 }
+static void init_objects(void);
 static void object_exhaustion(const char *kind, const char *reason, uint32_t requests) {
+    init_objects();
     uint32_t live = 0, failures = 0; gl_exhaustion_events++;
     for (uint32_t i = 0; i < gl_object_count; i++) if (eq(gl_objects[i].kind, kind)) {
         GlObjects *o = &gl_objects[i]; live = object_live(o); failures = ++o->failures; o->failed_requests += requests;
@@ -70,6 +72,7 @@ static int gen_names(GlObjects *o, int32_t n) {
 }
 #define GEN_CHECK(a) if (!gen_names(OBJECTS(a), (int32_t)ARG(0))) return 0
 const char *w32_gl_objects_json(void) {
+    init_objects();
     static char json[2048]; uint32_t at = 0; obj_put(json, &at, "{");
     for (uint32_t i = 0; i < gl_object_count; i++) {
         GlObjects *o = &gl_objects[i]; if (i) obj_put(json, &at, ",");

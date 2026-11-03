@@ -154,7 +154,10 @@ static int gpu_create(Texture *t, uint32_t id, uint32_t dim, uint32_t w, uint32_
     t->gpu = id; t->gw = w; t->gh = h; t->gd = d; t->gfmt = bgt; t->gmips = mips; t->galloc = 1;
     return 1;
 }
-static void gpu_destroy(Texture *t) { if (t->gpu) SEND(0x45, t->gpu); t->gpu = 0; }
+static int gpu_destroy(Texture *t) {
+    if (t->gpu && !send(0x45, &t->gpu, 1)) return 0;
+    t->gpu = 0; return 1;
+}
 static void init_alpha_2d(Texture *t, uint32_t id) {
     (void)id; id = t->gpu;
     for (uint32_t mip = 0; mip < t->galloc; mip++) {
@@ -197,7 +200,7 @@ static void tex_image(uint32_t dim, int proxy, uint32_t level, uint32_t internal
     int reallocate = 0;
     if (level == 0) {
         reallocate = !t->gpu || t->gw != lw || t->gh != lh || (dim && t->gd != ld) || t->gfmt != f->bgt;
-        if (reallocate && t->gpu) { gpu_destroy(t); for (uint32_t n = 1; n < MAXLV; n++) t->lv[n].w = 0; }
+        if (reallocate && t->gpu) { if (!gpu_destroy(t)) return; for (uint32_t n = 1; n < MAXLV; n++) t->lv[n].w = 0; }
         if (reallocate && lw && lh && ld) {
             if (!gpu_create(t, id, dim, lw, lh, ld, f->bgt)) return;
             reallocate = 1;

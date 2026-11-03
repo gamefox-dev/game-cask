@@ -25,6 +25,10 @@ for (const [mode, marker] of [
   ['consumers', 'consumers bidirectional GL/CRT/FILE reuse random=30000'],
   ['vao', 'buffer VAO0 persistence targets=9 strict attributes/draws OK'],
   ['mapping', 'buffer mapping snapshot/flush/ranges/errors/OOM/rejection/delete OK'],
+  ['capacity-names', 'capacity names namespaces=9 slots=1023 high/shared/deferred/atomic/recovery OK'],
+  ['capacity-storage', 'capacity storage textures=1001 shared/private/byte-budget/rejected/recovery OK'],
+  ['capacity-shaders', 'capacity shader handles=1023 shared/deferred/exhaustion/recovery OK'],
+  ['capacity-failures', 'capacity failure attribution/sampler draw/retirement recovery/IsBuffer OK'],
 ]) it('GL frontend bounded host memory: ' + mode, () => {
   const result = execFileSync(exe, [mode], { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] });
   expect(result).toContain(marker);

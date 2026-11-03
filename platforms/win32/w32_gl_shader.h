@@ -20,13 +20,7 @@ static void gl_front_failure(const char *operation, char *text, uint32_t cap, ui
     w32_logf2(operation, text);
 }
 static uint32_t shader_handle(void) {
-    for (uint32_t id = 1; id <= 1023; id++) {
-        uint32_t i;
-        if (link_old && (link_old->vgpu == id || link_old->fgpu == id)) continue;
-        for (i = 1; i < N; i++)
-            if (shaders[i].gpu == id || programs[i].vgpu == id || programs[i].fgpu == id) break;
-        if (i == N) return id;
-    }
+    for (uint32_t id = 1; id <= GPU_MAX; id++) if (!gpu_shader[id]) return id;
     object_exhaustion("shaders", "GPU shader handles", 1); return 0;
 }
 static int shader_ok(uint32_t id) { return id && id < N && shaders[id].used; }
@@ -43,7 +37,7 @@ static int send_module(const char *src, uint32_t len, uint32_t stage, uint32_t *
     }
     char text[4096]; int ok = wait_request(req, text, sizeof text);
     if (text[0]) { gs_put(log, text); if (text[w32_slen(text) - 1] != '\n') gs_put(log, "\n"); }
-    if (!ok) { log->errors++; SEND(0x49, *gpu); *gpu = 0; }
+    if (!ok) { log->errors++; release_wire(0x49, *gpu, "shaders"); *gpu = 0; }
     return ok;
 }
 static void shader_free_front(Shader *s) {
@@ -129,7 +123,7 @@ static uint32_t compile_shader_build(void) {
     uint32_t id = SLOT(shaders, ARG(0)); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id]; GsLog log = {s->log, sizeof s->log, 0, 0};
     s->log[0] = 0; s->compiled = 0;
-    if (s->gpu) { SEND(0x49, s->gpu); s->gpu = 0; }
+    if (s->gpu) { release_wire(0x49, s->gpu, "shaders"); s->gpu = 0; }
     if (!s->source) { gs_put(&log, "0:1(1): error: no source has been supplied\n"); return 0; }
     if (!shader_front(s, &log)) { if (!log.errors) gs_put(&log, "0:1(1): error: shader failed to compile\n"); return 0; }
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
@@ -199,7 +193,7 @@ static uint32_t api_GetAttachedShaders(void) {
 }
 static void invalidate_pipelines(void) {
     for (uint32_t i = 0; i < pipeline_count; i++) if (pipelines[i].used) {
-        SEND(0x4b, pipelines[i].id); pipelines[i].used = 0;
+        release_wire(0x4b, pipelines[i].id, "programs"); pipelines[i].used = 0;
     }
     pipeline_count = 0;
 }
@@ -217,7 +211,7 @@ static uint32_t link_program_build(void) {
         gs_put(&log, "error: both a vertex and a fragment shader must be attached and compiled before link\n"); return 0;
     }
     invalidate_pipelines();
-    if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu); p->vgpu = p->fgpu = 0;
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs"); p->vgpu = p->fgpu = 0;
     if (!shader_link_front(&shaders[p->vs], &log) || (p->fs && !shader_link_front(&shaders[p->fs], &log))) return 0;
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "program link layout"); return 0; }
     GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));
@@ -231,13 +225,13 @@ static uint32_t link_program_build(void) {
     }
     if (!tf_link(p, vs, &log) || !gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
         !stage_module(vs, vs, fs, g, &p->vgpu, &log, p) || !stage_module(fs, vs, fs, g, &p->fgpu, &log, 0)) {
-        if (p->vgpu) { SEND(0x49, p->vgpu); p->vgpu = 0; }
+        if (p->vgpu) { release_wire(0x49, p->vgpu, "programs"); p->vgpu = 0; }
         if (!p->fs) glp_free(fs, sizeof(GsUnit));
         glp_free(g, sizeof(Gp)); if (!log.errors) gs_put(&log, "error: program failed to link\n"); return 0;
     }
     if (!p->fs) glp_free(fs, sizeof(GsUnit));
     p->values = glp_alloc(g->usize); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
-    if (p->ubuf && p->usize != g->usize) { SEND(0x42, p->ubuf); p->ubuf = 0; }
+    if (p->ubuf && p->usize != g->usize) { release_wire(0x42, p->ubuf, "programs"); p->ubuf = 0; }
     p->usize = g->usize;
     if (!p->ubuf) {
         for (uint32_t h = 256; h < 700 && !p->ubuf; h++) if (!gpu_buffer[h]) p->ubuf = h;
@@ -275,13 +269,13 @@ static uint32_t api_LinkProgram(void) {
     link_program_build();
     if (p->linked) {
         invalidate_pipelines();
-        if (old->vgpu) SEND(0x49, old->vgpu); if (old->fgpu) SEND(0x49, old->fgpu);
-        if (old->ubuf) SEND(0x42, old->ubuf);
+        if (old->vgpu) release_wire(0x49, old->vgpu, "programs"); if (old->fgpu) release_wire(0x49, old->fgpu, "programs");
+        if (old->ubuf) release_wire(0x42, old->ubuf, "programs");
         program_free_link(old);
     } else {
         char log[4096]; copy(log, p->log, sizeof log);
-        if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
-        if (p->ubuf) SEND(0x42, p->ubuf); program_free_link(p);
+        if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+        if (p->ubuf) release_wire(0x42, p->ubuf, "programs"); program_free_link(p);
         copy(p, old, sizeof *p); p->linked = 0; copy(p->log, log, sizeof log);
     }
     /* All stage parse tables die at the end of EVERY link attempt, including rollback. */
@@ -565,7 +559,7 @@ static void release_shader(uint32_t id) {
     if (!id || !shaders[id].deleted) return;
     for (uint32_t i = 1; i < N; i++)
         if (programs[i].used && (programs[i].vs == id || programs[i].fs == id)) return;
-    if (shaders[id].gpu) SEND(0x49, shaders[id].gpu);
+    if (shaders[id].gpu) release_wire(0x49, shaders[id].gpu, "shaders");
     shader_free_front(&shaders[id]);
     if (shaders[id].source) glp_free(shaders[id].source, shaders[id].source_len + 1);
     if (shaders[id].str_len) glp_free(shaders[id].str_len, (shaders[id].nstr ? shaders[id].nstr : 1) * 4);
@@ -591,9 +585,9 @@ static uint32_t api_DeleteProgram(void) {
 }
 static void release_program(uint32_t id) {
     invalidate_pipelines(); Program *p = &programs[id];
-    if (p->vgpu) SEND(0x49, p->vgpu); if (p->fgpu) SEND(0x49, p->fgpu);
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
     uint32_t vs = p->vs, fs = p->fs;
-    if (p->ubuf) SEND(0x42, p->ubuf);
+    if (p->ubuf) release_wire(0x42, p->ubuf, "programs");
     program_free_link(p); zero(p, sizeof *p); release_shader(vs); release_shader(fs);
     if (program == id) program = 0;
 }

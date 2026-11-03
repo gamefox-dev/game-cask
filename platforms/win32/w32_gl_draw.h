@@ -205,11 +205,13 @@ static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint3
         if (j == 11) return i + 1;
     }
     if (sampler_count == GPU_MAX) { object_exhaustion("samplers", "GPU sampler descriptors", 1); return 0; }
-    w[0] = ++sampler_count; copy(sampler_cache[sampler_count - 1], w, sizeof w);
+    w[0] = sampler_count + 1;
     int legacy = !w[6] && w[9] == bits(0) && (!mip || w[10] == bits(1000));
-    if (legacy) { uint32_t l[8] = {w[0], w[1], w[2], w[3], w[4], w[5], w[7], w[8]}; send(0x46, l, 8); }
-    else send(0x5b, w, 11);
-    return w[0];
+    int ok;
+    if (legacy) { uint32_t l[8] = {w[0], w[1], w[2], w[3], w[4], w[5], w[7], w[8]}; ok = send(0x46, l, 8); }
+    else ok = send(0x5b, w, 11);
+    if (!ok) { if (error == OOM) object_exhaustion("samplers", "GPU byte/submission budget", 1); return 0; }
+    copy(sampler_cache[sampler_count++], w, sizeof w); return w[0];
 }
 /* GL 3.3 completeness for sampling (8.17): returns nonzero when the texture is usable as a sampler source. */
 static int tex_complete(const Texture *t, const Sampler *s, int shadow) {
@@ -365,10 +367,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             if (t->gpu == tg.ds.gpu && (tg.has_depth || tg.has_stencil)) { fail(BAD_OP); return 0; }
             for (uint32_t c = 0; c < tg.ncolor; c++) if (!tg.gap[c] && tg.color[c].gpu == t->gpu && tg.color[c].gpu) { fail(BAD_OP); return 0; }
             bound[slot] = t->gpu; sampler_ids[slot] = sampler_id(t, so, shadow, dim);
+            if (!sampler_ids[slot]) return 0;
         } else {
             uint32_t k = p->info->slot_kind[slot];
             bound[slot] = k == 'u' || k == 'i' ? integer_fallback_texture(k == 'u') : fallback_texture(dim, shadow);
             sampler_ids[slot] = fallback_sampler(shadow, dim);
+            if (!bound[slot] || !sampler_ids[slot] || error) return 0;
         }
         smask |= 1 << slot;
     }
@@ -440,9 +444,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     }
     if (!pipe) {
         if (pipeline_count == 128) { fail(OOM); return 0; }
-        Pipeline *c = &pipelines[pipeline_count++]; c->used = 1; c->id = pipe = pipeline_count;
-        w[0] = pipe; copy(c->words, w, at * 4); c->n = at; c->hash = hash;
-        send(0x4a, w, at); if (p->tf_link_count) tf_pipeline(p, pipe); w32_gl_pipelines++;
+        for (pipe = 1; pipe <= GPU_MAX && gpu_pipeline[pipe]; pipe++);
+        if (pipe > GPU_MAX) { object_exhaustion("programs", "GPU pipeline handles", 1); return 0; }
+        w[0] = pipe; if (!send(0x4a, w, at)) return 0;
+        Pipeline *c = &pipelines[pipeline_count++]; c->used = 1; c->id = pipe;
+        copy(c->words, w, at * 4); c->n = at; c->hash = hash;
+        if (p->tf_link_count) tf_pipeline(p, pipe); w32_gl_pipelines++;
     }
     uint32_t max_index = first + (uint32_t)count - 1;
     Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : 4;

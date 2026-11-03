@@ -123,7 +123,7 @@ static uint32_t api_GetBufferSubData(void) {
         glp_free(data, (uint32_t)size);
     } else for (uint32_t i = 0; i < size; i++) x86_wr8(ARG(3) + i, b->data[offset + i]); return 0;
 }
-static uint32_t api_IsBuffer(void) { return SLOT(buffers, ARG(0)) < N && buffers[SLOT(buffers, ARG(0))].gpu != 0; }
+static uint32_t api_IsBuffer(void) { return SLOT(buffers, ARG(0)) < N && buffers[SLOT(buffers, ARG(0))].bound != 0; }
 static uint32_t api_IsTexture(void) { return SLOT(textures, ARG(0)) && SLOT(textures, ARG(0)) < N && textures[SLOT(textures, ARG(0))].kind1 != 0; }
 static uint32_t api_IsVertexArray(void) { return SLOT(vaos, ARG(0)) < N && vaos[SLOT(vaos, ARG(0))].used != 0; }
 static uint32_t api_IsShader(void) { return SLOT(shaders, ARG(0)) < N && shaders[SLOT(shaders, ARG(0))].used != 0; }
