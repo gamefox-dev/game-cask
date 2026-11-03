@@ -67,7 +67,7 @@ int main(void) {
     check(wglGetProcAddress("glBindBufferARB") != 0, "ARB alias missing");
     GLint major; glGetIntegerv(GL_MAJOR_VERSION, &major); check(major == 3, "version query failed");
     glEnable(0xffffffffu); expected(GL_INVALID_ENUM);
-    glBindBuffer(GL_ARRAY_BUFFER, 9999); expected(GL_INVALID_VALUE);
+    glVertexAttribPointer(16, 2, GL_FLOAT, GL_FALSE, 0, 0); expected(GL_INVALID_VALUE);
     glDrawArrays(GL_TRIANGLES, 0, 3); expected(GL_INVALID_OPERATION);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 3); expected(GL_INVALID_VALUE);
     OutputDebugStringA("x64-gl errors=0500,0501,0502,0501 cleared");

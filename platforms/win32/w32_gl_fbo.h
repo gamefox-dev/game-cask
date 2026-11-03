@@ -14,22 +14,24 @@ static uint32_t fbo, fbo_read, rbo, dfb_draw = 0x405, dfb_read = 0x405;
 #define FB_BOTH 0x8d40u
 
 static uint32_t api_GenRenderbuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, alloc_name(rbos, sizeof(Rbo))); return 0;
+    GEN_CHECK(rbos);
+    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, NAME(rbos, alloc_name(rbos, sizeof(Rbo)))); return 0;
 }
 static uint32_t api_BindRenderbuffer(void) {
-    if (ARG(0) != RENDERBUFFER) fail(BAD_ENUM); else if (ARG(1) >= N) fail(BAD_VALUE);
-    else { rbo = ARG(1); if (rbo) rbos[rbo].used = 1; } return 0;
+    if (ARG(0) != RENDERBUFFER) fail(BAD_ENUM); else { uint32_t id = BIND(rbos, ARG(1)); if (id < N) rbo = id; } return 0;
 }
 static void renderbuffer_storage(uint32_t internal, uint32_t w, uint32_t h) {
     const Fmt *f = image_format(internal, 1); if (!f) return;
     if (!rbo) { fail(BAD_OP); return; }
     if (w > 4096 || h > 4096 || (int32_t)w < 0 || (int32_t)h < 0) { fail(BAD_VALUE); return; }
-    Rbo *r = &rbos[rbo]; if (r->gpu) SEND(0x45, r->gpu);
+    Rbo *r = &rbos[rbo]; if (r->gpu && !send(0x45, &r->gpu, 1)) return;
     r->gpu = 0; r->w = w; r->h = h; r->internal = internal;
     if (!w || !h) return;
-    r->gpu = 256 + rbo;
-    if (f->bgt <= 6) SEND(0x43, r->gpu, w, h, 1, f->bgt, 2); else SEND(0x59, r->gpu, 0, w, h, 1, 1, f->bgt, 2);
+    uint32_t gpu = texture_handle(256 + rbo, "rbos"); if (!gpu) return;
+    int ok = f->bgt <= 6 ? send(0x43, (uint32_t[]){gpu, w, h, 1, f->bgt, 2}, 6) :
+        send(0x59, (uint32_t[]){gpu, 0, w, h, 1, 1, f->bgt, 2}, 8);
+    if (!ok) { if (error == OOM) object_exhaustion("rbos", "GPU byte/submission budget", 1); return; }
+    r->gpu = gpu;
     if (f->kind == K_COLOR && f->chans == 3 && f->bgt != 2 && f->bgt != 3) {
         begin(); uint32_t pw[14] = {1, 0, 0, 0, 0, 0, 0, r->gpu, 0, 1, 0, 0, 0, bits(1)}; op(0x4c, pw, 14); op(0x4d, 0, 0);
         submit();
@@ -60,9 +62,8 @@ static uint32_t api_GetRenderbufferParameteriv(void) {
 }
 static uint32_t api_DeleteRenderbuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
-        if (id && id < N) { if (rbos[id].gpu) SEND(0x45, rbos[id].gpu);
-            zero(&rbos[id], sizeof(Rbo)); if (rbo == id) rbo = 0;
+    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(rbos, x86_rd32(ARG(1) + i * 4));
+        if (id && id < N) { retire_name(OBJECTS(rbos), id); if (rbo == id) rbo = 0;
             uint32_t bound[2] = {fbo, fbo_read};
             for (uint32_t b = 0; b < 2; b++) if (bound[b]) { Fbo *f = &fbos[bound[b]];
                 for (uint32_t k = 0; k < 4; k++) if (f->color[k].type == 2 && f->color[k].name == id) zero(&f->color[k], sizeof(Attach));
@@ -71,22 +72,23 @@ static uint32_t api_DeleteRenderbuffers(void) {
     return 0;
 }
 static uint32_t api_GenFramebuffers(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
+    GEN_CHECK(fbos);
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = alloc_name(fbos, sizeof(Fbo));
-        if (id) { fbos[id].draw[0] = fbos[id].read = 0x8ce0; } x86_wr32(ARG(1) + i * 4, id); } return 0;
+        if (id) { fbos[id].draw[0] = fbos[id].read = 0x8ce0; } x86_wr32(ARG(1) + i * 4, NAME(fbos, id)); } return 0;
 }
 static uint32_t api_BindFramebuffer(void) {
     uint32_t t = ARG(0), id = ARG(1);
     if (t != FB_BOTH && t != FB_DRAW && t != FB_READ) { fail(BAD_ENUM); return 0; }
-    if (id >= N) { fail(BAD_VALUE); return 0; }
-    if (id && !fbos[id].used) { fbos[id].used = 1; fbos[id].draw[0] = fbos[id].read = 0x8ce0; }
+    int fresh = id && SLOT(fbos, id) == N;
+    id = BIND(fbos, id); if (id >= N) return 0;
+    if (fresh) { fbos[id].draw[0] = fbos[id].read = 0x8ce0; }
     if (t != FB_READ) fbo = id;
     if (t != FB_DRAW) fbo_read = id;
     return 0;
 }
 static uint32_t api_DeleteFramebuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + i * 4);
+    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(fbos, x86_rd32(ARG(1) + i * 4));
         if (id && id < N) { zero(&fbos[id], sizeof(Fbo)); if (fbo == id) fbo = 0; if (fbo_read == id) fbo_read = 0; } }
     return 0;
 }
@@ -113,9 +115,9 @@ static void set_attach(Fbo *f, int point, Attach v) {
 static uint32_t api_FramebufferTexture2D(void) {
     uint32_t id; Fbo *f = target_fbo(ARG(0), &id); if (!f) return 0;
     int point = attach_point(ARG(1)); if (point < 0) return 0;
-    uint32_t tex = ARG(3), level = ARG(4);
+    uint32_t tex = SLOT(textures, ARG(3)), level = ARG(4);
     if (tex && ARG(2) != TEXTURE_2D) { fail(BAD_ENUM); return 0; }
-    if (tex >= N) { fail(BAD_VALUE); return 0; }
+    if (tex >= N) { fail(BAD_OP); return 0; }
     if (tex && (!textures[tex].used || !textures[tex].kind1)) { fail(BAD_OP); return 0; }
     if (tex && textures[tex].kind1 != 1) { fail(BAD_OP); return 0; }
     if (level >= MAXLV) { fail(BAD_VALUE); return 0; }
@@ -125,7 +127,7 @@ static uint32_t api_FramebufferRenderbuffer(void) {
     uint32_t id; Fbo *f = target_fbo(ARG(0), &id); if (!f) return 0;
     int point = attach_point(ARG(1)); if (point < 0) return 0;
     if (ARG(2) != RENDERBUFFER) { fail(BAD_ENUM); return 0; }
-    uint32_t rb = ARG(3); if (rb >= N) { fail(BAD_VALUE); return 0; }
+    uint32_t rb = SLOT(rbos, ARG(3)); if (rb >= N) { fail(BAD_OP); return 0; }
     if (rb && !rbos[rb].used) { fail(BAD_OP); return 0; }
     Attach a = {rb ? 2u : 0u, rb, 0}; set_attach(f, point, a); return 0;
 }
@@ -261,7 +263,7 @@ static uint32_t api_GetFramebufferAttachmentParameteriv(void) {
     if (at->type == 2 && at->name < N) fm = find_fmt(rbos[at->name].internal);
     switch (pname) {
     case 0x8cd0: v = at->type == 1 ? 0x1702 : at->type == 2 ? 0x8d41 : 0; break;
-    case 0x8cd1: if (!at->type) { fail(BAD_ENUM); return 0; } v = (int32_t)at->name; break;
+    case 0x8cd1: if (!at->type) { fail(BAD_ENUM); return 0; } v = (int32_t)(at->type == 1 ? NAME(textures, at->name) : NAME(rbos, at->name)); break;
     case 0x8cd2: if (at->type != 1) { fail(BAD_ENUM); return 0; } v = (int32_t)at->level; break;
     case 0x8cd3: case 0x8cd4: if (at->type != 1) { fail(BAD_ENUM); return 0; } v = 0; break;
     case 0x8da7: if (at->type != 1) { fail(BAD_ENUM); return 0; } v = 0; break;
@@ -277,9 +279,8 @@ static uint32_t api_GetFramebufferAttachmentParameteriv(void) {
 static uint32_t api_DeleteTextures(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) {
-        uint32_t id = x86_rd32(ARG(1) + i * 4); if (!id || id >= N) continue;
-        if (textures[id].gpu) SEND(0x45, textures[id].gpu);
-        zero(&textures[id], sizeof(Texture));
+        uint32_t id = SLOT(textures, x86_rd32(ARG(1) + i * 4)); if (!id || id >= N) continue;
+        retire_name(OBJECTS(textures), id);
         for (uint32_t d = 0; d < 3; d++) for (uint32_t u = 0; u < 8; u++) if (tex_bind[d][u] == id) tex_bind[d][u] = 0;
         uint32_t bound[2] = {fbo, fbo_read};
         for (uint32_t b = 0; b < 2; b++) if (bound[b]) { Fbo *f = &fbos[bound[b]];

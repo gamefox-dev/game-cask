@@ -184,7 +184,7 @@ static uint32_t topology(uint32_t mode) {
     switch (mode) { case 0: return 0; case 1: return 1; case 3: return 2; case 4: return 3; case 5: return 4;
         default: fail(BAD_ENUM); return 0xffffffffu; }
 }
-static uint32_t sampler_cache[128][12], sampler_count;
+static uint32_t sampler_cache[N - 1][12], sampler_count;
 static uint32_t wrap(uint32_t v) { return v == 0x2901 ? 1 : v == 0x8370 ? 2 : 0; } /* CLAMP_TO_BORDER -> edge */
 /* Sampling parameters -> §13 sampler. shadow: sampler2DShadow (comparison) uniform. */
 static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint32_t dimension) {
@@ -204,7 +204,7 @@ static uint32_t sampler_id(const Texture *t, const Sampler *s, int shadow, uint3
         uint32_t j; for (j = 1; j < 11 && w[j] == sampler_cache[i][j]; j++);
         if (j == 11) return i + 1;
     }
-    if (sampler_count == 128) { fail(OOM); return 0; }
+    if (sampler_count == GPU_MAX) { object_exhaustion("samplers", "GPU sampler descriptors", 1); return 0; }
     w[0] = ++sampler_count; copy(sampler_cache[sampler_count - 1], w, sizeof w);
     int legacy = !w[6] && w[9] == bits(0) && (!mip || w[10] == bits(1000));
     if (legacy) { uint32_t l[8] = {w[0], w[1], w[2], w[3], w[4], w[5], w[7], w[8]}; send(0x46, l, 8); }

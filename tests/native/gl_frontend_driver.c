@@ -251,7 +251,12 @@ static void buffer_vao(void) {
     draw(0,1,1,0,U16,0,0);CHECK(error==BAD_OP);error=0;
     rasterizer_discard=0;call(api_UseProgram,0,0,0,0);drop(p);
     if(current_gpu){send(0x42,&current_gpu,1);current_gpu=0;glp_free(current_data,current_capacity*256u);current_capacity=0;current_data=0;}
-    x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);CHECK(!vaos[0].element&&!vaos[real].element);
+    x86_wr32(4096,10);call(api_DeleteBuffers,1,4096,0,0);
+    CHECK(!vaos[0].element&&vaos[real].element==10&&!call(api_IsBuffer,10,0,0,0));
+    /* Deleting while VAO0 is bound detaches only VAO0. The unbound VAO retains the
+     * old object generation until explicitly detached, even after the name disappears. */
+    call(api_BindVertexArray,real,0,0,0);CHECK(bound_buffer(ELEMENT_BUFFER)->size==64);
+    call(api_BindBuffer,ELEMENT_BUFFER,0,0,0);collect_deleted();CHECK(!buffers[10].used);
     for(uint32_t i=0;i<9;i++){x86_wr32(4096,i+1);call(api_DeleteBuffers,1,4096,0,0);}
     CHECK(!error&&w32_gl_frontend_bytes==0);puts("buffer VAO0 persistence targets=9 strict attributes/draws OK");
 }

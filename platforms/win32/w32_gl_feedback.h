@@ -48,7 +48,7 @@ static int tf_link(Program *p, GsUnit *vs, GsLog *log) {
     copy(p->tf_link_names, p->tf_names, sizeof p->tf_names); return 1;
 }
 static uint32_t api_TransformFeedbackVaryings(void) {
-    uint32_t id = ARG(0), count = ARG(1), mode = ARG(3);
+    uint32_t id = SLOT(programs, ARG(0)), count = ARG(1), mode = ARG(3);
     if (!id || id >= N || !programs[id].used) { fail(BAD_VALUE); return 0; }
     if (mode != 0x8c8c && mode != 0x8c8d) { fail(BAD_ENUM); return 0; }
     if ((int32_t)count < 0 || count > 16 || (mode == 0x8c8d && count > 4)) { fail(BAD_VALUE); return 0; }
@@ -63,7 +63,7 @@ static uint32_t api_TransformFeedbackVaryings(void) {
     copy(p->tf_names, names, sizeof names); return 0;
 }
 static uint32_t api_GetTransformFeedbackVarying(void) {
-    uint32_t id = ARG(0), i = ARG(1), cap = ARG(2);
+    uint32_t id = SLOT(programs, ARG(0)), i = ARG(1), cap = ARG(2);
     if (!id || id >= N || !programs[id].used) { fail(BAD_VALUE); return 0; }
     Program *p = &programs[id];
     if (!p->linked) { fail(BAD_OP); return 0; }
@@ -92,25 +92,25 @@ static uint32_t api_GetIntegeri_v(void) {
     uint32_t key = ARG(0), i = ARG(1), value;
     if (key == 0x8c8f || key == 0x8c84 || key == 0x8c85) {
         if (i >= 4) { fail(BAD_VALUE); return 0; }
-        value = key == 0x8c8f ? tf_bound[i] : key == 0x8c84 ? tf_offset[i] : tf_whole[i] ? 0 : tf_size[i];
+        value = key == 0x8c8f ? NAME(buffers, tf_bound[i]) : key == 0x8c84 ? tf_offset[i] : tf_whole[i] ? 0 : tf_size[i];
     } else if (key == 0x8a28 || key == 0x8a29 || key == 0x8a2a) {
         if (i >= 8) { fail(BAD_VALUE); return 0; }
-        value = key == 0x8a28 ? ubo[i] : key == 0x8a29 ? ubo_offset[i] : ubo_whole[i] ? 0 : ubo_size[i];
+        value = key == 0x8a28 ? NAME(buffers, ubo[i]) : key == 0x8a29 ? ubo_offset[i] : ubo_whole[i] ? 0 : ubo_size[i];
     } else { fail(BAD_ENUM); return 0; }
     x86_wr32(ARG(2), value); return 0;
 }
 static uint32_t api_GenQueries(void) {
-    if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, alloc_name(gl_queries, sizeof(GlQuery))); return 0;
+    GEN_CHECK(gl_queries);
+    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, NAME(gl_queries, alloc_name(gl_queries, sizeof(GlQuery)))); return 0;
 }
 static uint32_t api_DeleteQueries(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
-    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = x86_rd32(ARG(1) + 4 * i);
+    for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(gl_queries, x86_rd32(ARG(1) + 4 * i));
         if (id && id < N) { if (tf_query == id) tf_query = 0; zero(&gl_queries[id], sizeof(GlQuery)); } } return 0;
 }
-static uint32_t api_IsQuery(void) { return ARG(0) && ARG(0) < N && gl_queries[ARG(0)].target != 0; }
+static uint32_t api_IsQuery(void) { return SLOT(gl_queries, ARG(0)) && SLOT(gl_queries, ARG(0)) < N && gl_queries[SLOT(gl_queries, ARG(0))].target != 0; }
 static uint32_t api_BeginQuery(void) {
-    uint32_t id = ARG(1);
+    uint32_t id = SLOT(gl_queries, ARG(1));
     if (ARG(0) != 0x8c88) { fail(BAD_ENUM); return 0; }
     if (!id || id >= N || !gl_queries[id].used || tf_query) { fail(BAD_OP); return 0; }
     GlQuery *q = &gl_queries[id]; q->target = ARG(0); q->result = 0; q->active = 1; tf_query = id; return 0;
@@ -123,10 +123,10 @@ static uint32_t api_EndQuery(void) {
 static uint32_t api_GetQueryiv(void) {
     if (ARG(0) != 0x8c88) { fail(BAD_ENUM); return 0; }
     if (ARG(1) != 0x8864 && ARG(1) != 0x8865) { fail(BAD_ENUM); return 0; }
-    x86_wr32(ARG(2), ARG(1) == 0x8864 ? 32 : tf_query); return 0;
+    x86_wr32(ARG(2), ARG(1) == 0x8864 ? 32 : NAME(gl_queries, tf_query)); return 0;
 }
 static uint32_t api_GetQueryObjectuiv(void) {
-    uint32_t id = ARG(0), key = ARG(1);
+    uint32_t id = SLOT(gl_queries, ARG(0)), key = ARG(1);
     if (!id || id >= N || !gl_queries[id].target || gl_queries[id].active) { fail(BAD_OP); return 0; }
     if (key != 0x8866 && key != 0x8867) { fail(BAD_ENUM); return 0; }
     x86_wr32(ARG(2), key == 0x8867 ? 1 : gl_queries[id].result); return 0;
