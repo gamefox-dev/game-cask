@@ -9,6 +9,8 @@ import {ROOT} from '../support/headless';
 it('publishes only final passing port tests, never collector failures or later fixture teardown failures',()=>{
  const dir=mkdtempSync(join(tmpdir(),'bgt-publication-'));
  try{
+  // Preserve ESM loading for fixtures that import the plain .mjs publisher too.
+  writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));
   const reporter=join(ROOT,'tests/e2e/coverage-evidence-reporter.ts');
   writeFileSync(join(dir,'playwright.config.ts'),`export default {testDir:'.',testMatch:'publication.spec.ts',workers:1,retries:0,reporter:[['list'],[`+JSON.stringify(reporter)+`,{root:`+JSON.stringify(dir)+`}]],projects:[{name:'port-cc0'}]};`);
   writeFileSync(join(dir,'publication.spec.ts'),`
