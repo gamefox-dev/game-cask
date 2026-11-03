@@ -52,6 +52,31 @@ A fresh independent follow-up is **PASS within bounded F1/F2 repair/native scope
 and the VAO0-guard mutation as required on clean1fd7205, but did not run Tier1/browser and its npm retry
 never got admission. No title, first-frame, playability, Windows-hardware or unchanged-porter replay claim.
 Audit recommendations and historical failed attempts remain in [K17b handoff](handoff/K17b.md).
+## K18 historical local validation — incremental builds and experimental opt-in JSPI
+
+Final implementation **b40e5fd** adds exact per-object/transitive dependency caching, atomic payload publication,
+phase/resource reporting and stable guest/runtime header boundaries. Parent-relative/computed include shadows
+found by the prior fresh review are repaired with native/wasm regressions and conservative compiler rediscovery.
+JSPI emits a second verified artifact and requires explicit runtime opt-in; Asyncify remains the default and
+unsupported API/artifact selection falls back. No translator semantics, GL implementation or BGT wire ABI change.
+
+**Local gates on b40e5fd:** doctor ready; full lint (clang + real GCC, **33 example checks**); typecheck; full
+**1,206 units /90 files /no skips**, with real JSPI enabled; **both complete Chromium browser suites**, each
+**249 passes /51 identical existing skips /0 failures /0 flakes** (WebGL2 **112/24**, required WebGPU **129/26**,
+auto **8/1** pass/skip); leakcheck; **30 pipeline fixtures ×2 modes ×300 =18,000 identical oracle frame pairs**,
+null errors/divergence, zero lifted interpretation and empty stubs, with every cross-mode trace digest equal.
+First full units had four 60-second codegen timeouts; unchanged assertions pass in the entire final full rerun
+with CLI --testTimeout=600000. No committed timeout, assertion, tolerance or skip weakening.
+
+Matched-size before/after build matrices include phase timings and memory/load/disk snapshots on the same shared
+machine. **2.01M-insn final-source** unchanged **6.286 s**, fresh runtime-only rebuild **17.467 s** versus baseline
+**321.965 s**; all **62 lifted chunks/analysis remain cached**, only **23 runtime objects** recompile. Historical
+cold/new-fixture after was **686.096 s**; cold cache states/load differ, so no normalized cold-speed claim. Chromium
+headless JSPI matches all traces but is **larger/slower on scale** (66.6 MB/38.76 ms versus 56.2 MB/33.78 ms median).
+**Experimental/opt-in only: no porter/game or physical-device acceptance; external independent final-commit review
+is pending with the operator.** No new independent review was launched. Exact caveats, logs, hashes and evidence:
+[K18 handoff](handoff/K18.md), [matched measurements](handoff/K18-final-measurements.json),
+[oracles](handoff/K18-oracle-evidence.json), [browsers](handoff/K18-browser-evidence.json).
 
 ## K16a final — Q50/Q51 shared host memory (kit Tier 1 PASS)
 

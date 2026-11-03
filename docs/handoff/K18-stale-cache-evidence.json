@@ -1,0 +1,386 @@
+{
+  "schema": "game-cask/k18-stale-cache-evidence/1",
+  "implementation": "commit containing this evidence; parent 4ae4366",
+  "source_sha256": {
+    "tools/build/objects.mjs": "e9d111732b490a70b5cf91b572339f253136641bfda50f03ab2946ee5a0224bc",
+    "tools/build/compile.py": "c316de0f142726895fa241a519df9670d9ba85531e693779404b934a947e7933",
+    "tools/build/build.mjs": "e89d60bea59d5617b2ce4ac525715facdacfa944b9763e7ce3ec4415605ebdfa",
+    "tools/build/incremental-bench.mjs": "8c2652f70ccaaa186a6dabdd3d9d10dc7614e2c7aa6d55cea4882eb325f0d850",
+    "tests/unit/build-cache-inputs.test.ts": "ee2dc74f6ab8963fd623c63295e0df025723b70a4ac67280ac4ef82cbc0b062a"
+  },
+  "independent_review": "FAIL on 66982f6..4ae4366; no new review launched; operator acceptance pending",
+  "regressions": {
+    "new_tests": 18,
+    "focused": {
+      "files": 5,
+      "passed": 47,
+      "skipped": 0
+    },
+    "full": {
+      "files": 91,
+      "passed": 1224,
+      "skipped": 0
+    },
+    "before_fix": [
+      {
+        "log": "reports/k18/stale-final-regressions-before.log",
+        "note": "6 failures: forced include, response macro, computed import, three timestamp forms; 2 path-source cases already correct; 7 deliberately filtered tests",
+        "sha256": "cb9de1d6227d4712743a236d2ed0138070942ebac135afbd75c14a97c9057851"
+      },
+      {
+        "log": "reports/k18/stale-file-path-before.log",
+        "note": "lexical -I/header __FILE__ stale hit: 1 failure, 15 deliberately filtered tests",
+        "sha256": "58e83f14935fb70fbebcc7952dd91cc81a6b660f77f05008624f450f6719492d"
+      }
+    ],
+    "preserved_interim_failures": [
+      "stale-inputs-before.log (fixture string syntax)",
+      "stale-inputs-after.log (response helper regex syntax)",
+      "stale-inputs-after2.log (depfile stdout mixed with Zig preprocessing; fixed with dedicated depfile)",
+      "stale-focused-interim.log (-Wno-date-time fallback; repaired before full/final gates)"
+    ]
+  },
+  "commands": {
+    "full": "BGT_JSPI=1 BGT_TEST_JSPI=1 BGT_BUILD_JOBS=2 npm test -- --maxWorkers=1 --testTimeout=600000",
+    "benchmark": "BGT_JSPI=1 BGT_BUILD_JOBS=2 BGT_BENCH_FUNCTIONS=15000 BGT_BENCH_ID=k18-scale-15000 BGT_BENCH_REPORT=reports/k18/stale-benchmark-final.json npm run bench:incremental",
+    "oracle": "BGT_JSPI=1 BGT_ORACLE_SUSPENSION=<asyncify|jspi> npm run oracle -- examples/<x64-crt|win32-hello> 300"
+  },
+  "gates": [
+    {
+      "name": "benchmark-final",
+      "exit": 0,
+      "log": "reports/k18/stale-benchmark-final.log",
+      "log_sha256": "5829392862a0c1fdf1ece71ee58e201a6dda3ae510636484485867fb7ddf0786"
+    },
+    {
+      "name": "focused",
+      "exit": 0,
+      "log": "reports/k18/stale-focused.log",
+      "log_sha256": "cd4b19248df7f704bdf37273e7e7c44d566faa37c51d181d7b5f1baf30bede1c"
+    },
+    {
+      "name": "unit",
+      "exit": 0,
+      "log": "reports/k18/stale-unit.log",
+      "log_sha256": "c12cd209ae3654529081349e3498d0d965c1bd1a490f0faeb4e32ce0363f07e3"
+    },
+    {
+      "name": "oracle-x64-crt-asyncify",
+      "exit": 0,
+      "log": "reports/k18/stale-oracle-x64-crt-asyncify.log",
+      "log_sha256": "eb4932b00fd00671769a9258a0eb5f96fed7de60149886553ffa2a235d0b83bf"
+    },
+    {
+      "name": "oracle-x64-crt-jspi",
+      "exit": 0,
+      "log": "reports/k18/stale-oracle-x64-crt-jspi.log",
+      "log_sha256": "21f3cb32693347542bd4c818fbe37ddc2abf0e0af0cf6e80ac272e7f9c556242"
+    },
+    {
+      "name": "oracle-win32-hello-asyncify",
+      "exit": 0,
+      "log": "reports/k18/stale-oracle-win32-hello-asyncify.log",
+      "log_sha256": "6d47456872cc3d0167097c7ca589193031083478eeb6b71320b233590e597492"
+    },
+    {
+      "name": "oracle-win32-hello-jspi",
+      "exit": 0,
+      "log": "reports/k18/stale-oracle-win32-hello-jspi.log",
+      "log_sha256": "89da066cdb6fb94b17d6fe79cfd4a527259d14b89a74bd427575b013efa8a87f"
+    },
+    {
+      "name": "eslint",
+      "exit": 0,
+      "log": "reports/k18/stale-eslint.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "log": "reports/k18/stale-typecheck.log",
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "log": "reports/k18/stale-leakcheck.log",
+      "log_sha256": "7f6099c70f7488fe0c77e5fd97e50c05db836a28892085cce75c9a6d8f47871a"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "x64-crt",
+      "cross_variant_identical": true,
+      "variants": {
+        "asyncify": {
+          "raw_report": "reports/k18/stale-oracle-x64-crt-asyncify.json",
+          "raw_sha256": "a77408cd0c993fd6168a1a08ba40fbb89b5932bbeb0728a1d159d930c9acb56a",
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": []
+        },
+        "jspi": {
+          "raw_report": "reports/k18/stale-oracle-x64-crt-jspi.json",
+          "raw_sha256": "b5975586f105b6c3a00ba11ed2336784a153ec256c2bfadba5757a4db4536951",
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": []
+        }
+      }
+    },
+    {
+      "id": "win32-hello",
+      "cross_variant_identical": true,
+      "variants": {
+        "asyncify": {
+          "raw_report": "reports/k18/stale-oracle-win32-hello-asyncify.json",
+          "raw_sha256": "96c4c324f8ab3c5e33b122d73f2b30cb412ea9cb67de749042255917322a1340",
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": []
+        },
+        "jspi": {
+          "raw_report": "reports/k18/stale-oracle-win32-hello-jspi.json",
+          "raw_sha256": "8d60cf44f5f549447a5be25e01aaa71632669d334ab3815cec5881ee167a0ae0",
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": []
+        }
+      }
+    }
+  ],
+  "benchmark": {
+    "raw_report": "reports/k18/stale-benchmark-final.json",
+    "raw_sha256": "b5cd19074cc4052d75bd165b26c4db344d27cdf4aa47e27b769741e185f93fc7",
+    "machine": {
+      "hostname": "Mac-mini-2.local",
+      "platform": "darwin",
+      "arch": "arm64",
+      "totalmem": 17179869184,
+      "node": "v24.19.0"
+    },
+    "count": 15000,
+    "fixture_preexisting": true,
+    "method": "existing 2,011,529-insn CC0 fixture; shared machine, jobs=2; unique runtime-header comment restored byte-exactly; initial-preexisting is NOT cold; initial sample compiled 8 and reused 85 objects after full-suite cache use; analysis/lift cached throughout",
+    "samples": [
+      {
+        "scenario": "initial-preexisting",
+        "wall_ms": 26377.392209,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+            "size": 66598422,
+            "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+          }
+        },
+        "objects_compiled": 8,
+        "objects_cached": 85,
+        "objects_uncacheable": 0,
+        "phase_timings": {
+          "analysis_ms": 16.074167000000216,
+          "lift_ms": 1.543,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 18128.372,
+          "link_ms": 704.957,
+          "wasm_opt_ms": 271.76037500000166
+        },
+        "peak_child_rss_bytes": 447070208,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "chunks_lifted": 0,
+            "chunks_cached": 62,
+            "analysis_cached": true
+          }
+        ],
+        "before": {
+          "at": "2026-11-03T04:19:57.399Z",
+          "loadavg": [
+            3.298828125,
+            3.57275390625,
+            4.15673828125
+          ],
+          "disk_free_bytes": 7031955456,
+          "memory": "{\"available_bytes\": 6134841344}"
+        },
+        "after": {
+          "at": "2026-11-03T04:20:23.777Z",
+          "loadavg": [
+            5.04443359375,
+            3.97607421875,
+            4.283203125
+          ],
+          "disk_free_bytes": 7006425088,
+          "memory": "{\"available_bytes\": 5123031040}"
+        }
+      },
+      {
+        "scenario": "no-change",
+        "wall_ms": 5282.570041999999,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+            "size": 66598422,
+            "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+          }
+        },
+        "objects_compiled": 0,
+        "objects_cached": 93,
+        "objects_uncacheable": 0,
+        "phase_timings": {
+          "analysis_ms": 9.208833000000595,
+          "lift_ms": 1.365,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 2.331,
+          "link_ms": 530.206,
+          "wasm_opt_ms": 212.87866700000086
+        },
+        "peak_child_rss_bytes": 351207424,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "chunks_lifted": 0,
+            "chunks_cached": 62,
+            "analysis_cached": true
+          }
+        ],
+        "before": {
+          "at": "2026-11-03T04:20:23.807Z",
+          "loadavg": [
+            5.04443359375,
+            3.97607421875,
+            4.283203125
+          ],
+          "disk_free_bytes": 7006375936,
+          "memory": "{\"available_bytes\": 5126291456}"
+        },
+        "after": {
+          "at": "2026-11-03T04:20:29.090Z",
+          "loadavg": [
+            4.80029296875,
+            3.94287109375,
+            4.26953125
+          ],
+          "disk_free_bytes": 7006224384,
+          "memory": "{\"available_bytes\": 5273780224}"
+        }
+      },
+      {
+        "scenario": "runtime-only-change",
+        "wall_ms": 14501.411917000001,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+            "size": 66598422,
+            "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+          }
+        },
+        "objects_compiled": 23,
+        "objects_cached": 70,
+        "objects_uncacheable": 0,
+        "phase_timings": {
+          "analysis_ms": 6.883166999999958,
+          "lift_ms": 1.346,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 7344.175,
+          "link_ms": 708.586,
+          "wasm_opt_ms": 233.08862499999668
+        },
+        "peak_child_rss_bytes": 351223808,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "chunks_lifted": 0,
+            "chunks_cached": 62,
+            "analysis_cached": true
+          }
+        ],
+        "before": {
+          "at": "2026-11-03T04:20:29.119Z",
+          "loadavg": [
+            4.80029296875,
+            3.94287109375,
+            4.26953125
+          ],
+          "disk_free_bytes": 7006191616,
+          "memory": "{\"available_bytes\": 5275353088}"
+        },
+        "after": {
+          "at": "2026-11-03T04:20:43.621Z",
+          "loadavg": [
+            4.8427734375,
+            3.99365234375,
+            4.28125
+          ],
+          "disk_free_bytes": 6963949568,
+          "memory": "{\"available_bytes\": 5285527552}"
+        }
+      }
+    ],
+    "previous_final": {
+      "no_change_ms": 6285.505042,
+      "runtime_only_ms": 17466.944916
+    },
+    "original_baseline_runtime_only_ms": 321965
+  },
+  "scope": "cache-only kit continuation; no browser/device/porter claims; historical dual-browser matrix retained in K18.md"
+}

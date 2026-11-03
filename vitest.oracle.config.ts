@@ -1,3 +1,5 @@
 import { defineConfig } from 'vitest/config';
 
-export default defineConfig({ test: { include: ['tests/oracle/**/*.test.ts'], testTimeout: 600000 } });
+export default defineConfig({ test: { include: ['tests/oracle/**/*.test.ts'], testTimeout: 600000,
+  ...(process.env.BGT_ORACLE_SUSPENSION === 'jspi' ? { execArgv: ['--experimental-wasm-jspi'] } : {}),
+} });

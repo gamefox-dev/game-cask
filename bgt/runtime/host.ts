@@ -46,6 +46,7 @@ import { Requests } from './requests';
 import { GpuState } from './commands-gpu';
 import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
+import { jspiApi } from './jspi';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -74,6 +75,7 @@ export interface HostServices {
 }
 
 export interface HostConfig {
+  suspensionMode?: 'asyncify' | 'jspi';
   backend: number;
   caps: number;
   seed: number;
@@ -232,6 +234,11 @@ export class GameHost {
   private asyncState = AsyncState.Normal;
   private asyncBuf = 0;
   private inUpdate = false;
+  private jspiUpdate: ((dt: number) => Promise<void>) | null = null;
+  private jspiTask: Promise<void> | null = null;
+  private jspiResume: (() => void) | null = null;
+  private jspiBoundary: {resolve: () => void; reject: (error: unknown) => void} | null = null;
+  private jspiBusy = false;
   /** updates that ended suspended in bgt_yield (vs. returning normally) */
   yields = 0;
   /** set when the game changed its logical size during an update (v0.2) */
@@ -261,6 +268,11 @@ export class GameHost {
     const host = new GameHost(services, config);
     const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
     const imports = host.imports();
+    if (config.suspensionMode === 'jspi') {
+      const api = jspiApi();
+      if (!api) throw new HostError('JSPI requested but WebAssembly.Suspending/promising are unavailable');
+      imports.bgt.yield = new api.Suspending(imports.bgt.yield as () => Promise<void>) as typeof imports.bgt.yield;
+    }
     const missing = WebAssembly.Module.imports(module).filter(
       (imp) => imp.module !== 'bgt' || !(imp.name in imports.bgt),
     );
@@ -276,6 +288,7 @@ export class GameHost {
     const instance = await WebAssembly.instantiate(module, imports);
     host.instantiateMs = performance.now()-instantiateStart;
     host.exports = instance.exports as unknown as GameExports;
+    if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(host.exports.bgt_update);
     const v = host.exports.bgt_abi_version() >>> 0;
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
@@ -301,7 +314,7 @@ export class GameHost {
   }
 
   get asyncCapable(): boolean {
-    return typeof this.exports.asyncify_start_unwind === 'function';
+    return !!this.jspiUpdate || typeof this.exports.asyncify_start_unwind === 'function';
   }
 
   /** True while the game is parked inside bgt_yield between frames. */
@@ -556,6 +569,7 @@ export class GameHost {
         },
         time_us: () => s.now() * 1000,
         yield: () => {
+          if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;
           if (this.asyncState === AsyncState.Rewinding) {
             ex.asyncify_stop_rewind!();
@@ -627,7 +641,7 @@ export class GameHost {
     ) {
       throw new HostError(`game set invalid logical size ${this.logicalWidth}x${this.logicalHeight}`);
     }
-    if (this.asyncCapable) {
+    if (this.asyncCapable && !this.jspiUpdate) {
       const fb = this.exports.bgt_async_buffer, fs = this.exports.bgt_async_buffer_size;
       if (!fb || !fs) throw new HostError('asyncify build must export bgt_async_buffer and bgt_async_buffer_size');
       this.asyncBuf = fb() >>> 0;
@@ -730,7 +744,8 @@ export class GameHost {
   }
 
   /** One fixed simulation step. */
-  update(): void {
+  update(): void | Promise<void> {
+    if (this.jspiUpdate) return this.updateJspi();
     if (!this.initialized) throw new HostError('update before init');
     const t0 = this.services.now();
     this.requests.advance();
@@ -753,6 +768,10 @@ export class GameHost {
     } else if (this.asyncState === AsyncState.Rewinding) {
       throw new HostError('asyncify rewind did not reach bgt_yield (game state diverged)');
     }
+    this.finishUpdate(t0);
+  }
+
+  private finishUpdate(t0: number): void {
     this.timings.updateMs = this.services.now() - t0;
     this.profile.updateMs += this.timings.updateMs;
     this.frameIndex++;
@@ -763,6 +782,45 @@ export class GameHost {
       this.logicalWidth = lw;
       this.logicalHeight = lh;
       this.sizeChanged = true;
+    }
+  }
+
+  private suspendJspi(): Promise<void> {
+    if (!this.inUpdate) throw new GameAbort(-7, 'bgt_yield is only valid inside bgt_update');
+    return new Promise<void>((resolve) => {
+      this.jspiResume = resolve;
+      this.asyncState = AsyncState.Suspended;
+      this.yields++;
+      this.jspiBoundary?.resolve();
+    });
+  }
+
+  private async updateJspi(): Promise<void> {
+    if (!this.initialized) throw new HostError('update before init');
+    if (this.jspiBusy) throw new HostError('overlapping JSPI updates');
+    this.jspiBusy = true;
+    const t0 = this.services.now();
+    this.requests.advance();
+    this.inUpdate = true;
+    this.asyncState = AsyncState.Normal;
+    try {
+      const boundary = new Promise<void>((resolve, reject) => { this.jspiBoundary = {resolve, reject}; });
+      const pending = this.jspiTask;
+      if (pending) {
+        const resume = this.jspiResume; this.jspiResume = null;
+        if (!resume) throw new HostError('JSPI update has no resume handle');
+        resume();
+      } else {
+        this.jspiTask = this.jspiUpdate!(DT_US).then(() => {
+          this.jspiTask = null; this.jspiBoundary?.resolve();
+        }, (error: unknown) => {
+          this.jspiTask = null; this.jspiBoundary?.reject(error);
+        });
+      }
+      await boundary;
+      this.finishUpdate(t0);
+    } finally {
+      this.inUpdate = false; this.jspiBoundary = null; this.jspiBusy = false;
     }
   }
 

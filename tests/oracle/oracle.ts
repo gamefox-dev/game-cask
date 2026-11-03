@@ -6,6 +6,8 @@ import { oracleFailure, writeOracleReport } from '../../tools/report/oracle-repo
 import { loadHeadless, ROOT, Headless } from '../support/headless';
 /* LANE-GL: opt-in fixture recorder; no rendering is claimed by this oracle. */
 import { glStream } from '../support/x64-gl-stream';
+import { createHash } from 'node:crypto';
+const suspension = process.env.BGT_ORACLE_SUSPENSION === 'jspi' ? 'jspi' : 'asyncify';
 const streamOptions = (id: string) => ['x64-gl', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
@@ -19,8 +21,9 @@ export interface OracleReport {
   error: string | null;
   exitStatus: number;
   identical: boolean;
+  elapsedMs?: { lifted: number; interpreted: number };
   firstDivergence: number | null;
-  hashes: { lifted: string | null; interpreted: string | null };
+  hashes: { lifted: string | null; interpreted: string | null; liftedTrace?: string; interpretedTrace?: string };
   metrics: { lifted: unknown; interpreted: unknown };
   errors: { lifted: string | null; interpreted: string | null };
 }
@@ -40,8 +43,9 @@ export function defaultScript(frames: number, w: number, h: number, seed = 7): O
 }
 
 async function run(id: string, frames: number, script: OracleStep[]): Promise<{
-  hashes: string[]; metrics: unknown; error: string | null; stage: string | null;
+  hashes: string[]; metrics: unknown; error: string | null; stage: string | null; elapsedMs: number;
 }> {
+  let started = performance.now();
   const stream = streamOptions(id);
   /* LANE-K1: deterministic entropy tape is TEST REPLAY ONLY, never used by real play. */
   let cursor = 0;
@@ -53,8 +57,9 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{
   const byFrame = new Map<number, OracleStep[]>();
   for (const st of script) byFrame.set(st.frame, [...(byFrame.get(st.frame) ?? []), st]);
   try {
-    h = await loadHeadless(id, { storage: new Map(), ...stream, entropy });
+    h = await loadHeadless(id, { storage: new Map(), ...stream, entropy, suspension });
     stage = 'startup';
+    started = performance.now();
     // The smoke's measured 600-frame loop follows deterministic shader/file startup.
     // Recorder-only pre-roll is identical in both builds and remains part of the trace hash.
     const startup: string[] = [];
@@ -77,14 +82,14 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{
     }
     stage = 'metrics';
     const metrics = h.host.metrics();
-    return { hashes, metrics, error: null, stage: null };
+    return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started };
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
   // Startup diagnostics remain useful even when the guest never completes a frame.
   let metrics: unknown = null;
   try { metrics = h?.host.metrics() ?? null; } catch { /* preserve the original failure */ }
-  return { hashes, metrics, error, stage };
+  return { hashes, metrics, error, stage, elapsedMs: performance.now()-started };
 }
 
 export async function oracle(id: string, frames = 300, script?: OracleStep[]): Promise<OracleReport> {
@@ -92,7 +97,7 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[]): P
   try {
     if (!Number.isSafeInteger(frames) || frames <= 0) throw new Error('oracle frames must be a positive safe integer');
     stage = 'preflight-load';
-    const probe = await loadHeadless(id, streamOptions(id));
+    const probe = await loadHeadless(id, { ...streamOptions(id), suspension });
     stage = 'preflight-step';
     await probe.stepAsync(1);
     stage = 'script';
@@ -117,8 +122,11 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[]): P
       error: a.error ?? b.error ?? (first !== null ? `frame ${first} differs` : null),
       exitStatus: identical ? 0 : 1,
       identical,
+      elapsedMs: { lifted: a.elapsedMs, interpreted: b.elapsedMs },
       firstDivergence: first,
-      hashes: { lifted: a.hashes[a.hashes.length - 1] ?? null, interpreted: b.hashes[b.hashes.length - 1] ?? null },
+      hashes: { lifted: a.hashes[a.hashes.length - 1] ?? null, interpreted: b.hashes[b.hashes.length - 1] ?? null,
+        liftedTrace: createHash('sha256').update(JSON.stringify(a.hashes)).digest('hex'),
+        interpretedTrace: createHash('sha256').update(JSON.stringify(b.hashes)).digest('hex') },
       metrics: { lifted: a.metrics, interpreted: b.metrics },
       errors: { lifted: a.error, interpreted: b.error },
     };

@@ -7,6 +7,7 @@ import { GameHost, InputSnapshot, StorageSink, emptyInput } from '../../bgt/runt
 import { Vfs } from '../../bgt/runtime/vfs';
 import { RangeFiles } from '../../bgt/runtime/range-files';
 import { HID } from '../../bgt/input/input';
+import { selectWasmVariant } from '../../bgt/runtime/jspi';
 /* LANE-GL: opt-in command-stream validation without a pixel backend. */
 import { CAP_GPU, CAP_READBACK } from '../../bgt/runtime/abi';
 import type { GpuBackend } from '../../bgt/renderers/types';
@@ -39,6 +40,7 @@ export interface Headless {
 
 export async function loadHeadless(id: string, opts: StreamOptions & {
   seed?: number; arg0?: number; arg1?: number; storage?: Map<string, Uint8Array>; dir?: string;
+  suspension?: 'asyncify' | 'jspi';
 } = {}): Promise<Headless> {
   const dir = opts.dir ?? join(ROOT, 'web', 'public', 'games', id);
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
@@ -53,7 +55,9 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     read: (k) => store.get(k) ?? null,
     write: (k, d) => (store.set(k, d), 0),
   };
-  const host = await GameHost.create(readFileSync(join(dir, 'game.wasm')), {
+  const variant = selectWasmVariant(manifest, opts.suspension);
+  if (opts.suspension === 'jspi' && variant.mode !== 'jspi') throw new Error('JSPI oracle requires JSPI support and artifact');
+  const host = await GameHost.create(readFileSync(join(dir, variant.artifact.url.split('?')[0])), {
     log: (_l, m) => { logs.push(m);opts.onLog?.(m); },
     vfs,
     storage,
@@ -72,6 +76,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     arg1: opts.arg1 ?? 0,
     sliceCode:manifest.slice?.code,
     sliceCodeRanges:manifest.slice?.codeRanges,
+    suspensionMode:variant.mode,
   });
   host.init();
   const input = emptyInput();
@@ -79,6 +84,24 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
   let prevHeld = 0;
   let latchedButtons = 0;
   const keysPressed = new Uint32Array(8);
+  const stageInput = () => {
+    input.buttons = held;
+    input.pressed = held & ~prevHeld;
+    input.released = prevHeld & ~held;
+    prevHeld = held;
+    const pb = input.pointerButtons;
+    input.pointerButtons = pb | latchedButtons;
+    for (let k = 0; k < 8; k++) input.keysPressed[k] = keysPressed[k];
+    host.writeInput(input);
+    input.pointerButtons = pb;
+    latchedButtons = 0;
+    keysPressed.fill(0);
+  };
+  const consumeFrame = () => {
+    const frame = host.render();
+    opts.executeFrame?.(frame);
+    host.consume();
+  };
   const h: Headless = {
     host,
     logs,
@@ -99,25 +122,21 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
       else input.keys[hid >> 5] &= ~(1 << (hid & 31));
     },
     step: (n = 1) => {
+      if (variant.mode === 'jspi') throw new Error('JSPI requires stepAsync');
       for (let i = 0; i < n; i++) {
-        input.buttons = held;
-        input.pressed = held & ~prevHeld;
-        input.released = prevHeld & ~held;
-        prevHeld = held;
-        const pb = input.pointerButtons;
-        input.pointerButtons = pb | latchedButtons;
-        for (let k = 0; k < 8; k++) input.keysPressed[k] = keysPressed[k];
-        host.writeInput(input);
-        input.pointerButtons = pb;
-        latchedButtons = 0;
-        keysPressed.fill(0);
+        stageInput();
         host.update();
-        const frame = host.render();
-        opts.executeFrame?.(frame); /* LANE-GL: requests still become visible only at the next update. */
-        host.consume();
+        consumeFrame();
       }
     },
-    stepAsync: async (n=1) => { for(let i=0;i<n;i++) { await host.settleRequests();h.step(1); } },
+    stepAsync: async (n=1) => {
+      for (let i=0; i<n; i++) {
+        await host.settleRequests();
+        stageInput();
+        await host.update();
+        consumeFrame(); // Requests still become visible only at the next update.
+      }
+    },
     state: <T,>() => host.debugState() as T,
   };
   return h;

@@ -1,0 +1,963 @@
+{
+  "schema": "game-cask/k18-matched-measurements/1",
+  "scope": "Original CC0 kit fixtures; same shared Mac-mini-2.local arm64/16GiB/Node24.19.0, jobs=2. No quiescent-machine or game-speed claim. Both sizes have identical baseline/final Asyncify wasm hashes.",
+  "method": "Cold is a new fixture ID/analysis/lift, NOT empty object/toolchain/OS caches. Counts expose cross-fixture reuse. Runtime-only appends the same comment to bgt_gpu.h, restored byte-exactly; previously built modified-header keys may hit. Times are wall milliseconds except Cgen CPU nested within lift; not additive. After builds request JSPI as well as Asyncify; before is Asyncify-only.",
+  "provenance": "Frozen-before archive is 66982f6, even where git rev-parse reported containing clone HEAD de27948. After launched at de27948 with working changes committed in b189141; parent-relative discovery repair was not yet present.",
+  "caveats": [
+    "No direct normalized cold-speed claim: before/after differ in warm object state and concurrent load.",
+    "After 12000 runtime-only is 1 compiled/80 cached: pre-existing modified-header objects were reused; NOT a full runtime-recompile timing.",
+    "Use 15000 runtime-only row (23 runtime objects compiled/70 cached) as the existing boundary-rebuild evidence; all 62 lifted chunks and analysis cached.",
+    "Initial after-12000 compile failed on missing x86_profile_exit declaration, repaired before these successful rows.",
+    "Outer-flag-only JSPI oracle failures are retained, not successful evidence."
+  ],
+  "matrices": [
+    {
+      "fixture_functions": 12000,
+      "variant": "before",
+      "revision": "66982f6b8a46433db9c8b3efa4c87f32ab40ae9b",
+      "reported_head": "66982f6b8a46433db9c8b3efa4c87f32ab40ae9b",
+      "raw_report": "reports/k18/before-12000.json",
+      "raw_sha256": "cb6d908f587e88f2a494d2e8c8c5200551cebbaacd6b58f53845376fbdc30d12",
+      "machine": {
+        "hostname": "Mac-mini-2.local",
+        "platform": "darwin",
+        "arch": "arm64",
+        "totalmem": 17179869184,
+        "node": "v24.19.0"
+      },
+      "samples": [
+        {
+          "scenario": "cold",
+          "before": {
+            "at": "2026-11-02T23:45:26.434Z",
+            "loadavg": [
+              7.7060546875,
+              8.373046875,
+              8.65478515625
+            ],
+            "disk_free_bytes": 8310022144,
+            "memory": "{\"available_bytes\": 5100699648}"
+          },
+          "after": {
+            "at": "2026-11-02T23:54:53.539Z",
+            "loadavg": [
+              7.78125,
+              10.62890625,
+              9.783203125
+            ],
+            "disk_free_bytes": 8466182144,
+            "memory": "{\"available_bytes\": 5483577344}"
+          },
+          "wall_ms": 567048.108375,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 3595.3170000000027,
+            "lift_ms": 90895.401,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 198789.877,
+            "link_ms": 9923.883,
+            "wasm_opt_ms": 202175.66995899996
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 81,
+          "objects_cached": 0,
+          "jobs": 2,
+          "peak_child_rss_bytes": 450510848,
+          "parallel_rss_upper_bound_bytes": 901021696,
+          "asyncify_cached": false,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": false,
+              "chunks_lifted": 50,
+              "chunks_cached": 0,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        },
+        {
+          "scenario": "no-change",
+          "before": {
+            "at": "2026-11-02T23:54:53.571Z",
+            "loadavg": [
+              7.78125,
+              10.62890625,
+              9.783203125
+            ],
+            "disk_free_bytes": 8466071552,
+            "memory": "{\"available_bytes\": 5533024256}"
+          },
+          "after": {
+            "at": "2026-11-02T23:54:56.662Z",
+            "loadavg": [
+              7.47802734375,
+              10.5185546875,
+              9.7490234375
+            ],
+            "disk_free_bytes": 8459554816,
+            "memory": "{\"available_bytes\": 4804591616}"
+          },
+          "wall_ms": 3090.974042000016,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 9.913541999994777,
+            "lift_ms": 1.417,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 1.923,
+            "link_ms": 602.418,
+            "wasm_opt_ms": 201.6458340000827
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 0,
+          "objects_cached": 81,
+          "jobs": 2,
+          "peak_child_rss_bytes": 292765696,
+          "parallel_rss_upper_bound_bytes": 585531392,
+          "asyncify_cached": true,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 50,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        },
+        {
+          "scenario": "runtime-only-change",
+          "before": {
+            "at": "2026-11-02T23:54:56.696Z",
+            "loadavg": [
+              7.47802734375,
+              10.5185546875,
+              9.7490234375
+            ],
+            "disk_free_bytes": 8459497472,
+            "memory": "{\"available_bytes\": 4805804032}"
+          },
+          "after": {
+            "at": "2026-11-02T23:57:57.523Z",
+            "loadavg": [
+              7.5263671875,
+              9.0751953125,
+              9.27783203125
+            ],
+            "disk_free_bytes": 7915356160,
+            "memory": "{\"available_bytes\": 5035442176}"
+          },
+          "wall_ms": 180826.869375,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 4.576832999940962,
+            "lift_ms": 1.213,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 168234.83,
+            "link_ms": 757.46,
+            "wasm_opt_ms": 314.1063749999739
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 73,
+          "objects_cached": 8,
+          "jobs": 2,
+          "peak_child_rss_bytes": 451280896,
+          "parallel_rss_upper_bound_bytes": 902561792,
+          "asyncify_cached": true,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 50,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_functions": 12000,
+      "variant": "after",
+      "revision": "b189141 (working tree at de27948 launch)",
+      "reported_head": "de279486f801cf237e6e85ef08e037515f9e6bd6",
+      "raw_report": "reports/k18/after-12000-final.json",
+      "raw_sha256": "845d9bbc300df052aad4c15f0dda8f8f22b7d88324e001bf46d555403843f8c7",
+      "machine": {
+        "hostname": "Mac-mini-2.local",
+        "platform": "darwin",
+        "arch": "arm64",
+        "totalmem": 17179869184,
+        "node": "v24.19.0"
+      },
+      "samples": [
+        {
+          "scenario": "cold",
+          "before": {
+            "at": "2026-11-03T00:42:54.345Z",
+            "loadavg": [
+              11.1416015625,
+              13.29931640625,
+              11.09521484375
+            ],
+            "disk_free_bytes": 5952741376,
+            "memory": "{\"available_bytes\": 3853959168}"
+          },
+          "after": {
+            "at": "2026-11-03T00:53:15.054Z",
+            "loadavg": [
+              6.857421875,
+              10.85986328125,
+              11.26953125
+            ],
+            "disk_free_bytes": 3860258816,
+            "memory": "{\"available_bytes\": 5106810880}"
+          },
+          "wall_ms": 620706.9660830001,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 3583.1300829999964,
+            "lift_ms": 112395.348,
+            "c_generation_cpu_ms": 1778.784,
+            "compile_ms": 232415.67,
+            "link_ms": 605.415,
+            "wasm_opt_ms": 180122.76575000002
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 52,
+          "objects_cached": 29,
+          "jobs": 2,
+          "peak_child_rss_bytes": 449445888,
+          "parallel_rss_upper_bound_bytes": 898891776,
+          "asyncify_cached": false,
+          "memory": {
+            "available_bytes": 4449878016,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 53430389,
+          "jspi_ready_ms": 439877.881167,
+          "lift": [
+            {
+              "analysis_cached": false,
+              "chunks_lifted": 50,
+              "chunks_cached": 0,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 1778.784
+            }
+          ]
+        },
+        {
+          "scenario": "no-change",
+          "before": {
+            "at": "2026-11-03T00:53:15.084Z",
+            "loadavg": [
+              6.857421875,
+              10.85986328125,
+              11.26953125
+            ],
+            "disk_free_bytes": 3860172800,
+            "memory": "{\"available_bytes\": 5098045440}"
+          },
+          "after": {
+            "at": "2026-11-03T00:53:22.567Z",
+            "loadavg": [
+              7.02880859375,
+              10.82861328125,
+              11.255859375
+            ],
+            "disk_free_bytes": 3854929920,
+            "memory": "{\"available_bytes\": 3971547136}"
+          },
+          "wall_ms": 7483.816125000012,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 6.940249999985099,
+            "lift_ms": 1.433,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 2.964,
+            "link_ms": 774.634,
+            "wasm_opt_ms": 320.3911670000525
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 0,
+          "objects_cached": 81,
+          "jobs": 2,
+          "peak_child_rss_bytes": 293552128,
+          "parallel_rss_upper_bound_bytes": 587104256,
+          "asyncify_cached": true,
+          "memory": {
+            "available_bytes": 4836376576,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 53430389,
+          "jspi_ready_ms": 6497.845333999954,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 50,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 0
+            }
+          ]
+        },
+        {
+          "scenario": "runtime-only-change",
+          "before": {
+            "at": "2026-11-03T00:53:22.610Z",
+            "loadavg": [
+              7.02880859375,
+              10.82861328125,
+              11.255859375
+            ],
+            "disk_free_bytes": 3854897152,
+            "memory": "{\"available_bytes\": 3954884608}"
+          },
+          "after": {
+            "at": "2026-11-03T00:53:28.888Z",
+            "loadavg": [
+              7.6328125,
+              10.83349609375,
+              11.251953125
+            ],
+            "disk_free_bytes": 3846594560,
+            "memory": "{\"available_bytes\": 4438425600}"
+          },
+          "wall_ms": 6278.319874999928,
+          "wasm": {
+            "url": "game.wasm?h=795cdd7d89fcb576",
+            "size": 45035603,
+            "sha256": "795cdd7d89fcb576d261c19b0e34524af8f166b5851e29570379f85ad29e1d50"
+          },
+          "phase_timings": {
+            "analysis_ms": 6.480749999987893,
+            "lift_ms": 1.38,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 132.568,
+            "link_ms": 449.452,
+            "wasm_opt_ms": 232.50212499999907
+          },
+          "lifted_insns": 1609529,
+          "objects_compiled": 1,
+          "objects_cached": 80,
+          "jobs": 2,
+          "peak_child_rss_bytes": 290848768,
+          "parallel_rss_upper_bound_bytes": 581697536,
+          "asyncify_cached": true,
+          "memory": {
+            "available_bytes": 4454957056,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 53430389,
+          "jspi_ready_ms": 5396.219666999998,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 50,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_functions": 15000,
+      "variant": "before",
+      "revision": "66982f6b8a46433db9c8b3efa4c87f32ab40ae9b",
+      "reported_head": "de279486f801cf237e6e85ef08e037515f9e6bd6",
+      "raw_report": "reports/k18/before-15000.json",
+      "raw_sha256": "8d2ce4bb116ceefc3445c48bec9521f09a6e707ba5cc04c9caa4cb7a8ab7f065",
+      "machine": {
+        "hostname": "Mac-mini-2.local",
+        "platform": "darwin",
+        "arch": "arm64",
+        "totalmem": 17179869184,
+        "node": "v24.19.0"
+      },
+      "samples": [
+        {
+          "scenario": "cold",
+          "before": {
+            "at": "2026-11-03T00:42:54.350Z",
+            "loadavg": [
+              11.1416015625,
+              13.29931640625,
+              11.09521484375
+            ],
+            "disk_free_bytes": 5954101248,
+            "memory": "{\"available_bytes\": 3844046848}"
+          },
+          "after": {
+            "at": "2026-11-03T00:55:40.077Z",
+            "loadavg": [
+              6.8759765625,
+              9.58544921875,
+              10.70361328125
+            ],
+            "disk_free_bytes": 3593142272,
+            "memory": "{\"available_bytes\": 5361287168}"
+          },
+          "wall_ms": 765719.050292,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 7588.338833000002,
+            "lift_ms": 211198.086,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 238227.359,
+            "link_ms": 733.016,
+            "wasm_opt_ms": 199485.636833
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 64,
+          "objects_cached": 29,
+          "jobs": 2,
+          "peak_child_rss_bytes": 452034560,
+          "parallel_rss_upper_bound_bytes": 904069120,
+          "asyncify_cached": false,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": false,
+              "chunks_lifted": 62,
+              "chunks_cached": 0,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        },
+        {
+          "scenario": "no-change",
+          "before": {
+            "at": "2026-11-03T00:55:40.107Z",
+            "loadavg": [
+              6.8759765625,
+              9.58544921875,
+              10.70361328125
+            ],
+            "disk_free_bytes": 3593101312,
+            "memory": "{\"available_bytes\": 5355028480}"
+          },
+          "after": {
+            "at": "2026-11-03T00:55:44.079Z",
+            "loadavg": [
+              6.5654296875,
+              9.47607421875,
+              10.658203125
+            ],
+            "disk_free_bytes": 3593121792,
+            "memory": "{\"available_bytes\": 4653154304}"
+          },
+          "wall_ms": 3971.663749999949,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 11.110666000051424,
+            "lift_ms": 0.989,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 3.161,
+            "link_ms": 847.479,
+            "wasm_opt_ms": 301.6294999999227
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 0,
+          "objects_cached": 93,
+          "jobs": 2,
+          "peak_child_rss_bytes": 351158272,
+          "parallel_rss_upper_bound_bytes": 702316544,
+          "asyncify_cached": true,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        },
+        {
+          "scenario": "runtime-only-change",
+          "before": {
+            "at": "2026-11-03T00:55:44.112Z",
+            "loadavg": [
+              6.5654296875,
+              9.47607421875,
+              10.658203125
+            ],
+            "disk_free_bytes": 3593109504,
+            "memory": "{\"available_bytes\": 4656005120}"
+          },
+          "after": {
+            "at": "2026-11-03T01:01:06.077Z",
+            "loadavg": [
+              18.77783203125,
+              16.82958984375,
+              13.72021484375
+            ],
+            "disk_free_bytes": 3376877568,
+            "memory": "{\"available_bytes\": 4843307008}"
+          },
+          "wall_ms": 321965.072041,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 6.000249999924563,
+            "lift_ms": 0.873,
+            "c_generation_cpu_ms": null,
+            "compile_ms": 306601.506,
+            "link_ms": 726.895,
+            "wasm_opt_ms": 346.339333999902
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 63,
+          "objects_cached": 30,
+          "jobs": 2,
+          "peak_child_rss_bytes": 452100096,
+          "parallel_rss_upper_bound_bytes": 904200192,
+          "asyncify_cached": true,
+          "memory": null,
+          "jspi_bytes": null,
+          "jspi_ready_ms": null,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_functions": 15000,
+      "variant": "after",
+      "revision": "b189141 (working tree at de27948 launch)",
+      "reported_head": "de279486f801cf237e6e85ef08e037515f9e6bd6",
+      "raw_report": "reports/k18/after-15000.json",
+      "raw_sha256": "538c66c9d09409e0674508513966b67e78eb71fdb6cd2fbafc640040f0db4708",
+      "machine": {
+        "hostname": "Mac-mini-2.local",
+        "platform": "darwin",
+        "arch": "arm64",
+        "totalmem": 17179869184,
+        "node": "v24.19.0"
+      },
+      "samples": [
+        {
+          "scenario": "cold",
+          "before": {
+            "at": "2026-11-03T00:30:43.753Z",
+            "loadavg": [
+              10.388671875,
+              9.06787109375,
+              9.34912109375
+            ],
+            "disk_free_bytes": 7035080704,
+            "memory": "{\"available_bytes\": 5557649408}"
+          },
+          "after": {
+            "at": "2026-11-03T00:42:09.853Z",
+            "loadavg": [
+              9.61962890625,
+              13.39794921875,
+              11.00830078125
+            ],
+            "disk_free_bytes": 6081191936,
+            "memory": "{\"available_bytes\": 5653348352}"
+          },
+          "wall_ms": 686096.033042,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 5172.3501250000045,
+            "lift_ms": 156616.193,
+            "c_generation_cpu_ms": 1866.689,
+            "compile_ms": 210304.025,
+            "link_ms": 738.717,
+            "wasm_opt_ms": 235879.806208
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 93,
+          "objects_cached": 0,
+          "jobs": 2,
+          "peak_child_rss_bytes": 448397312,
+          "parallel_rss_upper_bound_bytes": 896794624,
+          "asyncify_cached": false,
+          "memory": {
+            "available_bytes": 5903646720,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 449373.503875,
+          "lift": [
+            {
+              "analysis_cached": false,
+              "chunks_lifted": 62,
+              "chunks_cached": 0,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 1866.689
+            }
+          ]
+        },
+        {
+          "scenario": "no-change",
+          "before": {
+            "at": "2026-11-03T00:42:09.885Z",
+            "loadavg": [
+              9.61962890625,
+              13.39794921875,
+              11.00830078125
+            ],
+            "disk_free_bytes": 6080995328,
+            "memory": "{\"available_bytes\": 5659836416}"
+          },
+          "after": {
+            "at": "2026-11-03T00:42:14.177Z",
+            "loadavg": [
+              10.61083984375,
+              13.54052734375,
+              11.072265625
+            ],
+            "disk_free_bytes": 6076981248,
+            "memory": "{\"available_bytes\": 4627054592}"
+          },
+          "wall_ms": 4292.5287089999765,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 10.433709000004455,
+            "lift_ms": 1.372,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 2.642,
+            "link_ms": 722.868,
+            "wasm_opt_ms": 243.4440000000177
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 0,
+          "objects_cached": 93,
+          "jobs": 2,
+          "peak_child_rss_bytes": 351272960,
+          "parallel_rss_upper_bound_bytes": 702545920,
+          "asyncify_cached": true,
+          "memory": {
+            "available_bytes": 4921901056,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 3287.058667000034,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 0
+            }
+          ]
+        },
+        {
+          "scenario": "runtime-only-change",
+          "before": {
+            "at": "2026-11-03T00:42:14.207Z",
+            "loadavg": [
+              10.61083984375,
+              13.54052734375,
+              11.072265625
+            ],
+            "disk_free_bytes": 6076940288,
+            "memory": "{\"available_bytes\": 4624269312}"
+          },
+          "after": {
+            "at": "2026-11-03T00:42:26.786Z",
+            "loadavg": [
+              10.99365234375,
+              13.5361328125,
+              11.10009765625
+            ],
+            "disk_free_bytes": 6009540608,
+            "memory": "{\"available_bytes\": 4756684800}"
+          },
+          "wall_ms": 12579.531666000024,
+          "wasm": {
+            "url": "game.wasm?h=e109143836419753",
+            "size": 56159339,
+            "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+          },
+          "phase_timings": {
+            "analysis_ms": 6.754542000009678,
+            "lift_ms": 1.384,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 7398.189,
+            "link_ms": 502.398,
+            "wasm_opt_ms": 239.22837499994785
+          },
+          "lifted_insns": 2011529,
+          "objects_compiled": 23,
+          "objects_cached": 70,
+          "jobs": 2,
+          "peak_child_rss_bytes": 351600640,
+          "parallel_rss_upper_bound_bytes": 703201280,
+          "asyncify_cached": true,
+          "memory": {
+            "available_bytes": 4661460992,
+            "reserve_bytes": 1073741824,
+            "per_worker_bytes": 1073741824,
+            "cap": 2,
+            "probe_error": null,
+            "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+          },
+          "jspi_bytes": 66598422,
+          "jspi_ready_ms": 11569.91633399995,
+          "lift": [
+            {
+              "analysis_cached": true,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "c_generation_cpu_ms": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "final_source_warm": {
+    "revision": "b40e5fd576a9f3c31031362fe0b3b20eebef15e2",
+    "source_note": "working tree includes computed/parent-relative dependency rediscovery",
+    "samples": [
+      {
+        "scenario": "no-change",
+        "before": {
+          "at": "2026-11-03T02:29:52.165Z",
+          "loadavg": [
+            4.83447265625,
+            6.0771484375,
+            7.64404296875
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377992192,
+          "memory": "4812898304"
+        },
+        "after": {
+          "at": "2026-11-03T02:29:58.451Z",
+          "loadavg": [
+            4.927734375,
+            6.07568359375,
+            7.63427734375
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377857024,
+          "memory": "3696771072"
+        },
+        "wall_ms": 6285.505042,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "phase_timings": {
+          "analysis_ms": 8.897542000000158,
+          "lift_ms": 1.6,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 2.573,
+          "link_ms": 843.934,
+          "wasm_opt_ms": 323.5490410000002
+        },
+        "objects_compiled": 0,
+        "objects_cached": 93,
+        "memory": {
+          "available_bytes": 3911827456,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 2,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "peak_child_rss_bytes": 343212032,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "lift_ms": 1.6,
+              "lift_peak_child_rss_bytes": 1196032,
+              "lift_analysis_cpu_ms": 0,
+              "c_generation_cpu_ms": 0,
+              "lift_task_timings": [],
+              "memory": {
+                "available_bytes": 4524654592,
+                "reserve_bytes": 1073741824,
+                "per_worker_bytes": 805306368,
+                "cap": 2,
+                "probe_error": null,
+                "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+              },
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "generated_c_bytes": 334525882,
+              "largest_chunk_bytes": 5413317,
+              "generated_lines": 4658107,
+              "chunks": 62,
+              "analysis_ms": 8.897542000000158,
+              "analysis_cached": true
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "runtime-only-fresh-comment",
+        "before": {
+          "at": "2026-11-03T02:29:58.481Z",
+          "loadavg": [
+            4.927734375,
+            6.07568359375,
+            7.63427734375
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377836544,
+          "memory": "3704733696"
+        },
+        "after": {
+          "at": "2026-11-03T02:30:15.949Z",
+          "loadavg": [
+            4.3115234375,
+            5.859375,
+            7.52001953125
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6220836864,
+          "memory": "5319639040"
+        },
+        "wall_ms": 17466.944916,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "phase_timings": {
+          "analysis_ms": 9.118207999999868,
+          "lift_ms": 1.659,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 10037.043,
+          "link_ms": 680.332,
+          "wasm_opt_ms": 237.38866699999926
+        },
+        "objects_compiled": 23,
+        "objects_cached": 70,
+        "memory": {
+          "available_bytes": 3720626176,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 2,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "peak_child_rss_bytes": 351567872,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "lift_ms": 1.659,
+              "lift_peak_child_rss_bytes": 1196032,
+              "lift_analysis_cpu_ms": 0,
+              "c_generation_cpu_ms": 0,
+              "lift_task_timings": [],
+              "memory": {
+                "available_bytes": 3672047616,
+                "reserve_bytes": 1073741824,
+                "per_worker_bytes": 805306368,
+                "cap": 2,
+                "probe_error": null,
+                "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+              },
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "generated_c_bytes": 334525882,
+              "largest_chunk_bytes": 5413317,
+              "generated_lines": 4658107,
+              "chunks": 62,
+              "analysis_ms": 9.118207999999868,
+              "analysis_cached": true
+            }
+          }
+        ]
+      }
+    ],
+    "raw_report": "reports/k18/final-runtime.json",
+    "scope": "Post-oracle/browser/lint, final implementation b40e5fd, jobs=2, JSPI plus Asyncify requested. Unique fresh runtime comment avoids earlier edited-header object hits; all 23 dependent runtime objects compile, all 62 lifted chunks and analysis remain cached. Shared machine, not quiescent; unchanged versus 4.293s earlier is 6.286s here after conservative discovery repair."
+  }
+}

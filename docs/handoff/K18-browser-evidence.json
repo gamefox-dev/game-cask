@@ -1,0 +1,728 @@
+{
+  "schema": "game-cask/k18-browser-evidence/1",
+  "implementation": "b40e5fd",
+  "scope": "Full unchanged Playwright assertions on Chromium forced WebGL2, required WebGPU and auto, own port 5247. BGT_E2E_SUSPENSION=jspi explicitly opts the second suite into JSPI. Both artifact types exist for all 34 examples. Dedicated JSPI tests unconditionally require the real API and compare 300 boundaries/loader traces plus forced unsupported-API fallback. Not physical-device or game/porter certification.",
+  "variants": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-03T02:03:11.508Z",
+        "duration": 824752.0079999999,
+        "expected": 249,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 112,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 129,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "raw_report": "reports/k18-asyncify-full-results.json",
+      "raw_sha256": "94ab5d5b1a4bcad543f2a11fa73c6b31f7147da9ccde9450541a9b1c7d44b0f0",
+      "skips": [
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-auto",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 0 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 1 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 2 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 3 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 4 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 6 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 7 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 8 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 9 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: indexed coloured triangle",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: mipmapped alpha quad",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: two colour attachments",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: depth and stencil",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: 1000 instanced sprites",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: uniform animation",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: 2D GPU interleaving",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "tour.spec.ts",
+          "title": "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "visual.spec.ts",
+          "title": "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        }
+      ],
+      "jspi_regressions": [
+        {
+          "file": "jspi.spec.ts",
+          "title": "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+          "project": "chromium-webgl2",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+          "project": "chromium-webgl2",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+          "project": "chromium-webgpu",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+          "project": "chromium-webgpu",
+          "status": "expected"
+        }
+      ]
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-03T02:16:57.233Z",
+        "duration": 684143.812,
+        "expected": 249,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 112,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 129,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "raw_report": "reports/k18-jspi-full-results.json",
+      "raw_sha256": "1b24f7ff14afe53434f3f635659271c04b7b7e874ca2cfe6cd98740bf8822042",
+      "skips": [
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-auto",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 0 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 1 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 2 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 3 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 4 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 6 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 7 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 8 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 9 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: indexed coloured triangle",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: mipmapped alpha quad",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: two colour attachments",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: depth and stencil",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: 1000 instanced sprites",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: uniform animation",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 native: 2D GPU interleaving",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "tour.spec.ts",
+          "title": "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "visual.spec.ts",
+          "title": "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgl2",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgpu",
+          "status": "skipped"
+        }
+      ],
+      "jspi_regressions": [
+        {
+          "file": "jspi.spec.ts",
+          "title": "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+          "project": "chromium-webgl2",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+          "project": "chromium-webgl2",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+          "project": "chromium-webgpu",
+          "status": "expected"
+        },
+        {
+          "file": "jspi.spec.ts",
+          "title": "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+          "project": "chromium-webgpu",
+          "status": "expected"
+        }
+      ]
+    }
+  },
+  "same_skip_inventory": true
+}
