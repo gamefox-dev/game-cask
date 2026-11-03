@@ -636,7 +636,27 @@ Frame.items is the single ordering authority. Resource changes, readback and GPU
 All previously queued 2D draws finish before a GPU begin; GPU end stores results before later 2D draws/readback.
 The screen is the same letterboxed logical surface as 2D (RGBA8, not a second canvas). GPU load preserves earlier
 screen content; clear/load and later 2D blending observe that content in stream order. GPU passes do not modify the
-legacy viewport/transform/scissor/texture/blend/TARGET state. At begin, GPU viewport/scissor cover the whole attachment,
+legacy viewport/transform/scissor/texture/blend/TARGET state.
+
+**Opaque default-screen boundary (K19):** target 0 represents an opaque window, on both backends. After a GPU
+screen PASS_END or a BLIT to screen, observable screen alpha is 1 (RGBA8 readback alpha 255), irrespective of the
+source/clear alpha. Subsequent screen LOAD, BLIT-from-screen and destination-alpha blending see that opaque result.
+Legacy 2D screen draws also retain opaque alpha. Offscreen targets retain their actual RGBA alpha; this is not a
+readback-only alpha replacement. WebGL uses an alpha:false default framebuffer and RGBA staging for GPU passes;
+WebGPU performs a native alpha-only store at the same completed-pass/BLIT boundaries and presents opaquely.
+Within a GPU pass, its RGBA staging/blending remains ordinary attachment arithmetic until that boundary.
+
+**Native numerical boundaries (K19):** floating render-target conversion/blending/filtering is native, not software
+emulation. Half-float stores can differ by one binary16 ULP for a single clear/draw, with accumulated/interpolated
+drift across passes; UNORM conversion at a halfway code can differ by one code. The original CC0 float-boundary
+fixture measures these cases separately from exact representable RGBA8, integer and depth controls. This does not
+permit missing draws, wrong formats/channels or alpha loss. Exact replay reports remain exact (no hidden tolerance).
+Nearest-scaled BLIT/presentation can select adjacent source texels at native coordinate-precision thresholds. K19's
+coordinate-coded/checkerboard controls verify exact source copies and at most one source texel displacement per axis,
+not blended colors. This is distinct from floating color drift: a high-contrast edge can have a large RGB delta despite
+one-texel displacement. It is not permission to move geometry or broaden unrelated pixel assertions.
+
+At begin, GPU viewport/scissor cover the whole attachment,
 depth range is [0,1], stencil ref 0, blend constant (0,0,0,0); all bindings and pipeline are unset. Bindings persist
 on pipeline switch **within** the pass, but nothing persists to the next pass.
 

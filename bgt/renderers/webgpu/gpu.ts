@@ -5,6 +5,7 @@ import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderB
 import { lowerDepthSampling, type DepthSampling } from './depth';
 import { fragmentOutputs } from './outputs';
 import { WebGPUBufferCopy } from './buffer-copy';
+import { WebGPUOpaqueScreen } from './screen';
 import { WebGPUBlit, type BlitImage } from './blit';
 import { lowerFeedback, type FeedbackInput } from './feedback';
 import { feedbackLayout, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
@@ -63,6 +64,8 @@ export class WebGPUCommands implements GpuBackend {
   private stencilRef = 0;
   private clearPipelines = new Map<string, GPURenderPipeline>();
   private screen?: GPUTexture;
+  private screenPass = false;
+  private opaqueScreen?: WebGPUOpaqueScreen;
   private current?: PipelineResource;
   private uniforms = new Map<number, GPUBufferBinding>();
   private sampled = new Map<number, number[]>();
@@ -109,6 +112,7 @@ export class WebGPUCommands implements GpuBackend {
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     this.device = device;
+    this.opaqueScreen = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
@@ -176,6 +180,10 @@ export class WebGPUCommands implements GpuBackend {
         } : {texture: this.screen!, mip: 0, format: 'rgba8unorm', kind: 0};
         this.framebufferBlit ??= new WebGPUBlit(d);
         this.framebufferBlit.execute(w, image(h, w[1]), image(w[2], w[3]));
+        if (!w[2]) {
+          const encoder = d.createCommandEncoder();
+          this.makeScreenOpaque(encoder); d.queue.submit([encoder.finish()]);
+        }
         break;
       }
       case OP.BUFFER_CREATE: {
@@ -296,6 +304,7 @@ export class WebGPUCommands implements GpuBackend {
       case OP.PASS_BEGIN: {
         this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
         this.index = undefined; this.current = undefined; this.capture=undefined;
+        this.screenPass = h === 1 && w[7] === 0;
         this.encoder = d.createCommandEncoder();
         const colors: GPURenderPassColorAttachment[] = [];
         this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
@@ -328,7 +337,11 @@ export class WebGPUCommands implements GpuBackend {
       }
       case OP.CLEAR_BUFFER: this.clearBuffer(w); break;
       case OP.PASS_END:
-        this.pass!.end(); d.queue.submit([this.encoder!.finish()]); this.pass = undefined; this.encoder = undefined;
+        this.pass!.end();
+        // Match WebGL's logical staging -> alpha:false default framebuffer boundary.
+        // This is a native alpha-only store, before later LOAD/BLIT/DST_ALPHA/readback.
+        if (this.screenPass) this.makeScreenOpaque(this.encoder!);
+        d.queue.submit([this.encoder!.finish()]); this.pass = undefined; this.encoder = undefined;
         // Destruction is deferred until submissions using these buffers finish.
         if (this.scratch.length) {
           const scratch = this.scratch.splice(0), release = () => scratch.forEach(b => b.destroy());
@@ -360,6 +373,11 @@ export class WebGPUCommands implements GpuBackend {
       }
       default: throw new Error('Unknown §13 opcode');
     }
+  }
+
+  private makeScreenOpaque(encoder: GPUCommandEncoder): void {
+    this.opaqueScreen ??= new WebGPUOpaqueScreen(this.device);
+    this.opaqueScreen.encode(encoder, this.screen!);
   }
 
   private bufferReadback(item:GpuItem):void {
