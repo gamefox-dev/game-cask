@@ -793,5 +793,171 @@
         }
       ]
     }
-  ]
+  ],
+  "final_source_warm": {
+    "revision": "b40e5fd576a9f3c31031362fe0b3b20eebef15e2",
+    "source_note": "working tree includes computed/parent-relative dependency rediscovery",
+    "samples": [
+      {
+        "scenario": "no-change",
+        "before": {
+          "at": "2026-11-03T02:29:52.165Z",
+          "loadavg": [
+            4.83447265625,
+            6.0771484375,
+            7.64404296875
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377992192,
+          "memory": "4812898304"
+        },
+        "after": {
+          "at": "2026-11-03T02:29:58.451Z",
+          "loadavg": [
+            4.927734375,
+            6.07568359375,
+            7.63427734375
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377857024,
+          "memory": "3696771072"
+        },
+        "wall_ms": 6285.505042,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "phase_timings": {
+          "analysis_ms": 8.897542000000158,
+          "lift_ms": 1.6,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 2.573,
+          "link_ms": 843.934,
+          "wasm_opt_ms": 323.5490410000002
+        },
+        "objects_compiled": 0,
+        "objects_cached": 93,
+        "memory": {
+          "available_bytes": 3911827456,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 2,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "peak_child_rss_bytes": 343212032,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "lift_ms": 1.6,
+              "lift_peak_child_rss_bytes": 1196032,
+              "lift_analysis_cpu_ms": 0,
+              "c_generation_cpu_ms": 0,
+              "lift_task_timings": [],
+              "memory": {
+                "available_bytes": 4524654592,
+                "reserve_bytes": 1073741824,
+                "per_worker_bytes": 805306368,
+                "cap": 2,
+                "probe_error": null,
+                "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+              },
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "generated_c_bytes": 334525882,
+              "largest_chunk_bytes": 5413317,
+              "generated_lines": 4658107,
+              "chunks": 62,
+              "analysis_ms": 8.897542000000158,
+              "analysis_cached": true
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "runtime-only-fresh-comment",
+        "before": {
+          "at": "2026-11-03T02:29:58.481Z",
+          "loadavg": [
+            4.927734375,
+            6.07568359375,
+            7.63427734375
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6377836544,
+          "memory": "3704733696"
+        },
+        "after": {
+          "at": "2026-11-03T02:30:15.949Z",
+          "loadavg": [
+            4.3115234375,
+            5.859375,
+            7.52001953125
+          ],
+          "totalmem": 17179869184,
+          "disk_free_bytes": 6220836864,
+          "memory": "5319639040"
+        },
+        "wall_ms": 17466.944916,
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "phase_timings": {
+          "analysis_ms": 9.118207999999868,
+          "lift_ms": 1.659,
+          "c_generation_cpu_ms": 0,
+          "compile_ms": 10037.043,
+          "link_ms": 680.332,
+          "wasm_opt_ms": 237.38866699999926
+        },
+        "objects_compiled": 23,
+        "objects_cached": 70,
+        "memory": {
+          "available_bytes": 3720626176,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 2,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "peak_child_rss_bytes": 351567872,
+        "lift": [
+          {
+            "name": "scale.exe",
+            "scale": {
+              "lift_ms": 1.659,
+              "lift_peak_child_rss_bytes": 1196032,
+              "lift_analysis_cpu_ms": 0,
+              "c_generation_cpu_ms": 0,
+              "lift_task_timings": [],
+              "memory": {
+                "available_bytes": 3672047616,
+                "reserve_bytes": 1073741824,
+                "per_worker_bytes": 805306368,
+                "cap": 2,
+                "probe_error": null,
+                "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+              },
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "lift_jobs": 2,
+              "generated_c_bytes": 334525882,
+              "largest_chunk_bytes": 5413317,
+              "generated_lines": 4658107,
+              "chunks": 62,
+              "analysis_ms": 9.118207999999868,
+              "analysis_cached": true
+            }
+          }
+        ]
+      }
+    ],
+    "raw_report": "reports/k18/final-runtime.json",
+    "scope": "Post-oracle/browser/lint, final implementation b40e5fd, jobs=2, JSPI plus Asyncify requested. Unique fresh runtime comment avoids earlier edited-header object hits; all 23 dependent runtime objects compile, all 62 lifted chunks and analysis remain cached. Shared machine, not quiescent; unchanged versus 4.293s earlier is 6.286s here after conservative discovery repair."
+  }
 }
