@@ -51,7 +51,12 @@ export class FrameReplay {
       const { op, words: w } = canonicalize(item.op, item.words);
       if (op === O.TEXTURE_CREATE_EX) this.textures.set(w[0], toCanonicalTexture(w));
       if (op === O.TEXTURE_DELETE) this.textures.delete(w[0]);
-      if (op === O.SHADER_CREATE) item.complete = (code, log) => { if (code) this.errors.push(log || 'shader failed'); };
+      if (op === O.SHADER_CREATE) pending.push(new Promise<void>((resolve, reject) => {
+        item.complete = (code, log) => code ? reject(new Error(log || 'shader failed')) : resolve();
+      }));
+      if (op === O.TEXTURE_READBACK || op === O.BUFFER_READBACK) pending.push(new Promise<void>((resolve, reject) => {
+        item.readback = (data, error) => !data || error ? reject(new Error('Recorded readback failed: ' + error)) : resolve();
+      }));
       if (op === O.PASS_BEGIN) {
         attachments = Array.from({ length: w[0] }, (_, i) => ({ handle: w[7 + i * 7], mip: w[8 + i * 7] }));
         if (w[1] && !isDepthFormat(this.textures.get(w[1])?.format ?? 0)) throw new Error('Missing depth attachment');
@@ -63,8 +68,12 @@ export class FrameReplay {
     frame.items = out;
     // Avoid resizing a preserved canvas when dimensions did not change.
     if (this.renderer.canvas.width !== record.width || this.renderer.canvas.height !== record.height) this.renderer.resize(record.width, record.height);
+    const completions = Promise.all(pending);
+    // Attach rejection handling before issuing work: readback/compile can finish during drawFrame.
+    const completionResult = completions.then(() => undefined, error => error as Error);
     const pixels = await this.renderer.drawFrame(frame, record.letterbox, inspect);
-    await this.renderer.finish(); await Promise.all(pending);
+    await this.renderer.finish();
+    const completionError = await completionResult; if (completionError) throw completionError;
     if (inspect && pixels) snapshots.push({ label: 'screen', format: 0, width: pixels.width, height: pixels.height, data: encodeBytes(pixels.data) });
     if (this.errors.length) throw new Error(this.errors.join('\n'));
     return snapshots.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));

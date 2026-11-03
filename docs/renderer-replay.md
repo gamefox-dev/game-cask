@@ -4,14 +4,10 @@ This debug-only, engine-agnostic harness records **all renderer input from start
 
 ## Capture (already-built game, dev probe)
 
-Write a scratch script, e.g. `/private/scratch/title.mjs`:
-
-```js
-export default async function (p) { await p.step(7063); }
-```
+Use the generic deterministic driver (or a custom scratch input script):
 
 ```sh
-npm run probe -- --game YOUR-ID --backend webgl2 --script /private/scratch/title.mjs --record-frame 7063 --out /private/scratch/title
+npm run probe -- --game YOUR-ID --backend webgl2 --script tools/probe/record-to-frame.mjs --params recordTo=7063 --record-frame 7063 --out /private/scratch/title
 ```
 
 The probe exposes its sink **before navigation/init**. The runtime awaits each snapshot before drawing or consuming it. This is opt-in, adds no game ABI import/opcode, and does not replace native results with CPU shadows. The probe fails if the script does not render the exact requested update. Use one runtime lifetime per recording; do not navigate/restart within a recording.

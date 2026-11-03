@@ -56,6 +56,7 @@ try {
       return results;
     }, { entry, inspect });
     report.frames++;
+    if (report.frames % 250 === 0) console.log('replay frames=' + report.frames + ' update=' + entry.update);
     if (!inspect) continue;
     const [gl, gpu] = pair;
     if (gl.length !== gpu.length) throw new Error('Snapshot count mismatch');
