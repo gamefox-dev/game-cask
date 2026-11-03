@@ -1,6 +1,7 @@
 // @bgt-examples: win32-hello
 // Original CC0 deep shadow-stack regression, plus actual runtime loader selection/fallback.
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { test, expect, openGame, diagnostics, step, stateHash } from './fixtures';
 import { compileC } from '../support/compile';
 
@@ -48,4 +49,47 @@ test('dual loader defaults/fallback/opt-in have identical 300-frame runtime trac
   const fallback=[];
   for(let f=0;f<300;f++){await step(page,1);fallback.push((await stateHash(page))!);}
   expect(fallback).toEqual(traces[0]);
+});
+
+
+// The loader must not misinterpret a raw JSPI-only module as Asyncify when no
+// fallback exists. Exercise its real manifest, integrity and host paths on both GPUs.
+test('JSPI-only loader runs its oracle and diagnoses missing API/fallback', async ({page,backendParam,collector}) => {
+  const bytes=Buffer.from(await compileC('tests/fixtures/c/yield_game.c'));
+  const sha256=createHash('sha256').update(bytes).digest('hex');
+  await page.route('**/games/win32-hello/manifest.json',async route=>{
+    const response=await route.fetch(),manifest=await response.json();
+    delete manifest.variants;manifest.suspension='jspi';manifest.wasm={url:'k22-only.wasm',size:bytes.length,sha256};
+    await route.fulfill({response,json:manifest});
+  });
+  await page.route('**/games/win32-hello/k22-only.wasm',route=>route.fulfill({contentType:'application/wasm',body:bytes}));
+  expect(await openGame(page,backendParam,{game:'win32-hello',suspension:'jspi'})).toBe('ready');
+  expect((await diagnostics(page)).suspension).toBe('jspi');
+  await step(page,300);
+  expect(await stateHash(page)).toBe((300000+187).toString(16).padStart(8,'0'));
+  expect((await diagnostics(page)).failed).toBe(false);
+  collector.allow(/JSPI-only build requires/,/Asyncify requested.*no fallback/);
+  expect(await openGame(page,backendParam,{game:'win32-hello',suspension:'asyncify'})).toBe('failed');
+  await page.addInitScript(()=>{Object.defineProperty(WebAssembly,'Suspending',{value:undefined,configurable:true});});
+  expect(await openGame(page,backendParam,{game:'win32-hello',suspension:'jspi'})).toBe('failed');
+});
+
+
+test('per-game JSPI preference selects real JSPI and reports it, with unsupported fallback',async({page,backendParam,collector})=>{
+  void collector;
+  await page.route('**/games/win32-hello/manifest.json',async route=>{
+    const response=await route.fetch(),manifest=await response.json();
+    // This test requires dual artifacts; a missing optional variant must still fall back.
+    manifest.preferredSuspension='jspi';await route.fulfill({response,json:manifest});
+  });
+  // Override only the suite-wide URL opt-in; this case must select from the manifest.
+  await page.addInitScript(()=>{const u=new URL(location.href);u.searchParams.delete('suspension');history.replaceState(null,'',u);});
+  expect(await openGame(page,backendParam,{game:'win32-hello'})).toBe('ready');
+  const available=await page.evaluate(async()=>!!(await(await fetch('/games/win32-hello/manifest.json')).json()).variants?.jspi);
+  const d=await diagnostics(page);expect(d.suspension).toBe(available?'jspi':'asyncify');
+  expect((d.metrics as any).runtime_profile.suspension).toBe(d.suspension);
+  await step(page,300);expect((await diagnostics(page)).failed).toBe(false);
+  await page.addInitScript(()=>{Object.defineProperty(WebAssembly,'Suspending',{value:undefined,configurable:true});});
+  expect(await openGame(page,backendParam,{game:'win32-hello'})).toBe('ready');
+  expect((await diagnostics(page)).suspension).toBe('asyncify');
 });

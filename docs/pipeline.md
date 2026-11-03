@@ -328,6 +328,12 @@ Later lanes add [bounded cooperative threads](../platforms/win32/THREADS.md), a 
 and [bounded x87](../platforms/x86/X87.md); those are not universal compatibility. Integer conversions honor
 MXCSR rounding. Unknown instructions/APIs fault explicitly; do not work around them with game-specific overrides.
 
+## Suspension builds and selection
+
+See [suspension policy](suspension.md) for bounded Asyncify on large linked modules, the Binaryen wasm32
+4 GiB IR limit, dual/JSPI-only builds and per-game `"suspension": "jspi-preferred"` opt-in with verified
+Asyncify fallback. The global default remains Asyncify; JSPI-only builds do not run wasm-opt.
+
 ## v0.3 development: build scale
 
 Pipeline compilation is parallel and incremental per translation unit (including lifted modules), with a content

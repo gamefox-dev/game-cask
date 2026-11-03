@@ -24,11 +24,13 @@ try {
   const result=await page.evaluate(async({id,root})=>{
    const {GameHost,emptyInput}=await import(root+'/runtime/host.ts');const {Vfs}=await import(root+'/runtime/vfs.ts');
    const {RangeFiles}=await import(root+'/runtime/range-files.ts');const A=await import(root+'/runtime/abi.ts');
+   const {compileVerifiedWasm}=await import(root+'/runtime/wasm-loader.ts');
    const path='/games/'+id+'/',manifest=await(await fetch(path+'manifest.json')).json();
    const assets=await Promise.all(manifest.assets.map(async a=>({path:a.path,bytes:new Uint8Array(await(await fetch(path+a.url)).arrayBuffer())})));
    const variants=[];
    for(const mode of ['asyncify','jspi']){
     const artifact=mode==='jspi'?manifest.variants?.jspi:manifest.wasm;if(!artifact)throw new Error('missing JSPI artifact '+id);
+    const loadStart=performance.now(),loaded=await compileVerifiedWasm(await fetch(path+artifact.url),artifact),loadMs=performance.now()-loadStart;
     const bytes=await(await fetch(path+artifact.url)).arrayBuffer(),compileStart=performance.now();
     const module=await WebAssembly.compile(bytes),compileMs=performance.now()-compileStart,samples=[];
     for(let sample=0;sample<5;sample++){
@@ -45,7 +47,7 @@ try {
      const digest=await crypto.subtle.digest('SHA-256',new globalThis.TextEncoder().encode(JSON.stringify(hashes)));
      samples.push({elapsedMs,instantiateMs:host.instantiateMs,yields:host.yields,hashesSha256:Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join(''),last:hashes.at(-1),logs});
     }
-    const times=samples.map(s=>s.elapsedMs).sort((a,b)=>a-b);variants.push({mode,bytes:bytes.byteLength,compileMs,medianMs:times[2],samples});
+    const times=samples.map(s=>s.elapsedMs).sort((a,b)=>a-b);variants.push({mode,bytes:bytes.byteLength,loadMs,downloadCompileVerifyMs:loaded.downloadCompileVerifyMs,streaming:loaded.streaming,compileMs,medianMs:times[2],samples});
    }
    const traces=variants.flatMap(v=>v.samples.map(s=>s.hashesSha256));if(new Set(traces).size!==1)throw new Error('cross-variant trace differs '+id);
    return {id,variants};

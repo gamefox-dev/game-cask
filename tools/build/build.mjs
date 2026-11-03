@@ -83,7 +83,13 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const cfg = loadGameConfig(gameDir);
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])
     if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
-  const emitJspi = cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1');
+  if (cfg.suspension !== undefined && !['asyncify','jspi-preferred'].includes(cfg.suspension)) throw new Error('suspension must be asyncify or jspi-preferred');
+  const suspensionBuild = cfg.pipeline?.suspensionBuild ?? cfg.suspensionBuild ?? process.env.BGT_SUSPENSION_BUILD ?? ((cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1')) || cfg.suspension === 'jspi-preferred' ? 'dual' : 'asyncify');
+  if (!['asyncify', 'dual', 'jspi'].includes(suspensionBuild)) throw new Error('suspensionBuild/BGT_SUSPENSION_BUILD must be asyncify, dual or jspi');
+  if (cfg.suspension === 'jspi-preferred' && suspensionBuild === 'asyncify') throw new Error('jspi-preferred needs suspensionBuild dual or jspi');
+  if (cfg.suspension === 'asyncify' && suspensionBuild === 'jspi') throw new Error('asyncify preference cannot use a JSPI-only build');
+  const emitJspi = suspensionBuild === 'dual';
+  const jspiOnly = suspensionBuild === 'jspi';
   // Measurement/debug override; 0 preserves the old monolithic orchestration.
   if (cfg.pipeline && process.env.BGT_CHUNK_INSNS !== undefined) cfg.pipeline.chunkInstructions=Number(process.env.BGT_CHUNK_INSNS);
   if(cfg.pipeline?.chunkInstructions !== undefined && cfg.pipeline.chunkInstructions !== 0 &&
@@ -186,7 +192,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   let asyncifyCached = false;
   const asyncifyStarted = performance.now();
   const profileMap=[];
-  if (cfg.asyncify) {
+  if (cfg.asyncify && !jspiOnly) {
     if(asyncifyRestricted && !pipe.report.interpretOnly) {
       const names=new Set(functionNames(readFileSync(wasmPath)).map(f=>f.name));
       // K13 F_* wrappers drive cross-owner chaining and may suspend in an API thunk.
@@ -201,14 +207,14 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),Buffer.from(JSON.stringify({version:'O2/asyncify/bgt.yield/v3-sidecar',profileNames,asyncifyRemove}))]));
+    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),readFileSync(join(ROOT,'tools/build/asyncify.mjs')),readFileSync(join(ROOT,'tools/build/binaryen-runner.mjs')),readFileSync(join(ROOT,'tools/build/wasm-sections.mjs')),Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove}))]));
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
       // The same atomic per-key writer protocol is used for objects and whole-module
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, wasmOpt, wasmPath,
+        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
           ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
           ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
           ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
@@ -225,8 +231,8 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
         writeFileSync(wasmPath,Buffer.concat([readFileSync(wasmPath),names]));
         writeFileSync(join(outDir,'profile-map.json'),JSON.stringify({schema:'game-cask/wasm-functions/1',functions:profileMap})+'\n');
       }
-    } catch {
-      throw new Error(`asyncify (wasm-opt) failed for ${cfg.id}`);
+    } catch (error) {
+      throw new Error(`Asyncify failed for ${cfg.id} (${preAsyncifyBytes} linked bytes; bounded Binaryen wasm32 transform). See Binaryen diagnostic above. A single function >16 MiB or incompatible partition index spaces cannot be partitioned; split generated functions or use suspensionBuild: "jspi" (requires browser JSPI, no Asyncify fallback). Cause: ${error.message}`);
     } finally { releasePost(); }
     touchCache([cached,...(profileNames?[cached+'.names']:[])]);
     pruneCache(postDir,Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576);
@@ -325,6 +331,8 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
     ...(jspiArtifact ? { variants: { jspi: jspiArtifact } } : {}),
+    ...(jspiOnly ? { suspension: 'jspi' } : {}),
+    ...(cfg.suspension === 'jspi-preferred' ? { preferredSuspension: 'jspi' } : {}),
     ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
     ...(cfg.gpu ? { gpu: cfg.gpu } : {}),
     packaging,
@@ -332,7 +340,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     ...(streams.length ? {streams} : {}),
     touch: cfg.touch ?? { dpad: true, buttons: ['A', 'B', 'START'] },
     input: cfg.input ?? {},
-    toolchain: { zig: zig.version, cflags: [...compileBase, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify },
+    toolchain: { zig: zig.version, cflags: [...compileBase, ...(cfg.cflags ?? [])], asyncify: !!cfg.asyncify && !jspiOnly },
   };
   if (pipe) {
     manifest.pipeline = pipe.report;
@@ -343,7 +351,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
       ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
       phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
-      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:jspiOnly?'none-jspi-only':asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
     if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached/${compileMetrics.objects_uncacheable} uncacheable, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, phases analysis wall/lift wall/Cgen CPU ${pipe.report.timings?.analysis_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.lift_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.c_generation_cpu_ms?.toFixed(1) ?? 0} ms, wasm-opt ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'}), cache misses ${compileMetrics.object_cache_decisions?.filter((o) => !o.hit).length ?? compileMetrics.objects_compiled}`);
