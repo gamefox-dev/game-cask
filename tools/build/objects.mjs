@@ -56,20 +56,32 @@ function headerNames(dir, seen = new Set()) {
   });
 }
 
+// Positive depfiles plus directory inventories cover ordinary literal includes.
+// Escaping or computed names require the compiler: inventing a partial macro
+// evaluator here would turn the optimization into a second, incorrect preprocessor.
+function needsCompilerDiscovery(bytes) {
+  let text = bytes.toString('utf8');
+  if (text.includes('??')) return true; // trigraphs can form directives/line splices
+  text = text.replace(/\\\r?\n/g, '');
+  if (/\.\.[/\\]/.test(text)) return true;
+  // Preserve quoted strings/character literals while removing preprocessing comments.
+  text = text.replace(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    s => s.startsWith('/') ? ' ' : s).replace(/%:/g, '#');
+  return /^\s*#\s*include(?:_next)?\b[^\S\n]*(?![<"\s])\S/m.test(text) ||
+    /__has_include(?:_next)?\s*\(\s*(?![<"\s])\S/.test(text) ||
+    /(?:#\s*include(?:_next)?\s*|__has_include(?:_next)?\s*\(\s*)[<"]\//.test(text);
+}
+
 export function prepareObjects({ sources, flags, includes, compiler, cache, root = ROOT }) {
   const dependencyDir = join(root, 'node_modules/.cache/bgt/dependencies');
   mkdirSync(dependencyDir, { recursive: true });
   mkdirSync(cache, { recursive: true });
-  const hashes = new Map(), parentRelative = new Map();
+  const hashes = new Map(), compilerDiscovery = new Map();
   const hash = (f, scanIncludes = true) => {
     if (!hashes.has(f)) {
       const bytes = readFileSync(f);
       hashes.set(f, digest(bytes));
-      // A ../ include can escape every directory in the old positive depfile.
-      // Be conservative (also for macros/comments): let the compiler rediscover
-      // these TUs rather than inventorying unbounded ancestor trees. Line-spliced
-      // parent paths are equivalent preprocessing input and need the same rule.
-      if (scanIncludes) parentRelative.set(f, /\.\.[/\\]/.test(bytes.toString('utf8').replace(/\\\r?\n/g, '')));
+      if (scanIncludes) compilerDiscovery.set(f, needsCompilerDiscovery(bytes));
     }
     return hashes.get(f);
   };
@@ -110,7 +122,7 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       const previous = JSON.parse(readFileSync(manifest, 'utf8'));
       if (previous.inventory === inventory(previous.dependencies) && previous.sourceHash === sourceHash &&
           previous.dependencies.every(([f, h]) => existsSync(f) && hash(f) === h) &&
-          previous.dependencies.every(([f]) => !parentRelative.get(f))) deps = previous.dependencies;
+          previous.dependencies.every(([f]) => !compilerDiscovery.get(f))) deps = previous.dependencies;
     } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
     if (!deps) {
       const make = execFileSync(compiler.path, [...prefix, ...flags, '-M', '-MT', 'bgt', file], {

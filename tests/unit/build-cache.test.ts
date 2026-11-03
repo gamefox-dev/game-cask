@@ -83,13 +83,18 @@ it('discovers a new quoted-include shadow beside a transitive header outside -I 
   } finally { rmSync(dir,{recursive:true,force:true}); }
 },30_000);
 
-it.each(['native', 'wasm'])('rediscovers parent-relative transitive shadows with %s compiler', async (target) => {
+it.each([
+  { target: 'native', form: 'literal' }, { target: 'wasm', form: 'literal' },
+  { target: 'native', form: 'macro' }, { target: 'wasm', form: 'macro' },
+])('rediscovers parent-relative transitive shadows with $target compiler ($form)', async ({ target, form }) => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-parent-shadow-'));
   try {
     for (const d of ['src', 'headers/sub', 'fallback/sub']) mkdirSync(join(dir, d), { recursive: true });
     writeFileSync(join(dir, 'src/main.c'), '#include "outer.h"\nint value(void){return VALUE;}\n');
     writeFileSync(join(dir, 'src/other.c'), 'int other(void){return 42;}\n');
-    writeFileSync(join(dir, 'headers/sub/outer.h'), target === 'wasm' ? '#include "..\\\n/value.h"\n' : '#include "../value.h"\n');
+    writeFileSync(join(dir, 'headers/sub/outer.h'), form === 'macro'
+      ? '#define UP ..\n#define HEADER(x) <x/value.h>\n#/**/include HEADER(UP)\n'
+      : target === 'wasm' ? '#include "..\\\n/value.h"\n' : '#include "../value.h"\n');
     writeFileSync(join(dir, 'fallback/value.h'), '#define VALUE 1\n');
     const cfg = { sources: ['main.c', 'other.c'].map(f => join(dir, 'src', f)),
       flags: [...(target === 'wasm' ? ['--target=wasm32-freestanding'] : []), '-I', join(dir, 'headers/sub'), '-I', join(dir, 'fallback/sub')],
