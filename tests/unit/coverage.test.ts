@@ -12,6 +12,8 @@ import {Vfs} from '../../bgt/runtime/vfs';
 import {coveragePlan,staticClosure,owningRanges,rangeOwner,publishCoverage,automaticCoverageFiles,selectionMode,selectionProvenance} from '../../tools/build/coverage.mjs';
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
+// @ts-expect-error plain ESM identity migration
+import {adoptCoverage} from '../../tools/build/coverage-adopt.mjs';
 
 it('maps interior continuations to their owner, preferring .pdata, with half-open boundaries and call closure',()=>{
  const functions=[{addr:100,end:200,unwindRange:true,calls:[305]},
@@ -175,7 +177,14 @@ it('two successive selective builds converge on a >65k-instruction workload from
   // Preserve the exact synthetic PE across iterations (relinking may embed timestamps/debug paths).
   copyFileSync(join(ROOT,'node_modules/.cache/bgt/pipeline',id+'-interp','fixture/discovery.exe'),join(dir,'discovery.exe'));
   delete cfg.pipeline.fixture;cfg.pipeline.modules[0].from='./discovery.exe';
-  delete cfg.pipeline.interpretOnly;cfg.pipeline.coverage=['early.json'];save();buildGame(dir,{quiet:true});
+  delete cfg.pipeline.interpretOnly;cfg.pipeline.coverage=['early.json'];save();
+  const legacy=JSON.parse(readFileSync(join(dir,'early.json'),'utf8'));delete legacy.game;
+  writeFileSync(join(dir,'early.json'),JSON.stringify(legacy));
+  const manifestPath=join(ROOT,'web/public/games',id,'manifest.json'),beforeRejected=readFileSync(manifestPath);
+  expect(()=>buildGame(dir,{quiet:true})).toThrow(/game identity mismatch/);
+  expect(readFileSync(manifestPath)).toEqual(beforeRejected); // adoption advice must remain usable
+  adoptCoverage(join(dir,'early.json'),manifestPath,join(dir,'adopted.json'));
+  cfg.pipeline.coverage=['adopted.json'];save();buildGame(dir,{quiet:true});
   const runTrace=async(h:any)=>{const hashes=[];for(let i=0;i<8;i++){await h.stepAsync(1);hashes.push(h.host.stateHash());}return hashes;};
   const first=await loadHeadless(id);const firstTrace=await runTrace(first);
   const one:any=first.host.metrics();
@@ -210,7 +219,7 @@ it('two successive selective builds converge on a >65k-instruction workload from
   expect(all.pipeline.discovery).toBeUndefined();
   const full=await loadHeadless(id);expect(await runTrace(full)).toEqual(firstTrace);
   expect((full.host.metrics() as any).interp_insns).toBe(0);
-  delete cfg.pipeline.selection;cfg.pipeline.coverage=['early.json'];save();
+  delete cfg.pipeline.selection;cfg.pipeline.coverage=['adopted.json'];save();
   expect(()=>buildGame(dir,{quiet:true})).toThrow(/module identit/);
   // The supplied strict recordings still work; the poisoned automatic inbox cannot broaden or reject them.
   cfg.slice={coverage:['early.json','more.json']};save();buildGame(dir,{quiet:true});

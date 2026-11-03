@@ -100,25 +100,29 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   }
   const zig = requireZig({ quiet: true });
   const outDir = check ? mkdtempSync(join(tmpdir(), 'bgt-check-')) : join(outRoot, cfg.id);
-  if (!check) {
-    rmSync(outDir, { recursive: true, force: true });
-    mkdirSync(outDir, { recursive: true });
-  }
-
   const sources = (cfg.sources ?? []).map((s) => join(gameDir, s));
   for (const s of sources) if (!existsSync(s)) throw new Error(`source not found: ${relative(ROOT, s)}`);
   const includes = ['bgt/include', ...(cfg.includes ?? []).map((i) => relative(ROOT, join(gameDir, i)))];
   let pipe = null;
-  if (cfg.pipeline) {
-    /* systematic conversion: lifted modules + platform profile (+ overrides) replace hand-written sources */
-    mkdirSync(join(outDir, 'assets'), { recursive: true });
-    pipe = runPipeline(gameDir, cfg, join(outDir, 'assets'));
-    sources.push(...pipe.sources);
-    includes.push(...pipe.includes);
-    cfg.cflags = [...(cfg.cflags ?? []), ...pipe.cflags];
-    cfg.asyncify = true;
-    if (!quiet) console.log(pipelineSummary(pipe.report));
-  }
+  // Selection can reject legacy/stale evidence. Prepare privately before deleting
+  // the previous manifest/assets: the recommended identity-adoption command needs them.
+  const prepared=cfg.pipeline?mkdtempSync(join(tmpdir(),'bgt-pipeline-prepare-')):null;
+  try {
+    if (cfg.pipeline) {
+      mkdirSync(join(prepared, 'assets'), { recursive: true });
+      pipe = runPipeline(gameDir, cfg, join(prepared, 'assets'));
+      sources.push(...pipe.sources);
+      includes.push(...pipe.includes);
+      cfg.cflags = [...(cfg.cflags ?? []), ...pipe.cflags];
+      cfg.asyncify = true;
+      if (!quiet) console.log(pipelineSummary(pipe.report));
+    }
+    if (!check) {
+      rmSync(outDir, { recursive: true, force: true });
+      mkdirSync(outDir, { recursive: true });
+    }
+    if(prepared)cpSync(prepared,outDir,{recursive:true});
+  } finally { if(prepared)rmSync(prepared,{recursive:true,force:true}); }
   const wasmPath = join(outDir, 'game.wasm');
   // Only the AMD64 CRT bridge links toolchain musl. Other BGT builds remain freestanding.
   // LANE-K3: shared x87 uses the same musl libm on i386 and AMD64.

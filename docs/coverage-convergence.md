@@ -5,7 +5,10 @@
 The default `pipeline.selection: "coverage"` unions configured `pipeline.coverage` recordings with
 `reports/coverage-inbox/<game-id>/*.json` and matching-game `reports/probe/coverage.json`. Successful probes
 (including custom --out paths) and passing port browser tests publish content-addressed snapshots to this
-private inbox. No address list or configuration edit is needed to lift a late interpreter owner. With no
+private inbox. Port-test publication is performed by the configured Playwright final-outcome reporter,
+after every fixture teardown (including browser error collection) has passed; expected-failure tests are not
+evidence. Custom Playwright configs must include `tests/e2e/coverage-evidence-reporter.ts` to publish.
+No address list or configuration edit is needed to lift a late interpreter owner. With no
 recordings, retain full analyzed lifting, not an empty startup selection. The reviewer chose this default
 rather than imposing all-analysis build/wasm costs on large games.
 
@@ -21,7 +24,9 @@ adopt its identity against an existing build manifest (paths are from the curren
 node tools/build/coverage-adopt.mjs --input port/coverage/legacy.json --manifest web/public/games/GAME-ID/manifest.json --out port/coverage/adopted.json
 ```
 
-Then replace the configured path with `coverage/adopted.json`. The command never overwrites, changes module
+Then replace the configured path with `coverage/adopted.json`. Pipeline preparation validates evidence in a
+private temporary output before replacing the last build, so a rejected recording leaves the manifest needed
+by this command intact. The command never overwrites, changes module
 identity, edits executed entries/ranges/counters, or filters evidence. It requires exact per-input module equality
 and writes deterministic adoption provenance (source game/path/SHA-256, target manifest path/SHA-256 and previous
 adoption if any). A stale manifest cannot authorize changed modules at the next build: current module validation

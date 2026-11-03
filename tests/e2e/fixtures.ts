@@ -1,8 +1,6 @@
 // Shared e2e fixtures: backend selection per project, collection of JS
 // exceptions / console errors / failed requests / wasm traps / GPU errors,
 // and pixel helpers.
-// @ts-expect-error private evidence publisher is plain ESM
-import {publishCoverage} from '../../tools/build/coverage.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test as base, expect, Page, TestInfo } from '@playwright/test';
@@ -61,7 +59,7 @@ export const test = base.extend<Fixtures>({
         const dir=join('reports','coverage',testInfo.project.name);mkdirSync(dir,{recursive:true});
         writeFileSync(join(dir,testInfo.testId.replace(/[^a-z0-9-]/gi,'_')+'.json'),JSON.stringify(coverage,null,2)+'\n');
         await testInfo.attach('coverage.json',{body:JSON.stringify(coverage),contentType:'application/json'});
-        if(testInfo.project.name.startsWith('port-') && testInfo.status==='passed')publishCoverage(process.cwd(),coverage);
+        // Final-outcome reporter publishes only after ALL fixture teardowns pass.
       }
     } catch { /* deliberate unavailable-runtime tests may have no API */ }
     const unexpected = (xs: string[]) => xs.filter((x) => !allowed.some((p) => p.test(x)));
