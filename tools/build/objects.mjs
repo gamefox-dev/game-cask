@@ -60,12 +60,23 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
   const dependencyDir = join(root, 'node_modules/.cache/bgt/dependencies');
   mkdirSync(dependencyDir, { recursive: true });
   mkdirSync(cache, { recursive: true });
-  const hashes = new Map();
-  const hash = (f) => { if (!hashes.has(f)) hashes.set(f, digest(readFileSync(f))); return hashes.get(f); };
+  const hashes = new Map(), parentRelative = new Map();
+  const hash = (f, scanIncludes = true) => {
+    if (!hashes.has(f)) {
+      const bytes = readFileSync(f);
+      hashes.set(f, digest(bytes));
+      // A ../ include can escape every directory in the old positive depfile.
+      // Be conservative (also for macros/comments): let the compiler rediscover
+      // these TUs rather than inventorying unbounded ancestor trees. Line-spliced
+      // parent paths are equivalent preprocessing input and need the same rule.
+      if (scanIncludes) parentRelative.set(f, /\.\.[/\\]/.test(bytes.toString('utf8').replace(/\\\r?\n/g, '')));
+    }
+    return hashes.get(f);
+  };
   const executable = compiler.path.includes(sep) ? compiler.path : process.env.PATH.split(':').map((p) => join(p, compiler.path)).find(existsSync);
   if (!executable) throw new Error(`compiler not found: ${compiler.path}`);
   const prefix = compiler.prefix ?? ['cc'];
-  const identity = [compiler.version, hash(realpathSync(executable))];
+  const identity = [compiler.version, hash(realpathSync(executable), false)];
   if (compiler.prefix) identity.push(prefix);
   flags = portableFlags(flags, root);
   // Addition/removal can change include resolution even if every old dependency is unchanged.
@@ -98,7 +109,8 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
     try {
       const previous = JSON.parse(readFileSync(manifest, 'utf8'));
       if (previous.inventory === inventory(previous.dependencies) && previous.sourceHash === sourceHash &&
-          previous.dependencies.every(([f, h]) => existsSync(f) && hash(f) === h)) deps = previous.dependencies;
+          previous.dependencies.every(([f, h]) => existsSync(f) && hash(f) === h) &&
+          previous.dependencies.every(([f]) => !parentRelative.get(f))) deps = previous.dependencies;
     } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
     if (!deps) {
       const make = execFileSync(compiler.path, [...prefix, ...flags, '-M', '-MT', 'bgt', file], {

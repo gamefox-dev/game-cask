@@ -83,6 +83,30 @@ it('discovers a new quoted-include shadow beside a transitive header outside -I 
   } finally { rmSync(dir,{recursive:true,force:true}); }
 },30_000);
 
+it.each(['native', 'wasm'])('rediscovers parent-relative transitive shadows with %s compiler', async (target) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-parent-shadow-'));
+  try {
+    for (const d of ['src', 'headers/sub', 'fallback/sub']) mkdirSync(join(dir, d), { recursive: true });
+    writeFileSync(join(dir, 'src/main.c'), '#include "outer.h"\nint value(void){return VALUE;}\n');
+    writeFileSync(join(dir, 'src/other.c'), 'int other(void){return 42;}\n');
+    writeFileSync(join(dir, 'headers/sub/outer.h'), target === 'wasm' ? '#include "..\\\n/value.h"\n' : '#include "../value.h"\n');
+    writeFileSync(join(dir, 'fallback/value.h'), '#define VALUE 1\n');
+    const cfg = { sources: ['main.c', 'other.c'].map(f => join(dir, 'src', f)),
+      flags: [...(target === 'wasm' ? ['--target=wasm32-freestanding'] : []), '-I', join(dir, 'headers/sub'), '-I', join(dir, 'fallback/sub')],
+      includes: [join(dir, 'headers/sub'), join(dir, 'fallback/sub')], compiler: target === 'wasm' ? { path: 'zig', version: '0.13.0' } : { path: 'cc', prefix: [], version: 'native-test' },
+      cache: join(dir, 'objects'), root: dir };
+    const first = prepareObjects(cfg); await compile({ objects: first });
+    expect((await compile({ objects: prepareObjects(cfg) })).objects_cached).toBe(2);
+    writeFileSync(join(dir, 'headers/value.h'), '#define VALUE 2\n');
+    const next = prepareObjects(cfg);
+    expect(next[0].out).not.toBe(first[0].out); expect(next[1].out).toBe(first[1].out);
+    expect((await compile({ objects: next })).objects_compiled).toBe(1);
+    expect(readFileSync(next[0].out)).not.toEqual(readFileSync(first[0].out));
+    rmSync(join(dir, 'headers/value.h'));
+    expect(prepareObjects(cfg)[0].out).toBe(first[0].out);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}, 30_000);
+
 it('reports exact per-object miss inputs while preserving unaffected objects', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-miss-reasons-'));
   try {
