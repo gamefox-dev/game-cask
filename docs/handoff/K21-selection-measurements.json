@@ -1,0 +1,1616 @@
+{
+  "schema": "game-cask/selection-benchmark/1",
+  "revision": "cac2e3f99130d93f09d6749159c25ca6bfe8f23d",
+  "node": "v24.19.0",
+  "method": "Same generated PE per size, early 1-update recording then coverage/all, sequential shared-machine builds; cache states in build; 300 per-update trace hashes identical, no GPU rasterization. Not cold/idle speed claims.",
+  "rows": [
+    {
+      "count": 256,
+      "mode": "coverage",
+      "input_sha256": "eeb091d02ac30ed179af66791b68fa87da530ed14c4b2a69729e1629f7d693ba",
+      "early_interpreter_instructions": 458,
+      "resources": {
+        "start": {
+          "when": "2026-11-03T22:14:14.787Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            6.6376953125,
+            7.76220703125,
+            9.9833984375
+          ],
+          "freeRamBytes": 230539264,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11322848707,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 7
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-03T22:14:25.920Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            9.25537109375,
+            8.26806640625,
+            10.1357421875
+          ],
+          "freeRamBytes": 473874432,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "wall_ms": 11075.297791,
+      "run_ms_300_updates": 18.47716600000058,
+      "wasm_bytes": 1114792,
+      "packaging": {
+        "download_bytes_raw": 1461855,
+        "download_bytes_gzip": 453516,
+        "wasm_bytes": 1114792,
+        "file_chunk_bytes": 153088
+      },
+      "selection": {
+        "mode": "coverage",
+        "analyzed_functions": 334,
+        "selected_functions": 50
+      },
+      "build": {
+        "duration_ms": 1149.984,
+        "peak_child_rss_bytes": 122224640,
+        "compile_ms": 1048.313,
+        "link_ms": 101.623,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/1ef60735878dba90b6160fc63f84c2128be9267964ef5c758bf1601c70194ee7.o",
+            "cache": "miss",
+            "compile_ms": 75.218,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/583e0358b8e1843cb8fb8967faa7379a53c0efc07f964088e0c43637320b9153.o",
+            "cache": "miss",
+            "compile_ms": 96.71,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/074df4d0beedb47fc2170c38d48a9aceb84e16689beee300aa1e88e43656fea5.o",
+            "cache": "miss",
+            "compile_ms": 1041.027,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          }
+        ],
+        "memory": {
+          "available_bytes": 5919506432,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 4,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "parallel_rss_upper_bound_bytes": 488898560,
+        "objects_uncacheable": 0,
+        "objects_compiled": 3,
+        "objects_cached": 29,
+        "jobs": 4,
+        "object_cache": {
+          "bytes": 368975385,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "phase_timings": {
+          "analysis_ms": 30.40362499999992,
+          "lift_ms": 13.439,
+          "c_generation_cpu_ms": 1.913,
+          "compile_ms": 1048.313,
+          "link_ms": 101.623,
+          "wasm_opt_ms": 7722.01575
+        },
+        "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+        "asyncify_cached": false,
+        "asyncify_ms": 7722.01575,
+        "asyncify_mode": "amd64-native-boundaries",
+        "asyncify_remove_count": 50,
+        "asyncify_remove_sha256": "7bf254177ce951a5b269a4d68a799d0095ee4ac74e9dd1e727a64ddad7a19190",
+        "pre_asyncify_bytes": 1295444,
+        "build_ms": 11049.157,
+        "wasm_bytes": 1114792,
+        "lifted_insns": 1063,
+        "wasm_bytes_per_insn": 1048.722483537159,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+      },
+      "trace_sha256": "c3975697d426881a1dad0ba33e9f5c7045d5c8ca835edc883b9cb73aec419815",
+      "execution_summary": {
+        "updates": 300,
+        "elapsed_ms": 20.394124999998894,
+        "updates_per_second": 14710.118722917325,
+        "interpreter": {
+          "instructions": 76109,
+          "instructions_per_update": 253.69666666666666,
+          "estimated_ms": 290.712,
+          "estimated_ms_per_update": 0.96904,
+          "estimated_share": 19.259627412155968,
+          "samples": 73,
+          "timing": "sampled-exclusive-dispatch",
+          "coverage_dropped": 0,
+          "analyzed_code_interpreted": true,
+          "top_owners": [
+            {
+              "owner": 16781808,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16782304,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16782800,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16783296,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16783792,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16784288,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16784784,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16785280,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16785776,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16786272,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16786768,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16787264,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16787760,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16788256,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16788752,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16789248,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16789744,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16790240,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16790736,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16791232,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16791728,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16792224,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16792720,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16793216,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16793712,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16794208,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16794704,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16795200,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16795696,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16796192,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16796688,
+              "entries": 3,
+              "instructions": 402
+            },
+            {
+              "owner": 16797184,
+              "entries": 3,
+              "instructions": 402
+            }
+          ]
+        },
+        "guest_frames": {
+          "count": 0,
+          "swaps": 0,
+          "gdi_presents": 0,
+          "per_second": 0,
+          "frame_ms_avg": null,
+          "frame_ms_p95": null,
+          "intervals_measured": 0,
+          "timestamps_ms": [],
+          "clock": "wall-between-guest-presents"
+        }
+      }
+    },
+    {
+      "count": 256,
+      "mode": "all",
+      "input_sha256": "eeb091d02ac30ed179af66791b68fa87da530ed14c4b2a69729e1629f7d693ba",
+      "early_interpreter_instructions": 458,
+      "resources": {
+        "start": {
+          "when": "2026-11-03T22:14:25.956Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            9.25537109375,
+            8.26806640625,
+            10.1357421875
+          ],
+          "freeRamBytes": 472727552,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-03T22:14:45.352Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.6572265625,
+            8.19970703125,
+            10.0673828125
+          ],
+          "freeRamBytes": 605257728,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "wall_ms": 19343.075333,
+      "run_ms_300_updates": 18.6773749999993,
+      "wasm_bytes": 2101888,
+      "packaging": {
+        "download_bytes_raw": 2448951,
+        "download_bytes_gzip": 603704,
+        "wasm_bytes": 2101888,
+        "file_chunk_bytes": 153088
+      },
+      "selection": {
+        "mode": "all",
+        "analyzed_functions": 334,
+        "selected_functions": 334
+      },
+      "build": {
+        "duration_ms": 5862.355,
+        "peak_child_rss_bytes": 447381504,
+        "compile_ms": 5755.401,
+        "link_ms": 106.899,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/49a2d1ef6c69421f241b02fffd16fe8529bc2b0411632b966f4ba6c7de3d9e69.o",
+            "cache": "miss",
+            "compile_ms": 71.385,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-256/pipeline_main.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/96ebfb797215f2a6de45128568318837089fe3917c65ca0b5b0a48e28ab5dca2.o",
+            "cache": "miss",
+            "compile_ms": 101.624,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-256/chunks_scale_exe/registry.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/8fed422919e3f99effd1f8c0cad9df778c34d609496ed89e16dafb2d147e1b3a.o",
+            "cache": "miss",
+            "compile_ms": 5746.978,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-256/chunks_scale_exe/scale_exe_0000.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/261a3009dfdcb6f64f4139086809c4e94fa1a5eae7f5c23072b262256cdb9bbe.o",
+            "cache": "miss",
+            "compile_ms": 1765.271,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          }
+        ],
+        "memory": {
+          "available_bytes": 6405046272,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 4,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "parallel_rss_upper_bound_bytes": 1789526016,
+        "objects_uncacheable": 0,
+        "objects_compiled": 4,
+        "objects_cached": 29,
+        "jobs": 4,
+        "object_cache": {
+          "bytes": 371688931,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "phase_timings": {
+          "analysis_ms": 0.5236249999998108,
+          "lift_ms": 54.186,
+          "c_generation_cpu_ms": 42.042,
+          "compile_ms": 5755.401,
+          "link_ms": 106.899,
+          "wasm_opt_ms": 10967.853667000003
+        },
+        "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+        "asyncify_cached": false,
+        "asyncify_ms": 10967.853667000003,
+        "asyncify_mode": "amd64-native-boundaries",
+        "asyncify_remove_count": 334,
+        "asyncify_remove_sha256": "0427cd9d87a93aa229e02e3dafec124f857f67e2563e6f2884cf49d860bd24eb",
+        "pre_asyncify_bytes": 2462843,
+        "build_ms": 19317.57,
+        "wasm_bytes": 2101888,
+        "lifted_insns": 35829,
+        "wasm_bytes_per_insn": 58.6644338385107,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+      },
+      "trace_sha256": "c3975697d426881a1dad0ba33e9f5c7045d5c8ca835edc883b9cb73aec419815",
+      "execution_summary": {
+        "updates": 300,
+        "elapsed_ms": 20.750082999998995,
+        "updates_per_second": 14457.773494207928,
+        "interpreter": {
+          "instructions": 0,
+          "instructions_per_update": 0,
+          "estimated_ms": 0,
+          "estimated_ms_per_update": 0,
+          "estimated_share": 0,
+          "samples": 0,
+          "timing": "sampled-exclusive-dispatch",
+          "coverage_dropped": 0,
+          "analyzed_code_interpreted": false,
+          "top_owners": []
+        },
+        "guest_frames": {
+          "count": 0,
+          "swaps": 0,
+          "gdi_presents": 0,
+          "per_second": 0,
+          "frame_ms_avg": null,
+          "frame_ms_p95": null,
+          "intervals_measured": 0,
+          "timestamps_ms": [],
+          "clock": "wall-between-guest-presents"
+        }
+      }
+    },
+    {
+      "count": 12000,
+      "mode": "coverage",
+      "input_sha256": "b2a8710a9a540dcf0580a71e626617718da619c49217d669f3d5432b2f0bbf13",
+      "early_interpreter_instructions": 458,
+      "resources": {
+        "start": {
+          "when": "2026-11-03T22:15:14.797Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            22.9521484375,
+            11.8056640625,
+            11.31396484375
+          ],
+          "freeRamBytes": 834895872,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-03T22:15:32.258Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            17.681640625,
+            11.31689453125,
+            11.14892578125
+          ],
+          "freeRamBytes": 665075712,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "wall_ms": 17302.88970800001,
+      "run_ms_300_updates": 115.71983299999556,
+      "wasm_bytes": 1302885,
+      "packaging": {
+        "download_bytes_raw": 13911453,
+        "download_bytes_gzip": 2243734,
+        "wasm_bytes": 1302885,
+        "file_chunk_bytes": 6283776
+      },
+      "selection": {
+        "mode": "coverage",
+        "analyzed_functions": 12078,
+        "selected_functions": 50
+      },
+      "build": {
+        "duration_ms": 1133.636,
+        "peak_child_rss_bytes": 120455168,
+        "compile_ms": 1024.581,
+        "link_ms": 108.986,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/41629a22cb85f2fd1d583a06fe1deae9293c2012abfc510c83902b76304aecaf.o",
+            "cache": "miss",
+            "compile_ms": 146.76,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/c3f9636550d3a1cd02db527d061a2af464f5008ddcff9913cb6842fea5d7d393.o",
+            "cache": "miss",
+            "compile_ms": 73.237,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/9cdb8addda6669158ad6ffc9bfe74bf3ba7e05d76e093d5f1ffaea26e1367563.o",
+            "cache": "miss",
+            "compile_ms": 1019.327,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          }
+        ],
+        "memory": {
+          "available_bytes": 6147260416,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 4,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "parallel_rss_upper_bound_bytes": 481820672,
+        "objects_uncacheable": 0,
+        "objects_compiled": 3,
+        "objects_cached": 29,
+        "jobs": 4,
+        "object_cache": {
+          "bytes": 374318774,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "phase_timings": {
+          "analysis_ms": 3245.9862500000017,
+          "lift_ms": 3196.391,
+          "c_generation_cpu_ms": 1.81,
+          "compile_ms": 1024.581,
+          "link_ms": 108.986,
+          "wasm_opt_ms": 7456.411625000008
+        },
+        "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+        "asyncify_cached": false,
+        "asyncify_ms": 7456.411625000008,
+        "asyncify_mode": "amd64-native-boundaries",
+        "asyncify_remove_count": 50,
+        "asyncify_remove_sha256": "18a2a583ccbdae256ebc9b6dfc692f2e703fade8ced9dc739e8eec162bb25a9b",
+        "pre_asyncify_bytes": 1483534,
+        "build_ms": 17277.444,
+        "wasm_bytes": 1302885,
+        "lifted_insns": 1067,
+        "wasm_bytes_per_insn": 1221.0731021555764,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+      },
+      "trace_sha256": "7c29ba28c345a04614744d5a4cb4891b2bc120600f5faf68650ad5af2f030168",
+      "execution_summary": {
+        "updates": 300,
+        "elapsed_ms": 117.818540999986,
+        "updates_per_second": 2546.288533653083,
+        "interpreter": {
+          "instructions": 1649806,
+          "instructions_per_update": 5499.3533333333335,
+          "estimated_ms": 513.517,
+          "estimated_ms_per_update": 1.7117233333333335,
+          "estimated_share": 4.490602677777575,
+          "samples": 1608,
+          "timing": "sampled-exclusive-dispatch",
+          "coverage_dropped": 0,
+          "analyzed_code_interpreted": true,
+          "top_owners": [
+            {
+              "owner": 16781808,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16782304,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16782800,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16783296,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16783792,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16784288,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16784784,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16785280,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16785776,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16786272,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16786768,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16787264,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16787760,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16788256,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16788752,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16789248,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16789744,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16790240,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16790736,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16791232,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16791728,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16792224,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16792720,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16793216,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16793712,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16794208,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16794704,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16795200,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16795696,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16796192,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16796688,
+              "entries": 2,
+              "instructions": 268
+            },
+            {
+              "owner": 16797184,
+              "entries": 2,
+              "instructions": 268
+            }
+          ]
+        },
+        "guest_frames": {
+          "count": 0,
+          "swaps": 0,
+          "gdi_presents": 0,
+          "per_second": 0,
+          "frame_ms_avg": null,
+          "frame_ms_p95": null,
+          "intervals_measured": 0,
+          "timestamps_ms": [],
+          "clock": "wall-between-guest-presents"
+        }
+      }
+    },
+    {
+      "count": 12000,
+      "mode": "all",
+      "input_sha256": "b2a8710a9a540dcf0580a71e626617718da619c49217d669f3d5432b2f0bbf13",
+      "early_interpreter_instructions": 458,
+      "resources": {
+        "start": {
+          "when": "2026-11-03T22:15:32.294Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            17.681640625,
+            11.31689453125,
+            11.14892578125
+          ],
+          "freeRamBytes": 660013056,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11314460099,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 8
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "end": {
+          "when": "2026-11-03T22:20:59.109Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.93701171875,
+            9.3828125,
+            10.28857421875
+          ],
+          "freeRamBytes": 1517371392,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 11289294275,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 10
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      "wall_ms": 326202.590708,
+      "run_ms_300_updates": 526.9415000000154,
+      "wasm_bytes": 45158184,
+      "packaging": {
+        "download_bytes_raw": 57766752,
+        "download_bytes_gzip": 8730561,
+        "wasm_bytes": 45158184,
+        "file_chunk_bytes": 6283776
+      },
+      "selection": {
+        "mode": "all",
+        "analyzed_functions": 12078,
+        "selected_functions": 12078
+      },
+      "build": {
+        "duration_ms": 94954.337,
+        "peak_child_rss_bytes": 450330624,
+        "compile_ms": 94384.001,
+        "link_ms": 570.284,
+        "object_timings": [
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/afa7e195567e03d7411eca244750c7ec2482031520ff77d24bfa6ecfcf623954.o",
+            "cache": "miss",
+            "compile_ms": 158.822,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-12000/pipeline_main.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/aeb8e507d1da81c319885ea4e325ee40a62051a293d6afa6a4b42911f15bb638.o",
+            "cache": "miss",
+            "compile_ms": 553.995,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-12000/chunks_scale_exe/registry.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/3b247ec0a7fc08dfbc9a2015f76ba58a5c3f22e3c3090476c234a99a79bc9030.o",
+            "cache": "miss",
+            "compile_ms": 6641.469,
+            "miss_reasons": [
+              {
+                "input": "source",
+                "path": "@/node_modules/.cache/bgt/pipeline/k21-selection-12000/chunks_scale_exe/scale_exe_0000.c"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/5a4863066197b199d95912ad6c12260644dd48b8769a916009dcdb5c2be79f73.o",
+            "cache": "miss",
+            "compile_ms": 6461.026,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/b6295ed671b9753eb4fd9ea69dd162e648aee58bb91b38407c26111451cb123c.o",
+            "cache": "miss",
+            "compile_ms": 6500.584,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/da1fd84d04d4cf7fd57f181fe86fc37bf34e4ba78764b656c45226268426d9f3.o",
+            "cache": "miss",
+            "compile_ms": 7192.681,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/15d003b402efa29d4657aacace913cc68a146456f41f0e97f6e39ed14b8a4761.o",
+            "cache": "miss",
+            "compile_ms": 7097.959,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/72dc5139cca7e9a2ce0fb01caa2e880d6274a0093e4979031759be0ad2cd42cd.o",
+            "cache": "miss",
+            "compile_ms": 7138.687,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/87aa450f5ffa9a746ed48ed3522f43de965d5c99af489aea79bcbae8678f4a6f.o",
+            "cache": "miss",
+            "compile_ms": 7094.244,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/94538a01ca32291a4a0e94ce0a5ce8d2cb5b8f439fced7f76a86cc29cf05fb33.o",
+            "cache": "miss",
+            "compile_ms": 7555.162,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/d626368058d80abe884e190bd80759d4ecfa9b3267f9fe43d247b9bdd8ee3ae2.o",
+            "cache": "miss",
+            "compile_ms": 7494.285,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/ffbe4d77875f45fc363d0acbf8c7f1687460410debeba960e1eb501863e65d0b.o",
+            "cache": "miss",
+            "compile_ms": 7564.151,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/1e503baca92c269045b04ea082105a8962222ebb7315bbc06b222439aef0885d.o",
+            "cache": "miss",
+            "compile_ms": 7720.553,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/afae45c92a718d4866e21d781231a85097de980d2eaceb9b2c64489c07a93176.o",
+            "cache": "miss",
+            "compile_ms": 7234.434,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/e1d222955f4f2cd55b690632b4979f9dcc30a433eecd6c22cf996ef159e6deb8.o",
+            "cache": "miss",
+            "compile_ms": 7191.471,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/57eabd85251f3e63e14ef0dabb6e2c8447c03aeda16a9420ca51418fefd17d87.o",
+            "cache": "miss",
+            "compile_ms": 7641.05,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/89de8f688c19e7befe647d5ffb7dfaf01c9dab1e04f12c10aeb0bcbee9e716b5.o",
+            "cache": "miss",
+            "compile_ms": 7402.863,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/e89a7c3f6db7d44f246452e1a2084ca3d3ccaeaa92aa1e1fdd8a3f5adbfb8d9d.o",
+            "cache": "miss",
+            "compile_ms": 7340.27,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/4dab796cfb58bb25232853c53d917429185bac40ce1ec18d2fb38564c09894a3.o",
+            "cache": "miss",
+            "compile_ms": 7596.969,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/2e7a814da4f0b21e1fb050e4baed9ca0a9d022562404c15b0e78c137741b9c53.o",
+            "cache": "miss",
+            "compile_ms": 7297.163,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/dd903a5d97ef0017700df02468364314b2f15d214c3d200c892bf972d4c07575.o",
+            "cache": "miss",
+            "compile_ms": 7259.023,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/8f39b627cef7633811845f4b33cde5853c9c8a425732a5692cfbd8b075c22161.o",
+            "cache": "miss",
+            "compile_ms": 7428.192,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/915544ecf7e8236d0f13baaf36b125287b05c9b78d43dbd3a5b2eaafd6d19eae.o",
+            "cache": "miss",
+            "compile_ms": 7639.52,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/0c3f6ae646238513fad971dbe5e09597d81be19e4c86cebb10988deeabae00c9.o",
+            "cache": "miss",
+            "compile_ms": 7466.549,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/3ed058a487f17ff23ba74601cbd0225ae69ea498a87ebaca2c02003cd7db6af9.o",
+            "cache": "miss",
+            "compile_ms": 7485.792,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/962da11462bd8a0675c7886c1a4d57207f010d27440a45df74024113f5ca46ee.o",
+            "cache": "miss",
+            "compile_ms": 7628.051,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/652ac4bb2e6d14a8cb334ab5827c5eafba7a337b71025539210e514840bb1487.o",
+            "cache": "miss",
+            "compile_ms": 7607.681,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/586f26e3f0cd43934aa8cf1b803d4f95f14911dd7ee5f7a63c698ccfb1410892.o",
+            "cache": "miss",
+            "compile_ms": 7590.621,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/301fa5ed839d0a37be11a97dd3559426d1d61593bbaf69183138787896e31dbe.o",
+            "cache": "miss",
+            "compile_ms": 7478.486,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/60e4896b580d756e6e920baba6f8d55fe769fce194ccaa423583926279ff490a.o",
+            "cache": "miss",
+            "compile_ms": 7330.9,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/1d61b1ca621a23db1e85aa00cfcfd69104c4bf6eaac1a36a35a5a9e0ae8a7835.o",
+            "cache": "miss",
+            "compile_ms": 7529.395,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/976f1fa388d6e8728a5cac17dcd9c66732d8af1697b5221ef5360af0cf60f268.o",
+            "cache": "miss",
+            "compile_ms": 7141.152,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/dcd5c5ef5649eabe101cb2209a0be411e2f7a1bce03b38c09072dfd6e584b4c5.o",
+            "cache": "miss",
+            "compile_ms": 7389.454,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/3c5486eaf88ef5c8f0e715933c078df44f7582509500a2843eac67e0bd4f0485.o",
+            "cache": "miss",
+            "compile_ms": 7917.09,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/bff003132d1ccdb6397091668f161fe0ddcb3a627b7c5b16c1cb7ff703bea012.o",
+            "cache": "miss",
+            "compile_ms": 7416.496,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/d995bb9020eafce16653e05976aa6be2f78dbac6e05db78ace153ae9202f57ee.o",
+            "cache": "miss",
+            "compile_ms": 7148.736,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/ef08aa378b75f44d52acef39e71873e61fa4ec591ed48942efd6df870fd334f8.o",
+            "cache": "miss",
+            "compile_ms": 7314.414,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/74ae69b5f51c7986ca7eaddd18ca29198ca765e776666c7752cfc0467a3cdf2f.o",
+            "cache": "miss",
+            "compile_ms": 7362.188,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/73b164f6bda6000721e7bcd38f4f09d1480e719dca5a0885de41e8919831c948.o",
+            "cache": "miss",
+            "compile_ms": 7220.035,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/3bb5743b03d9f52803e866cbcd25c76f0d1124fc112d9a2ae1be9dbe84f53d6b.o",
+            "cache": "miss",
+            "compile_ms": 7307.015,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/d09a43907174babe779080a194ad38f21be0f4333feb1e1ee39244dce8528b49.o",
+            "cache": "miss",
+            "compile_ms": 7176.676,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/4705575cb63306b5f7eb4c22c24a9f09624b51a4a7dbf445e2250f1a6f9dc871.o",
+            "cache": "miss",
+            "compile_ms": 7552.913,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/c22960c14506cb3b117c742438796458aa69de3a3cb15b6a4399d91bbe0171c2.o",
+            "cache": "miss",
+            "compile_ms": 7790.098,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/27c2ec38575f0667b149b4f456f39ab6df8316b5abb2defc2e5974c7f1e257e5.o",
+            "cache": "miss",
+            "compile_ms": 7520.467,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/12303dcd015cfdf9db4e5a3b0582b93f972ecde7636993599c5fded6bb48e912.o",
+            "cache": "miss",
+            "compile_ms": 7252.56,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/b5114921bc44f8153f0783758d7ee239c76c6f05ebdd6530e4a64bd2a9e4be96.o",
+            "cache": "miss",
+            "compile_ms": 7743,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/b00933930e0c44c5a18420aff3c9e577b05f2dce29897076cf214b6a7cb99964.o",
+            "cache": "miss",
+            "compile_ms": 7583.69,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/845e905196b34678bf70bba04e9cb5afc8527534f917aac6d204fbedcdd3a831.o",
+            "cache": "miss",
+            "compile_ms": 7653.051,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/0c7f461f728fe852d6e3342ede20e7cdcf5c985af78ab636e8f89a4892662843.o",
+            "cache": "miss",
+            "compile_ms": 7518.168,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/89539e572280f090d241a4638a8d13c8aaf0f9b192bd00d52ac1d0b45dfb4ea9.o",
+            "cache": "miss",
+            "compile_ms": 6171.938,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/8a041764a121e2dc34f60d1ca3dff5342a4160eb69f34719298f86fe65813a13.o",
+            "cache": "miss",
+            "compile_ms": 6063.224,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          },
+          {
+            "object": "/Users/dev/projects/pi-work/lane-K21/node_modules/.cache/bgt/objects/bd40344a38934765b14a103235bade66c75e0a16a217a882d7397c5b7130dc83.o",
+            "cache": "miss",
+            "compile_ms": 2872.246,
+            "miss_reasons": [
+              {
+                "input": "cold",
+                "detail": "no previous input snapshot"
+              }
+            ]
+          }
+        ],
+        "memory": {
+          "available_bytes": 6140149760,
+          "reserve_bytes": 1073741824,
+          "per_worker_bytes": 1073741824,
+          "cap": 4,
+          "probe_error": null,
+          "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+        },
+        "parallel_rss_upper_bound_bytes": 1801322496,
+        "objects_uncacheable": 0,
+        "objects_compiled": 52,
+        "objects_cached": 29,
+        "jobs": 4,
+        "object_cache": {
+          "bytes": 443541699,
+          "removed": 0,
+          "pinnedBytes": 0
+        },
+        "phase_timings": {
+          "analysis_ms": 6.101209000000381,
+          "lift_ms": 48273.185,
+          "c_generation_cpu_ms": 1721.671,
+          "compile_ms": 94384.001,
+          "link_ms": 570.284,
+          "wasm_opt_ms": 167970.36779099997
+        },
+        "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+        "asyncify_cached": false,
+        "asyncify_ms": 167970.36779099997,
+        "asyncify_mode": "amd64-native-boundaries",
+        "asyncify_remove_count": 12078,
+        "asyncify_remove_sha256": "1edbc1d7e8ec5e94dc30fc1bcee64b243a36d0903d7501b696d1a99e5235606d",
+        "pre_asyncify_bytes": 53558422,
+        "build_ms": 326175.308,
+        "wasm_bytes": 45158184,
+        "lifted_insns": 1609529,
+        "wasm_bytes_per_insn": 28.05676940272589,
+        "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+      },
+      "trace_sha256": "7c29ba28c345a04614744d5a4cb4891b2bc120600f5faf68650ad5af2f030168",
+      "execution_summary": {
+        "updates": 300,
+        "elapsed_ms": 529.1745839999639,
+        "updates_per_second": 566.9206516540115,
+        "interpreter": {
+          "instructions": 0,
+          "instructions_per_update": 0,
+          "estimated_ms": 0,
+          "estimated_ms_per_update": 0,
+          "estimated_share": 0,
+          "samples": 0,
+          "timing": "sampled-exclusive-dispatch",
+          "coverage_dropped": 0,
+          "analyzed_code_interpreted": false,
+          "top_owners": []
+        },
+        "guest_frames": {
+          "count": 0,
+          "swaps": 0,
+          "gdi_presents": 0,
+          "per_second": 0,
+          "frame_ms_avg": null,
+          "frame_ms_p95": null,
+          "intervals_measured": 0,
+          "timestamps_ms": [],
+          "clock": "wall-between-guest-presents"
+        }
+      }
+    }
+  ]
+}

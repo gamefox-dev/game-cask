@@ -1,5 +1,27 @@
 # v0.3 merged implementation status
 
+## K21 lane — coverage convergence and guest presentations (verification in progress)
+
+On `lane/K21`, `64b84e3` + `7a50d51` + `5b0c192` implement default coverage selection with automatic
+successful-probe/port-test evidence merge, exact per-input identities, deterministic owner/interior/static-closure
+provenance, and explicit all-analysis selection. Strict slices remain supplied-evidence-only and reject all.
+Persistent interpreter entries/counts survive census reset and profiling-off; exclusive sampled fallback timing
+and real guest-present count/rate/avg/p95 appear next to updates/s in standard metrics and probe summaries.
+**Updates are not guest frames.** Explicit legacy game-ID adoption preserves unchanged module identity and records
+source/manifest hashes; it never edits executed code, ranges or counters.
+
+Local focused **17/17 tests /4 files PASS**, including original CC0 late-code convergence **70,003→0 interpreted
+instructions**, equal per-update traces, strict/reference agreement, identity migration and stale-inbox isolation.
+An isolated automatic-merge-disabled mutation fails the rebuilt zero-interpretation assertion as expected.
+Doctor, lint (35 default check-builds plus real GCC/clang), ESLint/typecheck PASS. Adapter-only `cac2e3f` fixes
+owner-bitmap initialization in the new direct recorder fixture and the benchmark's double-interp cache path.
+External **vK21 FAIL at `5b0c192`** confirms core convergence/determinism but found fixture owner OOB, premature
+evidence publication and deletion of the adoption manifest. Repairs **cac2e3f /7dcae79** are committed; bounded
+follow-up and publication/build-preservation regression results remain pending. Original CC0 scale comparison passes: coverage/all wasm **1.11/2.10MB** (256 functions), **1.30/45.16MB**
+(12,000), shared-machine build **11.1/19.3s**, **17.3/326.2s**, equal300-update hashes per pair; no runtime speedup
+claim. **Full units/browser, full leakcheck and all pipeline 300-update oracles remain pending; no final Tier1 acceptance yet.**
+Contracts: [coverage convergence](coverage-convergence.md). Evidence/history/next steps: [K21 handoff](handoff/K21.md).
+
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
 **c59d4ab** merges **f1c36f3** (lane/K18) over **ef8ab6b** with `--no-ff`. Only this ledger
