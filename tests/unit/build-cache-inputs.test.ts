@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 // @ts-expect-error plain ESM build tool
-import { prepareObjects } from '../../tools/build/objects.mjs';
+import { hermeticTimeFlags, prepareObjects } from '../../tools/build/objects.mjs';
 import { ROOT } from '../support/headless';
 
 function fixture() {
@@ -22,7 +22,7 @@ function fixture() {
   }));
   const value = async (object?: any, effectiveFlags = cfg.flags, file = source) => {
     const out = join(root, 'value.wasm');
-    const args = object ? [object.out] : [...effectiveFlags, file];
+    const args = object ? [object.out] : [...effectiveFlags, ...hermeticTimeFlags(), file];
     execFileSync('zig', ['cc', '--target=wasm32-freestanding', ...args, '-nostdlib', '-Wl,--no-entry', '-Wl,--export=value', '-o', out], { cwd: root, stdio: 'pipe' });
     const { instance } = await WebAssembly.instantiate(readFileSync(out));
     return (instance.exports.value as () => number)();
@@ -91,7 +91,7 @@ it.each(['#import HDR', '#import <../value.h>'])('rediscovers import parent shad
   } finally { f.clean(); }
 }, 30_000);
 
-it.each(['source', 'header', 'pasted'])('__TIMESTAMP__ mtime-only change cannot hit (%s)', async (location) => {
+it.each(['source', 'header', 'pasted'])('__TIMESTAMP__ mtime-only change cannot affect results or keys (%s)', async (location) => {
   const f = fixture();
   try {
     const body = 'int value(void){return STAMP[8]*100+STAMP[9];}\n';
@@ -104,12 +104,38 @@ it.each(['source', 'header', 'pasted'])('__TIMESTAMP__ mtime-only change cannot 
     const initial = await f.value(first[0]);
     utimesSync(timed, new Date('2020-01-22T12:00:00Z'), new Date('2020-01-22T12:00:00Z'));
     const next = prepareObjects(f.cfg), summary = f.compile(next);
-    expect(summary).toMatchObject({ objects_compiled: 1, objects_cached: 1, objects_uncacheable: 1 });
-    expect(next[0].cacheable).toBe(false);
-    expect(summary.object_cache_decisions[0].reasons.some((r: any) => r.input === 'uncacheable')).toBe(true);
+    const detected = location !== 'pasted';
+    expect(summary).toMatchObject({ objects_compiled: detected ? 1 : 0, objects_cached: detected ? 1 : 2, objects_uncacheable: detected ? 1 : 0 });
+    expect(next[0].volatile_inputs_detected).toBe(detected);
+    expect(next[0].out).toBe(first[0].out);
     expect(await f.value(next[0])).toBe(await f.value());
-    expect(await f.value(next[0])).not.toBe(initial);
-    expect(f.compile(next)).toMatchObject({ objects_compiled: 1, objects_cached: 1, objects_uncacheable: 1 });
+    expect(await f.value(next[0])).toBe(initial);
+    expect(initial).toBe(3249); // Day 1, regardless of the source's actual mtime.
+  } finally { f.clean(); }
+}, 30_000);
+
+it('reviewer exact spliced-pragma timestamp reproduction stays 3249 on a stable cached key', async () => {
+  const f = fixture();
+  try {
+    writeFileSync(f.source, ['#pragma clang diagnostic ignored "-Wdate-' + String.fromCharCode(92),
+      'time"', '#define CAT(a,b) a##b', '#define STAMP CAT(__TI,MESTAMP__)',
+      'int value(void){return STAMP[8]*100+STAMP[9];}'].join(String.fromCharCode(10)));
+    utimesSync(f.source, new Date('2020-01-01T12:00:00Z'), new Date('2020-01-01T12:00:00Z'));
+    const first = prepareObjects(f.cfg); f.compile(first);
+    const bytes = readFileSync(first[0].out);
+    expect(await f.value(first[0])).toBe(3249);
+    expect(f.compile(prepareObjects(f.cfg)).objects_cached).toBe(2);
+    utimesSync(f.source, new Date('2020-01-22T12:00:00Z'), new Date('2020-01-22T12:00:00Z'));
+    const next = prepareObjects(f.cfg);
+    expect(next[0].cacheable).toBe(true);
+    expect(next[0].volatile_inputs_detected).toBe(false);
+    expect(next[0].out).toBe(first[0].out);
+    expect(f.compile(next)).toMatchObject({ objects_compiled: 0, objects_cached: 2, objects_uncacheable: 0 });
+    expect(await f.value(next[0])).toBe(3249);
+    expect(await f.value()).toBe(3249); // Used to return 5050 on an independent clean compile.
+    rmSync(next[0].out);
+    expect(f.compile(next).objects_compiled).toBe(1);
+    expect(readFileSync(next[0].out)).toEqual(bytes);
   } finally { f.clean(); }
 }, 30_000);
 
@@ -120,7 +146,7 @@ it.each(['__DATE__', '__TIME__'])('volatile builtin %s always rebuilds and is co
     const first = prepareObjects(f.cfg); f.compile(first);
     const next = prepareObjects(f.cfg);
     expect(f.compile(next)).toMatchObject({ objects_compiled: 1, objects_cached: 1, objects_uncacheable: 1 });
-    expect(next[0].out).not.toBe(first[0].out);
+    expect(next[0].out).toBe(first[0].out); // Bypass is retained, but the hermetic key is stable.
   } finally { f.clean(); }
 }, 30_000);
 

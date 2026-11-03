@@ -1,0 +1,517 @@
+{
+  "schema": "game-cask/k18-hermetic-time-evidence/1",
+  "implementation": "commit containing this evidence; parent 883a990",
+  "policy": {
+    "version": "builtin-time-predefinitions-v1",
+    "__DATE__": "Jan  1 1970",
+    "__TIME__": "00:00:00",
+    "__TIMESTAMP__": "Thu Jan  1 00:00:00 1970"
+  },
+  "mechanism": "Explicit -U/-D predefinitions after caller flags for all production compile paths; builtin-redefinition warning suppressed. No reliance on SOURCE_DATE_EPOCH. Policy/version/flags keyed. Existing detection still bypasses conservatively; its keys are stable. Unsupported response files retain random keys and bypass.",
+  "source_sha256": {
+    "tools/build/objects.mjs": "801b5797e57a94b8e8d5c23dd9bc70fdeef105e9e26e56b778d312a12abe8b33",
+    "tools/build/build.mjs": "e63e06efcf349c58b1177168181d2118cdbf7de0cdc5e723a8babbd41e075932",
+    "tools/build/pipeline.mjs": "eb9cc842e714e6de68bdcaad9b4e7aab23663423ec45758123333ccabf096937",
+    "tests/unit/build-hermetic-time.test.ts": "8ea64039160aa608c57284162213ffbbc395e08af7ccc09aaff2d04d10756a91",
+    "tests/unit/build-cache-inputs.test.ts": "37f8363c72f3403a0816b16bf0fd5631501daa39fb630a9d99da38d093117d8f"
+  },
+  "gates": [
+    {
+      "name": "full",
+      "exit": 0,
+      "log": "reports/k18/hermetic-full.log",
+      "sha256": "e92705e0ce884f1a67a6b134e04c7d182fcda4bb41c036a51fb80a845937784c"
+    },
+    {
+      "name": "focused-final",
+      "exit": 0,
+      "log": "reports/k18/hermetic-focused-final.log",
+      "sha256": "0da522adf6eb95c9e6f5cae89efe92b91bd27cfa65f4ecdb325f13ada1aa2e49"
+    },
+    {
+      "name": "before-probe",
+      "exit": 0,
+      "log": "reports/k18/hermetic-before-probe.log",
+      "sha256": "82004204d68ec8a1258ac6582084dd57e1a9bf0cc15c7b1b3c869b7b0064f6f6"
+    },
+    {
+      "name": "after-probe",
+      "exit": 0,
+      "log": "reports/k18/hermetic-after-probe.log",
+      "sha256": "124e584134481d8a973ac216e3f20918e34c99ee88ff178552b379d0984ed93c"
+    },
+    {
+      "name": "oracle-x64-crt-asyncify",
+      "exit": 0,
+      "log": "reports/k18/hermetic-oracle-x64-crt-asyncify.log",
+      "sha256": "baa85d19e2e25d365d8c528ecacd006b117e075ce16736cd94ad1ff3e78ad7fd"
+    },
+    {
+      "name": "oracle-x64-crt-jspi",
+      "exit": 0,
+      "log": "reports/k18/hermetic-oracle-x64-crt-jspi.log",
+      "sha256": "a29c8e02ca245fa2b89a105f771da93808c1864bbda4867ac0d42a7df37e602f"
+    },
+    {
+      "name": "oracle-win32-hello-asyncify",
+      "exit": 0,
+      "log": "reports/k18/hermetic-oracle-win32-hello-asyncify.log",
+      "sha256": "c551a2172d5f0819671a7ea428f5e4063995c8e733402718d6b6f54ac1701ff1"
+    },
+    {
+      "name": "oracle-win32-hello-jspi",
+      "exit": 0,
+      "log": "reports/k18/hermetic-oracle-win32-hello-jspi.log",
+      "sha256": "c6063ae3010853f127fefd90fa0f3c11eb1d3d9b57228efaca9ad096ef0c4847"
+    },
+    {
+      "name": "benchmark",
+      "exit": 0,
+      "log": "reports/k18/hermetic-benchmark.log",
+      "sha256": "4c245fc89b563738309b7c654a619a64f88e3a27e06f22e0719af3651afec021"
+    },
+    {
+      "name": "eslint",
+      "exit": 0,
+      "log": "reports/k18/hermetic-eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "log": "reports/k18/hermetic-typecheck.log",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "log": "reports/k18/hermetic-leakcheck.log",
+      "sha256": "1c07f4bbec5c3e4e78c11d9eb62099b7b9964d25b52f0756eb4f66dce7cf2b57"
+    }
+  ],
+  "full": {
+    "files": 92,
+    "passed": 1235,
+    "skipped": 0,
+    "command": "BGT_JSPI=1 BGT_TEST_JSPI=1 BGT_BUILD_JOBS=2 npm test -- --maxWorkers=1 --testTimeout=600000"
+  },
+  "focused": {
+    "files": 5,
+    "passed": 55,
+    "skipped": 0
+  },
+  "reproduction": {
+    "before": {
+      "revision": "883a990",
+      "initial": 3249,
+      "cached": 3249,
+      "clean": 5050,
+      "same_key": true,
+      "cacheable": true,
+      "counts": {
+        "cold": {
+          "compiled": 1,
+          "cached": 0,
+          "uncacheable": 0
+        },
+        "warm": {
+          "compiled": 0,
+          "cached": 1,
+          "uncacheable": 0
+        },
+        "changed": {
+          "compiled": 0,
+          "cached": 1,
+          "uncacheable": 0
+        }
+      }
+    },
+    "after": {
+      "revision": "883a990 + hermetic worktree",
+      "initial": 3249,
+      "cached": 3249,
+      "clean": 3249,
+      "same_key": true,
+      "cacheable": true,
+      "counts": {
+        "cold": {
+          "compiled": 1,
+          "cached": 0,
+          "uncacheable": 0
+        },
+        "warm": {
+          "compiled": 0,
+          "cached": 1,
+          "uncacheable": 0
+        },
+        "changed": {
+          "compiled": 0,
+          "cached": 1,
+          "uncacheable": 0
+        }
+      }
+    },
+    "exact_two_tu_regression": "tests/unit/build-cache-inputs.test.ts: reviewer exact spliced-pragma timestamp reproduction; 0 compiled / 2 cached / 0 uncacheable after mtime change; clean and cached both 3249",
+    "matrix": {
+      "compilers": [
+        "Zig 0.13.0 wasm32",
+        "Apple Clang cc",
+        "GCC 14"
+      ],
+      "builtins": [
+        "__TIMESTAMP__",
+        "__DATE__",
+        "__TIME__"
+      ],
+      "cases": 9,
+      "mtime": [
+        "2020-01-01T12:00:00Z",
+        "2020-01-22T12:00:00Z"
+      ],
+      "source_date_epoch": [
+        "1577880000",
+        "2053036800"
+      ],
+      "tz": [
+        "Pacific/Honolulu",
+        "Asia/Tokyo"
+      ],
+      "actual_clock_delay_ms": 1100,
+      "assertions": [
+        "detectors deliberately defeated",
+        "cacheable=true and same object key",
+        "warm cache hit",
+        "complete strings equal pinned values",
+        "independent clean compile agrees",
+        "evicted/recompiled object bytes identical",
+        "-Wall -Wextra -Werror passes"
+      ]
+    }
+  },
+  "source_scan": {
+    "kit_roots": [
+      "bgt",
+      "platforms",
+      "tools",
+      "examples"
+    ],
+    "extensions": [
+      "c",
+      "h",
+      "cpp",
+      "cc"
+    ],
+    "generated_fixtures": [
+      "x64-crt",
+      "win32-hello",
+      "k18-scale-15000"
+    ],
+    "matches": 0
+  },
+  "fixtures": [
+    {
+      "id": "x64-crt",
+      "variants": {
+        "asyncify": {
+          "raw_report": "reports/k18/hermetic-oracle-x64-crt-asyncify.json",
+          "raw_sha256": "03e7699d48a4901c2a5134146adc7e21db943d41045e859d18acb1e24184f1cd",
+          "compared_frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": [],
+          "same_trace_as_previous_commit": true
+        },
+        "jspi": {
+          "raw_report": "reports/k18/hermetic-oracle-x64-crt-jspi.json",
+          "raw_sha256": "daae04faf9da1613710df9ecccd4866f43723f58b8bb9b60b250c90af5ac5d70",
+          "compared_frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": [],
+          "same_trace_as_previous_commit": true
+        }
+      }
+    },
+    {
+      "id": "win32-hello",
+      "variants": {
+        "asyncify": {
+          "raw_report": "reports/k18/hermetic-oracle-win32-hello-asyncify.json",
+          "raw_sha256": "72fa3e393e66a6cca6521342b824c5e60bfd62290a6c1d9ee6dccb760b7fec4f",
+          "compared_frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": [],
+          "same_trace_as_previous_commit": true
+        },
+        "jspi": {
+          "raw_report": "reports/k18/hermetic-oracle-win32-hello-jspi.json",
+          "raw_sha256": "10b1ca19c7a2633ed884e5da84f431872724e97f2f9f5ac31334c17ef1bc71d2",
+          "compared_frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "first_divergence": null,
+          "lifted_interp_insns": 0,
+          "lifted_stubs": [],
+          "same_trace_as_previous_commit": true
+        }
+      }
+    }
+  ],
+  "benchmark": {
+    "raw_report": "reports/k18/hermetic-benchmark.json",
+    "raw_sha256": "8426c6fe470448af57785a8b8ae7a51f3a09289f9fbc2e6c5e1d6f23c339ab93",
+    "machine": {
+      "hostname": "Mac-mini-2.local",
+      "platform": "darwin",
+      "arch": "arm64",
+      "totalmem": 17179869184,
+      "node": "v24.19.0"
+    },
+    "count": 15000,
+    "fixture_preexisting": true,
+    "method": "sequential same-clone builds; runtime-only edit appends a comment to bgt_gpu.h, restored byte-exactly; cold means fixture initially absent, not OS/toolchain cold; shared machine, not quiescent",
+    "note": "Initial preexisting fixture is not cold; new policy invalidates objects and lift tooling identity once. Runtime-only uses unique comment restored byte-exactly, all 62 chunks and analysis cached. Shared machine, not idle speed claims.",
+    "same_wasm_hashes_as_prior_commit_both_variants": true,
+    "samples": [
+      {
+        "scenario": "initial-preexisting",
+        "wall_ms": 408705.37716699997,
+        "before": {
+          "at": "2026-11-03T05:38:14.035Z",
+          "loadavg": [
+            4.30810546875,
+            3.33984375,
+            3.29833984375
+          ],
+          "disk_free_bytes": 6326276096,
+          "memory": "{\"available_bytes\": 6167199744}"
+        },
+        "after": {
+          "at": "2026-11-03T05:45:02.741Z",
+          "loadavg": [
+            4.07763671875,
+            3.6298828125,
+            3.44384765625
+          ],
+          "disk_free_bytes": 6228320256,
+          "memory": "{\"available_bytes\": 5441978368}"
+        },
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "jspi": {
+          "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+          "size": 66598422,
+          "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+        },
+        "metrics": {
+          "build_ms": 408646.936,
+          "compile_ms": 172858.606,
+          "link_ms": 747.09,
+          "peak_child_rss_bytes": 448364544,
+          "objects_compiled": 64,
+          "objects_cached": 29,
+          "objects_uncacheable": 0,
+          "phase_timings": {
+            "analysis_ms": 5022.9883340000015,
+            "lift_ms": 157004.543,
+            "c_generation_cpu_ms": 2024.3809999999999,
+            "compile_ms": 172858.606,
+            "link_ms": 747.09,
+            "wasm_opt_ms": 354.4514590000035
+          },
+          "asyncify_cached": true
+        },
+        "modules": [
+          {
+            "name": "scale.exe",
+            "sha256": "ead64e02d9cfab35f9e094703eef08a279adf33b89ccd988038aae786f4fd3d1",
+            "scale": {
+              "chunks": 62,
+              "chunks_lifted": 62,
+              "chunks_cached": 0,
+              "analysis_cached": false,
+              "generated_lines": 4658107
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-change",
+        "wall_ms": 5875.3827920000185,
+        "before": {
+          "at": "2026-11-03T05:45:02.772Z",
+          "loadavg": [
+            4.07763671875,
+            3.6298828125,
+            3.44384765625
+          ],
+          "disk_free_bytes": 6228189184,
+          "memory": "{\"available_bytes\": 5441257472}"
+        },
+        "after": {
+          "at": "2026-11-03T05:45:08.647Z",
+          "loadavg": [
+            4.4716796875,
+            3.71875,
+            3.47607421875
+          ],
+          "disk_free_bytes": 6227767296,
+          "memory": "{\"available_bytes\": 5227282432}"
+        },
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "jspi": {
+          "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+          "size": 66598422,
+          "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+        },
+        "metrics": {
+          "build_ms": 5820.67,
+          "compile_ms": 3.163,
+          "link_ms": 529.847,
+          "peak_child_rss_bytes": 352600064,
+          "objects_compiled": 0,
+          "objects_cached": 93,
+          "objects_uncacheable": 0,
+          "phase_timings": {
+            "analysis_ms": 8.308666000026278,
+            "lift_ms": 1.356,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 3.163,
+            "link_ms": 529.847,
+            "wasm_opt_ms": 245.5262920000241
+          },
+          "asyncify_cached": true
+        },
+        "modules": [
+          {
+            "name": "scale.exe",
+            "sha256": "ead64e02d9cfab35f9e094703eef08a279adf33b89ccd988038aae786f4fd3d1",
+            "scale": {
+              "chunks": 62,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "analysis_cached": true,
+              "generated_lines": 4658107
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "runtime-only-change",
+        "wall_ms": 14525.44445900002,
+        "before": {
+          "at": "2026-11-03T05:45:08.677Z",
+          "loadavg": [
+            4.4716796875,
+            3.71875,
+            3.47607421875
+          ],
+          "disk_free_bytes": 6227734528,
+          "memory": "{\"available_bytes\": 5229068288}"
+        },
+        "after": {
+          "at": "2026-11-03T05:45:23.203Z",
+          "loadavg": [
+            5.18408203125,
+            3.92431640625,
+            3.55419921875
+          ],
+          "disk_free_bytes": 6200193024,
+          "memory": "{\"available_bytes\": 5398331392}"
+        },
+        "wasm": {
+          "url": "game.wasm?h=e109143836419753",
+          "size": 56159339,
+          "sha256": "e109143836419753ff01b35bead9bd1d649f611183326aa89b785a20bf372610"
+        },
+        "jspi": {
+          "url": "game.jspi.wasm?h=ea5a8508a21f3710",
+          "size": 66598422,
+          "sha256": "ea5a8508a21f3710f2457aa07ecb0bfd4791dcbf823a812972e8f7778bb23320"
+        },
+        "metrics": {
+          "build_ms": 14470.596,
+          "compile_ms": 7352.591,
+          "link_ms": 661.32,
+          "peak_child_rss_bytes": 351322112,
+          "objects_compiled": 23,
+          "objects_cached": 70,
+          "objects_uncacheable": 0,
+          "phase_timings": {
+            "analysis_ms": 7.169958000013139,
+            "lift_ms": 1.336,
+            "c_generation_cpu_ms": 0,
+            "compile_ms": 7352.591,
+            "link_ms": 661.32,
+            "wasm_opt_ms": 230.78845800005365
+          },
+          "asyncify_cached": true
+        },
+        "modules": [
+          {
+            "name": "scale.exe",
+            "sha256": "ead64e02d9cfab35f9e094703eef08a279adf33b89ccd988038aae786f4fd3d1",
+            "scale": {
+              "chunks": 62,
+              "chunks_lifted": 0,
+              "chunks_cached": 62,
+              "analysis_cached": true,
+              "generated_lines": 4658107
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "review": "No new review launched; operator external acceptance remains separate."
+}

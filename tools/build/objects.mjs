@@ -6,6 +6,19 @@ import { execFileSync } from './exec.mjs';
 import { ROOT } from './toolchain.mjs';
 
 const digest = (b) => createHash('sha256').update(b).digest('hex');
+// Versioned build ABI: UTC Unix epoch, independent of source mtime, host clock,
+// TZ and SOURCE_DATE_EPOCH. Explicit definitions also cover clang's __TIMESTAMP__,
+// which SOURCE_DATE_EPOCH alone does not pin. Keep these in every compile/probe.
+export const PINNED_TIME = Object.freeze({
+  version: 'builtin-time-predefinitions-v1',
+  __DATE__: 'Jan  1 1970', __TIME__: '00:00:00', __TIMESTAMP__: 'Thu Jan  1 00:00:00 1970',
+});
+export function hermeticTimeFlags() {
+  // Append after caller/response flags; -U also handles caller definitions without
+  // a macro-redefined warning. Suppress only the deliberate builtin override.
+  return ['-Wno-builtin-macro-redefined', ...Object.entries(PINNED_TIME)
+    .filter(([name]) => name !== 'version').flatMap(([name, value]) => ['-U' + name, '-D' + name + '=' + JSON.stringify(value)])];
+}
 // Paths in keys and __FILE__ must not depend on which clone is building.
 export function logicalPath(file, root = ROOT) {
   const rel = relative(root, file);
@@ -30,7 +43,7 @@ export function objectKey({ compiler, flags, file, dependencies, root = ROOT }) 
     if (s === `-fmacro-prefix-map=${root}=.`) return '-fmacro-prefix-map=@=.';
     return s; // Macro/string values are semantic bytes, NOT clone paths to rewrite.
   });
-  return digest(JSON.stringify(['objects-v2', compiler, normalized, pathFlag(file),
+  return digest(JSON.stringify(['objects-v2', PINNED_TIME, compiler, normalized, pathFlag(file),
     dependencies.map(([path, hash]) => [logicalPath(path, root), hash]).sort(([a], [b]) => a.localeCompare(b))]));
 }
 // Expand the unambiguous common GNU response-file form before discovery, keying AND
@@ -116,7 +129,8 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
   const identity = [compiler.version, hash(realpathSync(executable), false)];
   if (compiler.prefix) identity.push(prefix);
   const expanded = expandResponseFiles(flags, root);
-  flags = portableFlags(expanded.flags, root);
+  flags = portableFlags([...expanded.flags, ...hermeticTimeFlags()], root);
+  identity.push(PINNED_TIME);
   // Forced includes start in compiler cwd (not the source directory). Let the
   // compiler rediscover these rather than recursively inventory the entire repo.
   const rediscover = !!expanded.reason || flags.some(f => /^-(?:include|imacros)/.test(f));
@@ -130,7 +144,7 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
     }
   }
   // Ambient include paths are compiler inputs too, including negative/shadow dependencies.
-  const environment = ['CPATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH', 'SDKROOT', 'MACOSX_DEPLOYMENT_TARGET', 'SOURCE_DATE_EPOCH']
+  const environment = ['CPATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH', 'SDKROOT', 'MACOSX_DEPLOYMENT_TARGET']
     .map((name) => [name, process.env[name] ?? '']);
   identity.push(environment);
   for (const name of ['CPATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH']) {
@@ -156,9 +170,9 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       }
     } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
     if (!deps) {
-      // -M suppresses date-time diagnostics. -E plus a depfile asks the actual
-      // preprocessor about expanded builtins, including token-pasted macro names.
-      // No JS macro evaluator, timestamp approximation or wall-clock key.
+      // -M suppresses date-time diagnostics. -E plus a depfile retains the
+      // compiler check for any surviving volatile builtin. Predefinitions, not
+      // this suppressible diagnostic or a JS macro evaluator, ensure hermeticity.
       const depfile = manifest + '.' + randomUUID() + '.d';
       const discover = (warning) => {
         execFileSync(compiler.path,
@@ -183,10 +197,12 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
       const temp = manifest + '.' + process.pid + '.tmp';
       writeFileSync(temp, JSON.stringify({ inventory: inventory(deps), sourceHash, dependencies: deps, volatile })); renameSync(temp, manifest);
     }
-    volatile ||= deps.some(([f]) => volatileInputs.get(f)) || flags.some(f => hasVolatileInput(f) || f === '-w' || f === '-Wno-everything' || f === '-Wno-date-time');
+    volatile ||= deps.some(([f]) => volatileInputs.get(f)) || expanded.flags.some(f => hasVolatileInput(f) || f === '-w' || f === '-Wno-everything' || f === '-Wno-date-time');
+    // Retain conservative detection/bypass as defence in depth, but correctness
+    // does not rely on recognizing source spellings or unsuppressible warnings.
     const uncacheable = expanded.reason || (volatile ? 'volatile date/time input or unsupported dependency probe' : null);
     const key = objectKey({ compiler: identity, flags, file, dependencies: deps, root }) +
-      (uncacheable ? '-' + randomUUID() : '');
+      (expanded.reason ? '-' + randomUUID() : '');
     const out = join(cache, key + '.o');
     // Diagnostic history only: never used to decide validity or choose a key.
     const history = join(dependencyDir, digest(file) + '.last.json');
@@ -209,7 +225,7 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
     }
     const temp = history + '.' + process.pid + '.tmp';
     writeFileSync(temp, JSON.stringify(current)); renameSync(temp, history);
-    return { out, cwd: root, cacheable: !uncacheable, source: logicalPath(file, root), miss_reasons: reasons,
+    return { out, cwd: root, cacheable: !uncacheable, volatile_inputs_detected: volatile, source: logicalPath(file, root), miss_reasons: reasons,
       args: [compiler.path, ...prefix, ...flags, '-c', file] };
   });
 }

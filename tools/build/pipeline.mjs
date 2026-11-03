@@ -26,7 +26,7 @@ import { peMetadata } from '../inspect/pe.mjs';
 import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
-import { prepareObjects } from './objects.mjs';
+import { hermeticTimeFlags, PINNED_TIME, prepareObjects } from './objects.mjs';
 
 const CACHE = join(ROOT, 'node_modules', '.cache', 'bgt');
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -100,17 +100,17 @@ export function buildFixture(gameDir, fx, outDir) {
     ...(normal ? ['-s', '-Wl,--gc-sections'] : ['-nostdlib']), '-isystem', zigWinInclude(),
     ...(normal ? [] : [`-Wl,--entry,${fx.entry ?? 'entry'}`]), '-Wl,--subsystem,windows',
     ...(target === 'x86_64-windows-gnu' ? ['-Wl,--image-base,0x140000000'] : []),
-    '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`),
+    ...hermeticTimeFlags(), '-o', out, ...inputs, ...(resFile ? [resFile] : []), ...(fx.libs ?? []).map((l) => `-l${l}`),
   ];
   writeFileSync(join(outDir, 'fixture-build.json'), JSON.stringify({ target, normalCrt: normal, args }, null, 2));
   if (fx.generator) {
     // Zig's multi-input driver otherwise starts one clang per source, unbounded on large fixtures.
     const dir = join(outDir,'objects'); mkdirSync(dir,{recursive:true});
     const version = execFileSync('zig',['version'],{encoding:'utf8'}).trim();
-    const flags = [fx.cpp ? 'c++' : 'cc','-target',target,'-O2','-fno-stack-protector','-funwind-tables','-fno-lto','-fno-emulated-tls','-isystem',zigWinInclude()];
+    const flags = [fx.cpp ? 'c++' : 'cc','-target',target,'-O2','-fno-stack-protector','-funwind-tables','-fno-lto','-fno-emulated-tls','-isystem',zigWinInclude(),...hermeticTimeFlags()];
     const headers = (root) => readdirSync(root,{withFileTypes:true}).flatMap((e)=>e.isDirectory() ? headers(join(root,e.name)) : /\.(h|inc|def)$/.test(e.name) ? [join(root,e.name)] : []);
     const headerBytes = [...new Set([...headers(generated),...headers(gameDir)])].sort().map((f)=>Buffer.concat([Buffer.from(f),readFileSync(f)]));
-    const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
+    const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,PINNED_TIME,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
     const link = ['zig',...args.filter((a)=>!inputs.includes(a))];
     link.splice(link.indexOf('-o'),0,...objects.map((o)=>o.out));
     const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));

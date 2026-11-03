@@ -19,7 +19,7 @@ import { streamFile } from './files.mjs';
 import { libcNotices } from './libc-notices.mjs';
 import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
-import { cacheDirectory, prepareObjects } from './objects.mjs';
+import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
 import { functionNames, stripDwarf, encodeFunctionNames } from './wasm-names.mjs';
 
@@ -142,6 +142,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     join(ROOT, 'bgt', 'sdk', 'bgt_libc.c'),
     ...linkFlags,
     ...(cfg.ldflags ?? []),
+    ...hermeticTimeFlags(),
     '-o',
     wasmPath,
   ];
