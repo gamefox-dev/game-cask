@@ -19,7 +19,7 @@ import { streamFile } from './files.mjs';
 import { libcNotices } from './libc-notices.mjs';
 import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
-import { cacheDirectory, prepareObjects } from './objects.mjs';
+import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
 import { functionNames, stripDwarf, encodeFunctionNames } from './wasm-names.mjs';
 
@@ -81,6 +81,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  for (const value of [cfg.pipeline?.jspi, cfg.jspi])
+    if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
+  const emitJspi = cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1');
   // Measurement/debug override; 0 preserves the old monolithic orchestration.
   if (cfg.pipeline && process.env.BGT_CHUNK_INSNS !== undefined) cfg.pipeline.chunkInstructions=Number(process.env.BGT_CHUNK_INSNS);
   if(cfg.pipeline?.chunkInstructions !== undefined && cfg.pipeline.chunkInstructions !== 0 &&
@@ -139,6 +142,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     join(ROOT, 'bgt', 'sdk', 'bgt_libc.c'),
     ...linkFlags,
     ...(cfg.ldflags ?? []),
+    ...hermeticTimeFlags(),
     '-o',
     wasmPath,
   ];
@@ -156,7 +160,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const release = leaseCache(cache,objects.map((o)=>o.out));
       try {
         pruneCache(cache,budget);
-        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
         touchCache(objects.map((o)=>o.out));
       } finally {release();}
       compileMetrics.object_cache = pruneCache(cache,budget);
@@ -168,6 +172,16 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   // wasm-ld --strip-debug removes both, so strip only DWARF custom sections here.
   if(pipe)writeFileSync(wasmPath,stripDwarf(readFileSync(wasmPath)));
   const preAsyncifyBytes=statSync(wasmPath).size;
+  const jspiStarted = performance.now();
+  let jspiArtifact = null;
+  if (emitJspi) {
+    // Same compiled/linked program, without whole-module Asyncify. No alternate guest semantics.
+    const bytes = readFileSync(wasmPath), hash = sha256(bytes);
+    cpSync(wasmPath, join(outDir, 'game.jspi.wasm'));
+    jspiArtifact = { url: 'game.jspi.wasm?h=' + hash.slice(0, 16), size: bytes.length, sha256: hash };
+  }
+  const jspiMs = performance.now() - jspiStarted;
+  const linkedMs = performance.now() - buildStarted;
   if(onLinkedWasm)onLinkedWasm(wasmPath);
   let asyncifyCached = false;
   const asyncifyStarted = performance.now();
@@ -310,6 +324,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     private: cfg.private ?? false,
     wasm: { url: `game.wasm?h=${sha256(wasm).slice(0, 16)}`, size: wasm.byteLength, sha256: sha256(wasm) },
     assets,
+    ...(jspiArtifact ? { variants: { jspi: jspiArtifact } } : {}),
     ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
     ...(cfg.gpu ? { gpu: cfg.gpu } : {}),
     packaging,
@@ -322,10 +337,16 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   if (pipe) {
     manifest.pipeline = pipe.report;
     const instructions = pipe.report.modules.reduce((n,m) => n+(m.lift ? m.lift.specialized+m.lift.generic : 0),0);
-    manifest.pipeline.metrics = { ...compileMetrics, asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+    manifest.pipeline.metrics = { ...compileMetrics, phase_timings: {
+      analysis_ms: pipe.report.timings?.analysis_ms ?? 0, lift_ms: pipe.report.timings?.lift_ms ?? 0,
+      c_generation_cpu_ms: pipe.report.timings?.c_generation_cpu_ms ?? 0, compile_ms: compileMetrics?.compile_ms ?? 0,
+      link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
+      ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
+      phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
+      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
-    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, Asyncify ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'})`);
+    if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached/${compileMetrics.objects_uncacheable} uncacheable, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, phases analysis wall/lift wall/Cgen CPU ${pipe.report.timings?.analysis_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.lift_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.c_generation_cpu_ms?.toFixed(1) ?? 0} ms, wasm-opt ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'}), cache misses ${compileMetrics.object_cache_decisions?.filter((o) => !o.hit).length ?? compileMetrics.objects_compiled}`);
   }
   if (check) {
     rmSync(outDir, { recursive: true, force: true });

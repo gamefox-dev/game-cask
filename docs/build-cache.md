@@ -19,6 +19,19 @@ Analysis and both chunked/monolithic lifts are reused independently of profile c
 function selection, override addresses and codegen options still invalidate lifting. Changing the profile's DLL
 inventory may change the generated driver, but not lifted functions.
 
+## Hermetic volatile builtins (K18)
+
+Every C/C++ compile uses the versioned **builtin-time-predefinitions-v1** policy: **__DATE__** is
+`"Jan  1 1970"`, **__TIME__** is `"00:00:00"`, and **__TIMESTAMP__** is
+`"Thu Jan  1 00:00:00 1970"` (two spaces before the day). The definitions are passed explicitly after caller flags,
+with **-Wno-builtin-macro-redefined**; this is intentionally independent of compiler support for
+SOURCE_DATE_EPOCH and pins __TIMESTAMP__ on compilers that do not honor it. The policy version,
+values, and flags are part of every object key. Existing source/diagnostic detection remains a
+conservative defence-in-depth bypass, never the correctness mechanism. Its keys are stable but
+its objects still recompile. Unexpanded response files retain random keys and bypass caching.
+Generated/runtime sources must not use these macros for behavior; the policy makes accidental use
+deterministic. Native BGT, Windows fixtures, host tools and cached pipeline objects use the same policy.
+
 ## Optional shared cache
 
 ```sh

@@ -1,7 +1,7 @@
 /* Bounded execution census and sampled wall timing. SPDX-License-Identifier: MIT */
 #ifndef X86_PROFILE_H
 #define X86_PROFILE_H
-#include <stdint.h>
+#include "x86_arch.h"
 #ifndef X86_PROFILE_ENABLED
 #define X86_PROFILE_ENABLED 1
 #endif
@@ -11,7 +11,6 @@
 #define X86_CENSUS_CAP 262144u
 #define X86_CENSUS_TOP 32u
 enum { XP_NATIVE, XP_GENERIC, XP_INTERPRETER, XP_API, XP_CATEGORIES };
-enum { XE_FORM=1, XE_GUARD, XE_QUANTUM, XE_INTERIOR, XE_INDIRECT, XE_OTHER, XE_INTERPRETER };
 typedef struct { uint32_t address, reason; uint64_t count, instructions; } x86_census_t;
 typedef struct { uint64_t calls, samples; double sample_us; } x86_timing_t;
 extern x86_timing_t x86_timings[XP_CATEGORIES];

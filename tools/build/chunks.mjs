@@ -1,9 +1,10 @@
 // Chunk orchestration only: no instruction emission or guest semantics live here.
 import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './toolchain.mjs';
+import { hashFile } from './files.mjs';
 
 const digest = (b) => createHash('sha256').update(b).digest('hex');
 export function partitionFunctions(functions, budget = 32768) {
@@ -18,14 +19,22 @@ export function partitionFunctions(functions, budget = 32768) {
 }
 
 export function analyzeCached(tool, file, id, base, dir, identity) {
-  const out = join(dir, `analysis_${id}.json`), key = digest(JSON.stringify([identity, digest(readFileSync(tool)), base, id]));
+  const out = join(dir, `analysis_${id}.json`), key = digest(JSON.stringify(['analysis-v3', hashFile(file), identity, digest(readFileSync(tool)), base, id]));
   const start = performance.now();
-  const cached = existsSync(out + '.key') && readFileSync(out + '.key','utf8') === key;
+  let cached = false;
+  try {
+    const marker = JSON.parse(readFileSync(out + '.key', 'utf8'));
+    cached = marker.key === key && marker.sha256 === digest(readFileSync(out));
+  } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
   if (!cached) {
     const an = execFileSync(tool, ['analyze',file,'--name',id,'--base',base.toString(16)], {encoding:'utf8',maxBuffer:256<<20});
     // Do not leave the old key validating a newly written analysis after interruption.
     rmSync(out + '.key',{force:true});
-    writeFileSync(out, an); writeFileSync(out + '.key', key);
+    const temp = out + '.' + process.pid + '.tmp';
+    try {
+      writeFileSync(temp, an); renameSync(temp, out);
+      writeFileSync(temp, JSON.stringify({key,sha256:digest(an)})); renameSync(temp, out + '.key');
+    } finally { rmSync(temp, {force:true}); }
   }
   return { analysis: JSON.parse(readFileSync(out,'utf8')), key, analysis_ms: performance.now()-start, analysis_cached: cached };
 }
@@ -70,7 +79,7 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,policy,'chunks-v2']))};
   });
   const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')], {
-    input:JSON.stringify({tasks,jobs:Number(process.env.BGT_BUILD_JOBS ?? 2)}),encoding:'utf8',stdio:['pipe','pipe','inherit'],
+    input:JSON.stringify({tasks,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],
   }));
   // Merge only the generated registry, not function bodies. R_* locals stay in their owner's TU.
   const rows = [], declarations = new Set();

@@ -24,7 +24,7 @@ import {
   GPU_CONTINUATION_LIMITS,
   OP,
 } from './abi';
-import type { CommandError, DecodeResult } from './commands';
+import type { CommandError, DecodeResult, Frame } from './commands';
 import { GameHost, InputSnapshot, emptyInput, OutsideSlice } from './host';
 import { Vfs } from './vfs';
 import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
@@ -51,6 +51,8 @@ export interface RuntimeOptions {
   autostart?: boolean;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
   startPaused?: boolean;
+  /** Opt-in JSPI; both manifest and runtime request must opt in. */
+  suspension?: 'asyncify' | 'jspi';
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -64,6 +66,7 @@ export interface Manifest {
   assets: Array<{ path: string; url: string; size: number; sha256: string }>;
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
+  variants?: { jspi?: {url:string;size:number;sha256:string} };
   gpu?: { budgetBytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
@@ -78,9 +81,11 @@ export interface RuntimeErrorRecord {
 }
 
 import { compileVerifiedWasm } from './wasm-loader';
+import { selectWasmVariant } from './jspi';
 
 export interface BGTDiagnostics {
   abi: string;
+  suspension: 'asyncify' | 'jspi' | null;
   game: { id: string; name: string } | null;
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
@@ -149,6 +154,8 @@ export class BGTRuntime {
   manifest: Manifest | null = null;
   host: GameHost | null = null;
   renderer: Renderer | null = null;
+  /** Debug recorder only; awaited before rendering so uploads cannot race frame consumption. */
+  frameObserver?: (frame: Frame, letterbox: Letterbox, update: number, width: number, height: number) => Promise<void>;
   canvas: HTMLCanvasElement;
   readonly vfs = new Vfs();
   readonly audio = new WebAudioSink();
@@ -174,6 +181,10 @@ export class BGTRuntime {
   private sliceEvents = 0;
   private renderTail: Promise<void> = Promise.resolve();
   private renderBusy = false;
+  // A recorder sink can yield to ResizeObserver. Keep the backing store and
+  // scale fixed until that recorded frame has actually finished drawing.
+  private recordingFrame = false;
+  private recordingResizePending = false;
   private noteOutside(kind:number,address:number,message:string):void {
     this.outsideSlice={kind,address,message};this.sliceEvents++;this.pause();this.status(message);
   }
@@ -337,7 +348,9 @@ export class BGTRuntime {
     for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
 
-    const total = manifest.wasm.size + manifest.assets.reduce((n, a) => n + a.size, 0);
+    const requested = this.opts.suspension ?? new URLSearchParams(location.search).get('suspension');
+    const variant = selectWasmVariant(manifest, requested);
+    const total = variant.artifact.size + manifest.assets.reduce((n, a) => n + a.size, 0);
     let loaded = 0;
     const tick = (n: number) => {
       loaded += n;
@@ -348,7 +361,7 @@ export class BGTRuntime {
       const got = await sha256Hex(buf);
       if (got && got !== expect) throw new RuntimeFailure('asset', `integrity check failed for ${label}`);
     };
-    const wasmP = fetch(base + manifest.wasm.url).then((res) => compileVerifiedWasm(res,manifest.wasm,tick)).then((result) => {
+    const wasmP = fetch(base + variant.artifact.url).then((res) => compileVerifiedWasm(res,variant.artifact,tick)).then((result) => {
       this.wasmLoadMs = result.downloadCompileVerifyMs;
       this.wasmStreaming = result.streaming;
       return result.module;
@@ -416,6 +429,7 @@ export class BGTRuntime {
           gpuBudgetBytes: manifest.gpu?.budgetBytes,
           sliceCode: manifest.slice?.code,
           sliceCodeRanges: manifest.slice?.codeRanges,
+          suspensionMode: variant.mode,
         },
       );
       this.host.init();
@@ -550,6 +564,10 @@ export class BGTRuntime {
   }
 
   private applySize(): void {
+    if (this.recordingFrame) {
+      this.recordingResizePending = true;
+      return;
+    }
     const prevW = this.canvas.width, prevH = this.canvas.height;
     this.measure();
     if (!this.host) return;
@@ -596,11 +614,15 @@ export class BGTRuntime {
     }
   }
 
-  private stepOnce(): void {
+  private async stepGuarded(): Promise<void> {
+    try { await this.stepOnce(); } catch (e) { this.guard(() => {throw e;}); }
+  }
+
+  private async stepOnce(): Promise<void> {
     const host = this.host!;
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
-    host.update();
+    await host.update();
     if (host.sizeChanged) {
       host.sizeChanged = false;
       this.applySize();
@@ -625,10 +647,24 @@ export class BGTRuntime {
     let out: Pixels | null | Promise<Pixels | null> = null;
     const gpuStart=performance.now();
     try {
-      out = await r.drawFrame(frame, this.letterbox, readback);
+      let letterbox = this.letterbox;
+      if (this.frameObserver) {
+        this.recordingFrame = true;
+        letterbox = { ...letterbox };
+        await this.frameObserver(frame, letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
+      }
+      out = await r.drawFrame(frame, letterbox, readback);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
       this.record('gpu', (e as Error).message);
+    } finally {
+      if (this.recordingFrame) {
+        this.recordingFrame = false;
+        if (this.recordingResizePending) {
+          this.recordingResizePending = false;
+          this.applySize();
+        }
+      }
     }
     this.gpuWallMs+=performance.now()-gpuStart;
     this.gpuSubmitTotalMs+=r.stats.submitMs;
@@ -651,8 +687,9 @@ export class BGTRuntime {
     return out;
   }
 
+  private updateBusy = false;
   private loop(): void {
-    const tick = (t: number) => {
+    const tick = async (t: number) => {
       this.raf = requestAnimationFrame(tick);
       if (this.last) {
         const d = t - this.last;
@@ -662,15 +699,19 @@ export class BGTRuntime {
       }
       this.last = t;
       this.checkLossWatchdog();
-      if (this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy) return;
+      if (this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) return;
+      this.updateBusy = true;
+      try {
       let n = 0;
       while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates && !this.host?.ioPending) {
-        if (this.guard(() => this.stepOnce()) === undefined && this.failed) return;
+        await this.stepGuarded();
+        if (this.failed || this.outsideSlice) return;
         this.acc -= STEP_MS;
         n++;
       }
       if (n === LIMITS.maxCatchUpUpdates) this.acc = 0; // drop backlog rather than spiral
       if (n > 0) void this.renderFrame(false);
+      } finally { this.updateBusy = false; }
     };
     this.raf = requestAnimationFrame(tick);
   }
@@ -696,7 +737,7 @@ export class BGTRuntime {
       await this.renderTail;
       await this.host?.settleRequests();
       if(this.outsideSlice)break;
-      this.guard(() => this.stepOnce());
+      await this.stepGuarded();
       if (this.failed || this.outsideSlice) break;
       // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.
       while (this.renderer?.lost && !this.failed) {
@@ -751,6 +792,7 @@ export class BGTRuntime {
     const r = this.renderer;
     return {
       abi: `${ABI_VERSION >> 16}.${(ABI_VERSION >> 8) & 0xff}`,
+      suspension: host ? (host.config.suspensionMode ?? 'asyncify') : null,
       game: this.manifest ? { id: this.manifest.id, name: this.manifest.name } : null,
       backend: r ? r.kind : 'unavailable',
       backendNotes: [...this.backendNotes],

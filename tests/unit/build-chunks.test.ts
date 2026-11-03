@@ -73,7 +73,7 @@ it('generator is deterministic and native checksum equals the fully lifted large
 it('chunked lift is cached, byte stable, oracle-equivalent, and invalidated by codegen options',async()=>{
   const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/chunk-test-'));
   const id='x64-scale-chunk-test';
-  const cfg={id,name:'chunks',pipeline:{platform:'win32',chunkInstructions:256,
+  const cfg={id,name:'chunks',pipeline:{platform:'win32',jspi:true,chunkInstructions:256,
     fixture:{target:'x86_64-windows-gnu',crt:true,out:'small.exe',sources:[] as string[]},modules:[{from:'./build/small.exe',main:true}]}};
   cfg.pipeline.fixture.sources=generate(dir,8);
   try {
@@ -84,6 +84,8 @@ it('chunked lift is cached, byte stable, oracle-equivalent, and invalidated by c
     expect(b.pipeline.modules[0].scale.chunks_cached).toBe(a.pipeline.modules[0].scale.chunks);
     expect(b.pipeline.metrics.objects_compiled).toBe(0);
     expect(b.wasm.sha256).toBe(a.wasm.sha256);
+    expect(b.variants.jspi.sha256).toBeTruthy();
+    expect(b.variants.jspi.size).toBe(b.pipeline.metrics.pre_asyncify_bytes);
     buildGame(dir,{quiet:true,interpretOnly:true});
     const r=await oracle(id,300);expect(r.identical).toBe(true);expect(r.errors).toEqual({lifted:null,interpreted:null});
     const h=await loadHeadless(id);await h.stepAsync(300);expect((h.host.metrics() as any).interp_insns).toBe(0);

@@ -1,0 +1,158 @@
+{
+  "schema": "game-cask/k18-gates/1",
+  "implementation": "b40e5fd576a9f3c31031362fe0b3b20eebef15e2",
+  "scope": "Local kit validation only. Finalization is documentation/evidence-only. No independent PASS on repaired source: operator owns external final-commit review. No game/porter/physical-device or universal JSPI speed claim.",
+  "units": {
+    "files": 90,
+    "passed": 1206,
+    "skipped": 0,
+    "command": "BGT_JSPI=1 BGT_TEST_JSPI=1 npm test -- --maxWorkers=1 --testTimeout=600000",
+    "duration_seconds": 1305.91
+  },
+  "browser_per_variant": {
+    "passed": 249,
+    "skipped": 51,
+    "unexpected": 0,
+    "flaky": 0,
+    "same_skip_inventory": true,
+    "required_webgpu": true,
+    "port": 5247
+  },
+  "oracle": {
+    "pipeline_fixtures": 30,
+    "variants": [
+      "asyncify",
+      "jspi"
+    ],
+    "frames_each": 300,
+    "compared_pairs": 18000,
+    "all_errors_null": true,
+    "all_lifted_interp_insns_zero": true,
+    "all_lifted_stubs_empty": true,
+    "all_full_cross_mode_trace_digests_equal": true
+  },
+  "lint_example_check_builds": 33,
+  "preserved_failures": {
+    "unit-continuation": "1202 passed; four existing 60s codegen timeouts. Same assertions pass in 62/62 focused rerun and 1206/1206 full rerun with larger CLI budget. No committed budget/assertion/skip changes.",
+    "after-12000": "Missing x86_profile_exit declaration; repaired before successful benchmark matrices.",
+    "jspi-oracle-hello and hello2": "Missing worker JSPI flag; failed closed. Corrected worker flag passes.",
+    "warm-preflight": "Ignored helper string syntax error, corrected.",
+    "review-final-fresh": "Parent-relative stale-object finding; fixed by 8106a60/b40e5fd. Not final-source independent PASS."
+  },
+  "logs": [
+    {
+      "stem": "unit-final",
+      "exit": 0,
+      "sha256": "4d050ea23d7eaff6681252222f6f140c85cdc8fcb7a893f7ea10f54e7f4fcd65",
+      "bytes": 78252
+    },
+    {
+      "stem": "oracle-matrix",
+      "exit": 0,
+      "sha256": "972231b52bd2bfb7cd565c0b54d9ccdb51ef9272cab98367b04402672aa4a3dd",
+      "bytes": 96308
+    },
+    {
+      "stem": "browser-asyncify-full",
+      "exit": 0,
+      "sha256": "74577641efb0944293cf61746c66c4c71303fce2e465ed0ae6876bf0a514b6c3",
+      "bytes": 48512
+    },
+    {
+      "stem": "browser-jspi-full",
+      "exit": 0,
+      "sha256": "43df18979789b29e0eaf0f123e04217efacee46fbce1ee8176be57422828e87c",
+      "bytes": 48461
+    },
+    {
+      "stem": "lint-final",
+      "exit": 0,
+      "sha256": "cc712ff7f111d5d455802a214549ddf28b2a6619c4d3279253efeffc275fef89",
+      "bytes": 17416
+    },
+    {
+      "stem": "typecheck-final",
+      "exit": 0,
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398",
+      "bytes": 68
+    },
+    {
+      "stem": "doctor-final",
+      "exit": 0,
+      "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b",
+      "bytes": 303
+    },
+    {
+      "stem": "leakcheck-post-unit",
+      "exit": 0,
+      "sha256": "8b6f4b6150ebc5af5a8da3944754397b4459c6519a1fe17277a80aa075480b09",
+      "bytes": 118
+    },
+    {
+      "stem": "final-runtime",
+      "exit": 0,
+      "sha256": "8ef99618664e598ce1aa964d55601de561f2d37240d0bac003c0a2701d3dd7c4",
+      "bytes": 221
+    },
+    {
+      "stem": "rediscovery-final",
+      "exit": 0,
+      "sha256": "50623d01ae1b60299759589d572ca37bdb9ef4bacf3182dc8f3097e40f9c3c76",
+      "bytes": 303
+    },
+    {
+      "stem": "rediscovery-eslint",
+      "exit": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "stem": "codegen-long-budget",
+      "exit": 0,
+      "sha256": "666de9b6ad25c1dfcc82d19156cbe3a7fc733ae79045cb9e3029bc5abf7498da",
+      "bytes": 38131
+    },
+    {
+      "stem": "before-12000",
+      "exit": 0,
+      "sha256": "ca6b668c20f22cd0d4e313a8992408d679c53a23ef586570398eff0fbacaeffc",
+      "bytes": 10186
+    },
+    {
+      "stem": "after-12000-final",
+      "exit": 0,
+      "sha256": "15fd753dfb53cbd7d6bb87d3f74ceaaa0a4c72e7e5111cb590e1ce25aabfec3b",
+      "bytes": 10360
+    },
+    {
+      "stem": "before-15000",
+      "exit": 0,
+      "sha256": "8e6596da476b9dc15a45f64ba57f235bad9c93e5c0e9d08ceea560c18b63840a",
+      "bytes": 12157
+    },
+    {
+      "stem": "after-15000",
+      "exit": 0,
+      "sha256": "04af60e552f568a1a455b49a333e33ecb4758af6641ca4b6995a5e0324595dab",
+      "bytes": 12525
+    },
+    {
+      "stem": "speed-variants",
+      "exit": 0,
+      "sha256": "809e9dce9517427d65e0441fdb6c6b0de59e59c63d493d89e9e8bf1901ca0b42",
+      "bytes": 146
+    },
+    {
+      "stem": "final-close-leakcheck",
+      "exit": 0,
+      "sha256": "8b6f4b6150ebc5af5a8da3944754397b4459c6519a1fe17277a80aa075480b09",
+      "bytes": 118
+    },
+    {
+      "stem": "final-staged-leakcheck",
+      "exit": 0,
+      "sha256": "1ed137d2a29b56ef78adce484aa6eb2f29f0b2f8f4bf86b8e99773f1446f49b4",
+      "bytes": 118
+    }
+  ]
+}

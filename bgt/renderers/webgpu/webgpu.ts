@@ -70,6 +70,7 @@ interface DeviceObjects {
   /** [screen-format pipelines, rgba8unorm render-target pipelines], indexed by blend mode */
   pipelines: GPURenderPipeline[];
   rtPipelines: GPURenderPipeline[];
+  screenPipelines: GPURenderPipeline[];
   uLayout: GPUBindGroupLayout;
   texLayout: GPUBindGroupLayout;
   uniform: GPUBuffer;
@@ -156,7 +157,7 @@ export class WebGPURenderer implements Renderer {
       ],
     });
     const layout = device.createPipelineLayout({ bindGroupLayouts: [uLayout, texLayout] });
-    const mk = (format: GPUTextureFormat) => [0, 1, 2, 3, 4, 5].map((mode) =>
+    const mk = (format: GPUTextureFormat, opaque = false) => [0, 1, 2, 3, 4, 5].map((mode) =>
       device.createRenderPipeline({
         layout,
         vertex: {
@@ -173,11 +174,12 @@ export class WebGPURenderer implements Renderer {
             },
           ],
         },
-        fragment: { module, entryPoint: 'fs', targets: [{ format, blend: blendState(mode) }] },
+        fragment: { module, entryPoint: 'fs', targets: [{ format, blend: blendState(mode), writeMask: opaque ? 7 : 15 }] },
         primitive: { topology: 'triangle-list' },
       }),
     );
-    const pipelines = mk(this.format);
+    const pipelines = mk(this.format, true);
+    const screenPipelines = mk('rgba8unorm', true);
     const rtPipelines = mk('rgba8unorm');
     const uniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const uniformGroup = device.createBindGroup({ layout: uLayout, entries: [{ binding: 0, resource: { buffer: uniform } }] });
@@ -195,12 +197,12 @@ export class WebGPURenderer implements Renderer {
         let uv = vec2f(f32((id << 1u) & 2u), f32(id & 2u));
         return V(vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 0, 1), u.uvRect.xy + uv * u.uvRect.zw);
       }
-      @fragment fn fs(v: V) -> @location(0) vec4f { return textureSample(tex, samp, v.uv); }
+      @fragment fn fs(v: V) -> @location(0) vec4f { return vec4f(textureSample(tex, samp, v.uv).rgb, 1); }
     ` });
     const present = device.createRenderPipeline({ layout,
       vertex: { module: presentModule, entryPoint: 'vs' },
       fragment: { module: presentModule, entryPoint: 'fs', targets: [{ format: this.format }] } });
-    this.o = { device, pipelines, rtPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white,
+    this.o = { device, pipelines, rtPipelines, screenPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white,
       vbuf: null, vbufSize: 0, present };
     this.screen = undefined;
     this.snapshot = undefined;
@@ -441,7 +443,7 @@ export class WebGPURenderer implements Renderer {
           }
           const p = pass as unknown as GPURenderPassEncoder;
           p.setScissorRect(x, y, w, h);
-          const set = it.target || gpuFrame ? this.o.rtPipelines : this.o.pipelines;
+          const set = it.target ? this.o.rtPipelines : gpuFrame ? this.o.screenPipelines : this.o.pipelines;
           p.setPipeline(set[it.blend] ?? set[BLEND_ALPHA]);
           p.setBindGroup(1, this.bindGroup(it.texture, it.filter));
           p.draw(it.count, 1, it.first, 0);

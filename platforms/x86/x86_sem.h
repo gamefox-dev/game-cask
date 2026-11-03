@@ -9,7 +9,7 @@
 #ifndef X86_SEM_H
 #define X86_SEM_H
 
-#include "x86.h"
+#include "x86_guest.h"
 
 static const uint32_t X86_MASK[5] = {0, 0xffu, 0xffffu, 0, 0xffffffffu};
 static const uint32_t X86_SIGN[5] = {0, 0x80u, 0x8000u, 0, 0x80000000u};
