@@ -49,8 +49,10 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     if(w[3]>1){
         for(uint32_t off=16;off<n;){const uint32_t *c=w+off/4;uint32_t code=c[0]&65535u,bytes=c[1];
             if(code==0x56&&bytes>=12&&(!c[4]||c[4]>GPU_MAX||!live_samplers[c[4]]))invalid_sampler_bindings++;
-            if(code==0x57||code==0x58)native_draws++;off+=8+bytes;}
-        if(invalid_sampler_bindings)abort();submissions++;return 0;
+            if(code==0x57||code==0x58)native_draws++;
+            off+=8+bytes;}
+        if(invalid_sampler_bindings)abort();
+        submissions++;return 0;
     }
     submissions++;
     uint32_t code=w[4]&65535u; const uint32_t *a=w+6;

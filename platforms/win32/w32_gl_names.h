@@ -17,7 +17,8 @@ static uint32_t object_live(const GlObjects *o) {
 static void obj_put(char *s, uint32_t *at, const char *v) { while (*v) s[(*at)++] = *v++; s[*at] = 0; }
 static void obj_uint(char *s, uint32_t *at, uint32_t v) {
     char b[10]; uint32_t n = 0; do { b[n++] = (char)('0' + v % 10); v /= 10; } while (v);
-    while (n) s[(*at)++] = b[--n]; s[*at] = 0;
+    while (n) s[(*at)++] = b[--n];
+    s[*at] = 0;
 }
 static void init_objects(void);
 static void object_exhaustion(const char *kind, const char *reason, uint32_t requests) {

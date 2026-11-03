@@ -449,7 +449,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         w[0] = pipe; if (!send(0x4a, w, at)) return 0;
         Pipeline *c = &pipelines[pipeline_count++]; c->used = 1; c->id = pipe;
         copy(c->words, w, at * 4); c->n = at; c->hash = hash;
-        if (p->tf_link_count) tf_pipeline(p, pipe); w32_gl_pipelines++;
+        if (p->tf_link_count) tf_pipeline(p, pipe);
+        w32_gl_pipelines++;
     }
     uint32_t max_index = first + (uint32_t)count - 1;
     Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : 4;

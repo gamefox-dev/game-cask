@@ -195,7 +195,8 @@ static uint8_t abandoned_buffer[N], abandoned_shader[N], abandoned_pipeline[N];
 static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
     uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
     if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
-    if (pending) error = pending; return ok;
+    if (pending) error = pending;
+    return ok;
 }
 static void release_wire(uint32_t code, uint32_t handle, const char *kind) {
     if (!handle) return;
@@ -327,7 +328,8 @@ static uint32_t api_DeleteBuffers(void) {
             buffers[id].gpu = 0;
         }
         retire_name(OBJECTS(buffers), id);
-        if (array == id) array = 0; if (uniform == id) uniform = 0;
+        if (array == id) array = 0;
+        if (uniform == id) uniform = 0;
         { uint32_t j = vao;
             if (vaos[j].element == id) vaos[j].element = 0;
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) vaos[j].a[a].buffer = 0;
