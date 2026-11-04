@@ -7,10 +7,15 @@ K23 supervised finite-file helpers, K25 typed vertex component fill/failed-pipel
 K24 negotiated full-u32 buffer IDs/dynamic buffer and VAO tables coexist; byte budgets and exact
 x64-gl-scale-only expected-error contract remain unchanged. Integration repair `cb82808` keeps nested
 Binaryen children in the ancestor supervisor group while independent lock guardians retain writer
-draining. Negative controls fail before; final focused18/18 pass. Final serial merged-tree gates are
-pending; do not infer finish-line acceptance from lane PASS results.
+draining. Negative controls fail before; final focused18/18 pass. Completed merged-tree gates:
+doctor, Clang/GCC lint37/37 examples each, explicit Clang host checks, types, **2,065 units /114 files**,
+four-mode convergence16/16 and short concurrent stress128/128. Full Asyncify browser is **299 pass /51
+existing skips /1 unchanged360s GLSL cross-backend timeout**; only that test is queued for unchanged
+recovery after the serial sweep. JSPI browser is running; explicit native feature replay, leakcheck and
+all33×2×300 oracle runs remain. Reviewer #235 requested a fresh-session checkpoint; roots/logs/exact
+remaining gates are in the handoff. No finish-line PASS yet.
 
-Inherited external vK23b/vK25/vK24 PASS plus reviewer repair-diff read is the accepted review boundary;
+Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
 no separate independent merged-tree PASS/CI, game or physical-device claim.
 [I13 handoff](handoff/integration-i13.md).
 
