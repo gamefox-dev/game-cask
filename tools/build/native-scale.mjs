@@ -26,7 +26,7 @@ export function nativeScale() {
     try {
       pruneCache(cache, 64 * 1048576);
       execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        input: JSON.stringify({ objects, link: [cc, ...objects.map((o) => o.out), '-o', temporary], jobs: Number(process.env.BGT_BUILD_JOBS ?? 2) }),
+        phase: 'native compile/link', input: JSON.stringify({ objects, link: [cc, ...objects.map((o) => o.out), '-o', temporary], jobs: Number(process.env.BGT_BUILD_JOBS ?? 2) }),
         encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
       });
       renameSync(temporary, executable);

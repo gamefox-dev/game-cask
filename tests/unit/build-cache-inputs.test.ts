@@ -1,6 +1,8 @@
 // @bgt-examples: none
 // Each test catches a silent stale hit by comparing cached wasm with a fresh compiler invocation.
 import { execFileSync } from 'node:child_process';
+// @ts-expect-error ESM build helper transport
+import { execFileSync as helperExec } from '../../tools/build/exec.mjs';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +19,7 @@ function fixture() {
   writeFileSync(join(root, 'src/other.c'), 'int other(void){return 42;}\n');
   const cfg = { root, sources: [source, join(root, 'src/other.c')], flags: ['--target=wasm32-freestanding', '-O2', '-g0'],
     includes: [] as string[], compiler: { path: 'zig', version: '0.13.0' }, cache: join(root, 'objects') };
-  const compile = (objects: any[], cwd = root) => JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
+  const compile = (objects: any[], cwd = root) => JSON.parse(helperExec('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
     cwd, input: JSON.stringify({ objects, jobs: 1 }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
   }));
   const value = async (object?: any, effectiveFlags = cfg.flags, file = source) => {

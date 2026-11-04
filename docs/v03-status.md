@@ -1,5 +1,31 @@
 # v0.3 merged implementation status
 
+## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
+
+Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
+K23 supervised finite-file helpers, K25 typed vertex component fill/failed-pipeline lifetime, and
+K24 negotiated full-u32 buffer IDs/dynamic buffer and VAO tables coexist; byte budgets and exact
+x64-gl-scale-only expected-error contract remain unchanged. Integration repair `cb82808` keeps nested
+Binaryen children in the ancestor supervisor group while independent lock guardians retain writer
+draining. Negative controls fail before; final focused18/18 pass. Final merged-tree gates:
+doctor, Clang/GCC lint37/37 examples each, explicit Clang host checks, types, **2,065 units /114 files /0 skips**,
+leakcheck, four-mode convergence16/16 (**70,003→0** interpreted instructions, equal traces, zero drops)
+and short concurrent stress128/128 (64 cold/64 warm, equal digests). **33 pipeline fixtures ×2 modes
+×300 =19,800 identical frame pairs**; all66 exit0, equal state/semantic traces within/across modes,
+null errors/stages/divergence, lifted interp0/stubs0; exact #204 scale-only contract retained.
+Explicit native K24 capacity/full-u32 IDs and K25 component-fill/lifetime replay **11/11**, both backends.
+
+Full JSPI browser: **300 passed /51 existing skips /0 unexpected /0 flaky**, exit0. Asyncify:
+**combined300 passed /51 same skips**, not an uninterrupted green full run: original **299 pass /1
+unchanged360000ms GLSL cross-backend timeout**, exit1 retained; ONLY that test reran unchanged after
+the sweep and **1/1 passed**, exit0 (5.8min test,6.2min with setup). No other completed gate repeated.
+Exact full/skip inventories and all66 reports audited; all implementation hashes unchanged. Both
+background roots exited;27 owned temporary directories removed only afterward. Finalization is docs-only.
+
+Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
+no separate independent merged-tree PASS/CI, game or physical-device claim.
+[I13 handoff](handoff/integration-i13.md), [audited evidence](handoff/integration-i13-evidence.json).
+
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
 Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
@@ -64,6 +90,50 @@ source edits. Mixed fixture load/speed evidence does not justify a universal JSP
 Asyncify/JSPI is68.8/53.5 MB and43.91/30.29 ms per300-frame batch, shared-machine/no-rasterization observations.
 Finalization is documentation/evidence only; no CI, integration, game/playability or physical-device certification.
 Exact commands, evidence and retained limitations: [K22 handoff](handoff/K22.md).
+
+## K24 — Q67 buffer/VAO scale and hot-path repair (author Tier 1 green)
+
+Final implementation **8a132ce**, documentation-only finalization. Reviewer #200 approves additive
+v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host opt-in, unchanged byte budgets,
+frozen v0.2/unnegotiated behavior and unchanged other namespaces. ABI §13.14 documents full nonzero-u32
+buffer IDs and negotiation/reset semantics. Dynamic profile buffer/VAO tables and wire ownership are
+bounded by host bytes, not a replacement object-count ceiling; VAOs have no BGT handle. Ordinary
+uniforms use the extended pool without a fixed shared count ceiling; real exhaustion remains counted
+GL_OUT_OF_MEMORY plus gl_objects live/peak/failure metrics.
+
+CC0 proof: **24,000** live buffers/stores and VAOs; **12,000** real buffer/VAO pairs drawing, churning,
+mapping, retaining deleted generations, feedback/UBO ranges and byte-OOM recovery on **both** WebGL2
+and WebGPU; all36,000 native per-buffer words across three generations verified. The identical fixture
+fails on dev.14 with black panels on both backends. Ten historical workloads×300frames preserve all
+**262,596 semantic wire commands** exactly, ignoring only transport addresses. Above-pressure capacity
+changes are deliberate. The #204 scale-only oracle contract requires exactly one deliberate BUFFER_CREATE
+E_LIMIT and exact counted OOM/recovery; missing/duplicate/unrelated errors fail. Other fixtures retain
+zero command errors; native recovery pixels are mandatory.
+
+K24d removes per-call namespace/initial-name scans, dormant cleanup and retained-buffer capacity sweeps.
+Cached namespaces, direct small-name lookup, bounded-load hashes with backward-shift deletion, cold
+retirement queues and lowest-free handle cursor avoid hot-path allocation/scanning and quadratic churn,
+preserving handle choices and destroy order. Native1M-call medians improve from incoming625/611/640ms
+to10/12/11ms (IsEnabled/GetShaderiv/BindBuffer). Deterministic200,000-call work tests and actual scan/
+tombstone mutations discriminate the repair. Identical lifted Node traces, including metrics+JSON per
+frame, show no consistent slowdown versus dev.14. Interleaved unchanged WebGPU browser A/B/A/B passes:
+base156.236/118.559s vs incoming122.542/125.047s. **The reported1.3–1.8× browser slowdown was not
+reproduced or causally diagnosed.** No additional renderer/runtime/ABI or test-budget change was made
+for performance.
+
+**Final author Tier1:** doctor; Clang/real GCC14 lint (36 example check-builds each); explicit Clang host
+checks; typecheck; **2,010 units /103 files /0 skips**; full required-WebGPU browser **291 passed /51
+unchanged existing skips /0 failures /0 flakes** (WebGL2 131/24, WebGPU152/26, auto8/1); leakcheck739 files;
+**33 pipeline oracles×300 =9,900 identical pairs**, null errors/divergence/stage, no stubs, lifted
+interp_insns0 and equal trace hashes. All50 serial gate steps and the final structured audit exit0;
+618 tracked input hashes remain unchanged. Focused41 native /20 lifted /7 browser and26 parity/contract
+tests pass. Full-suite GLSL passes the unchanged360s limit: WebGL2 **128.260s**, WebGPU **138.656s**,
+cross-backend **276.150s** (focused107.056/105.086/253.561s). Earlier interrupted-build and historical
+browser-timeout evidence is retained, not waived or relabelled. No jobs remain; own caches cleaned.
+
+Game demand remains unknown; porter measures/replays after merge. Reviewer-owned independent review
+remains external; no in-lane independent review, game/physical-device or general performance certification.
+Details, commands, before/after measurements and retained failures: [K24 handoff](handoff/K24.md).
 
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
@@ -520,9 +590,11 @@ flattens those uniforms, arrays/structs, blocks and constant sampler-array eleme
 the WG frontend supports user structs and local out/inout arguments. Both renderers restore uploaded resources
 but lose rendered attachments and emit reset/targets-lost events; unrecoverable resources are never silently migrated.
 
-K20 replaces the 255-name tables with ABI-sized **1023-slot tables and full-GLuint name lookup** in all nine
-supported object namespaces. Textures/renderbuffers share 1001 storage handles and buffers/program uniforms share
-1015, excluding retained private reservations; ABI ceilings and byte budgets are unchanged. Exhaustion raises
+The K20 baseline replaced the 255-name tables with ABI-sized **1023-slot tables and full-GLuint name lookup** in all nine
+supported object namespaces. **K24 supersedes its buffer/VAO count limits** with byte-bounded dynamic guest
+tables and negotiated full-u32 buffer handles (§13.14); the other seven namespaces retain1023 slots.
+Without the K24 opt-in, textures/renderbuffers share1001 storage handles and buffers/program uniforms
+share1015, excluding retained private reservations; frozen ABI ceilings and byte budgets are unchanged. Exhaustion raises
 GL_OUT_OF_MEMORY with per-namespace live/peak/failure metrics and diagnostics. Pipeline caches remain 128 descriptors
 (sampler descriptors now ABI-sized and pressure-evicted, with current-draw states protected), one current WGL
 context and one shader per stage. Generated VAO/FBO/RBO names become objects on first bind, matching

@@ -67,7 +67,7 @@ StreamOptions & { items: GpuItem[]; readbacks: number; frameHash: () => string }
     frameHash: () => lastHash,
     items,
     readbacks: 0,
-    gpuBackend: { languages: 2, execute: (item: GpuItem) => {
+    gpuBackend: { languages: 2, bufferHandles: true, execute: (item: GpuItem) => {
       items.push(item);
       item.complete?.(compileStatus, compileLog);
       memory.apply(item);

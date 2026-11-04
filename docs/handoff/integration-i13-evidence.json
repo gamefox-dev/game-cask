@@ -1,0 +1,1726 @@
+{
+  "schema": "game-cask/integration-i13-evidence/1",
+  "tested_commit": "cb82808a6d6b0bbb31cd4c21e7e49dee41cad456",
+  "tested_tree": "74792b41a51fea6438f1526e6ce5e95c0699b21b",
+  "merges": [
+    "c363ec0",
+    "5d55af0",
+    "2ac82ca"
+  ],
+  "integration_repair": "cb82808",
+  "review_scope": "Inherited external vK23b/vK25/vK24 PASS plus reviewer read of cb82808; no separate independent merged-tree PASS or CI",
+  "environment": {
+    "node": "24.19.0",
+    "build_jobs": 2,
+    "browser_port": 5262,
+    "required_webgpu": true,
+    "light_mode": false,
+    "playwright_trace": "off",
+    "asyncify_default": true
+  },
+  "gates": [
+    {
+      "name": "doctor",
+      "exit": 0,
+      "started": "2026-11-04T09:47:40Z",
+      "finished": "2026-11-04T09:47:41Z",
+      "log_sha256": "dafd94644609142be6cfc1afd6925d1ffb6de77a8030fdff8895e280b57b24c5"
+    },
+    {
+      "name": "lint-clang",
+      "exit": 0,
+      "started": "2026-11-04T09:47:41Z",
+      "finished": "2026-11-04T10:04:27Z",
+      "log_sha256": "b641bc2234fd5421f8300b5c3f7c4808eae3f25f63c4ead85e35ee3b64e7079e"
+    },
+    {
+      "name": "clang-host",
+      "exit": 0,
+      "started": "2026-11-04T10:04:27Z",
+      "finished": "2026-11-04T10:04:30Z",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "lint-gcc",
+      "exit": 0,
+      "started": "2026-11-04T10:04:30Z",
+      "finished": "2026-11-04T10:07:45Z",
+      "log_sha256": "d0ae633bbeaf2a5bce2ccabcd44f0778f0089e6871ce3cfbbf9d838bbd1e9d77"
+    },
+    {
+      "name": "types",
+      "exit": 0,
+      "started": "2026-11-04T10:07:45Z",
+      "finished": "2026-11-04T10:07:47Z",
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "name": "units",
+      "exit": 0,
+      "started": "2026-11-04T10:07:47Z",
+      "finished": "2026-11-04T10:56:56Z",
+      "log_sha256": "9020b4f1f8cd7fcd09f501761e9826660d06cc5f7320cd725b14e130cdcfe097"
+    },
+    {
+      "name": "convergence",
+      "exit": 0,
+      "started": "2026-11-04T10:56:56Z",
+      "finished": "2026-11-04T10:59:29Z",
+      "log_sha256": "dc80cacc3457b9af50b2c44037321596bab271d8d24e8ad8ff3498e43410062f"
+    },
+    {
+      "name": "stress",
+      "exit": 0,
+      "started": "2026-11-04T10:59:29Z",
+      "finished": "2026-11-04T10:59:36Z",
+      "log_sha256": "d558f34a228a76406def3e0e81dcd213ed54ac08e320637567ff8e33040071c0"
+    },
+    {
+      "name": "feature-browser",
+      "exit": 0,
+      "started": "2026-11-04T11:51:17Z",
+      "finished": "2026-11-04T11:52:16Z",
+      "log_sha256": "48bcb9548b792589f2911d915ae64e32764c0a9572667d47746fd19a5c154ac5"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "started": "2026-11-04T11:52:16Z",
+      "finished": "2026-11-04T11:52:17Z",
+      "log_sha256": "4375fb453d1452dcbe5677e64d6ab11f7684c1c8488362038559f5428caca34f"
+    },
+    {
+      "name": "recovery-asyncify",
+      "exit": 0,
+      "started": "2026-11-04T12:03:15Z",
+      "finished": "2026-11-04T12:09:30Z",
+      "log_sha256": "a7252c1aa4da3f6517405f4076373d473c052f89c1ae865c312efc590b4f71a2"
+    },
+    {
+      "name": "browser-jspi",
+      "exit": 0,
+      "started": "2026-11-04T11:26:36Z",
+      "finished": "2026-11-04T11:51:17Z",
+      "log_sha256": "904502fe45ce3aca60cf222f44f2b1a2e7e1ec45e72e29d45481bcdf4690cbe8"
+    }
+  ],
+  "units": {
+    "passed": 2065,
+    "files": 114,
+    "skips": 0
+  },
+  "browsers": {
+    "browser-asyncify": {
+      "stats": {
+        "startTime": "2026-11-04T11:07:06.254Z",
+        "duration": 1166209.982,
+        "expected": 299,
+        "skipped": 51,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 156,
+          "skipped": 26,
+          "unexpected": 1,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "report_sha256": "d9bae0238819860a550e2db06a2d50f0119084cfdd8a90482fd773e5a8e97008",
+      "recovery": {
+        "combined_same_source_gate": true,
+        "not_an_uninterrupted_green_full_suite": true,
+        "original_exit": 1,
+        "original_log_sha256": "b7578becf5052475b73094b91ea4dd01462d226f3ee20db209406151f221af6f",
+        "stats": {
+          "startTime": "2026-11-04T12:03:16.794Z",
+          "duration": 372918.359,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "report_sha256": "84b4cb5882aace6afeda4e413d2eab3e00919b9a2cb86e7561b8fad67c42a420",
+        "combined_pass": 300,
+        "unchanged_timeout_ms": 360000
+      }
+    },
+    "browser-jspi": {
+      "stats": {
+        "startTime": "2026-11-04T11:36:53.211Z",
+        "duration": 863139.1290000001,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU §13 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "report_sha256": "d886c3a2e2bebf76e22742f8d98afde40a6c3ad1de5ba669076ad6de36f125d4"
+    },
+    "feature-browser": {
+      "stats": {
+        "startTime": "2026-11-04T11:51:18.257Z",
+        "duration": 58537.805,
+        "expected": 11,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 5,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 6,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips": [],
+      "report_sha256": "30da17395cc13bbcae1aecac1257597fc554255862ceb9bf457fae38a289b189"
+    }
+  },
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "state_hash": "cac197f9",
+      "trace_sha256": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+      "reports": {
+        "asyncify": {
+          "sha256": "4e5c1054e6f3476052bf4a7fea78cd2c2c6030e7f69e16095a3e751ebee97beb",
+          "log_sha256": "b025bb3c2feca8c6f231ffa5a9b8eaa3159ca52cf9c1d5672cc3e17121214b2c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "34931e1413c2cc11307dd690e77b75d82a3672d94e97d7da99a9c193e611f550",
+          "log_sha256": "113e5d3afce805f7ada7b33a266a4127b14baaf025f32d519263831f4e418705",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "win32-hello",
+      "state_hash": "3aee6ab3",
+      "trace_sha256": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+      "reports": {
+        "asyncify": {
+          "sha256": "224ae9cfe327362526084f579c3f98c2fc3903a77956b60da1884e5210efa51f",
+          "log_sha256": "1df8fda1d28daab37170e930827e356fbfa0993b5f39c3cff30b3409857454ef",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "f32d82599cd16a8fc146e76f08d5bec1a49ee7fa93bb27968aebba38c78b0e6b",
+          "log_sha256": "c00b38e620c887628c7b03838eb7a6e0dd4b1e51fe9f5f2f420cab0d757c6f92",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-audio",
+      "state_hash": "74d37eff",
+      "trace_sha256": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+      "reports": {
+        "asyncify": {
+          "sha256": "188d52f04964e156073b718d289068919c391275fdc1b4351768a0d8818f1157",
+          "log_sha256": "635083e89eec397616dd5e7dc4c6997732ea946ec6db1007ffc1fcea1031fea7",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "8702462525f0b05ce986c603257e0bebb0cf10320e1dc9648e4debac3f3c41c9",
+          "log_sha256": "dd2f34eba010a0bab7ff86dec26fc76746fa074baa0b6db71dc41189c22ae362",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-audio-init",
+      "state_hash": "d02de26a",
+      "trace_sha256": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+      "reports": {
+        "asyncify": {
+          "sha256": "63058904650c24ead4fdbf9c57792c4c9dd38b7da0e3fc97a51161f01df1c27e",
+          "log_sha256": "f60f8fcb9fac91cd1874a644929658f4381d837f0a244190d3d246d97cd8653c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "cca15292f7036993b7c64b642c46a18a39945dd536d37dc5a43c4d34094cd759",
+          "log_sha256": "fb83cc4300d67004ad14da9531f07de11b3c48e64f156a6f61b3978beb6452bc",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-basics",
+      "state_hash": "fa722538",
+      "trace_sha256": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+      "reports": {
+        "asyncify": {
+          "sha256": "f9976360f368973a2c7e08c5acff7140149bc3e3addcebad1bfb833209cf4a01",
+          "log_sha256": "0c1b0243f39e9bd67a3c6ff8fc6c3ce4ba2b500829e8cf20926a33883568be8f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "8b319c3db29263d907b9dcb8186ee39fdf16fcbf45b12ee745b3f1f857db6e7d",
+          "log_sha256": "c69ef99bade55b0f6dcc8a6f3f97df4fd83f1e2e395286c60a0d691ef204808f",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-contracts",
+      "state_hash": "0514c1ba",
+      "trace_sha256": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+      "reports": {
+        "asyncify": {
+          "sha256": "56d0249e358272c861104c65f033e361670b5c5459a949aa76f94a67e29cd4fe",
+          "log_sha256": "0564dc6e851abd0915ad8ea827b4900ac3421ec7ee5ca353b4060dd179ff855f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "e543d164d53eca3de64bacea0117804d2b91e8b5106e952dffe0c3d7cff6bb4c",
+          "log_sha256": "2302690dad5d7d115bb6dbc00a125a0723f717ec30ff75abcbdc3d3137fc5c5b",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-cpp",
+      "state_hash": "eadc23f1",
+      "trace_sha256": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+      "reports": {
+        "asyncify": {
+          "sha256": "e23bba0b4d34c160dbf7dabf799c2584731813efc48d4469493aa1b479f7a9c6",
+          "log_sha256": "43a692746712341ed2e9fc815213dcf4bd2cda9f1e0aeb9c6f9286b5f89f6e38",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "0c694873abf6a9739e1da7834b2ff6d16584de32a83334aec5c3e2e365197415",
+          "log_sha256": "492f82c8babb8ae20473fad337e0d9a8dc86d39028ad5445157123f821c073ca",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-cpprt",
+      "state_hash": "8e59b196",
+      "trace_sha256": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+      "reports": {
+        "asyncify": {
+          "sha256": "60e7e862a39615427a29f99ba2bef4dbc42b2f9c4c2e4df856c9675face40823",
+          "log_sha256": "ad17b115c78be41c7150d828dffe44c76d78ed795648f21c8cd9a1024f1c5aab",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "759f84bc901ec1411c831fc3ca1b333a6ac0cf153b161d250bf84bac6d445f31",
+          "log_sha256": "e48665c3cee7b6c0575eaf079f0d5b563ad2882b21dc60866bf6525b2df3556f",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-crt",
+      "state_hash": "bae2920f",
+      "trace_sha256": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+      "reports": {
+        "asyncify": {
+          "sha256": "4c4cbfd3a74e58181e802b737a433c8466f3f317f887ea4b760a68612e3f82c3",
+          "log_sha256": "5f87df4814ec92a3389aef3f79e9c5cec6c7943f4d54e58fe0b1be825436be90",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c0893f85191abab59f367c99f8b39bd0bd1773d17b1fb6593b5f4094c84eee41",
+          "log_sha256": "8f66595f5ce92408151a41f9aefdb0150cc0f80d3be854c01a8cdc35e25e42d8",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl",
+      "state_hash": "47b028e6:01c4aa76",
+      "trace_sha256": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+      "reports": {
+        "asyncify": {
+          "sha256": "bb1e7047a7d69116acebe38ae9b752dc3d8480844964addf3ddbf20cee00511b",
+          "log_sha256": "3d615629c8643def67237f190da1b34926f684038751d6c5720635f665efb41c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "fdfc0a5cf90ebf603b8228364f34a0b3a4dae9ee37aab830989af7f7e463c55e",
+          "log_sha256": "a2d93e7ef5428de131c3badba4453a4cb8c4491517d5dc6302d4a613c1df256a",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-blit",
+      "state_hash": "6bc914b7:b46fb07b",
+      "trace_sha256": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+      "reports": {
+        "asyncify": {
+          "sha256": "abc7e51bf2b93d1c964e961d20b6535d3d40794399b5ba5efe1870fd78c9bad0",
+          "log_sha256": "8836e9666d46f7352a56071dea7926eae8121b052db8520b9e0fe6da24819bea",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "3d258d908dee1861eeed21f3f529b1234b76ffe842a0f5fb4b6593574a187bd6",
+          "log_sha256": "7d8cf0e7039bad7bdaff07d9258d70868a8e717f530065dedc010c5a90e1ffaf",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-capacity",
+      "state_hash": "d402933e:811c9dc5",
+      "trace_sha256": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+      "reports": {
+        "asyncify": {
+          "sha256": "1bc764ba011b2f1111048d0563085df635919ddb74666c42b73e148e2c6bc719",
+          "log_sha256": "0e93be83d50e55d65987955f5865c65d2c3bedd40b825a8cdbfe334d9ef51c51",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "4d9d645e441077b75bfcae6b8983e92d66da5ab373feb5dd6ba388913e37e69d",
+          "log_sha256": "dd04497558fcfe2b6170e328410c93bb04512d8bc8894c9e8114f698c797ab81",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-current",
+      "state_hash": "1130f0ae:5a8d64ad",
+      "trace_sha256": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+      "reports": {
+        "asyncify": {
+          "sha256": "65caa9b918ac9e1adfb5acb0cc58c5a76f74507de425318ecacabd8e4113b683",
+          "log_sha256": "b3cd5f74adeb2ecf75321b7b98e8928efdcaf43ac46c5ffbeb99b3f161a1ca7d",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "dcc50279ef06f9fad1b8b825e96588e472fc370b2dd96ca2f874f7794fbf41be",
+          "log_sha256": "c02d252ff81b5222f5134a2f00018233b834df12552464ce23e65d97d729dea9",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "state_hash": "558085bd:61d8bdd0",
+      "trace_sha256": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+      "reports": {
+        "asyncify": {
+          "sha256": "c88e1c4a6deb88e77f219f4d1e315ffad9ef4b3534d830a7fe04fe3d472798d5",
+          "log_sha256": "5ff5b7406f2d17c0a2aadb4586bc3347529c8f11f730eea552d20df71302eb79",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "ad17dee50fffceb3d962a69d71c604b8353516c7eb59de59700e9e2d50505684",
+          "log_sha256": "91ff156ecfa22045c881b10e82d23d801ab1c6fb1a96868c586b82da9cf64a4b",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-fbo",
+      "state_hash": "884b43af:ec039dc1",
+      "trace_sha256": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+      "reports": {
+        "asyncify": {
+          "sha256": "e6f091ad81e7ccc500c169f45eebc7edf4b9ef361c4da3161c6510f23502ad4c",
+          "log_sha256": "bdce7c180659cc8e873abebf77aa00e12f89b00cc0366115de7e8f3f41432989",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "a19cf2835bbb67e32e0b0b733c3d1720bfd16fbfa500b6be72b1fc21ae4c77ed",
+          "log_sha256": "72e43daa435fb3d029d3d60e1d901e94bb5969a7003cd6fc0bf368b895533d64",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-feedback",
+      "state_hash": "b8fb8e26:811c9dc5",
+      "trace_sha256": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+      "reports": {
+        "asyncify": {
+          "sha256": "b309e8444311d2587fb218afe45844c91595c909879215606ce0110f18848caa",
+          "log_sha256": "01318b8effef20cef53f16f3938e6c63933402cf1f096d778d4476663135ec21",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "382f35ac2b3126a56ddcdeae989ac4155c8d67135ba2d40bfc7ace45c575ccba",
+          "log_sha256": "2c180d9eaff79f958136308f2492c2ef326cc938d42da200a6c5a1a48f9e403e",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-integer",
+      "state_hash": "5ed6b84d:4de7479f",
+      "trace_sha256": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+      "reports": {
+        "asyncify": {
+          "sha256": "4428d6563acf97a347b27096615267437c42323f73eae5236b3861d1db43de5a",
+          "log_sha256": "0a5d89370fd3bbd7ec79eba85fc2419e17f8794791450236613883ffe891263d",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "f5c09b432420e2c89754236b61b25ed171f17e9b527278fd49059d15a68c7d36",
+          "log_sha256": "7602a70358fcc493d474699e06e713110ea76853dbd1733ccc2ae4f03ebddc7f",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-ranges",
+      "state_hash": "acab916b:811c9dc5",
+      "trace_sha256": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+      "reports": {
+        "asyncify": {
+          "sha256": "7d90941c798007ee54c343aa8a856052ffeb90763e485415e7f44cf5b5a982c9",
+          "log_sha256": "54bb12b398b8a54c50525fd581f6405f2bf92319d010ff2e67b1a023bfa99a68",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "d1303acc22adf3275bc414d1e86ee867f2f0dffa93085add4670f65b92abd8e1",
+          "log_sha256": "0d4865dae77ae144d29b7d82e04a790075bfe61e3cc31654a693d4943c43ec81",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-scale",
+      "state_hash": "328a3899:811c9dc5",
+      "trace_sha256": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+      "reports": {
+        "asyncify": {
+          "sha256": "7015e7f6a0322a289775b47a1ce835b0c49e2a204f15e2b03f24894b61b7f6ab",
+          "log_sha256": "f8ff590067c5b3b87cb47b650260bf70d4e1ed418e359970beb49dceebfcd456",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "acd24cc20fe06ee8e62c376b962528386d73742a30bd8de2c8ef8be002dbc6da",
+          "log_sha256": "3152f273711eec8a0f8c22959df88990378e247cb5bd8a5bf58f94b8ca455af6",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-glsl",
+      "state_hash": "7531959c:62477e5d",
+      "trace_sha256": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+      "reports": {
+        "asyncify": {
+          "sha256": "1765eefc309376385dadc5e009ca169af11b5f87b57a5b777292fd63cd44461d",
+          "log_sha256": "d20de2e747f933bf7a97beba340c26aac1f297e8246a720df79b7cd5659d9299",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "3158a28b089f9afcb058cf6ef170846e5652d993663cac9397e119e7eddf5570",
+          "log_sha256": "b1ed2e5e06c3e18fd2bc81a255c475be14516645e325733e8d51945b92c5366b",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gui",
+      "state_hash": "cae2906b",
+      "trace_sha256": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+      "reports": {
+        "asyncify": {
+          "sha256": "42c324facb5b30afd56b87449b09f7dbdc19e697a7e680d7e6ec585488959d32",
+          "log_sha256": "9a4bf68efebe90513d93d9f2716dbc6ac20976be0309629fe1ddbaaa47318e7a",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "68e1cb2b12ba9b251101ac416fa68a53d6c3ff3e0388652e2f32354af559ea0a",
+          "log_sha256": "e1fe01bf2de224a5156b87735804140b9c6a803c8c77132ea0efebc5eadf30e3",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-handles",
+      "state_hash": "9c945881",
+      "trace_sha256": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+      "reports": {
+        "asyncify": {
+          "sha256": "10eb586b358b50c7926d34f0b1de704d28277e795c2556bc2a0bafd8f2fc51f2",
+          "log_sha256": "3aee8879bec4a74bb75eb8eb02fe71f4cb1de072717a678adfbc2993d5821f75",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "85990b28d8c0871a2f0a1506346ca1d9019b9b85de06ee521c27ea33ec150449",
+          "log_sha256": "885f6a9dbad4a6be81eadabc475bee796b06850bcf9c1681c57b614a8d80943c",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-heap",
+      "state_hash": "dfa6e55f",
+      "trace_sha256": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+      "reports": {
+        "asyncify": {
+          "sha256": "ee3b53bfc56dc24de7258ae9c0b17319e699405a5200c65f51562262b88da20b",
+          "log_sha256": "cf595f157ced8547057b1c86b9d7c6da795d19655f10918b1766a3885baceb4a",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "53f39c92deeea5d965daff4b1bb67d22a751ced385f229ef8614d77938b2f922",
+          "log_sha256": "0fd6272940d414826d0f0ba5390f2b4770c34da5e6d1fbe0991d2adb07104156",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-input",
+      "state_hash": "bd47b0f2",
+      "trace_sha256": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+      "reports": {
+        "asyncify": {
+          "sha256": "610003c67dc2bdd11717fb8e1a3cc5e7a1c1ff4c57b2d6d1a9b0e12b493c34c7",
+          "log_sha256": "a9d876bac13ef692a05dc43aefb2adaa9e9738240b55d818af6f3f7aae0fffce",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "b9d1043b8fb24a99e1f8955a6146c70e1f009e4a9382f9af6288eb24acf2403b",
+          "log_sha256": "fc84a0ea2b2284f29383a8e0bd64e997e4e67726af4e75725e445ff7f164fcb0",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-memory",
+      "state_hash": "b4565d5d",
+      "trace_sha256": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+      "reports": {
+        "asyncify": {
+          "sha256": "39a28b56791c60f1f5b0c562f56740c02cd85aec43d6b93c135a17fcdcc5244b",
+          "log_sha256": "27396ee6988efbf5cc584fe5738d4f89bfe835627c688bc5c79a71c2e7ab893d",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "0ea05b3d1e0f23fcca547c6e1f51ebe3f6f9f6e5c886f0957a84b9516a8cf382",
+          "log_sha256": "032de53ca9c69135d3a6b4a465453a598a7be4598d60aa776f888be0fd0f1c45",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-scale",
+      "state_hash": "f674cbe2",
+      "trace_sha256": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+      "reports": {
+        "asyncify": {
+          "sha256": "a9f5d076088733db1bd6bd7113cf0f07c1ab6290cca8a6ce4b5a9d67838530ea",
+          "log_sha256": "d0fd4196f61f04038a27dabc031070f2f9e023a5b500aaea72dd89b3aa9806ea",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "06c87ee4e5cec7030c62d1be9bdbc844c0a2d3facee15691fa7e1542ede02150",
+          "log_sha256": "5e23f6a324281cf8e52257118e4755e3b72c5743963cbaa407fac80e7268406f",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-smoke",
+      "state_hash": "31054bb2:01c4aa76",
+      "trace_sha256": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+      "reports": {
+        "asyncify": {
+          "sha256": "682922e083d8eef8717765ac2898cb3ece4cfa5f33299d5b7c541e4daf8ab654",
+          "log_sha256": "67a8956329311a654ec1249f1a6e1241b2e7f064d1d185afb73ce53d05db127f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "bb53ba0ce1c4b878ebf4d1ea4721395b865ffdad0e44c562ec47f256452b74ad",
+          "log_sha256": "15043338d5fa8c5b36b8d62a1abe46ef445b34f672eab084c7c808fbb197020c",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-sysdlls",
+      "state_hash": "9fdbaf40",
+      "trace_sha256": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+      "reports": {
+        "asyncify": {
+          "sha256": "d2692b5b4513bbd2b37e1ff658c490565a88ac02e685c096ea5d64d230c61efd",
+          "log_sha256": "97a395af78d1f0212ba0cf751fde0e9db1d099f193ce4da32b6b43d3ab168e69",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "e63c98172335bbb3fe91ed6a40cf82f5729388c8709dd5fd69dc74621e14cc5e",
+          "log_sha256": "7203204a3628702af3fdc931618158f54d922983d2ff2e5da9b63b0b396a9529",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-threads",
+      "state_hash": "57670827",
+      "trace_sha256": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+      "reports": {
+        "asyncify": {
+          "sha256": "c951c675a6dda82dffc7bc720a38ac9cca7c8ab0e92bb70aadc5707e5a29213b",
+          "log_sha256": "c139b039dd80948ca1ebe45702c68d207e91ab6fbfcd08aae4a97b776ddb9b61",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c0adf936c003edfaa5833a70ed0aba3faa5e0779134a882edd9c47774c93db84",
+          "log_sha256": "e557b6a0a590f718a2ef2dfb0ebe53e5cf18826408e508830a34055539cbdf0c",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-tls",
+      "state_hash": "ff6d2761",
+      "trace_sha256": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+      "reports": {
+        "asyncify": {
+          "sha256": "6c3f90f3dceb0b5022b19bb9d1a78aecb91522f69ee8fb94bff330d011c33024",
+          "log_sha256": "bd3b7441a06019d439c42a298e65b8244814803218aa4bf469dcb3f8f5974173",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "e28d605f541e74db8bfdfa276993d7ebaad5924666c6684beb83babe2be56dbe",
+          "log_sha256": "9dae2074ef6d2de2178e098fd98fdee1f27f4ff294d2d6e303421602fa481e39",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-handles",
+      "state_hash": "ab4cc133",
+      "trace_sha256": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+      "reports": {
+        "asyncify": {
+          "sha256": "69484538301149cb912527314a2a2a75c601f6c0be9a9ed14afee272b10a39d4",
+          "log_sha256": "9ca15d2c6aea5ca5446ac12c869d60ba97ab9560741742894ebebad728903ddc",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "b4edb787274e168f8d752988018cd52a44d9a0d01bf5dca8d13a2625d00df49a",
+          "log_sha256": "c2e07b312d1130314a7431bf3fbe260cfd04fbc9a7b9026b5ffdccf1f229a1ef",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-heap",
+      "state_hash": "ae4a7fb3",
+      "trace_sha256": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+      "reports": {
+        "asyncify": {
+          "sha256": "3bd34d46fa920b19667413662b674516cf1da41d0aa99151835e9489965e9fac",
+          "log_sha256": "71f353a6b6714ae3ca6e07ac250edea55cf5dd5eab84c272d374fa43906e7a7a",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "4b2ae0c5a7d3e9325c0600c1a2cbca1289bdadb0c38080586887550bf3598a0c",
+          "log_sha256": "f83e2510c137088386b5f9e7a291bdce55c348c8ea9cf2d00f26e8552d6a04dc",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-threads",
+      "state_hash": "55742fef",
+      "trace_sha256": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+      "reports": {
+        "asyncify": {
+          "sha256": "6b1e9b10a20373ff53d2694d71b3887c9dfc305a478f034f201570828cb206c5",
+          "log_sha256": "5d9ddc55eb4c71b6538f9cb1dbe9465a5dbb0f7dbef514ffa626c6b679e69b48",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "a1b90276e82d8268a884b374b625b48e5f4ec5560ead584d7daaf2b7e718e3a0",
+          "log_sha256": "618df0ab6ac58123143905fa0d233a321038be2f95875c115d618354acb7f769",
+          "active": "jspi"
+        }
+      }
+    }
+  ],
+  "convergence": [
+    {
+      "variant": "asyncify",
+      "interpreted": [
+        70003,
+        0
+      ],
+      "active": "asyncify",
+      "traces_identical": true,
+      "drops": 0,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "api_trace_hash": 4051557107,
+      "report_sha256": "2a4a6c90edcbd5e67aa340ee5d265e09392264064b8caeb5aa504b68b081d0fd"
+    },
+    {
+      "variant": "partitioned",
+      "interpreted": [
+        70003,
+        0
+      ],
+      "active": "asyncify",
+      "traces_identical": true,
+      "drops": 0,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "api_trace_hash": 4051557107,
+      "report_sha256": "b3b36054eb97cd6ea736ca48c5ca76a0681869c981058ba1d200cc7ea6439592"
+    },
+    {
+      "variant": "jspi-only",
+      "interpreted": [
+        70003,
+        0
+      ],
+      "active": "jspi",
+      "traces_identical": true,
+      "drops": 0,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "api_trace_hash": 4051557107,
+      "report_sha256": "aad6fa7837d0e5a5c5c57dcd19e2c503e81777928bb90e1b5bd28058eabae55e"
+    },
+    {
+      "variant": "jspi-preferred",
+      "interpreted": [
+        70003,
+        0
+      ],
+      "active": "jspi",
+      "traces_identical": true,
+      "drops": 0,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "api_trace_hash": 4051557107,
+      "report_sha256": "fe79b57f782491ff1603ac8a684d19c80608a01a32522c1f037398df83e8a0fb"
+    }
+  ],
+  "stress": {
+    "legacy": false,
+    "locks": true,
+    "workers": 8,
+    "builds_per_worker": 16,
+    "total_builds": 128,
+    "duration_ms": 6921.379542,
+    "results": [
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      }
+    ],
+    "cold": 64,
+    "warm": 64
+  },
+  "oracle_contract": {
+    "fixtures": 33,
+    "variants": 2,
+    "requested_and_compared_updates_per_run": 300,
+    "identical_frame_pairs": 19800,
+    "lifted_interpretation": 0,
+    "stubs": 0,
+    "errors": null,
+    "cross_variant_trace_hashes_equal": true,
+    "expected_errors": "x64-gl-scale only: exactly one deliberate BUFFER_CREATE E_LIMIT, one counted GL buffer OOM and recovery; exactly ten recording-only GPU-dependent failures; every other fixture zero command errors. Production strict oracle enforces contract."
+  },
+  "regression": {
+    "before": {
+      "expected_orphan_failures": 2,
+      "pass": 1,
+      "log_sha256": "623953858415c2b71625fd93df7f8c2367cd58681c631857553b68f4b4e1da40"
+    },
+    "after": {
+      "focused_pass": 18,
+      "files": 3,
+      "log_sha256": "0f6ad5769d81fd65c30f1f31a9585951f2eb7998ea4185c922ed1e130b8d8896"
+    },
+    "final_full_units_include_regression": true
+  },
+  "native_feature_inventory": [
+    {
+      "file": "gpu-buffer-handles.spec.ts",
+      "title": "12,000 full-u32 native buffer IDs, all-byte copy/readback and three churn generations",
+      "project": "chromium-webgl2",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-buffer-handles.spec.ts",
+      "title": "12,000 full-u32 native buffer IDs, all-byte copy/readback and three churn generations",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-pipeline-lifetime.spec.ts",
+      "title": "failed native pipelines reject feedback, binds and draws without stale executable reuse",
+      "project": "chromium-webgl2",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-pipeline-lifetime.spec.ts",
+      "title": "failed native pipelines reject feedback, binds and draws without stale executable reuse",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-vertex-components.spec.ts",
+      "title": "vertex fetch fills and truncates components like native GL, including feedback",
+      "project": "chromium-webgl2",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-vertex-components.spec.ts",
+      "title": "vertex fetch fills and truncates components like native GL, including feedback",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    },
+    {
+      "file": "x64-gl-capacity.spec.ts",
+      "title": "x64-gl-capacity: >600 live texture/buffer objects, late draws, real exhaustion",
+      "project": "chromium-webgl2",
+      "status": "expected"
+    },
+    {
+      "file": "x64-gl-capacity.spec.ts",
+      "title": "x64-gl-capacity: >600 live texture/buffer objects, late draws, real exhaustion",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    },
+    {
+      "file": "x64-gl-scale.spec.ts",
+      "title": "12,000 live GL buffer/VAO pairs draw, churn and recover from real byte exhaustion",
+      "project": "chromium-webgl2",
+      "status": "expected"
+    },
+    {
+      "file": "x64-gl-scale.spec.ts",
+      "title": "12,000 live GL buffer/VAO pairs draw, churn and recover from real byte exhaustion",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    },
+    {
+      "file": "gpu-vertex-wgsl.spec.ts",
+      "title": "native WGSL vertex fetch uses the same class-preserving component fill @webgpu",
+      "project": "chromium-webgpu",
+      "status": "expected"
+    }
+  ],
+  "source_inventory_sha256": "b4810111284381b37be0a88beed191390021f10adb706318b4234a2492c436b0",
+  "audit": {
+    "exit": 0,
+    "log_sha256": "1c1b35b4f958c7d77181dc0e2c34694dbfe749ab9ca78127aad6cc557504e926",
+    "auditor_sha256": "02c129fde1af9195150f3707a1be790df862c6a6cf3b41aa5f2dfd92dde60144"
+  },
+  "cleanup": {
+    "when": "2026-11-04T12:50:19.337Z",
+    "writers_exited": [
+      86726,
+      99357
+    ],
+    "paths": [
+      {
+        "path": "node_modules/.cache/bgt/browser-slice-unit-C5cXCz",
+        "bytes": 44,
+        "birthtime": "2026-11-04T10:45:00.296Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/browser-slices-NCk2Is",
+        "bytes": 95,
+        "birthtime": "2026-11-04T11:37:08.789Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/browser-slices-boM0tu",
+        "bytes": 95,
+        "birthtime": "2026-11-04T11:51:32.335Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/browser-slices-f3tI6g",
+        "bytes": 95,
+        "birthtime": "2026-11-04T12:03:37.643Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/browser-slices-o1HVhR",
+        "bytes": 95,
+        "birthtime": "2026-11-04T11:08:29.472Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/compact-b3qehg",
+        "bytes": 68175436,
+        "birthtime": "2026-11-04T10:53:50.294Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-1W11Lz",
+        "bytes": 1541,
+        "birthtime": "2026-11-04T10:55:28.275Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-6BvVZO",
+        "bytes": 68244223,
+        "birthtime": "2026-11-04T10:55:25.939Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-6LD2WL",
+        "bytes": 269484032,
+        "birthtime": "2026-11-04T10:55:23.328Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-CHTJnx",
+        "bytes": 91368,
+        "birthtime": "2026-11-04T10:55:23.886Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-HyNgyE",
+        "bytes": 1106,
+        "birthtime": "2026-11-04T10:55:28.852Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-aMhKIp",
+        "bytes": 46213,
+        "birthtime": "2026-11-04T10:55:27.750Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-gXNXyn",
+        "bytes": 31549,
+        "birthtime": "2026-11-04T10:55:27.653Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-ot5Z2v",
+        "bytes": 41671,
+        "birthtime": "2026-11-04T10:55:27.750Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/phase0-qoOYNH",
+        "bytes": 8192,
+        "birthtime": "2026-11-04T10:55:27.653Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/scale-1LyR4x",
+        "bytes": 2470015,
+        "birthtime": "2026-11-04T10:47:55.072Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/scale-C2Mjja",
+        "bytes": 465307,
+        "birthtime": "2026-11-04T10:47:30.850Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/scale-XlmJ07",
+        "bytes": 87742,
+        "birthtime": "2026-11-04T10:47:20.709Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-2Mg7D6",
+        "bytes": 67378,
+        "birthtime": "2026-11-04T12:03:17.741Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-4QI78e",
+        "bytes": 67377,
+        "birthtime": "2026-11-04T11:51:19.168Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-Bw5CES",
+        "bytes": 8431100,
+        "birthtime": "2026-11-04T11:07:12.873Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-EIAyg9",
+        "bytes": 8431103,
+        "birthtime": "2026-11-04T11:37:02.309Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-HXu87U",
+        "bytes": 67378,
+        "birthtime": "2026-11-04T11:07:07.417Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-RgwN0j",
+        "bytes": 67367,
+        "birthtime": "2026-11-04T11:36:54.124Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-dPNRKQ",
+        "bytes": 8431100,
+        "birthtime": "2026-11-04T11:51:25.420Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-vovSoX",
+        "bytes": 67370,
+        "birthtime": "2026-11-04T10:45:00.297Z"
+      },
+      {
+        "path": "node_modules/.cache/bgt/slice-xJCUPG",
+        "bytes": 8431102,
+        "birthtime": "2026-11-04T12:03:28.299Z"
+      }
+    ],
+    "count": 27,
+    "bytes": 443210094,
+    "retained": "all payload caches, permanent locks, raw logs/JSON/PNG/hashes",
+    "raw_record_sha256": "656ead7c09b053d6d8460b64fad9783461482fd4483b9099e4b6092b542d291f"
+  },
+  "scale_recording_metrics": {
+    "asyncify": {
+      "lifted": {
+        "buffers": {
+          "live": 12000,
+          "peak": 12002,
+          "failures": 1,
+          "failed_requests": 1
+        },
+        "vaos": {
+          "live": 12000,
+          "peak": 12000,
+          "failures": 0,
+          "failed_requests": 0
+        },
+        "draws": 12009,
+        "unimplemented": 0
+      },
+      "interpreted": {
+        "buffers": {
+          "live": 12000,
+          "peak": 12002,
+          "failures": 1,
+          "failed_requests": 1
+        },
+        "vaos": {
+          "live": 12000,
+          "peak": 12000,
+          "failures": 0,
+          "failed_requests": 0
+        },
+        "draws": 12009,
+        "unimplemented": 0
+      }
+    },
+    "jspi": {
+      "lifted": {
+        "buffers": {
+          "live": 12000,
+          "peak": 12002,
+          "failures": 1,
+          "failed_requests": 1
+        },
+        "vaos": {
+          "live": 12000,
+          "peak": 12000,
+          "failures": 0,
+          "failed_requests": 0
+        },
+        "draws": 12009,
+        "unimplemented": 0
+      },
+      "interpreted": {
+        "buffers": {
+          "live": 12000,
+          "peak": 12002,
+          "failures": 1,
+          "failed_requests": 1
+        },
+        "vaos": {
+          "live": 12000,
+          "peak": 12000,
+          "failures": 0,
+          "failed_requests": 0
+        },
+        "draws": 12009,
+        "unimplemented": 0
+      }
+    }
+  }
+}

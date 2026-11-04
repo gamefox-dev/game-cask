@@ -34,7 +34,7 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
  if(!Number.isInteger(partitionBytes)||partitionBytes<1024||partitionBytes>16*1048576)throw new Error('Asyncify partition bytes must be 1024..16777216');
  const raw=readFileSync(input),list=sections(raw),code=list.find(s=>s.id===10);
  const runner=join(ROOT,'tools/build/binaryen-runner.mjs');
- if(!code||code.data.length<=wholeLimit){run(process.execPath,[runner,input,...args,'-o',output],{stdio:'inherit'});return {mode:'whole-O2',partitions:1};}
+ if(!code||code.data.length<=wholeLimit){run(process.execPath,[runner,input,...args,'-o',output],{stdio:'inherit',phase:'Asyncify whole-module'});return {mode:'whole-O2',partitions:1};}
  const allowed=a=>['-O2','--asyncify','--print-function-map','--pass-arg=asyncify-imports@bgt.yield'].includes(a)||/^--enable-[a-z0-9-]+$/.test(a)||a.startsWith('--pass-arg=asyncify-removelist@');
  if(args.some(a=>!allowed(a)))throw new Error('unsupported partitioned Asyncify option; only fixed function-local passes, features and exact native removelists are safe');
  if(!args.includes('--asyncify')||!args.includes('--pass-arg=asyncify-imports@bgt.yield'))throw new Error('partitioned transform requires Asyncify with bgt.yield as its suspending import');
@@ -65,7 +65,7 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
    // Binaryen's writer otherwise orders types by shard-local usage frequency,
    // even without reorder-types. Keep original type indices identical so bodies
    // containing call_indirect/block signatures can be assembled without rewriting.
-   const names=run(process.execPath,[runner,src,...LOCAL_PASSES,...localArgs,...LOCAL_PASSES,'--preserve-type-order','--print-function-map','-o',out],{encoding:'utf8',stdio:['ignore','pipe','inherit'],maxBuffer:64*1048576});
+   const names=run(process.execPath,[runner,src,...LOCAL_PASSES,...localArgs,...LOCAL_PASSES,'--preserve-type-order','--print-function-map','-o',out],{encoding:'utf8',stdio:['ignore','pipe','inherit'],maxBuffer:64*1048576,phase:'Asyncify partition '+(part+1)+'/'+ranges.length});
    const result=sections(readFileSync(out)),sig=signature(result),body=codeBodies(result.find(s=>s.id===10).data);
    if(!base){
     base=result;skeleton=sig;map=names;

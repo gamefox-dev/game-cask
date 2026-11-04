@@ -84,23 +84,45 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
     const begin=()=>send(O.PASS_BEGIN,[1,0,0,0,0,0x3f800000,0,1,0,0,0,0,0,0]);
     const pipe=(h:number,vs:number,topology:number,attrs:boolean)=>[h,vs,2,topology,0,0,0xffffffff,0,0,7,0,255,255,7,0,0,0,7,0,0,0,0,0,attrs?1:0,attrs?1:0,1,...(attrs?[8,0,0,0,1,4]:[]),0,0,1,0,0,1,0,0,15];
     send(O.TEXTURE_CREATE,[1,16,16,1,0,3]);
-    await compile(1,1,'#version 330 core\nlayout(location=0) in vec4 bytes;out vec4 result;void main(){result=bytes;gl_Position=vec4(0.0,0.0,0.0,1.0);}');
+    await compile(1,1,'#version 330 core\nlayout(location=0) in vec4 bytes;out vec4 result;out vec4 alternate;void main(){result=bytes;alternate=vec4(0.75);gl_Position=vec4(0.0,0.0,0.0,1.0);}');
     await compile(2,2,'#version 330 core\nlayout(location=0) out vec4 c;void main(){c=vec4(1.0,0.0,0.0,1.0);}');
     send(O.PIPELINE_CREATE,pipe(1,1,0,true));const names='result 3\n';send(O.FEEDBACK_VARYINGS,[1,0,1,0,names.length],{source:names});
     send(O.BUFFER_CREATE,[1,1,5,0,5],{data:new Uint8Array([0xee,0,255,0,255])});send(O.BUFFER_CREATE,[2,9,64,0,0]);
     const capture=()=>{begin();send(O.PIPELINE,[1]);send(O.VERTEX_BUFFER,[0,1,0,5]);send(O.FEEDBACK_CAPTURE,[1,2,0,64,0,0,0,0,0,0,0,0,0]);send(O.DRAW,[1,1,0,0]);send(O.PASS_END,[]);};
     capture();const normalized=await read(2,0,16),oddRead=await read(2,1,7);
     let replacementRejected=true,cleanup=true;
+    const nativeReplacements: {code:number; retained:boolean; deletedOld:boolean; bytes:number[]}[]=[];
+    let retryRetained=true;
     if(gl){
       // Direct backend defense: a failed candidate must leave its old native program/interface alive.
       for(const wrong of ['result 0\n','missing 3\n']){
         replacementRejected &&= send(O.FEEDBACK_VARYINGS,[1,0,1,0,wrong.length],{source:wrong})!==0;
         errors.splice(0);capture();if(errors.length)replacementRejected=false;
       }
-      const original=gl.beginTransformFeedback.bind(gl);
-      gl.beginTransformFeedback=()=>original(0xffffffff);capture();gl.beginTransformFeedback=original;
+      const state=gpu as unknown as {pipelines:Map<number,{object:WebGLProgram;vao:WebGLVertexArrayObject}>;feedback:Map<number,unknown>;capture?:readonly number[]};
+      for(const mode of ['null','null-error','native-error']){
+        const old=state.pipelines.get(1)!,layout=state.feedback.get(1);let deletedOld=false,inject=false;
+        const create=gl.createVertexArray.bind(gl),getError=gl.getError.bind(gl),deleteProgram=gl.deleteProgram.bind(gl),deleteVAO=gl.deleteVertexArray.bind(gl);
+        // lib.dom types this allocation as non-null; inject the actual native OOM result.
+        gl.createVertexArray=(()=>{inject=mode!=='null';return mode==='native-error'?create():null;}) as typeof gl.createVertexArray;
+        gl.getError=()=>{if(inject){inject=false;return gl.OUT_OF_MEMORY;}return getError();};
+        gl.deleteProgram=p=>{if(p===old.object)deletedOld=true;deleteProgram(p);};
+        gl.deleteVertexArray=v=>{if(v===old.vao)deletedOld=true;deleteVAO(v);};
+        const candidate='alternate 3\n';let code:number;
+        try{code=send(O.FEEDBACK_VARYINGS,[1,0,1,0,candidate.length],{source:candidate});}
+        finally{gl.createVertexArray=create;gl.getError=getError;gl.deleteProgram=deleteProgram;gl.deleteVertexArray=deleteVAO;}
+        const retained=state.pipelines.get(1)===old&&state.feedback.get(1)===layout;
+        if(errors.length!==1)throw Error('Expected one native replacement diagnostic');errors.splice(0);
+        capture();nativeReplacements.push({code,retained,deletedOld,bytes:await read(2,0,16)});
+      }
+      send(O.BUFFER_UPDATE,[2,0,0,64],{data:new Uint8Array(64)});
+      begin();send(O.PIPELINE,[1]);send(O.VERTEX_BUFFER,[0,1,0,5]);send(O.FEEDBACK_CAPTURE,[1,2,0,64,0,0,0,0,0,0,0,0,0]);
+      const armed=state.capture,original=gl.beginTransformFeedback.bind(gl);
+      gl.beginTransformFeedback=()=>original(0xffffffff);
+      const rejected=send(O.DRAW,[1,1,0,0]);gl.beginTransformFeedback=original;
       cleanup=!gl.isEnabled(gl.RASTERIZER_DISCARD)&&gl.getParameter(gl.TRANSFORM_FEEDBACK_BINDING)===null&&errors.length===1;
-      errors.splice(0);capture();
+      retryRetained=rejected===-6&&state.capture===armed;
+      errors.splice(0);send(O.DRAW,[1,1,0,0]);send(O.PASS_END,[]);
     }
     const retained=await read(2,0,16);
     // Captured content is not an upload shadow. Recovery must fail visibly instead of restoring zero data.
@@ -113,9 +135,11 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
     const n=1400000,total=(n-2)*3;send(O.BUFFER_CREATE,[3,8,total*4,0,0]);send(O.PIPELINE_CREATE,pipe(2,3,4,false));
     const scalar='result 0\n';send(O.FEEDBACK_VARYINGS,[2,0,1,0,scalar.length],{source:scalar});begin();send(O.PIPELINE,[2]);send(O.FEEDBACK_CAPTURE,[1,3,0,total*4,0,0,0,0,0,0,0,0,0]);send(O.DRAW,[n,1,0,0]);send(O.PASS_END,[]);
     const last=await read(3,(total-3)*4,12);if(device)await device.queue.onSubmittedWorkDone();
-    if(device)device.destroy();return {normalized,oddRead,retained,replacementRejected,cleanup,restoreRejected,last,errors};
+    if(device)device.destroy();return {normalized,oddRead,retained,replacementRejected,cleanup,retryRetained,nativeReplacements,restoreRejected,last,errors};
   },{backend:backendParam,root:'/@fs'+resolve('bgt')});
   expect(result.errors).toEqual([]);expect(result.replacementRejected).toBe(true);expect(result.cleanup).toBe(true);expect(result.restoreRejected).toBe(true);
   const expected=[...new Uint8Array(new Float32Array([0,1,0,1]).buffer)];expect(result.normalized).toEqual(expected);expect(result.oddRead).toEqual(expected.slice(1,8));expect(result.retained).toEqual(expected);
+  expect(result.retryRetained).toBe(true);
+  expect(result.nativeReplacements).toEqual(backendParam==='webgl2'?Array.from({length:3},()=>({code:-6,retained:true,deletedOld:false,bytes:expected})):[]);
   expect(result.last).toEqual([...new Uint8Array(new Float32Array([1399998,1399997,1399999]).buffer)]);
 });

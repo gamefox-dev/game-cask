@@ -26,6 +26,7 @@ def command(args, pass_fds=(), stdout_path=None, cwd=None):
 
 
 def main():
+    # exec.mjs supplies an anonymous regular file, never an EOF-dependent socket.
     cfg = json.load(sys.stdin)
     jobs, memory = runpy.run_path(str(Path(__file__).with_name('parallel.py')))['parallelism'](cfg.get('jobs'))
 

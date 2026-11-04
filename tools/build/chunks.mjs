@@ -79,7 +79,7 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,policy,'chunks-v2']))};
   });
   const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')], {
-    input:JSON.stringify({tasks,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],
+    phase: 'lift chunks', input:JSON.stringify({tasks,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],
   }));
   // Merge only the generated registry, not function bodies. R_* locals stay in their owner's TU.
   const rows = [], declarations = new Set();

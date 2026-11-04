@@ -1,0 +1,3421 @@
+{
+  "schema": "game-cask/k23d-validation/1",
+  "source": "c8def8ab6d4908c8ae41017418bd5f57f3b29bae",
+  "scope": "Kit-only CC0 fixtures; no game files, installs, web access, pushes or in-lane independent review. Required desktop WebGPU and forced WebGL2; not physical-device certification.",
+  "gate_environment": {
+    "BGT_BUILD_JOBS": 2,
+    "BGT_JSPI": 1,
+    "BGT_TEST_JSPI": 1,
+    "BGT_REQUIRE_WEBGPU": 1,
+    "BGT_E2E_PORT": 5258,
+    "unit_workers": 1,
+    "unit_cli_testTimeout_ms": 600000,
+    "ci_light": false
+  },
+  "gates": {
+    "focused": {
+      "exit": 0,
+      "log": "reports/k23d/focused.log",
+      "sha256": "305fee14709bc4eb176a26d4e83dcf6c57cb41a2f027a1707f32459b882d14f6"
+    },
+    "stress": {
+      "exit": 0,
+      "log": "reports/k23d/stress.log",
+      "sha256": "3d0eae3548e37b68b87dcce963178086cccb517ed864fcbd18a29e9546285819"
+    },
+    "doctor": {
+      "exit": 0,
+      "log": "reports/k23d/doctor.log",
+      "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+    },
+    "lint": {
+      "exit": 0,
+      "log": "reports/k23d/lint.log",
+      "sha256": "7da5a0466fdb5ad096bae383eb5a080eef3cdd2d439da253fca64a5b9a03c13f"
+    },
+    "typecheck": {
+      "exit": 0,
+      "log": "reports/k23d/typecheck.log",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    "units": {
+      "exit": 0,
+      "log": "reports/k23d/units.log",
+      "sha256": "d6013f397d0f5d90e64b4154faa4e06898ecbe8c86071d0e7be04956c3408f28"
+    },
+    "e2e-asyncify": {
+      "exit": 0,
+      "log": "reports/k23d/e2e-asyncify.log",
+      "sha256": "66cbb449bbe57c3e1575e671b111eceeb3050f10e2e88cb12a32aff8d19db7be"
+    },
+    "e2e-jspi": {
+      "exit": 0,
+      "log": "reports/k23d/e2e-jspi.log",
+      "sha256": "bc664fd4bd45585ddd7272505d03680535428eed849b0131de5503becd3ee5da"
+    },
+    "leakcheck": {
+      "exit": 0,
+      "log": "reports/k23d/leakcheck.log",
+      "sha256": "da2aa18a6efaa0c7f5e952b8bb1f42eb3711232ce7f8ba23f78f78716fc2574c"
+    }
+  },
+  "before": {
+    "source": "c64f748",
+    "exit": 1,
+    "expected_failures": [
+      "unbounded guardian readiness",
+      "injected kill EPERM replaces original helper failure"
+    ],
+    "log": "reports/k23d/regressions-before.log",
+    "sha256": "cc7f42fd1ea475546a199ad930a9c6bbf1da3c025771d5e347e455b4b4b650ae"
+  },
+  "stress": {
+    "legacy": false,
+    "locks": true,
+    "workers": 8,
+    "builds_per_worker": 16,
+    "total_builds": 128,
+    "duration_ms": 10453.823708,
+    "results": [
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      },
+      {
+        "builds": 16,
+        "hits": 8,
+        "misses": 8,
+        "sha256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243"
+      }
+    ]
+  },
+  "browser": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-04T07:22:08.940Z",
+        "duration": 844096.787,
+        "expected": 287,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 129,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 150,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "skips": [
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-auto",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-capability.spec.ts",
+                "line": 9,
+                "column": 12
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-capability.spec.ts",
+                "line": 9,
+                "column": 12
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 23,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 41,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 52,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 66,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 75,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 83,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 95,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 95,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 116,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 0 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 1 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 2 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 3 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 4 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 6 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 7 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 8 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 9 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 10,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 42,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 55,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 67,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 91,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 138,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: indexed coloured triangle",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: mipmapped alpha quad",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: two colour attachments",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: depth and stencil",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: 1000 instanced sprites",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: uniform animation",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: 2D GPU interleaving",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 1: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 2: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 3: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 6: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "needs a WebGPU start",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/robustness.spec.ts",
+                "line": 113,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL 2 is the last backend",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/robustness.spec.ts",
+                "line": 142,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "tour.spec.ts",
+          "title": "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "catches",
+              "description": "the tour missing menu items, not opening/dismissing dialogs or message boxes, or clicking an exit item"
+            },
+            {
+              "type": "skip",
+              "description": "the tour is backend-independent input + layout; one backend is enough",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/tour.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "visual.spec.ts",
+          "title": "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "runs in the WebGPU project, which can create both backends",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/visual.spec.ts",
+                "line": 76,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        }
+      ],
+      "raw_report": "reports/k23d/e2e-asyncify-results.json",
+      "sha256": "71b4a7680a81ca71672aa89981cffd7aae02dbc14025f7f380686ca9be7becf5"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-04T07:37:46.290Z",
+        "duration": 798872.809,
+        "expected": 287,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 129,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 150,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "skips": [
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "fallback.spec.ts",
+          "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "project": "chromium-auto",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/fallback.spec.ts",
+                "line": 7,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-capability.spec.ts",
+                "line": 9,
+                "column": 12
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-capability.spec.ts",
+          "title": "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-capability.spec.ts",
+                "line": 9,
+                "column": 12
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 23,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 41,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 52,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 66,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 75,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 83,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 95,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2-contract.spec.ts",
+          "title": "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2-contract.spec.ts",
+                "line": 95,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 116,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 0 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 1 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 2 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 3 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 4 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 6 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 7 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 8 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgl2.spec.ts",
+          "title": "GPU WebGL2: scene 9 resources survive browser context loss",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL2-specific backend contract",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgl2.spec.ts",
+                "line": 129,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 10,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 42,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 55,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 67,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 91,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu-conformance.spec.ts",
+          "title": "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu-conformance.spec.ts",
+                "line": 138,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: indexed coloured triangle",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: mipmapped alpha quad",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: two colour attachments",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: depth and stencil",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: 1000 instanced sprites",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: uniform animation",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 native: 2D GPU interleaving",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 1: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 2: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 3: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "gpu-webgpu.spec.ts",
+          "title": "WebGPU §13 scene 6: resources and pipelines survive device loss",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/gpu-webgpu.spec.ts",
+                "line": 52,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "needs a WebGPU start",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/robustness.spec.ts",
+                "line": 113,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "robustness.spec.ts",
+          "title": "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "WebGL 2 is the last backend",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/robustness.spec.ts",
+                "line": 142,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "tour.spec.ts",
+          "title": "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "catches",
+              "description": "the tour missing menu items, not opening/dismissing dialogs or message boxes, or clicking an exit item"
+            },
+            {
+              "type": "skip",
+              "description": "the tour is backend-independent input + layout; one backend is enough",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/tour.spec.ts",
+                "line": 11,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "visual.spec.ts",
+          "title": "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "runs in the WebGPU project, which can create both backends",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/visual.spec.ts",
+                "line": 76,
+                "column": 8
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgl2",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken device",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken submission",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        },
+        {
+          "file": "webgpu-availability.spec.ts",
+          "title": "WebGPU-only availability policy: injected broken lost",
+          "project": "chromium-webgpu",
+          "annotations": [
+            {
+              "type": "skip",
+              "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+              "location": {
+                "file": "/Users/dev/projects/pi-work/lane-K23/tests/e2e/webgpu-availability.spec.ts",
+                "line": 9,
+                "column": 10
+              }
+            }
+          ]
+        }
+      ],
+      "raw_report": "reports/k23d/e2e-jspi-results.json",
+      "sha256": "847e884b26474955a2b349dedf81a8ad81b21b7cd0687929bc6c9cddc1cd12f1"
+    }
+  },
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9",
+            "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+            "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 43.531833000000006,
+            "interpreted": 54.57816699999967
+          },
+          "raw_report": "reports/k23d/oracle-win32-conformance-asyncify.json",
+          "sha256": "b89526ddc261a60cb60477b945c1c89712e7bd4e66cd13ad4ebdfab96d53f289"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9",
+            "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+            "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 40.763709000000745,
+            "interpreted": 47.673374999999396
+          },
+          "raw_report": "reports/k23d/oracle-win32-conformance-jspi.json",
+          "sha256": "f6feee7c1054ee0cbb827c86deb1923c4fd3e33d3c0db3833a349b46822eb794"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "win32-hello",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 17.14245800000026,
+            "interpreted": 25.359334000000672
+          },
+          "raw_report": "reports/k23d/oracle-win32-hello-asyncify.json",
+          "sha256": "c56dc887168ed505032ecf7fee95b717ee55678f71131171a9a571576e9faa50"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 12.262749999999869,
+            "interpreted": 15.040250000000015
+          },
+          "raw_report": "reports/k23d/oracle-win32-hello-jspi.json",
+          "sha256": "bb1e7f878fb4b4d532f6c8a705c146a1ce73ea7c0a2051d777a779d0fd91f849"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-audio",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "74d37eff",
+            "interpreted": "74d37eff",
+            "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+            "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 18.559707999999773,
+            "interpreted": 38.99787500000002
+          },
+          "raw_report": "reports/k23d/oracle-x64-audio-asyncify.json",
+          "sha256": "905c197eb1ca2d0418468d98df50582a22475331fa632ad9659cf17a5efc8fae"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "74d37eff",
+            "interpreted": "74d37eff",
+            "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+            "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 17.084834000000228,
+            "interpreted": 31.49066700000003
+          },
+          "raw_report": "reports/k23d/oracle-x64-audio-jspi.json",
+          "sha256": "515c99bf1dd758d360f9be3e5a974a5ea2d20e8a02e8f8a94373d576094e2b28"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-audio-init",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d02de26a",
+            "interpreted": "d02de26a",
+            "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+            "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 9.825417000000016,
+            "interpreted": 24.434833000000253
+          },
+          "raw_report": "reports/k23d/oracle-x64-audio-init-asyncify.json",
+          "sha256": "fa0c42e7c18746eccd650a3faa8ed8669e50fa98196660509e90dd4c8c9f6fdb"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "d02de26a",
+            "interpreted": "d02de26a",
+            "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+            "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 9.939583000000312,
+            "interpreted": 19.992459000000053
+          },
+          "raw_report": "reports/k23d/oracle-x64-audio-init-jspi.json",
+          "sha256": "2ea392c368a0b92a044493827e0679bff3585184d2f5aecd7f8a65e960bfef45"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-basics",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538",
+            "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+            "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 7.667833999999857,
+            "interpreted": 9.090874999999869
+          },
+          "raw_report": "reports/k23d/oracle-x64-basics-asyncify.json",
+          "sha256": "435b8ae46627164f93259baf18c98f9e37433c3bf0977c91aaa326e91befd7dc"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538",
+            "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+            "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 8.371290999999474,
+            "interpreted": 9.988541999999143
+          },
+          "raw_report": "reports/k23d/oracle-x64-basics-jspi.json",
+          "sha256": "7d9a52632b6e57d1d8cb23345df6001ea267926394c094bbbdf57128bf32646a"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-contracts",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0514c1ba",
+            "interpreted": "0514c1ba",
+            "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+            "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 20.624041999999463,
+            "interpreted": 25.070332999999664
+          },
+          "raw_report": "reports/k23d/oracle-x64-contracts-asyncify.json",
+          "sha256": "fc47922a506a0fbb0a97fc109cf19866c6bf9eac2eabe6324a9c995f49657e73"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "0514c1ba",
+            "interpreted": "0514c1ba",
+            "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+            "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 19.30174999999963,
+            "interpreted": 18.71033299999999
+          },
+          "raw_report": "reports/k23d/oracle-x64-contracts-jspi.json",
+          "sha256": "14ba7b06d454dd664a42f5b81e2d13c27f9a039682172c23a5f52dd2d5d89127"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-cpp",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "eadc23f1",
+            "interpreted": "eadc23f1",
+            "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+            "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 10.321917000000212,
+            "interpreted": 17.07312499999989
+          },
+          "raw_report": "reports/k23d/oracle-x64-cpp-asyncify.json",
+          "sha256": "d49134fbb4345774066154b66faa4befa8f4728fb2421df03556bc5c951f9559"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "eadc23f1",
+            "interpreted": "eadc23f1",
+            "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+            "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 8.424041000000216,
+            "interpreted": 14.996833000000152
+          },
+          "raw_report": "reports/k23d/oracle-x64-cpp-jspi.json",
+          "sha256": "87745b4b310500a33c1405b04f7e8d2ac5e126406349463065343fced0f07b6a"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-cpprt",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "8e59b196",
+            "interpreted": "8e59b196",
+            "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+            "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 11.002916999999798,
+            "interpreted": 25.616374999999607
+          },
+          "raw_report": "reports/k23d/oracle-x64-cpprt-asyncify.json",
+          "sha256": "68ea1634850e1373eaa33511d761443ec8d7aec9d172e358b050b77ace0bdcd6"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "8e59b196",
+            "interpreted": "8e59b196",
+            "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+            "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 9.685458000000835,
+            "interpreted": 16.131333000000268
+          },
+          "raw_report": "reports/k23d/oracle-x64-cpprt-jspi.json",
+          "sha256": "bbdc2b10e7fddb6ff25630ff113281d656ea8bde32911ddc02ecc895e5fc19a7"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-crt",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 12.311832999999751,
+            "interpreted": 21.81995899999947
+          },
+          "raw_report": "reports/k23d/oracle-x64-crt-asyncify.json",
+          "sha256": "8d387b3e4ff693235b1335fd2bddc4f074b926c10759617c218e50a0b82071d2"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 11.636167000000569,
+            "interpreted": 15.871291999999812
+          },
+          "raw_report": "reports/k23d/oracle-x64-crt-jspi.json",
+          "sha256": "32c19793b46ff0e0e2966de595f80ce6dffaa599ff7c3cc888d17883a901a1b5"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "47b028e6:01c4aa76",
+            "interpreted": "47b028e6:01c4aa76",
+            "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+            "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 119.77770899999996,
+            "interpreted": 115.64449999999943
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-asyncify.json",
+          "sha256": "e25ca72931926cc10bfb747ad6ed7328645da0dc8517295c6e2cce7c71091030"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "47b028e6:01c4aa76",
+            "interpreted": "47b028e6:01c4aa76",
+            "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+            "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 108.64170800000011,
+            "interpreted": 118.37474999999995
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-jspi.json",
+          "sha256": "ed44b6def78d1114156a460814cf872ccdc7ad80df0756ea749ae35c35f03b66"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-blit",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "6bc914b7:b46fb07b",
+            "interpreted": "6bc914b7:b46fb07b",
+            "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+            "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 16.96125000000029,
+            "interpreted": 20.389999999999418
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-blit-asyncify.json",
+          "sha256": "dfe38403f634a39baa85b669d3a43900177c6780bf090017b1f7c2f156841810"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "6bc914b7:b46fb07b",
+            "interpreted": "6bc914b7:b46fb07b",
+            "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+            "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 18.80329200000051,
+            "interpreted": 19.818208000000595
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-blit-jspi.json",
+          "sha256": "6d6a7ca4c35d251274a5e1a8029a42667f4b23b50b5c6e5e1a554c9a8f44401e"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-capacity",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "962f71ec:811c9dc5",
+            "interpreted": "962f71ec:811c9dc5",
+            "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+            "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 405.65599999999995,
+            "interpreted": 516.5735420000001
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-capacity-asyncify.json",
+          "sha256": "7a1caed9696c074a121696be8ff4723deddf3239e7569f51faada49852944813"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "962f71ec:811c9dc5",
+            "interpreted": "962f71ec:811c9dc5",
+            "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+            "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 407.292375,
+            "interpreted": 493.5412919999999
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-capacity-jspi.json",
+          "sha256": "3e5e05fc35991cc89a375f30b257f6a038ace1d3cf984e5b9bad846a451a2551"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-current",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "1130f0ae:5a8d64ad",
+            "interpreted": "1130f0ae:5a8d64ad",
+            "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+            "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 175.88016699999935,
+            "interpreted": 172.70770900000025
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-current-asyncify.json",
+          "sha256": "5d2f41a9396557816f09140b139ece8005f4d4310884eb2a3429e50892af7ccd"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "1130f0ae:5a8d64ad",
+            "interpreted": "1130f0ae:5a8d64ad",
+            "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+            "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 225.59312499999942,
+            "interpreted": 168.90066699999988
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-current-jspi.json",
+          "sha256": "f6ca3f52b3a4f26ead66e22ad44732b2f7f53762d1834aa906f475da97a0883c"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "558085bd:61d8bdd0",
+            "interpreted": "558085bd:61d8bdd0",
+            "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+            "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 63.81287499999962,
+            "interpreted": 83.5086250000004
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-default-vao-asyncify.json",
+          "sha256": "0b4dbb74151a8388ab1141321d0a3b53b44ed385e94996f3bcda5a48e30d0dcb"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "558085bd:61d8bdd0",
+            "interpreted": "558085bd:61d8bdd0",
+            "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+            "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 60.89991699999973,
+            "interpreted": 75.15654200000063
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-default-vao-jspi.json",
+          "sha256": "214483ff26e7e59b5071902551eeb856186a50ae98fbce64482aba2e45eb5683"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-fbo",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "884b43af:ec039dc1",
+            "interpreted": "884b43af:ec039dc1",
+            "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+            "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 228.31675000000087,
+            "interpreted": 212.5917499999996
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-fbo-asyncify.json",
+          "sha256": "23f61b78224853bbb90c735f3d0f4c3daea539203c53f2e43fd85f813714f519"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "884b43af:ec039dc1",
+            "interpreted": "884b43af:ec039dc1",
+            "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+            "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 220.59004100000038,
+            "interpreted": 209.29399999999987
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-fbo-jspi.json",
+          "sha256": "90c64d9db5864301b9b407510fc9e2cf3f5b7862409c797108566b2d0e8c4f58"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-feedback",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b8fb8e26:811c9dc5",
+            "interpreted": "b8fb8e26:811c9dc5",
+            "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+            "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 26.10633400000006,
+            "interpreted": 24.719624999999724
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-feedback-asyncify.json",
+          "sha256": "559e1400798e3c07ece33b7204f815fd34bad895c9940331f8a728b502552cb8"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b8fb8e26:811c9dc5",
+            "interpreted": "b8fb8e26:811c9dc5",
+            "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+            "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 19.181166000000303,
+            "interpreted": 24.742833000000246
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-feedback-jspi.json",
+          "sha256": "33834e784169cb40e46a07dd193cbe54ad5f43ecf4e5ce9c2bf46bc68638c2f8"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-integer",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "5ed6b84d:4de7479f",
+            "interpreted": "5ed6b84d:4de7479f",
+            "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+            "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 69.24141599999984,
+            "interpreted": 65.68095900000026
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-integer-asyncify.json",
+          "sha256": "762a46052536f66af26d9e7d1ee0cc84e80df7912bfe740c6479553145cefb98"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "5ed6b84d:4de7479f",
+            "interpreted": "5ed6b84d:4de7479f",
+            "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+            "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 59.66029200000048,
+            "interpreted": 60.81262499999957
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-integer-jspi.json",
+          "sha256": "74714a8a4b655a972c236ce4fb4cdc64af9e4e718174c8e8f8ca8d80d41285f4"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gl-ranges",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "acab916b:811c9dc5",
+            "interpreted": "acab916b:811c9dc5",
+            "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+            "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 183.1597500000007,
+            "interpreted": 173.38875000000007
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-ranges-asyncify.json",
+          "sha256": "6e08a9a89bae1d7ce879596b3756966cba2bd3eb3f5d5b2eec045e473fab7339"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "acab916b:811c9dc5",
+            "interpreted": "acab916b:811c9dc5",
+            "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+            "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 177.7463340000004,
+            "interpreted": 158.3351249999996
+          },
+          "raw_report": "reports/k23d/oracle-x64-gl-ranges-jspi.json",
+          "sha256": "db668465c1cec70b79df1142845b958ab8c10abd1908afda4b7e46c6a004d57c"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-glsl",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7531959c:62477e5d",
+            "interpreted": "7531959c:62477e5d",
+            "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+            "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 54.07637500000055,
+            "interpreted": 64.78987499999948
+          },
+          "raw_report": "reports/k23d/oracle-x64-glsl-asyncify.json",
+          "sha256": "9f5de10089e8c8cb0c1911523e69aa31b4bbe276cd8cf948fdfd04af10891c06"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "7531959c:62477e5d",
+            "interpreted": "7531959c:62477e5d",
+            "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+            "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 51.75633400000061,
+            "interpreted": 67.08758399999988
+          },
+          "raw_report": "reports/k23d/oracle-x64-glsl-jspi.json",
+          "sha256": "5fc32ab5380f35ee05630c84bafb302d7d970525b908f86e1c5a4d6aedd7f31b"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-gui",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cae2906b",
+            "interpreted": "cae2906b",
+            "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+            "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 9.091457999999875,
+            "interpreted": 12.468332999999802
+          },
+          "raw_report": "reports/k23d/oracle-x64-gui-asyncify.json",
+          "sha256": "3fd326b016848dc67d65247e94993147d974e76cb8615cb16a29063df427374d"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "cae2906b",
+            "interpreted": "cae2906b",
+            "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+            "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 9.237584000000425,
+            "interpreted": 13.631583999999748
+          },
+          "raw_report": "reports/k23d/oracle-x64-gui-jspi.json",
+          "sha256": "7bb4ebb7a309d9228b29033a10f690e3af16269d214b2bebf14ce11a88e5eaf4"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-handles",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "9c945881",
+            "interpreted": "9c945881",
+            "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+            "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 26.08612499999981,
+            "interpreted": 34.481166999999914
+          },
+          "raw_report": "reports/k23d/oracle-x64-handles-asyncify.json",
+          "sha256": "416669c34b9001858312d380eaa23fd68fbfdf4384faf41d9c3ce965a646ed32"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "9c945881",
+            "interpreted": "9c945881",
+            "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+            "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 30.314624999999978,
+            "interpreted": 25.947416000000885
+          },
+          "raw_report": "reports/k23d/oracle-x64-handles-jspi.json",
+          "sha256": "1dc503b40022472d3d24a5a297db7f7ef9acdc87ddd8a05035baa0c11609d4e2"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-heap",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "dfa6e55f",
+            "interpreted": "dfa6e55f",
+            "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+            "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 482.51987499999996,
+            "interpreted": 663.3433330000007
+          },
+          "raw_report": "reports/k23d/oracle-x64-heap-asyncify.json",
+          "sha256": "b12201e75e6a1ca2e01b2eb0e8d771180ae8685d6064225e29c571184ad39db5"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "dfa6e55f",
+            "interpreted": "dfa6e55f",
+            "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+            "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 375.61275000000023,
+            "interpreted": 543.8853749999998
+          },
+          "raw_report": "reports/k23d/oracle-x64-heap-jspi.json",
+          "sha256": "93c0f0ac6ee0cbcefe3770d78ddde5f358892a27a0665c6c6734cb8a4ee600ab"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-input",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bd47b0f2",
+            "interpreted": "bd47b0f2",
+            "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+            "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 289.97204200000033,
+            "interpreted": 365.799
+          },
+          "raw_report": "reports/k23d/oracle-x64-input-asyncify.json",
+          "sha256": "9e7c7f4b58d0799205e927887821c1060e270949c5263cb825956595bd602ee1"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "bd47b0f2",
+            "interpreted": "bd47b0f2",
+            "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+            "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 292.7287919999999,
+            "interpreted": 329.71958300000006
+          },
+          "raw_report": "reports/k23d/oracle-x64-input-jspi.json",
+          "sha256": "4d85c322e876afac49de5190a5ac9e23cdacd6f969710f30ae5ed15707d8b350"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-memory",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b4565d5d",
+            "interpreted": "b4565d5d",
+            "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+            "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 146.3125829999999,
+            "interpreted": 2490.3068329999996
+          },
+          "raw_report": "reports/k23d/oracle-x64-memory-asyncify.json",
+          "sha256": "8b6f5e8f66954e5017c5a9d09d6d932395bb18e68fcd771c10d0cbffc4ecaf86"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "b4565d5d",
+            "interpreted": "b4565d5d",
+            "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+            "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 219.14879099999962,
+            "interpreted": 2315.0025419999993
+          },
+          "raw_report": "reports/k23d/oracle-x64-memory-jspi.json",
+          "sha256": "adb201841459e04d91a97b9e5b1c4a4e082bd7a6dff726a591ef320a577cc5e6"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-scale",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "f674cbe2",
+            "interpreted": "f674cbe2",
+            "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+            "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 34.959500000000844,
+            "interpreted": 109.8392500000009
+          },
+          "raw_report": "reports/k23d/oracle-x64-scale-asyncify.json",
+          "sha256": "4272548e579fd13d22d29b16a4eabd01a151233d201e47a8b96db85e64d8389d"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "f674cbe2",
+            "interpreted": "f674cbe2",
+            "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+            "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 37.17545799999971,
+            "interpreted": 99.62383399999999
+          },
+          "raw_report": "reports/k23d/oracle-x64-scale-jspi.json",
+          "sha256": "592b49a5b74888f8a9791da7db602d5da60eaa37c68ef97c2c0b09e24c28f95d"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-smoke",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "31054bb2:01c4aa76",
+            "interpreted": "31054bb2:01c4aa76",
+            "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+            "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 192.70499999999993,
+            "interpreted": 289.2517090000001
+          },
+          "raw_report": "reports/k23d/oracle-x64-smoke-asyncify.json",
+          "sha256": "dc39ef4a9ebb4658f7884a0cb1ef853538cba33397c9f09e010335aff9aea4eb"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "31054bb2:01c4aa76",
+            "interpreted": "31054bb2:01c4aa76",
+            "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+            "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 180.68987500000003,
+            "interpreted": 267.31695899999977
+          },
+          "raw_report": "reports/k23d/oracle-x64-smoke-jspi.json",
+          "sha256": "663b54460b912bdb7261511eba2c5521bbe0b2ccbd299e562fa850d12413de34"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-sysdlls",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "9fdbaf40",
+            "interpreted": "9fdbaf40",
+            "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+            "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 15.647750000000087,
+            "interpreted": 26.45049999999992
+          },
+          "raw_report": "reports/k23d/oracle-x64-sysdlls-asyncify.json",
+          "sha256": "f0dc2894f08a1e7add1490ec7ae9883166f416d3542bb8f9a34b6f54ee99b8a4"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "9fdbaf40",
+            "interpreted": "9fdbaf40",
+            "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+            "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 16.331708000000617,
+            "interpreted": 22.539625000000342
+          },
+          "raw_report": "reports/k23d/oracle-x64-sysdlls-jspi.json",
+          "sha256": "b5ba25d2af8298e0f64b5f8e5a3a18b0833d8c9a7948c0cd6e3d25973096232d"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-threads",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "57670827",
+            "interpreted": "57670827",
+            "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+            "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 14.498249999999643,
+            "interpreted": 65.42258399999992
+          },
+          "raw_report": "reports/k23d/oracle-x64-threads-asyncify.json",
+          "sha256": "4dd889ef13d2d353909f8d1051e40c4c33c5dcd1ead16b5af82151bcac73a623"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "57670827",
+            "interpreted": "57670827",
+            "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+            "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 14.769500000000335,
+            "interpreted": 65.85441600000013
+          },
+          "raw_report": "reports/k23d/oracle-x64-threads-jspi.json",
+          "sha256": "54a357cdf23c449f6c86d22aec381c3171492aca9375fd22219415ea25667c3f"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x64-tls",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ff6d2761",
+            "interpreted": "ff6d2761",
+            "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+            "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 7.882416999999805,
+            "interpreted": 12.545457999999599
+          },
+          "raw_report": "reports/k23d/oracle-x64-tls-asyncify.json",
+          "sha256": "b2914952921d0779cd1757ca7cbb11080f721a7ccc85dc078c0581768206fba3"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ff6d2761",
+            "interpreted": "ff6d2761",
+            "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+            "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 7.878958999999668,
+            "interpreted": 11.833999999999833
+          },
+          "raw_report": "reports/k23d/oracle-x64-tls-jspi.json",
+          "sha256": "83f6621b08ad5b808be1dbea2b86ad6ae20745fd13fe31b8f6adb424f07ca875"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x86-handles",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ab4cc133",
+            "interpreted": "ab4cc133",
+            "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+            "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 28.169041999999536,
+            "interpreted": 35.309792000000016
+          },
+          "raw_report": "reports/k23d/oracle-x86-handles-asyncify.json",
+          "sha256": "585c12c767c01c098aa4df0704a279df63befcfbfdf21c4354ba15e1bfc58741"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ab4cc133",
+            "interpreted": "ab4cc133",
+            "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+            "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 22.657000000000153,
+            "interpreted": 32.203333000000384
+          },
+          "raw_report": "reports/k23d/oracle-x86-handles-jspi.json",
+          "sha256": "5975a2a7cd2b3d07582b37cb76060a8d5d1847c687f78f6d367d53935f68d585"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x86-heap",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ae4a7fb3",
+            "interpreted": "ae4a7fb3",
+            "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+            "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 143.10395900000003,
+            "interpreted": 625.6984169999996
+          },
+          "raw_report": "reports/k23d/oracle-x86-heap-asyncify.json",
+          "sha256": "7c1215e8451ab64be1e0d5e30882dcf752b4938b4a0127cf4a801be501758d87"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "ae4a7fb3",
+            "interpreted": "ae4a7fb3",
+            "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+            "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 138.42208400000072,
+            "interpreted": 638.4269160000003
+          },
+          "raw_report": "reports/k23d/oracle-x86-heap-jspi.json",
+          "sha256": "25cec9b0c028fba99fe27332e9a404d184f5a8b4e8a6b7b7c9f5f31f947addda"
+        }
+      },
+      "cross_variant_identical": true
+    },
+    {
+      "id": "x86-threads",
+      "variants": {
+        "asyncify": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef",
+            "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+            "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 12.285875000000487,
+            "interpreted": 19.09191699999974
+          },
+          "raw_report": "reports/k23d/oracle-x86-threads-asyncify.json",
+          "sha256": "b0e7a6faed10005321efff9ea3a97bab7bce74b0e960ff5e4b78375e8ea2fd52"
+        },
+        "jspi": {
+          "compared_frames": 300,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef",
+            "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+            "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+          },
+          "errors": {
+            "lifted": null,
+            "interpreted": null
+          },
+          "lifted_interp_insns": 0,
+          "lifted_stub_calls": 0,
+          "lifted_gl_stubs": [],
+          "elapsed_ms": {
+            "lifted": 12.302749999999833,
+            "interpreted": 15.676749999999629
+          },
+          "raw_report": "reports/k23d/oracle-x86-threads-jspi.json",
+          "sha256": "3f721540f47af76b32532ada8e2b9d9bf6347ab76df15f9efb1db2313c636138"
+        }
+      },
+      "cross_variant_identical": true
+    }
+  ],
+  "unit_summary": {
+    "files": 101,
+    "tests": 2003,
+    "skipped": 0
+  },
+  "total_compared_frame_pairs": 19200,
+  "compilers": {
+    "clang": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "gcc": "gcc-14 (Homebrew GCC 14.2.0) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "source_tree": "e8562f66f19b0e72366efdfd8f50bd7b94bc9f44"
+}

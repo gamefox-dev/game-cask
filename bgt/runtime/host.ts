@@ -45,7 +45,7 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_ENTROPY, CAP_GPU, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 
@@ -205,6 +205,7 @@ export class GameHost {
   readonly textures = new TextureTable();
   readonly requests = new Requests();
   /* LANE-S1 */ private gpu?: GpuState;
+  private abiVersion = 0;
   readonly codeCoverage = new Map<number, number>();
   codeCoverageDropped = 0;
   private allowedCode: Set<number> | null = null;
@@ -266,6 +267,8 @@ export class GameHost {
       this.gpu = new GpuState(config.gpuBackend, config.gpuBudgetBytes);
     }
     else config.caps &= ~CAP_GPU;
+    if (this.gpu?.backend.bufferHandles) config.caps |= CAP_GPU_BUFFER_HANDLES;
+    else config.caps &= ~CAP_GPU_BUFFER_HANDLES;
   }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
@@ -294,6 +297,8 @@ export class GameHost {
     host.exports = instance.exports as unknown as GameExports;
     if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(host.exports.bgt_update);
     const v = host.exports.bgt_abi_version() >>> 0;
+    host.abiVersion = v;
+    if (v < 0x000300) host.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
@@ -473,6 +478,11 @@ export class GameHost {
             while(lo<hi){const m=(lo+hi)>>>1;if(ranges[m].addr<=addr)lo=m+1;else hi=m;}
             if(!lo||addr>=ranges[lo-1].end)throw new OutsideSlice(1,addr);
           }
+        },
+        gpu_buffer_handles: () => {
+          if (this.abiVersion < 0x000300 || !(this.config.caps & CAP_GPU_BUFFER_HANDLES) || !this.gpu) return E_UNSUPPORTED;
+          if (this.gpu.pass) return E_STATE;
+          this.gpu.bufferHandles = true; return BGT_OK;
         },
         gpu_limits: (dst: number, cap: number) => {
           if ((cap >>> 0) < 16) return E_LIMIT;
@@ -701,6 +711,8 @@ export class GameHost {
     this.config.gpuBackend = gpuBackend;
     if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes); }
     else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
+    if (this.abiVersion >= 0x000300 && this.gpu?.backend.bufferHandles) this.config.caps |= CAP_GPU_BUFFER_HANDLES;
+    else this.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
   }

@@ -21,6 +21,7 @@ def digest(path):
 
 
 def main():
+    # Shared with compile.py: finite regular-file stdin from exec.mjs.
     cfg = json.load(sys.stdin)
     jobs, memory = runpy.run_path(str(Path(__file__).with_name('parallel.py')))['parallelism'](cfg.get('jobs'), 'lift')
     tasks = cfg['tasks']

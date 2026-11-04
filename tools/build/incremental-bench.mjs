@@ -6,6 +6,7 @@ import { join, resolve, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { hostname, platform, arch, totalmem, loadavg } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { execFileSync as buildExec } from './exec.mjs';
 const root = resolve(process.env.BGT_BENCH_ROOT ?? '.');
 const { buildGame } = await import(pathToFileURL(join(root, 'tools/build/build.mjs')));
 const count = Number(process.env.BGT_BENCH_FUNCTIONS ?? 12000);
@@ -27,7 +28,7 @@ const report = {schema:'game-cask/incremental-bench/1',root,count,fixture_preexi
 function snapshot(){
   const disk=statfsSync(root);
   let memory;
-  try { memory=execFileSync('python3',['-I','-c', 'import runpy,json; print(json.dumps({"available_bytes":runpy.run_path('+JSON.stringify(join(root,'tools/harness/pi/shim/memory.py'))+')["available"]()}))'],{encoding:'utf8'}).trim(); } catch(e){memory=String(e);}
+  try { memory=buildExec('python3',['-I','-c', 'import runpy,json; print(json.dumps({"available_bytes":runpy.run_path('+JSON.stringify(join(root,'tools/harness/pi/shim/memory.py'))+')["available"]()}))'],{encoding:'utf8',timeout:5000,phase:'incremental benchmark memory snapshot'}).trim(); } catch(e){memory=String(e);}
   return {at:new Date().toISOString(),loadavg:loadavg(),disk_free_bytes:disk.bavail*disk.bsize,memory};
 }
 function run(scenario){

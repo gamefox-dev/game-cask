@@ -15,7 +15,7 @@ __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stder
 static uint8_t memory[2u<<20];
 static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
-static uint32_t live_modules[1024], live_textures[1024], live_buffers[1024], live_samplers[1024], module_creates;
+static uint32_t live_modules[N], live_textures[N], live_buffers[65536], live_samplers[N], module_creates;
 static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws;
 static uint8_t device_buffers[256][256];
 static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
@@ -72,8 +72,8 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     if(code==0x41&&reject_update)return -3;
     if(code==0x63&&reject_readback)return -3;
     if(code==0x42&&reject_delete)return -3;
-    if(code==0x40){if(!a[0]||a[0]>GPU_MAX||live_buffers[a[0]])abort();live_buffers[a[0]]=1;}
-    if(code==0x42){if(!a[0]||a[0]>GPU_MAX||!live_buffers[a[0]])abort();live_buffers[a[0]]=0;}
+    if(code==0x40){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||live_buffers[a[0]])abort();live_buffers[a[0]]=1;}
+    if(code==0x42){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||!live_buffers[a[0]])abort();live_buffers[a[0]]=0;}
     if(code==0x43||code==0x59){if(!a[0]||a[0]>GPU_MAX||live_textures[a[0]])abort();live_textures[a[0]]=1;}
     if(code==0x45){if(!a[0]||a[0]>GPU_MAX||!live_textures[a[0]])abort();live_textures[a[0]]=0;}
     if(code==0x46||code==0x5b){if(!a[0]||a[0]>GPU_MAX||live_samplers[a[0]])abort();live_samplers[a[0]]=1;}
@@ -339,10 +339,17 @@ static void buffer_mapping(void) {
 }
 #include "gl_capacity_cases.h"
 #include "gl_review_cases.h"
+#include "gl_demand_cases.h"
+#include "gl_scale_cases.h"
+#include "gl_hotpath_cases.h"
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
-    if(!strcmp(argv[1],"object-identity"))object_identity();
+    if(!strcmp(argv[1],"hotpaths"))hotpath_cases();
+    else if(!strcmp(argv[1],"hotpath-bench"))hotpath_bench();
+    else if(!strcmp(argv[1],"demand"))demand_probe();
+    else if(!strcmp(argv[1],"scale-churn"))scale_churn();
+    else if(!strcmp(argv[1],"object-identity"))object_identity();
     else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
     else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
     else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
