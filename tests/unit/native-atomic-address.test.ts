@@ -15,7 +15,7 @@ describe.each(['size', 'fast'])('native LOCK bit addressing %s', preset => {
       for (const [base, index, segmentBase] of [
         [0x2203n, 0n, 0x1000n], [0x2203n, -1n, 0x1000n], [0x2203n, -129n, 0x1000n],
         [addr32 ? 0x1234fffffff8n : 0xfffffffffffffff8n, 64n, 0x2000n],
-        [0x2203n, 1n, 0x100000000n], // Segment base must not be truncated with the offset.
+        [0x2203n, 1n, 0xfffff000n], // A representable segment base must not wrap the final linear address at 4 GiB.
       ]) {
         const bits = BigInt(n * 8), signed = BigInt.asIntN(n * 8, index);
         // BigInt division truncates: explicitly use floor for negative bit-string indices.
@@ -30,7 +30,7 @@ describe.each(['size', 'fast'])('native LOCK bit addressing %s', preset => {
           h.ex.set_segments(segmentBase, segmentBase); h.ex.set_flags(0xcd4);
           if (address < 65528n) h.view().setBigUint64(h.ex.ram() + Number(address), initial, true);
           if (address >= 65528n) {
-            expect(() => h.ex.run(interpreted)).toThrow(WebAssembly.RuntimeError);
+            expect(() => h.ex.run(interpreted), cases[i].hex + ':mode=' + interpreted + ':base=' + base.toString(16) + ':index=' + index + ':seg=' + segmentBase.toString(16) + ':expected=' + address.toString(16)).toThrow(WebAssembly.RuntimeError);
             expect(h.ex.get_flags()).toBe(0xcd4);
           } else {
             h.ex.run(interpreted);
