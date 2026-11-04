@@ -61,7 +61,10 @@ The output may be larger/slower than whole-module O2: an explicit resource/optim
 
 Before publication: every original body must be transformed exactly once; all non-code sections and final
 function maps must agree; helper bodies must agree; original definition indices must be unchanged; and V8
-must validate the assembled wasm. Checks fail closed. One state pair/helper set serves the entire result.
+must validate the assembled wasm. Binaryen's writer must use `--preserve-type-order`: even without a
+reorder pass, its default usage-frequency type ordering can otherwise differ between shards (caught by the
+I12 convergence fixture). Type/import/function section equality remains mandatory; no mismatch is waived.
+Checks fail closed. One state pair/helper set serves the entire result.
 Cache identity includes Binaryen, wrapper/partition code, features, names policy and exact removelist.
 Existing atomic per-key publication and writer leases protect the entire job and child tools.
 

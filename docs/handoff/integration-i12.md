@@ -27,21 +27,39 @@ Inherited external **vK21b PASS /vK22b PASS**. Reviewer explicitly read `3be7551
 judged it narrow/correct; requested lane reviews + diff read + integrator merged-tree gates in this handoff.
 **No separate independent merged-tree review/PASS or CI run is claimed.**
 
+## Additional integration defect: Binaryen writer type order
+
+The 64 KiB four-mode convergence regression found a real fail-closed partition rejection on K21's
+interpreter observation build: shards1..12 matched, shard13 changed type/import/function section indices.
+Function maps and all five Asyncify helpers were byte-identical. No unsafe assembly/publication occurred.
+Binaryen's writer defaults to usage-frequency type order even without the reorder-types pass; shard-local
+body usage differs. `29b3951` pins `--preserve-type-order` on partition children, keeping **all original strict
+assembly checks**. Exact isolated CC0 reproduction before fails at shard13; after completes16/16 with equal
+sections/maps/helpers and V8 validation. Full multi-shard convergence rerun is queued, not yet PASS.
+This is integration breakage exposed by combining K21's new module shape with K22's partitioner, not a
+new optimization or changed global default. Hashed partition implementation automatically invalidates cache.
+
 ## Verification — pending
 
 - Focused diagnostic: **12 pass /1 fail**; only forced-partition fixture selected one shard at 1 MiB.
   Repaired to64 KiB, preserving >1 assertion. Original typecheck caught missing Window typing in the new
   browser assertion; repaired before gate sweep. These diagnostics are not final acceptance.
-- Final source implementation: `5a7a8ff`. Full serial driver `reports/i12/gates.sh` records every exit/log/time.
+- Current source implementation: `29b3951`. Full serial driver `reports/i12/gates.sh` records every exit/log/time.
   Full units run real Node JSPI with600000ms CLI budget, no exclusions. Browser runs require WebGPU and both
   backends in Asyncify then JSPI mode, port5260, never developer5173. Oracles enumerate every pipeline game.json,
   300 updates each in both modes. Reduced scale is1044 owners/1800 rounds, production default thresholds.
 - Focused convergence fixed runner root30710: `reports/i12/convergence-fixed.{log,exit}`.
 - Isolated negative controls root25485: `reports/i12/mutation-before.{log,exit}`; private archive under
   `$BGT_TRIAL_SCRATCH/mutation-kit` mutates only copied snapshot variant/key parser input, never source tree.
-- Final gate root38494 waits for convergence exit +source-ready, then doctor/lint incl scale/clang/types/units/
-  browsers/leakcheck/64 oracles/reduced scale. Original driver74579 exited with a shell parse error and ran
-  **no gates**; corrected driver passes bash -n. Logs are ignored and retained locally.
+- The pre-repair gate root38494 completed doctor only; its lint was still queued when paused/canceled, with
+  no writers. Only those recorded owned roots were signaled (38494,82970). No shared queue/lock was deleted.
+- **Current final gate driver root48853**, `reports/i12/gates-final.sh`, waits for **convergence-final root33235**
+  then writes fresh `reports/i12/final/*` logs/exits/timestamps/source commit+tree. Earlier waiting driver33249/
+  33252 canceled before any gates to correct its dead-wait boundary. Original74579 ran no gates (shell parse
+  error); all diagnostics preserved. Final driver passes bash -n, no source edits planned after29b3951.
+- Full matrix remains doctor/lint incl scale/clang/types/units/both browsers/leakcheck/64 oracles/reduced scale.
+  Negative controls actually failed **3/3 as intended**: two missing snapshot active modes, one omitted name
+  parser identity. Logs retain exact assertion failures. Private archive can now be removed.
 - Audit tool: `node reports/i12/audit.mjs`; pending/failed gates must not be called PASS. Preserve original
   failures. Finalize compact evidence, this handoff/status, leakcheck, commit after all results.
 
