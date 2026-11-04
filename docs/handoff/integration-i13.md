@@ -1,40 +1,41 @@
 # Integration I13 — K23 + K25 + K24
 
-**Merged; final-tree validation in progress.** Branch `integration/p1`, base dev.15 `3cbcb25`.
+**Complete: merged-tree gates accepted under the stated review/recovery boundary.** Branch
+`integration/p1`, base dev.15 `3cbcb25`.
 No game inputs, installs, push, assertion/deadline weakening or suspension-default change.
-Asyncify remains the default. Do not treat this checkpoint as completed finish-line acceptance.
+Asyncify remains the default. Finalization after tested implementation is documentation/evidence only.
 
 ## Ordered merges and semantic resolution
 
 1. `c363ec0`: `--no-ff lane/K23` (`617e72c`).
-   Resolve `tools/build/build.mjs` by retaining K22's bounded `asyncify.mjs` entrypoint and K23's
-   supervised finite-file transport and wasm-opt phase. K21 evidence/selection, monolithic/chunk lifts,
-   compilation and K22 whole/partition children all use the shared supervised wrapper.
+   Retain K22's bounded `asyncify.mjs` entrypoint and K23's supervised finite-file transport
+   and wasm-opt phase. K21 evidence/selection, monolithic/chunk lifts, compilation and K22
+   whole/partition children all use the shared supervised wrapper.
 2. `5d55af0`: `--no-ff lane/K25` (`7187af2`).
-   Keep scalar-class validation, native (0,0,0,1) component fill, typed compute-feedback fill, failed
-   logical pipeline lifetime/E_IO and rejected-bind clearing (decision #207).
+   Keep scalar-class validation, native (0,0,0,1) component fill, typed compute-feedback fill,
+   failed logical pipeline lifetime/E_IO and rejected-bind clearing (decision #207).
 3. `2ac82ca`: `--no-ff lane/K24` (`80fa85d`), including K24d hot-path repair.
-   Retain both status histories; renderer auto-merges add buffer capability advertisement without
-   changing K25 pipeline state handling. ABI retains both component/lifetime rules and additive §13.14.
-   Explicit full-u32 buffer negotiation, dynamic guest/VAO/wire tables and unchanged byte budgets
-   (#199/#200) coexist with the exact x64-gl-scale-only expected-error contract (#204).
+   Renderer merges add buffer capability advertisement without changing K25 pipeline state handling.
+   ABI retains component/lifetime rules and additive §13.14. Full-u32 buffer negotiation, dynamic
+   guest/VAO/wire tables and unchanged byte budgets (#199/#200) coexist with the exact
+   x64-gl-scale-only expected-error contract (#204). Both lane status histories are retained.
 
 ## Integration defect and regression
 
 `cb82808` repairs nested group containment: K22's Asyncify Node helper calls K23's wrapper again.
 Previously each partition detached into a new process group, escaping the ancestor deadline/failure.
 An internal inherited group marker now keeps nested supervisors/children in the ancestor group;
-Python validates group membership, every per-helper timer stays bounded, and nested failure is fatal
+Python validates membership, every per-helper timer stays bounded, and nested failure is fatal
 for that build group. Explicit whole-module/partition phases identify the active child.
 Lock readiness deliberately keeps its independent supervised group: an acknowledged guardian must
-survive owner death and drain writers before unlocking. Finite anonymous file input, lock readiness
-bounds, lease clearing and original-error/cleanup-error handling remain intact.
+survive owner death and drain writers before unlocking. Finite anonymous file input, readiness bounds,
+lease clearing and original-error/cleanup-error handling remain intact. Reviewer decision #226 accepted it.
 
 Deterministic negative controls temporarily installed only frozen pre-repair exec/writer sources,
 then restored exact bytes in finally: **2 expected failures /1 pass** (ancestor deadline and ancestor
 output-buffer failure left inner helpers alive; inner deadline was already bounded). Final focused
-transport/lock/partition checks: **18/18 in3files PASS**; independent-group positive control included.
-No mutation remains; test cleanup kills observed before-run helpers. Raw logs and restored hashes:
+transport/lock/partition checks: **18/18 in 3 files PASS**; independent-group positive control included.
+No mutation remains; cleanup kills observed before-run helpers. Logs/restored hashes:
 `reports/i13/focused/`. Initial proof-driver syntax errors ran no tests; initial focused ESLint found
 an unsafe throw in test cleanup, repaired before final source/gates. These diagnostic failures remain.
 
@@ -42,87 +43,85 @@ an unsafe throw in test cleanup, repaired before final source/gates. These diagn
 
 Inherited external **vK23 FAIL → vK23b PASS**, **vK25 PASS**, **vK24 PASS** (K24d included).
 Reviewer bridge **#228** explicitly read `cb82808` and accepted inherited lane reviews + narrow
-repair-diff read + integrator merged-tree gates, as in I12. **No separate independent merged-tree PASS or CI run is claimed.**
-No game replay/playability, general performance or physical-device/mobile certification is implied.
-Porter uncensored GL peak/byte measurements and unchanged-game replay remain porter-owned.
+repair-diff read + integrator merged-tree gates, as in I12.
+**No separate independent merged-tree PASS or CI run is claimed.** No game replay/playability,
+general performance or physical-device/mobile certification is implied. Porter uncensored GL
+peak/byte measurements and unchanged-game replay remain porter-owned.
 
-## Final-source gates (pending)
+## Final-source gates
 
-Source `cb82808a6d6b0bbb31cd4c21e7e49dee41cad456`, tree
-`74792b41a51fea6438f1526e6ce5e95c0699b21b`. Serial background driver:
-`reports/i13/gates.sh`; logs, exits, timestamps, source hashes and reports: `reports/i13/final/`.
-Node24.19.0, build jobs2, real JSPI units/oracles, required desktop WebGPU plus forced WebGL2/auto,
-owned port5262 (developer5173 untouched), full scale coverage, Playwright `--trace off` only.
+Tested source `cb82808a6d6b0bbb31cd4c21e7e49dee41cad456`, tree
+`74792b41a51fea6438f1526e6ce5e95c0699b21b`. All tracked implementation/test/fixture hashes still
+match `reports/i13/final/source-sha256.txt`; later commits touch docs only. Serial background driver:
+`reports/i13/gates.sh`; raw logs, individual exits, timestamps and reports: `reports/i13/final/`.
+Durable audited results/report hashes: [integration-i13-evidence.json](integration-i13-evidence.json).
 
-Completed so far (all exit0): doctor; full Clang/GCC lint (**37/37** examples each) and explicit
-Clang host checks; types; **2,065 units /114 files /0 skips**; **16/16** focused four-mode K21
-convergence checks; K23 concurrent real compile/link stress **128/128**, eight workers ×16 builds
-with locks, **6.921s**,64 cold/64 warm, all digests equal the historical reference. Four-mode
-convergence retains **70,003→0** interpreted instructions, identical traces, zero drops.
+Node 24.19.0, build jobs 2, real JSPI units/oracles, required desktop WebGPU plus forced WebGL2/auto,
+owned port 5262 (developer 5173 untouched), full scale coverage, Playwright `--trace off` only.
 
-### Browser result so far — one unchanged-test timeout recovery queued
+| Gate | Final result |
+|---|---|
+| Doctor / typecheck / leakcheck | exit0 each |
+| Full Clang + real GCC14 lint | exit0 each, **37/37 example checks each** |
+| Explicit Clang host checks | exit0 |
+| Full npm test | **2,065 passed /114 files /0 skips**, exit0 |
+| K21 four-mode convergence | **16/16**, exit0; default, partitioned Asyncify, JSPI-only/preferred |
+| K23 concurrent real compile/link stress | **128/128**, 8 workers ×16 with locks, **6.921s** |
+| Full Asyncify browser + exact timeout recovery | **Combined 300 PASS /51 existing skips**, original exit1 retained |
+| Full JSPI browser | **300 PASS /51 existing skips /0 unexpected /0 flaky**, exit0 |
+| Explicit K24/K25 native feature replay | **11/11**, WebGL2 5 + WebGPU 6, exit0 |
+| Every pipeline oracle | **33 fixtures ×2 modes ×300 =19,800 identical frame pairs**, all66 exit0 |
+| Structured evidence audit | exit0; source, exact skips, native identities, all reports/convergence/stress/regression |
 
-Full Asyncify command **exit1**, **299 passed /51 existing skips /1 timeout /0 flaky**.
-Only failure: `tests/e2e/x64-glsl.spec.ts: x64-glsl: cross-backend images agree @webgpu`,
-unchanged **360000ms** timeout. Original log/exit/JSON remain under
-`reports/i13/final/browser-asyncify*`; do not relabel this full process green. Passing counts:
-WebGL2 **135**, WebGPU **156**, auto **8**; skips24/26/1. The complete expected inventory is
-300 pass identities +51 skips once the missing test passes; verify exact skip identities in audit.
-The task explicitly permits retrying only a timed-out browser test unchanged and reporting both.
+Every oracle requested and compared exactly300 updates, with equal lifted/interpreted state and
+semantic trace hashes, equal cross-variant state/trace hashes, null errors/failureStage/divergence,
+zero lifted interpretation and empty API/GL stubs. Scale uses ONLY the strict #204 contract:
+exactly one deliberate BUFFER_CREATE E_LIMIT, one counted GL buffer OOM and successful recovery,
+exactly ten named recording-only GPU-dependent failures. Every other fixture retains zero command
+errors. Scale metrics in both builds/modes: buffer peak12002/failures1/failed_requests1,
+VAO peak12000/failures0/failed_requests0,12009 draws. Recording evidence is not raster evidence.
 
-K24 scale native draws and full-u32 buffer tests passed on both backends in this run; K25
-component-fill/lifetime cases also passed both. Extracted scale PNGs were actually viewed:
-red half, green/blue quarters, black margins, byte-identical across backends; files
-`reports/i13/final/scale-chromium-{webgl2,webgpu}.png`. This is desktop native evidence only.
+Four-mode convergence retains **70,003→0** interpreted instructions, identical traces across modes,
+zero drops. Stress has64 cold/64 warm builds; all8 digests equal historical reference
+`7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243`.
 
-## Fresh-session checkpoint — reviewer #235 (2026-11-04 18:32 +0700)
+### Browser failure and permitted unchanged recovery
 
-**Leave the running serial jobs alone; do not repeat finished gates.** API interruptions did not
-stop the background driver. All implementation/test inputs still match the source SHA inventory;
-only documentation has changed since the tested implementation. Checkpoint docs commit before this
-update: `38235b8`. Sandbox ps cannot enumerate descendants; roots below were confirmed live by
-`kill -0` at18:32, not invented compiler/npm PIDs.
+The original full Asyncify process is **not green**: **299 passed /51 skips /1 timeout /0 flaky**,
+exit1. Only failure: `tests/e2e/x64-glsl.spec.ts`, `x64-glsl: cross-backend images agree @webgpu`,
+unchanged **360000ms** limit. Original log/exit/JSON remain in `browser-asyncify*`.
+After every other gate finished, the queued recovery ran ONLY that unchanged test, same required
+WebGPU/port/global setup, no guessed delays, assertion changes or deadline changes:
 
-| Root PID | Job | State / evidence |
-|---|---|---|
-| **86726** | `bash reports/i13/gates.sh` | Running **browser-jspi**; driver log `reports/i13/driver.log`; per-step logs/exits in `reports/i13/final/` |
-| **99357** | `bash reports/i13/recover-asyncify.sh` | Waiting for `reports/i13/final/done`, then reruns ONLY the unchanged Asyncify WebGPU GLSL cross-backend test; log `reports/i13/recovery-driver.log` |
+`npx playwright test tests/e2e/x64-glsl.spec.ts --project=chromium-webgpu
+--grep "cross-backend images agree" --trace off`
 
-Exact remaining serial sweep after the currently running full JSPI browser gate:
-1. Explicit feature replay: K24 `gpu-buffer-handles`, `x64-gl-scale`, `x64-gl-capacity`;
-   K25 `gpu-vertex-components`, `gpu-vertex-wgsl`, `gpu-pipeline-lifetime`, both required backend
-   projects, `--trace off`. Native WGSL is intentionally WebGPU-only.
-2. Full leakcheck.
-3. Enumerate all33 pipeline game.json fixtures and run **each at300 frames**, Asyncify then real
-   JSPI (**66 reports /19,800 frame pairs**). Exact #204 x64-gl-scale contract remains enforced by
-   production oracle/assertScaleRecording; every other fixture zero command errors. Reports copied
-   into `reports/i13/final/oracles/{asyncify,jspi}/`.
-4. Sweep writes `current=complete` and `done`. This marks driver completion, **not aggregate PASS**:
-   driver intentionally preserves failures and continues. Then PID99357 runs the unchanged timeout
-   recovery, same port5262, required WebGPU, ordinary global setup, no guessed timing/timeout changes.
+Recovery **1/1 PASS**, exit0, **5.8min test /6.2min including setup**, comparison different0.00625,
+unmatched0. Evidence: `recovery-asyncify*` (12:03:15–12:09:30 UTC, November4); recorded setup-time
+load averages37.81/23.89/25.11. This is the brief's explicitly permitted combined same-source gate,
+**not an uninterrupted green full Asyncify run**. No other test was rerun after the checkpoint.
+JSPI passed on its first full attempt and needed no recovery. Both modes' full test inventories match;
+the exact51 skip identities match I11 and each other. Combined per-mode passes: WebGL2 **135**,
+WebGPU **157**, auto **8**; skips24/26/1. Neither required backend was unavailable.
 
-Next operator actions (no new suites while either runner is active):
-- Read `current`, all individual `*.exit`, browser JSON and both roots' liveness. If stopped, preserve
-  existing evidence and resume only missing/failed gates. Read scripts before executing, never rerun
-  the original sweep from the top. If JSPI also times out, queue only that unchanged failing test
-  **after** the two existing roots finish; no automatic retry is configured.
-- Verify all source inputs: `shasum -a 256 -c reports/i13/final/source-sha256.txt`. Docs-only
-  commits are expected. Audit every oracle for requested/compared300, equal state/semantic trace hashes
-  including cross-variant equality, null errors/stage/divergence, lifted interp0 and no API/GL stubs.
-- `reports/i13/audit.mjs` is a prepared **not-yet-run** compact evidence auditor. It checks full units,
-  exact existing skip identities against I11, native feature identities, all66 reports, four convergence
-  recordings, stress digests and before/after regression logs. It supports one exact GLSL timeout
-  recovery per variant, retaining original failure, and writes
-  `docs/handoff/integration-i13-evidence.json`. Validate its assumptions against actual reports;
-  an auditor correction is not permission to weaken production tests or acceptance.
-- After every writer has exited, delete only owned temporary outputs/caches as necessary, retaining
-  raw logs/JSON/PNG/hashes and permanent lock inodes; no shared gate/cache cleanup during builds.
-  At checkpoint free disk **6.1GiB**, browser HTML/artifact directories are removed by the script
-  after copying JSON (custom PNG attachments remain inline). Trace-off avoids multi-GB trace growth.
-- Finish status/handoff with actual gate results and explicit failure/recovery history; final leakcheck
-  and diff-check; docs-only commit, version-label commit consistent with integration practice if used.
-  Final response under150 words. No new independent merged-tree PASS/CI/game certification claim.
+K24 native full-u32 IDs, capacity and12,000-pair scale, plus K25 component-fill/lifetime fixtures
+pass on both backends in the full runs and explicit replay. Native WGSL is intentionally WebGPU-only.
+Extracted scale PNGs were actually viewed in both sessions: red half, green/blue quarters, black
+margins, byte-identical across backends (`scale-chromium-{webgl2,webgpu}.png`). Desktop only.
 
-No passing gate was repeated after the API interruption. The only test rerun currently queued is
-that exact timed-out Asyncify case under the brief's explicit permission. Temporary fixture/cache
-cleanup remains pending writer exit.
+## Continuation, audit and cleanup
+
+Reviewer #235 requested the fresh-session checkpoint at18:32 +0700. Commits `38235b8`/`5f04dad`
+preserve that historical pending state. Continuation left both jobs alone: PID86726 serial sweep
+completed at12:03:08 UTC; PID99357 exact recovery completed at12:09:30 UTC. Both roots confirmed
+stopped; no suite remains intentionally active. Transient API errors did not cause finished gates
+to repeat. The only browser rerun was the permitted exact timeout recovery above.
+
+`reports/i13/audit.mjs` passed, including all66 reports, equal cross-mode state/trace hashes, scale
+metrics, exact native identities, four convergence recordings, stress digests and before/after logs.
+Source checks pass after cleanup. After writer exit, removed **27 owned temporary fixture/slice
+directories,443,210,094 file bytes**; retained payload caches, permanent lock inodes, raw logs,
+JSON, PNG and hashes (`cleanup.json`). Browser HTML/artifact copies were removed after retaining JSON.
+Two closeout cleanup-script syntax errors performed no deletion; corrected script then completed.
+No shared cache was cleared during a build. Final documentation **leakcheck PASS (784 committable files)** and **diff-check PASS**, both exit0,
+are recorded under `reports/i13/final/closeout-*`. No implementation or gate work remains under this scope.

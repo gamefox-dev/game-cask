@@ -1,23 +1,30 @@
 # v0.3 merged implementation status
 
-## Integration I13 — K23 + K25 + K24 (final-tree gates in progress)
+## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
 K23 supervised finite-file helpers, K25 typed vertex component fill/failed-pipeline lifetime, and
 K24 negotiated full-u32 buffer IDs/dynamic buffer and VAO tables coexist; byte budgets and exact
 x64-gl-scale-only expected-error contract remain unchanged. Integration repair `cb82808` keeps nested
 Binaryen children in the ancestor supervisor group while independent lock guardians retain writer
-draining. Negative controls fail before; final focused18/18 pass. Completed merged-tree gates:
-doctor, Clang/GCC lint37/37 examples each, explicit Clang host checks, types, **2,065 units /114 files**,
-four-mode convergence16/16 and short concurrent stress128/128. Full Asyncify browser is **299 pass /51
-existing skips /1 unchanged360s GLSL cross-backend timeout**; only that test is queued for unchanged
-recovery after the serial sweep. JSPI browser is running; explicit native feature replay, leakcheck and
-all33×2×300 oracle runs remain. Reviewer #235 requested a fresh-session checkpoint; roots/logs/exact
-remaining gates are in the handoff. No finish-line PASS yet.
+draining. Negative controls fail before; final focused18/18 pass. Final merged-tree gates:
+doctor, Clang/GCC lint37/37 examples each, explicit Clang host checks, types, **2,065 units /114 files /0 skips**,
+leakcheck, four-mode convergence16/16 (**70,003→0** interpreted instructions, equal traces, zero drops)
+and short concurrent stress128/128 (64 cold/64 warm, equal digests). **33 pipeline fixtures ×2 modes
+×300 =19,800 identical frame pairs**; all66 exit0, equal state/semantic traces within/across modes,
+null errors/stages/divergence, lifted interp0/stubs0; exact #204 scale-only contract retained.
+Explicit native K24 capacity/full-u32 IDs and K25 component-fill/lifetime replay **11/11**, both backends.
+
+Full JSPI browser: **300 passed /51 existing skips /0 unexpected /0 flaky**, exit0. Asyncify:
+**combined300 passed /51 same skips**, not an uninterrupted green full run: original **299 pass /1
+unchanged360000ms GLSL cross-backend timeout**, exit1 retained; ONLY that test reran unchanged after
+the sweep and **1/1 passed**, exit0 (5.8min test,6.2min with setup). No other completed gate repeated.
+Exact full/skip inventories and all66 reports audited; all implementation hashes unchanged. Both
+background roots exited;27 owned temporary directories removed only afterward. Finalization is docs-only.
 
 Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
 no separate independent merged-tree PASS/CI, game or physical-device claim.
-[I13 handoff](handoff/integration-i13.md).
+[I13 handoff](handoff/integration-i13.md), [audited evidence](handoff/integration-i13-evidence.json).
 
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
