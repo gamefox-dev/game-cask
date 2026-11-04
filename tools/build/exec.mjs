@@ -12,11 +12,18 @@ export function withBuildWriters(lease, fn) {
   try {return fn();} finally {token=previous;}
 }
 export function execFileSync(command, args, options = {}) {
-  const { input, phase = basename(args.find((a) => a.endsWith('.py')) ?? command), ...rest } = options;
+  const { input, phase = basename(args.find((a) => a.endsWith('.py')) ?? command), independentGroup = false, ...rest } = options;
   const timeout = Number(options.timeout ?? process.env.BGT_BUILD_TIMEOUT_MS ?? 30 * 60 * 1000);
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2147481647)
     throw new Error('BGT_BUILD_TIMEOUT_MS/timeout must be a positive integer <= 2147481647');
   const diagnostic = `phase=${phase}, timeout=${timeout}ms, argv=${JSON.stringify([command, ...args])}`;
+  // K22 can invoke this wrapper from inside a supervised Asyncify helper.
+  // Keep nested helpers in the ancestor group so its deadline owns the whole tree.
+  const inheritedGroup = independentGroup ? 0 : Number(process.env._BGT_BUILD_PROCESS_GROUP || 0);
+  const nested = Number.isSafeInteger(inheritedGroup) && inheritedGroup > 0;
+  const env = { ...(rest.env ?? process.env) };
+  if (nested) env._BGT_BUILD_PROCESS_GROUP = String(inheritedGroup);
+  else delete env._BGT_BUILD_PROCESS_GROUP;
   let dir, fd, result, failure;
   const cleanupErrors = [];
   try {
@@ -33,7 +40,8 @@ export function execFileSync(command, args, options = {}) {
     }
     result = nativeExec('python3', ['-I', join(ROOT, 'tools/build/writer.py'), token ?? '-',
       String(timeout), phase, command, ...args], {
-      ...rest, stdio, detached: true, timeout: timeout + 2000, killSignal: 'SIGKILL',
+      ...rest, stdio, detached: !nested, timeout: timeout + 2000, killSignal: 'SIGKILL',
+      env,
     });
   } catch (error) {
     // Annotate first: cleanup failures must not mask the original helper error.
@@ -42,7 +50,11 @@ export function execFileSync(command, args, options = {}) {
     // Also covers supervisor startup failure, maxBuffer and the outer hard deadline.
     // Node kills only the direct child; all descendants in our detached group must die.
     if (error.pid) {
-      try { process.kill(-error.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') cleanupErrors.push(e); }
+      // A nested failure is fatal to the containing build, not a recoverable
+      // partition: the shared group includes this Node caller. Emit its phase
+      // before killing; the outer wrapper retains the resulting native failure.
+      if (nested) console.error(failure.message);
+      try { process.kill(-(nested ? inheritedGroup : error.pid), 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') cleanupErrors.push(e); }
     }
   } finally {
     if (fd !== undefined) { try { closeSync(fd); } catch (e) { cleanupErrors.push(e); } }

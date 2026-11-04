@@ -130,6 +130,48 @@ it('preserves the original helper failure when process-group cleanup throws EPER
   expect(failure?.cleanupErrors).toEqual([cleanupError]);
 });
 
+it('keeps independent lock-lifetime supervisors isolated from an ancestor group', () => {
+  const script = `import {execFileSync} from ${JSON.stringify(transport)};
+const group=execFileSync('python3',['-I','-c','import os;print(os.getpgrp())'],{
+  independentGroup:true,encoding:'utf8',timeout:2000,phase:'independent guardian regression'
+}).trim();
+if(Number(group)===Number(process.env._BGT_BUILD_PROCESS_GROUP))throw new Error('guardian joined owner group');
+console.log('isolated');`;
+  expect(execFileSync(process.execPath, ['--input-type=module', '-e', script], { ...options, timeout:5000 })).toContain('isolated');
+});
+
+// I13: compile.py -> asyncify.mjs -> Binaryen is a nested wrapper tree.
+
+// Before containment, the inner detached group survives the ancestor's failure.
+it.each(['ancestor deadline', 'ancestor output failure', 'nested deadline'])('owns nested helper groups after %s', (mode) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-nested-timeout-')), marker = join(dir, 'pids');
+  const cleanupErrors: unknown[] = [];
+  const child = `import os,subprocess,json,sys,time
+p=subprocess.Popen(['python3','-I','-c','import time;time.sleep(100)'])
+open(${JSON.stringify(marker)},'w').write(json.dumps([os.getpid(),p.pid]))
+${mode === 'ancestor output failure' ? "sys.stderr.write('x'*100000);sys.stderr.flush()" : ''}
+time.sleep(100)`;
+  const source = `import {execFileSync} from ${JSON.stringify(transport)};
+execFileSync('python3',['-I','-c',${JSON.stringify(child)}],{
+  stdio:['ignore','ignore','inherit'], timeout:${mode === 'nested deadline' ? 1500 : 10000}, phase:'Asyncify partition regression'
+});`;
+  try {
+    expect(() => execFileSync(process.execPath, ['--input-type=module', '-e', source], {
+      ...options, timeout: mode === 'nested deadline' ? 5000 : 2500,
+      maxBuffer: mode === 'ancestor output failure' ? 1024 : 1048576, phase: 'outer wasm-opt regression',
+    })).toThrow(/build helper failed: phase=outer wasm-opt regression/);
+    expect(existsSync(marker)).toBe(true);
+    assertGone(JSON.parse(readFileSync(marker, 'utf8')));
+  } finally {
+    // Also clean the expected-before failure so mutation proof leaves no sleepers.
+    if (existsSync(marker)) for (const pid of JSON.parse(readFileSync(marker, 'utf8'))) {
+      try { process.kill(pid, 'SIGKILL'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') cleanupErrors.push(error); }
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+  expect(cleanupErrors).toEqual([]);
+}, 15000);
+
 it('cleans staged input on errors and refuses unbounded or invalid deadlines', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-input-test-')), previous = process.env.TMPDIR;
   process.env.TMPDIR = dir;

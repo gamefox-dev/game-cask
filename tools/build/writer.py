@@ -10,9 +10,15 @@ import signal
 import subprocess
 import sys
 
-# Node starts a detached group. Also allow direct invocation outside Node.
-if os.getpgrp() != os.getpid():
+# Only the outer wrapper detaches. Nested Binaryen helpers must remain owned
+# by that group, including on an ancestor deadline or output-buffer failure.
+inherited_group = os.environ.get('_BGT_BUILD_PROCESS_GROUP')
+if inherited_group:
+    if not inherited_group.isdigit() or int(inherited_group) != os.getpgrp():
+        sys.exit('invalid inherited build supervisor group')
+elif os.getpgrp() != os.getpid():
     os.setsid()
+os.environ['_BGT_BUILD_PROCESS_GROUP'] = str(os.getpgrp())
 token, timeout, phase = sys.argv[1:4]
 args = sys.argv[4:]
 

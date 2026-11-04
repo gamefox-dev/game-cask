@@ -82,6 +82,13 @@ it outlives the supervisor and retains owner-exit watching and writer draining. 
 in an outer writer lease: a long-lived nested cache guardian must not keep that outer lease alive.
 Benchmark memory snapshots also use supervision, with a five-second deadline and a named metrics phase.
 
+I13 keeps nested Asyncify/Binaryen helpers in the ancestor supervisor group, with bounded per-helper
+deadlines and explicit whole-module/partition phases. An ancestor failure cannot leave a detached partition
+running. Nested helper failure is fatal to that build group. Lock acquisition explicitly retains an
+independent supervised group: its acknowledged guardian must survive owner death to drain writers before
+unlocking; its own readiness deadline remains bounded. The internal group marker is validated by Python
+and is not a user configuration knob.
+
 Compile/lift configurations are still the exact same JSON bytes, but **stdin is an anonymous regular file**,
 not a Node synchronous socket whose peer must signal EOF. A private 0700 staging directory/0600 file is opened
 read-only, then unlinked before spawning; the descriptor is closed in `finally`. No config paths enter
