@@ -26,7 +26,7 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
     l64_guard_t g = {.safe = 1}; uint32_t changed = 0; int64_t sp = 0;
     for (uint32_t k = begin; k < end; k++) {
         x86_insn_t *in = &ins[k];
-        if (!l64_specialized(in) || in->op == XO_LEAVE) { g.safe = 0; break; }
+        if (!l64_specialized(in) || in->op == XO_LEAVE || l64_atomic(in)) { g.safe = 0; break; }
         for (int j = 0; j < in->nops; j++) {
             x86_opnd_t p = in->o[j]; if (p.kind != XK_MEM || in->op == XO_LEA) continue;
             if (in->op == XO_POP && p.base == ESP) g.safe = 0;
@@ -41,6 +41,7 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
                     (in->simd_prefix == 0xf2 || in->simd_prefix == 0x66 ? 8 : 4) : 16;
                 if (op == 0x2a) bytes = (in->rex & 8) ? 8 : 4;
                 if (op == 0x2c || op == 0x2d) bytes = in->simd_prefix == 0xf2 ? 8 : 4;
+                if (l64_simd_bits(in)) bytes = p.size;
             }
             if (!l64_span_add(&g, p, bytes, sp)) g.safe = 0;
         }
@@ -64,7 +65,7 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
             } else if (op != XO_PUSH && op != XO_CMP && op != XO_TEST && op != XO_JMP_IND &&
                        op != XO_CALL_IND) changed |= 1u << r;
         }
-        if (op == XO_XCHG && in->o[1].kind == XK_REG)
+        if ((op == XO_XCHG || (op == XO_SIMD && in->simd_op == 0x7e && in->simd_prefix != 0xf3)) && in->o[1].kind == XK_REG)
             changed |= 1u << (in->o[1].reg >= 16 ? in->o[1].reg - 16 : in->o[1].reg);
         if (op == XO_CDQ) changed |= 1u << EDX;
         if (op == XO_CWDE) changed |= 1u << EAX;

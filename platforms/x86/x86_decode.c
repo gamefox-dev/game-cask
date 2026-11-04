@@ -149,6 +149,20 @@ int x86_decode_mode(const uint8_t *bytes, uint32_t avail, uint32_t addr, int mod
                  (op2 == 0x10 || op2 == 0x11 || op2 == 0x2c || op2 == 0x2d ||
                   op2 == 0xc2 || (op2 >= 0x51 && op2 <= 0x5f)))))
                 b->size = prefix == 0xf2 || prefix == 0x66 ? 8 : 4;
+            /* Exact memory widths for the half/quad moves; register operands remain XMM. */
+            if (b->kind == XK_MEM &&
+                (op2 == 0x12 || op2 == 0x13 || op2 == 0x16 || op2 == 0x17 ||
+                 (op2 == 0x7e && prefix == 0xf3) || (op2 == 0xd6 && prefix == 0x66)))
+                b->size = (op2 == 0x12 && prefix == 0xf3) || (op2 == 0x16 && prefix == 0xf3) ? 16 : 8;
+            /* MMX uses a different register file; do not misexecute it as SSE2. */
+            if ((op2 == 0x6e || op2 == 0xd6 || (op2 >= 0x60 && op2 <= 0x6d)) && prefix != 0x66) unsup = 1;
+            if ((op2 == 0x6f || op2 == 0x7f) && prefix != 0x66 && prefix != 0xf3) unsup = 1;
+            if (op2 == 0x7e && prefix != 0x66 && prefix != 0xf3) unsup = 1;
+            if (op2 == 0x70 && prefix != 0x66 && prefix != 0xf2 && prefix != 0xf3) unsup = 1;
+            if ((op2 == 0x14 || op2 == 0x15 || op2 == 0xc6) && prefix != 0 && prefix != 0x66) unsup = 1;
+            if ((op2 == 0x13 || op2 == 0x17) && (b->kind != XK_MEM || (prefix != 0 && prefix != 0x66))) unsup = 1;
+            if ((op2 == 0x12 || op2 == 0x16) && prefix == 0x66 && b->kind != XK_MEM) unsup = 1;
+            if (op2 == 0x16 && prefix == 0xf2) unsup = 1;
             if (op2 == 0x70 || op2 == 0xc2 || op2 == 0xc4 || op2 == 0xc5 || op2 == 0xc6 || (op2 >= 0x71 && op2 <= 0x73)) in->simd_imm = (uint8_t)u8(&r);
             DONE(2);
         }
@@ -290,6 +304,14 @@ done:
         x86_opnd_t *p=&in->o[i];
         if(p->kind==XK_MEM && p->base==X86_RIPREG) {p->disp=(int32_t)((uint32_t)p->disp+addr+in->len);p->base=X86_NOREG;p->pad|=2;}
         if(p->kind==XK_REG && p->size==1 && !r.rex && p->reg>=4 && p->reg<8)p->reg+=12;
+    }
+    if (in->op == XO_CMPXCHG_PAIR && a->kind != XK_MEM) unsup = 1;
+    if (in->lock) {
+        int allowed = in->op <= XO_XOR || in->op == XO_INC || in->op == XO_DEC ||
+            in->op == XO_NEG || in->op == XO_NOT || in->op == XO_XCHG ||
+            in->op == XO_XADD || in->op == XO_CMPXCHG || in->op == XO_CMPXCHG_PAIR ||
+            in->op == XO_BTS || in->op == XO_BTR || in->op == XO_BTC;
+        if (!allowed || a->kind != XK_MEM) unsup = 1;
     }
     /* LANE-K5a: 16-bit addressing is supported for implicit string operands.
      * Explicit 16-bit ModRM addressing remains outside the decoder's subset. */

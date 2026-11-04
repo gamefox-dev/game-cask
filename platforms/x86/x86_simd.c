@@ -49,6 +49,8 @@ void x86_simd(const x86_insn_t *in) {
     if(op==0xc4){x86_opnd_t g=*b;if(g.kind==XK_XMM)g.kind=XK_REG;g.size=2;r.u16[in->simd_imm&7]=(uint16_t)x64_read(&g);X.xmm[a->reg]=r;return;}
     if(op==0x11 || op==0x29 || op==0x7f || op==0x2b || op==0xe7){int count=(op==0x11&&scalar)?bytes:16;if(b->kind==XK_XMM&&scalar){bv=X.xmm[b->reg];__builtin_memcpy(&bv,&av,(uint32_t)count);storev(b,bv,16);}else storev(b,av,count);return;}
     if(op==0x13 || op==0x17){bv=(x86_vec_t){0};bv.u64[0]=av.u64[op==0x17];storev(b,bv,8);return;}
+    if(op==0x12 && prefix==0xf2){bv=loadv(b,8);r.u64[0]=r.u64[1]=bv.u64[0];X.xmm[a->reg]=r;return;}
+    if((op==0x12 || op==0x16) && prefix==0xf3){bv=loadv(b,16);int base=op==0x16;for(int i=0;i<4;i++)r.u32[i]=bv.u32[(i&2)+base];X.xmm[a->reg]=r;return;}
     if(op==0x12 || op==0x16){bv=loadv(b,8);r.u64[op==0x16]=b->kind==XK_XMM?(op==0x12?bv.u64[1]:bv.u64[0]):bv.u64[0];X.xmm[a->reg]=r;return;}
     if(op==0x71 || op==0x72 || op==0x73){int width=op==0x71?2:op==0x72?4:8;unsigned group=a->reg&7,count=in->simd_imm;bv=loadv(b,16);r=bv;
         if(op==0x73&&(group==3||group==7)){r=(x86_vec_t){0};if(count<16)for(int i=0;i<16;i++){int src=group==3?i+(int)count:i-(int)count;if(src>=0&&src<16)r.u8[i]=bv.u8[src];}}
