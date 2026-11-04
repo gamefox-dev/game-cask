@@ -1,5 +1,28 @@
 # v0.3 merged implementation status
 
+## K22 final — bounded game-scale suspension (lane Tier 1 green)
+
+Implementation **41a3a53** resolves the pinned wasm32 Binaryen CLI's **4 GiB parse-heap limit** with bounded
+post-link Asyncify body partitions, conservative cross-partition suspension summaries and checked assembly.
+A CC0 **417,126,367-byte /10,438-owner** module that fails whole-module parsing/O2/Asyncify builds in
+**50 partitions /1445.22 s** (max RSS1.50 GB, peak physical footprint1.87 GB); mathematical/raw/Asyncify/real-JSPI
+checksums match all300 frames and10,500 deep parked yields per variant. Failures have actionable diagnostics.
+JSPI-only builds bypass wasm-opt; dual packages retain Asyncify fallback. Reviewer #180 keeps **Asyncify default**,
+with persistent per-game **game.json suspension: "jspi-preferred"** opt-in and active-variant metrics.
+
+Final lane gates on unchanged implementation: doctor; full lint including **36 example checks**, clang and real
+GCC; typecheck; **2,004 units /102 files /no skips**; full required-WebGPU browser **291 passed /51 unchanged
+skips /0 failures /0 flaky per variant**; leakcheck; **32 pipeline fixtures ×2 variants ×300 =19,200 identical
+oracle frame pairs**, no lifted interpretation/stubs/errors, equal cross-variant hashes. One compile.py stdin-hang
+failure is preserved; unchanged complete x64-scale JSPI oracle retry passes. Transport repair belongs to K23.
+
+External **vK22 verification-incomplete FAIL →vK22b PASS/PASS** closes mutation-control and actual both-backend
+selection/fallback/metrics/cache/integrity gates, with no confirmed production defect. No later production/test
+source edits. Mixed fixture load/speed evidence does not justify a universal JSPI switch; bounded x64-scale
+Asyncify/JSPI is68.8/53.5 MB and43.91/30.29 ms per300-frame batch, shared-machine/no-rasterization observations.
+Finalization is documentation/evidence only; no CI, integration, game/playability or physical-device certification.
+Exact commands, evidence and retained limitations: [K22 handoff](handoff/K22.md).
+
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
 **c59d4ab** merges **f1c36f3** (lane/K18) over **ef8ab6b** with `--no-ff`. Only this ledger

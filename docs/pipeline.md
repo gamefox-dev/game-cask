@@ -341,7 +341,7 @@ cache under `node_modules/.cache/bgt/objects`. `BGT_BUILD_JOBS` defaults to 2, c
 actual compiler-derived transitive dependencies, not every platform header. Source/dependency bytes and compiler
 identity/flags invalidate exactly affected objects; clone-relative paths allow opt-in shared payloads through
 `BGT_SHARED_CACHE`. See [build-cache.md](build-cache.md) for concurrency, LRU bounds, privacy, focused-test declarations
-and the whole-module Asyncify boundary. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
+and the linked-module Asyncify boundary (bounded body partitions for large modules, not relocatable object transforms). Linking still runs each build; Asyncify output is content-cached by linked wasm/tool/wrapper/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
 available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane K11 adds

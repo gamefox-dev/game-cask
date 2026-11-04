@@ -86,3 +86,11 @@ live-local results, and raw/JSPI/Asyncify checksum equality. Driver frames are n
 Regressions cover duplicate/absent names, exact native exclusions, real C++ pipeline behavior, rejected
 assembly mismatches/options/oversized functions, and both Chromium backends with JSPI-only success and
 missing API/fallback errors. Full Tier 1 and measurements: [K22 handoff](handoff/K22.md).
+
+Final CC0 scale result: **417,126,367 B input →423,672,537 B Asyncify**,50 partitions in1445.22 s,
+1.50 GB max RSS /1.87 GB peak physical footprint; all300 mathematical/raw/Asyncify/real-JSPI frames match.
+The final bounded x64-scale pipeline artifact is68,776,752 B versus53,507,356 B JSPI; median300-frame
+batches43.910/30.290 ms and verified loopback loads156.755/121.150 ms. Other fixtures have mixed load/speed
+results; these shared-machine/no-rasterization measurements do not establish a universal JSPI benefit.
+[All timing samples and hashes](handoff/K22-variant-measurements.json),
+[full gate/oracle/browser audit](handoff/K22-gate-evidence.json).

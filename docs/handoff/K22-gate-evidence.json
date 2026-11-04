@@ -1,0 +1,2348 @@
+{
+  "schema": "game-cask/k22-gate-evidence/1",
+  "implementation": "41a3a53",
+  "scope": "Author-run final implementation gates, not independent review. Later evidence/docs commits are source-neutral. Original CC0 fixtures only; required WebGPU, own port 5253; no CI-light exclusions.",
+  "auditAt": "2026-11-04T01:07:59.171665+00:00",
+  "pipelineCensus": [
+    "win32-conformance",
+    "win32-hello",
+    "x64-audio",
+    "x64-audio-init",
+    "x64-basics",
+    "x64-contracts",
+    "x64-cpp",
+    "x64-cpprt",
+    "x64-crt",
+    "x64-gl",
+    "x64-gl-blit",
+    "x64-gl-capacity",
+    "x64-gl-current",
+    "x64-gl-default-vao",
+    "x64-gl-fbo",
+    "x64-gl-feedback",
+    "x64-gl-integer",
+    "x64-gl-ranges",
+    "x64-glsl",
+    "x64-gui",
+    "x64-handles",
+    "x64-heap",
+    "x64-input",
+    "x64-memory",
+    "x64-scale",
+    "x64-smoke",
+    "x64-sysdlls",
+    "x64-threads",
+    "x64-tls",
+    "x86-handles",
+    "x86-heap",
+    "x86-threads"
+  ],
+  "gateCount": 73,
+  "gates": {
+    "doctor": {
+      "exit": 0,
+      "logSha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+    },
+    "lint": {
+      "exit": 0,
+      "logSha256": "53e0560165d17462a9d741c0a53067b30bc5eadbc8ecaa07c15f2e24cdbe3f44"
+    },
+    "clang": {
+      "exit": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "gcc": {
+      "exit": 0,
+      "logSha256": "29c628846222204d95a1324deca82cf665d93586f7e554fef9a2f3becdc0020c"
+    },
+    "typecheck": {
+      "exit": 0,
+      "logSha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    "unit": {
+      "exit": 0,
+      "logSha256": "66f4d0cc93f5dbfe51ef87b6ad03e0ac7fa2421987c8fa6c5fffeaeb1077e557"
+    },
+    "browser-asyncify": {
+      "exit": 0,
+      "logSha256": "2235c75de1e3cd4a69dfd22fee6af815ac11e1c3e21c3dfd66b0c3b1539a8aaa"
+    },
+    "browser-jspi": {
+      "exit": 0,
+      "logSha256": "2b28cda597badd5ce2ed44b40b84d11ac91fe2e148cb61531c1e05cc8dedbb63"
+    },
+    "leakcheck": {
+      "exit": 0,
+      "logSha256": "fe977d28827756161f91561d8df2f8e7096a0147775d0579ed11e5240422b6ba"
+    },
+    "oracle-win32-conformance-asyncify": {
+      "exit": 0,
+      "logSha256": "717eee1eab259ed200d90f0357ca0d14a9d006986e03ba84942702d3358032b6"
+    },
+    "oracle-win32-hello-asyncify": {
+      "exit": 0,
+      "logSha256": "a40fffd873420312684c56146995a6bdbde08ca972f6560261527b96f8ca40f8"
+    },
+    "oracle-x64-audio-asyncify": {
+      "exit": 0,
+      "logSha256": "c883e5b53611c7e5b926afc603c1f11a3e643ca5efb16813f457bca237e97e3a"
+    },
+    "oracle-x64-audio-init-asyncify": {
+      "exit": 0,
+      "logSha256": "541debfbd2318e83733eccc2c4aec207d044ea5644a5c16bf8e264d3d0436e92"
+    },
+    "oracle-x64-basics-asyncify": {
+      "exit": 0,
+      "logSha256": "544f82b5cc8d0129da235515688fd9f740d83527f541d49da6199bfc462d9592"
+    },
+    "oracle-x64-contracts-asyncify": {
+      "exit": 0,
+      "logSha256": "5190980d9f4a4f998c9243a79757d1842305048befb789f376f064db84149e96"
+    },
+    "oracle-x64-cpp-asyncify": {
+      "exit": 0,
+      "logSha256": "02dd9e27f4e6866db3643ce182bacf39d7236c55347ab5d5e9895e61ad9d9cb7"
+    },
+    "oracle-x64-cpprt-asyncify": {
+      "exit": 0,
+      "logSha256": "bf8c5c3e6434175025fa9931bd5048348874736e7bac4b92a7cb68a39325ee54"
+    },
+    "oracle-x64-crt-asyncify": {
+      "exit": 0,
+      "logSha256": "c4a32d558e0c31e30cd8ef9e29c1189ad0a8eabfcf1a6407eec0041f5d8b2f09"
+    },
+    "oracle-x64-gl-asyncify": {
+      "exit": 0,
+      "logSha256": "bb20e348c6171179f4b3fea6f4f4fefcd4a992225753cd01349689cf5806f29a"
+    },
+    "oracle-x64-gl-blit-asyncify": {
+      "exit": 0,
+      "logSha256": "2e28efcae32ec730e2ec9f5117d5cca37054cb1c698d89193d55f34d5393eb48"
+    },
+    "oracle-x64-gl-capacity-asyncify": {
+      "exit": 0,
+      "logSha256": "146dc79b84d0332fd57900fb33b7cef76521902e85cba5127ddd1c312db9cc22"
+    },
+    "oracle-x64-gl-current-asyncify": {
+      "exit": 0,
+      "logSha256": "185802fe9942e25b94ba2d723341f2d8c92b59163260fe27c9032e6280cce5b7"
+    },
+    "oracle-x64-gl-default-vao-asyncify": {
+      "exit": 0,
+      "logSha256": "71f654b9b5b423fadc01151a42efed8c2e66394e92899fde96ca50fd034feab3"
+    },
+    "oracle-x64-gl-fbo-asyncify": {
+      "exit": 0,
+      "logSha256": "aabb796d90636115a81c7932128e5ad6163deaa64f7558d475b4ada4cbb3e036"
+    },
+    "oracle-x64-gl-feedback-asyncify": {
+      "exit": 0,
+      "logSha256": "53ad87b097fdcfc28506a510dbf32f9f2cbde4f4924a0db45b76c6ad3fc3e6fd"
+    },
+    "oracle-x64-gl-integer-asyncify": {
+      "exit": 0,
+      "logSha256": "143b81d8640a28236d8049aa920044f59cdfbcd0bba9dcc4e7c3c297a9279afe"
+    },
+    "oracle-x64-gl-ranges-asyncify": {
+      "exit": 0,
+      "logSha256": "52c3bb8ce5e44b9806f977f9b0978b1076a0061aa25f87bd1b7ec1256449f801"
+    },
+    "oracle-x64-glsl-asyncify": {
+      "exit": 0,
+      "logSha256": "23a56e9f3d620e642eb3c8fd6ec1cf5db26fbab84fc260a68b0e1081ea0bf954"
+    },
+    "oracle-x64-gui-asyncify": {
+      "exit": 0,
+      "logSha256": "b78edac5955ca4c6a593a7fc186815dcdf02c844962807a6db64d7ae297ddeb6"
+    },
+    "oracle-x64-handles-asyncify": {
+      "exit": 0,
+      "logSha256": "1f57f294a08d1c5d229662da01b18ce8225d9b64551e98ece99944af16e1330f"
+    },
+    "oracle-x64-heap-asyncify": {
+      "exit": 0,
+      "logSha256": "d2220dd6aedae9bb3372af165d8f80249fe7b336ffdd348c851cc7e05e3cc20e"
+    },
+    "oracle-x64-input-asyncify": {
+      "exit": 0,
+      "logSha256": "55701abb09c1a2fcbf6c621dea5857bd463d0405efa03108fcb4d14782efa64f"
+    },
+    "oracle-x64-memory-asyncify": {
+      "exit": 0,
+      "logSha256": "b6c1237be70f97d19997e62804533b2d1f3055474c54066f9c3ad4c699f29d1d"
+    },
+    "oracle-x64-scale-asyncify": {
+      "exit": 0,
+      "logSha256": "de0c433d44d295f1d103476b384492b5b5e7970334e396813a0dc8552c011eeb"
+    },
+    "oracle-x64-smoke-asyncify": {
+      "exit": 0,
+      "logSha256": "6ec3745f8256ea11e15f9fbc212f49e17c5aa0fec046325b998963f3834bcec2"
+    },
+    "oracle-x64-sysdlls-asyncify": {
+      "exit": 0,
+      "logSha256": "4d045328713a2ea1293db0151b803d3d281b508335ed6ae29367f8a66c42c8f2"
+    },
+    "oracle-x64-threads-asyncify": {
+      "exit": 0,
+      "logSha256": "778779043103c26bf382f6df4d3fd91395a209a5afec362d24beace596feffa2"
+    },
+    "oracle-x64-tls-asyncify": {
+      "exit": 0,
+      "logSha256": "03d1d02e863f9c0f7666726a058b21651ecb53873dcef329832e075f959b6b4d"
+    },
+    "oracle-x86-handles-asyncify": {
+      "exit": 0,
+      "logSha256": "1d6af40f2d155a1296ef815cca0d268c60e9e19b2126837997518511d79e973d"
+    },
+    "oracle-x86-heap-asyncify": {
+      "exit": 0,
+      "logSha256": "83da57bdf48aa21a0bfa162a833425b3b36b024571f2fff487859d848729e9a7"
+    },
+    "oracle-x86-threads-asyncify": {
+      "exit": 0,
+      "logSha256": "309192886061b057991cd5b4e0adb0a8c8837112c2002f80baa9ff5d4a1d0405"
+    },
+    "oracle-win32-conformance-jspi": {
+      "exit": 0,
+      "logSha256": "a44eb2c9e2a0408d49758a84f3b42957dd4a15dbf11fde15d007681e56ec6d75"
+    },
+    "oracle-win32-hello-jspi": {
+      "exit": 0,
+      "logSha256": "01d59ebd5134d69c320dcad8498057d56aef16de102b9db852f574d175714fa4"
+    },
+    "oracle-x64-audio-jspi": {
+      "exit": 0,
+      "logSha256": "b95de4fa1d99bb0e697c997c17343c5b2e80f6aa42e472988590ff38a44dc699"
+    },
+    "oracle-x64-audio-init-jspi": {
+      "exit": 0,
+      "logSha256": "d985d2ae34c70ab9ccc9b53c899f33baa154173623f67fbbe0bf2c6ca6b79b99"
+    },
+    "oracle-x64-basics-jspi": {
+      "exit": 0,
+      "logSha256": "0b3cc69b1153d1e3b0ecff2cf74b2c86ee2f0251c4dad743f7ae7777ba96b8b2"
+    },
+    "oracle-x64-contracts-jspi": {
+      "exit": 0,
+      "logSha256": "783aa0375e94edaf20a361675f401385d76d19fd69564aab1cf2b5757b786396"
+    },
+    "oracle-x64-cpp-jspi": {
+      "exit": 0,
+      "logSha256": "104fbad4c7c9c52a70f47cdc26f13cb8a5455bb7acd38067c03ea05ee7561b6b"
+    },
+    "oracle-x64-cpprt-jspi": {
+      "exit": 0,
+      "logSha256": "da1bfa8338fed9d73473cb1abb855199a40b29a9a92b11917dce3934a7315bde"
+    },
+    "oracle-x64-crt-jspi": {
+      "exit": 0,
+      "logSha256": "7dc06ea62ca8bec9ffc6cc144b1f83c62693f8babe306b07b08e37bddae3fe60"
+    },
+    "oracle-x64-gl-jspi": {
+      "exit": 0,
+      "logSha256": "e9e7cd75331d4c4983a20f23073c69a3e7316f4886bba07978d73bb8a56ea2fe"
+    },
+    "oracle-x64-gl-blit-jspi": {
+      "exit": 0,
+      "logSha256": "87686e5a6591335fb9b20aabc883751c1de8a82245c21505a10e0748eb55bc1d"
+    },
+    "oracle-x64-gl-capacity-jspi": {
+      "exit": 0,
+      "logSha256": "cbd94324e4ef4cbd71bd32e761eecf497eb54e151e1cde5b273a96f06058a986"
+    },
+    "oracle-x64-gl-current-jspi": {
+      "exit": 0,
+      "logSha256": "222d9b8e7d9cd4762a0f3c234e59f3952835ff0b5d32f6670518e66aedb33f43"
+    },
+    "oracle-x64-gl-default-vao-jspi": {
+      "exit": 0,
+      "logSha256": "95a9d9d9fcfb90f86071deb0f2b2021c048c5410fd568b920cacd5738439d32a"
+    },
+    "oracle-x64-gl-fbo-jspi": {
+      "exit": 0,
+      "logSha256": "41745e6d22f1e7519d95b6e10e3d7367a9e7395f4ba3072c3973acf115ad9ac3"
+    },
+    "oracle-x64-gl-feedback-jspi": {
+      "exit": 0,
+      "logSha256": "cd458f4e13cc32d17edc2febdcbe2da2ac5901c7c4942fd3ee637b02f86df7a9"
+    },
+    "oracle-x64-gl-integer-jspi": {
+      "exit": 0,
+      "logSha256": "ceadc2943acaa2abe6adf3ee6fea05e9477c45a2914ae6d3547c049b044813d9"
+    },
+    "oracle-x64-gl-ranges-jspi": {
+      "exit": 0,
+      "logSha256": "3b5093af673ae9e34c52d2ff05a059c13187f6ff5897fbeea19f09a0e8460e85"
+    },
+    "oracle-x64-glsl-jspi": {
+      "exit": 0,
+      "logSha256": "3b65fba88e8a41a608b25aa4d4a45f40dc3334cb7f7a11f813fc03c16aa2f8ce"
+    },
+    "oracle-x64-gui-jspi": {
+      "exit": 0,
+      "logSha256": "dc22c3c66c42d8a9e855e3d6b1988da63ca84a41dee73c5ae4badb74ae9e6849"
+    },
+    "oracle-x64-handles-jspi": {
+      "exit": 0,
+      "logSha256": "ece4652dd8249b47f158905654b8b32045cc780d915021c66104f6e517186488"
+    },
+    "oracle-x64-heap-jspi": {
+      "exit": 0,
+      "logSha256": "2c7b7029cd86f214e63acc5f2948d446f20ec8a5914d3f5b2032569743d53498"
+    },
+    "oracle-x64-input-jspi": {
+      "exit": 0,
+      "logSha256": "aea951d855647990a45129248950a744dc4ab844aaa7316742e1ec4a7919c91c"
+    },
+    "oracle-x64-memory-jspi": {
+      "exit": 0,
+      "logSha256": "38e9b906e616e6b6c8f1a322ed751c8da7f0da53824615540e6dcc9c386ee863"
+    },
+    "oracle-x64-scale-jspi": {
+      "exit": 0,
+      "logSha256": "10b9d133d0bdda8d4206fb7ef0c795e3d3cbe379d611bcddbb9c8091ba0ba95c"
+    },
+    "oracle-x64-smoke-jspi": {
+      "exit": 0,
+      "logSha256": "4bdfdf9aa66b30f1f77ca23e16018c90fae79d7f2ca93a3ae93ca57d09c694c7"
+    },
+    "oracle-x64-sysdlls-jspi": {
+      "exit": 0,
+      "logSha256": "5e667e4485a54a344a8387563c23a8396e52433365bf7b91a1f5c08472f5287e"
+    },
+    "oracle-x64-threads-jspi": {
+      "exit": 0,
+      "logSha256": "05e2f15537c32a226448a3c1a4f21a2c1e782d11bec78e7645d94d7a8f666218"
+    },
+    "oracle-x64-tls-jspi": {
+      "exit": 0,
+      "logSha256": "b167c0bf3d9f48ec998bc0d28248986fff0e692d4697a75c2f3bef6ce6ce21da"
+    },
+    "oracle-x86-handles-jspi": {
+      "exit": 0,
+      "logSha256": "f2ab64ddb52b61adbc3e65a4da1ea4976c5d96e916f7a6e2b6a5fcd3ae3b60fe"
+    },
+    "oracle-x86-heap-jspi": {
+      "exit": 0,
+      "logSha256": "4f15ae67f1a0a26f31e3f2e835931eb9fa6269dac114cd0d77b86e7c0b6d0c42"
+    },
+    "oracle-x86-threads-jspi": {
+      "exit": 0,
+      "logSha256": "55906b521745ccfb8c5627fe8f13075329ffd62df842bd92e6356df8bd4cc683"
+    }
+  },
+  "browser": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-03T22:45:34.200Z",
+        "duration": 842679.818,
+        "expected": 291,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 131,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 152,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "rawSha256": "00951df1b0eec960cf3feac836fcc85676d2f873939fe9895984b8fd11e7d24c"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-03T23:01:00.691Z",
+        "duration": 813124.187,
+        "expected": 291,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 131,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 152,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "rawSha256": "eac009c1be0a5d6e1ba1c669cbdc28d31aae0734a03dad2d241798bd06bc88b9"
+    },
+    "skipInventoriesIdentical": true,
+    "skipInventoryMatchesI11": true
+  },
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9",
+            "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+            "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+          },
+          "elapsedMs": {
+            "lifted": 31.690749999999753,
+            "interpreted": 50.50679200000013
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "cc46cf7d9a324962110c31b700f4573419751d03867b4f06f1c1f379b4e09945"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "cac197f9",
+            "interpreted": "cac197f9",
+            "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+            "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+          },
+          "elapsedMs": {
+            "lifted": 33.75279200000023,
+            "interpreted": 44.48725000000013
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "1adc8a3f7a034caf451177c9fbd7eb1e3dcd3d27e15e49517955f4b2eb4379ad"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "win32-hello",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "elapsedMs": {
+            "lifted": 35.67487500000061,
+            "interpreted": 25.73570800000016
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "ee63e390f7ac40383369edd67516c8e3044d7bc8ffabcc2e5dbb4da093c9292b"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "3aee6ab3",
+            "interpreted": "3aee6ab3",
+            "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+            "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+          },
+          "elapsedMs": {
+            "lifted": 13.428874999999607,
+            "interpreted": 15.68816600000082
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "95dc901b35b2246b3ce62fe4642ec833e92e52007320011ff5d757a9d9e66b48"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-audio",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "74d37eff",
+            "interpreted": "74d37eff",
+            "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+            "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+          },
+          "elapsedMs": {
+            "lifted": 17.99554099999932,
+            "interpreted": 37.76074999999946
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "7d5fc7c1f04cd345c7b6095b7607342d5026c8480d219de0a81d1cae4901871e"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "74d37eff",
+            "interpreted": "74d37eff",
+            "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+            "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+          },
+          "elapsedMs": {
+            "lifted": 19.585832999999184,
+            "interpreted": 32.58137499999975
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "0ad33e815bb56bedc582f55fb6256c7f96d97faa905a27d094ff0da01b5b5d8b"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-audio-init",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "d02de26a",
+            "interpreted": "d02de26a",
+            "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+            "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+          },
+          "elapsedMs": {
+            "lifted": 9.861832999999933,
+            "interpreted": 25.120458000000326
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "b79e35301145dba8fd538f70237e3b859938f670a468aa25233d0f93c9773e05"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "d02de26a",
+            "interpreted": "d02de26a",
+            "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+            "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+          },
+          "elapsedMs": {
+            "lifted": 9.463916999999128,
+            "interpreted": 19.18658400000004
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "c0887b1d0d516e3d9ef0fff4baf7f35b5d60f6977a72d71ba97951743858c847"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-basics",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538",
+            "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+            "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+          },
+          "elapsedMs": {
+            "lifted": 12.813041999999768,
+            "interpreted": 8.871541000000434
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "ee8e51c07f3b9e25d5a077f2b195f2e9a6979777f6783efab0f69eb866715b73"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "fa722538",
+            "interpreted": "fa722538",
+            "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+            "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+          },
+          "elapsedMs": {
+            "lifted": 8.233084000000417,
+            "interpreted": 9.869708000000173
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "6ecef4ad562055cf126db6d0a0bdbd28ea28f06d99a5dd417c735d20a50eaacf"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-contracts",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "0514c1ba",
+            "interpreted": "0514c1ba",
+            "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+            "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+          },
+          "elapsedMs": {
+            "lifted": 22.395666999999776,
+            "interpreted": 17.662457999999788
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "a3ea4154a6851f084cce46307b7b847cabebe8b2c56b971e0f8f516bcb8dadd6"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "0514c1ba",
+            "interpreted": "0514c1ba",
+            "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+            "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+          },
+          "elapsedMs": {
+            "lifted": 18.989666999999827,
+            "interpreted": 18.52387499999986
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "a27e249889e22e5774ee571a1f81f2f1e9585fb172567b7dc9eca006316f9f8c"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-cpp",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "eadc23f1",
+            "interpreted": "eadc23f1",
+            "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+            "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+          },
+          "elapsedMs": {
+            "lifted": 15.100458999999319,
+            "interpreted": 16.665208999999777
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "70061567a78a54517e6cafddd5bcfa83938d6596646c01dd3a64f9bbe106dcf7"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "eadc23f1",
+            "interpreted": "eadc23f1",
+            "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+            "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+          },
+          "elapsedMs": {
+            "lifted": 8.533290999999736,
+            "interpreted": 13.99933300000066
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "818477128902a7e0dd70c7e0815fce54da54f4910cd5fd24fdfc9fd697c4aad1"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-cpprt",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "8e59b196",
+            "interpreted": "8e59b196",
+            "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+            "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+          },
+          "elapsedMs": {
+            "lifted": 8.478958000000603,
+            "interpreted": 23.984083000000282
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "f67db65f7ddf3299e78901c1735d74ced0d8232123ac7e99848cdb437955ed2b"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "8e59b196",
+            "interpreted": "8e59b196",
+            "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+            "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+          },
+          "elapsedMs": {
+            "lifted": 12.77483299999949,
+            "interpreted": 16.467082999999548
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "f4dc0d387d00530870a260f9a84fa2d44f31b73fef2388a9a700a7da511091d6"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-crt",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "elapsedMs": {
+            "lifted": 10.2959579999997,
+            "interpreted": 20.78454199999942
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "49f2e7405e20eb1f2feea6cb3040a2435f8aa26c1d16b917eb2bbdae4769c518"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bae2920f",
+            "interpreted": "bae2920f",
+            "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+            "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+          },
+          "elapsedMs": {
+            "lifted": 10.862874999999804,
+            "interpreted": 16.21295900000041
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "845266fde9497fb99befc437e958c1ec98b5ba9ece08a327c75d8ec49b8d6a73"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "47b028e6:01c4aa76",
+            "interpreted": "47b028e6:01c4aa76",
+            "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+            "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+          },
+          "elapsedMs": {
+            "lifted": 112.74079200000051,
+            "interpreted": 115.10566699999981
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "af6b173b33b04692360492b37dfe22bef61a6fdbc0ee8359363031e8009d1e8b"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "47b028e6:01c4aa76",
+            "interpreted": "47b028e6:01c4aa76",
+            "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+            "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+          },
+          "elapsedMs": {
+            "lifted": 105.72724999999991,
+            "interpreted": 111.57916699999987
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "f3a2b3478cbc1fc415b830331a9458185b04c0c8ed5bc07994308965e36e611e"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-blit",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "6bc914b7:b46fb07b",
+            "interpreted": "6bc914b7:b46fb07b",
+            "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+            "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+          },
+          "elapsedMs": {
+            "lifted": 21.704665999999634,
+            "interpreted": 19.567416000001685
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "df5a9270742654de841b5e1f0fbf0547fe9c9b6b1890deec4bf44d2107b07a4e"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "6bc914b7:b46fb07b",
+            "interpreted": "6bc914b7:b46fb07b",
+            "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+            "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+          },
+          "elapsedMs": {
+            "lifted": 16.23987500000021,
+            "interpreted": 20.454917000000023
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "bf6fe90972a95cf513839ab8e4e2380e288ad09c2df348fc80478ff33d5d25f9"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-capacity",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "962f71ec:811c9dc5",
+            "interpreted": "962f71ec:811c9dc5",
+            "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+            "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+          },
+          "elapsedMs": {
+            "lifted": 400.3978339999994,
+            "interpreted": 522.0241659999992
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "f3545b646d3a41b80ebd4bebc114984d9d11db36580483bae6c619d6efed6070"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "962f71ec:811c9dc5",
+            "interpreted": "962f71ec:811c9dc5",
+            "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+            "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+          },
+          "elapsedMs": {
+            "lifted": 405.01037499999984,
+            "interpreted": 522.7559999999994
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "4693bf36a4ca23e4ae187fe1815f7577f5e739cec5bb1463d4af9785f7b6a1d6"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-current",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "1130f0ae:5a8d64ad",
+            "interpreted": "1130f0ae:5a8d64ad",
+            "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+            "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+          },
+          "elapsedMs": {
+            "lifted": 181.44787499999984,
+            "interpreted": 162.49241599999914
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "7bf4cda8debc809b123b0fdd7dbeb6e54c8f560762908ca2d68499bbeec2bf84"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "1130f0ae:5a8d64ad",
+            "interpreted": "1130f0ae:5a8d64ad",
+            "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+            "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+          },
+          "elapsedMs": {
+            "lifted": 166.29170799999974,
+            "interpreted": 161.40237499999967
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "584978e632441158b921569dc0ede40b958c85536c5ea46394d55c42849abd91"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "558085bd:61d8bdd0",
+            "interpreted": "558085bd:61d8bdd0",
+            "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+            "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+          },
+          "elapsedMs": {
+            "lifted": 74.04845800000112,
+            "interpreted": 89.16304200000013
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "54aa7555881bef106109de2f7d3a1ef68c9d3977247c862874210a6cf0c15a6f"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "558085bd:61d8bdd0",
+            "interpreted": "558085bd:61d8bdd0",
+            "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+            "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+          },
+          "elapsedMs": {
+            "lifted": 63.41337500000009,
+            "interpreted": 72.64124999999967
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "eb3e72513493a16074677ef1457ebfcd184d9fa8b5e8c049de871e2a821aa3d7"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-fbo",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "884b43af:ec039dc1",
+            "interpreted": "884b43af:ec039dc1",
+            "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+            "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+          },
+          "elapsedMs": {
+            "lifted": 232.4236660000006,
+            "interpreted": 199.89845799999966
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "2f5a9312ead2fc3d0aceee662b6e0cbb28cc7feee892bf249a194ce3b4d414c2"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "884b43af:ec039dc1",
+            "interpreted": "884b43af:ec039dc1",
+            "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+            "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+          },
+          "elapsedMs": {
+            "lifted": 215.34308299999975,
+            "interpreted": 202.6063750000003
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "3a6dc54a1d6e2f3c51ac8e7df01637a2b21c585d0bf7a2a18081d899dde7751c"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-feedback",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "b8fb8e26:811c9dc5",
+            "interpreted": "b8fb8e26:811c9dc5",
+            "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+            "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+          },
+          "elapsedMs": {
+            "lifted": 23.852833000000828,
+            "interpreted": 25.722249999998894
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "df4e238c5ddda1ec1e29331dff949197107af2d6de59662274246e32a46926f4"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "b8fb8e26:811c9dc5",
+            "interpreted": "b8fb8e26:811c9dc5",
+            "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+            "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+          },
+          "elapsedMs": {
+            "lifted": 21.280915999999706,
+            "interpreted": 28.810333999999784
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "0c8b9955e369a175685714241a0868f7495a6c12fdc9e0b7e29d9a722ba7f652"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-integer",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "5ed6b84d:4de7479f",
+            "interpreted": "5ed6b84d:4de7479f",
+            "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+            "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+          },
+          "elapsedMs": {
+            "lifted": 62.574249999999665,
+            "interpreted": 76.59158399999978
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "d8790544f8f8646ba6708bf5832d3f35dbd320c20cc802d3b2f752854c849374"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "5ed6b84d:4de7479f",
+            "interpreted": "5ed6b84d:4de7479f",
+            "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+            "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+          },
+          "elapsedMs": {
+            "lifted": 57.81495899999936,
+            "interpreted": 55.932708999999704
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "cce12b832aa168f637f59d58ecc79fc391ad1390e5252bffcdad09a7adce23bb"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gl-ranges",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "acab916b:811c9dc5",
+            "interpreted": "acab916b:811c9dc5",
+            "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+            "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+          },
+          "elapsedMs": {
+            "lifted": 183.66637499999888,
+            "interpreted": 164.91983299999993
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "5ff824df6bec4765aa20fe50065978025e4a491d411bee6abbfff0ddb12f2416"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "acab916b:811c9dc5",
+            "interpreted": "acab916b:811c9dc5",
+            "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+            "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+          },
+          "elapsedMs": {
+            "lifted": 178.39520900000025,
+            "interpreted": 160.6277909999999
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "0a19310293e63cb7d4f704e58404aee994bb42961208e682b3d587e5fc8de8db"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-glsl",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "7531959c:62477e5d",
+            "interpreted": "7531959c:62477e5d",
+            "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+            "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+          },
+          "elapsedMs": {
+            "lifted": 53.95349999999962,
+            "interpreted": 69.66437499999938
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "5e326d06c7d375eaf669f40070a7b3f4eaa944e9e91519547f72c2d7fe398775"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "7531959c:62477e5d",
+            "interpreted": "7531959c:62477e5d",
+            "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+            "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+          },
+          "elapsedMs": {
+            "lifted": 48.359375,
+            "interpreted": 61.04491700000017
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "56a9271f976aa74eaee8a45f1c6aa550f71bf593edd38755e50be0453f8bed0c"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-gui",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "cae2906b",
+            "interpreted": "cae2906b",
+            "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+            "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+          },
+          "elapsedMs": {
+            "lifted": 10.622707999999875,
+            "interpreted": 12.311665999999605
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "a9d337f7e3c6f5c4eaf890abdd6406da13f1032a0ab9b004127918b2e4817c42"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "cae2906b",
+            "interpreted": "cae2906b",
+            "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+            "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+          },
+          "elapsedMs": {
+            "lifted": 9.360582999999679,
+            "interpreted": 11.697500000000218
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "06bb2e069a0c77ce8fff48359cf370d0f48a5648def830a8237ce7a3f73fe618"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-handles",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "9c945881",
+            "interpreted": "9c945881",
+            "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+            "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+          },
+          "elapsedMs": {
+            "lifted": 24.639374999999745,
+            "interpreted": 33.11387500000001
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "3f97b7b79b875b595a30e2a8fb3ed58b64d6f4270a148a00aef6bff6c553ab1e"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "9c945881",
+            "interpreted": "9c945881",
+            "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+            "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+          },
+          "elapsedMs": {
+            "lifted": 21.74370799999997,
+            "interpreted": 25.451250000000073
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "3ef258ab0e52a05a6d83805394adcab9f151ee2648fa53a5801d61510173d76e"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-heap",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "dfa6e55f",
+            "interpreted": "dfa6e55f",
+            "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+            "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+          },
+          "elapsedMs": {
+            "lifted": 496.9715420000002,
+            "interpreted": 655.1409169999997
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "1144b9a00c5a1be5465a1af4257442808c32778933c614ab27385108255405da"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "dfa6e55f",
+            "interpreted": "dfa6e55f",
+            "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+            "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+          },
+          "elapsedMs": {
+            "lifted": 363.54033399999935,
+            "interpreted": 540.6068330000007
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "b78d44186a353035e6a318dd3901d3ba6a55dc807ff1f361fa53836f3a1caa29"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-input",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bd47b0f2",
+            "interpreted": "bd47b0f2",
+            "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+            "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+          },
+          "elapsedMs": {
+            "lifted": 296.97158299999955,
+            "interpreted": 368.5953749999999
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "b99993edc530ac5cb4ef8ecc4e7e9b3c543ff1043d05e5110508fb22922e8de0"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "bd47b0f2",
+            "interpreted": "bd47b0f2",
+            "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+            "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+          },
+          "elapsedMs": {
+            "lifted": 272.4948749999994,
+            "interpreted": 337.89770899999985
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "c3178239679531b6754f0bc5637cb22ee1090e2bae9d36daeb4ba0a5eb081418"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-memory",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "b4565d5d",
+            "interpreted": "b4565d5d",
+            "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+            "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+          },
+          "elapsedMs": {
+            "lifted": 168.9576249999991,
+            "interpreted": 2644.721625
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "39009a5c47d9d7bc58b0fcef0856dcce7b706ca05fb3a63d517a17cabfe812f1"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "b4565d5d",
+            "interpreted": "b4565d5d",
+            "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+            "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+          },
+          "elapsedMs": {
+            "lifted": 171.0487920000005,
+            "interpreted": 2283.1476669999993
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "74e3f0fe8668610e7f43dc79c169c260e272e20949a970b2efab99685fd7612f"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-scale",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "f674cbe2",
+            "interpreted": "f674cbe2",
+            "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+            "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+          },
+          "elapsedMs": {
+            "lifted": 52.58374999999069,
+            "interpreted": 108.48837500000081
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "739dfd7e277c5687617b077cc0d6af6a74aafd4a97eb5f05283e8e5eeae1208f"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "f674cbe2",
+            "interpreted": "f674cbe2",
+            "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+            "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+          },
+          "elapsedMs": {
+            "lifted": 57.42616699999962,
+            "interpreted": 145.6487500000003
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "59198d3b28d956f4f68b10b29fa7e15135c7e2f40951b1b12b6bf36cda84f843"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-smoke",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "31054bb2:01c4aa76",
+            "interpreted": "31054bb2:01c4aa76",
+            "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+            "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+          },
+          "elapsedMs": {
+            "lifted": 202.12966700000015,
+            "interpreted": 292.09799999999996
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "3f4cd8432f50ebc7c1a972dc7f087711305380ee5c49ba054d7a7226bf6d96b8"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "31054bb2:01c4aa76",
+            "interpreted": "31054bb2:01c4aa76",
+            "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+            "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+          },
+          "elapsedMs": {
+            "lifted": 185.8297500000008,
+            "interpreted": 246.19983299999967
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "50baa32ec3d62c543d012a2c8d33fdbd6a06d858453585f6f0eb331c598332cd"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-sysdlls",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "9fdbaf40",
+            "interpreted": "9fdbaf40",
+            "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+            "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+          },
+          "elapsedMs": {
+            "lifted": 17.85041700000056,
+            "interpreted": 25.801916000000347
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "585b0ca5e89d238870836c71577bd6799144934ded8f6ac3a79b55ee8f3a4f24"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "9fdbaf40",
+            "interpreted": "9fdbaf40",
+            "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+            "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+          },
+          "elapsedMs": {
+            "lifted": 16.663790999999947,
+            "interpreted": 21.65229199999976
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "4863f12dd4a41144171b57235f5da338780a9b787123c0a3c62d2eb109640fe7"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-threads",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "57670827",
+            "interpreted": "57670827",
+            "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+            "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+          },
+          "elapsedMs": {
+            "lifted": 14.535958000000392,
+            "interpreted": 71.6314169999996
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "10c538cc509c7350551c10e5d02f9e7ffa8a248472de64d6a39ef665b3a636e8"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "57670827",
+            "interpreted": "57670827",
+            "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+            "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+          },
+          "elapsedMs": {
+            "lifted": 17.158665999999357,
+            "interpreted": 49.306791999999405
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "17f53dddf4515e0957fbc71f94e8c1170eac6b7015043be29b60ca9054de8b78"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x64-tls",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ff6d2761",
+            "interpreted": "ff6d2761",
+            "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+            "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+          },
+          "elapsedMs": {
+            "lifted": 8.106708000000253,
+            "interpreted": 11.90058399999998
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "eb8d0faba88528537709ae47a362153c1c6ea9c894ef63aac8e04a9a094f4606"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ff6d2761",
+            "interpreted": "ff6d2761",
+            "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+            "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+          },
+          "elapsedMs": {
+            "lifted": 8.980416999999761,
+            "interpreted": 13.317416999999296
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "112a85ff339be4228e6010e4627ecedcb0a44790f955c1e40b3fe93f9bda6eb8"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x86-handles",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ab4cc133",
+            "interpreted": "ab4cc133",
+            "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+            "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+          },
+          "elapsedMs": {
+            "lifted": 31.39099999999962,
+            "interpreted": 43.10670800000025
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "67d5535682007c6971d784f7f4002f51cd598f15e3109cc7457167d0d900f0b8"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ab4cc133",
+            "interpreted": "ab4cc133",
+            "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+            "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+          },
+          "elapsedMs": {
+            "lifted": 22.592540999999983,
+            "interpreted": 34.18950000000041
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "24bbe80e1a5769d68b5363492e5a7ebe29298780ffe4963ae8e6b74ff96bd3e1"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x86-heap",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ae4a7fb3",
+            "interpreted": "ae4a7fb3",
+            "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+            "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+          },
+          "elapsedMs": {
+            "lifted": 140.98233399999936,
+            "interpreted": 620.1265410000005
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "92852bb4e6a5e76bb306b2fa0dd226cd44b0d65028c0ba250dffd1cfb610060e"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "ae4a7fb3",
+            "interpreted": "ae4a7fb3",
+            "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+            "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+          },
+          "elapsedMs": {
+            "lifted": 123.49495799999931,
+            "interpreted": 592.2999580000005
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "3fba73b0cbff797f666b5cc3a9bf0932a1fb04768de493d9986b6a174a43b5bf"
+        }
+      },
+      "crossVariantIdentical": true
+    },
+    {
+      "id": "x86-threads",
+      "variants": {
+        "asyncify": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef",
+            "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+            "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+          },
+          "elapsedMs": {
+            "lifted": 12.146165999999539,
+            "interpreted": 16.82049999999981
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "ba91b34bb198474ac828a06f87fde462870b758ccaa8d143d4ea3a9ecabcc5d9"
+        },
+        "jspi": {
+          "frames": 300,
+          "identical": true,
+          "hashes": {
+            "lifted": "55742fef",
+            "interpreted": "55742fef",
+            "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+            "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+          },
+          "elapsedMs": {
+            "lifted": 12.055083000000195,
+            "interpreted": 15.868332999999438
+          },
+          "interpInsns": 0,
+          "stubs": [],
+          "glStubs": [],
+          "exit": 0,
+          "rawSha256": "09481a11d72eda03db8029237c3f82df602b11240e95157a16f55e69d577a06b"
+        }
+      },
+      "crossVariantIdentical": true
+    }
+  ],
+  "units": {
+    "files": 102,
+    "passed": 2004,
+    "skipped": 0
+  },
+  "oracleFramePairs": 19200,
+  "retry": {
+    "fixture": "x64-scale",
+    "variant": "jspi",
+    "reason": "compile.py stdin readall hang before compiler/Binaryen child; known K23 ownership, no K22 source workaround",
+    "firstAttemptExit": 1,
+    "firstAttemptLogSha256": "183e1a24d21c979d2d083da26206c351ae3298e69aff57525b1253a3d3ce52e1",
+    "firstAttemptReportSha256": "8575bf8d4dbf1c399c687344018f66b7b4e8a32a33fb532aa9853263e23fe737",
+    "transportEvidenceSha256": "eed718aff139a70ab350eaf28e5602d6b2377e1af015d4a4df734e033a89b850",
+    "compileSampleSha256": "79c418f6ac71490e2340d135cc312dd0764602c1cea73f9b84d4633609ec2f91",
+    "buildSampleSha256": "555836f818d399433d7da48297c2ce8c19d567e2ff4556aea0c6c8b231ee8856",
+    "unchangedRetryExit": 0,
+    "evidenceDirectory": "$BGT_TRIAL_SCRATCH/hang/",
+    "note": "Initial failure retained; final gate uses the unchanged full-build 300-frame oracle retry, not a manually published artifact."
+  },
+  "independentReview": {
+    "vK22": "Verification-incomplete FAIL; no confirmed production defect; gaps closed by vK22b PASS",
+    "vK22b": "PASS/PASS at a4f832d: partition negative control plus real both-backend preferred selection/fallback/metrics/cache/integrity",
+    "sourceCommitsAfter24d06ad": [],
+    "reports": {
+      "vK22": "0c5327d61e555e5d5970c531c6eaf9b22215638afa15116345ac01a4d533da23",
+      "vK22b": "50e7aa3371792b5e2abe075fe4ef0e150391d11d6b5e59ebc4b1d3a1934cebd8"
+    }
+  },
+  "documentationFinalization": {
+    "sourceChanges": false,
+    "leakcheckExit": 0,
+    "committableFiles": 737,
+    "logSha256": "4011ca0b9169d9a485793a4e71f5d4ad4807c3e34ba41807ffa4b9e19e38a9d1"
+  }
+}

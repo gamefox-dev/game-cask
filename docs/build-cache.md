@@ -42,7 +42,7 @@ export BGT_BUILD_JOBS=2              # default 2; maximum 8
 npm test -- tests/unit/commands.test.ts
 ```
 
-Only immutable object and whole-module Asyncify payloads are shared, under `bgt-v2/objects` and `bgt-v2/asyncify`.
+Only immutable object and complete linked-module Asyncify payloads are shared, under `bgt-v2/objects` and `bgt-v2/asyncify`.
 Omit `BGT_SHARED_CACHE` for clone-local caches under `node_modules/.cache/bgt`. The canonical real path is used for
 leases even when clones spell the shared directory through different symlinks. Analysis, lifted C, Windows fixture
 products, dependency manifests, packages and reports remain local: this is **not** deduplication of entire clones.
@@ -61,13 +61,20 @@ Zig's own caches, local intermediates and packages are **not** included in this 
 
 ## Asyncify boundary
 
-The postprocess key includes linked wasm bytes, wasm-opt implementation, enabled features and exact pass/import
-options. Asyncify runs on the **linked module**. Binaryen's normal reachability analysis already scopes instrumentation
-to paths that may reach `bgt.yield`; indirect calls are conservative. Lifted functions, Win32 callbacks and scheduler
-continuations use indirect tables, so declaring indirect calls harmless or maintaining an ad hoc only/remove list is
-not sound. A profile change that changes the linked wasm can require another whole-module pass. There is no supported
-relocatable per-object Asyncify artifact here. Identical linked bytes reuse the entire result, including across clones.
-Measurements and remaining whole-module cost are in [K7i handoff](handoff/K7i.md).
+The postprocess key includes linked wasm bytes, wasm-opt and wrapper/partition/parser implementations, enabled
+features and exact pass/import/name options. Asyncify consumes the **linked module**, not relocatable compiler
+objects. Small modules use whole-module O2; large modules use bounded body partitions with conservative cross-partition
+suspension summaries, fixed local passes and checked final assembly. The cache publishes the complete assembled
+module, never an analysis placeholder or partial partition. See [suspension policy](suspension.md) for thresholds,
+resource limits and clear failure diagnostics.
+
+Binaryen's reachability analysis scopes instrumentation to paths that may reach `bgt.yield`; indirect calls remain
+conservative. Lifted functions, Win32 callbacks and scheduler continuations use indirect tables, so declaring indirect
+calls harmless or maintaining an ad hoc only/remove list is not sound. Exact generated non-suspending native-step
+exclusions are supported, not arbitrary call-graph guesses. A profile change that changes linked bytes requires another
+postprocess job; identical linked bytes reuse the entire result across clones. There is no relocatable per-object
+Asyncify artifact. Historical whole-module measurements are in [K7i handoff](handoff/K7i.md); the wasm32 Binaryen
+heap-limit reproduction and bounded scale result are in [K22 handoff](handoff/K22.md). JSPI-only builds bypass Asyncify.
 
 ## Lazy unit-test builds
 
