@@ -1307,3 +1307,9 @@ gpu-buffer-handles.spec.ts checks36,000 actual native per-buffer words across th
 backends; gl-scale-memory.test.ts checks24,000 live buffer/VAO tables, churn and host-OOM atomic recovery;
 x64-gl-scale uses12,000 actual pairs for native draws and late/retained/mapped/churn pixel checks with
 real byte-budget exhaustion/recovery. Recording-only tests are not rasterization or native compiler evidence.
+Historical CC0 comparison against dev.14 preserves262,596 semantic commands over ten old GL workloads
+×300frames, ignoring only transport addresses. The existing capacity fixture intentionally crosses old
+pressure and now requires successful buffer growth instead of the removed count-OOM. The scale-only
+differential oracle requires exactly one deliberate BUFFER_CREATE E_LIMIT plus the exact counted GL OOM,
+recovery and recording failure census; every other fixture retains zero command errors, and native
+recovery pixels are mandatory on both backends. Missing/duplicate/unrelated errors fail contract tests.

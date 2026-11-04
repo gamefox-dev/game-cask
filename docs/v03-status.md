@@ -1,14 +1,23 @@
 # v0.3 merged implementation status
 
-## K24 WIP checkpoint — Q67 buffer/VAO scale (not Tier 1 certified)
+## K24 — Q67 buffer/VAO scale (full Tier 1 sweep running)
 
-Reviewer decision #200 approves additive **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host opt-in,
-unchanged byte budgets and old unnegotiated limits. Dynamic profile buffer/VAO tables and wire ownership,
-both renderer advertisements and validator negotiation are implemented; original CC0 12,000-pair native
-draw/churn and 24,000-object host tests are in progress. Demand-first probe: defaults1,015 stores /1,022
-VAOs, elevated test capacity12,000 each. Game peak remains unknown; porter measures after merge.
-No final Tier1, wire-parity, independent review or game result claimed. Running jobs, known test failures,
-implementation details and exact continuation: [K24 checkpoint](handoff/K24.md).
+Reviewer decision #200 approves additive v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host
+opt-in, unchanged byte budgets, frozen v0.2/unnegotiated validation and unchanged other namespaces.
+ABI §13.14 documents the nonzero-u32 buffer IDs and negotiation/reset contract. Dynamic profile buffer/VAO
+tables and wire ownership use bounded host bytes, not a replacement object-count ceiling; VAOs have no
+BGT handle and ordinary uniforms can use the extended buffer pool. Exhaustion remains counted GL OOM.
+
+Fresh CC0 proof: **24,000** live buffers/stores and VAOs; **12,000** actual buffer/VAO pairs drawing,
+churning, mapping, retaining deleted generations, feedback/UBO ranges and byte-OOM recovery on **both**
+WebGL2/WebGPU; all36,000 native per-buffer words over three generations verified. Identical fixture on
+dev.14 fails with black panels on both backends. Ten historical GL workloads ×300frames preserve all
+262,596 semantic wire commands exactly (only transport addresses ignored); deliberate capacity-fixture
+changes are above old pressure. Scale-only oracle contract requires exactly one deliberate BUFFER_CREATE
+E_LIMIT and its counted OOM/recovery; every other fixture retains zero errors. Contract tests reject
+missing/duplicate/other errors. Focused36/36 and browser6/6 pass; full serial Tier1 is not yet certified.
+Game upper bound remains unknown; porter measures/replays after merge. Reviewer-owned independent review
+remains pending; no game/physical-device/performance claim. Details: [K24 handoff](handoff/K24.md).
 
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
