@@ -70,6 +70,7 @@ updates can contain only a handful of SwapBuffers calls. A 16 ms update does not
 
 Standard `diagnostics().metrics.execution_summary`, probe.json and probe console summaries report:
 
+- `suspension`: the active `asyncify` or `jspi` artifact, not merely the requested/preferred package variant.
 - `updates`, `elapsed_ms`, `updates_per_second`: host wall time since the first update began.
 - `interpreter.instructions_per_update`, `estimated_ms_per_update`, `estimated_share` (fraction of cumulative
   host update wall time), `samples`, `coverage_dropped`, `analyzed_code_interpreted`, and `top_owners`
@@ -102,6 +103,9 @@ new share by summing/subtracting those overlapping categories.
 then enters its interior continuation. `tests/unit/coverage.test.ts` verifies the first selective build
 interprets 70,003 instructions, normal recorded evidence → rebuild lifts it with zero interpretation,
 each update trace matches, and the strict supplied-evidence package matches the interpreter reference.
+The integration matrix repeats the loop under default/partitioned Asyncify, JSPI-preferred and JSPI-only.
+Run `BGT_TEST_JSPI=1 npx vitest run tests/unit/coverage.test.ts --maxWorkers=1 --testTimeout=600000`
+for real Node JSPI; ordinary Node additionally checks unsupported-JSPI rejection/fallback.
 `execution-metrics.test.ts` checks exact persistent counts with profiling off/on, reset independence,
 visible overflow, nested timing exclusion, 19 presentations independent of 600 updates, and ring wrap.
 

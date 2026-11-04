@@ -62,7 +62,11 @@ Zig's own caches, local intermediates and packages are **not** included in this 
 ## Asyncify boundary
 
 The postprocess key includes linked wasm bytes, wasm-opt and wrapper/partition/parser implementations, enabled
-features and exact pass/import/name options. Asyncify consumes the **linked module**, not relocatable compiler
+features and exact pass/import/name options, including the function-name parser used by partition assembly.
+Partition thresholds/local passes are implementation bytes in that identity. Coverage evidence is rediscovered
+and validated on every pipeline invocation, not cached by game.json: changed owner selections invalidate lift
+keys and linked bytes; metadata-only evidence changes update provenance without discarding identical code.
+Asyncify consumes the **linked module**, not relocatable compiler
 objects. Small modules use whole-module O2; large modules use bounded body partitions with conservative cross-partition
 suspension summaries, fixed local passes and checked final assembly. The cache publishes the complete assembled
 module, never an analysis placeholder or partial partition. See [suspension policy](suspension.md) for thresholds,

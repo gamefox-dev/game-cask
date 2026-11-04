@@ -1,26 +1,33 @@
 # v0.3 merged implementation status
 
-## K21 lane — coverage convergence and guest presentations (verification in progress)
+## Integration I12 — K21 + K22 (verification in progress)
 
-On `lane/K21`, `64b84e3` + `7a50d51` + `5b0c192` implement default coverage selection with automatic
-successful-probe/port-test evidence merge, exact per-input identities, deterministic owner/interior/static-closure
-provenance, and explicit all-analysis selection. Strict slices remain supplied-evidence-only and reject all.
-Persistent interpreter entries/counts survive census reset and profiling-off; exclusive sampled fallback timing
-and real guest-present count/rate/avg/p95 appear next to updates/s in standard metrics and probe summaries.
-**Updates are not guest frames.** Explicit legacy game-ID adoption preserves unchanged module identity and records
-source/manifest hashes; it never edits executed code, ranges or counters.
+Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
+identity/adoption/strict-slice policy coexist with bounded Asyncify, JSPI-only and JSPI-preferred packages.
+Asyncify remains default. Integration repairs identify the active variant on execution summaries/probe output
+and coverage snapshot metrics, and include the partition name parser in post-link cache identity.
+Regressions cover all four convergence variants, snapshot serialization and every postprocess implementation input.
 
-Local focused **17/17 tests /4 files PASS**, including original CC0 late-code convergence **70,003→0 interpreted
-instructions**, equal per-update traces, strict/reference agreement, identity migration and stale-inbox isolation.
-An isolated automatic-merge-disabled mutation fails the rebuilt zero-interpretation assertion as expected.
-Doctor, lint (35 default check-builds plus real GCC/clang), ESLint/typecheck PASS. Adapter-only `cac2e3f` fixes
-owner-bitmap initialization in the new direct recorder fixture and the benchmark's double-interp cache path.
-External **vK21 FAIL at `5b0c192`** confirms core convergence/determinism but found fixture owner OOB, premature
-evidence publication and deletion of the adoption manifest. Repairs **cac2e3f /7dcae79** are committed; bounded
-follow-up and publication/build-preservation regression results remain pending. Original CC0 scale comparison passes: coverage/all wasm **1.11/2.10MB** (256 functions), **1.30/45.16MB**
-(12,000), shared-machine build **11.1/19.3s**, **17.3/326.2s**, equal300-update hashes per pair; no runtime speedup
-claim. **Full units/browser, full leakcheck and all pipeline 300-update oracles remain pending; no final Tier1 acceptance yet.**
-Contracts: [coverage convergence](coverage-convergence.md). Evidence/history/next steps: [K21 handoff](handoff/K21.md).
+**Merged-tree finish-line gates are pending; no Tier 1 or independent merged-tree PASS yet.**
+Inherited external lane reviews: **vK21b PASS /vK22b PASS**. Reviewer read the narrow I12 repair diff;
+that is not a fresh independent merged-tree validation. Live results/remaining work: [I12 handoff](handoff/integration-i12.md).
+
+## K21 final — coverage convergence and guest presentations (lane Tier 1 green)
+
+Default coverage selection automatically merges successful probe/passing-port-test evidence with exact per-input
+module/game identity, deterministic owner/interior/static-closure provenance and explicit all-analysis selection.
+Strict slices remain supplied-evidence-only and reject all. Adopt/re-stamp migration requires unchanged modules,
+preserves executed evidence and records source/manifest hashes. Rejected evidence preserves the previous manifest.
+Persistent interpreter entries/counts survive census reset/profiling-off; exclusive sampled fallback timing and
+real guest presentation count/rate/avg/p95 accompany updates/s. **Updates are not guest frames.**
+
+Final lane evidence: **2,000 units /102 files**, browser **287 passed /51 existing skips**, doctor/lint/clang/GCC/
+types/leakcheck pass, **32 pipeline oracles ×300 updates** identical with zero lifted interpretation/stubs.
+External **vK21 FAIL →vK21b PASS** repairs fixture initialization, final-outcome-only evidence publication and
+preserved adoption manifests, with sensitive regressions. Original CC0 loop converges **70,003→0 interpreted
+instructions** with identical traces. Selection scale measurements are build/size costs, not game-speed claims.
+Contracts: [coverage convergence](coverage-convergence.md); evidence/limits: [K21 handoff](handoff/K21.md).
+
 ## K22 final — bounded game-scale suspension (lane Tier 1 green)
 
 Implementation **41a3a53** resolves the pinned wasm32 Binaryen CLI's **4 GiB parse-heap limit** with bounded
@@ -526,4 +533,5 @@ One `gpu-scenes` fixture supplies common GLSL/ES scenes to both backends; native
 within that fixture, not a duplicate executable. [Tolerance and launch details](../examples/gpu-scenes/README.md).
 `x64-smoke` normally links GL 3.3 + worker/file + ten-second WASAPI thread + XInput; 600 GL frames/6,000 draws, exact
 
-[Showing lines 1-530 of 559 (50.0KB limit). Use offset=531 to continue.]
+
+[Showing lines 1-528 of 529 (50.0KB limit). Use offset=529 to continue.]
