@@ -333,6 +333,10 @@ describe.each(['size', 'fast'])('native residual forms %s', preset => {
           h.ex.set_xmm(0, pair(words, 0), pair(words, 2));
           expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
           expect(h.ex.fault_address()).toBe(0x2000 + offset); expect(lanes(h, 0)).toEqual(words);
+          const forms = ['SHUFPS', 'SHUFPD', 'PSHUFD', 'PSHUFLW', 'PSHUFHW', 'UNPCKLPS', 'UNPCKHPS', 'UNPCKLPD', 'UNPCKHPD', 'PUNPCKLBW', 'PUNPCKLWD', 'PUNPCKLDQ', 'PUNPCKHBW', 'PUNPCKHWD', 'PUNPCKHDQ', 'PUNPCKLQDQ', 'PUNPCKHQDQ'];
+          const message = '#GP unaligned ' + forms[index] + ' m128 instruction 0x' + h.pcs[index].toString(16).padStart(8, '0');
+          let hash = 2166136261; for (const c of Buffer.from(message)) hash = Math.imul(hash ^ c, 16777619) >>> 0;
+          expect(h.ex.fault_hash() >>> 0).toBe(hash);
           expect(h.ex.get_flags()).toBe(0xcd5); expect(h.ex.generic()).toBe(0); return h.snapshot();
         };
         expect(run(0), hex + ':' + offset).toEqual(run(1));

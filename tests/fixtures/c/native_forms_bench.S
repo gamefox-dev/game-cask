@@ -39,6 +39,9 @@ bad:
 .seh_endproc
 .data
 .p2align 4
+/* Retained absolute data reference produces a genuine PE base relocation. */
+relocated_data_pointer:
+  .quad data
 data:
   .quad 0x1122334455667788
   .quad 0

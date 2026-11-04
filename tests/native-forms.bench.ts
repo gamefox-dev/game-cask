@@ -36,7 +36,7 @@ it('pairs baseline/current native-form counts/timing with production census and 
       mkdirSync(dir, { recursive: true });
       cpSync(join(ROOT, 'tests/fixtures/c/native_forms_bench.S'), join(dir, 'bench.S'));
       writeFileSync(join(dir, 'game.json'), JSON.stringify({ id, name: 'CC0 native residual forms', pipeline: {
-        platform: 'win32', liftPreset: preset, suspension: 'jspi-preferred', fixture: { target: 'x86_64-windows-gnu', sources: ['bench.S'], out: 'bench.exe', entry: 'entry', libs: ['kernel32'] },
+        platform: 'win32', liftPreset: preset, suspensionBuild: 'dual', fixture: { target: 'x86_64-windows-gnu', sources: ['bench.S'], out: 'bench.exe', entry: 'entry', libs: ['kernel32'] },
         modules: [{ from: './build/bench.exe', main: true }],
       } }));
       const resourcesBefore = resourceSnapshot();
@@ -44,7 +44,7 @@ it('pairs baseline/current native-form counts/timing with production census and 
       if (variant === 'before') for (const name of [id, id + '-interp'])
         cpSync(join(root, 'web/public/games', name), join(ROOT, 'web/public/games', name), { recursive: true });
       const differential = await oracle(id, 300);
-      expect(differential.identical, id).toBe(true); expect(differential.comparedFrames).toBe(300);
+      expect(differential.identical, JSON.stringify(differential)).toBe(true); expect(differential.comparedFrames).toBe(300);
       expect(differential.errors).toEqual({ lifted: null, interpreted: null });
       const samples: number[] = []; let metrics: Metrics | undefined;
       for (let sample = 0; sample < 8; sample++) {
