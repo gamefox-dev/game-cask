@@ -4,9 +4,11 @@
 
 K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
 bindings; callback/suspending APIs retain a bound outer-driver path, changed operands dynamic fallback.
-Focused profile/snapshot/string/context tests pass in separate runs; the nine-case1000-call CC0 smoke
-has zero reason5 exits/dynamic thunk crossings and identical300-update oracles. No baseline A/B,
-final Tier1 or independent acceptance yet. Memory faults retain the abort contract, not new SEH.
+Focused profile/snapshot/string/context tests pass; guard-removal and pointer-truncation mutations
+fail their assertions. The serial nine-case100000-call dev.16 A/B has zero final reason5 exits/dynamic
+thunk crossings, identical300-update oracle hashes across versions, and synthetic call-loop medians
+1.76–4.42× faster. Baseline IAT/register forms already have zero reason5 exits; missing baseline
+dynamic counters are not reported as zero. No final Tier1 or independent acceptance yet. Memory faults retain the abort contract, not new SEH.
 Actual failures, repairs, samples and continuation: [K29 checkpoint](handoff/K29.md).
 
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)

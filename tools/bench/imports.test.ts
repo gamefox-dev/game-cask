@@ -80,6 +80,7 @@ it('measures guarded imports versus the unchanged baseline with exact per-import
       if (metrics.leaf_import_calls !== undefined) {
         expect(metrics.leaf_import_calls).toBeGreaterThanOrEqual(count);
         expect(exits).toEqual([]);
+        expect(metrics.thunk_dispatches).toBe(0);
       }
       samples.push({ warmup: run===0, ms:end-begin, ns_per_call:(end-begin)*1e6/count, metrics, exits });
     }
