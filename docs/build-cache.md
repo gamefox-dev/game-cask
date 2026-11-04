@@ -59,6 +59,31 @@ are removed and retried. Abandoned temporary payloads participate in collection,
 Lock files have permanent inodes and must not be deleted while builds run. Removing an idle cache is always safe.
 Zig's own caches, local intermediates and packages are **not** included in this payload bound.
 
+## Helper transport and deadlines (K23)
+
+All build subprocesses routed through `tools/build/exec.mjs` have a **30-minute per-invocation deadline**.
+Set `BGT_BUILD_TIMEOUT_MS` to a positive integer milliseconds for slower hosts/large cold builds; zero,
+negative, fractional and non-finite values are rejected (the deadline cannot be disabled). Internal callers may
+supply a positive `timeout` override. Diagnostics name the helper/argv, phase and configured deadline.
+The supervisor covers lease acquisition, config read, worker compilation, linking and postprocessing; Node has
+an additional two-second hard backstop for supervisor startup or a stuck supervisor. Timeout, helper failure
+and output-buffer failure kill the detached process group, not just the immediate Python wrapper. Writer/cache
+locks remain inherited as before; an owner killed externally still cannot allow a later build to overtake a writer.
+Abandoned atomic-publication temporaries are collected by the existing cache retry/pruning protocol.
+
+Compile/lift configurations are still the exact same JSON bytes, but **stdin is an anonymous regular file**,
+not a Node synchronous socket whose peer must signal EOF. A private 0700 staging directory/0600 file is opened
+read-only, then unlinked before spawning; the descriptor is closed in `finally`. No config paths enter
+compiler argv, cache identity or build products. Python `json.load(sys.stdin)` now observes a finite file end;
+compiler children inherit already-consumed stdin, not a writable pipe. Both helpers and all existing call sites
+share this transport (including host tools, native reference, chunk/monolithic lift and wasm-opt).
+
+Reproduce the retained-EOF condition with `tests/unit/build-transport.test.ts`. Stress real tiny C fixture
+compile/link builds with `node tools/build/stress-transport.mjs 8 100` (alternating cold/warm objects,
+config sizes up to 2 MiB, byte-identical outputs, automatic cleanup). `--legacy` uses Node's native pipe
+input for comparison; its macOS race is intermittent and a clean run does not disprove it. See
+[the K23 handoff](handoff/K23.md) for measured endpoint/byte-count evidence and the remaining C-level race uncertainty.
+
 ## Asyncify boundary
 
 The postprocess key includes linked wasm bytes, wasm-opt implementation, enabled features and exact pass/import

@@ -55,7 +55,7 @@ export function x86tool() {
   if (!existsSync(out)) {
     for (const batch of [objects, [{ out, args: [cc, ...prefix, ...objects.map((o) => o.out)] }]])
       execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        input: JSON.stringify({ objects: batch, jobs: 1 }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
+        phase: 'host tool compile/link', input: JSON.stringify({ objects: batch, jobs: 1 }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
       });
   }
   return out;
@@ -113,7 +113,7 @@ export function buildFixture(gameDir, fx, outDir) {
     const objects = inputs.map((f) => ({out:join(dir,sha256(Buffer.concat([Buffer.from(JSON.stringify([version,PINNED_TIME,flags,f])),...headerBytes,readFileSync(f)]))+'.o'),args:['zig',...flags,'-c',f]}));
     const link = ['zig',...args.filter((a)=>!inputs.includes(a))];
     link.splice(link.indexOf('-o'),0,...objects.map((o)=>o.out));
-    const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
+    const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{phase: 'fixture compile/link', input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}),encoding:'utf8',stdio:['pipe','pipe','inherit'],cwd:gameDir}));
     writeFileSync(join(outDir,'fixture-metrics.json'),JSON.stringify(metrics));
     const keep = new Set(objects.map((o)=>o.out));
     for (const f of readdirSync(dir)) if (f !== '.locks' && !keep.has(join(dir,f))) rmSync(join(dir,f),{force:true});
@@ -292,7 +292,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         const key = sha256(JSON.stringify([measured.key, selectedSet ? [...selectedSet].sort((a,b)=>a-b) : null,
           ov.addrs, p.flagLiveness === true, policy, 'monolithic-v2']));
         const metrics = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/lift.py')], {
-          input: JSON.stringify({ tasks: [{ out: lifted, key, args: [tool, ...args] }], jobs: 1 }),
+          phase: 'lift', input: JSON.stringify({ tasks: [{ out: lifted, key, args: [tool, ...args] }], jobs: 1 }),
           encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
         }));
         analysis = JSON.stringify(measured.analysis);

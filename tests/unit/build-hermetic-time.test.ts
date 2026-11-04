@@ -2,6 +2,8 @@
 // Regression: spliced diagnostic suppression + token pasting used to silently hit
 // a stale object after an mtime-only change. Pinning, not detection, must fix it.
 import { execFileSync } from 'node:child_process';
+// @ts-expect-error ESM build helper transport
+import { execFileSync as helperExec } from '../../tools/build/exec.mjs';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -42,7 +44,7 @@ for (const compiler of compilers) it.each(forms)('hermetic $builtin despite spli
       // Strict warnings prove the deliberate builtin redefinition is handled.
       flags: [...compiler.flags, '-O2', '-g0', '-Wall', '-Wextra', '-Werror'],
       compiler: { path: compiler.path, prefix: compiler.prefix, version: compilerVersion } };
-    const compile = (objects: any[]) => JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
+    const compile = (objects: any[]) => JSON.parse(helperExec('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
       cwd: root, input: JSON.stringify({ objects, jobs: 1 }), encoding: 'utf8', stdio: 'pipe',
     }));
     const run = async (object?: any) => {
