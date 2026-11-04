@@ -13,6 +13,11 @@ it('registry cache preserves exact ranges, misses, collisions, force-interpreter
   expect(() => ex.nx()).toThrow(GameAbort);
 });
 
+it('guarded import bindings preserve full-width operands, stale loaded targets and suspension token ownership', async () => {
+  const { exports } = await instantiateFixture(await compileC('tests/fixtures/c/import_bindings.c'));
+  expect((exports.bindings as () => number)()).toBe(0);
+});
+
 it.each([0, 1])('strict native chaining checks a foreign-owner lookup (warm=%s) before its first step', async (warm) => {
   const { host, exports } = await instantiateFixture(await compileC('tests/fixtures/c/native_chain_strict.c'));
   const ex = exports as unknown as { strict_chain(warm: number): void; native_steps(): number };

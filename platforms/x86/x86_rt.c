@@ -266,7 +266,46 @@ static int native_limit;
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
-void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
+static x86_import_binding_t *import_buckets[1024];
+static uint32_t import_generation = 1;
+static const x86_import_binding_t *pending_import;
+void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) {
+    thunk_lo = lo; thunk_hi = hi; thunk_fn = fn;
+    __builtin_memset(import_buckets,0,sizeof import_buckets);
+    pending_import=0;
+    if(!++import_generation)x86_fault("import generation exhausted",0);
+}
+void x86_bind_import(uint32_t iat,uint32_t target,void *opaque,
+                     x86_bound_import_fn call,x86_leaf_import_fn leaf) {
+    unsigned h=(iat^(iat>>12))&1023u;
+    x86_import_binding_t *b=x86_alloc(sizeof *b);
+    if(!b)x86_fault("import binding allocation failed",iat);
+    *b=(x86_import_binding_t){iat,target,opaque,call,leaf,import_buckets[h]};
+    import_buckets[h]=b;
+    if(!++import_generation)x86_fault("import generation exhausted",iat);
+}
+static const x86_import_binding_t *import_binding(x86_import_site_t *site,uint64_t target) {
+    if(site->generation!=import_generation) {
+        unsigned h=(site->iat^(site->iat>>12))&1023u;
+        site->binding=import_buckets[h];
+        while(site->binding&&site->binding->iat!=site->iat)site->binding=site->binding->next;
+        site->generation=import_generation;
+    }
+    return site->binding&&target==site->binding->target?site->binding:0;
+}
+int x86_try_import(x86_import_site_t *site,uint64_t target) {
+    const x86_import_binding_t *b=import_binding(site,target);
+    if(!b||!b->leaf)return 0;
+    /* No guest locals/pointers remain authoritative in the caller. This signature's
+     * entire reachable target set is explicitly non-suspending, unlike call(void*). */
+    if(!b->leaf(b->opaque,target))return 0;
+    x86_metrics.direct_import_calls++;x86_metrics.leaf_import_calls++;
+    return 1;
+}
+int x86_defer_import(x86_import_site_t *site,uint64_t target) {
+    pending_import=import_binding(site,target);
+    return pending_import!=0;
+}
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
 /* Native regions have already spilled and returned. Only this tiny wrapper may suspend,
  * invoke callbacks, grow memory or transfer; it never holds a local guest register/pointer. */
@@ -291,7 +330,11 @@ void x86_run_native(x86_native_fn step) {
         if (X.transfer || x86_lift_pending || x86_lift_count) return;
         if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
         if (limit && X.eip == stop && X.r[ESP] > floor) return;
-        if (x86_is_thunk(X.eip)) x86_lift_thunk();
+        if (pending_import) {
+            const x86_import_binding_t *b=pending_import;pending_import=0;
+            x86_metrics.direct_import_calls++;
+            b->call(b->opaque);
+        } else if (x86_is_thunk(X.eip)) x86_lift_thunk();
         if (X.transfer || x86_lift_pending || x86_lift_count) return;
         if (limit && X.eip == stop && X.r[ESP] > floor) return;
         /* A naked call outside invoke has no return boundary; execute only its supplied step. */

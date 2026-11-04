@@ -114,7 +114,7 @@ static void l64_flag_io(const x86_insn_t *in, uint32_t *read, uint32_t *write) {
     /* Unknown/partial writers, calls, exits and generic instructions are observation barriers. */
     *read = L64_FLAGS;
 }
-static int l64_index(func_t *f, uint32_t va) {
+static int l64_index(const func_t *f, uint32_t va) {
     uint32_t lo = 0, hi = f->insns.n;
     while (lo < hi) { uint32_t m = (lo + hi) / 2; if (f->insns.v[m] < va) lo = m + 1; else hi = m; }
     return lo < f->insns.n && f->insns.v[lo] == va ? (int)lo : -1;
@@ -297,6 +297,7 @@ static int l64_specialized(const x86_insn_t *in) {
     }
 }
 #include "lift64_guard.h"
+#include "lift64_imports.h"
 typedef struct { uint32_t addr, end; } l64_entry_t;
 static int l64_entry_cmp(const void *a, const void *b) {
     uint32_t x = ((const l64_entry_t *)a)->addr, y = ((const l64_entry_t *)b)->addr;
@@ -313,6 +314,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             fprintf(o,"extern void F_%08x(void); /* measured override, no native body */\n",original->addr);
             vpush(&order,original->addr);vpush(&ends,original->addr+1);continue;
         }
+        uint32_t *import_hints=l64_import_hints(a->pe,original);
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256) {
         uint32_t end = begin + 256 < original->insns.n ? begin + 256 : original->insns.n;
         func_t region = *original;
@@ -366,6 +368,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         l64_replay_t *replays = l64_replays(f, ins, starts);
         uint32_t *live = l64_liveness(f, ins, guarded, starts, replays);
         l64_used |= l64_written;
+        /* A leaf call is a full architectural observation boundary. Reload every
+         * register afterward, including volatile returns not explicitly written here. */
+        for(uint32_t k=begin;k<end;k++)if(import_hints[k]){l64_used=l64_written=0xffffu;break;}
         /* A distinct signature keeps Asyncify's conservative void(void) scheduler-call target
          * set from including native regions, which cannot suspend. Registry wrappers stay tiny. */
         /* Small regions benefit from ordinary -O2 and wrapper devirtualization/inlining.
@@ -505,6 +510,12 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             case XO_JMP: l64_edge(o, f, in->target, k); continue;
             case XO_JMP_IND:
                 l64_read(o, aa, "t", next);
+                if(import_hints[begin+k]) {
+                    l64_flush(o,k+1);l64_sync(o,0);
+                    fprintf(o,"if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
+                              "if(x86_try_import(&site,t))return;"
+                              "if(x86_defer_import(&site,t))return;}\n",import_hints[begin+k]);
+                }
                 l64_flush(o, k + 1);
                 fprintf(o, "if(t>UINT32_MAX){pc=0x%08xu;action=4;goto boundary;}"
                            "pc=(uint32_t)t;exit_reason=XE_INDIRECT;goto dispatch;\n", next); continue;
@@ -515,6 +526,15 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 fprintf(o, "r[4]-=8;");
                 { char ret[40]; snprintf(ret, sizeof ret, "0x%08xull", next);
                   l64_pointer(o, "r[4]", 8, next, 1, ret); fprintf(o, "xl_store(p,%s,8);", ret); }
+                if(import_hints[begin+k]) {
+                    l64_sync(o,0);
+                    fprintf(o,"if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
+                              "if(x86_try_import(&site,t)){",import_hints[begin+k]);
+                    l64_sync(o,1);
+                    fprintf(o,"dirty=0;pc=X.eip;x86_coverage_lifted(pc,1);");
+                    l64_edge(o,f,next,k);
+                    fprintf(o,"}if(x86_defer_import(&site,t))return;}\n");
+                }
                 fprintf(o, "pc=0x%08xu;action=2;goto boundary;\n", next); continue;
             case XO_RET:
                 l64_flush(o, k + 1);
@@ -570,6 +590,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
+        free(import_hints);
         fprintf(o, "void N_%08x(uint32_t pc){\n", original->addr);
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)

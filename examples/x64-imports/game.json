@@ -1,0 +1,31 @@
+{
+  "id": "x64-imports",
+  "name": "CC0 guarded direct import conformance",
+  "private": false,
+  "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu",
+      "sources": [
+        "imports.c",
+        "forms.S"
+      ],
+      "out": "imports.exe",
+      "entry": "entry",
+      "libs": [
+        "kernel32",
+        "user32",
+        "msvcrt"
+      ]
+    },
+    "modules": [
+      {
+        "from": "./build/imports.exe",
+        "main": true
+      }
+    ],
+    "width": 320,
+    "height": 200
+  }
+}
