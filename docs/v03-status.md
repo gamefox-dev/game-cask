@@ -1,6 +1,18 @@
 # v0.3 merged implementation status
 
-## K24 — Q67 buffer/VAO scale (implemented; browser timing gate remains red)
+## K24 — Q67 buffer/VAO scale (implemented; K24d performance validation in progress)
+
+K24d repair8a132ce removes per-call namespace string scans, initial buffer/VAO name scans,
+dormant wire-cleanup scans and retained-buffer capacity sweeps. Name-hash deletion no longer
+accumulates tombstones; wire allocation uses a lowest-free cursor, preserving IDs. Deterministic
+CC0 work counters require zero scanning/allocation on200,000 unrelated calls with a retained
+buffer, and collision/churn/retirement-retry tests cover the cold paths. Native1M-call medians
+improve from625/611/640ms to10/12/11ms (IsEnabled/GetShaderiv/BindBuffer). The initial identical
+lifted/metrics Node traces do **not** reproduce a slowdown versus dev.14. Same unchanged
+WebGPU test A/B/A/B passes at base156.236/118.559s vs incoming122.542/125.047s; the original
+1.3–1.8x browser slowdown is not reproduced or causally diagnosed. Fresh full validation is pending. No renderer/runtime/ABI or test-budget change.
+See docs/handoff/K24.md for current evidence; the K24c timing blocker below is historical.
+
 
 Reviewer decision #200 approves additive v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host
 opt-in, unchanged byte budgets, frozen v0.2/unnegotiated validation and unchanged other namespaces.
