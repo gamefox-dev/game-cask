@@ -1,0 +1,1572 @@
+{
+  "sourceCommit": "e61efca78c0b4dabaec6882222b3eb684fab5943",
+  "implementationCommit": "aa08427",
+  "testOnlyAmendment": "e61efca",
+  "base": "4bcc068",
+  "audit": "Saved completion markers and report contents audited; no missing gates were found. Final reruns completed after the machine disk-guard interruption. No suites repeated by K23c.",
+  "gates": {
+    "doctor-post-unit": {
+      "exit": 0,
+      "path": "reports/k23/doctor-post-unit.log",
+      "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b",
+      "completedAt": "2026-11-04T05:08:46.936Z",
+      "exitMarker": {
+        "path": "reports/k23/doctor-post-unit.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:08:46.941Z"
+      }
+    },
+    "typecheck-post-unit": {
+      "exit": 0,
+      "path": "reports/k23/typecheck-post-unit.log",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398",
+      "completedAt": "2026-11-04T05:08:44.533Z",
+      "exitMarker": {
+        "path": "reports/k23/typecheck-post-unit.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:08:46.526Z"
+      }
+    },
+    "lint": {
+      "exit": 0,
+      "path": "reports/k23/lint.log",
+      "sha256": "e4f2527472829094bc27b7f6d9d179573ba9f744b3b202488a558ab20ccd8119",
+      "completedAt": "2026-11-04T01:43:49.655Z",
+      "exitMarker": {
+        "path": "reports/k23/lint.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:43:49.708Z"
+      }
+    },
+    "eslint-transport-final": {
+      "exit": 0,
+      "path": "reports/k23/eslint-transport-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "completedAt": "2026-11-04T01:41:27.354Z",
+      "exitMarker": {
+        "path": "reports/k23/eslint-transport-final.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:41:28.119Z"
+      }
+    },
+    "leakcheck-post-unit": {
+      "exit": 0,
+      "path": "reports/k23/leakcheck-post-unit.log",
+      "sha256": "92c7aa308aa53bbbb3b8c33a7966427b782e85437ad1737ade1599c2a4a1b027",
+      "completedAt": "2026-11-04T05:08:44.444Z",
+      "exitMarker": {
+        "path": "reports/k23/leakcheck-post-unit.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:08:44.450Z"
+      }
+    },
+    "transport-final": {
+      "exit": 0,
+      "path": "reports/k23/transport-final.log",
+      "sha256": "8597740e1635edb8e09f1e10b8823aad365c1869a0ec486bedc6f18913d6794a",
+      "completedAt": "2026-11-04T01:41:27.337Z",
+      "exitMarker": {
+        "path": "reports/k23/transport-final.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:41:27.354Z"
+      }
+    },
+    "transport-expanded": {
+      "exit": 0,
+      "path": "reports/k23/transport-expanded.log",
+      "sha256": "aaa8dbd9aeeeb375941839eef777f25f5e2b6ddb00697060526d6cba1c64400c",
+      "completedAt": "2026-11-04T01:26:38.030Z",
+      "exitMarker": {
+        "path": "reports/k23/transport-expanded.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:26:38.076Z"
+      }
+    },
+    "host-memory-recheck": {
+      "exit": 0,
+      "path": "reports/k23/host-memory-recheck.log",
+      "sha256": "6697f7060fbe6481c52ac581248fcf0803795986b3064c9d5948243785e26716",
+      "completedAt": "2026-11-04T03:07:51.456Z",
+      "exitMarker": {
+        "path": "reports/k23/host-memory-recheck.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T03:07:51.494Z"
+      }
+    },
+    "units-final": {
+      "exit": 0,
+      "path": "reports/k23/units-final.log",
+      "sha256": "9d950ea2483fac82dd72c39dde8b505f643856bc647230d99d24d7a10c961b68",
+      "completedAt": "2026-11-04T05:08:44.114Z",
+      "exitMarker": {
+        "path": "reports/k23/units-final.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:08:44.149Z"
+      },
+      "files": 100,
+      "passed": 2000,
+      "command": "BGT_BUILD_JOBS=2 BGT_JSPI=1 BGT_TEST_JSPI=1 npm test -- --maxWorkers=1 --testTimeout=600000"
+    },
+    "e2e-asyncify-final": {
+      "exit": 0,
+      "path": "reports/k23/e2e-asyncify-final.log",
+      "sha256": "657090c186b3965c91d93a30edbc98cb78134a00691ee1d452e8b79e4c98a564",
+      "completedAt": "2026-11-04T05:22:55.501Z",
+      "exitMarker": {
+        "path": "reports/k23/e2e-asyncify-final.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:22:55.996Z"
+      }
+    },
+    "e2e-jspi-final": {
+      "exit": 0,
+      "path": "reports/k23/e2e-jspi-final.log",
+      "sha256": "8a70a913b43983b8ae0d5fb18d07974a10915492c0eccf110c3a1c4a3a250066",
+      "completedAt": "2026-11-04T05:38:57.542Z",
+      "exitMarker": {
+        "path": "reports/k23/e2e-jspi-final.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T05:38:58.696Z"
+      }
+    },
+    "stress": {
+      "exit": 0,
+      "path": "reports/k23/stress.log",
+      "sha256": "0cf4bc9fa825bd7cada77029bdeca4e275e50ff701dd664143f4caafb9df6b5a",
+      "completedAt": "2026-11-04T01:17:13.409Z",
+      "exitMarker": {
+        "path": "reports/k23/stress.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:17:13.461Z"
+      }
+    },
+    "stress-cold-warm": {
+      "exit": 0,
+      "path": "reports/k23/stress-cold-warm.log",
+      "sha256": "2397984b27953d5700685200171d729a864b467f3d8d734cedf4509f04b8e50e",
+      "completedAt": "2026-11-04T01:19:27.870Z",
+      "exitMarker": {
+        "path": "reports/k23/stress-cold-warm.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:19:27.902Z"
+      }
+    },
+    "stress-legacy": {
+      "exit": 0,
+      "path": "reports/k23/stress-legacy.log",
+      "sha256": "5f66e2fb14ccd2365f57556a151772336b854886c3dd40f640ea81bf35ed2db4",
+      "completedAt": "2026-11-04T01:19:23.900Z",
+      "exitMarker": {
+        "path": "reports/k23/stress-legacy.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "completedAt": "2026-11-04T01:19:23.938Z"
+      }
+    },
+    "leakcheck-closeout": {
+      "exit": 0,
+      "path": "reports/k23/leakcheck-closeout.log",
+      "sha256": "6050c82b75a7dfaad8d0cffa68a94cca5bb678867fde1e85395ec3e87999d4f0",
+      "completedAt": "2026-11-04T06:09:41.932Z"
+    }
+  },
+  "hostCompilers": {
+    "clang": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "gcc": "/opt/homebrew/bin/gcc-14\ngcc-14 (Homebrew GCC 14.2.0) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "browser": {
+    "asyncify": {
+      "path": "reports/k23/e2e-asyncify-final-results.json",
+      "sha256": "94f0ccabeef66bed4a510d6c87cb38af543c5cd3ec1244dd0f5486926122e64a",
+      "completedAt": "2026-11-04T05:22:56.001Z",
+      "stats": {
+        "startTime": "2026-11-04T05:10:29.790Z",
+        "duration": 745714.107,
+        "expected": 287,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "byProject": {
+        "chromium-webgl2": {
+          "expected": 129,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 150,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "skipByFile": {
+        "fallback.spec.ts": 3,
+        "gpu-webgl2-capability.spec.ts": 2,
+        "gpu-webgl2-contract.spec.ts": 8,
+        "gpu-webgl2.spec.ts": 10,
+        "gpu-webgpu-conformance.spec.ts": 6,
+        "gpu-webgpu.spec.ts": 12,
+        "robustness.spec.ts": 2,
+        "tour.spec.ts": 1,
+        "visual.spec.ts": 1,
+        "webgpu-availability.spec.ts": 6
+      },
+      "skipPolicy": "Existing backend-specific and opt-in tests only; no K23 source skips added.",
+      "port": 5258,
+      "requiredWebGPU": true,
+      "hardwareScope": "Local desktop Chromium; no iPhone/device verification."
+    },
+    "jspi": {
+      "path": "reports/k23/e2e-jspi-final-results.json",
+      "sha256": "b39f79cca7946e44f421aa826b1c019e7b4d41eedfef60a468285a837d7a055a",
+      "completedAt": "2026-11-04T05:38:58.702Z",
+      "stats": {
+        "startTime": "2026-11-04T05:24:27.756Z",
+        "duration": 869790.0020000001,
+        "expected": 287,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "byProject": {
+        "chromium-webgl2": {
+          "expected": 129,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 150,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "skipByFile": {
+        "fallback.spec.ts": 3,
+        "gpu-webgl2-capability.spec.ts": 2,
+        "gpu-webgl2-contract.spec.ts": 8,
+        "gpu-webgl2.spec.ts": 10,
+        "gpu-webgpu-conformance.spec.ts": 6,
+        "gpu-webgpu.spec.ts": 12,
+        "robustness.spec.ts": 2,
+        "tour.spec.ts": 1,
+        "visual.spec.ts": 1,
+        "webgpu-availability.spec.ts": 6
+      },
+      "skipPolicy": "Existing backend-specific and opt-in tests only; no K23 source skips added.",
+      "port": 5258,
+      "requiredWebGPU": true,
+      "hardwareScope": "Local desktop Chromium; no iPhone/device verification."
+    }
+  },
+  "oracles": {
+    "fixtures": 32,
+    "modes": [
+      "asyncify",
+      "jspi"
+    ],
+    "requestedFrames": 300,
+    "results": [
+      {
+        "fixture": "win32-conformance",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-win32-conformance-asyncify.json",
+          "sha256": "dd640ebf52869dc1d102148811e792face7536818a32e241f91c126faf89ce81",
+          "completedAt": "2026-11-04T03:37:18.005Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "cac197f9",
+        "traceHash": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      {
+        "fixture": "win32-conformance",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-win32-conformance-jspi.json",
+          "sha256": "56dc5a1443e18b0686b8a5b019f6247cb956de1b4d5d2a3461cc7e0493abd61f",
+          "completedAt": "2026-11-04T04:40:35.208Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "cac197f9",
+        "traceHash": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      {
+        "fixture": "win32-hello",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-win32-hello-asyncify.json",
+          "sha256": "389091ccc491039f5209013d3dc1136225bd681c011e7b76aaea66e5daf41ce5",
+          "completedAt": "2026-11-04T03:37:56.254Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "3aee6ab3",
+        "traceHash": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      {
+        "fixture": "win32-hello",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-win32-hello-jspi.json",
+          "sha256": "2f9bfc49f65cdaf92ccbd1bd8a393daf3a5cdf2983aa093a908b9f0ade30f470",
+          "completedAt": "2026-11-04T04:40:40.479Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "3aee6ab3",
+        "traceHash": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      {
+        "fixture": "x64-audio",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-audio-asyncify.json",
+          "sha256": "09b1013665fe642dd25ccc51f3a1969b8ad8131941ff1cab62badbd6a37b1102",
+          "completedAt": "2026-11-04T03:38:39.663Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "74d37eff",
+        "traceHash": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      {
+        "fixture": "x64-audio",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-audio-jspi.json",
+          "sha256": "29f08f67e80aaeb167654144a748f424745758e15547d918167d9b818971632f",
+          "completedAt": "2026-11-04T04:40:45.755Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "74d37eff",
+        "traceHash": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      {
+        "fixture": "x64-audio-init",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-audio-init-asyncify.json",
+          "sha256": "caeadecf6ef9b2dd104829288607f1e16665425064e36ce40788b82f4e858ade",
+          "completedAt": "2026-11-04T03:40:49.089Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "d02de26a",
+        "traceHash": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      {
+        "fixture": "x64-audio-init",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-audio-init-jspi.json",
+          "sha256": "b2eb2b5da990cc32ba4de5a7990ae2bd834053f99bfd8150f1072a7b2851b359",
+          "completedAt": "2026-11-04T04:40:51.495Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "d02de26a",
+        "traceHash": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      {
+        "fixture": "x64-basics",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-basics-asyncify.json",
+          "sha256": "2491d70fbbe7173c59e479fd17a5f9acc059a80708b0185c1c36c08b45f793f6",
+          "completedAt": "2026-11-04T03:40:57.512Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "fa722538",
+        "traceHash": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      {
+        "fixture": "x64-basics",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-basics-jspi.json",
+          "sha256": "1ad28ec71991b2e766b1c98074dd38b7b4ceaa196d6035bf3d331094b84f066e",
+          "completedAt": "2026-11-04T04:40:57.931Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "fa722538",
+        "traceHash": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      {
+        "fixture": "x64-contracts",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-contracts-asyncify.json",
+          "sha256": "207f7994d30802efe0ddd0860fa4f6bf7fac7c9e4d089cd76f54ff911b65ffa6",
+          "completedAt": "2026-11-04T04:09:24.113Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "0514c1ba",
+        "traceHash": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      {
+        "fixture": "x64-contracts",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-contracts-jspi.json",
+          "sha256": "ace8e6351b662e79a00eb5654cdd97892d402218cb450d1a7d886fe7eb092ff6",
+          "completedAt": "2026-11-04T04:41:04.104Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "0514c1ba",
+        "traceHash": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      {
+        "fixture": "x64-cpp",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-cpp-asyncify.json",
+          "sha256": "c3d60aee50f769ee253efc7e81465f6b6b8fd6286ea5f7a3f5514d0db9095e64",
+          "completedAt": "2026-11-04T04:33:44.219Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "eadc23f1",
+        "traceHash": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      {
+        "fixture": "x64-cpp",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-cpp-jspi.json",
+          "sha256": "ad0b69be7d96bac90a26b582ef8a605deb3e295db13efc3d49dffb9cdec7e39d",
+          "completedAt": "2026-11-04T04:41:09.929Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "eadc23f1",
+        "traceHash": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      {
+        "fixture": "x64-cpprt",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-cpprt-asyncify.json",
+          "sha256": "2034b27041a84cfe52b267bc81b1967764b9f347b89de7fbf9aa642cb7c07805",
+          "completedAt": "2026-11-04T04:33:52.708Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "8e59b196",
+        "traceHash": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      {
+        "fixture": "x64-cpprt",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-cpprt-jspi.json",
+          "sha256": "a1d85937a3bd18eb91c832e1fe95e893f6ae23a35aa008f2381247f85495fcf0",
+          "completedAt": "2026-11-04T04:41:15.909Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "8e59b196",
+        "traceHash": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      {
+        "fixture": "x64-crt",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-crt-asyncify.json",
+          "sha256": "a76bcff886252f2303b08c46a8d8334cf6ac5dccc6f97b96c22202ca3c1034b4",
+          "completedAt": "2026-11-04T04:34:00.396Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "bae2920f",
+        "traceHash": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      {
+        "fixture": "x64-crt",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-crt-jspi.json",
+          "sha256": "9e802a19f70e2d7f41f08136b4e2eea3a3cac87b0f05324e2977adf7248b9c75",
+          "completedAt": "2026-11-04T04:41:21.352Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "bae2920f",
+        "traceHash": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      {
+        "fixture": "x64-gl",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-asyncify.json",
+          "sha256": "df41fd866b7bc806d203fda1b131a4588dfc3ccbe3572eff4d714a0d6a16e230",
+          "completedAt": "2026-11-04T04:34:08.656Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "47b028e6:01c4aa76",
+        "traceHash": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      {
+        "fixture": "x64-gl",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-jspi.json",
+          "sha256": "cca4a873454be58aad64d425fc8736b78e2c299768f57542c1c9b659ff2107f2",
+          "completedAt": "2026-11-04T04:41:27.276Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "47b028e6:01c4aa76",
+        "traceHash": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      {
+        "fixture": "x64-gl-blit",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-blit-asyncify.json",
+          "sha256": "07eb1f3a04beab30b19b7a49d9cac5fe87b20664f844bd7f06ba4974b96990a5",
+          "completedAt": "2026-11-04T04:34:27.474Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "6bc914b7:b46fb07b",
+        "traceHash": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      {
+        "fixture": "x64-gl-blit",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-blit-jspi.json",
+          "sha256": "50f60810393093b37186489e24333f59f5dded89118cd75a7ea902d7e4b496a7",
+          "completedAt": "2026-11-04T04:41:32.994Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "6bc914b7:b46fb07b",
+        "traceHash": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      {
+        "fixture": "x64-gl-capacity",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-capacity-asyncify.json",
+          "sha256": "3f7e6a501dc4d2afc36ccfdd1d11ca447e01e23c250a29bad1d609cd22456dd0",
+          "completedAt": "2026-11-04T04:34:47.222Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "962f71ec:811c9dc5",
+        "traceHash": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+      },
+      {
+        "fixture": "x64-gl-capacity",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-capacity-jspi.json",
+          "sha256": "3a8c906acb7ea561306a9d96d1e5d7991b413b3b8053910ae3c96c74d493f4b0",
+          "completedAt": "2026-11-04T04:41:39.241Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "962f71ec:811c9dc5",
+        "traceHash": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+      },
+      {
+        "fixture": "x64-gl-current",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-current-asyncify.json",
+          "sha256": "f3a861d06c652e3826beb73df3f31792982a8cbd7dfa3da4791304a23d1172e3",
+          "completedAt": "2026-11-04T04:35:06.526Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "1130f0ae:5a8d64ad",
+        "traceHash": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      {
+        "fixture": "x64-gl-current",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-current-jspi.json",
+          "sha256": "3fc356bc4bd2001b6330aaf44d1c12d019fda28b8e706a00a8440d0d5ab9da99",
+          "completedAt": "2026-11-04T04:41:45.094Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "1130f0ae:5a8d64ad",
+        "traceHash": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      {
+        "fixture": "x64-gl-default-vao",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-default-vao-asyncify.json",
+          "sha256": "17cd41b32bcd23bee754b4716dece238e7f5d8b4a0f409f90bc94d3890822286",
+          "completedAt": "2026-11-04T04:35:24.853Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "558085bd:61d8bdd0",
+        "traceHash": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      {
+        "fixture": "x64-gl-default-vao",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-default-vao-jspi.json",
+          "sha256": "e0e9bae4900a86db3f8072f3586a60fc1fd9aa4c924bfe20445abc2a3ab4575a",
+          "completedAt": "2026-11-04T04:41:51.388Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "558085bd:61d8bdd0",
+        "traceHash": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      {
+        "fixture": "x64-gl-fbo",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-fbo-asyncify.json",
+          "sha256": "42a3bae4b5f55665fe83debd93ec65be9b8473c014c517c3e6d7571b75be61c1",
+          "completedAt": "2026-11-04T04:35:43.930Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "884b43af:ec039dc1",
+        "traceHash": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      {
+        "fixture": "x64-gl-fbo",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-fbo-jspi.json",
+          "sha256": "6d7a761ab06af1c29e02dab0731ba959784383ed4b7bf0492c1ff9a33d66e01e",
+          "completedAt": "2026-11-04T04:41:57.804Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "884b43af:ec039dc1",
+        "traceHash": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      {
+        "fixture": "x64-gl-feedback",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-feedback-asyncify.json",
+          "sha256": "c10d3ffc45d704cf8079c5030e13949955dd0c66226926138c581dc4bb61ac80",
+          "completedAt": "2026-11-04T04:36:02.908Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "b8fb8e26:811c9dc5",
+        "traceHash": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      {
+        "fixture": "x64-gl-feedback",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-feedback-jspi.json",
+          "sha256": "94d82a91eae6cd609de79a14e37035e142a2f95f45b4ac4b7ed87d2cb950984f",
+          "completedAt": "2026-11-04T04:42:03.800Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "b8fb8e26:811c9dc5",
+        "traceHash": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      {
+        "fixture": "x64-gl-integer",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-integer-asyncify.json",
+          "sha256": "2567a74272303ad5116b4dac8457dfcb087beb3707d20b55eb956801abd9d51b",
+          "completedAt": "2026-11-04T04:36:21.231Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "5ed6b84d:4de7479f",
+        "traceHash": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      {
+        "fixture": "x64-gl-integer",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-integer-jspi.json",
+          "sha256": "a2f61385165a07caabdbfd62e0bbd16dc22f24447b1341230bcdf66a1e3be7cb",
+          "completedAt": "2026-11-04T04:42:10.737Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "5ed6b84d:4de7479f",
+        "traceHash": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      {
+        "fixture": "x64-gl-ranges",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-ranges-asyncify.json",
+          "sha256": "f9ad61fcb2855bde62a3d12e6009c607c08b1e97a79e18eb13c1a06f22e6c51d",
+          "completedAt": "2026-11-04T04:36:40.953Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "acab916b:811c9dc5",
+        "traceHash": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      {
+        "fixture": "x64-gl-ranges",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gl-ranges-jspi.json",
+          "sha256": "71a3f6276116861aacc33f116c2b97b96ac8de5ba8bb7726598f1297aa4646c9",
+          "completedAt": "2026-11-04T04:42:17.748Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "acab916b:811c9dc5",
+        "traceHash": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      {
+        "fixture": "x64-glsl",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-glsl-asyncify.json",
+          "sha256": "6a0ac8efed737a299138c1ad7e87258841f7d3dc3deb22ea7e8f415fe53c6c51",
+          "completedAt": "2026-11-04T04:36:49.357Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "7531959c:62477e5d",
+        "traceHash": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      {
+        "fixture": "x64-glsl",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-glsl-jspi.json",
+          "sha256": "64d487db0d3a1e5092925a6c63d52585fa4c93f5bf039be4f75c7042e378d5b7",
+          "completedAt": "2026-11-04T04:42:24.009Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "7531959c:62477e5d",
+        "traceHash": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      {
+        "fixture": "x64-gui",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gui-asyncify.json",
+          "sha256": "ee56dfd01f43f962090ab6b64a49c31b9de3311912f2730329a62db32e1cac45",
+          "completedAt": "2026-11-04T04:36:57.172Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "cae2906b",
+        "traceHash": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      {
+        "fixture": "x64-gui",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-gui-jspi.json",
+          "sha256": "70d54dd80c01117e4208f69ffdb0bdfa77887fd17a4d1c308e29d54bfed1e754",
+          "completedAt": "2026-11-04T04:42:29.979Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "cae2906b",
+        "traceHash": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      {
+        "fixture": "x64-handles",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-handles-asyncify.json",
+          "sha256": "9a3d0bc545256e926f54bd2ddefa136b40b28f2c81961cdb285be76266e7bc43",
+          "completedAt": "2026-11-04T04:37:05.402Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "9c945881",
+        "traceHash": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      {
+        "fixture": "x64-handles",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-handles-jspi.json",
+          "sha256": "b415a73ed46bc11c847bffcc47676f99beac99d4ebb8c8346e0cd9233ec4a4a0",
+          "completedAt": "2026-11-04T04:42:35.723Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "9c945881",
+        "traceHash": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      {
+        "fixture": "x64-heap",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-heap-asyncify.json",
+          "sha256": "69169b3f0ac86fe7fcd1aa72a25a4a9f1becb1dceb17fbe5303f461d0ddb8504",
+          "completedAt": "2026-11-04T04:37:15.216Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "dfa6e55f",
+        "traceHash": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      {
+        "fixture": "x64-heap",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-heap-jspi.json",
+          "sha256": "97bbe0e4376ac2ff9181adfe0ff357e4694fe6534c5ec64bb2eaee86dd02a0bb",
+          "completedAt": "2026-11-04T04:42:42.969Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "dfa6e55f",
+        "traceHash": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      {
+        "fixture": "x64-input",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-input-asyncify.json",
+          "sha256": "f6aa0629312b07c75243aaa5878852e3328c1d411db93fb7cf4baaab7f63285a",
+          "completedAt": "2026-11-04T04:37:23.738Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "bd47b0f2",
+        "traceHash": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      {
+        "fixture": "x64-input",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-input-jspi.json",
+          "sha256": "165472479b5b478d2eac8f9dfb67eb07d42421cfaf695daad38010844b1b4010",
+          "completedAt": "2026-11-04T04:42:49.229Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "bd47b0f2",
+        "traceHash": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      {
+        "fixture": "x64-memory",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-memory-asyncify.json",
+          "sha256": "62464651f3e936a877a0fc35127bb17162b37bb0e71cb0ab4cc6e96eeb35a502",
+          "completedAt": "2026-11-04T04:37:35.941Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "b4565d5d",
+        "traceHash": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      {
+        "fixture": "x64-memory",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-memory-jspi.json",
+          "sha256": "252912e33d9eb2c25f656713330c4eefaba3ce4da713e46db3fb54448864a506",
+          "completedAt": "2026-11-04T04:42:57.628Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "b4565d5d",
+        "traceHash": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      {
+        "fixture": "x64-scale",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-scale-asyncify.json",
+          "sha256": "52e7fc2ebfddc82bf63ff7f65de9edb404a810225aa62ca3668bdf65fad8c67d",
+          "completedAt": "2026-11-04T04:39:25.913Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "f674cbe2",
+        "traceHash": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      {
+        "fixture": "x64-scale",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-scale-jspi.json",
+          "sha256": "8eda005ee38750defa798ebf6fc059ca828b2447163a190d9c13d0a8c3e9b975",
+          "completedAt": "2026-11-04T04:43:08.302Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "f674cbe2",
+        "traceHash": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      {
+        "fixture": "x64-smoke",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-smoke-asyncify.json",
+          "sha256": "b20f2017ecd388a982015b3c94882a48d97cb380d0d739447b7e68e0dac751ff",
+          "completedAt": "2026-11-04T04:39:34.607Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "31054bb2:01c4aa76",
+        "traceHash": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      {
+        "fixture": "x64-smoke",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-smoke-jspi.json",
+          "sha256": "c714887a9c9a5e28597ac6b71232e05afe70fd67d25b8117de0542d6f7fa43b6",
+          "completedAt": "2026-11-04T04:43:14.489Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "31054bb2:01c4aa76",
+        "traceHash": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      {
+        "fixture": "x64-sysdlls",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-sysdlls-asyncify.json",
+          "sha256": "17f6cc6f25e871a8e2a223ab47755be531d424dd22d9fe1b5998a5a2f487787d",
+          "completedAt": "2026-11-04T04:39:42.336Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "9fdbaf40",
+        "traceHash": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      {
+        "fixture": "x64-sysdlls",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-sysdlls-jspi.json",
+          "sha256": "5f3b5c93b890c42f1339d3fa559e871cddf7dbcc08a0572e723b025c1a58f550",
+          "completedAt": "2026-11-04T04:43:20.218Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "9fdbaf40",
+        "traceHash": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      {
+        "fixture": "x64-threads",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-threads-asyncify.json",
+          "sha256": "3b84dfc2236dbe5df5a4666c0749aa5a4408282196bd000aba4dd43644e97bf2",
+          "completedAt": "2026-11-04T04:39:50.431Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "57670827",
+        "traceHash": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      {
+        "fixture": "x64-threads",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-threads-jspi.json",
+          "sha256": "3cae1c38a5a5e576da079f0ab8a4d83bf829019b59179d49497f82d8c825f4a6",
+          "completedAt": "2026-11-04T04:43:26.025Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "57670827",
+        "traceHash": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      {
+        "fixture": "x64-tls",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-tls-asyncify.json",
+          "sha256": "b15d24264afa90059ca3a4c8a6bb9afa2343b39f3c32f080305efa0e2259c7b7",
+          "completedAt": "2026-11-04T04:39:57.995Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ff6d2761",
+        "traceHash": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      {
+        "fixture": "x64-tls",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x64-tls-jspi.json",
+          "sha256": "1896c25525f41d50c012f82b3bcaa7600972dfa90a60f1f4539a9aaf7d49b9a0",
+          "completedAt": "2026-11-04T04:43:31.812Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ff6d2761",
+        "traceHash": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      {
+        "fixture": "x86-handles",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-handles-asyncify.json",
+          "sha256": "37efcf537fcb1cfd686c5f45175cf29f8c6e233e38a70024242fe1d705cb1e23",
+          "completedAt": "2026-11-04T04:40:08.437Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ab4cc133",
+        "traceHash": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      {
+        "fixture": "x86-handles",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-handles-jspi.json",
+          "sha256": "6276c73cbada61aac52ca8362c73e66f981403597ebaa4f9e724074157d3f0a9",
+          "completedAt": "2026-11-04T04:43:39.784Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ab4cc133",
+        "traceHash": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      {
+        "fixture": "x86-heap",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-heap-asyncify.json",
+          "sha256": "51423b91e37767af57503d7088df4d0db45e1e9fc0aca06f6b043bc9cebdd649",
+          "completedAt": "2026-11-04T04:40:19.373Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ae4a7fb3",
+        "traceHash": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      {
+        "fixture": "x86-heap",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-heap-jspi.json",
+          "sha256": "88ea7abe75a6be981a8dc17f19e91bc5db35c2ef16f6a1d10e55b2e1b5d7103b",
+          "completedAt": "2026-11-04T04:43:47.970Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "ae4a7fb3",
+        "traceHash": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      {
+        "fixture": "x86-threads",
+        "mode": "asyncify",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-threads-asyncify.json",
+          "sha256": "2b1d4195711f6cb4fff2ad2bbced9c479cd4dde5304fe9ec8ecd5c6e1a57bd73",
+          "completedAt": "2026-11-04T04:40:27.193Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "55742fef",
+        "traceHash": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      {
+        "fixture": "x86-threads",
+        "mode": "jspi",
+        "exit": 0,
+        "report": {
+          "path": "reports/k23/oracle-x86-threads-jspi.json",
+          "sha256": "946598c2d03491193ef0d4b4ecbb573404251f5b1a43ed3304595fc30a9da63e",
+          "completedAt": "2026-11-04T04:43:53.788Z"
+        },
+        "comparedFrames": 300,
+        "identical": true,
+        "firstDivergence": null,
+        "error": null,
+        "interp_insns": 0,
+        "stub_calls": 0,
+        "gl_stubs": [],
+        "stateHash": "55742fef",
+        "traceHash": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      }
+    ]
+  },
+  "baselineIdentity": {
+    "baseline": "4bcc068",
+    "current": "aa08427",
+    "fixture": "win32-hello",
+    "wasm": [
+      {
+        "url": "game.wasm?h=c370282e9a510b1d",
+        "size": 1237486,
+        "sha256": "c370282e9a510b1d810de4ce7fd70a352d553b192620a80485711737df2ab53b"
+      },
+      {
+        "url": "game.wasm?h=c370282e9a510b1d",
+        "size": 1237486,
+        "sha256": "c370282e9a510b1d810de4ce7fd70a352d553b192620a80485711737df2ab53b"
+      }
+    ],
+    "jspi": [
+      {
+        "url": "game.jspi.wasm?h=42a0782fbe482ca7",
+        "size": 1411927,
+        "sha256": "42a0782fbe482ca78c470751e8044ac43abba07f4c47bbbc53bea52329feca23"
+      },
+      {
+        "url": "game.jspi.wasm?h=42a0782fbe482ca7",
+        "size": 1411927,
+        "sha256": "42a0782fbe482ca78c470751e8044ac43abba07f4c47bbbc53bea52329feca23"
+      }
+    ],
+    "objectKeysEqual": true,
+    "objects": 31
+  },
+  "stress": {
+    "fixedWarm": {
+      "builds": 800,
+      "cold": 8,
+      "warm": 792
+    },
+    "fixedAlternating": {
+      "builds": 800,
+      "cold": 400,
+      "warm": 400
+    },
+    "legacyAlternating": {
+      "builds": 800,
+      "cold": 400,
+      "warm": 400,
+      "raceTriggered": false
+    },
+    "executableSHA256": "7d1911076a89f5b88d7ee679e8d2968bc6f3bf5de058b1e17d35ef2d30317243",
+    "productsCleaned": true
+  },
+  "historicalFailures": {
+    "units": {
+      "exit": 1,
+      "evidence": {
+        "path": "reports/k23/units.log",
+        "sha256": "b60698d7795b835b242775a1ff73b74e4a8cd42848d820cc694366ac23882131",
+        "completedAt": "2026-11-04T02:11:24.835Z"
+      },
+      "reason": "host-memory explicit 60000ms timeout on cold build (70629ms). Unchanged focused recheck passed 3/3; unchanged full one-worker rerun passed 2000/2000."
+    },
+    "browser": {
+      "asyncify": {
+        "path": "reports/k23/e2e-asyncify.log",
+        "sha256": "1e5246dc3dd79852fbffbc1d86ac6585afad45a45c753c5a0da3fedae63c2518",
+        "completedAt": "2026-11-04T03:07:28.419Z"
+      },
+      "jspi": {
+        "path": "reports/k23/e2e-jspi.log",
+        "sha256": "39d0372c992839af09dd733dd1be469dbbf07267495195bd516c66fbc5bc4800",
+        "completedAt": "2026-11-04T03:37:03.461Z"
+      },
+      "reason": "x64-glsl cross-backend images exceeded existing 360000ms limit in both initial runs. Complete unchanged reruns passed; no assertion/timeout edits."
+    },
+    "transport": "Initial test parse typo and missing ignored cache parent were corrected before ready/expanded/final passes; raw failures retained."
+  },
+  "independentReview": "External operator gate only; no independent PASS claimed, no K23c in-lane review launched.",
+  "mechanismLimit": "Complete input and socket half-close measured, Python readall still blocked; exact Node/libuv/macOS EOF/wakeup race remains unproven. Retained-EOF regression models unavailable EOF, not that exact race.",
+  "cleanup": {
+    "completedTestTemporaryDirectoriesRemoved": 42,
+    "payloadCachesAndLockInodesRetained": true
+  }
+}

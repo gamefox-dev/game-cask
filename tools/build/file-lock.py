@@ -42,7 +42,9 @@ if pid:
         sys.exit('file lock guardian could not watch owner exit')
     print(token, flush=True)
 else:
-    os.setsid()  # isolate before acknowledgement: caller group signals cannot drop the lease
+    # Keep the detached supervisor group: a readiness failure must also kill us.
+    # It is already isolated from Node caller-group signals. On success the
+    # supervisor exits, but this guardian survives to watch/drain the owner.
     os.close(ready_read)
     for stream in (0, 1, 2):
         try: os.close(stream)

@@ -1,6 +1,8 @@
 // @bgt-examples: none
 import { it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
+// @ts-expect-error ESM build helper transport
+import { execFileSync as helperExec } from '../../tools/build/exec.mjs';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +25,7 @@ it('analysis cache verifies payload and keys binary, tool, identity and base', (
 it('lift cache verifies source and stats and invalidates option keys',()=>{
  const d=mkdtempSync(join(tmpdir(),'bgt-lift-exact-'));
  try { const o=join(d,'chunk.c'),t=join(d,'emit.py'); writeFileSync(t,'import sys\nout=sys.argv[sys.argv.index("--out")+1]\nopen(out,"w").write("int guest(void){return 42;}\\n")\nopen(out+".stats.json","w").write("{}")\n');
-  const run=(key='A')=>JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')],{input:JSON.stringify({tasks:[{out:o,key,args:['python3','-I',t]}],jobs:1}),encoding:'utf8'}));
+  const run=(key='A')=>JSON.parse(helperExec('python3',['-I',join(ROOT,'tools/build/lift.py')],{input:JSON.stringify({tasks:[{out:o,key,args:['python3','-I',t]}],jobs:1}),encoding:'utf8'}));
   expect(run().chunks_lifted).toBe(1); expect(run().chunks_cached).toBe(1); writeFileSync(o,'stale'); expect(run().chunks_lifted).toBe(1); rmSync(o); expect(run()).toMatchObject({chunks_lifted:1}); expect(run('B').chunks_lifted).toBe(1); expect(run('B').chunks_cached).toBe(1);
  } finally {rmSync(d,{recursive:true,force:true});}
 });

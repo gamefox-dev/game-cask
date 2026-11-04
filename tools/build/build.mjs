@@ -180,13 +180,13 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const release = leaseCache(cache,objects.map((o)=>o.out));
       try {
         pruneCache(cache,budget);
-        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ cwd: ROOT, input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
+        compileMetrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/compile.py')],{ phase: 'compile/link', cwd: ROOT, input:JSON.stringify({objects,link,jobs:process.env.BGT_BUILD_JOBS}), encoding:'utf8',stdio:['pipe','pipe','inherit'] }));
         touchCache(objects.map((o)=>o.out));
       } finally {release();}
       compileMetrics.object_cache = pruneCache(cache,budget);
     } else execFileSync(zig.path, args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-  } catch {
-    throw new Error(`compile failed for ${cfg.id} (zig ${zig.version})`);
+  } catch (cause) {
+    throw new Error(`compile failed for ${cfg.id} (zig ${zig.version}): ${cause.message}`, { cause });
   }
   // Keep symbol names needed by Asyncify without shipping toolchain libc DWARF.
   // wasm-ld --strip-debug removes both, so strip only DWARF custom sections here.
@@ -228,7 +228,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       // The same atomic per-key writer protocol is used for objects and whole-module
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
+        phase: 'wasm-opt', cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
           ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
           ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
           ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
