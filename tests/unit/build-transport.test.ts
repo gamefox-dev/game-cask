@@ -1,6 +1,7 @@
 // @bgt-examples: none
 import { it, expect } from 'vitest';
 import { execFileSync as nativeExec } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +17,7 @@ const options = { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] };
 it('supplies finite anonymous regular-file stdin, including large binary and Unicode inputs', () => {
   const script = 'import os,sys,stat,hashlib,json; s=os.fstat(0); b=sys.stdin.buffer.read(); print(json.dumps([stat.S_ISREG(s.st_mode),s.st_nlink,len(b),hashlib.sha256(b).hexdigest()]))';
   const data = Buffer.from('α😀\0'.repeat(300_000));
-  const expected = nativeExec('python3', ['-I', '-c', 'import sys,hashlib;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())'], { input: data, encoding: 'utf8', timeout: 10000 }).trim();
+  const expected = createHash('sha256').update(data).digest('hex');
   for (const stdio of [undefined, 'pipe', ['pipe', 'pipe', 'pipe']]) {
     const result = JSON.parse(execFileSync('python3', ['-I', '-c', script], { input: data, encoding: 'utf8', stdio }));
     expect(result).toEqual([true, 0, data.length, expected]);
