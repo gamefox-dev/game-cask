@@ -585,6 +585,21 @@ Census bucket tokens include their generation, so a previously suspended semanti
 new window's reused slot. A window that still reports nonzero `census_dropped` is incomplete and must be shortened;
 no reset/eviction silently fabricates a complete ranking. The lifetime execution counters remain independent.
 
+### Interpreter exception boundary (K26, additive optional export)
+
+Optional `void bgt_profile_abort(f64 now_us)` closes an active interpreter interval using the
+monotonic host timestamp (same microseconds as `bgt.time_us`), or discards the open interval if
+the timestamp is unavailable/nonfinite/backward. It clears abandoned sampled-stack pointers and
+idle restoration state; repeated calls do not count twice. The host calls it after a synchronous
+wasm export throws or a JSPI update rejects, never on a normal return or suspended yield. This
+boundary covers imported host errors, strict-slice stops, wasm traps and aborts, which bypass C
+return restorations. Guest SEH/longjmp transfer uses ordinary dispatcher return cleanup.
+
+Cleanup cannot replace the original error, even if the clock or cleanup export fails. Older/native
+modules without the export keep their error behavior. A failed update consumes wall time in
+`host_profile.updateMs`, but does not increment completed updates/frames; its measured partial
+interpreter work remains within that budget. This export changes no guest state or coverage count.
+
 ### Persistent interpreter observations (K21, additive optional export)
 
 Optional `u32 bgt_interpreter_coverage(void)` returns a wasm32 pointer to a read-only 24-byte descriptor

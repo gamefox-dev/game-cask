@@ -304,6 +304,10 @@ _Static_assert(sizeof(bgt_slice_policy_t)==24,"slice policy layout");
 /* Optional profiling export bgt_profile_reset(): clears census only, increments
  * its generation; does not change guest state, execution/coverage counters or timing. */
 void bgt_profile_reset(void);
+/* Optional bgt_profile_abort(f64 now_us): after a host exception/trap abandons
+ * execution, close/discard any open interpreter span and sampled-stack state.
+ * Host timestamp uses time_us units; NaN discards the open interval. No yield hook. */
+void bgt_profile_abort(double now_us);
 /* Optional bgt_slice_first_entry(): pointer to {u32 address,kind}, or 0 before
  * execution. Read-only startup evidence; no per-entry host crossing. */
 typedef struct {uint32_t address,kind;} bgt_slice_first_entry_t;

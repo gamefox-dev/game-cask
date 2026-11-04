@@ -80,7 +80,11 @@ Standard `diagnostics().metrics.execution_summary`, probe.json and probe console
 - Interpreter timing measures **disjoint exclusive fallback spans**, including decode/entry work and
   instrumentation inside those spans. Clocks are read only at interpreter/native/thunk/scheduler transitions
   (not each instruction); nested interpretation counts once. Yield closes before unwind/parking and reopens
-  after resume; return/transfer closes the span. `interpreter_exclusive_us` is cumulative, non-extrapolated
+  after resume; return/transfer closes the span. A host exception/trap calls the optional
+  `bgt_profile_abort(now_us)` export after unwinding to close/discard the abandoned interval and
+  sampled/idle restoration state exactly once; normal yields do not call it. Failed-update wall
+  contributes to `host_profile.updateMs`, not the completed update count.
+  `interpreter_exclusive_us` is cumulative, non-extrapolated
   monotonic host wall time, in the same clock domain as `host_profile.updateMs`, not CPU hardware time.
   Pipeline guest execution starts inside update, never init/render. Census reset does not reset timing.
   `measured_ms`/`measured_ms_per_update` and compatibility `estimated_*` keys use only these spans;

@@ -27,14 +27,17 @@ void x86_profile_reset(void) {
 }
 double x86_profile_idle_us;
 static double idle_start;
-static int idle_exclusive;
+static int idle_exclusive, idle_pending;
 static int interpreter_span_set(int active);
 double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
 void x86_profile_idle_begin(void) {
     idle_exclusive = interpreter_span_set(0);
     idle_start = bgt_time_us();
+    idle_pending = 1;
 }
 void x86_profile_idle_end(void) {
+    if (!idle_pending) return;
+    idle_pending = 0;
     x86_profile_idle_us += bgt_time_us() - idle_start;
     interpreter_span_set(idle_exclusive);
 }
@@ -100,6 +103,20 @@ static int interpreter_span_set(int active) {
 }
 double x86_interpreter_exclusive_us(void) {
     return interpreter_span_us+(interpreter_span_active?bgt_time_us()-interpreter_span_start:0);
+}
+/* C return restorations cannot run after a host exception or wasm trap. The host
+ * calls this only after the abandoned stack has exited (never on a normal yield).
+ * Use its timestamp, not an import that could throw again. Missing/invalid clock
+ * discards only the open interval. Idempotent even after explicit x86_fault.
+ * In particular, never retain a sampled pointer into the abandoned C stack or
+ * reopen a discarded interval through a stale idle_end restoration. Guest SEH
+ * and longjmp use X.transfer and the ordinary return restorations instead. */
+BGT_EXPORT(bgt_profile_abort) void x86_profile_abort(double now_us) {
+    if (interpreter_span_active && __builtin_isfinite(now_us) && now_us >= interpreter_span_start)
+        interpreter_span_us += now_us - interpreter_span_start;
+    interpreter_span_active = 0;
+    exclusive_span = 0;
+    idle_exclusive = idle_pending = 0;
 }
 static uint64_t interpreter_bucket;
 static uint64_t interpreter_generation;

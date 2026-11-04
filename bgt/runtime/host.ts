@@ -169,6 +169,7 @@ interface GameExports {
   bgt_interpreter_coverage?(): number;
   bgt_guest_presentations?(): number;
   bgt_profile_reset?():void;
+  bgt_profile_abort?(nowUs:number):void;
   bgt_slice_policy?(entries:number,ranges:number):number;
   bgt_slice_first_entry?():number;
   bgt_async_buffer?(): number;
@@ -291,8 +292,14 @@ export class GameHost {
     const instantiateStart = performance.now();
     const instance = await WebAssembly.instantiate(module, imports);
     host.instantiateMs = performance.now()-instantiateStart;
-    host.exports = instance.exports as unknown as GameExports;
-    if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(host.exports.bgt_update);
+    // Every synchronous export boundary can abandon a C span (including init,
+    // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
+    host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
+      typeof value === 'function' && name !== 'bgt_profile_abort' && name !== 'bgt_update' ? (...args: unknown[]) => {
+        try { return value(...args); } catch (error) { host.abortProfile(); throw error; }
+      } : value])) as unknown as GameExports;
+    // promising requires the actual wasm function, not the synchronous guard.
+    if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
     const v = host.exports.bgt_abi_version() >>> 0;
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
@@ -747,6 +754,25 @@ export class GameHost {
     }
   }
 
+  /** Close abandoned interpreter state without replacing the original exception. */
+  private abortProfile(): void {
+    const abort = this.exports.bgt_profile_abort;
+    if (!abort) return; // Older/native modules have no interpreter spans.
+    let nowUs = NaN;
+    try { nowUs = this.services.now() * 1000; } catch { /* discard open interval */ }
+    try { abort(nowUs); } catch { /* cleanup must not mask the original error */ }
+  }
+
+  private failedUpdate(t0: number): void {
+    // Partial guest execution still consumed wall time, but completed no frame.
+    // Keep it in the physical budget; failed/throwing clocks cannot mask a fault.
+    try {
+      this.observationStarted ??= t0;
+      this.timings.updateMs = this.services.now() - t0;
+      this.profile.updateMs += this.timings.updateMs;
+    } catch { /* original guest error wins */ }
+  }
+
   /** One fixed simulation step. */
   update(): void | Promise<void> {
     if (this.jspiUpdate) return this.updateJspi();
@@ -754,23 +780,26 @@ export class GameHost {
     const t0 = this.services.now();
     this.requests.advance();
     const ex = this.exports;
-    if (this.asyncState === AsyncState.Suspended) {
-      // resume inside bgt_yield where the previous update stopped
-      ex.asyncify_start_rewind!(this.asyncBuf);
-      this.asyncState = AsyncState.Rewinding;
-    }
     this.inUpdate = true;
     try {
+      if (this.asyncState === AsyncState.Suspended) {
+        // resume inside bgt_yield where the previous update stopped
+        ex.asyncify_start_rewind!(this.asyncBuf);
+        this.asyncState = AsyncState.Rewinding;
+      }
       ex.bgt_update(DT_US);
+      if (this.asyncState === AsyncState.Unwinding) {
+        ex.asyncify_stop_unwind!();
+        this.asyncState = AsyncState.Suspended;
+        this.yields++;
+      } else if (this.asyncState === AsyncState.Rewinding) {
+        throw new HostError('asyncify rewind did not reach bgt_yield (game state diverged)');
+      }
+    } catch (error) {
+      this.abortProfile();
+      this.failedUpdate(t0); throw error;
     } finally {
       this.inUpdate = false;
-    }
-    if (this.asyncState === AsyncState.Unwinding) {
-      ex.asyncify_stop_unwind!();
-      this.asyncState = AsyncState.Suspended;
-      this.yields++;
-    } else if (this.asyncState === AsyncState.Rewinding) {
-      throw new HostError('asyncify rewind did not reach bgt_yield (game state diverged)');
     }
     this.finishUpdate(t0);
   }
@@ -823,10 +852,13 @@ export class GameHost {
         });
       }
       await boundary;
-      this.finishUpdate(t0);
+    } catch (error) {
+      this.abortProfile();
+      this.failedUpdate(t0); throw error;
     } finally {
       this.inUpdate = false; this.jspiBoundary = null; this.jspiBusy = false;
     }
+    this.finishUpdate(t0);
   }
 
   profileReset():boolean {

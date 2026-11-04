@@ -23,6 +23,8 @@ extern double x86_profile_idle_us;
 extern double x86_interpreter_exclusive_sample_us;
 /* Non-extrapolated disjoint interpreter spans, closed across frame waits. */
 double x86_interpreter_exclusive_us(void);
+/* Host exception/trap boundary; timestamp in bgt.time_us units, NaN discards open span. */
+void x86_profile_abort(double now_us);
 /* Returns an index+1; zero is a counted overflow. No eviction or invented counts. */
 uint64_t x86_profile_exit(uint32_t address, uint32_t reason);
 void x86_profile_instruction(uint64_t bucket);

@@ -134,6 +134,9 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
   census never evicts; `census_dropped` counts rejected events. Nonzero means the retained top-N is incomplete,
   not a trustworthy global ranking. Existing execution and coverage counters remain independent/exact.
 - `host_profile`: cumulative update/render wall ms, awaited range-I/O ms, sampled BGT imports by name (1/1024).
+  Failed updates retain partial wall time without incrementing completed frames. On host exceptions/wasm traps,
+  optional `bgt_profile_abort(now_us)` closes/discards abandoned interpreter spans and sampled/idle state;
+  normal returns and suspended yields do not call this hook. The original exception propagates unchanged.
   Hot coverage/time imports are counted but not individually timed. `runtime_profile` adds cumulative backend
   `gpuSubmitMs` (JS encode/submit) and `gpuDrawWallMs` (including requested readback/waits), **not GPU timestamps**.
   Its VFS `readMs` includes awaited fetches; `fetchMs` includes response consumption/integrity. Concurrent totals

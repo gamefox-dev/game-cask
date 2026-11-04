@@ -2,7 +2,9 @@
  * work before each semantic dispatch. No replaced guest instruction or OS API. */
 #include <stdio.h>
 #include "wasi_offline.h" /* Deterministic musl stack-cookie bytes, no host WASI. */
+#ifndef X86_COVERAGE_MODE
 #define X86_COVERAGE_MODE 0
+#endif
 #if MODE64
 #define X86_FLAT_GUEST 1
 #define X86_FLAT_BYTES 65536ull
@@ -19,7 +21,23 @@ void measured_64_body(const x86_insn_t *in);
 #include "../../../platforms/x86/x86_simd.c"
 /* Unsupported use traps, not a success substitute. No x87 in this program. */
 void x86_x87(const x86_insn_t *in) { (void)in;__builtin_trap(); }
-static void work(unsigned us) { bgt_log(us,"work",4); }
+/* Configured faults occur during real dispatch, after the explicit hand work. */
+static unsigned failure, failure_phase;
+BGT_EXPORT(set_failure) void set_failure(unsigned n) { failure=n; }
+BGT_EXPORT(set_phase) void set_phase(unsigned n) { failure_phase=n; }
+static void phase_failure(unsigned phase) {
+    if (failure_phase!=phase) return;
+    X.r[ESP]=0x8000;X.frame_insns=0;X.transfer=0;
+    x86_push(0xfffffff4u);x86_invoke(0x2000,0xfffffff4u);
+}
+static void work(unsigned us) {
+    bgt_log(us,"work",4);
+    if (us==10 && failure==1) __builtin_trap();
+    if (us==10 && failure==2) bgt_abort(BGT_E_STATE,"span abort",10);
+    if (us==10 && failure==3) bgt_yield(); /* missing idle protocol / invalid context */
+    if (us==10 && failure==4) { X.transfer=1; failure=0; } /* SEH-style dispatcher unwind */
+    if (us==10 && failure==5) { x86_profile_idle_begin();bgt_yield();x86_profile_idle_end(); }
+}
 void x86_exec_insn(const x86_insn_t *in) { work(10);measured_insn_body(in); }
 void x86_exec64(const x86_insn_t *in) { work(10);measured_64_body(in); }
 static unsigned calls,completed,quantum;
@@ -48,18 +66,29 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     for(unsigned i=0;i<sizeof loop;i++)x86_wr8(0x4000+i,loop[i]);
     x86_wr8(0x6000,0xf3);x86_wr8(0x6001,0xaa);x86_wr8(0x6002,0xc3);
     x86_register_lifted(lifted_entries,1);x86_register_code_ranges(ranges,2,2);
+#if X86_COVERAGE_MODE == 2
+    static const x86_code_range_t allowed[]={{0x1000,0x1020,0},{0x2000,0x2006,1},{0x3000,0x3001,2},{0x5000,0x5010,3}};
+    x86_set_slice(0,0,allowed,4);
+#endif
     x86_set_thunks(0x5000,0x5010,thunk);x86_set_scheduler(schedule);
-    io.logical_width=io.logical_height=64;return BGT_OK;
+    io.logical_width=io.logical_height=64;phase_failure(1);return BGT_OK;
 }
+#if X86_COVERAGE_MODE == 2
+BGT_EXPORT(bgt_slice_policy) uint32_t policy(uint32_t entries,uint32_t nranges) { return x86_prepare_host_slice(entries,nranges); }
+#endif
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     (void)dt;calls++;X.r[ESP]=0x8000;X.transfer=0;X.frame_insns=quantum;
     x86_push(0xfffffff4u);x86_invoke(0x1000,0xfffffff4u);completed++;
 }
-BGT_EXPORT(bgt_render) void bgt_render(void) {}
-BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
+BGT_EXPORT(bgt_render) void bgt_render(void) { phase_failure(2); }
+BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) { phase_failure(5); }
+BGT_EXPORT(bgt_state_hash) uint32_t state_hash(void) { phase_failure(4);return X.eip; }
+BGT_EXPORT(idle_end) void idle_end(void) { x86_profile_idle_end(); }
 BGT_EXPORT(total) double total(void) { return x86_interpreter_exclusive_us(); }
+BGT_EXPORT(sample_open) int sample_open(void) { return exclusive_span!=0; }
 /* Test serializer of actual runtime outputs; production serializer capacity has its own fixture. */
 BGT_EXPORT(bgt_metrics) uint32_t metrics(void) {
+    phase_failure(3);
     static char json[256];snprintf(json,sizeof json,"{\"interpreter_timing_enabled\":%u,\"interpreter_exclusive_us\":%.0f,\"interp_insns\":%llu}",
         X86_PROFILE_ENABLED,x86_interpreter_exclusive_us(),(unsigned long long)x86_metrics.interp_insns);
     return (uint32_t)(uintptr_t)json;

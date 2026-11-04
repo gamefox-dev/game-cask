@@ -1,6 +1,17 @@
 # v0.3 merged implementation status
 
-## K26 final — physical interpreter timing / measured size attribution (lane Tier 1 green)
+## K26f exception-boundary repair — full gates pending
+
+External vK26 review found host exceptions bypassing C span cleanup (P2). Approved optional
+`bgt_profile_abort(now_us)` and host boundary guards now close/discard abandoned spans, clear
+sampled-stack/idle state and retain failed-update wall without adding completed frames. New
+CC0 tests cover both widths, Asyncify/real JSPI, strict stops, traps/abort/resume/lifecycle
+failures, absent export, clock loss and normal-yield non-cleanup. Focused24/24, types/ESLint
+pass; before-fix reviewer4/4 and two cleanup mutations fail as intended. Full final-source
+Tier1 and external delta re-review pending; no independent PASS or CI claimed.
+[Repair handoff](handoff/K26.md).
+
+## K26 historical normal-path gates — physical interpreter timing / measured size attribution
 
 Q73 no longer extrapolates timer overhead into a physical exclusive budget. Disjoint measured
 interpreter spans use the host monotonic clock, exclude native/API/scheduler/parked work, survive
