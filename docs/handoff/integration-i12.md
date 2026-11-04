@@ -1,6 +1,7 @@
 # Integration I12 — K21 + K22
 
-**In progress; no finish-line acceptance yet.** Branch `integration/p1`, base dev.14 `4bcc068`.
+**Final: merged-tree gates complete**, with explicitly approved combined JSPI browser recovery below.
+Branch `integration/p1`, base dev.14 `4bcc068`.
 No push, game inputs, installs or test weakening. Asyncify remains default.
 
 ## Merge and integration decisions
@@ -25,7 +26,7 @@ JSPI-only bypasses postprocess; preferred emits dual artifacts; both share the s
 
 Inherited external **vK21b PASS /vK22b PASS**. Reviewer explicitly read `3be7551..ff5e905` repair diff and
 judged it narrow/correct; requested lane reviews + diff read + integrator merged-tree gates in this handoff.
-Reviewer subsequently read/accepted29b3951 (the writer flag), with strict assembly checks unchanged and the
+Reviewer subsequently read/accepted `29b3951` (the writer flag), with strict assembly checks unchanged and the
 forced-partition convergence case retained as regression. This does **not** upgrade the review scope:
 **no separate independent merged-tree review/PASS or CI run is claimed.**
 
@@ -43,38 +44,102 @@ and zero recording drops. This fixes a K22 partition-assembly bug its original s
 This is integration breakage exposed by combining K21's new module shape with K22's partitioner, not a
 new optimization or changed global default. Hashed partition implementation automatically invalidates cache.
 
-## Verification — pending
+## Final-source verification — complete (2026-11-04)
 
-- Focused diagnostic: **12 pass /1 fail**; only forced-partition fixture selected one shard at 1 MiB.
-  Repaired to64 KiB, preserving >1 assertion. Original typecheck caught missing Window typing in the new
-  browser assertion; repaired before gate sweep. These diagnostics are not final acceptance.
-- Current source implementation: `29b3951`. Full serial driver `reports/i12/gates.sh` records every exit/log/time.
-  Full units run real Node JSPI with600000ms CLI budget, no exclusions. Browser runs require WebGPU and both
-  backends in Asyncify then JSPI mode, port5260, never developer5173. Oracles enumerate every pipeline game.json,
-  300 updates each in both modes. Reduced scale is1044 owners/1800 rounds, production default thresholds.
-- Earlier focused runner30710:15 pass/1 fail from type reordering, preserved at
-  `reports/i12/convergence-fixed.{log,exit}`. Final33235 is complete16/16 PASS:
-  `reports/i12/convergence-final.{log,exit}`, copied recordings/compact convergence summary under final/.
-- Isolated negative controls root25485: `reports/i12/mutation-before.{log,exit}`; private archive under
-  `$BGT_TRIAL_SCRATCH/mutation-kit` mutates only copied snapshot variant/key parser input, never source tree.
-- The pre-repair gate root38494 completed doctor only; its lint was still queued when paused/canceled, with
-  no writers. Only those recorded owned roots were signaled (38494,82970). No shared queue/lock was deleted.
-- **Current final gate driver root48853**, `reports/i12/gates-final.sh`, waits for **convergence-final root33235**
-  then writes fresh `reports/i12/final/*` logs/exits/timestamps/source commit+tree. Tested commit is
-  `e5be578382447810b87410d0adee509d8509f36c`, tree`7b6b294ff851842c3cae96cf36a5cbaa6efed9c8`.
-  As of02:37UTC: doctor0; cold lint24/36 checked and progressing, remaining final gates not started.
-  Separate focused typecheck exit0; not substituted for the driver’s final typecheck. Earlier waiting driver33249/
-  33252 canceled before any gates to correct its dead-wait boundary. Original74579 ran no gates (shell parse
-  error); all diagnostics preserved. Final driver passes bash -n, no source edits planned after29b3951.
-- Full matrix remains doctor/lint incl scale/clang/types/units/both browsers/leakcheck/64 oracles/reduced scale.
-  Negative controls actually failed **3/3 as intended**: two missing snapshot active modes, one omitted name
-  parser identity. Logs retain exact assertion failures. Private archive can now be removed.
-- Audit tool: `node reports/i12/audit.mjs`; pending/failed gates must not be called PASS. Preserve original
-  failures. Finalize compact evidence, this handoff/status, leakcheck, commit after all results.
+The original serial driver **completed**, despite the agent-session disk-guard interruption.
+Do not repeat its passing gates. Logs, exits, UTC start/finish times and raw oracle reports are retained
+in ignored `reports/i12/final/`. The sweep tested commit `e5be578382447810b87410d0adee509d8509f36c`,
+tree `7b6b294ff851842c3cae96cf36a5cbaa6efed9c8`. Production/test source is unchanged since `29b3951`;
+subsequent commits changed documentation only. Continuation began at `310eb79`.
 
-## Remaining work / cleanup
+| Gate | Result |
+|---|---|
+| doctor | ready, exit0; Node24.19.0, Zig0.13.0, pinned dependencies/Chromium |
+| full lint | exit0, ESLint + real GCC + **36/36** example checks including x64-scale |
+| explicit clang | exit0, `checkHostGcc("clang")` |
+| typecheck | exit0 |
+| full npm test | **2,015 passed /106 files /0 skips**, exit0; real Node JSPI enabled |
+| Asyncify full browser | **291 passed /51 existing skips /0 failures /0 flaky**, exit0 |
+| JSPI browser | **combined291 passed /51 existing skips /0 unresolved failures**; two full attempts + unchanged focused1/1 recovery, explicitly approved by reviewer |
+| full leakcheck | exit0; documentation/evidence rechecked before final commit |
+| pipeline oracles | **32 fixtures ×2 modes ×300 =19,200 identical frame pairs**, all64 exits0 |
+| reduced bounded Asyncify | **5/5 partitions**, 300 reference/raw/Asyncify/real-JSPI checksums equal |
 
-Inspect runners before deleting owned scratch. Verify real four-mode convergence, no unexpected browser skips,
-32×2 oracle traces/errors/interp/stubs and cross-variant hashes, reduced scale300 checks/10,500 yields. If any
-production repair lands, rerun final-source gates. Remove archive after negative controls exit and scale wasm
-only after hashes/oracle saved. Do not delete shared caches/locks or other lanes' work. Hardware/mobile not certified.
+Commands are in `reports/i12/gates-final.sh`: `BGT_INCLUDE_SCALE=1 npm run lint`;
+`BGT_JSPI=1 BGT_TEST_JSPI=1 npm test -- --maxWorkers=1 --testTimeout=600000`;
+`BGT_JSPI=1 BGT_REQUIRE_WEBGPU=1 npm run test:e2e`, then additionally
+`BGT_E2E_SUSPENSION=jspi`; every pipeline example via `npm run oracle -- examples/<id> 300`
+with `BGT_JSPI=1 BGT_ORACLE_SUSPENSION=asyncify|jspi`. Both backends plus auto-selection run on
+owned port5260, never developer5173; build jobs2, no light mode, no test exclusions or weakened assertions.
+
+Both modes' original browser inventories have the **same51 skips as I11**: backend-specific predicates,
+backend-independent tour, opt-in no-adapter and intentional broken-WebGPU negative-policy cases.
+No required-device or new-feature availability skip is hidden. Asyncify project pass counts:
+WebGL2 **131**, WebGPU **152**, auto **8**. Both JSPI full attempts: WebGL2 **131**, WebGPU **151**,
+auto **8**, and one failed WebGPU case. The final retry inventory is audited against the same51 skips.
+
+### Disk failure and unchanged-source retry
+
+The sole sweep failure is `browserContext.close: ENOSPC: no space left on device, write` at
+`x64-glsl` WebGPU teardown. Its guest diagnostic log reports PASS; this is **not** counted as a pass.
+Original log/exit/results are preserved under `reports/i12/final/enospc-browser-jspi/`.
+The complete JSPI browser suite was rerun serially under `reports/i12/rerun-browser-jspi.sh`, root94159,
+on unchanged implementation at310eb79. It passed the ENOSPC-affected exact-pixel case, but the different
+`x64-glsl` cross-backend case exceeded its unchanged360000ms timeout. Guest logs report all stress/tiles
+PASS, with no page/console errors; full retry ends290 passed/51 existing skips/1 timeout. Load averages
+were ~36/38/40; reviewer confirmed ~40 on10 cores with four sessions running suites. This is recorded
+as a timeout, not silently relabeled a pass. Original sweep had passed the cross-backend case.
+Full retry log/exit/results are preserved under `reports/i12/final/timeout-browser-jspi/`.
+
+Reviewer explicitly accepted a **combined same-source gate** if the single timeout passes unchanged,
+without repeating the290 passing cases. Focused recovery root22876 uses direct Playwright on existing
+JSPI outputs, normal global setup, required WebGPU, same360000ms test budget/assertions, port5260:
+`BGT_JSPI=1 BGT_E2E_SUSPENSION=jspi BGT_REQUIRE_WEBGPU=1 BGT_RESULTS_PREFIX=i12-jspi-recovery npm exec -- playwright test --project=chromium-webgpu tests/e2e/x64-glsl.spec.ts --grep "cross-backend images agree"`.
+**Focused recovery1/1 PASS**, exit0: 4.8min test /5.4min including setup. Cross-backend comparison
+`different=0.00625, unmatched=0` satisfies the unchanged thresholds. No production or test edits, timeout
+relaxation or assertion changes. Full retry’s290 passes + recovered1 = **291**, with51 existing skips and
+zero unresolved failures. This is **not an uninterrupted green full JSPI suite**. Final logs/results are
+`reports/i12/final/jspi-recovery*`; both prior failures remain preserved and hashed in compact evidence.
+
+### Convergence, cache sensitivity and reduced scale
+
+- Final focused convergence: **16/16 tests /3 files**, real Node JSPI. Default Asyncify, forced64KiB
+  partitioned Asyncify, JSPI-only and JSPI-preferred all converge **70,003→0 interpreted instructions**,
+  identical per-update trace SHA `f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208`,
+  zero recording drops. Active modes are Asyncify/Asyncify/JSPI/JSPI respectively. Full units also include
+  these regressions. Recordings/summary are in `reports/i12/final/coverage-discovery-*.json` and
+  `convergence-summary.json`; final focused log `reports/i12/convergence-final.log`.
+- Negative controls **3/3 fail as intended** in a private source archive: removing snapshot active variant
+  fails both mode assertions; omitting `wasm-names.mjs` from cache identity fails key sensitivity.
+  Logs `reports/i12/mutation-before.{log,exit}`. The forced-partition convergence case separately caught
+  the actual writer type-order defect; isolated before/after and full rerun preserved. No production mutation.
+- Every oracle requested/compared300; identical, null divergence/failure/errors, lifted interp0,
+  empty API/GL stubs, correct active variant. Trace SHA agrees lifted/interpreted **and across variants**.
+- Reduced scale uses **1,044 owners /1,800 rounds**, production partition thresholds, raw **41,518,980B**,
+  Asyncify **42,175,552B**, **five partitions**. Mathematical reference, raw, Asyncify and real JSPI agree
+  on all300 updates and **10,500 yields per variant**. Hashes/sizes/oracle/log retained under
+  `reports/i12/final/scale*`; both wasm artifacts removed after hashing. This is not the417MB lane run
+  and makes no game-performance claim.
+
+### Preserved diagnostics and cleanup
+
+Earlier fixture diagnostics are not final acceptance: the1MiB force setting made one shard and correctly
+failed the >1 assertion; repaired to64KiB. Typecheck caught missing Window typing in the browser assertion,
+repaired before the final sweep. The original forced-partition run failed closed on shard13 before
+`29b3951`; final16/16 run passes. Early shell-parse/wait-boundary attempts ran no gates. Original logs remain.
+Only owned pre-sweep/waiting runner roots were canceled; no shared gate locks, queues or caches were removed.
+The private mutation/reproduction archives and reduced-scale wasm outputs are gone. Shared caches and current
+browser outputs remain intact. The owned I12 Zig cache (~768MiB) was removed only after browser
+build/global setup completed (browser specs do not invoke host builds). Disk headroom is monitored.
+Reviewer #216 disclosed an accidental helper kill (pid72066 around13:15 local); no corresponding
+killed/aborted-helper failure appears in these gate logs, so no unrelated gate was repeated.
+
+## Finish boundary
+
+Compact checked evidence: [integration-i12-evidence.json](integration-i12-evidence.json). The final auditor
+`reports/i12/finalize-evidence.mjs` checks all exit/report contracts, exact skipped-test inventory against I11,
+all64 oracle reports/cross-variant hashes, four convergence variants and mathematical scale checksums.
+Final documentation/evidence only; no implementation changes during I12b, no push. Owned scale/archive
+artifacts removed; shared caches/locks untouched. Inherited external lane reviews and reviewer diff-read
+remain the validation boundary: no separate independent merged-tree PASS, CI, game/playability or
+physical-device/mobile certification is claimed.

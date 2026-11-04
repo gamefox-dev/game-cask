@@ -1,16 +1,30 @@
 # v0.3 merged implementation status
 
-## Integration I12 — K21 + K22 (verification in progress)
+## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
 Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
 identity/adoption/strict-slice policy coexist with bounded Asyncify, JSPI-only and JSPI-preferred packages.
 Asyncify remains default. Integration repairs identify the active variant on execution summaries/probe output
 and coverage snapshot metrics, and include the partition name parser in post-link cache identity.
-Regressions cover all four convergence variants, snapshot serialization and every postprocess implementation input.
+Binaryen partition children preserve type order so shard-local usage cannot change shared section indices;
+all strict assembly checks remain. Regressions cover all four convergence variants, snapshot serialization
+and every postprocess implementation input. Asyncify remains the global default.
 
-**Merged-tree finish-line gates are pending; no Tier 1 or independent merged-tree PASS yet.**
-Inherited external lane reviews: **vK21b PASS /vK22b PASS**. Reviewer read the narrow I12 repair diff;
-that is not a fresh independent merged-tree validation. Live results/remaining work: [I12 handoff](handoff/integration-i12.md).
+Final source gates: doctor; full lint **36/36 examples**, real GCC + explicit clang; types;
+**2,015 units /106 files /0 skips**; leakcheck; **32 pipeline oracles ×2 modes ×300 =19,200 identical
+frame pairs**, lifted interp0/stubs0/errors0 and equal cross-variant trace hashes. Asyncify full browser:
+**291 passed /51 existing skips /0 failures /0 flaky**. JSPI browser: **reviewer-approved combined291
+passed /51 existing skips /0 unresolved failures**, not an uninterrupted green full run: first full attempt
+had one teardown ENOSPC, second had one different360000ms timeout under ~40 load on10 cores; the latter
+passes unchanged in focused recovery. Both full attempts and recovery are explicitly retained.
+Four-mode convergence (default, forced-partition Asyncify, JSPI-only/preferred) **70,003→0** interpreted
+instructions, identical traces, zero drops. Reduced scale **1,044 owners /five partitions**, all300
+reference/raw/Asyncify/real-JSPI checksums equal and10,500 yields per variant; temporary wasm removed.
+
+Inherited external lane reviews: **vK21b PASS /vK22b PASS**. Reviewer accepted the narrow repair diff and
+the type-order flag/regression; this is not a separate independent merged-tree validation or CI run.
+No game/playability or physical-device certification. [I12 handoff](handoff/integration-i12.md),
+[compact evidence](handoff/integration-i12-evidence.json).
 
 ## K21 final — coverage convergence and guest presentations (lane Tier 1 green)
 

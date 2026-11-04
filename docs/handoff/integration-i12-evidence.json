@@ -1,0 +1,1029 @@
+{
+  "schema": "game-cask/integration-i12-evidence/1",
+  "implementation": "29b3951",
+  "tested_commit": "e5be578382447810b87410d0adee509d8509f36c",
+  "tested_tree": "7b6b294ff851842c3cae96cf36a5cbaa6efed9c8",
+  "jspi_browser_retry_commit": "310eb792afb833a8a97ba10cc7ddb1a44fca3c50",
+  "jspi_browser_retry_tree": "b6eb7e8e8a41349956f90b677aa547804affa8c8",
+  "later_changes": "documentation/evidence only",
+  "merges": [
+    "0fdc7c3",
+    "3be7551"
+  ],
+  "review_scope": "Inherited vK21b/vK22b PASS plus reviewer repair-diff read; no separate merged-tree review or CI claimed",
+  "environment": {
+    "node": "24.19.0",
+    "build_jobs": 2,
+    "browser_port": 5260,
+    "required_webgpu": true,
+    "light_mode": false
+  },
+  "gates": [
+    {
+      "name": "doctor",
+      "exit": 0,
+      "started": "2026-11-04T02:09:34Z",
+      "finished": "2026-11-04T02:09:34Z",
+      "log_sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+    },
+    {
+      "name": "lint",
+      "exit": 0,
+      "started": "2026-11-04T02:09:34Z",
+      "finished": "2026-11-04T03:18:52Z",
+      "log_sha256": "746b4854c18e04089f4b4e7c89a3529c747a8eb8f7b511b0c5914179a9c6b833"
+    },
+    {
+      "name": "clang",
+      "exit": 0,
+      "started": "2026-11-04T03:18:52Z",
+      "finished": "2026-11-04T03:18:59Z",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "types",
+      "exit": 0,
+      "started": "2026-11-04T03:18:59Z",
+      "finished": "2026-11-04T03:19:04Z",
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "name": "units",
+      "exit": 0,
+      "started": "2026-11-04T03:19:04Z",
+      "finished": "2026-11-04T04:36:36Z",
+      "log_sha256": "5a06fea6660bdc31d52d161b72df941b163b9db06743e0c82361dde8200c20c9"
+    },
+    {
+      "name": "browser-asyncify",
+      "exit": 0,
+      "started": "2026-11-04T04:36:36Z",
+      "finished": "2026-11-04T04:54:28Z",
+      "log_sha256": "c98aac0da7d4515d0d88a16115be3cf11c2e154b4cb1fdc363bf16ae1cb39ff9"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "started": "2026-11-04T05:10:08Z",
+      "finished": "2026-11-04T05:10:08Z",
+      "log_sha256": "7fa990548a96bee75caada69c099d7399cfe3ee4409f192f78663aa0206c7179"
+    },
+    {
+      "name": "scale",
+      "exit": 0,
+      "started": "2026-11-04T05:18:53Z",
+      "finished": "2026-11-04T05:21:10Z",
+      "log_sha256": "ffefd0d0bd6cb42fbb908376110f326ff4e1d50e092bab2efa6eea755a8a7ede"
+    },
+    {
+      "name": "browser-jspi",
+      "exit": 0,
+      "combined_same_source_gate": true,
+      "reviewer_decision": "Full 290 passing cases retained; only timeout retried unchanged, same 360000ms budget",
+      "full_suite_exit": 1,
+      "focused_recovery_exit": 0,
+      "full_log_sha256": "884bb51521f3dc16fef51d332d761593fe2348f309df7db4fd1c28e5c8215e67",
+      "recovery_log_sha256": "8f86f3193350ab472c590883fa03a9d0afeaeb2d0630220fbd7a85d9ecea1161",
+      "recovery_started": "2026-11-04T06:39:00Z",
+      "recovery_finished": "2026-11-04T06:44:27Z"
+    }
+  ],
+  "unit": {
+    "passed": 2015,
+    "files": 106,
+    "skipped": 0
+  },
+  "browsers": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-04T04:38:44.867Z",
+        "duration": 943013.403,
+        "expected": 291,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 131,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 152,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips_identical_to_i11": true,
+      "report_sha256": "d6a6fc66e6b5f25deb31a8465f2a02b39432def9c6574b1ed43850d17dda0e84"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-04T06:11:30.444Z",
+        "duration": 1541573.045,
+        "expected": 290,
+        "skipped": 51,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 131,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 151,
+          "skipped": 26,
+          "unexpected": 1,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips_identical_to_i11": true,
+      "report_sha256": "9588f86145811ea60bec252f41d14f85a541f82c786b0d5c0e1545dd7f35e10e",
+      "focused_recovery": {
+        "stats": {
+          "startTime": "2026-11-04T06:39:01.065Z",
+          "duration": 326414.37100000004,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "tests": [
+          [
+            "x64-glsl: cross-backend images agree @webgpu",
+            "chromium-webgpu",
+            "expected"
+          ]
+        ],
+        "report_sha256": "6a6237db2cf34ae9edabfb044cfdbc3d72e2a729443ff0c732257a580669b2db",
+        "load": "13:39  up 25 days,  1:31, 3 users, load averages: 15.12 31.39 36.93\n13:44  up 25 days,  1:36, 3 users, load averages: 15.04 22.66 31.12"
+      },
+      "combined": {
+        "passed": 291,
+        "skipped": 51,
+        "unresolved_failures": 0,
+        "not_an_uninterrupted_full_suite_pass": true
+      }
+    }
+  },
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "trace_sha256": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+      "reports": {
+        "asyncify": {
+          "sha256": "b24df545e0ce7c4ca82f1e195181db9e6c4adbc7b5d1687458cec7ab90ed8773",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "dc54cfb60d04d097a0e6b5fc59d516e78566c4c8687253717024f414e5f6d295",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "win32-hello",
+      "trace_sha256": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+      "reports": {
+        "asyncify": {
+          "sha256": "8aaf16a86ea1d4f3ee70d0f818f8aa9ad98bff5d393e01ab6664ffc7d837cfe7",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "a3d8289f770e54f8aa80b7eb9ff4a269612738a967eee1bd57770558b6329cd2",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-audio",
+      "trace_sha256": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+      "reports": {
+        "asyncify": {
+          "sha256": "e44731d462945b6eb400e8ab68714a1015d04d06405998d7646c089a919ee33b",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c8f0658c0cd18a8cdae9a14666c35c30d0a87ae040837e18f9a051c1e455b64d",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-audio-init",
+      "trace_sha256": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+      "reports": {
+        "asyncify": {
+          "sha256": "1fa934259798a5199d505c4a9f5c3074149b5f2fa600442c52a513046d508be1",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "2970a4c82a80a9938a801100ec242a53b65f1af1ad10be65a1e4cfcdc0c52ba2",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-basics",
+      "trace_sha256": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+      "reports": {
+        "asyncify": {
+          "sha256": "d1f679354c878e82ff662326191cba5830ac7e3f33d5d058b9732184db911b6c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "1cfd9d547c7c7bf97913938e8e91dae1b8da11534c93e4bc16705c1543234ee2",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-contracts",
+      "trace_sha256": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+      "reports": {
+        "asyncify": {
+          "sha256": "fe848f9870694b895ffaeea9a1a7129d2c7b941cf7f48918c213772e7d7cdc00",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "8a8226838943e01628a72cb0ff1f325323f9482be8023b469f6040af5a615bc7",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-cpp",
+      "trace_sha256": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+      "reports": {
+        "asyncify": {
+          "sha256": "30195a295ec8b4d7c34903ddfdc54352bf9a78b7dca020f96666c480519d999c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "6c75d28e9c4e3ec10d9bca12756503a8fecf6f3c116305ac1cd7c91b4e77b28c",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-cpprt",
+      "trace_sha256": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+      "reports": {
+        "asyncify": {
+          "sha256": "d3cf0ae0d943d7b149a015bd6c1c1e2101a70616ca58ef8238be2768effcb970",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "8f728ec25b34203d6975eea49688d7c3cb31b5f3caab928617609c59c7aa97b4",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-crt",
+      "trace_sha256": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+      "reports": {
+        "asyncify": {
+          "sha256": "7f92c4ef07d6f2254790ce4713f8f76550fe8ad2b7f6404e2390ce62682f8da2",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "ce7c73e10a7877a431d6e05b9b4bbddbf0ba31071986b767c584fe00612d57cb",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl",
+      "trace_sha256": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+      "reports": {
+        "asyncify": {
+          "sha256": "fe9bfe39347b9be1d0ac474518b7ee56973073c9f53652ef0aa52b20089c643f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "249f650f347e3fe9f6cd28a8a40d6a484045f9cf5ee517064d339dc513b7d522",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-blit",
+      "trace_sha256": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+      "reports": {
+        "asyncify": {
+          "sha256": "5a0a565f79f6c9536db3881ab1c1e4717edb7443002b3d79e5e7ef2bb2bf3602",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "241ec0ccc45ae8ae44fea60bcfc71a1c8fac5f5a5ad3f3c0d97dd8862668bf61",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-capacity",
+      "trace_sha256": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+      "reports": {
+        "asyncify": {
+          "sha256": "3a43fbe2ce6553e71d7649ac12ab1e3e4c41d07932d106f37dada87e7c879ca6",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "0f054c2492601b8a5053f3884f82f625cd7e4e3dc802994ed5858dd51b8d0b6d",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-current",
+      "trace_sha256": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+      "reports": {
+        "asyncify": {
+          "sha256": "cd3a2a4ff8c65c3bfd92289e6acd902c5f49b4bfdd3e1330786500937c92ccc8",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "e221d6c42faa9540b7e47ab02e0de4c3ed2c65aaa72bdd77472e400aaa556232",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "trace_sha256": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+      "reports": {
+        "asyncify": {
+          "sha256": "e2015ce4ca19163862b7e950e05cbd773fc21f330f86571bb4fb7598a5026da7",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "41fe84f52f91229e927e54934e8bed33d7f37c29870332fabc20ea5aa5f5dd85",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-fbo",
+      "trace_sha256": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+      "reports": {
+        "asyncify": {
+          "sha256": "b288f754dfcb0caba18973f820d60b24dbff4980f65cc84baca9907130b44353",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "9ddd25352cdcd4dd853f40e4c04b5efe6fb42703570d80bcee6266e5ce65b13f",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-feedback",
+      "trace_sha256": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+      "reports": {
+        "asyncify": {
+          "sha256": "5287ddf9b503e757cac6b67d0c1a3b09c0cc4001ef0ab2131da5abd921298cc4",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "752e5c5819aeedb50ff07289b657b61b3af42e41b663cce956670c6d2e56b15e",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-integer",
+      "trace_sha256": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+      "reports": {
+        "asyncify": {
+          "sha256": "c2dd8a4b4275889e10e8cba923d0a36972e6e78f25b62a8b750e65de5ddc7e51",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "3846ea1a6be66c924956498f80b2a976fe42b62304caa29b536fcf0804b5ea69",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gl-ranges",
+      "trace_sha256": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+      "reports": {
+        "asyncify": {
+          "sha256": "50bde311542ccb59b2f529cd442bbd4dfebe91d6b684153662743bfe72c6ea7d",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c52a91e388804e2a764505d223dfe744d793b9ad367115896310117a9c24b1f8",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-glsl",
+      "trace_sha256": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+      "reports": {
+        "asyncify": {
+          "sha256": "fb61bbe74c8becc868a33b3cb57182d9cc28ea75d04685120124fe569d972749",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "ef2e4b2efa28b1981abc2df2e379df29e1eee989f2272f17c8a3cd1f1ea08a21",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-gui",
+      "trace_sha256": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+      "reports": {
+        "asyncify": {
+          "sha256": "323cb20287a968bd1fecb32764fed0e7e8eae8e001a7330ff134378125281a89",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "ad4bf837ddb08725f96f34776bff390a651c2c70322595683026b200a6bdad56",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-handles",
+      "trace_sha256": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+      "reports": {
+        "asyncify": {
+          "sha256": "12e162e254acce2321baaf14259fb9efe782ca5b9c705876a0d71ccb21096b85",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c8e8c6cc20882a1ebc328902b0997053bc5a7ca8df4cd725da82d1c546ce96f5",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-heap",
+      "trace_sha256": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+      "reports": {
+        "asyncify": {
+          "sha256": "8bdd05058b718ae9621394e8494b909c058ee0ad6a3a796747f92c150999ec6e",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "f18fd5a542e63295c7e1c373bd3eccbd326972a2dac0c7f6bedb9cb1633a17e0",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-input",
+      "trace_sha256": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+      "reports": {
+        "asyncify": {
+          "sha256": "4c2dc880011a25342399a715556d8f858ac86895cb27e350dd3df4ac03fa9a9f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "1da43addf5f2c00bc6c86510ae2b9abeb04de962c0bfbddd7e34cda2f394f825",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-memory",
+      "trace_sha256": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+      "reports": {
+        "asyncify": {
+          "sha256": "bb591213fed3fd3e44a0d260d97f3ffa7be33c7589d28ca62872d3800cacb614",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "700010ee2af8f4fb57e05ce88b6315d5b89b83db391ff7185d2b43588b4c215a",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-scale",
+      "trace_sha256": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+      "reports": {
+        "asyncify": {
+          "sha256": "dd0c9d7cbe88ab0e364f022960a182ae4ac9dae5645c437db574c80e3b49a326",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "62a40d7181097eb769aaced22d8f25ed60bd52056622497841dec6c2e956c41b",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-smoke",
+      "trace_sha256": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+      "reports": {
+        "asyncify": {
+          "sha256": "921eb296b11159ade6e6b145d46af5c244a83edebb1817bf84d451ed4d198604",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "9d6d697c03ac588cb5130d75e50074498f7931f399127d6a6f19a2807e8534ad",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-sysdlls",
+      "trace_sha256": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+      "reports": {
+        "asyncify": {
+          "sha256": "164d6123dad0d4e7b1d56f0a8a6f9a8e13ba8bdc26c29c393925cd28510dfc95",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "c542e4d6aa11ccd4f5b4897b36f488116966820df6ce18daae3a8727e804ad6b",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-threads",
+      "trace_sha256": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+      "reports": {
+        "asyncify": {
+          "sha256": "7e791aa2e6fbe5930ca6d3e8552ec9d0412903b4e3b6db25bf2f530f7307381a",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "b149c1e72fdd1d1b3f1237c15779f1e39b4075c68b009f079050cb09479579ae",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x64-tls",
+      "trace_sha256": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+      "reports": {
+        "asyncify": {
+          "sha256": "f6cb032f52ff288a5ce2b97e4a40f9b5f5325c9fdf0140a8ad834333b8b6d428",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "3b90b23ea1362257907ae04965b3822a65de11ce7456e7fc84b1c97022532fc4",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-handles",
+      "trace_sha256": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+      "reports": {
+        "asyncify": {
+          "sha256": "ef7bc084a22ee4b1295c1d25f84138c55ce569f9532de31518fec83b0721aec8",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "e3f12b6ecb906f353af089afc5ba604e0b40bdea75a2145234301b02d5d842d7",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-heap",
+      "trace_sha256": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+      "reports": {
+        "asyncify": {
+          "sha256": "dd94637049d70a400c60aeba969d38185c119be779859f0d95e2a4f71881fe3f",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "2358846e8833f6ed75fe0f87be340ec5b1feccbc1c974ec77029134df0c3ccac",
+          "active": "jspi"
+        }
+      }
+    },
+    {
+      "id": "x86-threads",
+      "trace_sha256": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+      "reports": {
+        "asyncify": {
+          "sha256": "7edf6fa0d827365b31afe2e98d20191aead37797a624ed0a068fabd0e27a786c",
+          "active": "asyncify"
+        },
+        "jspi": {
+          "sha256": "941226d651306efaa133d81a33faf85c2c0949afd8e35d5f341070981caa45e6",
+          "active": "jspi"
+        }
+      }
+    }
+  ],
+  "convergence": [
+    {
+      "variant": "asyncify",
+      "active": [
+        "asyncify",
+        "asyncify"
+      ],
+      "interpreted": [
+        70003,
+        0
+      ],
+      "traces_identical": true,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "report_sha256": "f51ca4ed31e1b1b242727a249189538ea9efe6f143189d562a973e6b2d6c49f7",
+      "dropped": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "variant": "partitioned",
+      "active": [
+        "asyncify",
+        "asyncify"
+      ],
+      "interpreted": [
+        70003,
+        0
+      ],
+      "traces_identical": true,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "report_sha256": "b5327268b0e404e6a7de7e23b693ad466aec13b7e35af679291c172f64be932a",
+      "dropped": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "variant": "jspi-preferred",
+      "active": [
+        "jspi",
+        "jspi"
+      ],
+      "interpreted": [
+        70003,
+        0
+      ],
+      "traces_identical": true,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "report_sha256": "c3105e73cdafc11f5eeb4253c1b6b3bd0700dbe053093d4033287269da3412db",
+      "dropped": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "variant": "jspi-only",
+      "active": [
+        "jspi",
+        "jspi"
+      ],
+      "interpreted": [
+        70003,
+        0
+      ],
+      "traces_identical": true,
+      "trace_sha256": "f3653fc062eb7266ec9572969beeb058c156bdd27ccbd808f9762364196cf208",
+      "report_sha256": "4899184bbf8d832785a8b9cd844ef9b18a92f408c6f277bedc696e0ecb3fdcef",
+      "dropped": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "scale": {
+    "owners": 1044,
+    "rounds": 1800,
+    "partitions": 5,
+    "frames": 300,
+    "yields": {
+      "plain": 10500,
+      "asyncify": 10500,
+      "jspi": 10500
+    },
+    "reference_and_raw_and_asyncify_and_real_jspi_equal": true,
+    "raw_bytes": 41518980,
+    "asyncify_bytes": 42175552,
+    "checks_sha256": "d2dd99422ba3cb2fb63d1162a4200a4e3b54bdbf79ca963f2fa2114477e5b145",
+    "report_sha256": "783802093d4fbaebde4ead3dc6224f83cf2a8fcb3826eceee1bca45d8f649df9",
+    "artifacts_removed_after_hashing": true,
+    "wasm_sha256": [
+      "f52d2e8511271ccfbd7d5b0c5a5864d0f0ad6fedf6e2f1120a84f326c1bc7de4",
+      "70b554e0a44c82ea7878d9f81dd79681dc1130a71ff80a305a2ed5da0d132425"
+    ]
+  },
+  "browser_skips": [
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: nonzero first instance render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: native C submits and executes every section 13 opcode",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 0 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 1 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 2 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 3 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 4 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 6 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 7 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 8 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 9 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: 1000 instanced sprites",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: 2D GPU interleaving",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: depth and stencil",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: indexed coloured triangle",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: mipmapped alpha quad",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: two colour attachments",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: uniform animation",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 1: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 2: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 3: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 6: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+      "chromium-webgl2"
+    ],
+    [
+      "tour.spec.ts",
+      "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+      "chromium-webgpu"
+    ],
+    [
+      "visual.spec.ts",
+      "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgpu"
+    ]
+  ],
+  "prior_failed_attempt": {
+    "gate": "browser-jspi",
+    "exit": 1,
+    "cause": "browserContext.close ENOSPC at x64-glsl WebGPU teardown; full unchanged-source suite rerun",
+    "stats": {
+      "startTime": "2026-11-04T04:56:08.842Z",
+      "duration": 838692.635,
+      "expected": 290,
+      "skipped": 51,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "log_sha256": "9649e24ca0546534959b84f5944c1e6cf752842f0b80d261c54f00b22412a1f2",
+    "report_sha256": "f974d40695c755128eefe9704fa01f1c6d0bc1c79a609fb9d433a9a5ea627a28"
+  },
+  "oracle_contract": {
+    "fixtures": 32,
+    "variants": 2,
+    "requested_and_compared_updates_per_run": 300,
+    "identical_frame_pairs": 19200,
+    "lifted_interpretation": 0,
+    "stubs": 0,
+    "errors": 0,
+    "cross_variant_trace_hashes_equal": true
+  },
+  "convergence_gate": {
+    "tests": 16,
+    "files": 3,
+    "log_sha256": "d17211afd47750defce9b0a59a5a5e5c092b160702fabba9628caea3e0d89855",
+    "partition_target_bytes": 65536
+  },
+  "negative_controls": {
+    "expected_failures": 3,
+    "scope": "private archive only: active variant snapshot fields (2), partition name parser cache identity (1)",
+    "log_sha256": "b58439d8a82e4aae52f00589a1cd571b6070f57820c6971a62cf61b1e8d3bffe"
+  }
+}
