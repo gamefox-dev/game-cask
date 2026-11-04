@@ -62,7 +62,10 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
     const selected=identities.filter(n=>remove.has(originalNames.get(n.index))).map(n=>n.name);
     return prefix+selected.join(',');
    });
-   const names=run(process.execPath,[runner,src,...LOCAL_PASSES,...localArgs,...LOCAL_PASSES,'--print-function-map','-o',out],{encoding:'utf8',stdio:['ignore','pipe','inherit'],maxBuffer:64*1048576});
+   // Binaryen's writer otherwise orders types by shard-local usage frequency,
+   // even without reorder-types. Keep original type indices identical so bodies
+   // containing call_indirect/block signatures can be assembled without rewriting.
+   const names=run(process.execPath,[runner,src,...LOCAL_PASSES,...localArgs,...LOCAL_PASSES,'--preserve-type-order','--print-function-map','-o',out],{encoding:'utf8',stdio:['ignore','pipe','inherit'],maxBuffer:64*1048576});
    const result=sections(readFileSync(out)),sig=signature(result),body=codeBodies(result.find(s=>s.id===10).data);
    if(!base){
     base=result;skeleton=sig;map=names;
