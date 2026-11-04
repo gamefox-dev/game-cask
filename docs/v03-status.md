@@ -1,43 +1,48 @@
 # v0.3 merged implementation status
 
-## K24 — Q67 buffer/VAO scale (implemented; K24d performance validation in progress)
+## K24 — Q67 buffer/VAO scale and hot-path repair (author Tier 1 green)
 
-K24d repair8a132ce removes per-call namespace string scans, initial buffer/VAO name scans,
-dormant wire-cleanup scans and retained-buffer capacity sweeps. Name-hash deletion no longer
-accumulates tombstones; wire allocation uses a lowest-free cursor, preserving IDs. Deterministic
-CC0 work counters require zero scanning/allocation on200,000 unrelated calls with a retained
-buffer, and collision/churn/retirement-retry tests cover the cold paths. Native1M-call medians
-improve from625/611/640ms to10/12/11ms (IsEnabled/GetShaderiv/BindBuffer). The initial identical
-lifted/metrics Node traces do **not** reproduce a slowdown versus dev.14. Same unchanged
-WebGPU test A/B/A/B passes at base156.236/118.559s vs incoming122.542/125.047s; the original
-1.3–1.8x browser slowdown is not reproduced or causally diagnosed. Fresh full validation is pending. No renderer/runtime/ABI or test-budget change.
-See docs/handoff/K24.md for current evidence; the K24c timing blocker below is historical.
+Final implementation **8a132ce**, documentation-only finalization. Reviewer #200 approves additive
+v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host opt-in, unchanged byte budgets,
+frozen v0.2/unnegotiated behavior and unchanged other namespaces. ABI §13.14 documents full nonzero-u32
+buffer IDs and negotiation/reset semantics. Dynamic profile buffer/VAO tables and wire ownership are
+bounded by host bytes, not a replacement object-count ceiling; VAOs have no BGT handle. Ordinary
+uniforms use the extended pool without a fixed shared count ceiling; real exhaustion remains counted
+GL_OUT_OF_MEMORY plus gl_objects live/peak/failure metrics.
 
+CC0 proof: **24,000** live buffers/stores and VAOs; **12,000** real buffer/VAO pairs drawing, churning,
+mapping, retaining deleted generations, feedback/UBO ranges and byte-OOM recovery on **both** WebGL2
+and WebGPU; all36,000 native per-buffer words across three generations verified. The identical fixture
+fails on dev.14 with black panels on both backends. Ten historical workloads×300frames preserve all
+**262,596 semantic wire commands** exactly, ignoring only transport addresses. Above-pressure capacity
+changes are deliberate. The #204 scale-only oracle contract requires exactly one deliberate BUFFER_CREATE
+E_LIMIT and exact counted OOM/recovery; missing/duplicate/unrelated errors fail. Other fixtures retain
+zero command errors; native recovery pixels are mandatory.
 
-Reviewer decision #200 approves additive v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host
-opt-in, unchanged byte budgets, frozen v0.2/unnegotiated validation and unchanged other namespaces.
-ABI §13.14 documents the nonzero-u32 buffer IDs and negotiation/reset contract. Dynamic profile buffer/VAO
-tables and wire ownership use bounded host bytes, not a replacement object-count ceiling; VAOs have no
-BGT handle and ordinary uniforms can use the extended buffer pool. Exhaustion remains counted GL OOM.
+K24d removes per-call namespace/initial-name scans, dormant cleanup and retained-buffer capacity sweeps.
+Cached namespaces, direct small-name lookup, bounded-load hashes with backward-shift deletion, cold
+retirement queues and lowest-free handle cursor avoid hot-path allocation/scanning and quadratic churn,
+preserving handle choices and destroy order. Native1M-call medians improve from incoming625/611/640ms
+to10/12/11ms (IsEnabled/GetShaderiv/BindBuffer). Deterministic200,000-call work tests and actual scan/
+tombstone mutations discriminate the repair. Identical lifted Node traces, including metrics+JSON per
+frame, show no consistent slowdown versus dev.14. Interleaved unchanged WebGPU browser A/B/A/B passes:
+base156.236/118.559s vs incoming122.542/125.047s. **The reported1.3–1.8× browser slowdown was not
+reproduced or causally diagnosed.** No additional renderer/runtime/ABI or test-budget change was made
+for performance.
 
-Fresh CC0 proof: **24,000** live buffers/stores and VAOs; **12,000** actual buffer/VAO pairs drawing,
-churning, mapping, retaining deleted generations, feedback/UBO ranges and byte-OOM recovery on **both**
-WebGL2/WebGPU; all36,000 native per-buffer words over three generations verified. Identical fixture on
-dev.14 fails with black panels on both backends. Ten historical GL workloads ×300frames preserve all
-262,596 semantic wire commands exactly (only transport addresses ignored); deliberate capacity-fixture
-changes are above old pressure. Scale-only oracle contract requires exactly one deliberate BUFFER_CREATE
-E_LIMIT and its counted OOM/recovery; every other fixture retains zero errors. Contract tests reject
-missing/duplicate/other errors. Focused36/36 and browser6/6 pass. Final unchanged executable tree8ff86ff:
-doctor, clang/real-GCC lint (36 example checks each), typecheck, **2,009 units /103 files**, leakcheck and
-**all33 pipeline oracles ×300 =9,900 identical pairs** pass; structured oracle invariants pass.
+**Final author Tier1:** doctor; Clang/real GCC14 lint (36 example check-builds each); explicit Clang host
+checks; typecheck; **2,010 units /103 files /0 skips**; full required-WebGPU browser **291 passed /51
+unchanged existing skips /0 failures /0 flakes** (WebGL2 131/24, WebGPU152/26, auto8/1); leakcheck739 files;
+**33 pipeline oracles×300 =9,900 identical pairs**, null errors/divergence/stage, no stubs, lifted
+interp_insns0 and equal trace hashes. All50 serial gate steps and the final structured audit exit0;
+618 tracked input hashes remain unchanged. Focused41 native /20 lifted /7 browser and26 parity/contract
+tests pass. Full-suite GLSL passes the unchanged360s limit: WebGL2 **128.260s**, WebGPU **138.656s**,
+cross-backend **276.150s** (focused107.056/105.086/253.561s). Earlier interrupted-build and historical
+browser-timeout evidence is retained, not waived or relabelled. No jobs remain; own caches cleaned.
 
-**Author Tier1 is NOT green:** two complete required-WebGPU browser runs each have290 passed /51 unchanged
-existing skips /one pre-existing x64-glsl cross-backend360s timeout. Isolated unchanged replay also times
-out. Reviewer confirms this separately tracked load-sensitive failure also occurred in I12b/K25c and
-requests low-load replay rather than any test/timing/assertion/skip change. Failed logs and strict aggregate
-audit remain red; all593 executable/test hashes are unchanged. Finalization is documentation-only.
-Game upper bound remains unknown; porter measures/replays after merge. Reviewer-owned independent review
-remains pending; no game/physical-device/performance claim. Details: [K24 handoff](handoff/K24.md).
+Game demand remains unknown; porter measures/replays after merge. Reviewer-owned independent review
+remains external; no in-lane independent review, game/physical-device or general performance certification.
+Details, commands, before/after measurements and retained failures: [K24 handoff](handoff/K24.md).
 
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
@@ -494,9 +499,11 @@ flattens those uniforms, arrays/structs, blocks and constant sampler-array eleme
 the WG frontend supports user structs and local out/inout arguments. Both renderers restore uploaded resources
 but lose rendered attachments and emit reset/targets-lost events; unrecoverable resources are never silently migrated.
 
-K20 replaces the 255-name tables with ABI-sized **1023-slot tables and full-GLuint name lookup** in all nine
-supported object namespaces. Textures/renderbuffers share 1001 storage handles and buffers/program uniforms share
-1015, excluding retained private reservations; ABI ceilings and byte budgets are unchanged. Exhaustion raises
+The K20 baseline replaced the 255-name tables with ABI-sized **1023-slot tables and full-GLuint name lookup** in all nine
+supported object namespaces. **K24 supersedes its buffer/VAO count limits** with byte-bounded dynamic guest
+tables and negotiated full-u32 buffer handles (§13.14); the other seven namespaces retain1023 slots.
+Without the K24 opt-in, textures/renderbuffers share1001 storage handles and buffers/program uniforms
+share1015, excluding retained private reservations; frozen ABI ceilings and byte budgets are unchanged. Exhaustion raises
 GL_OUT_OF_MEMORY with per-namespace live/peak/failure metrics and diagnostics. Pipeline caches remain 128 descriptors
 (sampler descriptors now ABI-sized and pressure-evicted, with current-draw states protected), one current WGL
 context and one shader per stage. Generated VAO/FBO/RBO names become objects on first bind, matching
