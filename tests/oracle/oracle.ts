@@ -6,9 +6,10 @@ import { oracleFailure, writeOracleReport } from '../../tools/report/oracle-repo
 import { loadHeadless, ROOT, Headless } from '../support/headless';
 /* LANE-GL: opt-in fixture recorder; no rendering is claimed by this oracle. */
 import { glStream } from '../support/x64-gl-stream';
+import { assertGlErrors, assertScaleRecording } from '../support/gl-scale-contract';
 import { createHash } from 'node:crypto';
 const suspension = process.env.BGT_ORACLE_SUSPENSION === 'jspi' ? 'jspi' : 'asyncify';
-const streamOptions = (id: string) => ['x64-gl', 'x64-gl-capacity', 'x64-gl-default-vao', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
+const streamOptions = (id: string) => ['x64-gl', 'x64-gl-scale', 'x64-gl-capacity', 'x64-gl-default-vao', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {
@@ -76,11 +77,12 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{
       }
       await h.stepAsync(1); // settle external range I/O before advancing deterministic guest time
       /* LANE-GL: compare semantic GPU bytes too, not just the first four integer API arguments. */
-      if (stream && h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
+      if (stream) assertGlErrors(id, h.host);
       hashes.push((f === 0 && startup.length ? startup.join('|') + '|' : '') +
         (h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : ''));
     }
     stage = 'metrics';
+    if (id.replace(/-interp$/, '') === 'x64-gl-scale') assertScaleRecording(h);
     const metrics = h.host.metrics();
     return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started };
   } catch (e) {
