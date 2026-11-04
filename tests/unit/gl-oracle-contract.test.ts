@@ -2,8 +2,9 @@
 import { expect, it } from 'vitest';
 import { E_LIMIT, E_INVALID, GPU_OP } from '../../bgt/runtime/abi';
 import { assertGlErrors } from '../support/gl-scale-contract';
-const error = { code: E_LIMIT, op: GPU_OP.BUFFER_CREATE, message: 'resource limit exceeded', offset: 16 };
-const host = (errors: typeof error[]) => ({ commandErrors: errors, commandErrorCount: errors.length });
+import type { CommandError } from '../../bgt/runtime/commands';
+const error: CommandError = { code: E_LIMIT, op: GPU_OP.BUFFER_CREATE, message: 'resource limit exceeded', offset: 16 };
+const host = (errors: CommandError[]) => ({ commandErrors: errors, commandErrorCount: errors.length });
 it.each(['x64-gl-scale', 'x64-gl-scale-interp'])('requires exactly one expected error on completion: %s', id => {
   expect(() => assertGlErrors(id, host([]))).not.toThrow(); // Before the deliberate failing operation.
   expect(() => assertGlErrors(id, host([]), true)).toThrow(/exactly one/);
