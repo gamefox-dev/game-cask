@@ -1,5 +1,5 @@
 // @bgt-examples: none
-import { it, expect } from 'vitest';
+import { it, expect, vi } from 'vitest';
 import { execFileSync as nativeExec } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -110,6 +110,25 @@ ${mode === 'overflow' ? "sys.stdout.write('x'*100000);sys.stdout.flush();time.sl
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 15000);
+
+it('preserves the original helper failure when process-group cleanup throws EPERM', () => {
+  const cleanupError = Object.assign(new Error('injected kill EPERM'), { code: 'EPERM' });
+  const kill = vi.spyOn(process, 'kill').mockImplementation(() => { throw cleanupError; });
+  let failure: Error & { pid?: number; signal?: string; cleanupErrors?: Error[] } | undefined;
+  try {
+    execFileSync('python3', ['-I', '-c', 'import sys;sys.exit(23)'], {
+      ...options, phase: 'cleanup diagnostic regression', timeout: 2000,
+    });
+  } catch (error) { failure = error as typeof failure; }
+  finally { kill.mockRestore(); }
+  expect(failure).not.toBe(cleanupError);
+  expect(failure?.message).toMatch(/build helper failed: phase=cleanup diagnostic regression.*argv=.*python3/);
+  expect(failure?.message).toContain('sys.exit(23)');
+  expect(failure?.message).toContain('cleanup failed: injected kill EPERM');
+  expect(failure?.pid).toBeGreaterThan(0);
+  expect(failure?.signal).toBe('SIGKILL');
+  expect(failure?.cleanupErrors).toEqual([cleanupError]);
+});
 
 it('cleans staged input on errors and refuses unbounded or invalid deadlines', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-input-test-')), previous = process.env.TMPDIR;

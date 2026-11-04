@@ -16,7 +16,9 @@ export function execFileSync(command, args, options = {}) {
   const timeout = Number(options.timeout ?? process.env.BGT_BUILD_TIMEOUT_MS ?? 30 * 60 * 1000);
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2147481647)
     throw new Error('BGT_BUILD_TIMEOUT_MS/timeout must be a positive integer <= 2147481647');
-  let dir, fd;
+  const diagnostic = `phase=${phase}, timeout=${timeout}ms, argv=${JSON.stringify([command, ...args])}`;
+  let dir, fd, result, failure;
+  const cleanupErrors = [];
   try {
     let stdio = rest.stdio;
     if (input !== undefined) {
@@ -29,20 +31,29 @@ export function execFileSync(command, args, options = {}) {
       stdio = Array.isArray(stdio) ? [...stdio] : [stdio ?? 'pipe', stdio ?? 'pipe', stdio ?? 'pipe'];
       stdio[0] = fd;
     }
-    return nativeExec('python3', ['-I', join(ROOT, 'tools/build/writer.py'), token ?? '-',
+    result = nativeExec('python3', ['-I', join(ROOT, 'tools/build/writer.py'), token ?? '-',
       String(timeout), phase, command, ...args], {
       ...rest, stdio, detached: true, timeout: timeout + 2000, killSignal: 'SIGKILL',
     });
   } catch (error) {
+    // Annotate first: cleanup failures must not mask the original helper error.
+    failure = error;
+    failure.message = `build helper failed: ${diagnostic}: ${error.message}`;
     // Also covers supervisor startup failure, maxBuffer and the outer hard deadline.
     // Node kills only the direct child; all descendants in our detached group must die.
     if (error.pid) {
-      try { process.kill(-error.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') throw e; }
+      try { process.kill(-error.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') cleanupErrors.push(e); }
     }
-    error.message = `build helper failed: phase=${phase}, timeout=${timeout}ms, argv=${JSON.stringify([command, ...args])}: ${error.message}`;
-    throw error;
   } finally {
-    if (fd !== undefined) closeSync(fd);
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    if (fd !== undefined) { try { closeSync(fd); } catch (e) { cleanupErrors.push(e); } }
+    if (dir) { try { rmSync(dir, { recursive: true, force: true }); } catch (e) { cleanupErrors.push(e); } }
   }
+  if (cleanupErrors.length) {
+    const message = `cleanup failed: ${cleanupErrors.map((e) => e.message).join('; ')}`;
+    if (!failure) failure = new AggregateError(cleanupErrors, `build helper ${message}: ${diagnostic}`);
+    else failure.message += `; ${message}`;
+    failure.cleanupErrors = cleanupErrors;
+  }
+  if (failure) throw failure;
+  return result;
 }

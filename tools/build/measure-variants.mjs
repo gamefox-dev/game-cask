@@ -7,11 +7,12 @@ import { join, resolve } from 'node:path';
 import { loadavg, totalmem } from 'node:os';
 import { chromium } from '@playwright/test';
 import { ROOT } from './toolchain.mjs';
+import { execFileSync as buildExec } from './exec.mjs';
 const port=Number(process.env.BGT_E2E_PORT),output=process.argv[2],ids=process.argv.slice(3);
 if (!port || port===5173 || !output || !ids.length) throw new Error('dedicated BGT_E2E_PORT, report path and fixture ids required');
 const base='http://127.0.0.1:'+port;
-const snapshot=()=>({at:new Date().toISOString(),load:loadavg(),totalmem:totalmem(),physical_headroom:execFileSync('python3',['-I','-c',
-  'import runpy;print(runpy.run_path('+JSON.stringify(join(ROOT,'tools/harness/pi/shim/memory.py'))+')["available"]())'],{encoding:'utf8'}).trim()});
+const snapshot=()=>({at:new Date().toISOString(),load:loadavg(),totalmem:totalmem(),physical_headroom:buildExec('python3',['-I','-c',
+  'import runpy;print(runpy.run_path('+JSON.stringify(join(ROOT,'tools/harness/pi/shim/memory.py'))+')["available"]())'],{encoding:'utf8',timeout:5000,phase:'variant benchmark memory snapshot'}).trim()});
 const report={schema:'game-cask/suspension-benchmark/1',revision:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),before:snapshot(),fixtures:[],
  method:'five fresh headless GameHost instances per variant in Chromium; 300 frames including range I/O, render/decode/consume; modules compiled before instance timing; no rasterization; zero input; same per-frame trace digest required; shared machine, not quiescent'};
 const server=spawn(process.execPath,[join(ROOT,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port',String(port),'--strictPort'],{cwd:ROOT,stdio:['ignore','ignore','inherit']});

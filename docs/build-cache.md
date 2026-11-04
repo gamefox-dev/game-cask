@@ -70,6 +70,17 @@ an additional two-second hard backstop for supervisor startup or a stuck supervi
 and output-buffer failure kill the detached process group, not just the immediate Python wrapper. Writer/cache
 locks remain inherited as before; an owner killed externally still cannot allow a later build to overtake a writer.
 Abandoned atomic-publication temporaries are collected by the existing cache retry/pruning protocol.
+Cleanup errors (including permission-denied group kills or descriptor/file cleanup) are attached as
+`error.cleanupErrors` and appended to the original failure message; they never replace its helper/argv/phase
+diagnostic or native error fields.
+
+Kernel-lock acquisition and guardian readiness use the same supervised transport, with a deadline equal to the
+smaller of the requested lock wait and `BGT_BUILD_TIMEOUT_MS` (30 minutes by default). The phase is
+`lock acquisition/readiness`. The guardian remains in the detached supervisor group, not the Node caller group;
+a guardian stopped before acknowledgement is killed with a failed acquisition. After successful acknowledgement
+it outlives the supervisor and retains owner-exit watching and writer draining. Lock acquisition does not enroll
+in an outer writer lease: a long-lived nested cache guardian must not keep that outer lease alive.
+Benchmark memory snapshots also use supervision, with a five-second deadline and a named metrics phase.
 
 Compile/lift configurations are still the exact same JSON bytes, but **stdin is an anonymous regular file**,
 not a Node synchronous socket whose peer must signal EOF. A private 0700 staging directory/0600 file is opened
@@ -80,7 +91,8 @@ share this transport (including host tools, native reference, chunk/monolithic l
 
 Reproduce the retained-EOF condition with `tests/unit/build-transport.test.ts`. Stress real tiny C fixture
 compile/link builds with `node tools/build/stress-transport.mjs 8 100` (alternating cold/warm objects,
-config sizes up to 2 MiB, byte-identical outputs, automatic cleanup). `--legacy` uses Node's native pipe
+config sizes up to 2 MiB, byte-identical outputs, automatic cleanup). Add `--locks` to acquire/release a
+supervised lock and writer lease on every build. `--legacy` uses Node's native pipe
 input for comparison; its macOS race is intermittent and a clean run does not disprove it. See
 [the K23 handoff](handoff/K23.md) for measured endpoint/byte-count evidence and the remaining C-level race uncertainty.
 
