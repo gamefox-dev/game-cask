@@ -57,6 +57,18 @@ void x86_profile_instruction(uint64_t bucket) {
     if((bucket>>32)!=(uint32_t)x86_census_generation)return;
     uint32_t index=(uint32_t)bucket;if(index)x86_census[index-1].instructions++;
 }
+/* Exclusive interpreter samples exclude scheduler/native/callback work, including
+ * nested interpretation. The span lives on the ordinary C stack across suspension. */
+static double *exclusive_span;
+double x86_interpreter_exclusive_sample_us;
+static double *exclusive_pause(double *start) {
+    double *span=exclusive_span;
+    if(span){*start=x86_profile_clock();exclusive_span=0;}
+    return span;
+}
+static void exclusive_resume(double *span,double start) {
+    if(span){*span+=x86_profile_clock()-start;exclusive_span=span;}
+}
 static uint64_t interpreter_bucket;
 static uint64_t interpreter_generation;
 unsigned x86_lift_reason = XE_FORM;
@@ -73,12 +85,16 @@ void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
 void x86_cooperate(void) {
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
     X.frame_insns = 0;
+    double start=0,*span=exclusive_pause(&start);
     scheduler();
+    exclusive_resume(span,start);
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
 static void profiled_native(x86_lifted_fn fn) {
+    double paused=0,*span=exclusive_pause(&paused);
     double start=x86_profile_begin(XP_NATIVE);fn();x86_profile_end(XP_NATIVE,start);
+    exclusive_resume(span,paused);
 }
 
 /* ------------------------------------------------------------------ host arena */
@@ -293,7 +309,39 @@ static const x86_code_range_t *code_ranges, *cached_range;
 static uint32_t ncode_ranges, cached_lo;
 static uint64_t cached_hi;
 static uint8_t *interpreted_owners;
+static const uint32_t *code_owner_addresses;
+static x86_interpreter_coverage_t interpreter_coverage={.capacity=X86_INTERPRETER_CAP};
+static uint32_t *interpreter_index;
+static uint32_t interpreter_record,interpreter_rows_allocated;
+void x86_register_code_owner_addresses(const uint32_t *addresses) {code_owner_addresses=addresses;}
+const x86_interpreter_coverage_t *x86_interpreter_coverage(void) {return &interpreter_coverage;}
+static uint32_t interpreter_row(uint32_t address,const x86_code_range_t *range) {
+    if(X86_COVERAGE_MODE==2)return 0;
+    if(!interpreter_index)interpreter_index=x86_alloc(X86_INTERPRETER_CAP*sizeof(uint32_t));
+    if(!interpreter_index){interpreter_coverage.dropped++;return 0;}
+    uint32_t h=(address*2654435761u)&(X86_INTERPRETER_CAP-1);
+    for(unsigned i=0;i<16;i++,h=(h+1)&(X86_INTERPRETER_CAP-1)){
+        uint32_t row=interpreter_index[h];
+        if(row && interpreter_coverage.rows[row-1].address==address)return row;
+        if(!row && interpreter_coverage.length<X86_INTERPRETER_CAP){
+            if(interpreter_coverage.length==interpreter_rows_allocated){
+                uint32_t n=interpreter_rows_allocated?interpreter_rows_allocated*2:256;
+                if(n>X86_INTERPRETER_CAP)n=X86_INTERPRETER_CAP;
+                x86_interpreter_entry_t *rows=x86_alloc(n*sizeof(*rows));
+                if(!rows){interpreter_coverage.dropped++;return 0;}
+                if(interpreter_coverage.length)__builtin_memcpy(rows,interpreter_coverage.rows,interpreter_coverage.length*sizeof(*rows));
+                x86_host_free(interpreter_coverage.rows);interpreter_coverage.rows=rows;interpreter_rows_allocated=n;
+            }
+            row=++interpreter_coverage.length;interpreter_index[h]=row;
+            x86_interpreter_entry_t *e=&interpreter_coverage.rows[row-1];
+            e->address=address;e->owner=range?(code_owner_addresses?code_owner_addresses[range->owner]:range->addr):UINT32_MAX;
+            return row;
+        }
+    }
+    interpreter_coverage.dropped++;return 0;
+}
 void x86_register_code_ranges(const x86_code_range_t *ranges, uint32_t count, uint32_t functions) {
+    code_owner_addresses=0;
     code_ranges = ranges; ncode_ranges = count; cached_range = 0; cached_lo = 0; cached_hi = 0;
     interpreted_owners = functions ? x86_alloc(functions) : 0;
     if (functions && !interpreted_owners) x86_fault("out of memory (coverage owners)", 0);
@@ -317,8 +365,13 @@ static int interpreted_entry(uint32_t addr, int entry) {
     }
     return entry;
 }
-static void interpreted_count(int entry, const x86_code_range_t *owner) {
+static void interpreted_count(uint32_t address, int entry, const x86_code_range_t *owner) {
     x86_metrics.interp_insns++;
+    if(entry)interpreter_record=interpreter_row(address,owner);
+    if(interpreter_record){
+        x86_interpreter_entry_t *e=&interpreter_coverage.rows[interpreter_record-1];
+        e->instructions++;if(entry)e->count++;
+    }
     x86_profile_instruction(interpreter_bucket);
     if (owner && !interpreted_owners[owner->owner]) {
         interpreted_owners[owner->owner] = 1; x86_metrics.interp_functions++;
@@ -401,23 +454,26 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 }
             }
             else {
+                double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
+                if(interpreter_start>=0)exclusive_span=&excluded;
                 const x86_insn_t *in = decode_at(X.eip);
                 int counted_entry = interpreted_entry(X.eip, entry);
                 const x86_code_range_t *owner = cached_range;
                 uint32_t budget = X.frame_insns, addr = in->addr;
                 int next_entry = ends_block(in), string = is_string(in->op), rep = in->rep;
                 x86_word_t count = X.r[ECX];
-                double interpreter_start=x86_profile_begin(XP_INTERPRETER);
                 uint64_t saved_bucket=interpreter_bucket;
+                uint32_t saved_record=interpreter_record;
                 x86_exec64(in);
+                if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
                 x86_profile_end(XP_INTERPRETER,interpreter_start);
-                interpreter_bucket=saved_bucket;
+                interpreter_bucket=saved_bucket;interpreter_record=saved_record;
                 /* Both dispatch and the first string iteration can transfer before execution.
                  * A partially executed REP changes its count and still counts once. A zero-
                  * count REP completes at next, so it also remains a completed dispatch.
                  * Keep all evidence local: a scheduler callback may interpret reentrantly. */
                 if (!(X.transfer && X.eip == addr && (string ?
-                      (!rep || X.r[ECX] == count) : budget >= 2000000u))) interpreted_count(counted_entry, owner);
+                      (!rep || X.r[ECX] == count) : budget >= 2000000u))) interpreted_count(addr, counted_entry, owner);
                 entry = next_entry;
             }
         }
@@ -440,13 +496,15 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         if (resume) { x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
+        double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
+        if(interpreter_start>=0)exclusive_span=&excluded;
         const x86_insn_t *in = decode_at(eip);
         int counted_entry = interpreted_entry(eip, entry);
         const x86_code_range_t *owner = cached_range;
         int string = is_string(in->op), rep = in->rep, next_entry = ends_block(in);
         uint32_t addr = in->addr;
         x86_word_t count = X.r[ECX];
-        if (!string) interpreted_count(counted_entry, owner);
+        if (!string) interpreted_count(addr, counted_entry, owner);
         if ((in->op == XO_CALL || in->op == XO_CALL_IND) && !x86_force_interp) {
             uint32_t t = in->op == XO_CALL ? in->target : xs_read(&in->o[0]);
             x86_lifted_fn fn = x86_find_lifted(t);
@@ -455,20 +513,23 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 x86_push(next);
                 x86_metrics.lifted_calls++;
                 profiled_native(fn);
+                if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
+                x86_profile_end(XP_INTERPRETER,interpreter_start);
                 entry = 1;
                 if (X.transfer) return; /* LANE-C */
                 if (X.eip != next) x86_fault("lifted callee returned to an unexpected address", in->addr);
                 continue;
             }
         }
-        double interpreter_start=x86_profile_begin(XP_INTERPRETER);
         uint64_t saved_bucket=interpreter_bucket;
+        uint32_t saved_record=interpreter_record;
         x86_exec_insn(in);
+        if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
         x86_profile_end(XP_INTERPRETER,interpreter_start);
-        interpreter_bucket=saved_bucket;
+        interpreter_bucket=saved_bucket;interpreter_record=saved_record;
         /* i386's outer quantum check already ran; strings have an inner check too. */
         if (string && !(X.transfer && X.eip == addr && (!rep || X.r[ECX] == count)))
-            interpreted_count(counted_entry, owner);
+            interpreted_count(addr, counted_entry, owner);
         entry = next_entry;
     }
 }
@@ -480,7 +541,7 @@ static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
     native_stop = saved_stop; native_floor = saved_floor; native_limit = saved_limit;
 }
 
-void x86_invoke(uint32_t target, uint32_t ret_addr) {
+static void invoke_inner(uint32_t target, uint32_t ret_addr) {
     X.eip = target; /* LANE-C: every lifted entry has a continuation dispatcher. */
     uint32_t esp_floor = (uint32_t)X.r[ESP]; /* return address is at [esp_floor] */
 #ifdef X86_FLAT_GUEST
@@ -495,6 +556,12 @@ void x86_invoke(uint32_t target, uint32_t ret_addr) {
     }
     X.eip = target;
     interp_until(ret_addr, esp_floor);
+}
+
+void x86_invoke(uint32_t target, uint32_t ret_addr) {
+    double start=0,*span=exclusive_pause(&start);
+    invoke_inner(target,ret_addr);
+    exclusive_resume(span,start);
 }
 
 void x86_call(uint32_t target, uint32_t next) {

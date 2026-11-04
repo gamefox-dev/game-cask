@@ -585,6 +585,58 @@ Census bucket tokens include their generation, so a previously suspended semanti
 new window's reused slot. A window that still reports nonzero `census_dropped` is incomplete and must be shortened;
 no reset/eviction silently fabricates a complete ranking. The lifetime execution counters remain independent.
 
+### Persistent interpreter observations (K21, additive optional export)
+
+Optional `u32 bgt_interpreter_coverage(void)` returns a wasm32 pointer to a read-only 24-byte descriptor
+(`x86_interpreter_coverage_t` in `platforms/x86/x86_guest.h`), or 0 if unavailable:
+
+| Offset | Type | Meaning |
+|---:|---|---|
+| 0 | u32 | rows pointer; each row is 24 bytes |
+| 4 | u32 | initialized row count |
+| 8 | u32 | maximum distinct entries (1,048,576 in production) |
+| 12 | u32 | reserved, zero |
+| 16 | u64 | rejected entry observations (capacity, 16-probe collision or allocation failure) |
+
+Each row is `{u32 address, u32 owner, u64 count, u64 instructions}` at offsets 0/4/8/16.
+Addresses are actual interpreter block/interior entries; owner is the analyzed function start, or
+`UINT32_MAX` for unowned code. Counts are dynamic entries and completed semantic dispatches attributed to
+that entry, not unique instructions or REP iterations. Rows persist across `bgt_profile_reset` and are
+recorded even when sampled CPU profiling is disabled. Strict modules omit successful-path recording.
+Drops are never evictions; any positive drop makes discovery/strict selection evidence incomplete.
+
+The shared TS decoder validates bounds/counts, copies rows immediately and sorts by address. Pointers
+are wasm offsets, not guest addresses; do not retain a view across memory growth or guest execution.
+The coverage snapshot adds `interpreter:{capacity,dropped,entries}` (owner null for unowned); u64 values
+are exposed as JS Numbers and selection rejects unsafe entry/count/instruction integers. Older modules
+without this export report null observations, not invented zero counts. No import or command is added.
+
+### Guest presentation observations (K21, additive optional export)
+
+Optional `u32 bgt_guest_presentations(void)` returns a read-only 40-byte wasm32 descriptor:
+
+| Offset | Type | Meaning |
+|---:|---|---|
+| 0 | u64 | lifetime guest presentations |
+| 8 | u64 | successful GL swaps |
+| 16 | u64 | GDI flushes containing new guest-screen drawing |
+| 24 | u32 | pointer to 10,000 f64 wall-clock timestamps in microseconds |
+| 28 | u32 | valid timestamp count, 0..10,000 |
+| 32 | u32 | next ring insertion index, 0..9,999 |
+| 36 | u32 | reserved, zero |
+
+The shared decoder copies the ring in chronological order (oldest index is next when full, otherwise 0).
+It reports count/rate and avg/p95 over up to 9,999 consecutive wall-time intervals; fewer than two
+presentations gives null avg/p95. Chrome, offscreen-only drawing and host redraws are not GDI presentations.
+Wall intervals include waits and probe think time. No export means null guest-frame metrics for older/native
+artifacts. A presentation is not proof of independent simulation or physical display scanout.
+
+Standard `metrics.execution_summary` puts updates/s next to guest presentations/s, guest frame-time avg/p95,
+and exclusive sampled interpreter ms/share/instructions per update plus top owners. **Updates are cooperative
+scheduling boundaries, not guest frames.** Exclusive timing excludes nested invoke/native/scheduler work and
+parked yield time; it is a sampled estimate, not a disjoint exact CPU budget. Existing census categories stay
+inclusive and must not be added/subtracted to obtain this share. Details: [coverage convergence](../../docs/coverage-convergence.md).
+
 ## 13. v0.3 GPU layer (additive interface)
 
 This section is normative for the wire interface, validator and future backend/profile implementations. Execution

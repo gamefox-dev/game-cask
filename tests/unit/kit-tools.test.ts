@@ -19,6 +19,8 @@ import { fillBrief } from '../../tools/report/trial-brief.mjs';
 import { validateProgress } from '../../tools/report/schema.mjs';
 // @ts-expect-error -- plain ESM module
 import { peResources } from '../../tools/inspect/pe-resources.mjs';
+// @ts-expect-error -- plain ESM module
+import { automaticCoverageFiles } from '../../tools/build/coverage.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bgt-kit-'));
 
@@ -136,6 +138,7 @@ describe('trial brief and work queue', () => {
 describe('probe mode', () => {
   it('loads the intended module/backend on its own server and writes artifacts and real coverage', () => {
     const dir = tmp();
+    const beforeEvidence = new Set<string>(automaticCoverageFiles(ROOT, 'win32-hello'));
     try {
       writeFileSync(join(dir, 's.mjs'), `export default async function (p) {
         await p.step(5); const before=await p.metrics();await p.profileWindow();const after=await p.metrics();
@@ -157,6 +160,12 @@ describe('probe mode', () => {
       expect(j.lines).toEqual(['mz MZ 0', 'win32-hello webgl2 hello.exe']);
       expect(existsSync(join(dir, 'out', 'shot.png')) && existsSync(join(dir, 'out', 'crop.png'))).toBe(true);
       const coverage = JSON.parse(readFileSync(join(dir, 'out', 'coverage.json'), 'utf8'));
+      // Custom --out probes must still publish to the normal inbox. Remove only
+      // this test's newly created evidence afterward: fixture relinks (including
+      // interpret-only builds) can have different exact PE identities.
+      const published = j.artifacts.filter((file: string) => file.startsWith(join(ROOT, 'reports/coverage-inbox/win32-hello') + '/'));
+      expect(published).toHaveLength(1);
+      expect(JSON.parse(readFileSync(published[0], 'utf8'))).toEqual(coverage);
       expect(coverage.game).toBe('win32-hello');
       expect(coverage.modules[0].name).toBe('hello.exe');
       expect(coverage.code.length).toBeGreaterThan(0);
@@ -165,6 +174,11 @@ describe('probe mode', () => {
       expect(coverage.metrics.execution.cpu_profile.apis.some((a:any)=>a.count>0 && a.samples>0)).toBe(true);
       expect(coverage.metrics.execution.host_profile.updateMs).toBeGreaterThan(0);
       expect(coverage.metrics.runtime_profile.gpuDrawWallMs).toBeGreaterThan(0);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      for (const file of automaticCoverageFiles(ROOT, 'win32-hello'))
+        if (!beforeEvidence.has(file)) rmSync(file, { force: true });
+      expect(new Set(automaticCoverageFiles(ROOT, 'win32-hello'))).toEqual(beforeEvidence);
+      rmSync(dir, { recursive: true, force: true });
+    }
   }, 120_000);
 });

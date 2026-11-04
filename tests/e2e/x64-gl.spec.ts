@@ -33,6 +33,14 @@ for (const cross of [false, true])
       expect(d.logs.some(l => l.message.includes('x64-gl PASS')),JSON.stringify(d.logs)).toBe(true);
       expect(d.logs.some(l => l.message.includes('readback=13,13'))).toBe(true);
       expect(d.logs.some(l => l.message.includes('colored=0,22,0')),JSON.stringify(d.logs)).toBe(true);
+      const summary=m.execution_summary;
+      expect(summary.updates).toBe(d.frame);
+      expect(summary.updates_per_second).toBeGreaterThan(0);
+      expect(summary.guest_frames.count).toBe(summary.guest_frames.swaps);
+      expect(summary.guest_frames.swaps).toBeGreaterThan(1);
+      expect(summary.guest_frames.per_second).toBeGreaterThan(0);
+      expect(summary.guest_frames.frame_ms_avg).toBeGreaterThan(0);
+      expect(summary.guest_frames.frame_ms_p95).toBeGreaterThan(0);
       expect(m.interp_insns).toBe(0); expect(m.stubs).toEqual([]); expect(m.exited).toBe(0);
       expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]); expect(m.gl_pipelines).toBe(5);
       const px = await readPixels(p);

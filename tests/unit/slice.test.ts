@@ -45,7 +45,7 @@ it('strict slice packages covered functions/data only, boots, pauses at an uncov
  const vfs=new Vfs();for(const a of f.sliced.assets)vfs.add(a.path,new Uint8Array(readFileSync(join(ROOT,'web/public/games',f.id,'assets',a.path))));
  const host=await GameHost.create(wasm,{log:()=>{},vfs,now:()=>0},{backend:3,caps:0,seed:1,displayWidth:640,displayHeight:360,arg0:0,arg1:0,sliceCode:[]});host.init();
  expect(()=>host.update()).toThrow(OutsideSlice);
- const cfg=JSON.parse(readFileSync(join(f.dir,'game.json'),'utf8'));delete cfg.slice;cfg.id='coverage-fallback-fixture';cfg.pipeline.coverage=['coverage.json'];writeFileSync(join(f.dir,'game.json'),JSON.stringify(cfg));
+ const cfg=JSON.parse(readFileSync(join(f.dir,'game.json'),'utf8'));delete cfg.slice;cfg.id=f.snapshot.game;cfg.pipeline.coverage=['coverage.json'];writeFileSync(join(f.dir,'game.json'),JSON.stringify(cfg));
  buildGame(f.dir,{quiet:true});const fallback=await loadHeadless(cfg.id);await fallback.stepAsync(5);
  const click=async(r:number[])=>{fallback.pointer(r[0]+Math.floor(r[2]/2),r[1]+Math.floor(r[3]/2),1);await fallback.stepAsync(1);fallback.pointer(r[0]+Math.floor(r[2]/2),r[1]+Math.floor(r[3]/2),0);await fallback.stepAsync(2);};
  await click((fallback.state() as any).ui.menubar.items[0].rect);await click((fallback.state() as any).ui.popup.items[1].rect);

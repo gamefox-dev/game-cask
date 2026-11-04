@@ -92,6 +92,14 @@ still runs (interpreted, visible as `interp_insns`).
 - **Exceptions**: every override with a reason; every kit gap in `reports/errors.json` and as an iteration request in
   the work queue (`CLAUDE.md`).
 
+## Coverage convergence and guest-frame metrics (K21)
+
+The default now automatically merges successful probe/port-test coverage into owner/interior selection.
+`pipeline.selection: "all"` / `--selection all` is explicit; strict slices remain supplied-evidence-only.
+Standard metrics and probe summaries distinguish **updates/s from guest presents/s**, report guest interval
+avg/p95, and expose exclusive sampled interpreter ms/share, instructions/update and top owners.
+**Updates are not guest frames.** Contracts, limits and reproduction: [coverage convergence](coverage-convergence.md).
+
 ## Execution profiling (K10)
 
 Profiling is engine-independent, additive metrics JSON, not a new import/command ABI. Both browser backends
@@ -406,10 +414,10 @@ fail the build. Preserve a successful launcher's entire L3 loop, not just a boot
   ranges and `unwindRange`; AMD64 `.pdata` ownership takes precedence over speculative interior seeds. Otherwise the
   nearest enclosing analyzed start owns an address; gaps are not attributed to the preceding function. Unselected code
   remains interpreted and recorded for the next build.
-- Incremental discovery: record a workload, build with that recording, reload/run the same workload (and extend it),
+- Explicit/archived incremental discovery (the default inbox also accumulates successful probe/port-test runs): record a workload, build with that recording, reload/run the same workload (and extend it),
   save the new recording to a **different file**, then build with **all prior and new files** in `pipeline.coverage`.
   Addresses and ranges are unioned only when module names/hashes/bases agree. Each reload starts a bounded fresh
-  recording; there is no hidden cross-module or cross-reload union. Overflowed evidence is rejected even if other
+  recording; cross-reload union comes from explicit recordings and the documented private per-game inbox. Overflowed evidence is rejected even if other
   inputs would cover the same addresses. Use a shorter representative run to bootstrap a minimal selection, not an
   edited/filtered overflowed trace.
 - After **each run**, report remaining `interp_insns`, `interp_code_entries`, `interp_functions` and

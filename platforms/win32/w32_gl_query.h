@@ -174,7 +174,7 @@ static uint32_t api_wglDeleteContext(void) {
     if (!context || ARG(0) != context || current == context) return 0;
     invalidate_pipelines(); context = 0; return 1;
 }
-static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_wait_frame(); return 1; }
+static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_guest_present(1); w32_wait_frame(); return 1; }
 static uint32_t api_wglSwapIntervalEXT(void) {
     if (!current || (int32_t)ARG(0) < 0) return 0; interval = ARG(0); return 1;
 }

@@ -11,6 +11,8 @@ x86_census_t x86_census[X86_CENSUS_CAP];
 uint64_t x86_census_generation,x86_census_window_start_clock;
 uint64_t x86_census_dropped,x86_coverage_events,x86_coverage_crossings,x86_coverage_cache_hits;
 double x86_profile_idle_us;
+/* Serializer input only, just like the timing/category arrays above. */
+double x86_interpreter_exclusive_sample_us=25;
 uint64_t x86_guest_instruction_clock(void){return 123;}
 void x86_coverage_flush(void){}
 uint64_t w32_gl_calls,w32_gl_draws,w32_gl_state_changes,w32_gl_pipelines,w32_gl_unimplemented,w32_gl_approximations;

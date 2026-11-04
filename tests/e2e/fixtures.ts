@@ -59,6 +59,7 @@ export const test = base.extend<Fixtures>({
         const dir=join('reports','coverage',testInfo.project.name);mkdirSync(dir,{recursive:true});
         writeFileSync(join(dir,testInfo.testId.replace(/[^a-z0-9-]/gi,'_')+'.json'),JSON.stringify(coverage,null,2)+'\n');
         await testInfo.attach('coverage.json',{body:JSON.stringify(coverage),contentType:'application/json'});
+        // Final-outcome reporter publishes only after ALL fixture teardowns pass.
       }
     } catch { /* deliberate unavailable-runtime tests may have no API */ }
     const unexpected = (xs: string[]) => xs.filter((x) => !allowed.some((p) => p.test(x)));

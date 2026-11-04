@@ -77,10 +77,12 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, onLinkedWasm = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null } = {}) {
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  cfg.coverageGameId=cfg.id;
+  if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])
     if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
   const emitJspi = cfg.pipeline?.jspi ?? cfg.jspi ?? (process.env.BGT_JSPI === '1');
@@ -98,25 +100,29 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   }
   const zig = requireZig({ quiet: true });
   const outDir = check ? mkdtempSync(join(tmpdir(), 'bgt-check-')) : join(outRoot, cfg.id);
-  if (!check) {
-    rmSync(outDir, { recursive: true, force: true });
-    mkdirSync(outDir, { recursive: true });
-  }
-
   const sources = (cfg.sources ?? []).map((s) => join(gameDir, s));
   for (const s of sources) if (!existsSync(s)) throw new Error(`source not found: ${relative(ROOT, s)}`);
   const includes = ['bgt/include', ...(cfg.includes ?? []).map((i) => relative(ROOT, join(gameDir, i)))];
   let pipe = null;
-  if (cfg.pipeline) {
-    /* systematic conversion: lifted modules + platform profile (+ overrides) replace hand-written sources */
-    mkdirSync(join(outDir, 'assets'), { recursive: true });
-    pipe = runPipeline(gameDir, cfg, join(outDir, 'assets'));
-    sources.push(...pipe.sources);
-    includes.push(...pipe.includes);
-    cfg.cflags = [...(cfg.cflags ?? []), ...pipe.cflags];
-    cfg.asyncify = true;
-    if (!quiet) console.log(pipelineSummary(pipe.report));
-  }
+  // Selection can reject legacy/stale evidence. Prepare privately before deleting
+  // the previous manifest/assets: the recommended identity-adoption command needs them.
+  const prepared=cfg.pipeline?mkdtempSync(join(tmpdir(),'bgt-pipeline-prepare-')):null;
+  try {
+    if (cfg.pipeline) {
+      mkdirSync(join(prepared, 'assets'), { recursive: true });
+      pipe = runPipeline(gameDir, cfg, join(prepared, 'assets'));
+      sources.push(...pipe.sources);
+      includes.push(...pipe.includes);
+      cfg.cflags = [...(cfg.cflags ?? []), ...pipe.cflags];
+      cfg.asyncify = true;
+      if (!quiet) console.log(pipelineSummary(pipe.report));
+    }
+    if (!check) {
+      rmSync(outDir, { recursive: true, force: true });
+      mkdirSync(outDir, { recursive: true });
+    }
+    if(prepared)cpSync(prepared,outDir,{recursive:true});
+  } finally { if(prepared)rmSync(prepared,{recursive:true,force:true}); }
   const wasmPath = join(outDir, 'game.wasm');
   // Only the AMD64 CRT bridge links toolchain musl. Other BGT builds remain freestanding.
   // LANE-K3: shared x87 uses the same musl libm on i386 and AMD64.
@@ -391,6 +397,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const all = argv.includes('--all');
   const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
+  const mi=argv.indexOf('--selection');
+  const selection=mi>=0?argv[mi+1]:null;
+  if(mi>=0 && !['all','coverage'].includes(selection))throw new Error('--selection needs all or coverage');
+  if(mi>=0)argv.splice(mi,2);
   const si=argv.indexOf('--slice');
   const sliceCoverage=si>=0?argv.slice(si+1).flatMap((s)=>s.split(',')):null;
   if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
@@ -402,7 +412,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check, interpretOnly, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
+      buildGame(t, { check, interpretOnly, selection, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);
