@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "tested_commit": "f1a7621ea992b6ce689b77d9e5454d5bd4d98951",
+  "prior_external_review": {
+    "verdict": "FAIL",
+    "commit": "cd28ca8",
+    "finding": "P2: strict host exceptions bypass C span cleanup; idle adds 1000000us without guest execution",
+    "input": "/Users/dev/projects/pi-work/inputs/vK26/",
+    "review_results_sha256": "d17a33060ae1743d3f807164923332d26c4963dc960e8da053bdf15faf376e9e"
+  },
+  "repair": {
+    "decision": 251,
+    "commit": "f1a7621ea992b6ce689b77d9e5454d5bd4d98951",
+    "regression": "tests/unit/interpreter-exception-spans.test.ts",
+    "test_sha256": "3c943119652afd3c80d5ead8f5fc77dcf505e1acfbefde29cb80785c261a0e8d",
+    "fixture_sha256": "576371c32420303514b1666a8d004fe8b847429712da3861664e18f34208d6da",
+    "cases": [
+      "i386 strict OutsideSlice, Asyncify",
+      "i386 strict OutsideSlice, real JSPI",
+      "AMD64 strict OutsideSlice, Asyncify",
+      "AMD64 strict OutsideSlice, real JSPI"
+    ],
+    "compatibility": "bad_game.c VARIANT=4 has no bgt_profile_abort; original WebAssembly.RuntimeError preserved in both modes",
+    "normalYield": "zero cleanup calls at normal park/resume; raw time frozen while parked, then exact cumulative 80ms i386 /90ms AMD64 on completion",
+    "additionalChecks": [
+      "nested strict callback timing 10ms i386 /20ms AMD64 +100ms excluded native",
+      "failed update wall included, frameIndex unchanged",
+      "traps, explicit abort, arbitrary host errors, resumed rejection",
+      "original error identity even if cleanup or clock throws",
+      "clock-loss discards only open interval",
+      "sampled C-stack pointers cleared; stale idle_end cannot reopen span",
+      "lifecycle and diagnostic exports; normal X.transfer returns"
+    ]
+  },
+  "focused": {
+    "files": 5,
+    "tests": 24,
+    "exit": 0,
+    "log_sha256": "d55828f0dbb82c88bd60f52db6ca7064286ade293020e7b4cd098b7326cb1f94"
+  },
+  "sensitivity": {
+    "method": "Private archive cd28ca8 with unchanged new fixture/regression; reviewer four cases fail at raw-time freeze. Current-source private cleanup mutations each fail both widths. Production never mutated; archive deleted.",
+    "controls": {
+      "before": {
+        "exit": 1,
+        "log_sha256": "55cf35b77ae4e1a0da4738bd5d79c91e151fca516eb90b8dfb65d88d3a628230"
+      },
+      "mutation-sample": {
+        "exit": 1,
+        "log_sha256": "954e514d6a0e8ac5a031458cab16dec4245c4e8ababdf09ab12aec34bad3afad"
+      },
+      "mutation-idle": {
+        "exit": 1,
+        "log_sha256": "45dff296a7611bab61bc84fb2f2c6d02728fea1a8f0e59a29c40ccb54e877b08"
+      }
+    },
+    "preFix": {
+      "testsFailed": 4,
+      "testsSelected": 4,
+      "beforeIdleUs": 0,
+      "afterIdleUs": 1000000
+    },
+    "sampleMutation": {
+      "testsFailed": 2,
+      "expectedPointer": 0,
+      "actualPointer": 1
+    },
+    "idleMutation": {
+      "testsFailed": 2,
+      "expectedUs": 10000,
+      "actualUs": 1010000
+    }
+  },
+  "clock": {
+    "method": "Nine samples after warmup; one million iterations each. Monotonic clock performance.now()*1000, constant import isolates crossing, transition pair uses two clocks enabled and zero disabled. Shared-machine observations, not causal game overhead. Disabled sub-resolution durations are not latency claims.",
+    "raw_sha256": "839aa2c579faa47af1f7228fd5857f0b33fe492daa131f34caf7d23c68b4ca09",
+    "node": "v24.19.0",
+    "resources": {
+      "when": "2026-11-04T16:40:51.708Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        5.34130859375,
+        6.09326171875,
+        6.8251953125
+      ],
+      "freeRamBytes": 133595136,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 1826357248,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "resourcesEnd": {
+      "when": "2026-11-04T16:40:53.164Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        5.34130859375,
+        6.09326171875,
+        6.8251953125
+      ],
+      "freeRamBytes": 149405696,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 1826357248,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "rows": [
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          3.939584000000025,
+          3.078292000000033,
+          3.080459000000019,
+          3.0342919999999935,
+          2.972750000000019,
+          2.984624999999994,
+          2.9846670000000017,
+          3.593999999999994,
+          3.633874999999989
+        ],
+        "medianMs": 3.078292000000033,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.04145899999997482,
+          0.04108399999995527,
+          0.04112499999996544,
+          0.04062499999997726,
+          0.040665999999987434,
+          0.04025000000001455,
+          0.04174999999997908,
+          0.041624999999953616,
+          0.04062499999997726
+        ],
+        "medianMs": 0.04108399999995527,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.00037500000001955414,
+          0.00016699999997626946,
+          0.00016700000003311288,
+          0.00016700000003311288,
+          0.00016600000003563764,
+          0.00016700000003311288,
+          0.00012500000002546585,
+          0.00016700000003311288,
+          0.00016600000003563764
+        ],
+        "medianMs": 0.00016700000003311288,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          28.31683300000003,
+          27.434416999999996,
+          28.21550000000002,
+          27.52504200000004,
+          27.513333999999986,
+          27.804374999999993,
+          27.738959000000023,
+          34.162624999999935,
+          32.623334
+        ],
+        "medianMs": 27.804374999999993,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.041249999999990905,
+          0.04108300000007148,
+          0.04099999999993997,
+          0.048874999999952706,
+          0.041084000000068954,
+          0.04095800000004601,
+          0.040582999999969616,
+          0.04099999999993997,
+          0.04100000000005366
+        ],
+        "medianMs": 0.04100000000005366,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.00020800000004328467,
+          0.00016600000003563764,
+          0.00012500000002546585,
+          0.00012500000002546585,
+          0.00012500000002546585,
+          0.00012500000002546585,
+          0.00012499999991177901,
+          0.00012500000002546585,
+          0.00012500000002546585
+        ],
+        "medianMs": 0.00012500000002546585,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          4.460458999999901,
+          4.150125000000003,
+          4.102709000000004,
+          3.8822079999999914,
+          3.8812500000000227,
+          3.9182910000000675,
+          3.862416000000053,
+          3.8695419999999103,
+          3.8965839999999616
+        ],
+        "medianMs": 3.8965839999999616,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.04120799999998326,
+          0.04212500000005548,
+          0.04250000000001819,
+          0.04054099999996197,
+          0.040500000000065484,
+          0.040417000000047665,
+          0.04041600000005019,
+          0.03999999999996362,
+          0.040042000000084954
+        ],
+        "medianMs": 0.040500000000065484,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          7.993290999999999,
+          8.163625000000025,
+          8.052333999999973,
+          8.036708999999973,
+          7.905124999999998,
+          7.906624999999963,
+          7.962459000000081,
+          7.929750000000013,
+          8.14487500000007
+        ],
+        "medianMs": 7.993290999999999,
+        "clockCalls": 18000000
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          28.270708000000013,
+          27.486167000000023,
+          27.414749999999913,
+          28.140874999999937,
+          27.701125000000047,
+          27.28583299999991,
+          27.34075000000007,
+          27.816750000000184,
+          27.325624999999945
+        ],
+        "medianMs": 27.486167000000023,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.040083999999978914,
+          0.040500000000065484,
+          0.04041699999993398,
+          0.049916000000166605,
+          0.0409589999999298,
+          0.03258400000004258,
+          0.04087499999991451,
+          0.04054200000018682,
+          0.015750000000025466
+        ],
+        "medianMs": 0.040500000000065484,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          54.76800000000003,
+          55.29795899999999,
+          55.20266700000002,
+          55.325624999999945,
+          55.34354200000007,
+          55.40274999999997,
+          55.11020800000006,
+          55.36341600000014,
+          54.74445800000012
+        ],
+        "medianMs": 55.29795899999999,
+        "clockCalls": 18000000
+      }
+    ]
+  },
+  "gateEvidence": "K26-repair-gate-evidence.json",
+  "reviewBoundary": "Author-run evidence only; external delta re-review pending. No in-lane independent review or CI."
+}

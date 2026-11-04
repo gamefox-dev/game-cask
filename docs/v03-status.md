@@ -1,15 +1,25 @@
 # v0.3 merged implementation status
 
-## K26f exception-boundary repair — full gates pending
+## K26g exception-boundary repair — author Tier 1 green; delta review pending
 
-External vK26 review found host exceptions bypassing C span cleanup (P2). Approved optional
-`bgt_profile_abort(now_us)` and host boundary guards now close/discard abandoned spans, clear
-sampled-stack/idle state and retain failed-update wall without adding completed frames. New
-CC0 tests cover both widths, Asyncify/real JSPI, strict stops, traps/abort/resume/lifecycle
-failures, absent export, clock loss and normal-yield non-cleanup. Focused24/24, types/ESLint
-pass; before-fix reviewer4/4 and two cleanup mutations fail as intended. Full final-source
-Tier1 and external delta re-review pending; no independent PASS or CI claimed.
-[Repair handoff](handoff/K26.md).
+External vK26 FAIL on cd28ca8 found host exceptions bypassing C span cleanup (P2).
+Decision #251 repair **f1a7621** adds optional `bgt_profile_abort(now_us)`, host export/rejection
+guards and failed-update wall accounting; closes/discards spans and clears abandoned sampled/idle
+state without masking original errors. All four width/suspension reviewer regressions fail before
+and pass after; absent-export compatibility and normal-yield zero-cleanup/exact80/90ms tests pass.
+Private stack/idle cleanup mutants fail both widths. Focused **24/24**, full units **2,027 /109 files**.
+
+Clean repair source full author Tier 1: doctor, ESLint + real GCC **36/36 example checks**, explicit
+clang, types, leakcheck; full browsers **291 pass /51 unchanged skips /0 failures /0 flaky per
+suspension mode**, required WebGL2/WebGPU; **32 fixtures ×2 modes ×300 =19,200 identical oracle
+frame pairs**, lifted interp0/stubs[], null errors, equal cross-mode hashes. All64 interpreted
+physical totals fit actual host update budgets (maximum99.78%). Refreshed clock median27.49ns/import,
+55.30ns/transition pair; disabled transitions0 clocks; shared-machine samples, not game overhead.
+Finalization is documentation/evidence only. **External delta re-review pending**, not an independent
+PASS or CI claim. Review cd28ca8..f1a7621; no production build/emitter changes.
+[Repair handoff](handoff/K26.md), [repair gates](handoff/K26-repair-gate-evidence.json),
+[repair timing/sensitivity](handoff/K26-repair-timing-evidence.json). Historical source gates below
+remain correctly scoped to d454da7.
 
 ## K26 historical normal-path gates — physical interpreter timing / measured size attribution
 
