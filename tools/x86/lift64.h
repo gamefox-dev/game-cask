@@ -22,7 +22,9 @@ static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
     else snprintf(base, sizeof base, "(r[%u]+0x%llxull)", p->base,
                   (unsigned long long)(uint64_t)(int64_t)p->disp);
     if (p->index != X86_NOREG) snprintf(index, sizeof index, "+(r[%u]<<%u)", p->index, p->scale);
-    if (segment && p->seg_fs) snprintf(seg, sizeof seg, "+X.%s_base", p->seg_fs == 2 ? "gs" : "fs");
+    /* Address-size truncates the offset only. Segment bases are stored as uint32_t in
+     * this bounded runtime, so explicitly promote before forming the linear address. */
+    if (segment && p->seg_fs) snprintf(seg, sizeof seg, "+(uint64_t)X.%s_base", p->seg_fs == 2 ? "gs" : "fs");
     snprintf(expr, sizeof expr, "(%s%s)", base, index);
     snprintf(s, cap, "(%s%s%s)", (p->pad & 1) ? "(uint32_t)" : "", expr, seg);
 }

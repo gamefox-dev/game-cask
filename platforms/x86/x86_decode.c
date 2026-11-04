@@ -59,7 +59,10 @@ static int modrm(rd_t *r, x86_opnd_t *rm, int size, int fs) {
         else rm->base = (uint8_t)(base + ((r->rex & 1) ? 8 : 0));
     } else if (m == 5 && mod == 0) {
         rm->disp = (int32_t)u32(r);
-        if (r->mode64 && r->asz == 8) rm->base = X86_RIPREG;
+        /* Long-mode mod00/rm101 is RIP-relative, or EIP-relative with67.
+         * The final instruction length is included at done; pad1 then wraps the
+         * offset at32 bits. SIB base101 and legacy i386 remain absolute disp32. */
+        if (r->mode64) rm->base = X86_RIPREG;
     } else {
         rm->base = (uint8_t)(m + ((r->rex & 1) ? 8 : 0));
     }
