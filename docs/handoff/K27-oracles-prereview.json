@@ -1,0 +1,1933 @@
+{
+  "schema": 1,
+  "source": "8e3b1e4 (before637a6dd review repairs)",
+  "scope": "32 pipeline fixtures x2 actual suspension modes x300 cooperative updates; not guest presents or rendering",
+  "inventory": [
+    {
+      "path": "examples/win32-conformance",
+      "id": "win32-conformance"
+    },
+    {
+      "path": "examples/win32-hello",
+      "id": "win32-hello"
+    },
+    {
+      "path": "examples/x64-audio-init",
+      "id": "x64-audio-init"
+    },
+    {
+      "path": "examples/x64-audio",
+      "id": "x64-audio"
+    },
+    {
+      "path": "examples/x64-basics",
+      "id": "x64-basics"
+    },
+    {
+      "path": "examples/x64-contracts",
+      "id": "x64-contracts"
+    },
+    {
+      "path": "examples/x64-cpp",
+      "id": "x64-cpp"
+    },
+    {
+      "path": "examples/x64-cpprt",
+      "id": "x64-cpprt"
+    },
+    {
+      "path": "examples/x64-crt",
+      "id": "x64-crt"
+    },
+    {
+      "path": "examples/x64-gl-blit",
+      "id": "x64-gl-blit"
+    },
+    {
+      "path": "examples/x64-gl-capacity",
+      "id": "x64-gl-capacity"
+    },
+    {
+      "path": "examples/x64-gl-current",
+      "id": "x64-gl-current"
+    },
+    {
+      "path": "examples/x64-gl-default-vao",
+      "id": "x64-gl-default-vao"
+    },
+    {
+      "path": "examples/x64-gl-fbo",
+      "id": "x64-gl-fbo"
+    },
+    {
+      "path": "examples/x64-gl-feedback",
+      "id": "x64-gl-feedback"
+    },
+    {
+      "path": "examples/x64-gl-integer",
+      "id": "x64-gl-integer"
+    },
+    {
+      "path": "examples/x64-gl-ranges",
+      "id": "x64-gl-ranges"
+    },
+    {
+      "path": "examples/x64-gl",
+      "id": "x64-gl"
+    },
+    {
+      "path": "examples/x64-glsl",
+      "id": "x64-glsl"
+    },
+    {
+      "path": "examples/x64-gui",
+      "id": "x64-gui"
+    },
+    {
+      "path": "examples/x64-handles",
+      "id": "x64-handles"
+    },
+    {
+      "path": "examples/x64-heap",
+      "id": "x64-heap"
+    },
+    {
+      "path": "examples/x64-input",
+      "id": "x64-input"
+    },
+    {
+      "path": "examples/x64-memory",
+      "id": "x64-memory"
+    },
+    {
+      "path": "examples/x64-scale",
+      "id": "x64-scale"
+    },
+    {
+      "path": "examples/x64-smoke",
+      "id": "x64-smoke"
+    },
+    {
+      "path": "examples/x64-sysdlls",
+      "id": "x64-sysdlls"
+    },
+    {
+      "path": "examples/x64-threads",
+      "id": "x64-threads"
+    },
+    {
+      "path": "examples/x64-tls",
+      "id": "x64-tls"
+    },
+    {
+      "path": "examples/x86-handles",
+      "id": "x86-handles"
+    },
+    {
+      "path": "examples/x86-heap",
+      "id": "x86-heap"
+    },
+    {
+      "path": "examples/x86-threads",
+      "id": "x86-threads"
+    }
+  ],
+  "summary": {
+    "total": 64,
+    "failures": []
+  },
+  "rows": [
+    {
+      "path": "examples/win32-conformance",
+      "id": "win32-conformance",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 6.828787088394165,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 16,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/win32-hello",
+      "id": "win32-hello",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 35.49094605445862,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3672,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-audio-init",
+      "id": "x64-audio-init",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 10.122853755950928,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 7412,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-audio",
+      "id": "x64-audio",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 25.2668936252594,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 84303,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-basics",
+      "id": "x64-basics",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 15.438838005065918,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-contracts",
+      "id": "x64-contracts",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 10.560624837875366,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 11222,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-cpp",
+      "id": "x64-cpp",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 20.721417903900146,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 50,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-cpprt",
+      "id": "x64-cpprt",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.730865001678467,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 103,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-crt",
+      "id": "x64-crt",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 4.827487945556641,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3685,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-blit",
+      "id": "x64-gl-blit",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 11.520333051681519,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-capacity",
+      "id": "x64-gl-capacity",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 12.664886951446533,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "962f71ec:811c9dc5",
+        "interpreted": "962f71ec:811c9dc5",
+        "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+        "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 8,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-current",
+      "id": "x64-gl-current",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 12.414354801177979,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1164,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-default-vao",
+      "id": "x64-gl-default-vao",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 12.736539363861084,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 22,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-fbo",
+      "id": "x64-gl-fbo",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 12.389158010482788,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1309,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-feedback",
+      "id": "x64-gl-feedback",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 16.03662109375,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-integer",
+      "id": "x64-gl-integer",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 22.01382088661194,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 885,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-ranges",
+      "id": "x64-gl-ranges",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 17.733165979385376,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 41990,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl",
+      "id": "x64-gl",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.377039194107056,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-glsl",
+      "id": "x64-glsl",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.591944932937622,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 155,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gui",
+      "id": "x64-gui",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.812576055526733,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-handles",
+      "id": "x64-handles",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.702649831771851,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 46916,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-heap",
+      "id": "x64-heap",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 6.655159950256348,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 18790350,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-input",
+      "id": "x64-input",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.394338846206665,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 38723,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-memory",
+      "id": "x64-memory",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 7.728823900222778,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 284,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-scale",
+      "id": "x64-scale",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 53.13014507293701,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-smoke",
+      "id": "x64-smoke",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.601846218109131,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 731841,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-sysdlls",
+      "id": "x64-sysdlls",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 6.279500961303711,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 603,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-threads",
+      "id": "x64-threads",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 7.495488166809082,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 2,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-tls",
+      "id": "x64-tls",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.261819839477539,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-handles",
+      "id": "x86-handles",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 6.948992729187012,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 0,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-heap",
+      "id": "x86-heap",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 8.589371919631958,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 48003,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-threads",
+      "id": "x86-threads",
+      "suspension": "asyncify",
+      "rc": 0,
+      "seconds": 5.908010959625244,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/win32-conformance",
+      "id": "win32-conformance",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 7.037724733352661,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 16,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/win32-hello",
+      "id": "win32-hello",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.219486951828003,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3672,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-audio-init",
+      "id": "x64-audio-init",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.520492076873779,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 7412,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-audio",
+      "id": "x64-audio",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.152248859405518,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 84303,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-basics",
+      "id": "x64-basics",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.40960168838501,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-contracts",
+      "id": "x64-contracts",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.152184009552002,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 11222,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-cpp",
+      "id": "x64-cpp",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.4569993019104,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 50,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-cpprt",
+      "id": "x64-cpprt",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.801008224487305,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 103,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-crt",
+      "id": "x64-crt",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.376798868179321,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3685,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-blit",
+      "id": "x64-gl-blit",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.105836868286133,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-capacity",
+      "id": "x64-gl-capacity",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.8861541748046875,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "962f71ec:811c9dc5",
+        "interpreted": "962f71ec:811c9dc5",
+        "liftedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64",
+        "interpretedTrace": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 8,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-current",
+      "id": "x64-gl-current",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.276137828826904,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1164,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-default-vao",
+      "id": "x64-gl-default-vao",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.868739128112793,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 22,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-fbo",
+      "id": "x64-gl-fbo",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.0719029903411865,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1309,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-feedback",
+      "id": "x64-gl-feedback",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.870412111282349,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-integer",
+      "id": "x64-gl-integer",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.33106803894043,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 885,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl-ranges",
+      "id": "x64-gl-ranges",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.393303871154785,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 41990,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gl",
+      "id": "x64-gl",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 7.059550046920776,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-glsl",
+      "id": "x64-glsl",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.170315980911255,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 155,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-gui",
+      "id": "x64-gui",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.173090934753418,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-handles",
+      "id": "x64-handles",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.250070810317993,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 46916,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-heap",
+      "id": "x64-heap",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 7.569302797317505,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 18790350,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-input",
+      "id": "x64-input",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 6.568729877471924,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 38723,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-memory",
+      "id": "x64-memory",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 8.602880001068115,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 284,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-scale",
+      "id": "x64-scale",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 9.933658123016357,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-smoke",
+      "id": "x64-smoke",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.7058939933776855,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 731841,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-sysdlls",
+      "id": "x64-sysdlls",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.139376163482666,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 603,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-threads",
+      "id": "x64-threads",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.161406993865967,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 2,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x64-tls",
+      "id": "x64-tls",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.109498023986816,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 1,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-handles",
+      "id": "x86-handles",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 7.131787061691284,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 0,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-heap",
+      "id": "x86-heap",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 8.13813829421997,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 48003,
+        "stubs": []
+      }
+    },
+    {
+      "path": "examples/x86-threads",
+      "id": "x86-threads",
+      "suspension": "jspi",
+      "rc": 0,
+      "seconds": 5.394885063171387,
+      "identical": true,
+      "comparedFrames": 300,
+      "requestedFrames": 300,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "error": null,
+      "failureStage": null,
+      "firstDivergence": null,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "lifted": {
+        "interp_insns": 0,
+        "generic_insn_execs": 3,
+        "stubs": []
+      }
+    }
+  ]
+}
