@@ -138,8 +138,8 @@ int main(void) {
     glGenTextures(21,tex+1002);GLuint sentinel=0xabcdef01u;glGenTextures(1,&sentinel);note("GenTextures OOM leaves output untouched",sentinel==0xabcdef01u);error(GL_OUT_OF_MEMORY,"real texture name exhaustion");
     glDeleteTextures(1,tex+1000);glBindTexture(GL_TEXTURE_2D,tex[1001]);image(0,255,0);error(GL_NO_ERROR,"texture handle reuse after exhaustion");
     glGenBuffers(415,buf+600);for(unsigned i=600;i<1014;i++){glBindBuffer(GL_ARRAY_BUFFER,buf[i]);glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);}
-    error(GL_NO_ERROR,"1014 public buffer handles plus uniform");glBindBuffer(GL_ARRAY_BUFFER,buf[1014]);glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);error(GL_OUT_OF_MEMORY,"real buffer handle exhaustion");
-    glGenBuffers(8,buf+1015);sentinel=0xabcdef01u;glGenBuffers(1,&sentinel);note("GenBuffers OOM leaves output untouched",sentinel==0xabcdef01u);error(GL_OUT_OF_MEMORY,"real buffer name exhaustion");
+    error(GL_NO_ERROR,"1014 public buffer handles plus uniform");glBindBuffer(GL_ARRAY_BUFFER,buf[1014]);glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);error(GL_NO_ERROR,"buffer handles grow beyond legacy pool");
+    glGenBuffers(8,buf+1015);sentinel=0xabcdef01u;glGenBuffers(1,&sentinel);note("GenBuffers grows beyond 1023",sentinel!=0xabcdef01u&&sentinel!=0);error(GL_NO_ERROR,"dynamic buffer names");
     glDeleteBuffers(1,buf+1013);glBindBuffer(GL_ARRAY_BUFFER,buf[1014]);glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);error(GL_NO_ERROR,"buffer handle reuse after exhaustion");
     char done[96];snprintf(done,sizeof done,"x64-gl-capacity %s failures=%u",failures?"FAIL":"PASS",failures);OutputDebugStringA(done);
     for(;;){SwapBuffers(dc);Sleep(16);}

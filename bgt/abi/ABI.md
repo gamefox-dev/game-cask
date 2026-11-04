@@ -658,7 +658,8 @@ TS mirrors are `GPU_OP`, `GPU`, `GPU_LAYOUT`, `GPU_PIPELINE_FIELDS`, `GPU_LIMITS
 `CommandEncoder.gpu(op, words)` emits these exact words; encode f32 fields as their IEEE-754 bits.
 
 GPU handles are caller-chosen integers 1..1023 in **five separate namespaces**: buffer, texture, sampler, shader,
-pipeline. Zero is not a resource, except as the screen color attachment / absent depth attachment in PASS_BEGIN.
+pipeline. The explicit additive §13.14 buffer-handle capability can raise **only the buffer ID range**;
+without negotiation these limits remain exactly unchanged. Zero is not a resource, except as the screen color attachment / absent depth attachment in PASS_BEGIN.
 They are distinct from legacy TEX_* handles: there is no implicit legacy/GPU texture aliasing or cross-sampling.
 Deleting allows immediate handle reuse; already queued commands still refer to the prior generation by stream order.
 CREATE of an invalid handle → E_INVALID; duplicate → E_STATE; missing resource on use/update/delete → E_NOT_FOUND.
@@ -1326,3 +1327,52 @@ zeroed and populated with native BUFFER_COPY prefixes before drawing, so GPU-gen
 and unrelated application bytes beyond the bound range never leak into the tail. Relink resets warning state.
 Missing buffers remain GL_INVALID_OPERATION. Valid ranges use exactly the complete linked std140 size; neither the
 block nor app data is truncated/padded in those paths. The unchanged target must be remeasured by its porter.
+
+### 13.14 Full-u32 buffer handles (additive v0.3 capability)
+
+Capability **BGT_CAP_GPU_BUFFER_HANDLES / CAP_GPU_BUFFER_HANDLES = 1 << 14** advertises an executable
+backend that supports all nonzero u32 buffer IDs. Both WebGL2 and WebGPU support it. This is not a
+new count/VRAM promise, a wider texture/shader/pipeline/sampler namespace, or a change to any command layout.
+
+**Explicit opt-in:** new import `gpu_buffer_handles() / bgt_gpu_buffer_handles()` returns BGT_OK and
+idempotently enables the extended buffer ID range for this host instance. It requires a v0.3 module,
+CAP_GPU and CAP_GPU_BUFFER_HANDLES, otherwise E_UNSUPPORTED, no effect. Within a GPU pass it returns
+E_STATE, no effect. Advertisement alone never changes validation. A backend handoff clears the opt-in
+and recalculates the capability; the module must negotiate again. Pending/live GPU work already prevents
+backend replacement under the existing contract. Unsupported/absent backends never advertise this bit.
+v0.2 modules neither see this bit nor successfully negotiate the extension, even on a capable backend.
+
+After successful negotiation, BUFFER_CREATE accepts IDs **1..0xffffffff**, and every existing buffer
+operation/binding/copy/feedback/readback refers to these full-width IDs by exactly the same rules and
+ordering as before. ID0 remains E_INVALID on create; duplicates E_STATE; missing resources E_NOT_FOUND;
+bad ranges/usage/alignment retain existing errors. Other namespaces still reject IDs above1023.
+The frozen16-byte and80-byte gpu_limits layouts/values, including max_gpu_handles=1023, are unchanged;
+this field remains the common unextended ceiling, not the negotiated buffer ID range.
+
+Without this call, even a capable v0.3 host rejects buffer CREATE above1023 with E_INVALID exactly as
+before. Old modules/streams need no changes. No new opcode/command flag or revision of frozen v0.2.
+GPU reservation, per-buffer size, per-frame upload/command and request budgets are unchanged. Every
+buffer has positive byte size, charged against the aggregate configurable reservation; byte-budget
+exhaustion is E_LIMIT, with no partially created resource. Native allocation/device errors remain E_IO
+with diagnostics. No arbitrary object-count limit is added in the validator or either renderer.
+
+The desktop GL profile negotiates on context creation, grows buffer/VAO guest tables and wire-ownership
+metadata from the shared bounded host arena, and keeps a separate native buffer per store. Names remain
+full GLuints independent of slots/handles. Table/index growth, retired generations and store data consume
+host bytes; GL_OUT_OF_MEMORY plus gl_objects.{live,peak,failures,failed_requests} diagnoses real host/GPU
+byte exhaustion, unsupported old-host wire capacity or rejected submission. Ordinary program uniforms
+can use the same extended namespace and cannot exhaust a fixed shared count pool ahead of vertex/index
+buffers. Orphaning, mapped guest pointers, offsets, alignment, transform feedback and uniform-block
+binding rules are unchanged. VAOs remain profile state, not BGT resources.
+
+CC0 conformance: gpu-buffer-handles.test.ts covers negotiation/legacy gates and12,000-resource churn;
+gpu-buffer-handles.spec.ts checks36,000 actual native per-buffer words across three generations on both
+backends; gl-scale-memory.test.ts checks24,000 live buffer/VAO tables, churn and host-OOM atomic recovery;
+x64-gl-scale uses12,000 actual pairs for native draws and late/retained/mapped/churn pixel checks with
+real byte-budget exhaustion/recovery. Recording-only tests are not rasterization or native compiler evidence.
+Historical CC0 comparison against dev.14 preserves262,596 semantic commands over ten old GL workloads
+×300frames, ignoring only transport addresses. The existing capacity fixture intentionally crosses old
+pressure and now requires successful buffer growth instead of the removed count-OOM. The scale-only
+differential oracle requires exactly one deliberate BUFFER_CREATE E_LIMIT plus the exact counted GL OOM,
+recovery and recording failure census; every other fixture retains zero command errors, and native
+recovery pixels are mandatory on both backends. Missing/duplicate/unrelated errors fail contract tests.

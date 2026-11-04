@@ -123,9 +123,9 @@ static uint32_t api_GetBufferSubData(void) {
         glp_free(data, (uint32_t)size);
     } else for (uint32_t i = 0; i < size; i++) x86_wr8(ARG(3) + i, b->data[offset + i]); return 0;
 }
-static uint32_t api_IsBuffer(void) { return SLOT(buffers, ARG(0)) < N && buffers[SLOT(buffers, ARG(0))].bound != 0; }
+static uint32_t api_IsBuffer(void) { return SLOT(buffers, ARG(0)) < BN && buffers[SLOT(buffers, ARG(0))].bound != 0; }
 static uint32_t api_IsTexture(void) { return SLOT(textures, ARG(0)) && SLOT(textures, ARG(0)) < N && textures[SLOT(textures, ARG(0))].kind1 != 0; }
-static uint32_t api_IsVertexArray(void) { return SLOT(vaos, ARG(0)) < N && vaos[SLOT(vaos, ARG(0))].bound != 0; }
+static uint32_t api_IsVertexArray(void) { return SLOT(vaos, ARG(0)) < VN && vaos[SLOT(vaos, ARG(0))].bound != 0; }
 static uint32_t api_IsShader(void) { return SLOT(shaders, ARG(0)) < N && shaders[SLOT(shaders, ARG(0))].used != 0; }
 static uint32_t api_IsProgram(void) { return SLOT(programs, ARG(0)) < N && programs[SLOT(programs, ARG(0))].used != 0; }
 static uint32_t api_IsFramebuffer(void) { return SLOT(fbos, ARG(0)) && SLOT(fbos, ARG(0)) < N && fbos[SLOT(fbos, ARG(0))].bound != 0; }
@@ -150,6 +150,7 @@ static uint32_t api_wglCreateContext(void) {
     zero(&limits, sizeof limits); bgt_gpu_limits(&limits.base, sizeof limits);
     if (!ARG(0) || !pixel_format || !limits.gpu_supported || !(limits.shader_languages & 2)) return 0;
     if (context) { missing("multiple WGL contexts"); return 0; }
+    if ((w32_io->caps & BGT_CAP_GPU_BUFFER_HANDLES) && bgt_gpu_buffer_handles() == 0) buffer_handles_enabled = 1;
     context = 0x474c0001; viewport[2] = scissor[2] = (int32_t)width();
     viewport[3] = scissor[3] = (int32_t)height(); return context;
 }

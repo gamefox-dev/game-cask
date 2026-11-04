@@ -92,7 +92,7 @@ static uint32_t api_BindFramebuffer(void) {
 static uint32_t api_DeleteFramebuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(fbos, x86_rd32(ARG(1) + i * 4));
-        if (id && id < N) { zero(&fbos[id], sizeof(Fbo)); if (fbo == id) fbo = 0; if (fbo_read == id) fbo_read = 0; } }
+        if (id && id < N) { image_collection_dirty = 1; zero(&fbos[id], sizeof(Fbo)); if (fbo == id) fbo = 0; if (fbo_read == id) fbo_read = 0; } }
     return 0;
 }
 static Fbo *target_fbo(uint32_t target, uint32_t *id) {
@@ -110,6 +110,7 @@ static int attach_point(uint32_t a) {
     fail(BAD_ENUM); return -1;
 }
 static void set_attach(Fbo *f, int point, Attach v) {
+    image_collection_dirty = 1;
     if (point < 4) f->color[point] = v;
     else if (point == 4) f->depth = v;
     else if (point == 5) f->stencil = v;

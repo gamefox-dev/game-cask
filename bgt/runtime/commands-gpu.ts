@@ -39,6 +39,8 @@ export class GpuState {
   readonly shaders = new Map<number, ShaderEntry>();
   readonly pipelines = new Map<number, PipelineEntry>();
   bytes = 0;
+  /** Negotiated by gpu_buffer_handles, never inferred from backend support alone. */
+  bufferHandles = false;
   pass?: Pass;
   constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
     this.budget = budget;
@@ -97,7 +99,9 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
   const resourceOp = op <= GPU_OP.PIPELINE_DELETE || (op >= GPU_OP.TEXTURE_CREATE_EX && op !== GPU_OP.CLEAR_BUFFER && op !== GPU_OP.FEEDBACK_CAPTURE);
   if (resourceOp && g.pass) return E_STATE;
   if (!resourceOp && op >= GPU_OP.PASS_END && !g.pass) return E_STATE;
-  const fresh = (map: Map<number, unknown>) => !validHandle(h) ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
+  const fresh = (map: Map<number, unknown>) =>
+    !(map === g.buffers && g.bufferHandles && g.backend.bufferHandles ? h > 0 : validHandle(h))
+      ? E_INVALID : map.has(h) ? E_STATE : BGT_OK;
   const budget = (bytes: number) => g.bytes + bytes <= g.budget;
   const reserve = (bytes: number) => {
     g.bytes += bytes; g.peakBytes = Math.max(g.peakBytes, g.bytes); g.largestAllocation = Math.max(g.largestAllocation, bytes);
