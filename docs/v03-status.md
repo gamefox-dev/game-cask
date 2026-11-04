@@ -1,5 +1,19 @@
 # v0.3 merged implementation status
 
+## Integration I13 — K23 + K25 + K24 (final-tree gates in progress)
+
+Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
+K23 supervised finite-file helpers, K25 typed vertex component fill/failed-pipeline lifetime, and
+K24 negotiated full-u32 buffer IDs/dynamic buffer and VAO tables coexist; byte budgets and exact
+x64-gl-scale-only expected-error contract remain unchanged. Integration repair `cb82808` keeps nested
+Binaryen children in the ancestor supervisor group while independent lock guardians retain writer
+draining. Negative controls fail before; final focused18/18 pass. Final serial merged-tree gates are
+pending; do not infer finish-line acceptance from lane PASS results.
+
+Inherited external vK23b/vK25/vK24 PASS plus reviewer repair-diff read is the accepted review boundary;
+no separate independent merged-tree PASS/CI, game or physical-device claim.
+[I13 handoff](handoff/integration-i13.md).
+
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
 Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
