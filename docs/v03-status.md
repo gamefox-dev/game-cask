@@ -1,6 +1,6 @@
 # v0.3 merged implementation status
 
-## K24 — Q67 buffer/VAO scale (full Tier 1 sweep running)
+## K24 — Q67 buffer/VAO scale (implemented; browser timing gate remains red)
 
 Reviewer decision #200 approves additive v0.3 **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host
 opt-in, unchanged byte budgets, frozen v0.2/unnegotiated validation and unchanged other namespaces.
@@ -15,7 +15,15 @@ dev.14 fails with black panels on both backends. Ten historical GL workloads ×3
 262,596 semantic wire commands exactly (only transport addresses ignored); deliberate capacity-fixture
 changes are above old pressure. Scale-only oracle contract requires exactly one deliberate BUFFER_CREATE
 E_LIMIT and its counted OOM/recovery; every other fixture retains zero errors. Contract tests reject
-missing/duplicate/other errors. Focused36/36 and browser6/6 pass; full serial Tier1 is not yet certified.
+missing/duplicate/other errors. Focused36/36 and browser6/6 pass. Final unchanged executable tree8ff86ff:
+doctor, clang/real-GCC lint (36 example checks each), typecheck, **2,009 units /103 files**, leakcheck and
+**all33 pipeline oracles ×300 =9,900 identical pairs** pass; structured oracle invariants pass.
+
+**Author Tier1 is NOT green:** two complete required-WebGPU browser runs each have290 passed /51 unchanged
+existing skips /one pre-existing x64-glsl cross-backend360s timeout. Isolated unchanged replay also times
+out. Reviewer confirms this separately tracked load-sensitive failure also occurred in I12b/K25c and
+requests low-load replay rather than any test/timing/assertion/skip change. Failed logs and strict aggregate
+audit remain red; all593 executable/test hashes are unchanged. Finalization is documentation-only.
 Game upper bound remains unknown; porter measures/replays after merge. Reviewer-owned independent review
 remains pending; no game/physical-device/performance claim. Details: [K24 handoff](handoff/K24.md).
 
