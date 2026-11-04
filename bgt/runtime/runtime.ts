@@ -783,7 +783,7 @@ export class BGTRuntime {
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
       readAhead:this.vfs.readAheadCoverage(),
       metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,
-        execution,runtime_profile:{gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,vfs:this.rangeFiles?.timing ?? null},frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+        execution,runtime_profile:{suspension:this.host?.config.suspensionMode ?? 'asyncify',gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,vfs:this.rangeFiles?.timing ?? null},frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
         crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
         load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
         frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},

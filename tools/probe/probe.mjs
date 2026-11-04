@@ -207,7 +207,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     log.execution_summary=d?.metrics?.execution_summary ?? null;
     if(log.execution_summary){
       const s=log.execution_summary,fmt=n=>n==null?'unknown':Number(n).toFixed(2);
-      console.log(`probe: ${fmt(s.updates_per_second)} updates/s; ${fmt(s.guest_frames?.per_second)} guest presents/s, guest avg/p95 ${fmt(s.guest_frames?.frame_ms_avg)}/${fmt(s.guest_frames?.frame_ms_p95)} ms; interpreter ${fmt(s.interpreter.estimated_ms_per_update)} ms/update (${fmt(s.interpreter.estimated_share==null?null:s.interpreter.estimated_share*100)}% estimated), ${fmt(s.interpreter.instructions_per_update)} insns/update`);
+      console.log(`probe: ${s.suspension ?? d?.suspension ?? 'unknown'}; ${fmt(s.updates_per_second)} updates/s; ${fmt(s.guest_frames?.per_second)} guest presents/s, guest avg/p95 ${fmt(s.guest_frames?.frame_ms_avg)}/${fmt(s.guest_frames?.frame_ms_p95)} ms; interpreter ${fmt(s.interpreter.estimated_ms_per_update)} ms/update (${fmt(s.interpreter.estimated_share==null?null:s.interpreter.estimated_share*100)}% estimated), ${fmt(s.interpreter.instructions_per_update)} insns/update`);
     }
     if(coverage && !log.errors.length){const evidence=publishCoverage(ROOT,coverage);if(evidence)log.artifacts.push(evidence);}
   } catch (e) {

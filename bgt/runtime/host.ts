@@ -863,7 +863,7 @@ export class GameHost {
       const elapsed=this.observationStarted===null?0:this.services.now()-this.observationStarted;
       const presentPtr=this.exports.bgt_guest_presentations?.() ?? 0;
       return { ...metrics, host_profile: this.profile,
-        execution_summary:{updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
+        execution_summary:{suspension:this.config.suspensionMode ?? 'asyncify',updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
           interpreter:readInterpreterSummary(metrics,this.exports.memory.buffer,this.exports.bgt_interpreter_coverage?.() ?? 0,this.frameIndex,this.profile.updateMs),
           guest_frames:presentPtr?readGuestPresentations(this.exports.memory.buffer,presentPtr,elapsed):null} };
     } catch {

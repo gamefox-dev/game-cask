@@ -88,6 +88,11 @@ test('per-game JSPI preference selects real JSPI and reports it, with unsupporte
   const available=await page.evaluate(async()=>!!(await(await fetch('/games/win32-hello/manifest.json')).json()).variants?.jspi);
   const d=await diagnostics(page);expect(d.suspension).toBe(available?'jspi':'asyncify');
   expect((d.metrics as any).runtime_profile.suspension).toBe(d.suspension);
+  // I12: convergence recordings and the probe summary must identify the active artifact too.
+  expect((d.metrics as any).execution_summary.suspension).toBe(d.suspension);
+  const coverage=await page.evaluate(()=>(window as any).__BGT_TEST__.coverage());
+  expect((coverage as any).metrics.runtime_profile.suspension).toBe(d.suspension);
+  expect((coverage as any).metrics.execution.execution_summary.suspension).toBe(d.suspension);
   await step(page,300);expect((await diagnostics(page)).failed).toBe(false);
   await page.addInitScript(()=>{Object.defineProperty(WebAssembly,'Suspending',{value:undefined,configurable:true});});
   expect(await openGame(page,backendParam,{game:'win32-hello'})).toBe('ready');

@@ -1,5 +1,11 @@
 // Discovery uses actual recordings, not filtered/fabricated target addresses.
 import {it,expect,vi} from 'vitest';
+import {createHash} from 'node:crypto';
+import {jspiApi} from '../../bgt/runtime/jspi';
+// @ts-expect-error ESM partition orchestration
+import {transform} from '../../tools/build/asyncify.mjs';
+// @ts-expect-error ESM build options
+import {WASM_OPT_FEATURES} from '../../tools/build/build.mjs';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync,copyFileSync,mkdirSync} from 'node:fs';
 import {join,relative,basename} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -153,19 +159,36 @@ it('host deduplicates kinds beyond the old cap, bounds recordings, and enforces 
  host.codeCoverage.clear();
 });
 
-it('two successive selective builds converge on a >65k-instruction workload from real entry/continuation recordings',async()=>{
+it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive selective builds converge on a >65k-instruction workload from real entry/continuation recordings (%s)',async(variant)=>{
+ if(variant.startsWith('jspi'))expect(jspiApi(), 'run with BGT_TEST_JSPI=1 to exercise real JSPI').not.toBeNull();
  mkdirSync(join(ROOT,'node_modules/.cache/bgt'),{recursive:true});
  const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/coverage-discovery-'));
  const id=basename(dir).toLowerCase();
  const cfg:any={id,name:'CC0 discovery',private:false,license:'CC0-1.0',pipeline:{platform:'win32',interpretOnly:true,
   fixture:{target:'x86_64-windows-gnu',sources:[relative(dir,join(ROOT,'tests/fixtures/coverage/discovery.S'))],out:'discovery.exe',entry:'entry',libs:['kernel32']},
   modules:[{from:'./build/discovery.exe',name:'discovery.exe',main:true}],width:64,height:64}};
+ if(variant==='jspi-preferred')cfg.suspension='jspi-preferred';
+ if(variant==='jspi-only')cfg.pipeline.suspensionBuild='jspi';
+ const active=variant.startsWith('jspi')?'jspi':'asyncify';
+ const build=()=>{
+  const raw=join(dir,'linked.wasm');
+  const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
+  if(variant==='partitioned'){
+   const out=join(ROOT,'web/public/games',id);
+   const result=transform(raw,join(out,'game.wasm'),[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{wholeLimit:0,partitionBytes:1048576});
+   expect(result.partitions).toBeGreaterThan(1);
+   const bytes=readFileSync(join(out,'game.wasm'));
+   m.wasm={url:'game.wasm',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
+   writeFileSync(join(out,'manifest.json'),JSON.stringify(m));
+  }
+  return m;
+ };
  const config=join(dir,'game.json');
  const save=()=>writeFileSync(config,JSON.stringify(cfg));
  const snapshot=(h:any,manifest:any)=>({schema:'game-cask/coverage/1',modules:manifest.pipeline.modules,files:[],
   game:id,interpreter:h.host.interpreterCoverage(),code:[...h.host.codeCoverage].map(([address,kind]:any)=>({address,kind})),metrics:{code_entries_dropped:h.host.codeCoverageDropped,execution:h.host.metrics()}});
  try {
-  save();buildGame(dir,{quiet:true});
+  save();build();
   const manifest=JSON.parse(readFileSync(join(ROOT,'web/public/games',id,'manifest.json'),'utf8'));
   const initial=await loadHeadless(id);await initial.stepAsync(1);
   writeFileSync(join(dir,'early.json'),JSON.stringify(snapshot(initial,manifest)));
@@ -181,13 +204,14 @@ it('two successive selective builds converge on a >65k-instruction workload from
   const legacy=JSON.parse(readFileSync(join(dir,'early.json'),'utf8'));delete legacy.game;
   writeFileSync(join(dir,'early.json'),JSON.stringify(legacy));
   const manifestPath=join(ROOT,'web/public/games',id,'manifest.json'),beforeRejected=readFileSync(manifestPath);
-  expect(()=>buildGame(dir,{quiet:true})).toThrow(/game identity mismatch/);
+  expect(()=>build()).toThrow(/game identity mismatch/);
   expect(readFileSync(manifestPath)).toEqual(beforeRejected); // adoption advice must remain usable
   adoptCoverage(join(dir,'early.json'),manifestPath,join(dir,'adopted.json'));
-  cfg.pipeline.coverage=['adopted.json'];save();buildGame(dir,{quiet:true});
+  cfg.pipeline.coverage=['adopted.json'];save();build();
   const runTrace=async(h:any)=>{const hashes=[];for(let i=0;i<8;i++){await h.stepAsync(1);hashes.push(h.host.stateHash());}return hashes;};
   const first=await loadHeadless(id);const firstTrace=await runTrace(first);
   const one:any=first.host.metrics();
+  expect(one.execution_summary.suspension).toBe(active);
   expect(one.execution_summary.interpreter.instructions_per_update).toBe(70003/8);
   expect(one.execution_summary.interpreter.estimated_ms_per_update).toBeGreaterThan(0);
   expect(one.execution_summary.interpreter.top_owners[0].instructions).toBe(70003);
@@ -198,9 +222,10 @@ it('two successive selective builds converge on a >65k-instruction workload from
   const evidence=publishCoverage(ROOT,snapshot(first,manifest));
   expect(evidence).toBeTruthy();expect(automaticCoverageFiles(ROOT,id)).toContain(evidence);
   // No configuration edit: build:port's default consumes the normal recording.
-  save();buildGame(dir,{quiet:true});
+  save();build();
   const second=await loadHeadless(id);const secondTrace=await runTrace(second);expect(secondTrace).toEqual(firstTrace);
   const two:any=second.host.metrics();
+  expect(two.execution_summary.suspension).toBe(active);
   expect(two.execution_summary.interpreter.instructions_per_update).toBe(0);
   expect(two.execution_summary.interpreter.estimated_ms_per_update).toBe(0);
   const rebuilt=JSON.parse(readFileSync(join(ROOT,"web/public/games",id,"manifest.json"),"utf8"));
@@ -215,22 +240,22 @@ it('two successive selective builds converge on a >65k-instruction workload from
   // Explicit all neither reads stale configured paths nor discovers stale automatic evidence.
   publishCoverage(ROOT,{...snapshot(first,manifest),modules:[{name:'wrong.exe',base:0,sha256:'f'.repeat(64)}]});
   cfg.pipeline.selection='all';cfg.pipeline.coverage=['missing-recording.json'];save();
-  const all=buildGame(dir,{quiet:true});expect(all.pipeline.modules[0].selection.mode).toBe('all');
+  const all=build();expect(all.pipeline.modules[0].selection.mode).toBe('all');
   expect(all.pipeline.discovery).toBeUndefined();
   const full=await loadHeadless(id);expect(await runTrace(full)).toEqual(firstTrace);
   expect((full.host.metrics() as any).interp_insns).toBe(0);
   delete cfg.pipeline.selection;cfg.pipeline.coverage=['adopted.json'];save();
-  expect(()=>buildGame(dir,{quiet:true})).toThrow(/module identit/);
+  expect(()=>build()).toThrow(/module identit/);
   // The supplied strict recordings still work; the poisoned automatic inbox cannot broaden or reject them.
-  cfg.slice={coverage:['early.json','more.json']};save();buildGame(dir,{quiet:true});
+  cfg.slice={coverage:['early.json','more.json']};save();build();
   const sliced=await loadHeadless(id);await sliced.stepAsync(8);expect(sliced.logs).toEqual(second.logs);
   expect((sliced.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
-  cfg.pipeline.interpretOnly=true;save();buildGame(dir,{quiet:true});
+  cfg.pipeline.interpretOnly=true;save();build();
   const reference=await loadHeadless(id);expect(await runTrace(reference)).toEqual(firstTrace);expect(reference.logs).toEqual(second.logs);
   expect((reference.host.metrics() as any).interp_insns).toBe(baseline.interp_insns);
   expect((reference.host.metrics() as any).trace_hash).toBe(baseline.trace_hash);
   mkdirSync(join(ROOT,'reports'),{recursive:true});
-  writeFileSync(join(ROOT,'reports/coverage-discovery.json'),JSON.stringify({
+  writeFileSync(join(ROOT,`reports/coverage-discovery-${variant}.json`),JSON.stringify({
     workload:'CC0 70000-NOP indirect function + interior continuation, 8 updates',
     traces:{first:firstTrace,rebuilt:secondTrace},
     initial:baseline,selective:[one,two],
