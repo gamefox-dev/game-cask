@@ -32,7 +32,7 @@ interface Exports {
   cpu(): number; cpu_size(): number; ram(): number;
   get_reg(index: number): bigint; set_reg(index: number, value: bigint): void;
   set_xmm(index: number, low: bigint, high: bigint): void; get_xmm(index: number, lane: number): bigint;
-  set_flags(value: number): void; get_flags(): number;
+  set_flags(value: number): void; get_flags(): number; set_segments(fs: bigint, gs: bigint): void;
   protect(page: number, mode: number): void; unmap(page: number): void;
   fault_address(): number; fault_hash(): number; yields(): number; clock(): bigint;
   stop_at_quantum(enabled: number): void; resume(): void;
@@ -52,6 +52,7 @@ export async function nativeHarness(hex: string, preset: string, tool = process.
 static unsigned generic_execs;
 #include "` + ROOT + `/platforms/x86/x86_sched.c"
 BGT_EXPORT(resume) void resume(void) { X.transfer=0;stop_at_quantum=0; }
+BGT_EXPORT(set_segments) void set_segments(uint64_t fs,uint64_t gs) { X.fs_base=fs;X.gs_base=gs; }
 BGT_EXPORT(tasks_init) void tasks_init(void) { __builtin_memset(x86_tasks,0,sizeof x86_tasks);x86_sched_init(); }
 BGT_EXPORT(task_clone) void task_clone(unsigned index) { if(index<X86_THREADS){x86_tasks[index].cpu=X;x86_tasks[index].live=x86_tasks[index].ready=1;} }
 BGT_EXPORT(task_next) unsigned task_next(void) { x86_sched_save();return x86_sched_next()?x86_current:UINT32_MAX; }
