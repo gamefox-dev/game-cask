@@ -1,5 +1,12 @@
 /* OpenGL 3.3 -> BGT §13. Engine-independent, bounded profile. SPDX-License-Identifier: MIT — LANE-GL */
 #include "w32_gl.h"
+/* Deterministic test work census; compiled out of production hot paths. */
+#ifdef W32_GL_TEST_WORK
+static uint32_t gl_test_work;
+#define GL_WORK() (++gl_test_work)
+#else
+#define GL_WORK() ((void)0)
+#endif
 
 /* ABI §13.1: bounded live objects, NOT a bound on GLuint values. Slot zero is default state. */
 /* Test-only demand probe: never an ABI promise. Real transport still validates its caps. */
@@ -87,10 +94,13 @@ static int submit(void) {
  * even while unmaterialized: textures900..921; buffers1000..1006 and1023. */
 static uint8_t gpu_texture[N], gpu_buffer_initial[N], gpu_shader[N], gpu_pipeline[N];
 static uint8_t *gpu_buffer = gpu_buffer_initial;
-static uint32_t buffer_wire_slots = N, buffer_handles_enabled;
+static uint32_t buffer_wire_slots = N, buffer_handles_enabled, buffer_next_free = 1;
 static int send(uint32_t code, const uint32_t *w, uint32_t n) {
     begin(); op(code, w, n); int ok = submit();
-    if (ok && n && w[0] && w[0] < buffer_wire_slots && (code == 0x40 || code == 0x42)) gpu_buffer[w[0]] = code == 0x40;
+    if (ok && n && w[0] && w[0] < buffer_wire_slots && (code == 0x40 || code == 0x42)) {
+        gpu_buffer[w[0]] = code == 0x40;
+        if (code == 0x42 && w[0] < buffer_next_free) buffer_next_free = w[0];
+    }
     if (ok && n && w[0] && w[0] < N) {
         if (code == 0x43 || code == 0x59 || code == 0x45) gpu_texture[w[0]] = code != 0x45;
         if (code == 0x48 || code == 0x49) gpu_shader[w[0]] = code == 0x48;
@@ -130,7 +140,7 @@ static void missing(const char *name) {
 }
 
 typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
-    uint32_t map, map_offset, map_size, map_flags, map_access, bound, vao_refs; } Buffer;
+    uint32_t map, map_offset, map_size, map_flags, map_access, bound, vao_refs, collect_next, collect_queued; } Buffer;
 static void approximate(const char *kind);
 static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
@@ -198,12 +208,24 @@ static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t cl
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
 static Pipeline pipelines[128]; static uint32_t pipeline_count;
+/* Retired buffers enter a work list only on deletion or the final VAO detach.
+ * A retained generation does not cause a capacity scan on every unrelated GL call. */
+static uint32_t retired_buffer_head, image_collection_dirty;
+static void queue_retired_buffer(uint32_t slot) {
+    if (!buffers[slot].collect_queued) {
+        buffers[slot].collect_next = retired_buffer_head; buffers[slot].collect_queued = 1;
+        retired_buffer_head = slot;
+    }
+}
 #include "w32_gl_names.h"
+static void buffer_unref(uint32_t slot) {
+    if (slot && !--buffers[slot].vao_refs && gl_retired && OBJECTS(buffers)->retired[slot]) queue_retired_buffer(slot);
+}
 /* Abandoned wire generations stay occupied until their destroy is accepted. This also
  * covers relink snapshots which no longer have a guest object owner. */
 static uint8_t abandoned_buffer_initial[N], abandoned_shader[N], abandoned_pipeline[N];
 static uint8_t *abandoned_buffer = abandoned_buffer_initial;
-static uint32_t abandoned_buffers;
+static uint32_t abandoned_buffers, abandoned_shaders, abandoned_pipelines;
 static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
     uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
     if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
@@ -213,25 +235,33 @@ static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
 static void release_wire(uint32_t code, uint32_t handle, const char *kind) {
     if (!handle) return;
     uint8_t *pending = code == 0x42 ? abandoned_buffer : code == 0x49 ? abandoned_shader : abandoned_pipeline;
-    if (code == 0x42 && pending[handle]) abandoned_buffers--;
+    uint32_t *count = code == 0x42 ? &abandoned_buffers : code == 0x49 ? &abandoned_shaders : &abandoned_pipelines;
+    if (pending[handle]) (*count)--;
     pending[handle] = cleanup_send(kind, code, handle) ? 0 : eq(kind, "shaders") ? 1 : 2;
-    if (code == 0x42 && pending[handle]) abandoned_buffers++;
+    if (pending[handle]) (*count)++;
 }
 static void collect_wire(void) {
     for (uint32_t h = 1; abandoned_buffers && h < buffer_wire_slots; h++)
-        if (abandoned_buffer[h] && cleanup_send("programs", 0x42, h)) { abandoned_buffer[h] = 0; abandoned_buffers--; }
-    for (uint32_t h = 1; h < N; h++) {
-        if (abandoned_shader[h] && cleanup_send(abandoned_shader[h] == 1 ? "shaders" : "programs", 0x49, h)) abandoned_shader[h] = 0;
-        if (abandoned_pipeline[h] && cleanup_send("programs", 0x4b, h)) abandoned_pipeline[h] = 0;
+        if ((GL_WORK(), abandoned_buffer[h]) && cleanup_send("programs", 0x42, h)) { abandoned_buffer[h] = 0; abandoned_buffers--; }
+    for (uint32_t h = 1; (abandoned_shaders || abandoned_pipelines) && h < N; h++) {
+        GL_WORK();
+        if (abandoned_shader[h] && cleanup_send(abandoned_shader[h] == 1 ? "shaders" : "programs", 0x49, h)) { abandoned_shader[h] = 0; abandoned_shaders--; }
+        if (abandoned_pipeline[h] && cleanup_send("programs", 0x4b, h)) { abandoned_pipeline[h] = 0; abandoned_pipelines--; }
     }
 }
 static uint32_t buffer_handle(uint32_t preferred, const char *kind) {
     if (preferred && preferred <= GPU_MAX && !(preferred >= 1000 && preferred <= 1006) &&
         preferred != 1023 && !gpu_buffer[preferred]) return preferred;
-    for (uint32_t h = 1; h <= GPU_MAX; h++)
-        if (!(h >= 1000 && h <= 1006) && h != 1023 && !gpu_buffer[h]) return h;
+    /* Lowest-free high-water cursor: identical handle choices, but each occupied
+     * entry is skipped once, not once per creation (quadratic at game scale).
+     * Only an accepted destroy rewinds it; failed creates remain retryable. */
+    uint32_t limit = buffer_handles_enabled ? buffer_wire_slots : N;
+    while (buffer_next_free < limit && (gpu_buffer[buffer_next_free] ||
+        (buffer_next_free >= 1000 && buffer_next_free <= 1006) || buffer_next_free == 1023)) {
+        GL_WORK(); buffer_next_free++;
+    }
+    if (buffer_next_free < limit) return buffer_next_free;
     if (buffer_handles_enabled) {
-        for (uint32_t h = N; h < buffer_wire_slots; h++) if (!gpu_buffer[h]) return h;
         if (buffer_wire_slots <= UINT32_MAX / 4u) {
             uint32_t cap = buffer_wire_slots * 2u;
             uint8_t *p = glp_alloc(cap * 2u);
@@ -275,7 +305,7 @@ static uint32_t api_BindBuffer(void) {
     if (id) buffers[id].bound = 1;
     if (target == ARRAY_BUFFER) array = id;
     else if (target == ELEMENT_BUFFER) {
-        if (vaos[vao].element) buffers[vaos[vao].element].vao_refs--;
+        buffer_unref(vaos[vao].element);
         vaos[vao].element = id; if (id) buffers[id].vao_refs++;
     }
     else if (target == UNIFORM_BUFFER) uniform = id;
@@ -361,8 +391,8 @@ static uint32_t api_DeleteBuffers(void) {
         if (array == id) array = 0;
         if (uniform == id) uniform = 0;
         { uint32_t j = vao;
-            if (vaos[j].element == id) { vaos[j].element = 0; buffers[id].vao_refs--; }
-            for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffers[id].vao_refs--; }
+            if (vaos[j].element == id) { vaos[j].element = 0; buffer_unref(id); }
+            for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffer_unref(id); }
         }
         for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
@@ -421,8 +451,8 @@ static uint32_t api_DeleteVertexArrays(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(vaos, x86_rd32(ARG(1) + i * 4));
         if (id && id < VN) {
-            if (vaos[id].element) buffers[vaos[id].element].vao_refs--;
-            for (uint32_t a = 0; a < 16; a++) if (vaos[id].a[a].buffer) buffers[vaos[id].a[a].buffer].vao_refs--;
+            buffer_unref(vaos[id].element);
+            for (uint32_t a = 0; a < 16; a++) buffer_unref(vaos[id].a[a].buffer);
             erase_name(OBJECTS(vaos), id); if (vao == id) vao = 0;
         } } return 0;
 }
@@ -436,7 +466,7 @@ static uint32_t attribute(int integer) {
         fail(BAD_ENUM); return 0;
     }
     Attribute *v = &vaos[vao].a[a];
-    if (v->buffer) buffers[v->buffer].vao_refs--;
+    buffer_unref(v->buffer);
     buffers[array].vao_refs++; v->buffer = array; v->count = count; v->type = type;
     v->normalized = integer ? 0 : (ARG(3) & 255); v->integer = integer;
     v->stride = stride ? stride : count * (type == U8 ? 1 : 4); v->offset = ARG(integer ? 4 : 5); return 0;
@@ -506,23 +536,50 @@ static int attached_image(uint32_t type, uint32_t id) {
     }
     return 0;
 }
+/* Retirement is cold work. Sort only its candidates (not the live namespace),
+ * preserving the historical ascending-slot destroy stream without allocating. */
+static uint32_t sort_retired_buffers(uint32_t head) {
+    if (!head || !buffers[head].collect_next) return head;
+    uint32_t slow = head, fast = buffers[head].collect_next;
+    while (fast && buffers[fast].collect_next) {
+        slow = buffers[slow].collect_next; fast = buffers[buffers[fast].collect_next].collect_next;
+    }
+    uint32_t right = buffers[slow].collect_next; buffers[slow].collect_next = 0;
+    uint32_t a = sort_retired_buffers(head), b = sort_retired_buffers(right), result = 0, *tail = &result;
+    while (a || b) {
+        uint32_t next;
+        if (!b || (a && a < b)) { next = a; a = buffers[a].collect_next; }
+        else { next = b; b = buffers[b].collect_next; }
+        *tail = next; tail = &buffers[next].collect_next;
+    }
+    *tail = 0; return result;
+}
 static void collect_deleted(void) {
     if (!gl_retired) return;
-    GlObjects *bo = OBJECTS(buffers), *to = OBJECTS(textures), *ro = OBJECTS(rbos);
-    for (uint32_t id = 1; id < BN; id++) {
-        if (bo->retired[id]) {
-            if (!buffers[id].vao_refs && (!buffers[id].gpu || cleanup_send("buffers", 0x42, buffers[id].gpu))) {
-                unmap_storage(&buffers[id]); glp_free(buffers[id].data, buffers[id].size);
-                erase_name(bo, id);
-            }
-        }
+    /* Detach the candidate list: rejected destroys retry on the next call, not in
+     * an infinite loop here. Slot links survive table relocation. */
+    uint32_t candidate = sort_retired_buffers(retired_buffer_head); retired_buffer_head = 0;
+    while (candidate) {
+        GL_WORK();
+        uint32_t id = candidate; candidate = buffers[id].collect_next;
+        buffers[id].collect_next = buffers[id].collect_queued = 0;
+        if (buffers[id].vao_refs) continue;
+        if (buffers[id].gpu && !cleanup_send("buffers", 0x42, buffers[id].gpu)) { queue_retired_buffer(id); continue; }
+        unmap_storage(&buffers[id]); glp_free(buffers[id].data, buffers[id].size);
+        erase_name(OBJECTS(buffers), id);
     }
+    if (!image_collection_dirty) return;
+    image_collection_dirty = 0;
+    GlObjects *to = OBJECTS(textures), *ro = OBJECTS(rbos);
     for (uint32_t id = 1; id < N; id++) {
-        if (to->retired[id] && !attached_image(1, id) && (!textures[id].gpu || cleanup_send("textures", 0x45, textures[id].gpu))) {
-            zero(&textures[id], sizeof(Texture)); to->retired[id] = 0; gl_retired--;
+        GL_WORK();
+        if (to->retired[id] && !attached_image(1, id)) {
+            if (textures[id].gpu && !cleanup_send("textures", 0x45, textures[id].gpu)) image_collection_dirty = 1;
+            else { zero(&textures[id], sizeof(Texture)); to->retired[id] = 0; gl_retired--; }
         }
-        if (ro->retired[id] && !attached_image(2, id) && (!rbos[id].gpu || cleanup_send("rbos", 0x45, rbos[id].gpu))) {
-            zero(&rbos[id], sizeof(Rbo)); ro->retired[id] = 0; gl_retired--;
+        if (ro->retired[id] && !attached_image(2, id)) {
+            if (rbos[id].gpu && !cleanup_send("rbos", 0x45, rbos[id].gpu)) image_collection_dirty = 1;
+            else { zero(&rbos[id], sizeof(Rbo)); ro->retired[id] = 0; gl_retired--; }
         }
     }
 }

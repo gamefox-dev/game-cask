@@ -2,19 +2,26 @@
 typedef struct {
     void *base, *allocation; uint32_t stride, capacity, peak, failures, failed_requests;
     const char *kind; uint8_t initial_retired[N], *retired;
-    /* Flexible namespaces keep a hash of names -> stable slots (tombstone UINT32_MAX).
+    /* Flexible namespaces keep a hash of names -> stable slots (zero is empty).
      * Growing relocates storage, never slots/references. Everything is host-byte-budgeted. */
     uint32_t *index, live, occupied, next_name, next_slot, flexible;
 } GlObjects;
 static GlObjects gl_objects[9]; static uint32_t gl_object_count, gl_retired, gl_exhaustion_events;
+/* Namespace identity is static even when its storage moves. Never compare kind strings
+ * on a GL call. Keep registration order (and thus diagnostics) unchanged. */
+static GlObjects *objects_textures, *objects_buffers, *objects_vaos, *objects_fbos, *objects_rbos;
+static GlObjects *objects_samplers, *objects_gl_queries, *objects_shaders, *objects_programs;
+static uint32_t initial_buffer_index[N * 2u], initial_vao_index[N * 2u];
 static uint32_t object_name(const GlObjects *o, uint32_t slot) {
     return slot && slot < o->capacity ? *(uint32_t *)((uint8_t *)o->base + o->stride * slot) : 0;
 }
-static GlObjects *objects(void *base, uint32_t stride, const char *kind) {
-    for (uint32_t i = 0; i < gl_object_count; i++) if (eq(gl_objects[i].kind, kind)) return &gl_objects[i];
+static GlObjects *objects(GlObjects **cache, void *base, uint32_t stride, const char *kind) {
+    if (*cache) return *cache;
     GlObjects *o = &gl_objects[gl_object_count++]; o->base = base; o->stride = stride; o->kind = kind;
     o->capacity = N; o->retired = o->initial_retired; o->next_name = o->next_slot = 1;
-    o->flexible = eq(kind, "buffers") || eq(kind, "vaos"); return o;
+    o->flexible = base == buffers || base == vaos;
+    if (o->flexible) o->index = base == buffers ? initial_buffer_index : initial_vao_index;
+    *cache = o; return o;
 }
 static uint32_t object_live(const GlObjects *o) {
     if (o->flexible) return o->live;
@@ -43,7 +50,7 @@ static void index_name(GlObjects *o, uint32_t slot) {
     if (!o->index) return;
     uint32_t mask = o->capacity * 2u - 1u, at = name_hash(object_name(o, slot)) & mask;
     for (uint32_t n = 0; n <= mask; n++, at = (at + 1) & mask)
-        if (!o->index[at] || o->index[at] == UINT32_MAX) { o->index[at] = slot; return; }
+        if (!o->index[at]) { o->index[at] = slot; return; }
 }
 static void unindex_name(GlObjects *o, uint32_t slot) {
     uint32_t name = object_name(o, slot);
@@ -51,12 +58,24 @@ static void unindex_name(GlObjects *o, uint32_t slot) {
     if (!o->index) return;
     uint32_t mask = o->capacity * 2u - 1u, at = name_hash(name) & mask;
     for (uint32_t n = 0; n <= mask && o->index[at]; n++, at = (at + 1) & mask)
-        if (o->index[at] == slot) { o->index[at] = UINT32_MAX; return; }
+        if (o->index[at] == slot) {
+            /* Backward-shift deletion: churn must not fill the index with tombstones
+             * and turn every absent-name lookup into a whole-table scan. */
+            uint32_t hole = at;
+            for (uint32_t next = (at + 1u) & mask; o->index[next]; next = (next + 1u) & mask) {
+                uint32_t home = name_hash(object_name(o, o->index[next])) & mask;
+                if (((hole - home) & mask) < ((next - home) & mask)) {
+                    o->index[hole] = o->index[next]; hole = next;
+                }
+            }
+            o->index[hole] = 0; return;
+        }
 }
 static void retire_name(GlObjects *o, uint32_t slot) {
     if (!o->retired[slot]) {
         unindex_name(o, slot); o->retired[slot] = 1; gl_retired++;
         if (o->flexible) o->live--;
+        if (o->base == buffers) queue_retired_buffer(slot); else image_collection_dirty = 1;
     }
 }
 static void erase_name(GlObjects *o, uint32_t slot) {
@@ -67,19 +86,19 @@ static void erase_name(GlObjects *o, uint32_t slot) {
 }
 static uint32_t find_name(GlObjects *o, uint32_t name) {
     if (!name) return 0;
+    if (name < o->capacity && !o->retired[name] && object_name(o, name) == name) return name;
     if (o->index) {
         uint32_t mask = o->capacity * 2u - 1u, at = name_hash(name) & mask;
         for (uint32_t n = 0; n <= mask && o->index[at]; n++, at = (at + 1) & mask) {
-            uint32_t slot = o->index[at];
-            if (slot != UINT32_MAX && object_name(o, slot) == name) return slot;
+            GL_WORK(); uint32_t slot = o->index[at];
+            if (object_name(o, slot) == name) return slot;
         }
     } else {
-        if (name < o->capacity && !o->retired[name] && object_name(o, name) == name) return name;
-        for (uint32_t i = 1; i < o->capacity; i++) if (!o->retired[i] && object_name(o, i) == name) return i;
+        for (uint32_t i = 1; i < o->capacity; i++) { GL_WORK(); if (!o->retired[i] && object_name(o, i) == name) return i; }
     }
     return o->capacity;
 }
-#define OBJECTS(a) objects(a, sizeof *(a), #a)
+#define OBJECTS(a) objects(&objects_##a, a, sizeof *(a), #a)
 #define SLOT(a, name) find_name(OBJECTS(a), name)
 #define NAME(a, slot) object_name(OBJECTS(a), slot)
 /* Atomic growth: allocate/copy the table, retirement bits and name index together, then publish.

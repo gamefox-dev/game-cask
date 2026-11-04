@@ -9,13 +9,14 @@ import { ROOT } from '../support/headless';
 let dir: string, exe: string;
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'bgt-gl-memory-')); exe = join(dir, 'driver');
-  execFileSync(process.env.CC ?? 'cc', ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-DW32_GL_TEST_NAME_LIMIT=1023',
+  execFileSync(process.env.CC ?? 'cc', ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-DW32_GL_TEST_NAME_LIMIT=1023', '-DW32_GL_TEST_WORK',
     '-ffunction-sections', '-fdata-sections', process.platform === 'darwin' ? '-Wl,-dead_strip' : '-Wl,--gc-sections',
     '-I', join(ROOT, 'bgt/include'), '-I', join(ROOT, 'platforms/x86'), '-I', join(ROOT, 'platforms/win32'),
     join(ROOT, 'tests/native/gl_frontend_driver.c'), '-o', exe], { stdio: 'pipe' });
 }, 30_000);
 afterAll(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 for (const [mode, marker] of [
+  ['hotpaths', 'hot paths: cached namespaces, direct/hash lookup, collision churn, dormant retirement and final detach OK'],
   ['object-identity', 'object identity namespaces=9 reserved/instantiated/unbind/delete/regen OK'],
   ['sampler-churn', 'sampler churn sampler+texture states draws=2176 bounded/reclaimed OK'],
   ['batch-valid', 'batch framing valid multi-command OK'],
