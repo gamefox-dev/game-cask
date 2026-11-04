@@ -59,6 +59,20 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it('keeps logical pipeline shader references until explicit delete and permits handle reuse', () => {
+    const t = setup(); t.resources(1);
+    // Native failure is deferred; the decoder owns allocation/reference lifetime independently.
+    // Actual native-failure uses are covered by gpu-pipeline-lifetime.spec.ts on both backends.
+    expect(t.send(O.PIPELINE_CREATE,pipeline()).status).toBe(A.E_STATE);
+    expect(t.send(O.SHADER_DELETE,[1]).status).toBe(A.E_STATE);
+    expect(t.send(O.SHADER_DELETE,[2]).status).toBe(A.E_STATE);
+    expect(t.send(O.PIPELINE_DELETE,[1]).status).toBe(0);
+    expect(t.send(O.PIPELINE_DELETE,[1]).status).toBe(A.E_NOT_FOUND);
+    expect(t.send(O.PIPELINE_CREATE,pipeline()).status).toBe(0);
+    expect(t.send(O.PIPELINE_DELETE,[1]).status).toBe(0);
+    expect(t.send(O.SHADER_DELETE,[1]).status).toBe(0);
+    expect(t.send(O.SHADER_DELETE,[2]).status).toBe(0);
+  });
   it('feedback declaration, capture ranges, aliasing and readback fail atomically',()=>{
     const t=setup();t.resources(1);t.send(O.BUFFER_CREATE,[3,8,128,0,0]);
     const declaration=[1,0,1,20000,8],capture=[1,3,0,128,0,0,0,0,0,0,0,0,0];

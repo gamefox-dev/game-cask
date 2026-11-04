@@ -816,7 +816,11 @@ buffer must index an existing layout; attribute end must fit stride. No overlapp
 byte ranges are legal. Formats and byte sizes: FLOAT=0/4, FLOAT2=1/8, FLOAT3=2/12, FLOAT4=3/16, UNORM8X4=4/4,
 SINT=5/4, SINT2=6/8, SINT3=7/12, SINT4=8/16, UINT=9/4, UINT2=10/8, UINT3=11/12, UINT4=12/16.
 Offsets align to 4 except UNORM8X4 (alignment 1). Integers are signed/unsigned 32-bit per component; UNORM converts
-to float [0,1]. No packed/half/double vertex formats; profiles expand those into supported formats.
+to float [0,1]. Fetch width need not equal shader input width: extra components are discarded and missing
+components take the corresponding value from (0,0,0,1), in the matching float/signed/unsigned scalar class.
+UNORM8X4 is a float-class input after normalization. Float, signed integer and unsigned integer classes must
+match the shader input; this rule does not introduce integer/float or signed/unsigned reinterpretation.
+No packed/half/double vertex formats; profiles expand those into supported formats.
 
 Color state record (36 B): `format, blend, src_rgb, dst_rgb, op_rgb, src_alpha, dst_alpha, op_alpha, write_mask`.
 Format 0..4, blend boolean. Each channel computes `op(src*src_factor, dst*dst_factor)`, separately RGB and alpha;
@@ -909,6 +913,13 @@ with the same semantics. Native GLSL gl_Position is the vertex output but holds 
 conversion. Backend rewriting/wrappers may use private names prefixed `bgt_internal_`; guest sources must not use
 that prefix. Pipeline reflection/link/target incompatibility detected after decoding reports E_IO with diagnostic
 through the renderer's onError channel; module compile errors always complete the shader request with log.
+A pipeline whose native creation failed retains its logical handle and shader references until PIPELINE_DELETE.
+Known-failed native pipeline uses (including FEEDBACK_VARYINGS, PIPELINE and subsequent draws/capture) return
+E_IO with a diagnostic, not undefined-state access or successful dropped work. A rejected native PIPELINE bind
+clears the current executable; draws cannot fall back to the previously bound pipeline. Deletion of the failed
+logical pipeline succeeds and permits ordinary handle reuse. WebGPU native validation is asynchronous: a pending
+creation error is reported through onError when its scope settles; later uses return E_IO. Decoder errors for
+unknown logical handles (E_NOT_FOUND) and missing logical draw bindings (E_STATE) remain unchanged.
 
 **GLSL frontend contracts and native boundary (K9a; no wire additions).** The maintained GLSL330/ES300 paths
 preserve 32-bit decimal/octal/hex integer literals (either-case hex prefix and unsigned suffix), aggregate scalar

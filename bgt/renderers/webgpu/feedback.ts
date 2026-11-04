@@ -1,9 +1,10 @@
 // Vertex -> compute lowering for §13.11. Invoke the canonical vertex function, never interpret GLSL on CPU.
 import { glslName } from './shaders';
+import { canonicalVertexType, vertexFormatScalar, vertexFormatWidth } from '../vertex-input';
 import type { FeedbackLayout } from '../../runtime/feedback';
 import { feedbackVertexCount } from '../../runtime/feedback';
 export interface FeedbackInput { location:number; format:number; stride:number; step:number; offset:number }
-const width=(f:number)=>f<4?f+1:f===4?4:f<9?f-4:f-8;
+const width=vertexFormatWidth;
 const type=(f:number)=>{const n=width(f),s=f<5?'f':f<9?'i':'u';return n===1?({f:'f32',i:'i32',u:'u32'}[s]):`vec${n}${s}`;};
 /** Packed input contains whole vertex buffer ranges, followed by optional u32 vertex IDs. */
 export function lowerFeedback(code:string, layout:FeedbackLayout, inputs:FeedbackInput[], topology:number,
@@ -15,12 +16,14 @@ export function lowerFeedback(code:string, layout:FeedbackLayout, inputs:Feedbac
   const assignments:string[]=[];
   for(const m of inStruct[1].matchAll(/@location\((\d+)\)\s*(?:@interpolate\([^)]*\)\s*)?(\w+)\s*:\s*([^,\n]+)/g)) {
     const a=inputs.find(a=>a.location===+m[1]);if(!a)throw new Error(`Missing feedback input ${m[2]}`);
-    if(m[3].trim()!==type(a.format))throw new Error(`Feedback input type mismatch ${m[2]}`);
+    const shaderType=canonicalVertexType(m[3]);
+    if(!shaderType || shaderType.scalar!==vertexFormatScalar(a.format))throw new Error(`Feedback input type mismatch ${m[2]}`);
     const at=`(${a.offset}u + ${a.step?'instance':'vertex'} * ${a.stride}u)`;
-    const values=Array.from({length:width(a.format)},(_,c)=>a.format===4?
+    const values=Array.from({length:shaderType.width},(_,c)=>c>=width(a.format)?
+      `${c===3?1:0}${shaderType.scalar==='f32'?'.0':shaderType.scalar==='i32'?'i':'u'}`:a.format===4?
       `(f32((bgt_internal_tf_in[(${at}+${c}u)/4u] >> (((${at}+${c}u)%4u)*8u)) & 255u) / 255.0)`:
       `${a.format<4?'bitcast<f32>':a.format<9?'bitcast<i32>':'u32'}(bgt_internal_tf_in[${at}/4u+${c}u])`);
-    assignments.push(`v.${m[2]}=${type(a.format)}(${values.join(',')});`);
+    assignments.push(`v.${m[2]}=${m[3].trim()}(${values.join(',')});`);
   }
   if(/@builtin\(vertex_index\)/.test(inStruct[1]))assignments.push('v.bgt_vertex_index=vertex;');
   if(/@builtin\(instance_index\)/.test(inStruct[1]))assignments.push('v.bgt_instance_index=instance;');
