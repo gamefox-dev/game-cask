@@ -160,7 +160,8 @@ it('host deduplicates kinds beyond the old cap, bounds recordings, and enforces 
 });
 
 it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive selective builds converge on a >65k-instruction workload from real entry/continuation recordings (%s)',async(variant)=>{
- if(variant.startsWith('jspi'))expect(jspiApi(), 'run with BGT_TEST_JSPI=1 to exercise real JSPI').not.toBeNull();
+ // The flagged Tier 1 sweep exercises real JSPI; ordinary Node also covers the fail-closed loader.
+ if(process.env.BGT_TEST_JSPI==='1')expect(jspiApi()).not.toBeNull();
  mkdirSync(join(ROOT,'node_modules/.cache/bgt'),{recursive:true});
  const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/coverage-discovery-'));
  const id=basename(dir).toLowerCase();
@@ -169,7 +170,7 @@ it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive
   modules:[{from:'./build/discovery.exe',name:'discovery.exe',main:true}],width:64,height:64}};
  if(variant==='jspi-preferred')cfg.suspension='jspi-preferred';
  if(variant==='jspi-only')cfg.pipeline.suspensionBuild='jspi';
- const active=variant.startsWith('jspi')?'jspi':'asyncify';
+ const active=variant.startsWith('jspi')&&jspiApi()?'jspi':'asyncify';
  const build=()=>{
   const raw=join(dir,'linked.wasm');
   const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
@@ -189,6 +190,9 @@ it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive
   game:id,interpreter:h.host.interpreterCoverage(),code:[...h.host.codeCoverage].map(([address,kind]:any)=>({address,kind})),metrics:{code_entries_dropped:h.host.codeCoverageDropped,execution:h.host.metrics()}});
  try {
   save();build();
+  if(variant==='jspi-only'&&!jspiApi()){
+   await expect(loadHeadless(id)).rejects.toThrow(/JSPI-only build requires/);return;
+  }
   const manifest=JSON.parse(readFileSync(join(ROOT,'web/public/games',id,'manifest.json'),'utf8'));
   const initial=await loadHeadless(id);await initial.stepAsync(1);
   writeFileSync(join(dir,'early.json'),JSON.stringify(snapshot(initial,manifest)));
