@@ -1,5 +1,30 @@
 # v0.3 merged implementation status
 
+## K26 final — physical interpreter timing / measured size attribution (lane Tier 1 green)
+
+Q73 no longer extrapolates timer overhead into a physical exclusive budget. Disjoint measured
+interpreter spans use the host monotonic clock, exclude native/API/scheduler/parked work, survive
+census reset, and close on return/fault. Raw sampled diagnostics remain labelled; unavailable or
+invalid update budgets give explicit null/status, not clamped shares. Exact hand-clock CC0 tests
+cover real i386/AMD64 dispatch, nesting, 300 GameHost updates, Asyncify/real JSPI and profiling0/1;
+three private-archive negative controls fail as intended. Clock median27.8ns/import,55.6ns per
+enter/exit pair; disabled transitions0 clocks (shared-machine observations, not game overhead).
+
+Clean source **d454da7**: doctor; full lint **36/36 examples**, real GCC + explicit clang; types;
+**2,019 units /108 files /0 skips**; full browser **291 pass /51 unchanged skips /0 failures /0 flaky
+per suspension mode**, both backends required; leakcheck; **32 pipeline fixtures ×2 modes ×300
+=19,200 identical oracle frame pairs**, lifted interp0/stubs[], equal cross-variant hashes.
+All64 real interpreted oracle summaries fit wall time; maximum share99.71%. Finalization docs only.
+
+Matched CC0 attribution separates **528,241B lost whole-module optimization** from **646,375B
+conservative shard-summary expansion**; wholeO2→partition **+13.46%**. Supplied read-only porter
+manifests place99.74% of final growth at postprocessing, not new per-lifted-function hooks.
+Shared-machine runtime samples are retained without claiming isolated causal overhead. Reviewer
+**#232 approved a separate conservative may-suspend analysis follow-up**; no production build/emitter
+changes here. **No independent K26 review or CI claimed**; external reviewer coordination remains.
+[Handoff and approved spec](handoff/K26.md), [gates](handoff/K26-gate-evidence.json),
+[timing](handoff/K26-timing-evidence.json), [size](handoff/K26-size-evidence.json).
+
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
 Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
