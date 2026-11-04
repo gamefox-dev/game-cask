@@ -1,0 +1,315 @@
+{
+  "schema": "game-cask/k22-variant-measurements/1",
+  "implementation": "41a3a53",
+  "measurementRevision": "a4f832db26abedf4523035ea6887f2812033c942",
+  "rawSha256": "7975b2478bfdfe0be1933ede5ea644ab1dff89d68a228d77fd435d5644aca901",
+  "method": "five fresh headless GameHost instances per variant in Chromium; 300 frames including range I/O, render/decode/consume; modules compiled before instance timing; no rasterization; zero input; same per-frame trace digest required; shared machine, not quiescent",
+  "loadMethod": "One fresh verified streaming-load sample per artifact (fetch + compile + size/SHA-256 verification); loopback, not network throughput or startup-to-first-frame. Five fresh GameHost instances per artifact for 300-frame wall times; no rasterization.",
+  "before": {
+    "at": "2026-11-04T01:07:49.300Z",
+    "load": [
+      8.87451171875,
+      7.40283203125,
+      6.03759765625
+    ],
+    "totalmem": 17179869184,
+    "physical_headroom": "6121521152"
+  },
+  "after": {
+    "at": "2026-11-04T01:07:54.647Z",
+    "load": [
+      8.40380859375,
+      7.32958984375,
+      6.01953125
+    ],
+    "totalmem": 17179869184,
+    "physical_headroom": "5338136576"
+  },
+  "policy": "Reviewer #180: keep global Asyncify default; persistent per-game JSPI-preferred opt-in with Asyncify fallback. Mixed fixture results and supplied game evidence do not prove universal benefit.",
+  "fixtures": [
+    {
+      "id": "win32-hello",
+      "variants": {
+        "asyncify": {
+          "bytes": 1237486,
+          "loadMs": 6.815000057220459,
+          "downloadCompileVerifyMs": 5.490000009536743,
+          "streaming": true,
+          "compileMs": 1.8249998092651367,
+          "medianMs": 4.400000095367432,
+          "sha256": "c370282e9a510b1d810de4ce7fd70a352d553b192620a80485711737df2ab53b",
+          "elapsedMs": [
+            12.509999990463257,
+            8.085000038146973,
+            3.940000057220459,
+            4.400000095367432,
+            2.8299999237060547
+          ],
+          "instantiateMs": [
+            0.46000003814697266,
+            0.3899998664855957,
+            0.08999991416931152,
+            1.065000057220459,
+            0.11500000953674316
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        },
+        "jspi": {
+          "bytes": 1411927,
+          "loadMs": 10.349999904632568,
+          "downloadCompileVerifyMs": 3.3949999809265137,
+          "streaming": true,
+          "compileMs": 1.1099998950958252,
+          "medianMs": 2.7049999237060547,
+          "sha256": "42a0782fbe482ca78c470751e8044ac43abba07f4c47bbbc53bea52329feca23",
+          "elapsedMs": [
+            7.914999961853027,
+            2.7049999237060547,
+            2.384999990463257,
+            2.7200000286102295,
+            2.5349998474121094
+          ],
+          "instantiateMs": [
+            1.5250000953674316,
+            0.08500003814697266,
+            0.09500002861022949,
+            0.06500005722045898,
+            0.059999942779541016
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        }
+      },
+      "traceSha256": "c5b2e0c81ad50cb19c7abad222bfdb25889a0bca87afc5a8ac65fb87ac527365",
+      "tracesIdenticalAcrossAll10Instances": true,
+      "jspiOverAsyncify": {
+        "bytesRatio": 1.1409640189868815,
+        "medianMsRatio": 0.6147726966083549
+      }
+    },
+    {
+      "id": "x64-crt",
+      "variants": {
+        "asyncify": {
+          "bytes": 1493924,
+          "loadMs": 4.755000114440918,
+          "downloadCompileVerifyMs": 4.109999895095825,
+          "streaming": true,
+          "compileMs": 1.0900001525878906,
+          "medianMs": 4.200000047683716,
+          "sha256": "135fbd05bb7cf54cd8d38805951d17ae4a1f7eb6e90bcf8f0c782a14faa64839",
+          "elapsedMs": [
+            15.84500002861023,
+            4.890000104904175,
+            3.2049999237060547,
+            4.200000047683716,
+            3.7100000381469727
+          ],
+          "instantiateMs": [
+            0.09999990463256836,
+            0.10500001907348633,
+            0.07999992370605469,
+            0.08500003814697266,
+            0.1399998664855957
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        },
+        "jspi": {
+          "bytes": 1737392,
+          "loadMs": 11.31000018119812,
+          "downloadCompileVerifyMs": 6.985000133514404,
+          "streaming": true,
+          "compileMs": 1.1299998760223389,
+          "medianMs": 3.9150002002716064,
+          "sha256": "4a876d27d863a45e9274c0d8b223219f87b21ca3d41100bbb653dd23d48b9375",
+          "elapsedMs": [
+            14.274999856948853,
+            3.7250001430511475,
+            3.2299997806549072,
+            4.009999990463257,
+            3.9150002002716064
+          ],
+          "instantiateMs": [
+            0.09500002861022949,
+            0.09999990463256836,
+            0.08500003814697266,
+            0.1549999713897705,
+            0.10000014305114746
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        }
+      },
+      "traceSha256": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+      "tracesIdenticalAcrossAll10Instances": true,
+      "jspiOverAsyncify": {
+        "bytesRatio": 1.162972145838744,
+        "medianMsRatio": 0.932142894243707
+      }
+    },
+    {
+      "id": "x64-cpprt",
+      "variants": {
+        "asyncify": {
+          "bytes": 8343917,
+          "loadMs": 26.52999997138977,
+          "downloadCompileVerifyMs": 25.829999923706055,
+          "streaming": true,
+          "compileMs": 5.0899999141693115,
+          "medianMs": 2.549999952316284,
+          "sha256": "6db50a4d4e24bb0c19a93962c07afe94e73b39f71144e610848d2894e012f787",
+          "elapsedMs": [
+            16.304999828338623,
+            2.6499998569488525,
+            2.369999885559082,
+            2.549999952316284,
+            2.3299999237060547
+          ],
+          "instantiateMs": [
+            0.22499990463256836,
+            0.23000001907348633,
+            0.22500014305114746,
+            0.22499990463256836,
+            0.21000003814697266
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        },
+        "jspi": {
+          "bytes": 9564379,
+          "loadMs": 30.81500005722046,
+          "downloadCompileVerifyMs": 29.049999952316284,
+          "streaming": true,
+          "compileMs": 5.674999952316284,
+          "medianMs": 2.7749998569488525,
+          "sha256": "e0bbc8c2a96517364f307f9a6322a2b555e578913e1a0549b67236dec5631eb4",
+          "elapsedMs": [
+            16.08999991416931,
+            3.0250000953674316,
+            2.619999885559082,
+            2.7749998569488525,
+            2.6649999618530273
+          ],
+          "instantiateMs": [
+            0.19000005722045898,
+            0.20999979972839355,
+            0.18500018119812012,
+            0.23000001907348633,
+            0.2349998950958252
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        }
+      },
+      "traceSha256": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+      "tracesIdenticalAcrossAll10Instances": true,
+      "jspiOverAsyncify": {
+        "bytesRatio": 1.146269671666197,
+        "medianMsRatio": 1.0882352583686092
+      }
+    },
+    {
+      "id": "x64-scale",
+      "variants": {
+        "asyncify": {
+          "bytes": 68776752,
+          "loadMs": 156.75500011444092,
+          "downloadCompileVerifyMs": 155.8600001335144,
+          "streaming": true,
+          "compileMs": 56.13499999046326,
+          "medianMs": 43.91000008583069,
+          "sha256": "68a4e20c250a9c865e9053c7614d9a42ee7aa1868e06ec057a0020aa2b2e98e0",
+          "elapsedMs": [
+            2352.5650000572205,
+            44.80999994277954,
+            34.764999866485596,
+            33.56000018119812,
+            43.91000008583069
+          ],
+          "instantiateMs": [
+            1.1399998664855957,
+            1.119999885559082,
+            1.1700000762939453,
+            1.1299998760223389,
+            1.1349999904632568
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        },
+        "jspi": {
+          "bytes": 53507356,
+          "loadMs": 121.15000009536743,
+          "downloadCompileVerifyMs": 116.26999998092651,
+          "streaming": true,
+          "compileMs": 20.875,
+          "medianMs": 30.289999961853027,
+          "sha256": "9016c9f7adaa57ecc3fe1ef306e5878affff538ff9a5796149b017e27bfd1ac6",
+          "elapsedMs": [
+            415.7000000476837,
+            32.21500015258789,
+            30.289999961853027,
+            24.670000076293945,
+            25.455000162124634
+          ],
+          "instantiateMs": [
+            0.9300000667572021,
+            1.0950000286102295,
+            1.5450000762939453,
+            1.5099999904632568,
+            1.0550000667572021
+          ],
+          "yields": [
+            300,
+            300,
+            300,
+            300,
+            300
+          ]
+        }
+      },
+      "traceSha256": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+      "tracesIdenticalAcrossAll10Instances": true,
+      "jspiOverAsyncify": {
+        "bytesRatio": 0.7779860846002149,
+        "medianMsRatio": 0.6898200843235093
+      }
+    }
+  ]
+}

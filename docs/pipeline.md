@@ -336,6 +336,12 @@ Later lanes add [bounded cooperative threads](../platforms/win32/THREADS.md), a 
 and [bounded x87](../platforms/x86/X87.md); those are not universal compatibility. Integer conversions honor
 MXCSR rounding. Unknown instructions/APIs fault explicitly; do not work around them with game-specific overrides.
 
+## Suspension builds and selection
+
+See [suspension policy](suspension.md) for bounded Asyncify on large linked modules, the Binaryen wasm32
+4 GiB IR limit, dual/JSPI-only builds and per-game `"suspension": "jspi-preferred"` opt-in with verified
+Asyncify fallback. The global default remains Asyncify; JSPI-only builds do not run wasm-opt.
+
 ## v0.3 development: build scale
 
 Pipeline compilation is parallel and incremental per translation unit (including lifted modules), with a content
@@ -343,7 +349,7 @@ cache under `node_modules/.cache/bgt/objects`. `BGT_BUILD_JOBS` defaults to 2, c
 actual compiler-derived transitive dependencies, not every platform header. Source/dependency bytes and compiler
 identity/flags invalidate exactly affected objects; clone-relative paths allow opt-in shared payloads through
 `BGT_SHARED_CACHE`. See [build-cache.md](build-cache.md) for concurrency, LRU bounds, privacy, focused-test declarations
-and the whole-module Asyncify boundary. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
+and the linked-module Asyncify boundary (bounded body partitions for large modules, not relocatable object transforms). Linking still runs each build; Asyncify output is content-cached by linked wasm/tool/wrapper/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
 available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane K11 adds

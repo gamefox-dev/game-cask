@@ -19,6 +19,21 @@ describe('opt-in JSPI variant selection', () => {
     expect(selectWasmVariant({ wasm: manifest.wasm }, 'jspi', true)).toEqual({ artifact: manifest.wasm, mode: 'asyncify' });
   });
 
+  it('honors a per-game JSPI preference, explicit override and unsupported fallback', () => {
+    const preferred = { ...manifest, preferredSuspension: 'jspi' as const };
+    expect(selectWasmVariant(preferred, undefined, true).mode).toBe('jspi');
+    expect(selectWasmVariant(preferred, undefined, false).mode).toBe('asyncify');
+    expect(selectWasmVariant(preferred, 'asyncify', true).mode).toBe('asyncify');
+    expect(selectWasmVariant({wasm:manifest.wasm,preferredSuspension:'jspi'},undefined,true).mode).toBe('asyncify');
+  });
+
+  it('requires an actual JSPI API for a JSPI-only artifact and never invents fallback', () => {
+    const only = { wasm: artifact('game.wasm'), suspension: 'jspi' as const };
+    expect(selectWasmVariant(only, undefined, true)).toEqual({ artifact: only.wasm, mode: 'jspi' });
+    expect(() => selectWasmVariant(only, undefined, false)).toThrow(/JSPI-only build requires/);
+    expect(() => selectWasmVariant(only, 'asyncify', true)).toThrow(/no fallback artifact/);
+  });
+
   it('runs a suspending import across fixed updates when JSPI is available', async () => {
     const plain = await compileC('tests/fixtures/c/yield_game.c');
     if (!jspiApi()) {

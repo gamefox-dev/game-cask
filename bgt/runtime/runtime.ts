@@ -67,6 +67,8 @@ export interface Manifest {
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
   variants?: { jspi?: {url:string;size:number;sha256:string} };
+  preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
+  suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
   gpu?: { budgetBytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
@@ -175,6 +177,7 @@ export class BGTRuntime {
   private executionMetrics() {
     const m=this.host?.metrics();
     return m && typeof m==='object' ? {...m,runtime_profile:{
+      suspension:this.host?.config.suspensionMode ?? 'asyncify',
       gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,
       vfs:this.rangeFiles?.timing ?? null}} : m ?? null;
   }
