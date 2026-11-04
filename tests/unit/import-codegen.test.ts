@@ -49,7 +49,7 @@ it.each(['size','fast'])('guarded import call sites preserve every CPU/RAM byte 
   const root=join(ROOT,'node_modules/.cache/bgt/import-codegen');mkdirSync(root,{recursive:true});const dir=mkdtempSync(join(root,'case-'));
   try {
     const {pe,bytes}=fixture();writeFileSync(join(dir,'input.exe'),pe);
-    execFileSync(x86tool(),['lift',join(dir,'input.exe'),'--name','probe','--out',join(dir,'lifted.c'),'--lift-preset',preset]);
+    execFileSync(x86tool(),['lift',join(dir,'input.exe'),'--base','0x10000','--name','probe','--out',join(dir,'lifted.c'),'--lift-preset',preset]);
     const lifted=readFileSync(join(dir,'lifted.c'),'utf8');
     expect(lifted.match(/x86_try_import/g)?.length).toBeGreaterThanOrEqual(8);
     const stats=JSON.parse(readFileSync(join(dir,'lifted.c.stats.json'),'utf8'));

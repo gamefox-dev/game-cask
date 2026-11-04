@@ -1,5 +1,14 @@
 # v0.3 merged implementation status
 
+## K29 lane checkpoint — guarded direct imports (WIP, not accepted)
+
+K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
+bindings; callback/suspending APIs retain a bound outer-driver path, changed operands dynamic fallback.
+Focused profile/snapshot/string/context tests pass in separate runs; the nine-case1000-call CC0 smoke
+has zero reason5 exits/dynamic thunk crossings and identical300-update oracles. No baseline A/B,
+final Tier1 or independent acceptance yet. Memory faults retain the abort contract, not new SEH.
+Actual failures, repairs, samples and continuation: [K29 checkpoint](handoff/K29.md).
+
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.

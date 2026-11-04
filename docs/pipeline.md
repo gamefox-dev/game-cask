@@ -276,6 +276,31 @@ jump tables and exception landing pads inside each range stay fully lifted. Indi
 resolved are reported as unresolved; this does not mean interpretation if the target remains in a lifted range.
 The four fixtures assert zero interpreted instructions through startup and the 300-frame run.
 
+### Guarded direct imports (K29, validation in progress)
+
+AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance
+also identifies registers loaded from IAT slots. This is a hint, never constant folding guest memory.
+Every hinted operand is compared at full width with the loader-bound profile thunk target. Patched
+slots/changed register values retain ordinary dynamic dispatch; an old loaded register still calls
+its old value after a subsequent IAT patch. Guest exports and imported data are not profile leaves.
+
+Only explicitly typed, audited non-suspending CRT/thread bindings execute inside the generated
+call site, with all GPRs/flags/clocks spilled and reloaded. The existing checked implementation and
+Win64 register/home-space/stack, trace and per-thread LastError contracts are retained. Contexts
+with callbacks, pending transfers/waits/yields or deferred results refuse the leaf path without
+consuming work. Other bound imports return from the native step before the outer driver invokes
+them; callbacks, suspension and explicit SEH/unwind never acquire a native register-local frame.
+The leaf allowlist is explicit, not inferred from a function name at the lifter.
+
+`direct_import_calls` counts accepted guarded leaf plus bound outer-driver calls; `leaf_import_calls`
+is its call-site subset. `thunk_dispatches` counts dynamic driver/interpreter thunk entries, not
+guarded bound calls. API counts/traces remain shared. Zero interpreted instructions alone says
+nothing about these boundaries; compare reason-5 exits as well. Memory faults still abort via
+`x86_fault`/`bgt_abort`; this change does not add access-violation SEH delivery. The shared length/
+comparison CRT primitives now retain full Win64 pointers and bounds until checked reads.
+See [K29 checkpoint](handoff/K29.md) for actual validation status and
+[benchmark method](../tools/bench/README-imports.md) for per-import census/timing.
+
 ### Loader and shared Win32 profile
 
 AMD64 guest registers/pointers are u64. Images are **relocated below 4 GiB** (first at 0x01000000) using DIR64; import

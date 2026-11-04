@@ -7,16 +7,12 @@
     "platform": "win32",
     "fixture": {
       "target": "x86_64-windows-gnu",
-      "sources": [
-        "imports.c",
-        "forms.S"
-      ],
+      "generator": "generate.mjs",
       "out": "imports.exe",
       "entry": "entry",
       "libs": [
         "kernel32",
-        "user32",
-        "msvcrt"
+        "user32"
       ]
     },
     "modules": [

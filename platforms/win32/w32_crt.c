@@ -93,7 +93,7 @@ CRT_LEAVES(LEAF_WRAP)
 #undef LEAF_WRAP
 w32_leaf_fn w32_crt_leaf(const w32_crt_entry_t *entry) {
     if(!entry)return 0;
-#define LEAF_MATCH(fn) if(entry->fn==fn)return leaf_##fn;
+#define LEAF_MATCH(impl) if(entry->fn==impl)return leaf_##impl;
     CRT_LEAVES(LEAF_MATCH)
 #undef LEAF_MATCH
     return 0;

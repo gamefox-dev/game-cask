@@ -11,7 +11,7 @@ it('Win64 IAT, thunk tail, copied/saved register and patched IAT calls retain ex
   const h = await loadHeadless('x64-imports');
   await h.stepAsync(300);
   expect(h.logs).toContain('guest: imports failures=0');
-  const m = h.host.metrics() as Record<string, any>;
+  const m = h.host.metrics() as { exited: number; interp_insns: number; stubs: string[]; leaf_import_calls: number; direct_import_calls: number };
   expect(m.exited).toBe(1);
   expect(m.interp_insns).toBe(0);
   expect(m.stubs).toEqual([]);
