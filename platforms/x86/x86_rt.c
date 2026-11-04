@@ -30,8 +30,14 @@ static double idle_start;
 static int idle_exclusive;
 static int interpreter_span_set(int active);
 double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
-void x86_profile_idle_begin(void) { idle_exclusive=interpreter_span_set(0);idle_start = bgt_time_us(); }
-void x86_profile_idle_end(void) { x86_profile_idle_us += bgt_time_us() - idle_start;interpreter_span_set(idle_exclusive); }
+void x86_profile_idle_begin(void) {
+    idle_exclusive = interpreter_span_set(0);
+    idle_start = bgt_time_us();
+}
+void x86_profile_idle_end(void) {
+    x86_profile_idle_us += bgt_time_us() - idle_start;
+    interpreter_span_set(idle_exclusive);
+}
 double x86_profile_begin(unsigned category) {
     if(!X86_PROFILE_ENABLED)return -1;
     static uint32_t countdown[XP_CATEGORIES], random=0x19730119;
@@ -82,12 +88,13 @@ static void exclusive_resume(double *span,double start) {
 static int interpreter_span_active;
 static double interpreter_span_start,interpreter_span_us;
 static int interpreter_span_set(int active) {
-    if(!X86_PROFILE_ENABLED)return 0;
-    int previous=interpreter_span_active;
-    if(active!=previous){
-        double now=bgt_time_us();
-        if(previous)interpreter_span_us+=now-interpreter_span_start;
-        interpreter_span_start=now;interpreter_span_active=active;
+    if (!X86_PROFILE_ENABLED) return 0;
+    int previous = interpreter_span_active;
+    if (active != previous) {
+        double now = bgt_time_us();
+        if (previous) interpreter_span_us += now - interpreter_span_start;
+        interpreter_span_start = now;
+        interpreter_span_active = active;
     }
     return previous;
 }

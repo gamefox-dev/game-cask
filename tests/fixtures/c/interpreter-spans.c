@@ -27,6 +27,7 @@ BGT_EXPORT(bias) double bias(unsigned n) {
     return x86_interpreter_exclusive_sample_us*(double)x86_timings[XP_INTERPRETER].calls/(double)x86_timings[XP_INTERPRETER].samples;
 }
 BGT_EXPORT(timer) double timer(unsigned n) { double t=0;while(n--)t=bgt_time_us();return t; }
+BGT_EXPORT(transitions) void transitions(unsigned n) { while(n--){interpreter_span_set(1);interpreter_span_set(0);} }
 BGT_EXPORT(no_timer) unsigned no_timer(unsigned n) { unsigned t=1;while(n--)t=t*1664525u+1013904223u;return t; }
 /* Static storage, disjoint from the C/Asyncify stacks. */
 static uint32_t async_storage[16384];

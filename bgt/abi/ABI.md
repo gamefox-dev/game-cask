@@ -632,9 +632,14 @@ Wall intervals include waits and probe think time. No export means null guest-fr
 artifacts. A presentation is not proof of independent simulation or physical display scanout.
 
 Standard `metrics.execution_summary` puts updates/s next to guest presentations/s, guest frame-time avg/p95,
-and exclusive sampled interpreter ms/share/instructions per update plus top owners. **Updates are cooperative
-scheduling boundaries, not guest frames.** Exclusive timing excludes nested invoke/native/scheduler work and
-parked yield time; it is a sampled estimate, not a disjoint exact CPU budget. Existing census categories stay
+and measured exclusive interpreter ms/share/instructions per update plus top owners. **Updates are cooperative
+scheduling boundaries, not guest frames.** `interpreter_exclusive_us` serializes cumulative disjoint wall-clock
+spans (integer microseconds), excluding native/thunk/scheduler work and parked yields; nested interpretation
+counts once. Reset preserves this physical accumulator. `measured_ms[_per_update]` and compatibility
+`estimated_*` summary keys use only this source, never sampled extrapolation. Legacy/missing/disabled
+observations produce null time/share; invalid budgets produce null with explicit timing status, not clamping.
+Available shares cannot exceed one. Raw `interpreter_exclusive_sample_us`/`interpreter_exclusive_estimated_us` are
+sample diagnostics only (timer-cost extrapolation can exceed wall). Existing census categories stay
 inclusive and must not be added/subtracted to obtain this share. Details: [coverage convergence](../../docs/coverage-convergence.md).
 
 ## 13. v0.3 GPU layer (additive interface)

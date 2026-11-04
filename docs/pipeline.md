@@ -97,7 +97,9 @@ still runs (interpreted, visible as `interp_insns`).
 The default now automatically merges successful probe/port-test coverage into owner/interior selection.
 `pipeline.selection: "all"` / `--selection all` is explicit; strict slices remain supplied-evidence-only.
 Standard metrics and probe summaries distinguish **updates/s from guest presents/s**, report guest interval
-avg/p95, and expose exclusive sampled interpreter ms/share, instructions/update and top owners.
+avg/p95, and expose non-extrapolated exclusive interpreter span ms/share, instructions/update and top owners.
+Available interpreter shares are in [0,1]; invalid update budgets are explicit nulls, never clamped samples.
+Raw sampled/extrapolated interpreter timings remain labelled diagnostics, not physical time budgets (Q73).
 **Updates are not guest frames.** Contracts, limits and reproduction: [coverage convergence](coverage-convergence.md).
 
 ## Execution profiling (K10)
