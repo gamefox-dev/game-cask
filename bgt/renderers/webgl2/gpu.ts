@@ -2,6 +2,7 @@
 import type { GpuBackend, GpuItem, Letterbox } from '../types';
 import { GPU_OP as OP } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
+import { vertexFormatScalar } from '../vertex-input';
 import { blitStencil } from './blit-stencil';
 import { feedbackShader } from './feedback';
 import { feedbackLayout, feedbackVertices, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
@@ -54,6 +55,7 @@ export class WebGL2Gpu implements GpuBackend {
   private depth32fLinearWarned = false;
   private shaders = new Map<number, ShaderObject>();
   private pipelines = new Map<number, PipelineObject>();
+  private failedPipelines = new Map<number, string>();
   private framebuffer: WebGLFramebuffer;
   private screen: WebGLTexture | null = null;
   private screenSize = [0, 0];
@@ -177,6 +179,12 @@ export class WebGL2Gpu implements GpuBackend {
       // error into a later otherwise-valid operation (notably a failed feedback candidate link).
       for(let i=0;i<32 && this.gl.getError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
+      if (item.op === OP.PIPELINE_CREATE) {
+        const handle = item.words[0], pipeline = this.pipelines.get(handle);
+        if (pipeline) { this.gl.deleteProgram(pipeline.object); this.gl.deleteVertexArray(pipeline.vao); }
+        this.pipelines.delete(handle); this.failedPipelines.set(handle, message);
+      }
+      if (item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) this.capture = undefined;
       if (item.op === OP.SHADER_CREATE) item.complete?.(-6, message);
       else { item.readback?.(undefined, -6); this.error(message); }
       return -6;
@@ -187,12 +195,14 @@ export class WebGL2Gpu implements GpuBackend {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
     switch (op) {
       case OP.FEEDBACK_VARYINGS: {
-        const layout=feedbackLayout(item.source!,!!w[1],w[2]),previous=this.feedback.get(h),old=this.pipelines.get(h)!;
+        const old=this.requirePipeline(h),layout=feedbackLayout(item.source!,!!w[1],w[2]),previous=this.feedback.get(h);
         this.feedback.set(h,layout);
         try {this.createPipeline(old.words);}catch(e){if(previous)this.feedback.set(h,previous);else this.feedback.delete(h);throw e;}
         g.deleteProgram(old.object);g.deleteVertexArray(old.vao);break;
       }
-      case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.FEEDBACK_CAPTURE:
+        if (!this.pipeline) throw new Error('No usable current pipeline for feedback capture');
+        this.capture=w; break;
       case OP.BUFFER_COPY: {
         const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
         g.bindBuffer(g.COPY_READ_BUFFER, src.object); g.bindBuffer(g.COPY_WRITE_BUFFER, dst.object);
@@ -316,8 +326,9 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.SHADER_DELETE: g.deleteShader(this.shaders.get(h)?.object ?? null); this.shaders.delete(h); break;
       case OP.PIPELINE_CREATE: this.createPipeline(w); break;
       case OP.PIPELINE_DELETE: {
-        const p = this.pipelines.get(h)!; g.deleteProgram(p.object); g.deleteVertexArray(p.vao);
-        this.pipelines.delete(h); this.feedback.delete(h); break;
+        const p = this.pipelines.get(h);
+        if (p) { g.deleteProgram(p.object); g.deleteVertexArray(p.vao); }
+        this.pipelines.delete(h); this.failedPipelines.delete(h); this.feedback.delete(h); break;
       }
       case OP.PASS_BEGIN: this.beginPass(w); break;
       case OP.PASS_END: this.endPass(); break;
@@ -340,7 +351,10 @@ export class WebGL2Gpu implements GpuBackend {
         if (this.pipeline) this.applyPipeline();
         break;
       }
-      case OP.PIPELINE: this.pipeline = this.pipelines.get(h)!; this.applyPipeline(); break;
+      case OP.PIPELINE:
+        // A rejected bind must not leave the previous executable available to later draws.
+        this.pipeline = undefined;
+        this.pipeline = this.requirePipeline(h); this.applyPipeline(); break;
       case OP.VIEWPORT:
         this.viewport = w.slice(0, 4).map(float);
         g.depthRange(float(w[4]), float(w[5])); break;
@@ -412,6 +426,14 @@ export class WebGL2Gpu implements GpuBackend {
     } finally {g.bindFramebuffer(g.FRAMEBUFFER,null);g.deleteFramebuffer(read);g.deleteFramebuffer(draw);g.deleteTexture(snapshot);}
   }
 
+  private requirePipeline(handle: number): PipelineObject {
+    const failure = this.failedPipelines.get(handle);
+    if (failure) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
+    const pipeline = this.pipelines.get(handle);
+    if (!pipeline) throw new Error(`Pipeline ${handle} has no native executable`);
+    return pipeline;
+  }
+
   private createPipeline(w: number[]): void {
     const g = this.gl, object = g.createProgram()!;
     try {
@@ -457,10 +479,12 @@ export class WebGL2Gpu implements GpuBackend {
         if (a.name.startsWith('gl_') && location < 0) continue;
         const start = 26 + w[23]*2;
         const index = Array.from({ length: w[24] }, (_, j) => start+j*4).find(j => w[j] === location);
-        const types = [g.FLOAT, g.FLOAT_VEC2, g.FLOAT_VEC3, g.FLOAT_VEC4, g.FLOAT_VEC4,
-          g.INT, g.INT_VEC2, g.INT_VEC3, g.INT_VEC4, g.UNSIGNED_INT, g.UNSIGNED_INT_VEC2,
-          g.UNSIGNED_INT_VEC3, g.UNSIGNED_INT_VEC4];
-        if (index === undefined || a.size !== 1 || types[w[index+3]] !== a.type) {
+        const scalar = [g.FLOAT, g.FLOAT_VEC2, g.FLOAT_VEC3, g.FLOAT_VEC4].includes(a.type) ? 'f32' :
+          [g.INT, g.INT_VEC2, g.INT_VEC3, g.INT_VEC4].includes(a.type) ? 'i32' :
+          [g.UNSIGNED_INT, g.UNSIGNED_INT_VEC2, g.UNSIGNED_INT_VEC3, g.UNSIGNED_INT_VEC4].includes(a.type) ? 'u32' : undefined;
+        // vertexAttrib[ I ]Pointer supplies (0,0,0,1) for missing components and drops extras.
+        // Arrays/matrices still require explicit location expansion by the profile.
+        if (index === undefined || a.size !== 1 || vertexFormatScalar(w[index+3]) !== scalar) {
           throw new Error(`Vertex input mismatch ${a.name}`);
         }
       }
@@ -479,6 +503,7 @@ export class WebGL2Gpu implements GpuBackend {
         }
       }
       this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds, outputs });
+      this.failedPipelines.delete(w[0]);
     } catch (e) { g.deleteProgram(object); throw e; }
   }
 
@@ -737,7 +762,8 @@ export class WebGL2Gpu implements GpuBackend {
   }
 
   private draw(w: number[], indexed: boolean): void {
-    const g = this.gl, p = this.pipeline!, pw = p.words, instance = w[indexed ? 4 : 3];
+    if (!this.pipeline) throw new Error('No usable current pipeline for draw');
+    const g = this.gl, p = this.pipeline, pw = p.words, instance = w[indexed ? 4 : 3];
     const [vx, vy, vw, vh] = this.viewport;
     g.uniform4f(g.getUniformLocation(p.object, 'bgt_internal_view_transform'),
       vw/this.width, vh/this.height, (2*vx+vw-this.width)/this.width, (2*vy+vh-this.height)/this.height);

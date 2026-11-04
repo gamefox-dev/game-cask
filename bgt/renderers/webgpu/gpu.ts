@@ -44,7 +44,7 @@ interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
 interface PipelineResource {
   native: GPURenderPipeline; words: readonly number[]; bindings: ShaderBinding[]; repack: Repack[];
-  variants: Map<string, PipelineResource>; validation: Promise<GPUError | null>;
+  variants: Map<string, PipelineResource>; validation: Promise<GPUError | null>; failure?: string;
 }
 
 export class WebGPUCommands implements GpuBackend {
@@ -55,6 +55,7 @@ export class WebGPUCommands implements GpuBackend {
   private samplers = new Map<number, { native: GPUSampler; nonfilter?: GPUSampler; words: readonly number[] }>();
   private shaders = new Map<number, ShaderResource>();
   private pipelines = new Map<number, PipelineResource>();
+  private failedPipelines = new Map<number, string>();
   private encoder?: GPUCommandEncoder;
   private pass?: GPURenderPassEncoder;
   private passFormats: number[] = [];
@@ -88,7 +89,7 @@ export class WebGPUCommands implements GpuBackend {
 
   get hasResources(): boolean {
     return !!(this.buffers.size || this.textures.size || this.samplers.size || this.shaders.size ||
-      this.failedShaders.size || this.pipelines.size);
+      this.failedShaders.size || this.pipelines.size || this.failedPipelines.size);
   }
 
   frame(screen: GPUTexture): void { this.screen = screen; }
@@ -116,7 +117,7 @@ export class WebGPUCommands implements GpuBackend {
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
-    const shaders = [...this.shaders], pipelines = [...this.pipelines];
+    const shaders = [...this.shaders], pipelines = [...this.pipelines].filter(([, p]) => !p.failure);
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
     this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear(); this.clearPipelines.clear();
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
@@ -152,6 +153,10 @@ export class WebGPUCommands implements GpuBackend {
     try { this.run(item); return 0; }
     catch (e) {
       const message = `GPU opcode 0x${item.op.toString(16)}: ${(e as Error).message}`;
+      if (item.op === OP.PIPELINE_CREATE) {
+        this.pipelines.delete(item.words[0]); this.failedPipelines.set(item.words[0], message);
+      }
+      if (item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) this.capture = undefined;
       if (item.op === OP.SHADER_CREATE) this.failedShaders.set(item.words[0], item);
       item.complete?.(E_IO, message); item.readback?.(undefined, E_IO);
       if (item.op !== OP.SHADER_CREATE) this.error(message);
@@ -162,8 +167,10 @@ export class WebGPUCommands implements GpuBackend {
   private run(item: GpuItem): void {
     const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
     switch (op) {
-      case OP.FEEDBACK_VARYINGS: this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
-      case OP.FEEDBACK_CAPTURE: this.capture=w; break;
+      case OP.FEEDBACK_VARYINGS:
+        this.requirePipeline(h); this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
+      case OP.FEEDBACK_CAPTURE:
+        this.requireCurrentPipeline(); this.capture=w; break;
       case OP.BUFFER_COPY: {
         const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
         this.bufferCopy ??= new WebGPUBufferCopy(d);
@@ -299,8 +306,10 @@ export class WebGPUCommands implements GpuBackend {
         break;
       }
       case OP.SHADER_DELETE: this.shaders.delete(h); this.failedShaders.delete(h); break;
-      case OP.PIPELINE_CREATE: this.pipelines.set(h, this.pipeline(w)); break;
-      case OP.PIPELINE_DELETE: this.pipelines.delete(h); this.feedback.delete(h); break;
+      case OP.PIPELINE_CREATE:
+        this.pipelines.set(h, this.pipeline(w)); this.failedPipelines.delete(h); break;
+      case OP.PIPELINE_DELETE:
+        this.pipelines.delete(h); this.failedPipelines.delete(h); this.feedback.delete(h); break;
       case OP.PASS_BEGIN: {
         this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
         this.index = undefined; this.current = undefined; this.capture=undefined;
@@ -348,7 +357,9 @@ export class WebGPUCommands implements GpuBackend {
           void d.queue.onSubmittedWorkDone().then(release, release);
         }
         break;
-      case OP.PIPELINE: this.current = this.pipelines.get(h)!; this.pass!.setPipeline(this.current.native); break;
+      case OP.PIPELINE:
+        this.current = undefined;
+        this.current = this.requirePipeline(h); this.pass!.setPipeline(this.current.native); break;
       case OP.VIEWPORT:
         this.viewport = w.map(f); this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
       case OP.SCISSOR: this.scissor=[...w]; this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
@@ -362,6 +373,7 @@ export class WebGPUCommands implements GpuBackend {
         this.uniforms.set(h, { buffer: this.buffers.get(w[1])!.native, offset: w[2], size: w[3] }); break;
       case OP.TEXTURE: this.sampled.set(h, [...w]); break;
       case OP.DRAW: case OP.DRAW_INDEXED: {
+        this.requireCurrentPipeline();
         const discard = this.capture?.[0];
         if(this.capture) { this.captureDraw(item); this.capture=undefined; }
         if(discard) break;
@@ -694,6 +706,18 @@ struct VO { @builtin(position) pos: vec4f };
     this.device.queue.writeBuffer(buffer, offset, aligned);
   }
 
+  private requirePipeline(handle: number): PipelineResource {
+    const pipeline = this.pipelines.get(handle), failure = this.failedPipelines.get(handle) ?? pipeline?.failure;
+    if (failure) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
+    if (!pipeline) throw new Error(`Pipeline ${handle} has no native executable`);
+    return pipeline;
+  }
+
+  private requireCurrentPipeline(): PipelineResource {
+    if (!this.current) throw new Error('No usable current pipeline for draw or feedback capture');
+    return this.requirePipeline(this.current.words[0]);
+  }
+
   private pipeline(w: readonly number[], depthSlots: ReadonlySet<number> = new Set(),
     sampling: readonly DepthSampling[] = [], integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()): PipelineResource {
     const d = this.device, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
@@ -760,7 +784,6 @@ struct VO { @builtin(position) pos: vec4f };
             { sampler: { type: b.type === 'comparison' ? 'comparison' as const :
               b.type === 'nonfiltering' ? 'non-filtering' as const : 'filtering' as const } }),
       })) }));
-    d.pushErrorScope('validation');
     const vs = this.shaders.get(w[1])!, fs = this.shaders.get(w[2])!;
     const varyingNames = [...new Set([
       ...glslVaryings(vs.item.source!, 1), ...glslVaryings(fs.item.source!, 2),
@@ -771,18 +794,31 @@ struct VO { @builtin(position) pos: vec4f };
         translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots, integerSamplers) : s.item.source!;
       return d.createShaderModule({ code: lowerDepthSampling(source, sampling) });
     };
-    const native = d.createRenderPipeline({ layout: d.createPipelineLayout({ bindGroupLayouts: layouts }),
-      vertex: { module: linked(vs), entryPoint: 'vs_main', buffers },
-      fragment: { module: linked(fs), entryPoint: 'fs_main', targets }, depthStencil,
-      primitive: { topology: w[3] === 0 ? 'point-list' : w[3] <= 2 ? 'line-list' : 'triangle-list',
-        cullMode: (['none', 'front', 'back'] as const)[w[4]], frontFace: w[5] ? 'cw' : 'ccw' } });
-    const validation = d.popErrorScope().catch(e => new GPUValidationError(String(e)));
-    void validation.then(e => { if (e) this.error(`GPU pipeline ${w[0]}: ${e.message}`); });
-    return { native, words: w, bindings: [...bindings.values()], repack, variants: new Map(), validation };
+    let native: GPURenderPipeline, validation: Promise<GPUError | null>;
+    d.pushErrorScope('validation');
+    try {
+      native = d.createRenderPipeline({ layout: d.createPipelineLayout({ bindGroupLayouts: layouts }),
+        vertex: { module: linked(vs), entryPoint: 'vs_main', buffers },
+        fragment: { module: linked(fs), entryPoint: 'fs_main', targets }, depthStencil,
+        primitive: { topology: w[3] === 0 ? 'point-list' : w[3] <= 2 ? 'line-list' : 'triangle-list',
+          cullMode: (['none', 'front', 'back'] as const)[w[4]], frontFace: w[5] ? 'cw' : 'ccw' } });
+    } finally {
+      // Even a synchronous translation/native exception must balance the owned scope.
+      validation = d.popErrorScope().catch(e => new GPUValidationError(String(e)));
+    }
+    const pipeline: PipelineResource = { native, words: w, bindings: [...bindings.values()], repack, variants: new Map(), validation };
+    void validation.then(e => {
+      if (!e) return;
+      pipeline.failure = e.message;
+      // A late result must not poison a deleted/reused handle (or an unrelated specialization).
+      if (this.pipelines.get(w[0]) === pipeline) this.failedPipelines.set(w[0], e.message);
+      this.error(`GPU pipeline ${w[0]}: ${e.message}`);
+    });
+    return pipeline;
   }
 
   private bind(): void {
-    let p = this.current!;
+    let p = this.requireCurrentPipeline();
     const d = this.device;
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
@@ -803,6 +839,7 @@ struct VO { @builtin(position) pos: vec4f };
       }
       p = variant;
     }
+    if (p.failure) throw new Error(`Pipeline ${p.words[0]} specialization failed: ${p.failure}`);
     this.pass!.setPipeline(p.native);
     for (let slot = 0; slot < p.words[23]; slot++) {
       const w = this.vertices.get(slot)!, b = this.buffers.get(w[1])!;
