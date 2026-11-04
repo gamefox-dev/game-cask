@@ -46,6 +46,14 @@ export const WASM_OPT_FEATURES = ['--enable-bulk-memory', '--enable-bulk-memory-
 
 export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=1048576', '-Wl,--strip-debug'];
 
+// Complete post-link identity: thresholds/local passes live in asyncify.mjs; both
+// binary and name parsers can change partition assembly or exact native exclusions.
+export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],root=ROOT}={}) {
+  return sha256(Buffer.concat([wasm,Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),
+    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs'].map(p=>readFileSync(join(root,p))),
+    Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove}))]));
+}
+
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
 function walk(dir) {
@@ -213,7 +221,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=sha256(Buffer.concat([readFileSync(wasmPath),Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),readFileSync(wasmOpt),readFileSync(join(ROOT,'tools/build/asyncify.mjs')),readFileSync(join(ROOT,'tools/build/binaryen-runner.mjs')),readFileSync(join(ROOT,'tools/build/wasm-sections.mjs')),Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove}))]));
+    const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove});
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
