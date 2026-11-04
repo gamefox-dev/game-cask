@@ -2,8 +2,12 @@
 #include "w32_gl.h"
 
 /* ABI §13.1: bounded live objects, NOT a bound on GLuint values. Slot zero is default state. */
-#define GPU_MAX BGT_GPU_LIMIT_HANDLES
-#define N (BGT_GPU_LIMIT_HANDLES + 1u)
+/* Test-only demand probe: never an ABI promise. Real transport still validates its caps. */
+#ifndef W32_GL_TEST_CAPACITY
+#define W32_GL_TEST_CAPACITY BGT_GPU_LIMIT_HANDLES
+#endif
+#define GPU_MAX W32_GL_TEST_CAPACITY
+#define N (W32_GL_TEST_CAPACITY + 1u)
 #define BAD_ENUM 0x500u
 #define BAD_VALUE 0x501u
 #define BAD_OP 0x502u
