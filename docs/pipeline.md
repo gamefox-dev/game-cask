@@ -276,7 +276,7 @@ jump tables and exception landing pads inside each range stay fully lifted. Indi
 resolved are reported as unresolved; this does not mean interpretation if the target remains in a lifted range.
 The four fixtures assert zero interpreted instructions through startup and the 300-frame run.
 
-### Guarded direct imports (K29, validation in progress)
+### Guarded direct imports (K29, final gates blocked)
 
 AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance
 also identifies registers loaded from IAT slots. This is a hint, never constant folding guest memory.
@@ -298,7 +298,10 @@ guarded bound calls. API counts/traces remain shared. Zero interpreted instructi
 nothing about these boundaries; compare reason-5 exits as well. Memory faults still abort via
 `x86_fault`/`bgt_abort`; this change does not add access-violation SEH delivery. The shared length/
 comparison CRT primitives now retain full Win64 pointers and bounds until checked reads.
-See [K29 checkpoint](handoff/K29.md) for actual validation status and
+Final gates retain both-backend/both-suspension browser passes and all34×2×300 identical pipeline
+oracles, but four unchanged SSE-matrix unit timeouts persist on individual serial reruns; full
+Tier1 and independent acceptance remain open. See [K29 handoff](handoff/K29.md) and
+[gate evidence](handoff/K29-gates.json) for actual validation status and
 [benchmark method](../tools/bench/README-imports.md) for per-import census/timing.
 
 ### Loader and shared Win32 profile

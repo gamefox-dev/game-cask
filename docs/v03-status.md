@@ -1,6 +1,6 @@
 # v0.3 merged implementation status
 
-## K29 lane checkpoint — guarded direct imports (WIP, not accepted)
+## K29 final gate record — guarded direct imports (blocked, not accepted)
 
 K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
 bindings; callback/suspending APIs retain a bound outer-driver path, changed operands dynamic fallback.
@@ -8,8 +8,15 @@ Focused profile/snapshot/string/context tests pass; guard-removal and pointer-tr
 fail their assertions. The serial nine-case100000-call dev.16 A/B has zero final reason5 exits/dynamic
 thunk crossings, identical300-update oracle hashes across versions, and synthetic call-loop medians
 1.76–4.42× faster. Baseline IAT/register forms already have zero reason5 exits; missing baseline
-dynamic counters are not reported as zero. No final Tier1 or independent acceptance yet. Memory faults retain the abort contract, not new SEH.
-Actual failures, repairs, samples and continuation: [K29 checkpoint](handoff/K29.md).
+dynamic counters are not reported as zero. Final gate audit retains doctor, Clang/GCC lint (38 examples),
+typecheck, full leakcheck, both suspension browser runs (300 pass/51 intentional skips each, both native
+backends), and all34×2×300 pipeline oracles (20,400 identical frame pairs, matching cross-suspension
+hashes). **Tier1 remains blocked:** full units2068 pass/four inherited SSE-matrix60000ms timeouts;
+all four unchanged individual serial retries still time out. No deadline/assertion/skip was relaxed.
+Reviewer decision request expired; stated default records the blocker and stops, not acceptance.
+Independent validation and real-game remeasurement remain external. Memory faults retain the abort
+contract, not new SEH. [Gate evidence](handoff/K29-gates.json); actual failures, repairs, samples and
+remaining boundaries: [K29 handoff](handoff/K29.md).
 
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
