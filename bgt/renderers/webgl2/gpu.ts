@@ -184,7 +184,7 @@ export class WebGL2Gpu implements GpuBackend {
         if (pipeline) { this.gl.deleteProgram(pipeline.object); this.gl.deleteVertexArray(pipeline.vao); }
         this.pipelines.delete(handle); this.failedPipelines.set(handle, message);
       }
-      if (item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) this.capture = undefined;
+      if (item.op === OP.PIPELINE) this.pipeline = undefined;
       if (item.op === OP.SHADER_CREATE) item.complete?.(-6, message);
       else { item.readback?.(undefined, -6); this.error(message); }
       return -6;
@@ -435,7 +435,9 @@ export class WebGL2Gpu implements GpuBackend {
   }
 
   private createPipeline(w: number[]): void {
-    const g = this.gl, object = g.createProgram()!;
+    const g = this.gl, object = g.createProgram();
+    if (!object) throw new Error('Pipeline program allocation failed');
+    let vao: WebGLVertexArrayObject | null = null;
     try {
       const feedback=this.feedback.get(w[0]),vertex=this.shaders.get(w[1])!;
       const capture=feedback?feedbackShader(vertex.source,vertex.words[2],feedback):undefined;
@@ -479,9 +481,9 @@ export class WebGL2Gpu implements GpuBackend {
         if (a.name.startsWith('gl_') && location < 0) continue;
         const start = 26 + w[23]*2;
         const index = Array.from({ length: w[24] }, (_, j) => start+j*4).find(j => w[j] === location);
-        const scalar = [g.FLOAT, g.FLOAT_VEC2, g.FLOAT_VEC3, g.FLOAT_VEC4].includes(a.type) ? 'f32' :
-          [g.INT, g.INT_VEC2, g.INT_VEC3, g.INT_VEC4].includes(a.type) ? 'i32' :
-          [g.UNSIGNED_INT, g.UNSIGNED_INT_VEC2, g.UNSIGNED_INT_VEC3, g.UNSIGNED_INT_VEC4].includes(a.type) ? 'u32' : undefined;
+        const scalar = [g.FLOAT, g.FLOAT_VEC2, g.FLOAT_VEC3, g.FLOAT_VEC4].some(type => type === a.type) ? 'f32' :
+          [g.INT, g.INT_VEC2, g.INT_VEC3, g.INT_VEC4].some(type => type === a.type) ? 'i32' :
+          [g.UNSIGNED_INT, g.UNSIGNED_INT_VEC2, g.UNSIGNED_INT_VEC3, g.UNSIGNED_INT_VEC4].some(type => type === a.type) ? 'u32' : undefined;
         // vertexAttrib[ I ]Pointer supplies (0,0,0,1) for missing components and drops extras.
         // Arrays/matrices still require explicit location expansion by the profile.
         if (index === undefined || a.size !== 1 || vertexFormatScalar(w[index+3]) !== scalar) {
@@ -502,9 +504,14 @@ export class WebGL2Gpu implements GpuBackend {
           if (location >= 0 && (location >= w[25] || !valid)) throw new Error('Color output mismatch');
         }
       }
-      this.pipelines.set(w[0], { object, words: w, vao: g.createVertexArray()!, kinds, outputs });
+      vao = g.createVertexArray();
+      if (!vao) throw new Error('Pipeline vertex array allocation failed');
+      // Native errors belong to this candidate. Accept it before replacing any live executable.
+      const code = g.getError();
+      if (code !== g.NO_ERROR) throw new Error(`Pipeline setup GL error 0x${code.toString(16)}`);
+      this.pipelines.set(w[0], { object, words: w, vao, kinds, outputs });
       this.failedPipelines.delete(w[0]);
-    } catch (e) { g.deleteProgram(object); throw e; }
+    } catch (e) { g.deleteVertexArray(vao); g.deleteProgram(object); throw e; }
   }
 
   /** Grow immutable storage while copying every already allocated level, including rendered contents. */
@@ -919,7 +926,7 @@ export class WebGL2Gpu implements GpuBackend {
     } finally {if(capture){if(began)g.endTransformFeedback();g.disable(g.RASTERIZER_DISCARD);g.bindTransformFeedback(g.TRANSFORM_FEEDBACK,null);g.deleteTransformFeedback(tf);
       this.feedback.get(pw[0])!.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!;
         if(succeeded){b.generated=true;b.data.fill(0,capture[2+i*3],capture[2+i*3]+feedbackVertexCount(pw[3],w[0])*w[1]*stride);}
-        g.bindBufferBase(g.TRANSFORM_FEEDBACK_BUFFER,i,null);});this.capture=undefined;
+        g.bindBufferBase(g.TRANSFORM_FEEDBACK_BUFFER,i,null);});if(succeeded)this.capture=undefined;
     }}
   }
 

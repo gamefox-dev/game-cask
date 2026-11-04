@@ -14,7 +14,7 @@ test('failed native pipelines reject feedback, binds and draws without stale exe
     const device = backend === 'webgpu' ? await (await navigator.gpu.requestAdapter())!.requestDevice() : undefined;
     const errors: string[] = [], uncaptured: string[] = [];
     device?.addEventListener('uncapturederror', e => uncaptured.push(e.error.message));
-    const gpu = gl ? new WebGL2Gpu(gl, e => errors.push(e)) : new WebGPUCommands(device!, e => errors.push(e));
+    const gpu = gl ? new WebGL2Gpu(gl, (e:string) => errors.push(e)) : new WebGPUCommands(device!, (e:string) => errors.push(e));
     const send = (op: number, words: number[], extra = {}) => gpu.execute({ kind:'gpu', op, words, ...extra });
     const ok = (op: number, words: number[], extra = {}) => { if(send(op,words,extra)) throw Error(errors.join('\n')); };
     const compile = (h: number, source: string) => new Promise<void>((resolve, reject) =>

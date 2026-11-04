@@ -8,7 +8,8 @@ test('vertex fetch fills and truncates components like native GL, including feed
   expect(await openGame(page, backendParam, { game: 'gpu-scenes' })).toBe('ready');
   await assertBackend(page, backendParam, info);
   const cases = vertexComponentCases.flatMap(c => [1,2].flatMap(language => [1,2,3,4].map(width =>
-    ({ ...c, language, shaderWidth: width, ...componentShaders(c.scalar, width, language) }))));
+    ({ ...c, language, shaderWidth: width, ...componentShaders(c.scalar, width, language) })))).sort((a,b) =>
+    Number(b.format === 1 && b.shaderWidth === 4) - Number(a.format === 1 && a.shaderWidth === 4));
   const results = await page.evaluate(async ({ root, backend, cases }) => {
     const { GPU_OP: O } = await import(root + '/runtime/abi.ts');
     const { WebGL2Gpu } = await import(root + '/renderers/webgl2/gpu.ts');
@@ -18,7 +19,7 @@ test('vertex fetch fills and truncates components like native GL, including feed
     const device = backend === 'webgpu' ? await (await navigator.gpu.requestAdapter())!.requestDevice() : undefined;
     const errors: string[] = [];
     device?.addEventListener('uncapturederror', e => errors.push(e.error.message));
-    const gpu = gl ? new WebGL2Gpu(gl, e => errors.push(e)) : new WebGPUCommands(device!, e => errors.push(e));
+    const gpu = gl ? new WebGL2Gpu(gl, (e:string) => errors.push(e)) : new WebGPUCommands(device!, (e:string) => errors.push(e));
     const send = (op: number, words: number[], extra = {}) => {
       const code = gpu.execute({ kind: 'gpu', op, words, ...extra });
       if (code) throw Error('opcode ' + op + ': ' + code + ' ' + errors.join('\n'));

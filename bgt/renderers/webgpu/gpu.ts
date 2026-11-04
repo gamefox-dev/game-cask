@@ -156,7 +156,7 @@ export class WebGPUCommands implements GpuBackend {
       if (item.op === OP.PIPELINE_CREATE) {
         this.pipelines.delete(item.words[0]); this.failedPipelines.set(item.words[0], message);
       }
-      if (item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) this.capture = undefined;
+      if (item.op === OP.PIPELINE) this.current = undefined;
       if (item.op === OP.SHADER_CREATE) this.failedShaders.set(item.words[0], item);
       item.complete?.(E_IO, message); item.readback?.(undefined, E_IO);
       if (item.op !== OP.SHADER_CREATE) this.error(message);

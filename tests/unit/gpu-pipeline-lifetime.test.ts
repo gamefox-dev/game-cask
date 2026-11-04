@@ -41,8 +41,12 @@ it('a pipeline bound while pending becomes unusable when its native failure sett
   const t=setup();
   expect(t.send(O.PIPELINE_CREATE,t.words(1))).toBe(0);
   expect(t.send(O.PIPELINE,[1])).toBe(0);
+  const state=t.gpu as unknown as {capture?:readonly number[]};
+  expect(t.send(O.FEEDBACK_CAPTURE,[1,0,0,0])).toBe(0);
+  const armed=state.capture;
   t.scopes[0]({message:'pending pipeline failed'}); await Promise.resolve(); await Promise.resolve();
   expect(t.send(O.DRAW,[3,1,0,0])).toBe(E_IO);
+  expect(state.capture).toBe(armed);
   expect(t.send(O.FEEDBACK_CAPTURE,[1,0,0,0])).toBe(E_IO);
   expect(t.pass.draw).not.toHaveBeenCalled(); expect(t.pass.setPipeline).toHaveBeenCalledTimes(1);
 });
@@ -64,5 +68,20 @@ it('synchronous native failure balances its error scope and permits deletion/reu
   expect(t.send(O.FEEDBACK_VARYINGS,[1,0,1,0,9],{source:'result 3' + String.fromCharCode(10)})).toBe(E_IO);
   expect(t.send(O.PIPELINE_DELETE,[1])).toBe(0);
   expect(t.send(O.PIPELINE_CREATE,t.words(1))).toBe(0); t.scopes[1](null); await Promise.resolve(); await Promise.resolve();
+  expect(t.send(O.PIPELINE,[1])).toBe(0);
+});
+
+it('a synchronous native bind rejection clears current instead of drawing the prior executable', async () => {
+  const t=setup();
+  for (const h of [1,2]) {
+    expect(t.send(O.PIPELINE_CREATE,t.words(h))).toBe(0); t.scopes[h-1](null);
+  }
+  await Promise.resolve(); await Promise.resolve();
+  expect(t.send(O.PIPELINE,[1])).toBe(0);
+  t.pass.setPipeline.mockImplementationOnce(() => { throw Error('native bind failure'); });
+  expect(t.send(O.PIPELINE,[2])).toBe(E_IO);
+  expect(t.send(O.DRAW,[3,1,0,0])).toBe(E_IO);
+  expect(t.send(O.DRAW_INDEXED,[3,1,0,0,0])).toBe(E_IO);
+  expect(t.pass.draw).not.toHaveBeenCalled(); expect(t.pass.drawIndexed).not.toHaveBeenCalled();
   expect(t.send(O.PIPELINE,[1])).toBe(0);
 });

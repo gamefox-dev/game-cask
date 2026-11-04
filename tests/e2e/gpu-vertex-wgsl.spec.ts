@@ -11,7 +11,7 @@ test('native WGSL vertex fetch uses the same class-preserving component fill @we
     const {GPU_OP:O}=await import(root+'/runtime/abi.ts');
     const device=await (await navigator.gpu.requestAdapter())!.requestDevice(), errors:string[]=[];
     device.addEventListener('uncapturederror',e=>errors.push(e.error.message));
-    const gpu=new WebGPUCommands(device,e=>errors.push(e));
+    const gpu=new WebGPUCommands(device,(e:string)=>errors.push(e));
     const send=(op:number,words:number[],extra={})=>{if(gpu.execute({kind:'gpu',op,words,...extra}))throw Error(errors.join(';'));};
     const pixels:number[][]=[];
     try {
