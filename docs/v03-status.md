@@ -1,5 +1,15 @@
 # v0.3 merged implementation status
 
+## K24 WIP checkpoint — Q67 buffer/VAO scale (not Tier 1 certified)
+
+Reviewer decision #200 approves additive **CAP_GPU_BUFFER_HANDLES (bit14)** with explicit per-host opt-in,
+unchanged byte budgets and old unnegotiated limits. Dynamic profile buffer/VAO tables and wire ownership,
+both renderer advertisements and validator negotiation are implemented; original CC0 12,000-pair native
+draw/churn and 24,000-object host tests are in progress. Demand-first probe: defaults1,015 stores /1,022
+VAOs, elevated test capacity12,000 each. Game peak remains unknown; porter measures after merge.
+No final Tier1, wire-parity, independent review or game result claimed. Running jobs, known test failures,
+implementation details and exact continuation: [K24 checkpoint](handoff/K24.md).
+
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
 **c59d4ab** merges **f1c36f3** (lane/K18) over **ef8ab6b** with `--no-ff`. Only this ledger

@@ -45,6 +45,7 @@ function halfBits(value: number): number {
 
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
+  readonly bufferHandles = true;
   private indexed: IndexedBlend | null;
   private buffers = new Map<number, BufferObject>();
   private textures = new Map<number, TextureObject>();

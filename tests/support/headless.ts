@@ -69,6 +69,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     caps: CAP_STORAGE | CAP_LINEAR_FILTER | CAP_SCISSOR | CAP_TRIANGLES | CAP_DIRECT_DRAW | CAP_RENDER_TARGETS |
       (opts.gpuBackend ? CAP_GPU : 0) | (opts.executeFrame ? CAP_READBACK : 0), /* LANE-GL */
     gpuBackend: opts.gpuBackend,
+    gpuBudgetBytes: manifest.gpu?.budgetBytes,
     seed: opts.seed ?? 1,
     displayWidth: 640,
     displayHeight: 360,

@@ -49,6 +49,7 @@ interface PipelineResource {
 
 export class WebGPUCommands implements GpuBackend {
   readonly languages = 7;
+  readonly bufferHandles = true;
   private bufferCopy?: WebGPUBufferCopy;
   readonly buffers = new Map<number, BufferResource>();
   readonly textures = new Map<number, TextureResource>();

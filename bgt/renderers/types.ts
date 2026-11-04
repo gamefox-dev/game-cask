@@ -44,6 +44,8 @@ export interface GpuItem {
   readback?: (data?: Uint8Array<ArrayBuffer>, error?: number) => void;
 }
 export interface GpuBackend {
+  /** Full nonzero-u32 buffer IDs, only after host-side explicit negotiation. */
+  readonly bufferHandles?: boolean;
   /** Bit language: WGSL=1, GLSL330=2, GLSLES300=4. Zero means unsupported (no CAP_GPU). */
   readonly languages: number;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */

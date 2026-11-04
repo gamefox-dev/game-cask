@@ -85,11 +85,13 @@ static int submit(void) {
 }
 /* Track accepted wire generations, including private resources. Private reservations are kept
  * even while unmaterialized: textures900..921; buffers1000..1006 and1023. */
-static uint8_t gpu_texture[N], gpu_buffer[N], gpu_shader[N], gpu_pipeline[N];
+static uint8_t gpu_texture[N], gpu_buffer_initial[N], gpu_shader[N], gpu_pipeline[N];
+static uint8_t *gpu_buffer = gpu_buffer_initial;
+static uint32_t buffer_wire_slots = N, buffer_handles_enabled;
 static int send(uint32_t code, const uint32_t *w, uint32_t n) {
     begin(); op(code, w, n); int ok = submit();
+    if (ok && n && w[0] && w[0] < buffer_wire_slots && (code == 0x40 || code == 0x42)) gpu_buffer[w[0]] = code == 0x40;
     if (ok && n && w[0] && w[0] < N) {
-        if (code == 0x40 || code == 0x42) gpu_buffer[w[0]] = code == 0x40;
         if (code == 0x43 || code == 0x59 || code == 0x45) gpu_texture[w[0]] = code != 0x45;
         if (code == 0x48 || code == 0x49) gpu_shader[w[0]] = code == 0x48;
         if (code == 0x4a || code == 0x4b) gpu_pipeline[w[0]] = code == 0x4a;
@@ -128,13 +130,17 @@ static void missing(const char *name) {
 }
 
 typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
-    uint32_t map, map_offset, map_size, map_flags, map_access, bound; } Buffer;
+    uint32_t map, map_offset, map_size, map_flags, map_access, bound, vao_refs; } Buffer;
 static void approximate(const char *kind);
 static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
 typedef struct { uint32_t used, element, bound; Attribute a[16]; } Vao;
 #include "w32_gl_program.h" /* K6b frontend; K6a texture/FBO objects live in their own headers. */
-static Buffer buffers[N]; static Vao vaos[N];
+static Buffer buffers_initial[N]; static Vao vaos_initial[N];
+static Buffer *buffers = buffers_initial; static Vao *vaos = vaos_initial;
+static uint32_t buffer_slots = N, vao_slots = N;
+#define BN buffer_slots
+#define VN vao_slots
 /* Generic current values belong to the context, not the VAO (GL 3.3 §2.8). */
 static float current_attr[16][4]; static uint32_t current_attr_ready;
 static void init_current_attr(void) {
@@ -195,7 +201,9 @@ static Pipeline pipelines[128]; static uint32_t pipeline_count;
 #include "w32_gl_names.h"
 /* Abandoned wire generations stay occupied until their destroy is accepted. This also
  * covers relink snapshots which no longer have a guest object owner. */
-static uint8_t abandoned_buffer[N], abandoned_shader[N], abandoned_pipeline[N];
+static uint8_t abandoned_buffer_initial[N], abandoned_shader[N], abandoned_pipeline[N];
+static uint8_t *abandoned_buffer = abandoned_buffer_initial;
+static uint32_t abandoned_buffers;
 static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
     uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
     if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
@@ -205,11 +213,14 @@ static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
 static void release_wire(uint32_t code, uint32_t handle, const char *kind) {
     if (!handle) return;
     uint8_t *pending = code == 0x42 ? abandoned_buffer : code == 0x49 ? abandoned_shader : abandoned_pipeline;
+    if (code == 0x42 && pending[handle]) abandoned_buffers--;
     pending[handle] = cleanup_send(kind, code, handle) ? 0 : eq(kind, "shaders") ? 1 : 2;
+    if (code == 0x42 && pending[handle]) abandoned_buffers++;
 }
 static void collect_wire(void) {
+    for (uint32_t h = 1; abandoned_buffers && h < buffer_wire_slots; h++)
+        if (abandoned_buffer[h] && cleanup_send("programs", 0x42, h)) { abandoned_buffer[h] = 0; abandoned_buffers--; }
     for (uint32_t h = 1; h < N; h++) {
-        if (abandoned_buffer[h] && cleanup_send("programs", 0x42, h)) abandoned_buffer[h] = 0;
         if (abandoned_shader[h] && cleanup_send(abandoned_shader[h] == 1 ? "shaders" : "programs", 0x49, h)) abandoned_shader[h] = 0;
         if (abandoned_pipeline[h] && cleanup_send("programs", 0x4b, h)) abandoned_pipeline[h] = 0;
     }
@@ -219,7 +230,21 @@ static uint32_t buffer_handle(uint32_t preferred, const char *kind) {
         preferred != 1023 && !gpu_buffer[preferred]) return preferred;
     for (uint32_t h = 1; h <= GPU_MAX; h++)
         if (!(h >= 1000 && h <= 1006) && h != 1023 && !gpu_buffer[h]) return h;
-    object_exhaustion(kind, "GPU buffer handles", 1); return 0;
+    if (buffer_handles_enabled) {
+        for (uint32_t h = N; h < buffer_wire_slots; h++) if (!gpu_buffer[h]) return h;
+        if (buffer_wire_slots <= UINT32_MAX / 4u) {
+            uint32_t cap = buffer_wire_slots * 2u;
+            uint8_t *p = glp_alloc(cap * 2u);
+            if (p) {
+                zero(p, cap * 2u); copy(p, gpu_buffer, buffer_wire_slots);
+                copy(p + cap, abandoned_buffer, buffer_wire_slots);
+                if (gpu_buffer != gpu_buffer_initial) glp_free(gpu_buffer, buffer_wire_slots * 2u);
+                uint32_t h = buffer_wire_slots; gpu_buffer = p; abandoned_buffer = p + cap; buffer_wire_slots = cap; return h;
+            }
+        }
+        object_exhaustion(kind, "GPU buffer ownership memory", 1); return 0;
+    }
+    object_exhaustion(kind, "GPU buffer handles (capability not negotiated)", 1); return 0;
 }
 static Buffer *bound_buffer(uint32_t target) {
     uint32_t id = target == ARRAY_BUFFER ? array : target == ELEMENT_BUFFER ? vaos[vao].element :
@@ -228,8 +253,8 @@ static Buffer *bound_buffer(uint32_t target) {
         target == 0x88ec ? pixel_unpack : target == 0x8c2a ? texture_buffer : 0;
     if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER &&
         target != 0x8f36 && target != 0x8f37 && target != 0x88eb && target != 0x88ec && target != 0x8c2a) fail(BAD_ENUM);
-    else if (!id || id >= N || !buffers[id].used) fail(BAD_OP);
-    return id && id < N && buffers[id].used ? &buffers[id] : 0;
+    else if (!id || id >= BN || !buffers[id].used) fail(BAD_OP);
+    return id && id < BN && buffers[id].used ? &buffers[id] : 0;
 }
 static uint32_t api_GenBuffers(void) {
     GEN_CHECK(buffers); int32_t n = (int32_t)ARG(0);
@@ -246,10 +271,13 @@ static uint32_t api_BindBuffer(void) {
     uint32_t target = ARG(0), id = ARG(1);
     if (target != ARRAY_BUFFER && target != ELEMENT_BUFFER && target != UNIFORM_BUFFER && target != FEEDBACK_BUFFER &&
         target != 0x8f36 && target != 0x8f37 && target != 0x88eb && target != 0x88ec && target != 0x8c2a) { fail(BAD_ENUM); return 0; }
-    id = BIND(buffers, id); if (id >= N) return 0;
+    id = BIND(buffers, id); if (id >= BN) return 0;
     if (id) buffers[id].bound = 1;
     if (target == ARRAY_BUFFER) array = id;
-    else if (target == ELEMENT_BUFFER) vaos[vao].element = id;
+    else if (target == ELEMENT_BUFFER) {
+        if (vaos[vao].element) buffers[vaos[vao].element].vao_refs--;
+        vaos[vao].element = id; if (id) buffers[id].vao_refs++;
+    }
     else if (target == UNIFORM_BUFFER) uniform = id;
     else if (target == FEEDBACK_BUFFER) tf_buffer = id;
     else if (target == 0x8f36) copy_read = id;
@@ -319,14 +347,12 @@ static void collect_deleted(void);
 static uint32_t api_DeleteBuffers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) {
-        uint32_t id = SLOT(buffers, x86_rd32(ARG(1) + 4 * i)); if (!id || id >= N) continue;
+        uint32_t id = SLOT(buffers, x86_rd32(ARG(1) + 4 * i)); if (!id || id >= BN) continue;
         if (tf_active) { int bound = 0; for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) bound = 1;
             if (bound) { fail(BAD_OP); continue; } }
-        int retained = 0;
-        for (uint32_t v = 0; v < N && !retained; v++) if (v != vao && (!v || vaos[v].used)) {
-            retained = vaos[v].element == id;
-            for (uint32_t a = 0; a < 16; a++) retained |= vaos[v].a[a].buffer == id;
-        }
+        uint32_t local = vaos[vao].element == id;
+        for (uint32_t a = 0; a < 16; a++) local += vaos[vao].a[a].buffer == id;
+        int retained = buffers[id].vao_refs > local;
         if (!retained && buffers[id].gpu) {
             if (!send(0x42, &buffers[id].gpu, 1)) continue;
             buffers[id].gpu = 0;
@@ -335,8 +361,8 @@ static uint32_t api_DeleteBuffers(void) {
         if (array == id) array = 0;
         if (uniform == id) uniform = 0;
         { uint32_t j = vao;
-            if (vaos[j].element == id) vaos[j].element = 0;
-            for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) vaos[j].a[a].buffer = 0;
+            if (vaos[j].element == id) { vaos[j].element = 0; buffers[id].vao_refs--; }
+            for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffers[id].vao_refs--; }
         }
         for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
@@ -351,21 +377,21 @@ static uint32_t api_BindBufferBase(void) {
         uint32_t s = ARG(1);
         if (s >= 4) { fail(BAD_VALUE); return 0; }
         if (tf_active) { fail(BAD_OP); return 0; }
-        uint32_t id = BIND(buffers, ARG(2)); if (id >= N) return 0;
+        uint32_t id = BIND(buffers, ARG(2)); if (id >= BN) return 0;
 
         if (id) buffers[id].bound = 1;
         tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     if (ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
-    uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= N) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
+    uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= BN) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
 
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
 }
 static uint32_t api_BindBufferRange(void) {
     if (ARG(0) == FEEDBACK_BUFFER) {
         uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
-        if (s >= 4 || id >= N) { fail(BAD_VALUE); return 0; }
+        if (s >= 4 || id >= BN) { fail(BAD_VALUE); return 0; }
         if (tf_active) { fail(BAD_OP); return 0; }
         if (id && (off < 0 || size <= 0 || (off & 3) || (size & 3) || (uint64_t)off + (uint64_t)size > buffers[id].size)) { fail(BAD_VALUE); return 0; }
 
@@ -373,7 +399,7 @@ static uint32_t api_BindBufferRange(void) {
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
-    if (s >= 8 || id >= N || (id && (off < 0 || size <= 0 || (off & 255) ||
+    if (s >= 8 || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
         (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }
@@ -388,13 +414,17 @@ static uint32_t api_GenVertexArrays(void) {
 }
 static uint32_t api_BindVertexArray(void) {
     uint32_t id = SLOT(vaos, ARG(0));
-    if (id >= N) { fail(BAD_OP); return 0; }
+    if (id >= VN) { fail(BAD_OP); return 0; }
     vao = id; if (id) vaos[id].bound = 1; return 0;
 }
 static uint32_t api_DeleteVertexArrays(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(vaos, x86_rd32(ARG(1) + i * 4));
-        if (id && id < N) { zero(&vaos[id], sizeof(Vao)); if (vao == id) vao = 0; } } return 0;
+        if (id && id < VN) {
+            if (vaos[id].element) buffers[vaos[id].element].vao_refs--;
+            for (uint32_t a = 0; a < 16; a++) if (vaos[id].a[a].buffer) buffers[vaos[id].a[a].buffer].vao_refs--;
+            erase_name(OBJECTS(vaos), id); if (vao == id) vao = 0;
+        } } return 0;
 }
 static uint32_t attribute(int integer) {
     uint32_t a = ARG(0), count = ARG(1), type = ARG(2), stride = ARG(integer ? 3 : 4);
@@ -405,7 +435,9 @@ static uint32_t attribute(int integer) {
         /* Numeric conversion of other GL vertex formats needs expansion, never bit reinterpretation. */
         fail(BAD_ENUM); return 0;
     }
-    Attribute *v = &vaos[vao].a[a]; v->buffer = array; v->count = count; v->type = type;
+    Attribute *v = &vaos[vao].a[a];
+    if (v->buffer) buffers[v->buffer].vao_refs--;
+    buffers[array].vao_refs++; v->buffer = array; v->count = count; v->type = type;
     v->normalized = integer ? 0 : (ARG(3) & 255); v->integer = integer;
     v->stride = stride ? stride : count * (type == U8 ? 1 : 4); v->offset = ARG(integer ? 4 : 5); return 0;
 }
@@ -477,18 +509,15 @@ static int attached_image(uint32_t type, uint32_t id) {
 static void collect_deleted(void) {
     if (!gl_retired) return;
     GlObjects *bo = OBJECTS(buffers), *to = OBJECTS(textures), *ro = OBJECTS(rbos);
-    for (uint32_t id = 1; id < N; id++) {
+    for (uint32_t id = 1; id < BN; id++) {
         if (bo->retired[id]) {
-            int referenced = 0;
-            for (uint32_t v = 0; v < N && !referenced; v++) if (!v || vaos[v].used) {
-                referenced = vaos[v].element == id;
-                for (uint32_t a = 0; a < 16; a++) referenced |= vaos[v].a[a].buffer == id;
-            }
-            if (!referenced && (!buffers[id].gpu || cleanup_send("buffers", 0x42, buffers[id].gpu))) {
+            if (!buffers[id].vao_refs && (!buffers[id].gpu || cleanup_send("buffers", 0x42, buffers[id].gpu))) {
                 unmap_storage(&buffers[id]); glp_free(buffers[id].data, buffers[id].size);
-                zero(&buffers[id], sizeof(Buffer)); bo->retired[id] = 0; gl_retired--;
+                erase_name(bo, id);
             }
         }
+    }
+    for (uint32_t id = 1; id < N; id++) {
         if (to->retired[id] && !attached_image(1, id) && (!textures[id].gpu || cleanup_send("textures", 0x45, textures[id].gpu))) {
             zero(&textures[id], sizeof(Texture)); to->retired[id] = 0; gl_retired--;
         }

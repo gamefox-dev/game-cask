@@ -15,9 +15,10 @@ it('full GLuint names, ABI capacity, deletion generations and porter-visible exh
   expect(h.host.commandErrorCount).toBe(0);
   const m = h.host.metrics() as Record<string, any>;
   expect(m.interp_insns).toBe(0); expect(m.gl_stubs).toEqual([]);
-  for (const kind of ['textures', 'buffers']) expect(m.gl_objects[kind]).toMatchObject({ peak: 1023, failures: 2, failed_requests: 2 });
+  expect(m.gl_objects.textures).toMatchObject({ peak: 1023, failures: 2, failed_requests: 2 });
+  expect(m.gl_objects.buffers).toMatchObject({ peak: 1024, failures: 0, failed_requests: 0 });
   for (const kind of ['vaos', 'samplers', 'fbos', 'rbos', 'gl_queries', 'shaders', 'programs']) expect(m.gl_objects[kind].peak).toBeGreaterThanOrEqual(600);
-  expect(h.logs.filter(l => l.includes('GL_OUT_OF_MEMORY object=')).length).toBe(4);
+  expect(h.logs.filter(l => l.includes('GL_OUT_OF_MEMORY object=')).length).toBe(2);
   const textures = stream.items.filter(i => i.op === O.TEXTURE_CREATE_EX).map(i => i.words[0]);
   expect(textures).toContain(1023); expect(textures.some(n => n >= 900 && n <= 921)).toBe(false);
   const buffers = stream.items.filter(i => i.op === O.BUFFER_CREATE).map(i => i.words[0]);

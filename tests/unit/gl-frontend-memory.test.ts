@@ -9,7 +9,7 @@ import { ROOT } from '../support/headless';
 let dir: string, exe: string;
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'bgt-gl-memory-')); exe = join(dir, 'driver');
-  execFileSync(process.env.CC ?? 'cc', ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror',
+  execFileSync(process.env.CC ?? 'cc', ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-DW32_GL_TEST_NAME_LIMIT=1023',
     '-ffunction-sections', '-fdata-sections', process.platform === 'darwin' ? '-Wl,-dead_strip' : '-Wl,--gc-sections',
     '-I', join(ROOT, 'bgt/include'), '-I', join(ROOT, 'platforms/x86'), '-I', join(ROOT, 'platforms/win32'),
     join(ROOT, 'tests/native/gl_frontend_driver.c'), '-o', exe], { stdio: 'pipe' });

@@ -58,6 +58,7 @@ extern "C" {
 #define BGT_CAP_YIELD          (1u << 9)  /* v0.2: bgt_yield() honoured (game built with asyncify) */
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
+#define BGT_CAP_GPU_BUFFER_HANDLES (1u << 14) /* v0.3: opt-in full-u32 buffer IDs */
 #define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
 #define BGT_CAP_ENTROPY        (1u << 13) /* LANE-K1: host entropy, not simulation PRNG */
 
@@ -238,6 +239,8 @@ typedef struct bgt_gpu_limits_v3 {
     uint32_t shader_languages, max_mip_levels, max_instances, reserved;
 } bgt_gpu_limits_v3_t; /* 80 bytes; cap >= 80 queries this extension */
 BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
+/* Explicit per-host opt-in; no effect on other namespaces or byte budgets. Idempotent. */
+BGT_IMPORT(gpu_buffer_handles) int32_t bgt_gpu_buffer_handles(void);
 
 /* v0.3 asynchronous request results. status: 0 pending, 1 ready, or error. Reads do not consume.
  * Completion becomes visible only on a later bgt_update (normally after bgt_yield). */
