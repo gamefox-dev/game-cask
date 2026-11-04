@@ -176,7 +176,7 @@ it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive
   const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
   if(variant==='partitioned'){
    const out=join(ROOT,'web/public/games',id);
-   const result=transform(raw,join(out,'game.wasm'),[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{wholeLimit:0,partitionBytes:1048576});
+   const result=transform(raw,join(out,'game.wasm'),[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{wholeLimit:0,partitionBytes:65536});
    expect(result.partitions).toBeGreaterThan(1);
    const bytes=readFileSync(join(out,'game.wasm'));
    m.wasm={url:'game.wasm',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
