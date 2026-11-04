@@ -213,6 +213,7 @@ static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
+    interpreter_span_set(0);
     x86_coverage_flush();
     uint32_t n = 0;
     const char *p = "x86: ";

@@ -4,9 +4,11 @@ import {it,expect} from 'vitest';
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {compileC} from '../../tests/support/compile';
+// @ts-expect-error ESM resource snapshot
+import {resourceSnapshot} from '../probe/resources.mjs';
 const median=(a:number[])=>[...a].sort((a,b)=>a-b)[Math.floor(a.length/2)];
 it('measures imported monotonic clock and coarse transition cost',async()=>{
- const n=1000000,rows=[];
+ const resources=resourceSnapshot(),n=1000000,rows=[];
  for(const enabled of [0,1]){
   const bytes=await compileC('tests/fixtures/c/interpreter-spans.c',['X86_PROFILE_ENABLED='+enabled]);
   for(const clock of ['constant','monotonic']){
@@ -21,6 +23,6 @@ it('measures imported monotonic clock and coarse transition cost',async()=>{
    }
   }
  }
- const file=join(process.env.BGT_TRIAL_SCRATCH!,'continue/clock.json');writeFileSync(file,JSON.stringify({node:process.version,rows},null,2)+String.fromCharCode(10));
+ const file=join(process.env.BGT_TRIAL_SCRATCH!,'continue/clock.json');writeFileSync(file,JSON.stringify({node:process.version,resources,resourcesEnd:resourceSnapshot(),rows},null,2)+String.fromCharCode(10));
  console.log(JSON.stringify(rows.map(({enabled,clock,op,medianMs})=>({enabled,clock,op,nsPerIteration:medianMs*1e6/n}))));
 },600000);
