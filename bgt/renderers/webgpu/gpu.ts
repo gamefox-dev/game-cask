@@ -117,7 +117,7 @@ export class WebGPUCommands implements GpuBackend {
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
-    const shaders = [...this.shaders], pipelines = [...this.pipelines].filter(([, p]) => !p.failure);
+    const shaders = [...this.shaders], pipelines = [...this.pipelines].filter(([, p]) => p.failure === undefined);
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
     this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear(); this.clearPipelines.clear();
     for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
@@ -708,7 +708,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private requirePipeline(handle: number): PipelineResource {
     const pipeline = this.pipelines.get(handle), failure = this.failedPipelines.get(handle) ?? pipeline?.failure;
-    if (failure) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
+    if (failure !== undefined) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
     if (!pipeline) throw new Error(`Pipeline ${handle} has no native executable`);
     return pipeline;
   }
@@ -839,7 +839,7 @@ struct VO { @builtin(position) pos: vec4f };
       }
       p = variant;
     }
-    if (p.failure) throw new Error(`Pipeline ${p.words[0]} specialization failed: ${p.failure}`);
+    if (p.failure !== undefined) throw new Error(`Pipeline ${p.words[0]} specialization failed: ${p.failure}`);
     this.pass!.setPipeline(p.native);
     for (let slot = 0; slot < p.words[23]; slot++) {
       const w = this.vertices.get(slot)!, b = this.buffers.get(w[1])!;

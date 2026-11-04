@@ -37,6 +37,14 @@ it('settled native failure rejects all pipeline consumers and clears the old exe
   expect(t.pass.setPipeline).toHaveBeenCalledTimes(1); expect(t.pass.draw).not.toHaveBeenCalled(); expect(t.pass.drawIndexed).not.toHaveBeenCalled();
   expect(t.errors).toHaveLength(6); expect(t.errors.join(' ')).not.toMatch(/undefined|TypeError/);
 });
+it('an empty native validation message still marks a failed pipeline', async () => {
+  const t=setup();
+  expect(t.send(O.PIPELINE_CREATE,t.words(1))).toBe(0);
+  t.scopes[0]({message:''}); await Promise.resolve(); await Promise.resolve();
+  expect(t.send(O.PIPELINE,[1])).toBe(E_IO);
+  expect(t.send(O.DRAW,[3,1,0,0])).toBe(E_IO);
+  expect(t.pass.setPipeline).not.toHaveBeenCalled(); expect(t.pass.draw).not.toHaveBeenCalled();
+});
 it('a pipeline bound while pending becomes unusable when its native failure settles', async () => {
   const t=setup();
   expect(t.send(O.PIPELINE_CREATE,t.words(1))).toBe(0);

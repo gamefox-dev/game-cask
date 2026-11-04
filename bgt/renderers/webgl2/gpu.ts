@@ -428,7 +428,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   private requirePipeline(handle: number): PipelineObject {
     const failure = this.failedPipelines.get(handle);
-    if (failure) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
+    if (failure !== undefined) throw new Error(`Pipeline ${handle} creation failed: ${failure}`);
     const pipeline = this.pipelines.get(handle);
     if (!pipeline) throw new Error(`Pipeline ${handle} has no native executable`);
     return pipeline;
