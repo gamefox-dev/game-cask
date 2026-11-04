@@ -11,14 +11,16 @@ import {Vfs} from '../../bgt/runtime/vfs';
 import {jspiApi} from '../../bgt/runtime/jspi';
 // @ts-expect-error ESM build tool
 import {transform} from '../../tools/build/asyncify.mjs';
-type Ex={total():number;done():number;started():number;set_quantum(n:number):void;insns():number;string_run(budget:number,count:number):void;remaining():number;transfer():number;long_run():void};
+// @ts-expect-error ESM build feature contract
+import {WASM_OPT_FEATURES} from '../../tools/build/build.mjs';
+type Ex={total():number;done():number;started():number;set_quantum(n:number):void;insns():number;string_run(budget:number,count:number):void;remaining():number;transfer():number;long_run():void;fault_run():void};
 for(const width of [0,1])it('hand-times the real '+(width?'AMD64':'i386')+' dispatcher across native/API callbacks and 300 host updates',async()=>{
  for(const enabled of [0,1]){
   const raw=await compileC('tests/fixtures/c/interpreter-dispatch-spans.c',['MODE64='+width,'X86_PROFILE_ENABLED='+enabled],true);
   const dir=mkdtempSync(join(tmpdir(),'bgt-dispatch-spans-'));
   try{
    const input=join(dir,'raw.wasm'),output=join(dir,'async.wasm');writeFileSync(input,raw);
-   transform(input,output,['-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield']);
+   transform(input,output,[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield']);
    for(const mode of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[]){
     let now=0;
     const host=await GameHost.create(mode==='asyncify'?readFileSync(output):raw,{vfs:new Vfs(),now:()=>now,
@@ -58,6 +60,9 @@ for(const width of [0,1])it('hand-times the real '+(width?'AMD64':'i386')+' disp
     // NOT a clock at every interpreted dispatch. Disabled timing has no clock imports.
     expect((host.importCounts.time_us ?? 0)-clocks).toBeLessThan(100);
     if(!enabled)expect((host.importCounts.time_us ?? 0)-clocks).toBe(0);
+    const beforeFault=ex.total();expect(()=>ex.fault_run()).toThrow(/guest memory access violation at 0x0000a000/);
+    expect(ex.total()-beforeFault).toBe(enabled?20000:0);
+    const faultTotal=ex.total();now+=1000000;expect(ex.total()).toBe(faultTotal);
    }
   }finally{rmSync(dir,{recursive:true,force:true});}
  }

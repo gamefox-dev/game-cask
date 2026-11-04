@@ -9,6 +9,8 @@ import {compileC} from '../support/compile';
 import {jspiApi} from '../../bgt/runtime/jspi';
 // @ts-expect-error ESM build tool
 import {transform} from '../../tools/build/asyncify.mjs';
+// @ts-expect-error ESM build feature contract
+import {WASM_OPT_FEATURES} from '../../tools/build/build.mjs';
 type Ex={memory:WebAssembly.Memory;run:()=>void;total:()=>number;reset:()=>void;buffer:()=>number;prepare:()=>void;
  asyncify_get_state:()=>number;asyncify_start_unwind:(p:number)=>void;asyncify_stop_unwind:()=>void;asyncify_start_rewind:(p:number)=>void;asyncify_stop_rewind:()=>void;bias:(n:number)=>number};
 it('demonstrates that extrapolated timer cost alone can exceed the entire wall interval',async()=>{
@@ -23,7 +25,7 @@ it('matches hand-timed exclusive spans through native nesting, scheduler work, r
   const dir=mkdtempSync(join(tmpdir(),'bgt-spans-'));
   try{
    const input=join(dir,'raw.wasm'),out=join(dir,'async.wasm');writeFileSync(input,raw);
-   transform(input,out,['-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield']);
+   transform(input,out,[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield']);
    for(const mode of ['plain','asyncify',...(jspiApi()?['jspi']:[])]){
     let now=0,parked=0;
     const api=jspiApi();

@@ -1,6 +1,7 @@
 /* Original CC0-1.0. Real decoder, dispatcher and semantics with explicit hand-clock
  * work before each semantic dispatch. No replaced guest instruction or OS API. */
 #include <stdio.h>
+#include "wasi_offline.h" /* Deterministic musl stack-cookie bytes, no host WASI. */
 #define X86_COVERAGE_MODE 0
 #if MODE64
 #define X86_FLAT_GUEST 1
@@ -74,6 +75,11 @@ BGT_EXPORT(string_run) void string_run(unsigned budget,unsigned count) {
 BGT_EXPORT(long_run) void long_run(void) {
     X.r[ESP]=0x8000;X.frame_insns=0;X.transfer=0;
     x86_push(0xfffffff4u);x86_invoke(0x4000,0xfffffff4u);
+}
+/* Real explicit runtime fault after MOV/RET; not an externally injected wasm trap. */
+BGT_EXPORT(fault_run) void fault_run(void) {
+    X.r[ESP]=0x8000;X.frame_insns=0;X.transfer=0;
+    x86_push(0xa000);x86_invoke(0x2000,0xfffffff4u);
 }
 BGT_EXPORT(remaining) unsigned remaining(void) { return X.r[ECX]; }
 BGT_EXPORT(transfer) unsigned transfer(void) { return X.transfer; }
