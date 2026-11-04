@@ -21,6 +21,12 @@ static inline uint32_t xa_check(uint64_t address, unsigned n) {
     x86_check_access(a, n, 3);
     return a;
 }
+/* The bit-string displacement is part of address generation: address-size truncation
+ * precedes segment-base addition, including when the signed index crosses 0/4GiB. */
+static inline uint64_t xa_bit_address(uint64_t address, uint64_t bit, int n, int addr32, uint64_t segment) {
+    uint64_t delta = (uint64_t)(((int64_t)x64_sext(bit,n) >> (n == 8 ? 6 : n == 4 ? 5 : 4)) * n);
+    return addr32 ? (uint32_t)(address - segment + delta) + segment : address + delta;
+}
 /* Capture EA once: source/result registers can also be the destination's base/index. */
 static inline void xa_exec(const x86_insn_t *in) {
     const x86_opnd_t *a = &in->o[0], *b = &in->o[1];
@@ -29,7 +35,7 @@ static inline void xa_exec(const x86_insn_t *in) {
     int bitop = in->op == XO_BTS || in->op == XO_BTR || in->op == XO_BTC;
     uint64_t bit = bitop ? x64_read(b) : 0;
     if (bitop && b->kind == XK_REG)
-        address += (uint64_t)(((int64_t)x64_sext(bit,n) >> (n == 8 ? 6 : n == 4 ? 5 : 4)) * n);
+        address = xa_bit_address(address,bit,n,a->pad&1,a->seg_fs ? (a->seg_fs==2 ? X.gs_base : X.fs_base) : 0);
     uint32_t p = a->kind == XK_MEM ? xa_check(address, (unsigned)n) : 0;
     xa_fence();
     if (in->op == XO_CMPXCHG_PAIR) {

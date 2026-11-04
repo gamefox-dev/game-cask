@@ -59,6 +59,7 @@ void x86_simd(const x86_insn_t *in) {
     }
     int readbytes=(op==0x10&&scalar)||(op==0x5a&&scalar)||(op==0xc2&&scalar)||(op>=0x2e&&op<=0x2f)?bytes:(op==0x7e?8:scalar&&op>=0x51&&op<=0x5f?bytes:16);
     if((op==0x5a&&prefix==0)||(op==0xe6&&prefix==0xf3))readbytes=8;
+    if(b->kind==XK_MEM && x86_simd_aligned_legacy(op,prefix)){uint32_t p=x64_ea(b);if(p&15)x86_fault("unaligned SSE operand",p);}
     bv=loadv(b,readbytes);
     if(op==0x10 || op==0x28 || op==0x6f || op==0x7e){if(op==0x7e){r=(x86_vec_t){0};r.u64[0]=bv.u64[0];}else if(op==0x10&&scalar){if(b->kind==XK_MEM)r=(x86_vec_t){0};__builtin_memcpy(&r,&bv,(uint32_t)bytes);}else r=bv;X.xmm[a->reg]=r;return;}
     if(op==0x2e || op==0x2f){double x=dbl?av.f64[0]:av.f32[0],y=dbl?bv.f64[0]:bv.f32[0];X.flags&=~(F_OF|F_SF|F_AF|F_ZF|F_PF|F_CF);if(x!=x||y!=y)X.flags|=F_ZF|F_PF|F_CF;else if(x==y)X.flags|=F_ZF;else if(x<y)X.flags|=F_CF;return;}

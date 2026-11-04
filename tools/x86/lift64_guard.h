@@ -42,6 +42,8 @@ static l64_guard_t l64_guard(x86_insn_t *ins, uint32_t begin, uint32_t end) {
                 if (op == 0x2a) bytes = (in->rex & 8) ? 8 : 4;
                 if (op == 0x2c || op == 0x2d) bytes = in->simd_prefix == 0xf2 ? 8 : 4;
                 if (l64_simd_bits(in)) bytes = p.size;
+                /* Span checks do not prove the legacy m128 alignment contract. */
+                if (l64_simd_bits(in) && x86_simd_aligned_legacy((unsigned)op, in->simd_prefix)) g.safe = 0;
             }
             if (!l64_span_add(&g, p, bytes, sp)) g.safe = 0;
         }

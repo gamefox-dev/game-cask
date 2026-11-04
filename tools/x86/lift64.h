@@ -227,6 +227,11 @@ static void l64_simd_bit_emit(FILE *o, const x86_insn_t *in, uint32_t next) {
     if (b->kind == XK_XMM) fprintf(o, "bv=X.xmm[%u];", b->reg);
     else {
         char ea[300]; l64_ea(ea, sizeof ea, b, 1);
+        if (x86_simd_aligned_legacy(op, pre)) {
+            uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (5 << 5) | b->size;
+            fprintf(o, "address=%s;if(address&15){", ea); l64_replay_flags(o);
+            fprintf(o, "fault=0x%llxull;goto memory_fault;}", (unsigned long long)meta);
+        }
         l64_pointer(o, ea, b->size, next, 3, "0");
         fprintf(o, "bv=(x86_vec_t){0};__builtin_memcpy(&bv,p,%u);", b->size);
     }
@@ -274,7 +279,7 @@ static void l64_atomic_emit(FILE *o, const x86_insn_t *in, uint32_t next) {
         char ea[300]; l64_ea(ea, sizeof ea, a, 1);
         if (bitop) l64_read(o, b, "u", next);
         fprintf(o, "address=%s;", ea);
-        if (bitop && b->kind == XK_REG) fprintf(o, "address+=(uint64_t)(((int64_t)x64_sext(u,%d)>>%d)*%d);", n, n == 8 ? 6 : n == 4 ? 5 : 4, n);
+        if (bitop && b->kind == XK_REG) fprintf(o, "address=xa_bit_address(address,u,%d,%d,%s);", n, !!(a->pad & 1), a->seg_fs ? (a->seg_fs == 2 ? "X.gs_base" : "X.fs_base") : "0");
         uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (4 << 5) | n;
         fprintf(o, "p=%s(address,%u,3);if(!p%s){",
             lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, n == 16 ? "||(address&15)" : "");
@@ -690,7 +695,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "budget+=(uint32_t)(debt+((fault>>8)&0xffffffu));\n");
         else fprintf(o, "clock-=(fault>>8)&0xffffffu;budget-=(fault>>8)&0xffffffu;\n");
         l64_sync(o, 0);
-        fprintf(o, "X.eip=pc;{if(writing==4){(void)xa_check(address,(unsigned)width);x86_fault(\"invalid atomic memory\",(uint32_t)address);}uint32_t a=x86_address(address);"
+        fprintf(o, "X.eip=pc;{if(writing==4){(void)xa_check(address,(unsigned)width);x86_fault(\"invalid atomic memory\",(uint32_t)address);}uint32_t a=x86_address(address);if(writing==5)x86_fault(\"unaligned SSE operand\",a);"
                    "if(writing==2){for(int j=0;j<width;j++)x86_wr8(a+(uint32_t)j,av.u8[j]);}"
                    "else if(writing==3){for(int j=0;j<width;j++)(void)x86_rd8(a+(uint32_t)j);}"
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"
