@@ -23,7 +23,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
 import { peMetadata } from '../inspect/pe.mjs';
-import { coveragePlan, staticClosure, owningRanges } from './coverage.mjs';
+import { coveragePlan, staticClosure, owningRanges, automaticCoverageFiles, selectionMode, selectionProvenance, validateCoverageIdentity, validateCoverageModule } from './coverage.mjs';
 import { streamFile, compactPe, hashFile } from './files.mjs';
 import { analyzeCached, liftChunks, liftPolicy, liftPolicyArgs } from './chunks.mjs';
 import { hermeticTimeFlags, PINNED_TIME, prepareObjects } from './objects.mjs';
@@ -207,9 +207,13 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
   }
   const hostArenaMiB = hostArenaSize(p.memory);
-  const recorded=cfg.slice?.coverage ?? p.coverage;
-  const plan=recorded ? coveragePlan(typeof recorded==='string'?[recorded]:recorded,gameDir) : null;
-  const sliceCode=new Set(), sliceRanges=[], codeRanges=[];
+  const mode=selectionMode(p,!!cfg.slice);
+  const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
+  const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
+    ...(!cfg.slice && mode==='coverage'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
+  const plan=files.length ? coveragePlan(files,gameDir) : null;
+  if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,plan.modules,{strict:!!cfg.slice});
+  const sliceCode=new Set(), sliceRanges=[], codeRanges=[], codeOwners=[];
   let codeFunctions=0;
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
@@ -255,10 +259,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     const id = cIdent(name);
     let lifted = null, stats = null, analysis = null, chunkSources = null, scale = null;
     const identity = hashFile(file);
-    let ownershipAnalysis = null;
+    let ownershipAnalysis = null, selection = null;
     if(plan && p.interpretOnly) {
-      const identity=plan.modules.find((m)=>m.name===name);
-      if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}`);
+      validateCoverageModule(plan,name,identity,base);
       const an=analyzeCached(tool,file,id,base,work,identity).analysis;
       ownershipAnalysis=an;
       for(const a of staticClosure(an,plan.code))sliceCode.add(a);
@@ -271,13 +274,13 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       let selectedSet = null;
       if (p.flagLiveness === true) args.push('--flag-liveness','on');
       if(plan) {
-        const identity=plan.modules.find((m)=>m.name===name);
-        if(!identity||identity.sha256!==hashFile(file)||identity.base!==base)throw new Error(`coverage identity mismatch for ${name}; record the exact module/base again`);
+        validateCoverageModule(plan,name,identity,base);
         const an=measured.analysis;
-        const selected=staticClosure(an,plan.code);
-        selectedSet = new Set(selected);
+        selection=selectionProvenance(an,plan,mode);
+        const selected=selection.owners;
+        selectedSet = mode==='all'?null:new Set(selected);
         for(const a of selected)sliceCode.add(a);
-        const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);
+        if(selectedSet){const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);}
       }
       if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
       if (mode64 && p.chunkInstructions !== 0 && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
@@ -301,7 +304,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       }
     }
     ownershipAnalysis ??= analysis ? JSON.parse(analysis) : analyzeCached(tool,file,id,base,work,identity).analysis;
+    selection ??= selectionProvenance(ownershipAnalysis,plan,mode);
     const ranges=owningRanges(ownershipAnalysis);
+    codeOwners.push(...ownershipAnalysis.functions.map(f=>f.addr));
     const owners=new Map(ownershipAnalysis.functions.map((f,i)=>[f.addr,codeFunctions+i]));
     codeFunctions+=owners.size;
     for(const r of ranges)codeRanges.push({...r,owner:owners.get(r.owner)});
@@ -310,9 +315,10 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
       for(const r of ranges)if(selected.has(r.owner))sliceRanges.push({addr:r.addr,end:r.end});
     }
     const totals = ownershipAnalysis.totals;
-    mods.push({ name, id, asset, base, size: info.size, main: !!m.main, lifted, chunkSources, stats, scale, provenance, sha256: identity,
+    mods.push({ selection, name, id, asset, base, size: info.size, main: !!m.main, lifted, chunkSources, stats, scale, provenance, sha256: identity,
       functions: stats ? stats.functions : 0, discoveredFunctions: totals?.functions ?? 0, dataSeeds: totals ? totals.dataSeeds ?? 0 : 0, importDlls: info.importDlls });
   }
+  if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,mods,{strict:!!cfg.slice});
   if (!mods.some((m) => m.main)) mods[0].main = true;
   /* static imports must resolve to a shipped module or a DLL the profile implements (Win32 would refuse to start
      the program with "The program can't start because X.dll is missing") */
@@ -345,6 +351,7 @@ ${ext}
 static const w32_module_cfg_t modules[] = {
 ${rows}
 };
+static const uint32_t code_owners[] = {${codeOwners.map(a=>a+'u').join(',')}};
 static const x86_code_range_t code_ranges[] = {
 ${codeRanges.map((r)=>`    {${r.addr}u,${r.end}u,${r.owner}u},`).join('\n')}
 };
@@ -355,7 +362,7 @@ static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 64
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
-BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; ${cfg.slice && plan ? `x86_set_slice(slice_entries,${sliceCode.size},slice_ranges,${sliceRanges.length});` : ''} x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); return w32_boot(&config, &io); }
+BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) { (void)p; ${cfg.slice && plan ? `x86_set_slice(slice_entries,${sliceCode.size},slice_ranges,${sliceRanges.length});` : ''} x86_register_code_ranges(code_ranges, ${codeRanges.length}, ${codeFunctions}); x86_register_code_owner_addresses(code_owners); return w32_boot(&config, &io); }
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) { (void)dt; w32_update(); x86_coverage_flush(); }
 BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
@@ -363,6 +370,8 @@ ${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(ui
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash(); }
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();}
+BGT_EXPORT(bgt_interpreter_coverage) uint32_t bgt_interpreter_coverage(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}
+BGT_EXPORT(bgt_guest_presentations) uint32_t bgt_guest_presentations(void) {return (uint32_t)(uintptr_t)w32_guest_presentations();}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
 BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
 `);
@@ -399,12 +408,13 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
     liftPolicy: policy,
+    selection: mode,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB } : null,
     interpretOnly: !!p.interpretOnly,
     ...(plan ? {discovery:{input_recordings:plan.recordings,recorded_entries:plan.code.size}} : {}),
     ...(p.fixture ? { fixture: { normalCrt: p.fixture.crt === true,
       optimization: p.fixture.crt === true ? '-O2' : '-O1', language: p.fixture.cpp ? 'C++' : 'C' } } : {}),
-    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, imports: m.importDlls, lift: m.stats, scale: m.scale })),
+    modules: mods.map((m) => ({ name: m.name, base: m.base, provenance: m.provenance, sha256: m.sha256, functions: m.functions, dataSeeds: m.dataSeeds, selection:m.selection, imports: m.importDlls, lift: m.stats, scale: m.scale })),
     exceptions: { overrides: ov.addrs.map((a) => '0x' + a.toString(16)), files: ov.files.map((f) => relative(gameDir, f)) },
     loc: { generated, handwritten },
   };
@@ -430,7 +440,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
 }
 
 export function pipelineSummary(r) {
-  const f = r.modules.map((m) => `${m.name}: ${m.functions} fns${m.lift ? `, ${m.dataSeeds ?? 0} data seeds rejected, ${m.lift.specialized} specialized/${m.lift.generic} generic insns, ${m.lift.jumpTables} jump tables, ${m.lift.unresolvedJumps} unresolved` : ' (interpreted)'}`);
+  const f = r.modules.map((m) => `${m.name}: ${m.functions}/${m.selection?.analyzed_functions ?? "?"} fns [${m.selection?.mode ?? "unknown"}]${m.lift ? `, ${m.dataSeeds ?? 0} data seeds rejected, ${m.lift.specialized} specialized/${m.lift.generic} generic insns, ${m.lift.jumpTables} jump tables, ${m.lift.unresolvedJumps} unresolved` : ' (interpreted)'}`);
   return `pipeline ${r.platform}${r.interpretOnly ? ' [interpret-only oracle build]' : ''}: ${f.join('; ')}; generated ${r.loc.generated} LOC, hand-written ${r.loc.handwritten} LOC, ${r.exceptions.overrides.length} override(s)${r.discovery ? `; discovery input interpreted instructions: ${r.discovery.input_recordings.map((m)=>m.interp_insns ?? 'unknown').join(', ')} (re-record after building to measure remaining work)` : ''}`;
 }
 

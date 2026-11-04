@@ -1,5 +1,70 @@
 # v0.3 merged implementation status
 
+## Integration I12 final — K21 + K22 (merged-tree gates complete)
+
+Merged with `--no-ff`, K21 then K22, over dev.14 `4bcc068`. Default coverage convergence and exact
+identity/adoption/strict-slice policy coexist with bounded Asyncify, JSPI-only and JSPI-preferred packages.
+Asyncify remains default. Integration repairs identify the active variant on execution summaries/probe output
+and coverage snapshot metrics, and include the partition name parser in post-link cache identity.
+Binaryen partition children preserve type order so shard-local usage cannot change shared section indices;
+all strict assembly checks remain. Regressions cover all four convergence variants, snapshot serialization
+and every postprocess implementation input. Asyncify remains the global default.
+
+Final source gates: doctor; full lint **36/36 examples**, real GCC + explicit clang; types;
+**2,015 units /106 files /0 skips**; leakcheck; **32 pipeline oracles ×2 modes ×300 =19,200 identical
+frame pairs**, lifted interp0/stubs0/errors0 and equal cross-variant trace hashes. Asyncify full browser:
+**291 passed /51 existing skips /0 failures /0 flaky**. JSPI browser: **reviewer-approved combined291
+passed /51 existing skips /0 unresolved failures**, not an uninterrupted green full run: first full attempt
+had one teardown ENOSPC, second had one different360000ms timeout under ~40 load on10 cores; the latter
+passes unchanged in focused recovery. Both full attempts and recovery are explicitly retained.
+Four-mode convergence (default, forced-partition Asyncify, JSPI-only/preferred) **70,003→0** interpreted
+instructions, identical traces, zero drops. Reduced scale **1,044 owners /five partitions**, all300
+reference/raw/Asyncify/real-JSPI checksums equal and10,500 yields per variant; temporary wasm removed.
+
+Inherited external lane reviews: **vK21b PASS /vK22b PASS**. Reviewer accepted the narrow repair diff and
+the type-order flag/regression; this is not a separate independent merged-tree validation or CI run.
+No game/playability or physical-device certification. [I12 handoff](handoff/integration-i12.md),
+[compact evidence](handoff/integration-i12-evidence.json).
+
+## K21 final — coverage convergence and guest presentations (lane Tier 1 green)
+
+Default coverage selection automatically merges successful probe/passing-port-test evidence with exact per-input
+module/game identity, deterministic owner/interior/static-closure provenance and explicit all-analysis selection.
+Strict slices remain supplied-evidence-only and reject all. Adopt/re-stamp migration requires unchanged modules,
+preserves executed evidence and records source/manifest hashes. Rejected evidence preserves the previous manifest.
+Persistent interpreter entries/counts survive census reset/profiling-off; exclusive sampled fallback timing and
+real guest presentation count/rate/avg/p95 accompany updates/s. **Updates are not guest frames.**
+
+Final lane evidence: **2,000 units /102 files**, browser **287 passed /51 existing skips**, doctor/lint/clang/GCC/
+types/leakcheck pass, **32 pipeline oracles ×300 updates** identical with zero lifted interpretation/stubs.
+External **vK21 FAIL →vK21b PASS** repairs fixture initialization, final-outcome-only evidence publication and
+preserved adoption manifests, with sensitive regressions. Original CC0 loop converges **70,003→0 interpreted
+instructions** with identical traces. Selection scale measurements are build/size costs, not game-speed claims.
+Contracts: [coverage convergence](coverage-convergence.md); evidence/limits: [K21 handoff](handoff/K21.md).
+
+## K22 final — bounded game-scale suspension (lane Tier 1 green)
+
+Implementation **41a3a53** resolves the pinned wasm32 Binaryen CLI's **4 GiB parse-heap limit** with bounded
+post-link Asyncify body partitions, conservative cross-partition suspension summaries and checked assembly.
+A CC0 **417,126,367-byte /10,438-owner** module that fails whole-module parsing/O2/Asyncify builds in
+**50 partitions /1445.22 s** (max RSS1.50 GB, peak physical footprint1.87 GB); mathematical/raw/Asyncify/real-JSPI
+checksums match all300 frames and10,500 deep parked yields per variant. Failures have actionable diagnostics.
+JSPI-only builds bypass wasm-opt; dual packages retain Asyncify fallback. Reviewer #180 keeps **Asyncify default**,
+with persistent per-game **game.json suspension: "jspi-preferred"** opt-in and active-variant metrics.
+
+Final lane gates on unchanged implementation: doctor; full lint including **36 example checks**, clang and real
+GCC; typecheck; **2,004 units /102 files /no skips**; full required-WebGPU browser **291 passed /51 unchanged
+skips /0 failures /0 flaky per variant**; leakcheck; **32 pipeline fixtures ×2 variants ×300 =19,200 identical
+oracle frame pairs**, no lifted interpretation/stubs/errors, equal cross-variant hashes. One compile.py stdin-hang
+failure is preserved; unchanged complete x64-scale JSPI oracle retry passes. Transport repair belongs to K23.
+
+External **vK22 verification-incomplete FAIL →vK22b PASS/PASS** closes mutation-control and actual both-backend
+selection/fallback/metrics/cache/integrity gates, with no confirmed production defect. No later production/test
+source edits. Mixed fixture load/speed evidence does not justify a universal JSPI switch; bounded x64-scale
+Asyncify/JSPI is68.8/53.5 MB and43.91/30.29 ms per300-frame batch, shared-machine/no-rasterization observations.
+Finalization is documentation/evidence only; no CI, integration, game/playability or physical-device certification.
+Exact commands, evidence and retained limitations: [K22 handoff](handoff/K22.md).
+
 ## Integration I11 final — K18 over K17a/K17b/K16a + K19 (Tier 1 green)
 
 **c59d4ab** merges **f1c36f3** (lane/K18) over **ef8ab6b** with `--no-ff`. Only this ledger
@@ -481,31 +546,6 @@ backends, with per-tile goldens, side-effecting UV evaluation, colored ordered r
 One `gpu-scenes` fixture supplies common GLSL/ES scenes to both backends; native WGSL/lifetime extras remain selectable
 within that fixture, not a duplicate executable. [Tolerance and launch details](../examples/gpu-scenes/README.md).
 `x64-smoke` normally links GL 3.3 + worker/file + ten-second WASAPI thread + XInput; 600 GL frames/6,000 draws, exact
-worker checksum/joins and matching per-frame API hashes/pixels across backends. These are synthetic integration
-fixtures, not an engine/game compatibility or performance claim.
 
-### Threads / COM / audio / input
 
-64 lifetime thread slots (including primary), 1023 non-reused synchronization handles, 512 live lock addresses;
-retained stacks/TEBs, unnamed single-process objects. Kernel -2..2 priorities now drive weights 1..5; -15/+15
-map to bounded endpoint weights, not host realtime. Repeated changes cannot replenish credits or starve runnable
-peers. No APC delivery, asynchronous thread termination, fibers or general cyclic parked-native continuation switching. CPU rotation is deferred inside native callbacks;
-frame yields still occur. InitOnceExecuteOnce and broader CRT per-thread locale/errno remain bounded; K3's x87
-state is part of the whole saved CPU context.
-COM apartment initialization is thread-local; this is not general apartment marshaling. Audio has a guest-heap-owned
-source ring sized from the requested duration and deterministic non-bandlimited resampling; locked/full browser queues
-may drop samples. K8c adds process-local endpoint notification registration/guest reference ownership (fixed topology, no
-unsolicited changes); endpoint collection enumeration remains unsupported. No capture, exclusive mode, unsupported EXTENSIBLE layouts,
-BSTR/variant arrays, raw wheel/full HID enumeration or low-bit async key latches. No physical actuator/listening or
-mobile fidelity claim.
-
-### Existing general / packaging / hardware boundaries
-
-C/ASCII locale, UTC localtime, empty environment and bounded CRT formatting/math. Shipped read-only files plus
-process-local writable/temp CRT files, not persistent general filesystem writes. Unsupported instructions/APIs fail
-explicitly. Substitute fonts/icons are not Windows-pixel parity; arbitrary fonts/non-ASCII and broad GDI algebra
-remain limited. DOS/consoles have no systematic profile. Minimum loader-image data, instruction-level coverage,
-lazy wasm code, automatic multi-reload coverage union and long representative real-game stability remain future work.
-FIX3 records the existing green Ubuntu CI evidence; I3's gates are local sandbox runs, not new remote CI.
-Physical iPhone/Safari/Firefox and nested sandbox validation are not certified. No new game
-input, dependencies, system installs or engine-specific runtime path; no test weakening or push.
+[Showing lines 1-528 of 529 (50.0KB limit). Use offset=529 to continue.]

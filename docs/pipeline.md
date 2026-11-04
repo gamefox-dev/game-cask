@@ -92,6 +92,14 @@ still runs (interpreted, visible as `interp_insns`).
 - **Exceptions**: every override with a reason; every kit gap in `reports/errors.json` and as an iteration request in
   the work queue (`CLAUDE.md`).
 
+## Coverage convergence and guest-frame metrics (K21)
+
+The default now automatically merges successful probe/port-test coverage into owner/interior selection.
+`pipeline.selection: "all"` / `--selection all` is explicit; strict slices remain supplied-evidence-only.
+Standard metrics and probe summaries distinguish **updates/s from guest presents/s**, report guest interval
+avg/p95, and expose exclusive sampled interpreter ms/share, instructions/update and top owners.
+**Updates are not guest frames.** Contracts, limits and reproduction: [coverage convergence](coverage-convergence.md).
+
 ## Execution profiling (K10)
 
 Profiling is engine-independent, additive metrics JSON, not a new import/command ABI. Both browser backends
@@ -328,6 +336,12 @@ Later lanes add [bounded cooperative threads](../platforms/win32/THREADS.md), a 
 and [bounded x87](../platforms/x86/X87.md); those are not universal compatibility. Integer conversions honor
 MXCSR rounding. Unknown instructions/APIs fault explicitly; do not work around them with game-specific overrides.
 
+## Suspension builds and selection
+
+See [suspension policy](suspension.md) for bounded Asyncify on large linked modules, the Binaryen wasm32
+4 GiB IR limit, dual/JSPI-only builds and per-game `"suspension": "jspi-preferred"` opt-in with verified
+Asyncify fallback. The global default remains Asyncify; JSPI-only builds do not run wasm-opt.
+
 ## v0.3 development: build scale
 
 Pipeline compilation is parallel and incremental per translation unit (including lifted modules), with a content
@@ -335,7 +349,7 @@ cache under `node_modules/.cache/bgt/objects`. `BGT_BUILD_JOBS` defaults to 2, c
 actual compiler-derived transitive dependencies, not every platform header. Source/dependency bytes and compiler
 identity/flags invalidate exactly affected objects; clone-relative paths allow opt-in shared payloads through
 `BGT_SHARED_CACHE`. See [build-cache.md](build-cache.md) for concurrency, LRU bounds, privacy, focused-test declarations
-and the whole-module Asyncify boundary. Linking still runs each build; Asyncify output is now content-cached by linked wasm/tool/feature/pass identity, with
+and the linked-module Asyncify boundary (bounded body partitions for large modules, not relocatable object transforms). Linking still runs each build; Asyncify output is content-cached by linked wasm/tool/wrapper/feature/pass identity, with
 atomic cache publication. `asyncify_cached` records a hit. This avoids spending the test timeout rebuilding an identical
 postprocessed module; no existing test timeouts or assertions were relaxed. Conservative flag-liveness is
 available through `pipeline.flagLiveness: true`; calls/branches/unknown instructions are barriers. Lane K11 adds
@@ -406,10 +420,10 @@ fail the build. Preserve a successful launcher's entire L3 loop, not just a boot
   ranges and `unwindRange`; AMD64 `.pdata` ownership takes precedence over speculative interior seeds. Otherwise the
   nearest enclosing analyzed start owns an address; gaps are not attributed to the preceding function. Unselected code
   remains interpreted and recorded for the next build.
-- Incremental discovery: record a workload, build with that recording, reload/run the same workload (and extend it),
+- Explicit/archived incremental discovery (the default inbox also accumulates successful probe/port-test runs): record a workload, build with that recording, reload/run the same workload (and extend it),
   save the new recording to a **different file**, then build with **all prior and new files** in `pipeline.coverage`.
   Addresses and ranges are unioned only when module names/hashes/bases agree. Each reload starts a bounded fresh
-  recording; there is no hidden cross-module or cross-reload union. Overflowed evidence is rejected even if other
+  recording; cross-reload union comes from explicit recordings and the documented private per-game inbox. Overflowed evidence is rejected even if other
   inputs would cover the same addresses. Use a shorter representative run to bootstrap a minimal selection, not an
   edited/filtered overflowed trace.
 - After **each run**, report remaining `interp_insns`, `interp_code_entries`, `interp_functions` and

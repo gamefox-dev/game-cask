@@ -8,6 +8,8 @@ it('serializes all 4096 maximum-length printable import names without truncation
   expect(n).toBeGreaterThan(524288);return JSON.parse(new TextDecoder().decode(bytes.subarray(0,n)));};
  ex.prepare(0);const m=metrics();expect(m.imports_bound).toBe(4096);expect(m.apis_hit).toHaveLength(4096);
  expect(m.gl_objects).toEqual({});
+ expect(m.interpreter_exclusive_sample_us).toBe(25);
+ expect(m.interpreter_exclusive_estimated_us).toBe(0); // no sampled dispatches in this serializer-only fixture
  expect(m.cpu_profile.apis).toHaveLength(4096);expect(m.cpu_profile.apis[4095]).toMatchObject({count:4096,samples:1,estimated_us:4100*4096});
  ex.prepare(2);const escaped=metrics();expect(escaped.cpu_profile.apis).toHaveLength(4096);
  expect(escaped.cpu_profile.apis[0].name.slice(3,7)).toBe('"\\"\\');

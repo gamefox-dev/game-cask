@@ -11,6 +11,7 @@ import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
+import {publishCoverage} from '../build/coverage.mjs';
 import { createCpuProfiler, profileRange } from './cpu-profile.mjs';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from '../build/toolchain.mjs';
@@ -203,6 +204,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if(coverage){const file=join(out,'coverage.json');writeFileSync(file,JSON.stringify(coverage,null,2)+'\n');log.artifacts.push(file);}
     const d = await p.diagnostics().catch(() => null);
     if (d?.errors?.length) log.errors.push(...d.errors.map((e) => `${e.kind}: ${e.message}`));
+    log.execution_summary=d?.metrics?.execution_summary ?? null;
+    if(log.execution_summary){
+      const s=log.execution_summary,fmt=n=>n==null?'unknown':Number(n).toFixed(2);
+      console.log(`probe: ${s.suspension ?? d?.suspension ?? 'unknown'}; ${fmt(s.updates_per_second)} updates/s; ${fmt(s.guest_frames?.per_second)} guest presents/s, guest avg/p95 ${fmt(s.guest_frames?.frame_ms_avg)}/${fmt(s.guest_frames?.frame_ms_p95)} ms; interpreter ${fmt(s.interpreter.estimated_ms_per_update)} ms/update (${fmt(s.interpreter.estimated_share==null?null:s.interpreter.estimated_share*100)}% estimated), ${fmt(s.interpreter.instructions_per_update)} insns/update`);
+    }
+    if(coverage && !log.errors.length){const evidence=publishCoverage(ROOT,coverage);if(evidence)log.artifacts.push(evidence);}
   } catch (e) {
     log.errors.push(`probe: ${e.message}`);
     console.error(`probe: ${e.message}`);

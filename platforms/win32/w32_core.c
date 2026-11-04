@@ -761,6 +761,18 @@ void w32_update(void) {
 /* LANE-GL: GL owns the shared screen while its context is current. */
 void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
+/* Guest presentations, not cooperative updates or repeated host redraws. Ring
+ * timestamps are real wall microseconds (include waits/pauses), not virtual time. */
+static double guest_present_times[10000];
+static struct {uint64_t count,swaps,gdi;double *times;uint32_t length,next,reserved;} guest_present={.times=guest_present_times};
+void w32_guest_present(int swap) {
+    guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
+    guest_present_times[guest_present.next]=bgt_time_us();
+    guest_present.next=(guest_present.next+1)%10000;
+    if(guest_present.length<10000)guest_present.length++;
+}
+const void *w32_guest_presentations(void) {return &guest_present;}
+
 /* ------------------------------------------------------------------ metrics / debug */
 /* 4096 slots with maximum printable names fit below 8 MiB. Pathological
  * control-byte names can exceed it: report a valid explicit overflow object. */
@@ -795,6 +807,11 @@ const char *w32_metrics_json(void) {
     jkv("coverage_crossings",x86_coverage_crossings);
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
     jkv("interp_insns", x86_metrics.interp_insns);
+    jkv("interpreter_timing_enabled",X86_PROFILE_ENABLED);
+    jkv("interpreter_samples",x86_timings[XP_INTERPRETER].samples);
+    jkv("interpreter_exclusive_sample_us",(uint64_t)x86_interpreter_exclusive_sample_us);
+    jkv("interpreter_exclusive_estimated_us",x86_timings[XP_INTERPRETER].samples?
+        (uint64_t)(x86_interpreter_exclusive_sample_us*(double)x86_timings[XP_INTERPRETER].calls/(double)x86_timings[XP_INTERPRETER].samples):0);
     jkv("interp_code_entries", x86_metrics.interp_code_entries);
     jkv("interp_functions", x86_metrics.interp_functions);
     jkv("interp_unowned_entries", x86_metrics.interp_unowned_entries);

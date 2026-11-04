@@ -67,6 +67,8 @@ export interface Manifest {
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
   variants?: { jspi?: {url:string;size:number;sha256:string} };
+  preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
+  suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
   gpu?: { budgetBytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
@@ -175,6 +177,7 @@ export class BGTRuntime {
   private executionMetrics() {
     const m=this.host?.metrics();
     return m && typeof m==='object' ? {...m,runtime_profile:{
+      suspension:this.host?.config.suspensionMode ?? 'asyncify',
       gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,
       vfs:this.rangeFiles?.timing ?? null}} : m ?? null;
   }
@@ -775,11 +778,12 @@ export class BGTRuntime {
     // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
     const execution=this.host?.metrics() ?? null;
     return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
+      interpreter:this.host?.interpreterCoverage() ?? undefined,
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
       readAhead:this.vfs.readAheadCoverage(),
       metrics:{code_entries_dropped:this.host?.codeCoverageDropped ?? 0,
-        execution,runtime_profile:{gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,vfs:this.rangeFiles?.timing ?? null},frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
+        execution,runtime_profile:{suspension:this.host?.config.suspensionMode ?? 'asyncify',gpuDrawWallMs:this.gpuWallMs,gpuSubmitMs:this.gpuSubmitTotalMs,vfs:this.rangeFiles?.timing ?? null},frame:this.host?.frameIndex ?? 0,errors:this.errors.length,outsideSlice:this.sliceEvents,rangeFetchedBytes:this.rangeFiles?.fetchedBytes ?? 0,
         crtConsumedBytes:this.vfs.consumedBytes,crtObservedBytes:this.vfs.observedBytes,crtReadAheadBytes:this.vfs.readAheadBytes,crtReadAheadRequests:this.vfs.readAheadRequests,
         load_to_first_frame_ms:this.firstFrameMs,frame_ms_avg:this.frameTimes.length?this.frameTimes.reduce((a,b)=>a+b,0)/this.frameTimes.length:0,
         frame_ms_p95:this.frameTimes.length?[...this.frameTimes].sort((a,b)=>a-b)[Math.min(this.frameTimes.length-1,Math.floor(this.frameTimes.length*0.95))]:0,frames_measured:this.frameTimes.length},

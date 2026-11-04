@@ -29,6 +29,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: [
+    ['./tests/e2e/coverage-evidence-reporter.ts'],
     ['list'],
     ['json', { outputFile: `reports/${PREFIX}-results.json` }],
     ['html', { outputFolder: `reports/${PREFIX}-html`, open: 'never' }],

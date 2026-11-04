@@ -239,6 +239,15 @@ extern uint8_t *x86_flat;
  * dense function index, not a guest pointer. .pdata ownership wins over weak seeds. */
 typedef struct { uint32_t addr, end, owner; } x86_code_range_t;
 void x86_register_code_ranges(const x86_code_range_t *ranges, uint32_t count, uint32_t functions);
+void x86_register_code_owner_addresses(const uint32_t *addresses);
+/* Optional observation export, independent of sampled/resettable CPU profiling.
+ * Header: rows pointer, length, capacity, reserved, dropped u64. Rows are 24 bytes. */
+#ifndef X86_INTERPRETER_CAP
+#define X86_INTERPRETER_CAP 1048576u
+#endif
+typedef struct { uint32_t address, owner; uint64_t count, instructions; } x86_interpreter_entry_t;
+typedef struct { x86_interpreter_entry_t *rows; uint32_t length, capacity, reserved; uint64_t dropped; } x86_interpreter_coverage_t;
+const x86_interpreter_coverage_t *x86_interpreter_coverage(void);
 /* Coverage de-duplicates in wasm; only newly observed entries cross into the host.
  * Strict builds replace recording with a local code-membership check. */
 void x86_coverage_entry(uint32_t address, uint32_t kind);

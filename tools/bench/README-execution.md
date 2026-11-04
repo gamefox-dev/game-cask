@@ -22,6 +22,15 @@ Every sample checks the API-trace result, no FAIL logs, no stubs and zero lifted
 `k10-coverage-hot` fixture also checks an independently computed u32 checksum after 4,194,304 indirect guest calls;
 its source generation lives in `execution.test.ts`. No per-game addresses or special execution path are used.
 
+## K21 selection costs and denominators
+
+`npm exec -- vitest run --config tools/bench/selection.config.ts` compares coverage/all selection on original
+CC0 256/12,000-function late-phase scale fixtures. Each pair uses the same PE and checks 300 per-update
+trace hashes. Resources/cache states are included; shared-machine builds are not normalized cold speedups.
+Standard/probe `execution_summary` reports exclusive sampled interpreter share and guest presentations next
+to updates/s. **Cooperative updates are not guest frames**; intervals include waits/probe pauses. Full
+contracts: [coverage convergence](../../docs/coverage-convergence.md). Results: [K21](../../docs/handoff/K21.md).
+
 ## Committed execution report
 
 [`k10-execution.json`](k10-execution.json) records all raw samples, categories, API timing, generic-exit census,
