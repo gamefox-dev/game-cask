@@ -25,7 +25,9 @@ JSPI-only bypasses postprocess; preferred emits dual artifacts; both share the s
 
 Inherited external **vK21b PASS /vK22b PASS**. Reviewer explicitly read `3be7551..ff5e905` repair diff and
 judged it narrow/correct; requested lane reviews + diff read + integrator merged-tree gates in this handoff.
-**No separate independent merged-tree review/PASS or CI run is claimed.**
+Reviewer subsequently read/accepted29b3951 (the writer flag), with strict assembly checks unchanged and the
+forced-partition convergence case retained as regression. This does **not** upgrade the review scope:
+**no separate independent merged-tree review/PASS or CI run is claimed.**
 
 ## Additional integration defect: Binaryen writer type order
 
@@ -35,7 +37,9 @@ Function maps and all five Asyncify helpers were byte-identical. No unsafe assem
 Binaryen's writer defaults to usage-frequency type order even without the reorder-types pass; shard-local
 body usage differs. `29b3951` pins `--preserve-type-order` on partition children, keeping **all original strict
 assembly checks**. Exact isolated CC0 reproduction before fails at shard13; after completes16/16 with equal
-sections/maps/helpers and V8 validation. Full multi-shard convergence rerun is queued, not yet PASS.
+sections/maps/helpers and V8 validation. Full multi-shard convergence rerun **16/16 tests /3 files PASS**, real Node JSPI enabled.
+All four modes converge70,003→0 interpreted instructions, with identical per-update hashes across modes
+and zero recording drops. This fixes a K22 partition-assembly bug its original scale run did not exercise.
 This is integration breakage exposed by combining K21's new module shape with K22's partitioner, not a
 new optimization or changed global default. Hashed partition implementation automatically invalidates cache.
 
@@ -48,13 +52,18 @@ new optimization or changed global default. Hashed partition implementation auto
   Full units run real Node JSPI with600000ms CLI budget, no exclusions. Browser runs require WebGPU and both
   backends in Asyncify then JSPI mode, port5260, never developer5173. Oracles enumerate every pipeline game.json,
   300 updates each in both modes. Reduced scale is1044 owners/1800 rounds, production default thresholds.
-- Focused convergence fixed runner root30710: `reports/i12/convergence-fixed.{log,exit}`.
+- Earlier focused runner30710:15 pass/1 fail from type reordering, preserved at
+  `reports/i12/convergence-fixed.{log,exit}`. Final33235 is complete16/16 PASS:
+  `reports/i12/convergence-final.{log,exit}`, copied recordings/compact convergence summary under final/.
 - Isolated negative controls root25485: `reports/i12/mutation-before.{log,exit}`; private archive under
   `$BGT_TRIAL_SCRATCH/mutation-kit` mutates only copied snapshot variant/key parser input, never source tree.
 - The pre-repair gate root38494 completed doctor only; its lint was still queued when paused/canceled, with
   no writers. Only those recorded owned roots were signaled (38494,82970). No shared queue/lock was deleted.
 - **Current final gate driver root48853**, `reports/i12/gates-final.sh`, waits for **convergence-final root33235**
-  then writes fresh `reports/i12/final/*` logs/exits/timestamps/source commit+tree. Earlier waiting driver33249/
+  then writes fresh `reports/i12/final/*` logs/exits/timestamps/source commit+tree. Tested commit is
+  `e5be578382447810b87410d0adee509d8509f36c`, tree`7b6b294ff851842c3cae96cf36a5cbaa6efed9c8`.
+  As of02:37UTC: doctor0; cold lint24/36 checked and progressing, remaining final gates not started.
+  Separate focused typecheck exit0; not substituted for the driver’s final typecheck. Earlier waiting driver33249/
   33252 canceled before any gates to correct its dead-wait boundary. Original74579 ran no gates (shell parse
   error); all diagnostics preserved. Final driver passes bash -n, no source edits planned after29b3951.
 - Full matrix remains doctor/lint incl scale/clang/types/units/both browsers/leakcheck/64 oracles/reduced scale.
