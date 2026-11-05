@@ -1,5 +1,9 @@
 # K34 checkpoint — reviewer #328
 
+**Historical checkpoint; superseded by [final handoff](K34.md).** All owned jobs have now exited.
+Final production4061c0d; reviewed tests9500bc0 + accepted cache-isolation repairbeb1b4f.
+Final gate evidence and the explicit combined-unit recovery are in K34-gates.json.
+
 ## Source / review boundary
 
 Branch lane/K34, based on dev.19 958d5f0 and merged dev.20/K31 (0edf02c via 9f157b1).
