@@ -11,13 +11,15 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
   const dir=mkdtempSync(join(ROOT,'node_modules/.cache/bgt/lifted-header-'));
   const id=basename(dir).toLowerCase();
   const header=join(dir,'helper.h');
-  const original='#define HELPER_VALUE 1\n';
+  const original=readFileSync(join(ROOT,'platforms/x86/x86_lift64.h'),'utf8');
+  const expression='return xl_alu(op, a, b, n, flags, F_CF | F_PF | F_AF | F_ZF | F_SF | F_OF);';
+  expect(original.split(expression)).toHaveLength(2);
   try {
     writeFileSync(header,original);
     writeFileSync(join(dir,'helper.c'),[
-      '#include <stdint.h>',
+      '#define X86_WIDE_CPU 1',
       '#include "helper.h"',
-      '__attribute__((export_name("cache_helper"))) uint32_t cache_helper(uint32_t a){return a+HELPER_VALUE;}',
+      '__attribute__((export_name("cache_alu"))) uint32_t cache_alu(uint32_t a,uint32_t b){uint32_t f=0;return (uint32_t)xl_alu_full(XO_ADD,a,b,4,&f)^f;}',
     ].join('\n'));
     writeFileSync(join(dir,'entry.c'),
       '__declspec(dllimport) void __stdcall ExitProcess(unsigned); int _tls_index; static void (*volatile entry_anchor)(void); void entry(void){entry_anchor=entry;ExitProcess(0);}'+'\n');
@@ -35,7 +37,7 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
     expect(warm.variants.jspi.sha256).toBe(first.variants.jspi.sha256);
     // Private cache-sensitivity mutation only: change the copied helper's result,
     // keeping every source/config byte fixed. This altered helper is never shipped.
-    writeFileSync(header,'#define HELPER_VALUE 2\n');
+    writeFileSync(header,original.replace(expression,expression.replace(';',' ^ 1u;')));
     const changed=build();
     expect(changed.pipeline.metrics.objects_compiled).toBe(1);
     expect(changed.pipeline.metrics.object_cache_decisions.some((o:any)=>o.source.endsWith('/helper.c') &&
