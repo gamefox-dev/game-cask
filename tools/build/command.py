@@ -25,7 +25,8 @@ def extract_macro(option, value=None):
     name, replacement = match.groups()
     if kind == 'U':
         return '#undef ' + name
-    return '#define ' + name + ('' if replacement is None else ' ' + replacement)
+    # -DNAME (including function-like -DNAME(x)) means 1, not an empty body.
+    return '#define ' + name + ' ' + ('1' if replacement is None else replacement)
 
 
 def compiler_macro_transport(args, prefix):
@@ -88,10 +89,11 @@ def run(args, **kwargs):
             # into a forced include as well as using the response file.
             compiler_args, macros = compiler_macro_transport(args, prefix)
             if macros:
-                macro = tempfile.NamedTemporaryFile(mode='w+', encoding='utf8')
+                macro = tempfile.TemporaryFile(mode='w+', encoding='utf8')
                 macro.write('\n'.join(macros) + '\n')
                 macro.flush()
-                macro_path = '/dev/fd/' + str(macro.file.fileno())
+                macro.seek(0)
+                macro_path = '/dev/fd/' + str(macro.fileno())
                 compiler_args = args[:prefix] + ['-include', macro_path] + compiler_args
             else:
                 compiler_args = args[:prefix] + compiler_args
@@ -104,7 +106,7 @@ def run(args, **kwargs):
         payload.seek(0)
         check_budget(transported, env)
         fds = [payload.fileno()]
-        if macro is not None: fds.append(macro.file.fileno())
+        if macro is not None: fds.append(macro.fileno())
         kwargs['pass_fds'] = (*kwargs.get('pass_fds', ()), *fds)
         try:
             return subprocess.run(transported, **kwargs)

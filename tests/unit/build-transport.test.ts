@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { ROOT } from '../support/headless';
 // @ts-expect-error ESM build tool
 import { execFileSync, withBuildWriters } from '../../tools/build/exec.mjs';
+// @ts-expect-error ESM host tool discovery
+import { findGcc } from '../../tools/build/check-host-gcc.mjs';
 
 const transport = new URL('../../tools/build/exec.mjs', import.meta.url).href;
 const compile = join(ROOT, 'tools/build/compile.py');
@@ -61,7 +63,7 @@ it('bounds oversized lift argv on macOS as on Linux', () => {
   chmodSync(launcher, 0o700);
   writeFileSync(script, "import {writeFileSync} from 'node:fs'; const a=process.argv.slice(2), i=a.indexOf('--out'), out=a[i+1]; writeFileSync(out, 'int lifted(void){return 23;}\\n'); writeFileSync(out+'.stats.json', JSON.stringify({analysis_cpu_ms:1,c_generation_cpu_ms:2})); writeFileSync(a[2], JSON.stringify({value:a[0],quote:a[1]}));");
   try {
-    const result = JSON.parse(execFileSync('python3', ['-I', lift], { ...options, input: JSON.stringify({tasks: [{out, key: 'lift-key', args: [launcher, script, value, 'λ \"quoted\"', observed]}], jobs: 1}), encoding: 'utf8' }));
+    const result = JSON.parse(execFileSync('python3', ['-I', lift], { ...options, input: JSON.stringify({tasks: [{out, key: 'lift-key', args: [launcher, script, value, 'λ "quoted"', observed]}], jobs: 1}), encoding: 'utf8' }));
     expect(result.chunks_lifted).toBe(1);
     expect(JSON.parse(readFileSync(observed, 'utf8'))).toEqual({value, quote: 'λ "quoted"'});
     expect(readFileSync(out, 'utf8')).toContain('return 23');
@@ -70,12 +72,31 @@ it('bounds oversized lift argv on macOS as on Linux', () => {
 
 it('moves oversized compiler argv through a response file with exact quoting', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-rsp-boundary-')); const source = join(dir, 'value.c'); const out = join(dir, 'value.o');
-  writeFileSync(source, '#if BGT_PADDING_21999 != 21999\n#error padding macro was lost\n#endif\nconst char *quoted = BGT_QUOTED;\nint value(void){return quoted[0] ? 23 : 0;}\n');
-  const padding = Array.from({length: 22000}, (_, i) => '-DBGT_PADDING_'+i+'='+i).concat(['-DBGT_QUOTED="λ😀"']);
+  writeFileSync(source, '#if BGT_PADDING_21999 != 21999 || BGT_DEFAULT != 1 || BGT_FUNCTION(7) != 1 || BGT_ORDER != 23\n#error padding macro semantics were lost\n#endif\n#ifdef BGT_UNDEFINED\n#error undef order was lost\n#endif\nconst char *quoted = BGT_QUOTED;\nint value(void){return quoted[0] ? 23 : 0;}\n');
+  const padding = Array.from({length: 22000}, (_, i) => '-DBGT_PADDING_'+i+'='+i).concat([
+    '-DBGT_QUOTED="λ😀"', '-DBGT_DEFAULT', '-D', 'BGT_FUNCTION(x)',
+    '-DBGT_ORDER=17', '-U', 'BGT_ORDER', '-D', 'BGT_ORDER=23', '-DBGT_UNDEFINED', '-UBGT_UNDEFINED',
+  ]);
   try {
-    const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out, args: ['cc', '-std=c11', '-Wall', '-Werror', '-c', source, ...padding]}], jobs: 1}), encoding: 'utf8' }));
-    expect(result.objects_compiled).toBe(1); expect(readFileSync(out).length).toBeGreaterThan(0);
+    // macOS's cc is Apple clang; exercise installed real GCC as well, matching Linux's cc1 boundary.
+    for (const cc of new Set(['cc', findGcc()].filter(Boolean))) {
+      rmSync(out, {force:true});
+      const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out, args: [cc, '-std=c11', '-Wall', '-Wextra', '-Werror', '-c', source, ...padding]}], jobs: 1}), encoding: 'utf8' }));
+      expect(result.objects_compiled).toBe(1); expect(readFileSync(out).length).toBeGreaterThan(0);
+    }
   } finally { rmSync(dir, {recursive:true, force:true}); }
+});
+
+it('rejects oversized argv strings, environment strings and aggregate budgets before spawning', () => {
+  const script = `import os,runpy
+check=runpy.run_path(${JSON.stringify(join(ROOT, 'tools/build/command.py'))})['check_budget']
+check(['node','x'*131071],{})
+for args,env in [(['node','x'*131072],{}),(['node'],{'LARGE':'x'*131072}),(['node']+['x'*16384]*64,{})]:
+ try:check(args,env)
+ except ValueError as e:assert 'portable Linux budget' in str(e)
+ else:raise AssertionError('oversized child plan accepted')
+print('budgets enforced')`;
+  expect(nativeExec('python3', ['-I', '-c', script], {encoding:'utf8',timeout:5000})).toContain('budgets enforced');
 });
 
 it('reproduces withheld socket EOF deterministically, then bypasses it with finite stdin', () => {

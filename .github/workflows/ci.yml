@@ -95,7 +95,8 @@ jobs:
       - name: Unit tests — deterministic shard 1 of 2
         shell: bash
         run: |
-          mapfile -t files < <(node tools/build/ci-unit-shards.mjs 1/2)
+          node tools/build/ci-unit-shards.mjs 1/2 > "$RUNNER_TEMP/unit-files.txt"
+          mapfile -t files < "$RUNNER_TEMP/unit-files.txt"
           npm test -- "${files[@]}" --maxWorkers=1
 
   unit_2:
@@ -117,7 +118,8 @@ jobs:
       - name: Unit tests — deterministic shard 2 of 2
         shell: bash
         run: |
-          mapfile -t files < <(node tools/build/ci-unit-shards.mjs 2/2)
+          node tools/build/ci-unit-shards.mjs 2/2 > "$RUNNER_TEMP/unit-files.txt"
+          mapfile -t files < "$RUNNER_TEMP/unit-files.txt"
           npm test -- "${files[@]}" --maxWorkers=1
 
   e2e:
