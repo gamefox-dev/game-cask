@@ -2,7 +2,8 @@
 static uint32_t api_GetError(void) { uint32_t e = error; error = 0; return e; }
 static uint32_t string_guest(const char *s) {
     uint32_t n = w32_slen(s) + 1, p = w32_misc_alloc(n);
-    for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]); return p;
+    for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]);
+    return p;
 }
 static uint32_t api_GetString(void) {
     static uint32_t vendor, renderer, version, shading, extensions;
@@ -88,7 +89,8 @@ static uint32_t api_GetFloatv(void) {
     if (ARG(0) == 0xc22) { for (uint32_t i = 0; i < 4; i++) x86_wr32(ARG(1) + i * 4, bits(clear_color[i])); return 0; }
     if (ARG(0) == 0xb73) { x86_wr32(ARG(1), bits(clear_depth)); return 0; }
     int32_t v[4]; uint32_t n = query(ARG(0), v);
-    for (uint32_t i = 0; i < n; i++) x86_wr32(ARG(1) + i * 4, bits((float)v[i])); return 0;
+    for (uint32_t i = 0; i < n; i++) x86_wr32(ARG(1) + i * 4, bits((float)v[i]));
+    return 0;
 }
 static uint32_t api_GetDoublev(void) {
     int32_t v[4]; uint32_t n = query(ARG(0), v);
@@ -104,7 +106,8 @@ static uint32_t api_GetBufferParameteriv(void) {
     else if (ARG(1) == 0x911f) x86_wr32(ARG(2), b->map_flags);
     else if (ARG(1) == 0x9120) x86_wr32(ARG(2), b->map_size);
     else if (ARG(1) == 0x9121) x86_wr32(ARG(2), b->map_offset);
-    else fail(BAD_ENUM); return 0;
+    else fail(BAD_ENUM);
+    return 0;
 }
 static uint32_t api_GetBufferSubData(void) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
@@ -133,7 +136,8 @@ static uint32_t api_IsRenderbuffer(void) { return SLOT(rbos, ARG(0)) < N && rbos
 static uint32_t api_IsSampler(void) { return SLOT(samplers, ARG(0)) < N && samplers[SLOT(samplers, ARG(0))].used != 0; }
 static uint32_t api_ChoosePixelFormat(void) { return ARG(0) && ARG(1) ? 1 : 0; }
 static uint32_t api_SetPixelFormat(void) {
-    if (!ARG(0) || ARG(1) != 1 || pixel_format) return 0; pixel_format = 1; return 1;
+    if (!ARG(0) || ARG(1) != 1 || pixel_format) return 0;
+    pixel_format = 1; return 1;
 }
 static uint32_t api_GetPixelFormat(void) { return pixel_format; }
 static uint32_t api_DescribePixelFormat(void) {
@@ -162,12 +166,14 @@ static uint32_t api_wglCreateContextAttribsARB(void) {
             (key != 0x2091 && key != 0x2092 && key != 0x2094 && key != 0x9126)) return 0;
     }
     /* Upgrade an existing legacy context without allocating a second GPU namespace. */
-    if (context) return context; return api_wglCreateContext();
+    if (context) return context;
+    return api_wglCreateContext();
 }
 static uint32_t api_wglMakeCurrent(void) {
     if (!ARG(0) && !ARG(1)) { current = dc = 0; return 1; }
     if (!ARG(0) || !context || ARG(1) != context) return 0;
-    if (!current) w32_gdi_flush_and_present(); current = context; dc = ARG(0); return 1;
+    if (!current) w32_gdi_flush_and_present();
+    current = context; dc = ARG(0); return 1;
 }
 static uint32_t api_wglGetCurrentContext(void) { return current; }
 static uint32_t api_wglGetCurrentDC(void) { return dc; }
@@ -177,7 +183,8 @@ static uint32_t api_wglDeleteContext(void) {
 }
 static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_guest_present(1); w32_wait_frame(); return 1; }
 static uint32_t api_wglSwapIntervalEXT(void) {
-    if (!current || (int32_t)ARG(0) < 0) return 0; interval = ARG(0); return 1;
+    if (!current || (int32_t)ARG(0) < 0) return 0;
+    interval = ARG(0); return 1;
 }
 static uint32_t api_wglGetSwapIntervalEXT(void) { return interval; }
 static uint32_t api_wglGetExtensionsStringARB(void) {

@@ -258,7 +258,7 @@ static void decode_integer_texel(const uint8_t *p, uint32_t bgt, int64_t *v) {
     uint32_t n = integer_components(bgt), b = integer_component_bytes(bgt);
     v[0] = v[1] = v[2] = 0; v[3] = 1;
     for (uint32_t i = 0; i < n; i++) {
-        uint32_t q = b == 1 ? p[i] : b == 2 ? p[i*2] | p[i*2+1] << 8 : p[i*4] | p[i*4+1] << 8 | p[i*4+2] << 16 | (uint32_t)p[i*4+3] << 24;
+        uint32_t q = b == 1 ? p[i] : b == 2 ? (uint32_t)p[i*2] | (uint32_t)p[i*2+1] << 8 : p[i*4] | p[i*4+1] << 8 | p[i*4+2] << 16 | (uint32_t)p[i*4+3] << 24;
         v[i] = bgt & 1 ? (int64_t)q : b == 1 ? (int8_t)q : b == 2 ? (int16_t)q : (int32_t)q;
     }
 }
@@ -281,7 +281,8 @@ static void encode_texel(uint8_t *p, uint32_t bgt, const float *v) {
     case 8: put16(p, f2h(v[0])); break;
     case 9: put16(p, f2h(v[0])); put16(p + 2, f2h(v[1])); break;
     case 10: case 11: case 12: { uint32_t n = bgt == 10 ? 1 : bgt == 11 ? 2 : 4;
-        for (uint32_t i = 0; i < n; i++) put32(p + i * 4, bits(v[i])); break; }
+        for (uint32_t i = 0; i < n; i++) put32(p + i * 4, bits(v[i]));
+        break; }
     default: break;
     }
 }

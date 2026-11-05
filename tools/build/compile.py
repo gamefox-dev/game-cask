@@ -15,13 +15,16 @@ import time
 import uuid
 
 
+run_command = runpy.run_path(str(Path(__file__).with_name('command.py')))['run']
+
+
 def command(args, pass_fds=(), stdout_path=None, cwd=None):
     start = time.monotonic()
     if stdout_path:
         with open(stdout_path, 'w') as output:
-            subprocess.run(args, check=True, stdout=output, pass_fds=pass_fds, cwd=cwd)
+            run_command(args, check=True, stdout=output, pass_fds=pass_fds, cwd=cwd)
     else:
-        subprocess.run(args, check=True, stdout=sys.stderr, pass_fds=pass_fds, cwd=cwd)
+        run_command(args, check=True, stdout=sys.stderr, pass_fds=pass_fds, cwd=cwd)
     return round((time.monotonic() - start) * 1000, 3)
 
 

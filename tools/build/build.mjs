@@ -213,9 +213,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       // Only generated N_* native steps return before host work and remain safe to exclude.
       asyncifyRemove=pipe.nativeLiftSymbols.filter(n=>n.startsWith('N_') && names.has(n));
       // Steps can all be inlined; an empty intersection is legal, never broaden to F_*.
-      // Stay below macOS's per-process argv ceiling on engine-sized modules. If the exact
-      // step list exceeds the bound, retain conservative analysis, not a partial list.
-      if(asyncifyRemove.join(',').length>180000)asyncifyRemove=[];
+      // Exact lists cross process boundaries through private response files (command.py).
     }
     // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.

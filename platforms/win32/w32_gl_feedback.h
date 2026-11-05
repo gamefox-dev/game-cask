@@ -29,7 +29,8 @@ static int tf_link(Program *p, GsUnit *vs, GsLog *log) {
         else for (uint32_t j = 0; j < vs->nvars; j++) {
             GsVar *v = &vs->vars[j];
             if (v->storage == GS_OUT && eq(v->name, p->tf_names[i])) {
-                if (v->type < GS_STRUCT_BASE) t = &gs_types[v->type]; arr = v->arr; break;
+                if (v->type < GS_STRUCT_BASE) t = &gs_types[v->type];
+                arr = v->arr; break;
             }
         }
         for (uint32_t j = 0; j < i; j++) if (eq(p->tf_names[i], p->tf_names[j])) t = 0;
@@ -71,7 +72,8 @@ static uint32_t api_GetTransformFeedbackVarying(void) {
     uint32_t n = w32_pstr(ARG(6), cap, 0, p->tf_link_names[i]);
     if (ARG(3)) x86_wr32(ARG(3), n);
     if (ARG(4)) x86_wr32(ARG(4), 1);
-    if (ARG(5)) x86_wr32(ARG(5), p->tf_type[i]); return 0;
+    if (ARG(5)) x86_wr32(ARG(5), p->tf_type[i]);
+    return 0;
 }
 static uint32_t api_BeginTransformFeedback(void) {
     uint32_t mode = ARG(0);
@@ -101,7 +103,8 @@ static uint32_t api_GetIntegeri_v(void) {
 }
 static uint32_t api_GenQueries(void) {
     GEN_CHECK(gl_queries);
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, NAME(gl_queries, alloc_name(gl_queries, sizeof(GlQuery)))); return 0;
+    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, NAME(gl_queries, alloc_name(gl_queries, sizeof(GlQuery))));
+    return 0;
 }
 static uint32_t api_DeleteQueries(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
@@ -139,7 +142,8 @@ static void tf_pipeline(Program *p, uint32_t pipe) {
         const char *s = eq(p->tf_link_names[i], "gl_Position") ? p->tf_builtin_names[0] :
             eq(p->tf_link_names[i], "gl_PointSize") ? p->tf_builtin_names[1] : p->tf_link_names[i]; for (uint32_t j = 0; s[j]; j++) names[n++] = s[j];
         names[n++] = ' '; uint32_t f = p->tf_format[i];
-        if (f >= 10) names[n++] = '1'; names[n++] = (char)('0' + f % 10); names[n++] = '\n';
+        if (f >= 10) names[n++] = '1';
+        names[n++] = (char)('0' + f % 10); names[n++] = '\n';
     }
     SEND(0x61, pipe, p->tf_link_separate, p->tf_link_count, PTR(names), n);
 }

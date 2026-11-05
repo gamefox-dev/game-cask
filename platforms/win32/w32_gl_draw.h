@@ -55,7 +55,8 @@ static uint32_t api_DepthRange(void) {
 }
 static uint32_t api_ColorMask(void) {
     color_mask = (!!(ARG(0) & 255)) | ((!!(ARG(1) & 255)) << 1) | ((!!(ARG(2) & 255)) << 2) | ((!!(ARG(3) & 255)) << 3);
-    for (uint32_t i = 0; i < 4; i++) color_masks[i] = color_mask; return 0;
+    for (uint32_t i = 0; i < 4; i++) color_masks[i] = color_mask;
+    return 0;
 }
 static uint32_t api_ColorMaski(void) {
     uint32_t i = ARG(0); if (i >= 4) { fail(BAD_VALUE); return 0; }
@@ -64,7 +65,8 @@ static uint32_t api_ColorMaski(void) {
 }
 static uint32_t api_CullFace(void) {
     if (ARG(0) == 0x404) cull_face = 1; else if (ARG(0) == 0x405) cull_face = 2;
-    else fail(BAD_ENUM); return 0;
+    else fail(BAD_ENUM);
+    return 0;
 }
 static uint32_t api_FrontFace(void) {
     if (ARG(0) == 0x900 || ARG(0) == 0x901) front_face = ARG(0) == 0x900; else fail(BAD_ENUM); return 0;
@@ -80,11 +82,13 @@ static uint32_t api_StencilOp(void) {
 }
 static uint32_t api_Viewport(void) {
     if ((int32_t)ARG(2) < 0 || (int32_t)ARG(3) < 0) fail(BAD_VALUE);
-    else for (uint32_t i = 0; i < 4; i++) viewport[i] = (int32_t)ARG(i); return 0;
+    else for (uint32_t i = 0; i < 4; i++) viewport[i] = (int32_t)ARG(i);
+    return 0;
 }
 static uint32_t api_Scissor(void) {
     if ((int32_t)ARG(2) < 0 || (int32_t)ARG(3) < 0) fail(BAD_VALUE);
-    else for (uint32_t i = 0; i < 4; i++) scissor[i] = (int32_t)ARG(i); return 0;
+    else for (uint32_t i = 0; i < 4; i++) scissor[i] = (int32_t)ARG(i);
+    return 0;
 }
 /* Float colour buffers keep values outside [0,1]; fixed-point targets clamp when written (§13 PASS_BEGIN). */
 static float finite_f(float f) { return f != f ? 0 : f > 3e38f ? 3e38f : f < -3e38f ? -3e38f : f; }

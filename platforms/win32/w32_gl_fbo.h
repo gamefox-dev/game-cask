@@ -15,7 +15,8 @@ static uint32_t fbo, fbo_read, rbo, dfb_draw = 0x405, dfb_read = 0x405;
 
 static uint32_t api_GenRenderbuffers(void) {
     GEN_CHECK(rbos);
-    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, NAME(rbos, alloc_name(rbos, sizeof(Rbo)))); return 0;
+    for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + i * 4, NAME(rbos, alloc_name(rbos, sizeof(Rbo))));
+    return 0;
 }
 static uint32_t api_BindRenderbuffer(void) {
     if (ARG(0) != RENDERBUFFER) { fail(BAD_ENUM); return 0; }
@@ -169,7 +170,8 @@ static uint32_t resolve_fbo(uint32_t id, int for_read, Target *tg) {
     if (!any) return tg->status = 0x8cd7;
     Image color[4]; int have[4] = {0, 0, 0, 0};
     for (uint32_t i = 0; i < 4; i++) if (f->color[i].type) {
-        if (!image_of(&f->color[i], (int)i, &color[i])) return tg->status = 0x8cd6; have[i] = 1;
+        if (!image_of(&f->color[i], (int)i, &color[i])) return tg->status = 0x8cd6;
+        have[i] = 1;
     }
     Image depth, stencil; int hd = 0, hs = 0, shared = same_attach(&f->depth, &f->stencil);
     if (f->depth.type) {

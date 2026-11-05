@@ -36,7 +36,8 @@ static uint32_t api_MapBuffer(void) {
     uint32_t access = ARG(1), flags = access == 0x88b8 ? 1 : access == 0x88b9 ? 2 : access == 0x88ba ? 3 : 0;
     if (!flags) { fail(BAD_ENUM); return 0; }
     uint32_t p = map_buffer(b, 0, b->size, flags, access);
-    if (p) default_element_compat(ARG(0), "core VAO 0 element-buffer map"); return p;
+    if (p) default_element_compat(ARG(0), "core VAO 0 element-buffer map");
+    return p;
 }
 static uint32_t api_MapBufferRange(void) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
@@ -44,7 +45,8 @@ static uint32_t api_MapBufferRange(void) {
     if (flags & ~0x3fu) { fail(BAD_VALUE); return 0; }
     if (!(flags & 3) || ((flags & 1) && (flags & 0x2c)) || ((flags & 0x10) && !(flags & 2))) { fail(BAD_OP); return 0; }
     uint32_t p = map_buffer(b, ARG64(1), ARG64(2), flags, flags & 1 ? (flags & 2 ? 0x88ba : 0x88b8) : 0x88b9);
-    if (p) default_element_compat(ARG(0), "core VAO 0 element-buffer map"); return p;
+    if (p) default_element_compat(ARG(0), "core VAO 0 element-buffer map");
+    return p;
 }
 static int mapped_upload(Buffer *b, uint32_t off, uint32_t n) {
     if (!n) return 1;
