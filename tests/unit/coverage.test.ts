@@ -170,16 +170,19 @@ it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive
  if(variant==='jspi-preferred')cfg.suspension='jspi-preferred';
  if(variant==='jspi-only')cfg.pipeline.suspensionBuild='jspi';
  const active=variant.startsWith('jspi')&&jspiApi()?'jspi':'asyncify';
+ // Keep this convergence case bounded on Linux while retaining a real multi-partition
+ // workload; suspension-scale.test.ts separately exercises 38 tiny partitions.
+ const PARTITION_BYTES=262144;
  let verifiedPartitionBuild=false;
  const build=()=>{
   const raw=join(dir,'linked.wasm');
-  const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{asyncifyPartitionBytes:65536,onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
+  const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{asyncifyPartitionBytes:PARTITION_BYTES,onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
   if(variant==='partitioned'&&!verifiedPartitionBuild){
    // Prove the builder really used >1 partition, rather than merely labelling a
    // whole-module build. Subsequent builds use the same keyed option directly:
    // no redundant whole Asyncify pass before each forced-partition transform.
    const expected=join(dir,'forced.wasm');
-   const result=transform(raw,expected,[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{wholeLimit:0,partitionBytes:65536});
+   const result=transform(raw,expected,[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{wholeLimit:0,partitionBytes:PARTITION_BYTES});
    expect(result.partitions).toBeGreaterThan(1);
    expect(readFileSync(join(ROOT,'web/public/games',id,'game.wasm'))).toEqual(readFileSync(expected));
    verifiedPartitionBuild=true;

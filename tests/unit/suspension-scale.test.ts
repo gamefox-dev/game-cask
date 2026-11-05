@@ -21,8 +21,8 @@ let dir:string,input:string,output:string,raw:Buffer;
 beforeAll(()=>{dir=mkdtempSync(join(tmpdir(),'bgt-suspension-test-'));input=join(dir,'input.wasm');output=join(dir,'out.wasm');raw=suspensionFixture({functions:37,rounds:30});writeFileSync(input,raw);});
 afterAll(()=>rmSync(dir,{recursive:true,force:true}));
 it('transforms every body and preserves 300 checksum frames and 10500 actual deep parked stacks',async()=>{
- const result=transform(input,output,['-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{partitionBytes:8192,wholeLimit:0});
- expect(result.partitions).toBeGreaterThan(1);
+ const result=transform(input,output,['-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield'],{partitionBytes:1024,wholeLimit:0});
+ expect(result.partitions).toBeGreaterThanOrEqual(16);
  const oracle=await suspensionOracle(raw,readFileSync(output),{functions:37,rounds:30,jspi:!!jspiApi()});
  expect(oracle.ownersExecuted).toBe(37);expect(oracle.frames).toBe(300);expect(oracle.yields.asyncify).toBe(10500);
  expect(oracle.asyncChecks).toEqual(oracle.plainChecks);
