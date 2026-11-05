@@ -32,6 +32,7 @@ jobs:
         with:
           version: 0.13.0
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - name: Private asset leak check
         run: npm run leakcheck
       - name: Negative check — leak check must reject a committed original/ file
@@ -94,7 +95,7 @@ jobs:
       - name: Unit tests — deterministic shard 1 of 2
         shell: bash
         run: |
-          mapfile -t files < <({ find tests/unit -type f -name '*.test.ts' ! -name 'build-chunks.test.ts'; printf '%s\n' tests/oracle/tooling.test.ts tests/oracle/failures.test.ts; } | sort | awk 'NR % 2 == 1')
+          mapfile -t files < <(node tools/build/ci-unit-shards.mjs 1/2)
           npm test -- "${files[@]}" --maxWorkers=1
 
   unit_2:
@@ -116,7 +117,7 @@ jobs:
       - name: Unit tests — deterministic shard 2 of 2
         shell: bash
         run: |
-          mapfile -t files < <({ find tests/unit -type f -name '*.test.ts' ! -name 'build-chunks.test.ts'; printf '%s\n' tests/oracle/tooling.test.ts tests/oracle/failures.test.ts; } | sort | awk 'NR % 2 == 0')
+          mapfile -t files < <(node tools/build/ci-unit-shards.mjs 2/2)
           npm test -- "${files[@]}" --maxWorkers=1
 
   e2e:

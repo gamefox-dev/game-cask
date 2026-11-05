@@ -1,63 +1,32 @@
-# K33 WIP checkpoint — reviewer #290
+# K33 WIP checkpoint — reviewer #296
 
-Branch lane/K33, base dev.19 958d5f0. **Not green; not ready for CI.** Reviewer requested checkpoint/end at ~150k context. No compaction, web, installs, game files, pushes, deadline changes, assertion weakening or independent review. Many transient API retries preceded actual work; no earlier finished implementation exists.
+Branch `lane/K33`, based on dev.19 `958d5f0`. This is a checkpoint, not completion or CI-ready. No game files, installs, web access, pushes, deadline changes, assertion weakening, or independent review were used. Prior WIP `9dba9cb` was pushed by the reviewer as `ci/k33a` (run `42039181319`); result is pending for the next session.
 
-## Read / diagnosis
+## Fixed in the WIP
 
-Read AGENTS.md/CLAUDE.md, docs/v03-status.md, docs/pipeline.md, workflow and K22/K23/K28 handoffs (large tool output was truncated; consult original files for details). Inputs read-only: /Users/dev/projects/pi-work/inputs/ci/ci-dev18.log and ci-dev15-failed.log.
+- Large build child payloads cross the OS spawn boundary through anonymous regular-file descriptors. Node script arguments use `node-args.mjs`; compiler/linker plans use response files; JSON uses finite regular-file stdin. `command.py` enforces a portable Linux budget before every child spawn, including environment accounting. `lift.py` now uses the same transport for x86tool lift tasks.
+- Asyncify keeps the complete removelist. Chunk/pipeline owner and override sets use `--select`/`--skip-file`; task plans remain finite stdin. Asyncify cache identity includes the transport helpers.
+- Regressions cover oversized Node/compiler/lift argv, Unicode/quotes, finite stdin, lock/deadline/failure cleanup, nested supervision, and cache-key transport identity. The transport-only suite passes 14/14; focused transport/lock/cache/host-GCC tests pass 24/24.
+- GCC14 and clang compile the actual GL native adapter with CI-style flags. `check-host-gcc.mjs` covers x86tool, both heap widths, GLSL, and GL adapter. Local GCC14 and clang checks pass; unversioned `gcc` on this macOS host is Apple clang.
+- Warning-only portability edits repair GCC misleading-indentation and signedness diagnostics without changing control flow. The unchanged partitioned convergence case previously passed in 173,803 ms under its unchanged 180,000 ms deadline.
+- Approved CI fan-out is implemented: lint/doctor/leakcheck/typecheck/ESLint, native lint, example check-builds, two deterministic unit shards, e2e, unchanged scale, and a required aggregate gate rejecting every failure or skip. Lint-js installs Chromium because doctor checks for it.
+- `tools/build/ci-unit-shards.mjs` derives files from Vitest list output and verifies the shards plus scale's `build-chunks.test.ts` equal the full `npm test` file set. Local inventory: 66 + 65 = 131 files.
 
-- **E2BIG confirmed:** build.mjs puts native Asyncify removelist in one argument; old ceiling180000 > Linux131072. compile.py spawns Node with it; asyncify.mjs repeats it for whole-module/partition Binaryen runs; exec.mjs also repeated whole child argv in writer.py argv. Chunk/monolithic override skip sets were comma-separated argv; selected owner lists already files. Chunk task arrays/compiler plans already finite stdin via K23 transport. Link object lists can exceed total argv too. No build-owned large env payload found; ambient environment still needs bounded diagnostics/coverage.
-- **Lint:** package script is eslint + check-host-gcc + serial build.mjs --examples --check. Log elapsed ~30 minutes is full wasm generation, compile/link and Asyncify of ~37 examples, not ESLint, nor serial clang+gcc syntax checks. Cold GCC host helper covers only x86tool, heap widths and GLSL frontend; it **misses actual GL profile native driver**. CI sample builds repeat work (objects/Asyncify caches help). Need cheap bounded example parallelism or prepare better cache reuse, preserving every build.
-- **GCC:** /usr/bin/gcc is Apple clang21; real /opt/homebrew/bin/gcc-14 is GCC14.2.0 and available. Actual GL native test flags (-std=c11 -O1 -Wall -Wextra -Werror, include bgt/x86/win32, native driver) expose ~40 distinct misleading-indentation locations across GL sources/headers/native driver plus macro repeated225 times; two signedness warnings. Historical ci-dev15 exhibits same class. Existing check-host-gcc passes but insufficient.
-- **Coverage convergence:** partitioned case211949ms exceeds its180000ms deadline. Logs show repeated16-shard transforms at65536-byte test partition size. No root-cause timing repair yet. Keep >65k workload/all variants/real recordings/assertions/deadline unchanged. Heap OOM tests repeatedly build lifted/interpreted tiny variants; log examples30–45s each, historical180–380s. No optimization yet.
+## Local evidence
 
-## Approval #289 (ask_reviewer)
+Ignored logs are under `reports/k33/`; `BGT_E2E_PORT=5278`; port 5173 was not used.
+- Doctor, typecheck, ESLint, GCC14 native checks, and clang native checks: exit 0.
+- Focused transport/lock/cache/host-GCC: 24/24, exit 0. Transport-only after the lift change: 14/14, exit 0.
+- Shard helper syntax, shard union, and full-vs-CI-plus-scale coverage check: pass.
+- Full `BGT_TEST_JSPI=1 npm test -- --maxWorkers=1` was still running at checkpoint. No final result is claimed; rerun after resuming because it began before the final lift-test edit.
+- Full e2e in both suspension modes, leakcheck final/negative control, every 300-frame oracle in both modes, and final scale evidence remain open. No CI-ready commit is claimed.
 
-Reviewer approved parallel required lint, unit (2 deterministic shards), e2e, existing scale unchanged; required aggregate test gate depends on all and rejects **any failure or skip**. All coverage/deadlines/assertions unchanged; retain leakcheck negative check, doctor and typecheck. Safe shared object-cache reuse desirable. Still fix cheap root cause of serial lint. **Workflow has NOT been edited.** Do not ask routine approval again; ask before other deadline/gate/structure changes.
+## WIP state and next steps
 
-## Partial implementation in this checkpoint
-
-- exec.mjs supplies command vector via anonymous regular-file fd3 to writer.py, independent of existing finite stdin. Writer retains process-group/token/deadline protocol.
-- New command.py shared by writer.py and compile.py: large Node script arguments via private JSON file and node-args.mjs reconstruction after OS spawn; large GCC/Clang/Zig args via properly quoted response file; rejects OS argv/env above131072/string or1MiB total. Small commands unchanged. Threshold64KiB/string or256KiB total. Covers Asyncify whole + canonical partition lists and linker object lists. Needs careful regression/mutation review, response-file quoting tests, environment/cleanup tests. Temp files are context-managed but supervisor SIGKILL can leave named temporary dirs (known WIP concern; finite anonymous fds preferable if practical). Every command currently allocates a temp directory even small commands: optimize this avoidable cost.
-- build.mjs removed old180k truncation/fallback; now keeps full exact removelist (no unsafe partial list).
-- chunks.mjs and pipeline.mjs write override sets as --skip-file; x86tool.c accepts this additive option. Existing --skip kept. Selected owner lists already files; JSON task batches stdin unchanged. Need regression proving huge skip list equality/cache semantics.
-- GL indentation edits separate unguarded statements without changing control flow; macro API return separated on continued line. One integer texel branch explicitly unsigned, preserving existing promotions. **GCC portability edits incomplete**: latest gcc-gl-after.log still reports w32_gl_shader.h216 second release and w32_gl_draw.h497 ternary signedness (check remaining log). Avoid warning suppression or broad formatting; run exact GCC tests and compare token semantics. An automated first edit accidentally added blank lines to225 w32_gl_api.h invocations; it was fully restored from HEAD, no delta retained there.
-
-## Running / completed local evidence
-
-Ignored local directory **reports/k33/**; preserve logs (not committed). BGT_E2E_PORT=5278 from environment; :5173 untouched. Sandbox forbids ps. Background command launched with nohup root PID **94132**:
-
-    npm run doctor > reports/k33/doctor.log
-    npm test -- tests/unit/build-transport.test.ts tests/unit/build-lock-transport.test.ts tests/unit/suspension-scale.test.ts tests/unit/coverage.test.ts --maxWorkers=1 > reports/k33/focused.log
-
-Writes *.exit after each. Doctor exit0. **focused.exit absent at checkpoint**, last log successive coverage lifted70005 instructions; may still be building. It began before later GL edits and lacks any new regression test (none written yet). Do not duplicate it; inspect marker/tail first. No build/e2e suite deadline altered. New files only got node --check / Python py_compile (pass); own __pycache__ removed. git diff --check passed.
-
-Background root98574 completed GCC probes: gcc-host.exit0, gcc-gl.exit1 (before edits). GCC host helper uses real GCC discovery independent of CC. Syntax-only actual GL flags after edits: gcc-gl-after.exit1. Detailed logs gcc-gl.log (large, compact filter!), gcc-gl.json, gcc-gl-after.log. These are failures, not successful validation. No full build proof for partial edits yet.
-
-## Continuation status — reviewer #293
-
-Fixed in the current WIP (not yet CI-ready):
-
-- Build child payloads now cross the OS boundary through anonymous file descriptors: Node script argv is reconstructed by node-args.mjs, compiler/linker argv uses response files, and small commands retain the direct path. The portable argv/env budget is enforced before every spawn. Asyncify cache identity includes the transport helpers.
-- Build-side removelist truncation was removed; chunk/pipeline override sets use --skip-file. New transport regressions cover >128 KiB Node argv, >256 KiB response-file plans, Unicode/quoting, finite stdin, timeout/lock cleanup and nested supervision. Focused transport suite: **13/13**; host-GCC unit suite: **8/8**.
-- GCC14 and clang compile the actual GL native adapter warning-free with native test flags. check-host-gcc.mjs now checks the GL adapter in addition to x86tool, both heaps and GLSL. ESLint, typecheck and host-GCC helper passed locally.
-- The approved CI fan-out is drafted: parallel lint-js/native/examples, two deterministic unit shards, e2e, unchanged scale, and an aggregate gate that rejects any non-success result. Scale commands/assertions remain unchanged.
-- The partitioned convergence case was rerun unchanged and passed in **173,803 ms**, under its unchanged 180,000 ms deadline.
-
-Open / not claimed:
-
-- No full Tier 1 or Linux CI run has completed. E2E, both suspension-mode browsers, full units, all 300-frame oracles, leakcheck final, and scale CI evidence remain open.
-- The workflow fan-out still needs fresh-session review against GitHub Actions expression/shell behavior and a CI run. It is not ready for the reviewer to push.
-- A broad standalone GCC syntax probe reaches x87/wasm-specific sources outside the existing host-driver gate; those warnings were not suppressed or claimed fixed. The native CI set is x86tool, heap, GLSL and GL adapter checks above.
-- OOM/exhaustion timing was not optimized; assertions and committed deadlines remain unchanged.
-
-**Next session:** inspect this diff and workflow, rerun focused transport/host tests after any review edits, validate the two CI shard file lists, then run final local gates in background (serially), commit implementation chunks, and only ask the reviewer to push a CI-ready commit after all required local evidence is complete. Current commit is WIP and **not CI-ready**.
-## Exact next steps / unrun gates
-
-1. Read this checkpoint, inspect git status/log, focused.exit/tail. Finish GL warning-only edits; compile both driver variants with real GCC flags and full existing native tests (CC=gcc-14), then clang. Extend lint coverage to actual GL native adapter so future CI catches these before unit runtime. Existing tests/unit/host-gcc.test.ts asserts exact four helper calls; update truthfully if extending. Check **every kit C source applicable flags**, not just current helper.
-2. Add portable before/after regressions enforcing Linux argv bounds at actual spawn boundaries, including compile.py→Node and nested Asyncify, >128KiB removelist, total-large link/source/chunk plans, Unicode/quotes, skip sets, stdin preservation, locks/deadlines/failure cleanup. Fix new transport defects; test both small path and file path. Existing transport tests verify nested group ownership/guardian lifetime/timeout diagnostics and must stay green. Need include new transport implementations in asyncify cache key if semantics require it (current key hashes asyncify/runner/sections/names but not new node-args/command helper).
-3. Measure partition test setup/transform work and OOM cases. Optimize redundant build/discovery/transform overhead, never deadlines/assertions. Current coverage build() does ordinary Asyncify then overwrites with forced partition transform every build, including rejected/strict stages; investigate safe reuse without dropping partition coverage. Target unchanged180s.
-4. Implement approved CI structure#289, exact coverage audit + deterministic Vitest shards, aggregate failure/skip protection, safe shared cache and bounded parallel lint if cheap. Scale job unchanged, including native checksum/browser/oracle300.
-5. Commit implementation/test chunks. Reviewer alone pushes ci/k33*; request CI with ask_reviewer (45-minute default for please run CI), iterate to all required jobs green. No pushes here.
-6. Full local Tier1 **not run**: doctor final, ESLint + clang/GCC lint all check builds, typecheck, uninterrupted npm test with real JSPI, npm run test:e2e both backends+auto in both suspension modes (BGT_REQUIRE_WEBGPU as required), leakcheck including negative control, every pipeline fixture×both suspension modes×300 oracle frames with requested/compared/hash/error audit. Run suites in background, compact logs. Need fresh independent validation (none run).
-7. Final docs/handoff/K33.md plus compact evidence and commit list; final <200words. This is only a WIP checkpoint, not completion.
+The working tree contains the post-`9dba9cb` fixes and this checkpoint; commit them before ending this session. The reviewer, not this lane, pushes CI branches.
+1. Inspect the WIP commit and collect `units-jspi-final.exit` plus CI run `42039181319`; preserve failures as evidence.
+2. Rerun focused tests after final edits, then full units in required modes.
+3. Run Asyncify and JSPI browser matrices serially on port 5278, with WebGL2, required WebGPU, and auto as prescribed; run leakcheck including its negative canary.
+4. Run unchanged scale checks and every pipeline example oracle at exactly 300 frames in both modes; audit counts, hashes, errors, exit status, and stubs.
+5. Address Linux CI failures only within ownership, commit each repair, and ask the reviewer before requesting another CI run. Do not push.
+6. After all gates pass, write `docs/handoff/K33.md` with evidence and commit list and obtain fresh independent validation if available.

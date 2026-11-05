@@ -2,7 +2,7 @@
 import { it, expect, vi } from 'vitest';
 import { execFileSync as nativeExec } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from '../support/headless';
@@ -47,6 +47,24 @@ it('moves oversized Node argv through a file after the OS spawn boundary', () =>
     const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out: join(dir, 'value.o'), stdout: join(dir, 'observed'), args: [process.execPath, script, value, 'λ "quoted"']}], jobs: 1}), encoding: 'utf8' }));
     const report = JSON.parse(readFileSync(join(dir, 'observed'), 'utf8'));
     expect(result.objects_compiled).toBe(1); expect(report.max).toBe(Buffer.byteLength(value)); expect(report.value).toBe(value); expect(report.quote).toBe('λ "quoted"');
+  } finally { rmSync(dir, {recursive:true, force:true}); }
+});
+
+it('bounds oversized lift argv on macOS as on Linux', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-lift-argv-boundary-'));
+  const launcher = join(dir, 'node');
+  const script = join(dir, 'lift-probe.mjs');
+  const out = join(dir, 'lift.c');
+  const observed = join(dir, 'observed.json');
+  const value = 'α😀 quote'.repeat(25000);
+  writeFileSync(launcher, '#!/usr/bin/env python3\nimport os,sys\nif any(len(os.fsencode(a))+1 > 131072 for a in sys.argv): sys.exit(91)\nos.execv(' + JSON.stringify(process.execPath) + ', sys.argv)\n');
+  chmodSync(launcher, 0o700);
+  writeFileSync(script, "import {writeFileSync} from 'node:fs'; const a=process.argv.slice(2), i=a.indexOf('--out'), out=a[i+1]; writeFileSync(out, 'int lifted(void){return 23;}\\n'); writeFileSync(out+'.stats.json', JSON.stringify({analysis_cpu_ms:1,c_generation_cpu_ms:2})); writeFileSync(a[2], JSON.stringify({value:a[0],quote:a[1]}));");
+  try {
+    const result = JSON.parse(execFileSync('python3', ['-I', lift], { ...options, input: JSON.stringify({tasks: [{out, key: 'lift-key', args: [launcher, script, value, 'λ \"quoted\"', observed]}], jobs: 1}), encoding: 'utf8' }));
+    expect(result.chunks_lifted).toBe(1);
+    expect(JSON.parse(readFileSync(observed, 'utf8'))).toEqual({value, quote: 'λ "quoted"'});
+    expect(readFileSync(out, 'utf8')).toContain('return 23');
   } finally { rmSync(dir, {recursive:true, force:true}); }
 });
 
