@@ -1,0 +1,1629 @@
+{
+  "schema": 1,
+  "tested_commit": "f1a7621ea992b6ce689b77d9e5454d5bd4d98951",
+  "initial_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "port": 5266,
+    "buildJobs": 2,
+    "realJspi": true,
+    "requiredWebgpu": true,
+    "lightMode": false
+  },
+  "gates": [
+    {
+      "name": "clock",
+      "exit": 0,
+      "log_sha256": "64ea45b3adb0e22c83642efc26af877ef47a6e4729e443933ecaabee54f2f05c",
+      "started": "2026-11-04T16:40:05Z",
+      "finished": "2026-11-04T16:40:53Z"
+    },
+    {
+      "name": "doctor",
+      "exit": 0,
+      "log_sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b",
+      "started": "2026-11-04T16:40:53Z",
+      "finished": "2026-11-04T16:40:53Z"
+    },
+    {
+      "name": "lint",
+      "exit": 0,
+      "log_sha256": "1ef9b0419bb0e2ec08b2d9b2432529334b5fc66c2b4f2ad037a95fc31210a6da",
+      "started": "2026-11-04T16:40:53Z",
+      "finished": "2026-11-04T17:10:03Z"
+    },
+    {
+      "name": "clang",
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "started": "2026-11-04T17:10:03Z",
+      "finished": "2026-11-04T17:10:07Z"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398",
+      "started": "2026-11-04T17:10:07Z",
+      "finished": "2026-11-04T17:10:10Z"
+    },
+    {
+      "name": "unit",
+      "exit": 0,
+      "log_sha256": "959e4a88ef458f32f50e96755ab29e97df8f7f8588772f43909efc420776c877",
+      "started": "2026-11-04T17:10:10Z",
+      "finished": "2026-11-04T18:04:22Z"
+    },
+    {
+      "name": "browser-asyncify",
+      "exit": 0,
+      "log_sha256": "d6ec227abd6f6501f7639def158f366f594b196bff055d3a3b2528833cef0f7e",
+      "started": "2026-11-04T18:04:22Z",
+      "finished": "2026-11-04T18:25:22Z"
+    },
+    {
+      "name": "browser-jspi",
+      "exit": 0,
+      "log_sha256": "894a38a29332ed452de8593740d8dabac37b240e9eb7d2794385c30a0f7da4a7",
+      "started": "2026-11-04T18:25:22Z",
+      "finished": "2026-11-04T18:55:23Z"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "log_sha256": "f6399d3a737e8314d5408db69c7527f43f323046eb0981b5d50d175b9d27a320",
+      "started": "2026-11-04T18:55:23Z",
+      "finished": "2026-11-04T18:55:23Z"
+    },
+    {
+      "name": "oracles",
+      "exit": 0,
+      "log_sha256": "b5b90856f17495e8c21009ad2e2ef1f234021c115aeb6361d803948934159e4a",
+      "started": null,
+      "finished": "2026-11-04T19:21:43Z"
+    }
+  ],
+  "unit": {
+    "summary": [
+      "Test Files  109 passed (109)",
+      "Tests  2027 passed (2027)",
+      "Duration  2969.99s (transform 989ms, setup 0ms, import 3.59s, tests 2854.08s, environment 5ms)"
+    ]
+  },
+  "browsers": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-04T18:10:21.844Z",
+        "duration": 900528.7159999999,
+        "expected": 291,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 131,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 152,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      },
+      "report_sha256": "814eb0be6d45d2ee41ff7769fe2e9bb70ab10d6a3dd4a1d94696f4acf1f61953"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-04T18:41:58.812Z",
+        "duration": 803758.9630000001,
+        "expected": 291,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 131,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 152,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      },
+      "report_sha256": "b4e438d92aa2cf4c912d327b6be082c5b88449984e0f77ed5b36313fc04feef0"
+    }
+  },
+  "browser_skips": [
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: nonzero first instance render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: native C submits and executes every section 13 opcode",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 0 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 1 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 2 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 3 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 4 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 6 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 7 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 8 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 9 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 all §13/§13.7 opcodes execute, including deletion and handle reuse",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 GLSL ES300 has the same native scene and readback as GLSL330",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 loss before first GPU draw rejects decoded handles and queued work",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU §13 stops rather than silently dropping live resources on unrecoverable loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: 1000 instanced sprites",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: 2D GPU interleaving",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: depth and stencil",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: GLSL blocks samplers varyings FragCoord discard",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: indexed coloured triangle",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: mipmapped alpha quad",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: two colour attachments",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 native: uniform animation",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 1: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 2: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 3: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU §13 scene 6: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+      "chromium-webgl2"
+    ],
+    [
+      "tour.spec.ts",
+      "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+      "chromium-webgpu"
+    ],
+    [
+      "visual.spec.ts",
+      "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgpu"
+    ]
+  ],
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "reports": {
+        "asyncify": {
+          "sha256": "ff21066eb1a25fdf8c023ba7ec57f8d738190e0f59b5c0c08fa78a192562a102",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 27.836594999995214,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 25.46,
+              "wall_ms": 63.822696000012,
+              "share": 0.39891765148866815
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "cc844026c0219250764b68c0b5292d3e0bd81e283f252a9f56a49fc4a6dbd73d",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 26.209452000000965,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 16.171,
+              "wall_ms": 43.940620000003946,
+              "share": 0.3680193861624744
+            }
+          }
+        }
+      },
+      "trace_sha256": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+    },
+    {
+      "id": "win32-hello",
+      "reports": {
+        "asyncify": {
+          "sha256": "64fd67d098eff2e374c4f12c5ebb9368b9db5dbc697f8bbb7cd74ec8cdb92192",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 9.096555000004628,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 5.973,
+              "wall_ms": 14.154369999995652,
+              "share": 0.4219898165726793
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "11cbf8886cc93cb23889eaa64286bd7f29bc63201562518f0ec76232a59f95ed",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 5.4187069999952655,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 4.658,
+              "wall_ms": 11.484748999993826,
+              "share": 0.4055813496666322
+            }
+          }
+        }
+      },
+      "trace_sha256": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+    },
+    {
+      "id": "x64-audio",
+      "reports": {
+        "asyncify": {
+          "sha256": "18c65d72ff8be228bd3b49f4fcd0175fb489320075f711d5185c29495c17a1b9",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 12.859505999996145,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 30.58,
+              "wall_ms": 36.74261299999944,
+              "share": 0.8322761367026473
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "0393514cdfbf24e89c5741dea053983243b3b6e569581832ea5fb274801f53fe",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 12.20749099999648,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 22.021,
+              "wall_ms": 27.601539999991473,
+              "share": 0.7978178029199386
+            }
+          }
+        }
+      },
+      "trace_sha256": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+    },
+    {
+      "id": "x64-audio-init",
+      "reports": {
+        "asyncify": {
+          "sha256": "812eba003fa8967a88dc220f8ddbeae0f0e7db50e7a2b43457550f541b6e9d8e",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 4.738328000006732,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 14.482,
+              "wall_ms": 19.39236299998811,
+              "share": 0.7467888260965866
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "eeac6b2846c6a97ec63c9ceeee5dceb82a39589040f96498dfd7b61a67e2b229",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 4.980879999979152,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 10.7,
+              "wall_ms": 14.968667999998615,
+              "share": 0.7148264628489982
+            }
+          }
+        }
+      },
+      "trace_sha256": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+    },
+    {
+      "id": "x64-basics",
+      "reports": {
+        "asyncify": {
+          "sha256": "56dec406767cca8e4cdb1db4b9276f18fde5893c24714338e507e5f22dd133aa",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.002332000001843,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 1.813,
+              "wall_ms": 5.7454550000102245,
+              "share": 0.3155537725030957
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "b9988f0d6a196e4a6bdb35f066d5206cada9a248c0b9eeb6c3b7f7a4820f6cc8",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.130291000003126,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 1.401,
+              "wall_ms": 4.7764260000067225,
+              "share": 0.29331554597475773
+            }
+          }
+        }
+      },
+      "trace_sha256": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+    },
+    {
+      "id": "x64-contracts",
+      "reports": {
+        "asyncify": {
+          "sha256": "a1219ed1f0cd6fafd545f7e98ff0d091f02fed35f6730b9e55475f4c04b5a405",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 12.112292999998317,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 4.685,
+              "wall_ms": 15.64671599999292,
+              "share": 0.29942385354231005
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "2224fff357f931cf7ae1a7f14c70587298d60e56c938a06f54663368ed6044fa",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 13.07237699999041,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.603,
+              "wall_ms": 12.685593999995945,
+              "share": 0.28402296337098226
+            }
+          }
+        }
+      },
+      "trace_sha256": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+    },
+    {
+      "id": "x64-cpp",
+      "reports": {
+        "asyncify": {
+          "sha256": "5b94a53c6c3f98afc4ab45da303ef5b2a199885c5f88b3f69e4f7ea1e46882e7",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 5.165464000007887,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 4.706,
+              "wall_ms": 12.036583000005521,
+              "share": 0.39097474756729894
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "acb172d3df5f7216b987d257362c1b4cac4b8e507eab4db6e770ae55dad87be8",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 4.037998999993761,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.922,
+              "wall_ms": 10.305842000001576,
+              "share": 0.3805608508261043
+            }
+          }
+        }
+      },
+      "trace_sha256": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+    },
+    {
+      "id": "x64-cpprt",
+      "reports": {
+        "asyncify": {
+          "sha256": "3f0ab10db8c505d325dc240679730165bcbbe98903ce5e57736950fa7e5e4acc",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.496298999989449,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 12.791,
+              "wall_ms": 17.738330000000133,
+              "share": 0.7210938121006828
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "7706a9ae154755597aec1ca77b9441681cbe26260eccbc5c04bfe4f1712cd556",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.062961000005089,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 8.506,
+              "wall_ms": 12.622031999997489,
+              "share": 0.6739010010433892
+            }
+          }
+        }
+      },
+      "trace_sha256": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+    },
+    {
+      "id": "x64-crt",
+      "reports": {
+        "asyncify": {
+          "sha256": "e0233743a0d97d4823212b2cb8706da7d17ad18ca12c354d3e38d74f0275bc16",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 7.89187600000605,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.758,
+              "wall_ms": 13.28787700000521,
+              "share": 0.2828141771630281
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "e1adea4cc49cac49b63617cbb6b3755bd9dc10f724b37afe9e7c7c3b4d7c6755",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 5.208452999993824,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2.933,
+              "wall_ms": 9.89253700000063,
+              "share": 0.29648612888683795
+            }
+          }
+        }
+      },
+      "trace_sha256": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+    },
+    {
+      "id": "x64-gl",
+      "reports": {
+        "asyncify": {
+          "sha256": "58330d7dd969122a59ec26ff5483ddcecf2509a4198e3ee5d99de594f0fec512",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 83.59517400001369,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 6.225,
+              "wall_ms": 91.3008719999907,
+              "share": 0.06818116698820394
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "278577dd8738e10e9187e10ad264a067edcb76b5042e8ed52a889e8fd15e478e",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 81.5628330000045,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 5.317,
+              "wall_ms": 85.4101770000052,
+              "share": 0.06225253461305526
+            }
+          }
+        }
+      },
+      "trace_sha256": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+    },
+    {
+      "id": "x64-gl-blit",
+      "reports": {
+        "asyncify": {
+          "sha256": "280775edb5e8fc9e7d231a04e74136278fdce2ba0b01c328754410bd14712496",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 15.389252000015404,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.018,
+              "wall_ms": 18.173622999973304,
+              "share": 0.16606485124096793
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "24d278ad02c306e04f9cd99801a68db7bfe7ce81bebd4a000c70946a8c1f5908",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 11.761034000010113,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2.511,
+              "wall_ms": 15.856871999997566,
+              "share": 0.1583540562098493
+            }
+          }
+        }
+      },
+      "trace_sha256": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+    },
+    {
+      "id": "x64-gl-capacity",
+      "reports": {
+        "asyncify": {
+          "sha256": "779feb05e07c28a1a7951f3b9da13d3369a4dcd1229708bf8fc09459b5e0ead1",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 461.8209979999956,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 147.178,
+              "wall_ms": 537.5104510000201,
+              "share": 0.2738142109166069
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "e7e92924d5666baeca3faaba8803b5862b79771f81529677c0b56cf0eaa3dc00",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 393.33616700000584,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 121.432,
+              "wall_ms": 499.2901579999989,
+              "share": 0.24320928032392794
+            }
+          }
+        }
+      },
+      "trace_sha256": "f59a2cb786bf6ee422791a3abbe38fa474f63004e506ecd758a2bc19063cfa64"
+    },
+    {
+      "id": "x64-gl-current",
+      "reports": {
+        "asyncify": {
+          "sha256": "1961937ec0a00fc488bfc4e863dee1c613cf0a8813bed617a1d49fac3ce24660",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 148.58382600001096,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 12.053,
+              "wall_ms": 136.47507800001222,
+              "share": 0.08831649101529675
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "928356977f85dd708fac367a6863db33a561ea04c078f2af7b74c66bd0e88879",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 125.49374900000839,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 9.864,
+              "wall_ms": 127.23746100000699,
+              "share": 0.07752433852793918
+            }
+          }
+        }
+      },
+      "trace_sha256": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "reports": {
+        "asyncify": {
+          "sha256": "7054fc14c6238e4f465dc2a615a4f54a4dfcc62fcb65c5f60b4e483096bfd541",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 48.397168999990754,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 7.123,
+              "wall_ms": 55.83545100002084,
+              "share": 0.12757128083370084
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "b5c05737388ceb81887d17090744bb1fe1be008f0775330945b895675dbcb656",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 43.76692200000252,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 5.125,
+              "wall_ms": 53.576119000006656,
+              "share": 0.09565829133684288
+            }
+          }
+        }
+      },
+      "trace_sha256": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+    },
+    {
+      "id": "x64-gl-fbo",
+      "reports": {
+        "asyncify": {
+          "sha256": "75968bc9679d126dfdbce8d489c49923a231332792a2a0d46573572bb5297c42",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 194.41749300001356,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 14.574,
+              "wall_ms": 172.28670299999794,
+              "share": 0.08459155434647893
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "1d49d20162f87efad07ca83e554b648f97f7acac61a19b79c3b7cae6be710306",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 165.787038999998,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 12.925,
+              "wall_ms": 164.2208349999937,
+              "share": 0.07870499501479514
+            }
+          }
+        }
+      },
+      "trace_sha256": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+    },
+    {
+      "id": "x64-gl-feedback",
+      "reports": {
+        "asyncify": {
+          "sha256": "3f4cf6eeb5c1c68e6918f156e9c5772dfbe2a1150376ff3968858c18b4acba9d",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 16.500960999997915,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.04,
+              "wall_ms": 21.214247000001706,
+              "share": 0.14329992480995227
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "b38e079d0cfd0a2e7d71db78d6a87693cd58c1230cfcf02fb415db437d126ddf",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 15.33690900000056,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.065,
+              "wall_ms": 19.910038000001805,
+              "share": 0.15394244852770858
+            }
+          }
+        }
+      },
+      "trace_sha256": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+    },
+    {
+      "id": "x64-gl-integer",
+      "reports": {
+        "asyncify": {
+          "sha256": "0f303cfaaa8c90875206d0bc68684514f61aa4db111bfe5e8057584753e45bed",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 50.4847569999838,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 4.673,
+              "wall_ms": 52.3276220000098,
+              "share": 0.08930273957412253
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "fbcbf4f781af6e34ced0b443c5ee0a757e95a91b24d023957ef0b4246f218b43",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 43.373973000007936,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 5.57,
+              "wall_ms": 47.463289000006625,
+              "share": 0.11735385636674321
+            }
+          }
+        }
+      },
+      "trace_sha256": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+    },
+    {
+      "id": "x64-gl-ranges",
+      "reports": {
+        "asyncify": {
+          "sha256": "fd178eecc7e218c07b165ec9ff44fcb1b7d16212bdf99bbcc4ea26ff9b271c1b",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 153.29749899999297,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 13.052,
+              "wall_ms": 135.3768610000061,
+              "share": 0.09641234036294734
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "6a50cbd9124d1e8b2675fbe150722787560d10559fecaf970cc62dade785abe0",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 142.8888740000075,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 11.535,
+              "wall_ms": 137.29191100000025,
+              "share": 0.084018059884096
+            }
+          }
+        }
+      },
+      "trace_sha256": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+    },
+    {
+      "id": "x64-glsl",
+      "reports": {
+        "asyncify": {
+          "sha256": "0b2af4309e7c1c3040b8b26c48a8faed5d6d7f10c718f54b6ccc53fb190d51c3",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 51.22746800000732,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 22.488,
+              "wall_ms": 66.81212299999333,
+              "share": 0.336585622342853
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "c26a851268d20866fc01e38f613db50ac03bc6176575c49d4f299ace431320bd",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 43.29915899999287,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 21.058,
+              "wall_ms": 61.099917000007736,
+              "share": 0.3446485860201305
+            }
+          }
+        }
+      },
+      "trace_sha256": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+    },
+    {
+      "id": "x64-gui",
+      "reports": {
+        "asyncify": {
+          "sha256": "4d5c3f77072013c2d3a277249993dfcc5a0ce37e7e3f5a4af8ad0b6206aed472",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.0149979999978314,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 3.31,
+              "wall_ms": 9.321418999993512,
+              "share": 0.3550961500606618
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "aabd1c583f34d51f21a4f86ef8b64fd21f057f2921d7a4233e8559a54fcb00d1",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 2.7340390000026673,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2.399,
+              "wall_ms": 6.612484999997832,
+              "share": 0.3627985545526056
+            }
+          }
+        }
+      },
+      "trace_sha256": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+    },
+    {
+      "id": "x64-handles",
+      "reports": {
+        "asyncify": {
+          "sha256": "be9f6b788c2062a87c27e75c353555d76b7424f34b5e7a21188a827146e60240",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 17.454799999991337,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 14.499,
+              "wall_ms": 29.510714000000007,
+              "share": 0.49131308717234007
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "852369c58406bd26cc07f899d88a05d39b812ca1194b1ada5d7e99f6aec44e06",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 16.32849500001157,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 9.964,
+              "wall_ms": 23.681498999990254,
+              "share": 0.4207503925323351
+            }
+          }
+        }
+      },
+      "trace_sha256": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+    },
+    {
+      "id": "x64-heap",
+      "reports": {
+        "asyncify": {
+          "sha256": "a64515e4312b9d1cd35a8fa6eba2412bdae943fbf69a44de5bc71cff470127de",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 473.69136999999773,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 702.445,
+              "wall_ms": 741.8022480000009,
+              "share": 0.9469437466573966
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "40867ed7843580c435a81a9acd80d1fb490d69382126a143fbdd70d3a2870839",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 343.88562199999524,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 518.564,
+              "wall_ms": 553.6312460000127,
+              "share": 0.9366595612993782
+            }
+          }
+        }
+      },
+      "trace_sha256": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+    },
+    {
+      "id": "x64-input",
+      "reports": {
+        "asyncify": {
+          "sha256": "24b4a750cce042350b2adb4f5bbcbbbea264f66a6e1a012f0eb9d652f4c5d21f",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 243.6302939999996,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 122.876,
+              "wall_ms": 377.02353600000333,
+              "share": 0.32591068797359884
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "675df6436ad81e4ef2dff249bc7a084c2f52b0cd21672a2a70961cd14a48e974",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 225.08304799999587,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 103.143,
+              "wall_ms": 330.99542499999734,
+              "share": 0.3116145789628386
+            }
+          }
+        }
+      },
+      "trace_sha256": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+    },
+    {
+      "id": "x64-memory",
+      "reports": {
+        "asyncify": {
+          "sha256": "821bce55eaf538bc1d3b013d4f77b0b509f962b47a0894d215980ac6ebf969d2",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 140.8028770000119,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2790.875,
+              "wall_ms": 2797.2030359999944,
+              "share": 0.9977377273231323
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "28460255d13b2c913e9b01883d72b2685767a5b95ac5b51e54c249d28dacdb87",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 147.64126099999976,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2454.925,
+              "wall_ms": 2460.2365009999994,
+              "share": 0.9978410608094627
+            }
+          }
+        }
+      },
+      "trace_sha256": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+    },
+    {
+      "id": "x64-scale",
+      "reports": {
+        "asyncify": {
+          "sha256": "4dbc5c76a1f09565a33a1b3a30bcce4c0ac7560578289e7524c328da14d65541",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 44.96978600005241,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 105.35,
+              "wall_ms": 110.22683799999504,
+              "share": 0.9557563467438369
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "07bfa2936160e775823cd8fab7eea8722ccf87c2e1a77d3e342dce3182a659ff",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 34.698091000000204,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 96.696,
+              "wall_ms": 100.4115109999766,
+              "share": 0.9629971607540347
+            }
+          }
+        }
+      },
+      "trace_sha256": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+    },
+    {
+      "id": "x64-smoke",
+      "reports": {
+        "asyncify": {
+          "sha256": "8d0b06b228c9c34257b38ec2adcbddde349ef8bd064ded65a7356accd48c6894",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 171.12966100000358,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 178.839,
+              "wall_ms": 277.03350199999477,
+              "share": 0.6455500822424118
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "c5fb137891bd937b85eae87e4b1ce896ca8b606d68434eb512a4ee53ed8376a8",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 155.337258999999,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 132.526,
+              "wall_ms": 231.5808309999984,
+              "share": 0.5722667088969938
+            }
+          }
+        }
+      },
+      "trace_sha256": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+    },
+    {
+      "id": "x64-sysdlls",
+      "reports": {
+        "asyncify": {
+          "sha256": "2b770d44d44a8bdc785effa5f8ed4baed1200f0f469a4975b58a48d46feac52a",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 10.881596000011086,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 5.762,
+              "wall_ms": 19.773916000007375,
+              "share": 0.29139397578091514
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "5726a21d064aa3b8d92b85ada983ede23441f085855f401c1da96b4778eb847c",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 9.684463999991749,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 4.762,
+              "wall_ms": 17.076586999993197,
+              "share": 0.27886134389746015
+            }
+          }
+        }
+      },
+      "trace_sha256": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+    },
+    {
+      "id": "x64-threads",
+      "reports": {
+        "asyncify": {
+          "sha256": "507916282e62dec42888c9083f12519f029e89afafee5f2e9b489b9fda6424ae",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 10.052873999997246,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 59.579,
+              "wall_ms": 67.03370599998925,
+              "share": 0.888791677428808
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "1677abf9557e42038e908e867d34fba905ff57d1a55ed187b250e4f64e4fb0fd",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 9.249077999991641,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 42.307,
+              "wall_ms": 48.12490999999227,
+              "share": 0.8791081375530219
+            }
+          }
+        }
+      },
+      "trace_sha256": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+    },
+    {
+      "id": "x64-tls",
+      "reports": {
+        "asyncify": {
+          "sha256": "f0c51e9e3f90434a7bfed6f48a050206ba76cb8d6450aa04379d49a1759b9fad",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 2.811205999994854,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 2.181,
+              "wall_ms": 7.006457999998929,
+              "share": 0.31128424661938076
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "cd76e2901b2133197159d0c32d48e731e4b73cf7e17b8cf4be1682f24779a855",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 3.146626999995533,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 1.869,
+              "wall_ms": 7.028552000002492,
+              "share": 0.2659153691968612
+            }
+          }
+        }
+      },
+      "trace_sha256": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+    },
+    {
+      "id": "x86-handles",
+      "reports": {
+        "asyncify": {
+          "sha256": "4057391096fec4ef25a2d0209e8968b6b69475f992a65602e4b83107ab121c5a",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 22.9222049999953,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 10.966,
+              "wall_ms": 31.828204000004007,
+              "share": 0.344537190976865
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "6c0c18049afdf95925d294585968e0dfc4c254e799c1d7b58df73e7f55d48d79",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 16.642042999989826,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 11.828,
+              "wall_ms": 32.784423999987666,
+              "share": 0.3607810831144829
+            }
+          }
+        }
+      },
+      "trace_sha256": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+    },
+    {
+      "id": "x86-heap",
+      "reports": {
+        "asyncify": {
+          "sha256": "0d2fcce45cbd79a4104d2981ce9374e9ca5af4068a738669a0dd08101007c76c",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 131.20983299999534,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 723.783,
+              "wall_ms": 748.6636189999981,
+              "share": 0.9667666247316364
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "ce377170c6cb7e1aa4fc3f2f4af91c8dc63a32c6d27c11bb4fe179237348ede9",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 119.07179899998937,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 642.256,
+              "wall_ms": 668.7668230000072,
+              "share": 0.9603586450639359
+            }
+          }
+        }
+      },
+      "trace_sha256": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+    },
+    {
+      "id": "x86-threads",
+      "reports": {
+        "asyncify": {
+          "sha256": "9de3ecf44a8f9bd002c55eb43eceb3efff30b7cc792ee152c0bb679e064c9d11",
+          "active": "asyncify",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 7.4780919999993785,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 1.337,
+              "wall_ms": 11.709293000004436,
+              "share": 0.11418281189133224
+            }
+          }
+        },
+        "jspi": {
+          "sha256": "5cb0f6873d34b819eeabfed615a6f94687107c0e16b1dcd1b9310f76654d735f",
+          "active": "jspi",
+          "timings": {
+            "lifted": {
+              "measured_ms": 0,
+              "wall_ms": 7.050419999998667,
+              "share": 0
+            },
+            "interpreted": {
+              "measured_ms": 1.868,
+              "wall_ms": 11.834164000008059,
+              "share": 0.1578480744392868
+            }
+          }
+        }
+      },
+      "trace_sha256": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+    }
+  ],
+  "oracle_contract": {
+    "fixtures": 32,
+    "variants": 2,
+    "updatesPerRun": 300,
+    "identicalFramePairs": 19200,
+    "liftedInterpretation": 0,
+    "stubs": [],
+    "errors": null,
+    "crossVariantHashesEqual": true
+  },
+  "review": "Author-run repair gates only. External vK26 FAIL on cd28ca8; f1a7621 repairs host exception cleanup. External delta re-review pending, no in-lane independent review or CI. Separate build follow-up #232 unchanged."
+}

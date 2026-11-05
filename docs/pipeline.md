@@ -97,7 +97,9 @@ still runs (interpreted, visible as `interp_insns`).
 The default now automatically merges successful probe/port-test coverage into owner/interior selection.
 `pipeline.selection: "all"` / `--selection all` is explicit; strict slices remain supplied-evidence-only.
 Standard metrics and probe summaries distinguish **updates/s from guest presents/s**, report guest interval
-avg/p95, and expose exclusive sampled interpreter ms/share, instructions/update and top owners.
+avg/p95, and expose non-extrapolated exclusive interpreter span ms/share, instructions/update and top owners.
+Available interpreter shares are in [0,1]; invalid update budgets are explicit nulls, never clamped samples.
+Raw sampled/extrapolated interpreter timings remain labelled diagnostics, not physical time budgets (Q73).
 **Updates are not guest frames.** Contracts, limits and reproduction: [coverage convergence](coverage-convergence.md).
 
 ## Execution profiling (K10)
@@ -132,6 +134,9 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
   census never evicts; `census_dropped` counts rejected events. Nonzero means the retained top-N is incomplete,
   not a trustworthy global ranking. Existing execution and coverage counters remain independent/exact.
 - `host_profile`: cumulative update/render wall ms, awaited range-I/O ms, sampled BGT imports by name (1/1024).
+  Failed updates retain partial wall time without incrementing completed frames. On host exceptions/wasm traps,
+  optional `bgt_profile_abort(now_us)` closes/discards abandoned interpreter spans and sampled/idle state;
+  normal returns and suspended yields do not call this hook. The original exception propagates unchanged.
   Hot coverage/time imports are counted but not individually timed. `runtime_profile` adds cumulative backend
   `gpuSubmitMs` (JS encode/submit) and `gpuDrawWallMs` (including requested readback/waits), **not GPU timestamps**.
   Its VFS `readMs` includes awaited fetches; `fetchMs` includes response consumption/integrity. Concurrent totals

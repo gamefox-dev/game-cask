@@ -585,6 +585,21 @@ Census bucket tokens include their generation, so a previously suspended semanti
 new window's reused slot. A window that still reports nonzero `census_dropped` is incomplete and must be shortened;
 no reset/eviction silently fabricates a complete ranking. The lifetime execution counters remain independent.
 
+### Interpreter exception boundary (K26, additive optional export)
+
+Optional `void bgt_profile_abort(f64 now_us)` closes an active interpreter interval using the
+monotonic host timestamp (same microseconds as `bgt.time_us`), or discards the open interval if
+the timestamp is unavailable/nonfinite/backward. It clears abandoned sampled-stack pointers and
+idle restoration state; repeated calls do not count twice. The host calls it after a synchronous
+wasm export throws or a JSPI update rejects, never on a normal return or suspended yield. This
+boundary covers imported host errors, strict-slice stops, wasm traps and aborts, which bypass C
+return restorations. Guest SEH/longjmp transfer uses ordinary dispatcher return cleanup.
+
+Cleanup cannot replace the original error, even if the clock or cleanup export fails. Older/native
+modules without the export keep their error behavior. A failed update consumes wall time in
+`host_profile.updateMs`, but does not increment completed updates/frames; its measured partial
+interpreter work remains within that budget. This export changes no guest state or coverage count.
+
 ### Persistent interpreter observations (K21, additive optional export)
 
 Optional `u32 bgt_interpreter_coverage(void)` returns a wasm32 pointer to a read-only 24-byte descriptor
@@ -632,9 +647,14 @@ Wall intervals include waits and probe think time. No export means null guest-fr
 artifacts. A presentation is not proof of independent simulation or physical display scanout.
 
 Standard `metrics.execution_summary` puts updates/s next to guest presentations/s, guest frame-time avg/p95,
-and exclusive sampled interpreter ms/share/instructions per update plus top owners. **Updates are cooperative
-scheduling boundaries, not guest frames.** Exclusive timing excludes nested invoke/native/scheduler work and
-parked yield time; it is a sampled estimate, not a disjoint exact CPU budget. Existing census categories stay
+and measured exclusive interpreter ms/share/instructions per update plus top owners. **Updates are cooperative
+scheduling boundaries, not guest frames.** `interpreter_exclusive_us` serializes cumulative disjoint wall-clock
+spans (integer microseconds), excluding native/thunk/scheduler work and parked yields; nested interpretation
+counts once. Reset preserves this physical accumulator. `measured_ms[_per_update]` and compatibility
+`estimated_*` summary keys use only this source, never sampled extrapolation. Legacy/missing/disabled
+observations produce null time/share; invalid budgets produce null with explicit timing status, not clamping.
+Available shares cannot exceed one. Raw `interpreter_exclusive_sample_us`/`interpreter_exclusive_estimated_us` are
+sample diagnostics only (timer-cost extrapolation can exceed wall). Existing census categories stay
 inclusive and must not be added/subtracted to obtain this share. Details: [coverage convergence](../../docs/coverage-convergence.md).
 
 ## 13. v0.3 GPU layer (additive interface)

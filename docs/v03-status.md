@@ -1,5 +1,6 @@
 # v0.3 merged implementation status
 
+<<<<<<< HEAD
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
@@ -25,6 +26,53 @@ background roots exited;27 owned temporary directories removed only afterward. F
 Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
 no separate independent merged-tree PASS/CI, game or physical-device claim.
 [I13 handoff](handoff/integration-i13.md), [audited evidence](handoff/integration-i13-evidence.json).
+=======
+## K26g exception-boundary repair — author Tier 1 green; delta review pending
+
+External vK26 FAIL on cd28ca8 found host exceptions bypassing C span cleanup (P2).
+Decision #251 repair **f1a7621** adds optional `bgt_profile_abort(now_us)`, host export/rejection
+guards and failed-update wall accounting; closes/discards spans and clears abandoned sampled/idle
+state without masking original errors. All four width/suspension reviewer regressions fail before
+and pass after; absent-export compatibility and normal-yield zero-cleanup/exact80/90ms tests pass.
+Private stack/idle cleanup mutants fail both widths. Focused **24/24**, full units **2,027 /109 files**.
+
+Clean repair source full author Tier 1: doctor, ESLint + real GCC **36/36 example checks**, explicit
+clang, types, leakcheck; full browsers **291 pass /51 unchanged skips /0 failures /0 flaky per
+suspension mode**, required WebGL2/WebGPU; **32 fixtures ×2 modes ×300 =19,200 identical oracle
+frame pairs**, lifted interp0/stubs[], null errors, equal cross-mode hashes. All64 interpreted
+physical totals fit actual host update budgets (maximum99.78%). Refreshed clock median27.49ns/import,
+55.30ns/transition pair; disabled transitions0 clocks; shared-machine samples, not game overhead.
+Finalization is documentation/evidence only. **External delta re-review pending**, not an independent
+PASS or CI claim. Review cd28ca8..f1a7621; no production build/emitter changes.
+[Repair handoff](handoff/K26.md), [repair gates](handoff/K26-repair-gate-evidence.json),
+[repair timing/sensitivity](handoff/K26-repair-timing-evidence.json). Historical source gates below
+remain correctly scoped to d454da7.
+
+## K26 historical normal-path gates — physical interpreter timing / measured size attribution
+
+Q73 no longer extrapolates timer overhead into a physical exclusive budget. Disjoint measured
+interpreter spans use the host monotonic clock, exclude native/API/scheduler/parked work, survive
+census reset, and close on return/fault. Raw sampled diagnostics remain labelled; unavailable or
+invalid update budgets give explicit null/status, not clamped shares. Exact hand-clock CC0 tests
+cover real i386/AMD64 dispatch, nesting, 300 GameHost updates, Asyncify/real JSPI and profiling0/1;
+three private-archive negative controls fail as intended. Clock median27.8ns/import,55.6ns per
+enter/exit pair; disabled transitions0 clocks (shared-machine observations, not game overhead).
+
+Clean source **d454da7**: doctor; full lint **36/36 examples**, real GCC + explicit clang; types;
+**2,019 units /108 files /0 skips**; full browser **291 pass /51 unchanged skips /0 failures /0 flaky
+per suspension mode**, both backends required; leakcheck; **32 pipeline fixtures ×2 modes ×300
+=19,200 identical oracle frame pairs**, lifted interp0/stubs[], equal cross-variant hashes.
+All64 real interpreted oracle summaries fit wall time; maximum share99.71%. Finalization docs only.
+
+Matched CC0 attribution separates **528,241B lost whole-module optimization** from **646,375B
+conservative shard-summary expansion**; wholeO2→partition **+13.46%**. Supplied read-only porter
+manifests place99.74% of final growth at postprocessing, not new per-lifted-function hooks.
+Shared-machine runtime samples are retained without claiming isolated causal overhead. Reviewer
+**#232 approved a separate conservative may-suspend analysis follow-up**; no production build/emitter
+changes here. **No independent K26 review or CI claimed**; external reviewer coordination remains.
+[Handoff and approved spec](handoff/K26.md), [gates](handoff/K26-gate-evidence.json),
+[timing](handoff/K26-timing-evidence.json), [size](handoff/K26-size-evidence.json).
+>>>>>>> lane/K26
 
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 

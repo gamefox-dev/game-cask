@@ -808,6 +808,8 @@ const char *w32_metrics_json(void) {
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interpreter_timing_enabled",X86_PROFILE_ENABLED);
+    jkv("interpreter_exclusive_us",(uint64_t)x86_interpreter_exclusive_us());
+    /* Historical sampled/extrapolated diagnostics, NOT a physical time budget. */
     jkv("interpreter_samples",x86_timings[XP_INTERPRETER].samples);
     jkv("interpreter_exclusive_sample_us",(uint64_t)x86_interpreter_exclusive_sample_us);
     jkv("interpreter_exclusive_estimated_us",x86_timings[XP_INTERPRETER].samples?

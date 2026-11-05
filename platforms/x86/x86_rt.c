@@ -27,9 +27,20 @@ void x86_profile_reset(void) {
 }
 double x86_profile_idle_us;
 static double idle_start;
+static int idle_exclusive, idle_pending;
+static int interpreter_span_set(int active);
 double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
-void x86_profile_idle_begin(void) { idle_start = bgt_time_us(); }
-void x86_profile_idle_end(void) { x86_profile_idle_us += bgt_time_us() - idle_start; }
+void x86_profile_idle_begin(void) {
+    idle_exclusive = interpreter_span_set(0);
+    idle_start = bgt_time_us();
+    idle_pending = 1;
+}
+void x86_profile_idle_end(void) {
+    if (!idle_pending) return;
+    idle_pending = 0;
+    x86_profile_idle_us += bgt_time_us() - idle_start;
+    interpreter_span_set(idle_exclusive);
+}
 double x86_profile_begin(unsigned category) {
     if(!X86_PROFILE_ENABLED)return -1;
     static uint32_t countdown[XP_CATEGORIES], random=0x19730119;
@@ -69,6 +80,44 @@ static double *exclusive_pause(double *start) {
 static void exclusive_resume(double *span,double start) {
     if(span){*span+=x86_profile_clock()-start;exclusive_span=span;}
 }
+/* Physical exclusive time is a union of disjoint, non-extrapolated intervals.
+ * Sampling a tiny dispatch also samples timer overhead; scaling that overhead by
+ * ~1024 can exceed the entire update budget. Keep those samples diagnostic only.
+ * A state transition reads the same monotonic host clock as update wall timing.
+ * No clock at consecutive interpreted instructions, and no work when disabled.
+ * Idle closes the interval BEFORE Asyncify unwind/JSPI parking; resume reopens it.
+ * Recursive interpreter/native/scheduler calls save only the prior state, so an
+ * inner interpreter interval is counted once, never both by parent and child. */
+static int interpreter_span_active;
+static double interpreter_span_start,interpreter_span_us;
+static int interpreter_span_set(int active) {
+    if (!X86_PROFILE_ENABLED) return 0;
+    int previous = interpreter_span_active;
+    if (active != previous) {
+        double now = bgt_time_us();
+        if (previous) interpreter_span_us += now - interpreter_span_start;
+        interpreter_span_start = now;
+        interpreter_span_active = active;
+    }
+    return previous;
+}
+double x86_interpreter_exclusive_us(void) {
+    return interpreter_span_us+(interpreter_span_active?bgt_time_us()-interpreter_span_start:0);
+}
+/* C return restorations cannot run after a host exception or wasm trap. The host
+ * calls this only after the abandoned stack has exited (never on a normal yield).
+ * Use its timestamp, not an import that could throw again. Missing/invalid clock
+ * discards only the open interval. Idempotent even after explicit x86_fault.
+ * In particular, never retain a sampled pointer into the abandoned C stack or
+ * reopen a discarded interval through a stale idle_end restoration. Guest SEH
+ * and longjmp use X.transfer and the ordinary return restorations instead. */
+BGT_EXPORT(bgt_profile_abort) void x86_profile_abort(double now_us) {
+    if (interpreter_span_active && __builtin_isfinite(now_us) && now_us >= interpreter_span_start)
+        interpreter_span_us += now_us - interpreter_span_start;
+    interpreter_span_active = 0;
+    exclusive_span = 0;
+    idle_exclusive = idle_pending = 0;
+}
 static uint64_t interpreter_bucket;
 static uint64_t interpreter_generation;
 unsigned x86_lift_reason = XE_FORM;
@@ -86,14 +135,18 @@ void x86_cooperate(void) {
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
     X.frame_insns = 0;
     double start=0,*span=exclusive_pause(&start);
+    int active=interpreter_span_set(0);
     scheduler();
+    interpreter_span_set(active);
     exclusive_resume(span,start);
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
 static void profiled_native(x86_lifted_fn fn) {
     double paused=0,*span=exclusive_pause(&paused);
+    int active=interpreter_span_set(0);
     double start=x86_profile_begin(XP_NATIVE);fn();x86_profile_end(XP_NATIVE,start);
+    interpreter_span_set(active);
     exclusive_resume(span,paused);
 }
 
@@ -177,6 +230,7 @@ static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
+    interpreter_span_set(0);
     x86_coverage_flush();
     uint32_t n = 0;
     const char *p = "x86: ";
@@ -435,12 +489,13 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
             if (X.eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
             if(X.transfer)return;
             if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
-            if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);entry=1;continue;}
+            if(x86_is_thunk(X.eip)){interpreter_span_set(0);x86_metrics.thunk_dispatches++;thunk_fn(X.eip);entry=1;continue;}
             x86_lifted_fn f=x86_find_lifted(X.eip);
             if (f) {
                 entry = 1;
                 uint32_t old = X.eip;
                 uint64_t old_clock = X.tsc;
+                interpreter_span_set(0);
                 x86_metrics.lifted_calls++;
                 profiled_native(f);
                 if (x86_lift_pending) {
@@ -454,6 +509,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 }
             }
             else {
+                interpreter_span_set(1);
                 double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
                 if(interpreter_start>=0)exclusive_span=&excluded;
                 const x86_insn_t *in = decode_at(X.eip);
@@ -486,6 +542,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         if (X.transfer) return;
         if (eip == ret_addr && X.r[ESP] > esp_floor) return;
         if (x86_is_thunk(eip)) {
+            interpreter_span_set(0);
             x86_metrics.thunk_dispatches++;
             if (thunk_fn(eip)) return;
             entry = 1;
@@ -493,9 +550,10 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         }
         /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
         x86_lifted_fn resume = x86_find_lifted(eip);
-        if (resume) { x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
+        if (resume) { interpreter_span_set(0);x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
+        interpreter_span_set(1);
         double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
         if(interpreter_start>=0)exclusive_span=&excluded;
         const x86_insn_t *in = decode_at(eip);
@@ -537,7 +595,9 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
 static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
     uint32_t saved_stop = native_stop, saved_floor = native_floor; int saved_limit = native_limit;
     native_stop = ret_addr; native_floor = esp_floor; native_limit = 1;
+    int active=interpreter_span_set(0);
     interp_loop(ret_addr, esp_floor);
+    interpreter_span_set(active);
     native_stop = saved_stop; native_floor = saved_floor; native_limit = saved_limit;
 }
 
@@ -560,7 +620,9 @@ static void invoke_inner(uint32_t target, uint32_t ret_addr) {
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
     double start=0,*span=exclusive_pause(&start);
+    int active=interpreter_span_set(0);
     invoke_inner(target,ret_addr);
+    interpreter_span_set(active);
     exclusive_resume(span,start);
 }
 
