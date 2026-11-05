@@ -58,7 +58,11 @@ it.each(compilers)('accepts only file dependency plans for %s, independent of ho
     expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(dep,'utf8'));
    }
   }
+  const preprocessed=join(dir,'preprocessed.d');
+  const validPreprocess=transported([cc,'-E','-MD','-MF',preprocessed,'-MT','bgt','-o','/dev/null',...common],dir);
+  expect(validPreprocess.error).toBeUndefined();expect(validPreprocess.status,validPreprocess.stderr).toBe(0);expect(readFileSync(preprocessed,'utf8')).toContain('real.h');
   const forms=[['-M','-o','-'],['-MM','-o','-'],['-M','-MF','-'],['-M','-MP','-MF','-'],['-MD','-MF','-'],
+   ['-E'],['-E','-o',join(dir,'preprocessed.i')],['-E','-o','-'],
    ['-M'],['-MD','-c'],['-MD','-c',join(nested,'second.c')],['-M','-MFjoined.d'],['-MMD','-MF','unwanted.d'],
    ['-Wp,-MD,unwanted.d'],['--dependencies'],['--user-dependencies'],['--write-dependencies'],['--write-user-dependencies'],
    ['-H'],['-v'],['-funknown-bgt-option'],['-Wunknown-warning'],['-object-file-name=unexpected'],['-opt-record-file=unexpected'],['-Xpreprocessor','-MD']];
@@ -208,15 +212,27 @@ it.skipIf(!gcc)('bounds real GCC cc1/as/collect2 argv AND COLLECT_GCC_OPTIONS wi
 it.each(compilers)('preserves trailing backslash, newline truncation and -U/-D order in %s',cc=>{
  const dir=mkdtempSync(join(tmpdir(),'bgt-macro-tokens-'));
  try{
-  const source=join(dir,'tokens.c');writeFileSync(source,'FOO\nBAR\nORDER\n');
+  const source=join(dir,'tokens.c');
+  writeFileSync(source,'#include <stdio.h>\n#define STR_I(x) #x\n#define STR(x) STR_I(x)\nint main(void){puts(STR(FOO));puts(STR(BAR));puts(STR(ORDER));return 0;}\n');
   writeFileSync(join(dir,'user.h'),'#if BAR != 7\n#error command line macros must precede -imacros\n#endif\n');
   const flags=['-imacros',join(dir,'user.h'),'-DFOO=hello'+String.fromCharCode(92),'-DBAR=7','-UORDER','-DORDER=23\nignored tail'];
-  const direct=execFileSync(cc,['-E','-P',...flags,source],{encoding:'utf8'}).trim();
-  const r=transported([cc,'-E','-P',...padding(14000),...flags,source],dir);
-  expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);expect(r.stdout.trim()).toBe(direct);
+  const direct=join(dir,'direct'),compiled=join(dir,'compiled');
+  execFileSync(cc,[...flags,source,'-o',direct],{timeout:8000});
+  const run=(file:string)=>{const r=spawnSync(file,[],{encoding:'utf8',timeout:8000});expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);return r.stdout.trim();};
+  const expected=run(direct);expect(expected).toBe('hello\n7\n23');
+  const r=transported([cc,...padding(14000),...flags,source,'-o',compiled],dir);
+  expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);expect(run(compiled)).toBe(expected);
+  // Stringification diagnoses and drops a final backslash in both compilers.
+  // Additionally use the token as C syntax: retaining it must fail, whereas a
+  // transport that silently drops it would compile this valid return expression.
+  const syntax=join(dir,'slash.c');writeFileSync(syntax,'int hello=23;int main(void){return FOO;}\n');
+  const originalSyntax=spawnSync(cc,[...flags,syntax,'-o',join(dir,'syntax-direct')],{encoding:'utf8',timeout:8000});
+  const transportedSyntax=transported([cc,...padding(14000),...flags,syntax,'-o',join(dir,'syntax-transported')],dir);
+  for(const failure of [originalSyntax,transportedSyntax]){expect(failure.error).toBeUndefined();expect(failure.status,failure.stderr).toBe(1);expect(failure.stderr).toMatch(/error:/);}
+  expect(readdirSync(dir)).not.toContain('syntax-direct');expect(readdirSync(dir)).not.toContain('syntax-transported');
   // A single huge definition with ignored newline tail must not reach cc1 or COLLECT_GCC_OPTIONS.
-  const huge=transported([cc,'-E','-P','-DFOO=23\n'+'x'.repeat(140000),source],dir);
-  expect(huge.status,huge.stderr).toBe(0);expect(huge.stdout.trim()).toBe('23\nBAR\nORDER');
+  const huge=transported([cc,'-DFOO=23\n'+'x'.repeat(140000),source,'-o',compiled],dir);
+  expect(huge.status,huge.stderr).toBe(0);expect(run(compiled)).toBe('23\nBAR\nORDER');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 

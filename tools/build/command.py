@@ -172,11 +172,14 @@ _TRANSPORT_OPERANDS = frozenset({
 def validate_transport_options(args):
     prefix = 2 if os.path.basename(args[0]) == 'zig' and len(args) > 1 and args[1] in ('cc', 'c++') else 1
     i = prefix
+    preprocessing = False
+    output = None
     while i < len(args):
         a = args[i]
         if a in _TRANSPORT_OPERANDS:
             if i + 1 >= len(args):
                 raise ValueError('compiler macro transport: missing operand for ' + a)
+            if a == '-o': output = args[i + 1]
             if a == '-x' and args[i + 1] != 'c':
                 raise ValueError('compiler macro transport supports only -x c')
             if a == '-target' and args[i + 1] not in ('x86-windows-gnu', 'x86_64-windows-gnu'):
@@ -184,6 +187,7 @@ def validate_transport_options(args):
             i += 2
             continue
         if a in _TRANSPORT_FLAGS:
+            if a == '-E': preprocessing = True
             i += 1
             continue
         # Exact prefix forms with semantic operands, never arbitrary -f/-W/-m.
@@ -197,6 +201,8 @@ def validate_transport_options(args):
             i += 1
             continue
         raise ValueError('compiler dependency output / option unsupported under macro transport: ' + a[:160] + '; use supported kit options (direct -MD/-MF for dependencies), or reduce options below the transport budget')
+    if preprocessing and output != '/dev/null':
+        raise ValueError('compiler preprocessing output unsupported under macro transport; -E requires explicit -o /dev/null (use -M -MF FILE -MT bgt for dependencies)')
 
 
 def dependency_output(args, cwd):
