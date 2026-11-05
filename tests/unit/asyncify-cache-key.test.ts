@@ -21,5 +21,7 @@ it('keys linked coverage selections, partition policy, every parser and exact po
   expect(asyncifyCacheKey(Buffer.from('linked converged coverage selection'),{root})).not.toBe(original);
   expect(asyncifyCacheKey(raw,{root,profileNames:true})).not.toBe(original);
   expect(asyncifyCacheKey(raw,{root,asyncifyRemove:['N_01001000']})).not.toBe(original);
+  expect(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:65536})).not.toBe(original);
+  expect(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:65536})).not.toBe(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:131072}));
  }finally{rmSync(root,{recursive:true,force:true});}
 });
