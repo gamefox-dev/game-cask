@@ -13,6 +13,12 @@ it('registry cache preserves exact ranges, misses, collisions, force-interpreter
   expect(() => ex.nx()).toThrow(GameAbort);
 });
 
+it('native fast paths invalidate site caches and reject replaced, null and NX targets', async()=>{
+  const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_fast_guards.c'));
+  expect((exports.guards as ()=>number)()).toBe(0);
+  expect(()=> (exports.nx_fast as ()=>void)()).toThrow(GameAbort);
+});
+
 it('guarded import bindings preserve full-width operands, stale loaded targets and suspension token ownership', async () => {
   const { exports } = await instantiateFixture(await compileC('tests/fixtures/c/import_bindings.c'));
   expect((exports.bindings as () => number)()).toBe(0);

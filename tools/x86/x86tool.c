@@ -272,8 +272,32 @@ static void add_func(an_t *a, uint32_t addr, int kind) {
  * preceding `cmp index, N` when present, else by the first non-code entry). */
 static void resolve_table(an_t *a, func_t *f, const x86_insn_t *in, ijump_t *j) {
     const x86_opnd_t *m = &in->o[0];
-    if (m->kind != XK_MEM || m->base != X86_NOREG || m->index == X86_NOREG || m->scale != 2) return;
-    uint32_t table = (uint32_t)m->disp, bound = 1024;
+    unsigned stride=a->pe->mode64?8:4;
+    if (m->kind != XK_MEM || m->seg_fs || (m->pad&1) || m->index == X86_NOREG || m->scale != (a->pe->mode64?3:2)) return;
+    uint64_t base=0;
+    if(m->base!=X86_NOREG) {
+        if(!a->pe->mode64)return;
+        int found=0;uint32_t cursor=in->addr;
+        /* Conservative same-block LEA/constant MOV provenance. Never infer a live
+         * base through a call, branch, intervening write or disjoint instruction. */
+        for(uint32_t k=f->insns.n;k>0&&f->insns.n-k<8;k--) {
+            x86_insn_t p;if(f->insns.v[k-1]==in->addr)continue;
+            if(!decode_at(a->pe,f->insns.v[k-1],&p)||p.addr+p.len!=cursor)break;
+            cursor=p.addr;if(p.flags&(X86_F_BRANCH|X86_F_CALL|X86_F_INDIRECT))break;
+            if(p.o[0].kind==XK_REG&&p.o[0].reg==m->base) {
+                if(p.o[0].size<4)break;
+                if(p.op==XO_LEA&&p.o[1].kind==XK_MEM&&p.o[1].base==X86_NOREG&&p.o[1].index==X86_NOREG) {
+                    base=(p.o[1].pad&4)?p.o[1].imm:(uint64_t)(int64_t)p.o[1].disp;found=1;
+                } else if(p.op==XO_MOV&&p.o[1].kind==XK_IMM){base=p.o[1].imm;found=1;}
+                if(found&&p.o[0].size==4)base=(uint32_t)base;
+                break;
+            }
+        }
+        if(!found)return;
+    }
+    uint64_t full=base+(uint64_t)(int64_t)m->disp;
+    if(full>UINT32_MAX)return;
+    uint32_t table=(uint32_t)full, bound=1024;
     /* look back a few instructions for cmp idx, imm */
     for (uint32_t k = f->insns.n; k > 0 && f->insns.n - k < 8; k--) {
         x86_insn_t p;
@@ -282,8 +306,12 @@ static void resolve_table(an_t *a, func_t *f, const x86_insn_t *in, ijump_t *j) 
     }
     if (bound > 4096) bound = 4096;
     for (uint32_t i = 0; i < bound; i++) {
-        if (!in_image(a->pe, table + 4 * i, 4)) break;
-        uint32_t t = r32(a->pe->img + table + 4 * i - a->pe->base);
+        uint64_t slot=(uint64_t)table+stride*i;
+        if (slot>UINT32_MAX || !in_image(a->pe,(uint32_t)slot,stride)) break;
+        const uint8_t *ptr=a->pe->img+(uint32_t)slot-a->pe->base;
+        uint64_t target=r32(ptr);if(stride==8)target|=(uint64_t)r32(ptr+4)<<32;
+        if(target>UINT32_MAX)break;
+        uint32_t t=(uint32_t)target;
         if (!is_code(a->pe, t)) break;
         vpush(&j->targets, t);
     }
@@ -497,6 +525,7 @@ static void analyze64(an_t *a) {
         for(uint32_t va=a->f[i].addr;va<a->f[i].end;) {
             x86_insn_t in;vpush(&a->f[i].insns,va);
             if(!decode_at(pe,va,&in)){a->f[i].undecodable++;va++;continue;}
+            if(in.op==XO_JMP||in.op==XO_JCC)vpush(&a->f[i].labels,in.target);
             a->census[in.op]++;if(in.op==XO_UNSUPPORTED)a->f[i].unsupported++;
             if(in.op==XO_FPU)a->f[i].fpu++;
             if (in.op == XO_CALL) { vpush(&a->f[i].calls, in.target); add_func(a, in.target, 2); }
@@ -507,12 +536,12 @@ static void analyze64(an_t *a) {
                 const x86_opnd_t *o=&in.o[0];const import_t *im=o->kind==XK_MEM&&o->base==X86_NOREG&&o->index==X86_NOREG?import_at_iat(pe,(uint32_t)o->disp):0;
                 if(im){vpush(&a->f[i].imports,(uint32_t)(im-pe->imp));((import_t *)im)->sites++;}
                 if(in.op==XO_CALL_IND && !im)a->f[i].indirect_calls++;
-                if(in.op==XO_JMP_IND){func_t *f=&a->f[i];f->ij=realloc(f->ij,(f->nij+1)*sizeof(ijump_t));if(!f->ij)die("oom");ijump_t *j=&f->ij[f->nij++];memset(j,0,sizeof *j);j->at=va;j->resolved=im!=0;}
+                if(in.op==XO_JMP_IND){func_t *f=&a->f[i];f->ij=realloc(f->ij,(f->nij+1)*sizeof(ijump_t));if(!f->ij)die("oom");ijump_t *j=&f->ij[f->nij++];memset(j,0,sizeof *j);j->at=va;j->resolved=im!=0;if(!im)resolve_table(a,f,&in,j);for(uint32_t t=0;t<j->targets.n;t++)vpush(&f->labels,j->targets.v[t]);}
             }
             if(in.op==XO_LEA&&in.o[1].base==X86_NOREG&&in.o[1].index==X86_NOREG){uint32_t target=(uint32_t)in.o[1].disp;if(is_code(pe,target)){int inside=target>=a->f[i].addr&&target<a->f[i].end;if(!inside)add_func(a,target,4);}}
             va+=in.len;
         }
-        vsort_uniq(&a->f[i].insns);vsort_uniq(&a->f[i].calls);
+        vsort_uniq(&a->f[i].insns);vsort_uniq(&a->f[i].calls);vsort_uniq(&a->f[i].labels);
     }
 }
 static void analyze_all(an_t *a) {

@@ -19,7 +19,13 @@ const x86_insn_t *x86_lift_pending;
 uint32_t x86_lift_count;
 unsigned x86_lift_reason;
 uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
+unsigned x86_native_chain;
+int x86_native_rechain(x86_native_fn fn){(void)fn;return 0;}
+x86_native_fn x86_native_indirect(x86_native_site_t *site,uint32_t target){(void)site;(void)target;return 0;}
+void x86_native_drop(void){__builtin_trap();}
 void x86_run_native(x86_native_fn step){step(X.eip);}
+int x86_native_enter(uint32_t target,x86_native_fn fn){(void)target;(void)fn;return 0;}
+int x86_native_resume(uint32_t next,uint64_t floor,x86_native_fn fn){(void)next;(void)floor;(void)fn;__builtin_trap();}
 static unsigned yields, suspend_quantum, fault_address;
 void x86_fault(const char *message, uint32_t address) {
     (void)message; fault_address = address; __builtin_trap();
