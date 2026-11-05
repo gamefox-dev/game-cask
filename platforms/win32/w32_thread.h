@@ -10,6 +10,8 @@ void w32_thread_return(uint32_t code);
 void w32_thread_quantum(void);
 void w32_thread_yield(void);
 int w32_thread_pending(void);
+/* Non-consuming eligibility check for the non-suspending import envelope. */
+int w32_thread_leaf_ready(void);
 int w32_thread_deferred_result(void);
 void w32_trace_result(uint64_t result);
 uint32_t *w32_thread_error(void);

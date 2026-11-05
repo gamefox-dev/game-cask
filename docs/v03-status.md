@@ -1,5 +1,29 @@
 # v0.3 merged implementation status
 
+## K29 gate record — guarded direct imports (unit blocker repaired; acceptance external)
+
+K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
+bindings; callback/suspending APIs retain a bound outer-driver path, changed operands dynamic fallback.
+Focused profile/snapshot/string/context tests pass; guard-removal and pointer-truncation mutations
+fail their assertions. The serial nine-case100000-call dev.16 A/B has zero final reason5 exits/dynamic
+thunk crossings, identical300-update oracle hashes across versions, and synthetic call-loop medians
+1.76–4.42× faster. Baseline IAT/register forms already have zero reason5 exits; missing baseline
+dynamic counters are not reported as zero. Final gate audit retains doctor, Clang/GCC lint (38 examples),
+typecheck, full leakcheck, both suspension browser runs (300 pass/51 intentional skips each, both native
+backends), and all34×2×300 pipeline oracles (20,400 identical frame pairs, matching cross-suspension
+hashes). K29h actually measures all four SSE-matrix cases on dev.16 and incoming HEAD: both
+time out at the unchanged60000ms deadline under the same current conditions; 106 paired emitted
+C files are identical. Repeated tool freshness discovery (median1319ms versus2.24ms native lift)
+is the dominant avoidable setup cost. Reviewer-authorized per-test lazy discovery reuse keeps the
+first lookup inside the deadline and invalidates between tests; real tool-source/SDK-header freshness
+regressions pass and fail when reset is removed. All four cases now pass in22.3–30.4s; full units
+**2075/2075,119 files,no skips** pass. No production/build-layer/assertion/deadline/skip change.
+The prior byte-identity-only inheritance claim was insufficient; the new A/B is actual evidence, not
+a claim that the historical I13 green run was false. Independent validation and real-game remeasurement
+remain external. Memory faults retain the abort
+contract, not new SEH. [Gate evidence](handoff/K29-gates.json); actual failures, repairs, samples and
+remaining boundaries: [K29 handoff](handoff/K29.md).
+
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.

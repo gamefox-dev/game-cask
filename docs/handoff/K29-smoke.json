@@ -1,0 +1,3061 @@
+{
+  "scope": "K29c WIP smoke only, NOT baseline A/B or final performance evidence",
+  "source": "4d9ec9d plus checkpoint working-tree implementation/tests; superseded only by final warning-only anchor cast and fixture offline WASI adapter",
+  "raw_local_report": "/Users/dev/projects/pi-work/scratch-K29/c/smoke8.json",
+  "at": "2026-11-04T16:31:52.567Z",
+  "resources": {
+    "start": {
+      "when": "2026-11-04T16:28:55.290Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        7.0283203125,
+        7.56689453125,
+        8.1640625
+      ],
+      "freeRamBytes": 642203648,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 1876688896,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "end": {
+      "when": "2026-11-04T16:31:52.608Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        7.34375,
+        7.3818359375,
+        7.95458984375
+      ],
+      "freeRamBytes": 1057406976,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 1876688896,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    }
+  },
+  "rows": [
+    {
+      "name": "strcmp",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "2bd9da52",
+          "interpreted": "2bd9da52",
+          "liftedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f",
+          "interpretedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.19904200000019046,
+          "ns_per_call": 199.04200000019046,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.20175000000017462,
+          "ns_per_call": 201.75000000017462,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.18758399999933317,
+          "ns_per_call": 187.58399999933317,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1785409999974945,
+          "ns_per_call": 178.5409999974945,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14479199999914272,
+          "ns_per_call": 144.79199999914272,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.13687500000014552,
+          "ns_per_call": 136.87500000014552,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "strcmp",
+      "form": "iat",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "2bd9da52",
+          "interpreted": "2bd9da52",
+          "liftedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f",
+          "interpretedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.15233299999817973,
+          "ns_per_call": 152.33299999817973,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14379099999496248,
+          "ns_per_call": 143.79099999496248,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1473340000011376,
+          "ns_per_call": 147.3340000011376,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14262500000040745,
+          "ns_per_call": 142.62500000040745,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.11575000000448199,
+          "ns_per_call": 115.75000000448199,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1217079999987618,
+          "ns_per_call": 121.7079999987618,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "strcmp",
+      "form": "reg",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "2bd9da52",
+          "interpreted": "2bd9da52",
+          "liftedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f",
+          "interpretedTrace": "15b05592a0341ba1115dced1ff8ab1fa2ca8957f05c0a13862a7b07d9221fa6f"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.1476249999977881,
+          "ns_per_call": 147.6249999977881,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14079100000526523,
+          "ns_per_call": 140.79100000526523,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14458400000148686,
+          "ns_per_call": 144.58400000148686,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.15433299999858718,
+          "ns_per_call": 154.33299999858718,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.11870899999485118,
+          "ns_per_call": 118.70899999485118,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.12033299999893643,
+          "ns_per_call": 120.33299999893643,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "strcmp",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "GetLastError",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "f3a4f513",
+          "interpreted": "f3a4f513",
+          "liftedTrace": "4e7775854d15e25b41c27855bff30dd9797f94f3a19daf9e563c7449c49cccb8",
+          "interpretedTrace": "4e7775854d15e25b41c27855bff30dd9797f94f3a19daf9e563c7449c49cccb8"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.1571669999975711,
+          "ns_per_call": 157.1669999975711,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1638340000063181,
+          "ns_per_call": 163.8340000063181,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1461249999993015,
+          "ns_per_call": 146.1249999993015,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.13641599999391474,
+          "ns_per_call": 136.41599999391474,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.10054099999251775,
+          "ns_per_call": 100.54099999251775,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1537499999976717,
+          "ns_per_call": 153.7499999976717,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "SetLastError",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "f4c2f193",
+          "interpreted": "f4c2f193",
+          "liftedTrace": "1238c755b6206fba9cc8cd0eab0c2ee76bfdb94dae82ce32b631756e9c1d3b68",
+          "interpretedTrace": "1238c755b6206fba9cc8cd0eab0c2ee76bfdb94dae82ce32b631756e9c1d3b68"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.1612499999901047,
+          "ns_per_call": 161.2499999901047,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.17883400000573602,
+          "ns_per_call": 178.83400000573602,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1507500000006985,
+          "ns_per_call": 150.7500000006985,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.14358299999730662,
+          "ns_per_call": 143.58299999730662,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.10108399999444373,
+          "ns_per_call": 101.08399999444373,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.09912500000791624,
+          "ns_per_call": 99.12500000791624,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1001
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "TlsGetValue",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "ac674cc2",
+          "interpreted": "ac674cc2",
+          "liftedTrace": "e6fdf0544d02bb62370b9eeb27915a9f299e9ff33085aa22f27dc498de477f33",
+          "interpretedTrace": "e6fdf0544d02bb62370b9eeb27915a9f299e9ff33085aa22f27dc498de477f33"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.16570900000806432,
+          "ns_per_call": 165.70900000806432,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1712919999990845,
+          "ns_per_call": 171.2919999990845,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.15237499999057036,
+          "ns_per_call": 152.37499999057036,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1452080000017304,
+          "ns_per_call": 145.2080000017304,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.11308300000382587,
+          "ns_per_call": 113.08300000382587,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.10624999999708962,
+          "ns_per_call": 106.24999999708962,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsGetValue",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "GetCurrentThreadId",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "8120fabe",
+          "interpreted": "8120fabe",
+          "liftedTrace": "53e213b0c0a5d0a400f17756966f2757558269e8bb19f2da707d187b71167471",
+          "interpretedTrace": "53e213b0c0a5d0a400f17756966f2757558269e8bb19f2da707d187b71167471"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.16250000000582077,
+          "ns_per_call": 162.50000000582077,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.16558299999451265,
+          "ns_per_call": 165.58299999451265,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.32941599999321625,
+          "ns_per_call": 329.41599999321625,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.1382500000181608,
+          "ns_per_call": 138.2500000181608,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.0986669999838341,
+          "ns_per_call": 98.6669999838341,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.2964170000050217,
+          "ns_per_call": 296.4170000050217,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 1008,
+            "leaf_import_calls": 1002
+          },
+          "api_counts": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetCurrentThreadId",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "malloc",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "cbda62a6",
+          "interpreted": "cbda62a6",
+          "liftedTrace": "0c789a0c69c08e33360785af561e2ea17b12ba257f0087ff27506ad2896931e5",
+          "interpretedTrace": "0c789a0c69c08e33360785af561e2ea17b12ba257f0087ff27506ad2896931e5"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.25670900000841357,
+          "ns_per_call": 256.70900000841357,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.36925000001792796,
+          "ns_per_call": 369.25000001792796,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.18266700001549907,
+          "ns_per_call": 182.66700001549907,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.18537500000093132,
+          "ns_per_call": 185.37500000093132,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.16349999999511056,
+          "ns_per_call": 163.49999999511056,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.2390410000225529,
+          "ns_per_call": 239.0410000225529,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    },
+    {
+      "name": "free",
+      "form": "tail",
+      "count": 1000,
+      "oracle": {
+        "frames": 300,
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "45ea44d3",
+          "interpreted": "45ea44d3",
+          "liftedTrace": "89f404c75cfaddaee0194b84cdc8e69408b7e203abe1ddcb3e216177000167a5",
+          "interpretedTrace": "89f404c75cfaddaee0194b84cdc8e69408b7e203abe1ddcb3e216177000167a5"
+        }
+      },
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 0.3623749999969732,
+          "ns_per_call": 362.3749999969732,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.3080410000111442,
+          "ns_per_call": 308.0410000111442,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.3069170000089798,
+          "ns_per_call": 306.9170000089798,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.4158750000060536,
+          "ns_per_call": 415.8750000060536,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.4682909999974072,
+          "ns_per_call": 468.2909999974072,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        },
+        {
+          "warmup": false,
+          "ms": 0.5362920000043232,
+          "ns_per_call": 536.2920000043232,
+          "exits": [],
+          "metrics": {
+            "interp_insns": 0,
+            "stubs": [],
+            "exited": 1,
+            "thunk_dispatches": 0,
+            "direct_import_calls": 2008,
+            "leaf_import_calls": 2002
+          },
+          "api_counts": [
+            {
+              "dll": "msvcrt.dll",
+              "name": "malloc",
+              "count": 1000
+            },
+            {
+              "dll": "msvcrt.dll",
+              "name": "free",
+              "count": 1000
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 3
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "SetLastError",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsAlloc",
+              "count": 1
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "TlsSetValue",
+              "count": 1
+            }
+          ],
+          "census_dropped": 0
+        }
+      ]
+    }
+  ]
+}

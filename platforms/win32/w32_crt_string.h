@@ -29,7 +29,14 @@ static uint32_t slen(uint32_t p, unsigned wide) {
     while (sch(p + step * n, wide)) n++;
     return n;
 }
-static uint64_t str_len(unsigned wide) { return slen(ARG(0), wide); }
+/* Keep address arithmetic full-width until the checked guest read. Truncating a
+ * Win64 argument would alias a bad high pointer to valid low guest memory. */
+static unsigned sch64(uint64_t p,unsigned wide) {return sch(x86_address(p),wide);}
+static uint64_t str_len(unsigned wide) {
+    uint64_t p=ARG64(0),n=0;unsigned step=wide?2:1;
+    while(sch64(p,wide)){p+=step;n++;}
+    return n;
+}
 static uint64_t str_copy(unsigned wide, int bounded, int cat) {
     uint32_t d = ARG(0), s = ARG(1), step = wide ? 2 : 1;
     uint32_t n = bounded ? ARG(2) : UINT32_MAX;
@@ -45,9 +52,10 @@ static uint64_t str_copy(unsigned wide, int bounded, int cat) {
     return ARG64(0);
 }
 static uint64_t str_cmp(unsigned wide, int bounded, int fold) {
-    uint32_t n = bounded ? ARG(2) : UINT32_MAX, step = wide ? 2 : 1;
-    for (uint32_t i = 0; i < n; i++) {
-        unsigned a = sch(ARG(0) + step * i, wide), b = sch(ARG(1) + step * i, wide);
+    uint64_t n = bounded ? ARG64(2) : UINT64_MAX, p=ARG64(0), q=ARG64(1);
+    unsigned step=wide?2:1;
+    for (uint64_t i = 0; i < n; i++,p+=step,q+=step) {
+        unsigned a = sch64(p,wide), b = sch64(q,wide);
         if (fold) { if (a < 128) a = (unsigned)tolower((int)a); if (b < 128) b = (unsigned)tolower((int)b); }
         if (a != b) return (uint64_t)(int64_t)((int)a - (int)b);
         if (!a) break;

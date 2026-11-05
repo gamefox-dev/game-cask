@@ -342,6 +342,8 @@ typedef struct {
     char name[256];
     const w32_api_t *api;
     const w32_crt_entry_t *crt;
+    const w32_api_t *thread;
+    w32_leaf_fn leaf;
     uint32_t hits;
     uint64_t timing_samples;
     double timing_us;
@@ -388,6 +390,8 @@ uint32_t w32_thunk_for(const char *dll, const char *name) {
     s->name[i] = 0;
     s->api = find_api(s->name);
     s->crt = w32_find_crt(s->name);
+    s->thread = w32_thread_find(s->name);
+    s->leaf = s->thread ? w32_thread_leaf(s->thread) : w32_crt_leaf(s->crt);
     return W32_THUNK_LO + 16u * nslots++;
 }
 
@@ -467,7 +471,7 @@ static int thunk_handler_impl(uint32_t addr) {
     if(X.mode64){static const int reg[4]={ECX,EDX,R8,R9};for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);}
     int special = 0;
     /* LANE-C: shared thread APIs take precedence over old single-thread CRT bridges. */
-    const w32_api_t *thread = w32_thread_find(s->name);
+    const w32_api_t *thread = s->thread;
     uint64_t result = 0;
     if (thread) { special = 1; result = w32_thread_api(s->name); }
     else if (X.mode64 && !s->crt) result = w64_api(s->name, &special);
@@ -521,6 +525,30 @@ static int thunk_handler_impl(uint32_t addr) {
     /* LANE-C: the saved context resumes after this API, never inside its native C frame. */
     if (w32_thread_pending()) X.transfer = X86_SCHEDULE;
     return 0;
+}
+
+/* The call-site leaf path has the identical ABI/trace envelope, without the
+ * dynamic dispatcher, name scans, callback-capable calls or temporary allocation. */
+static void bound_import(void *opaque) {
+    slot_t *s=opaque;thunk_handler(W32_THUNK_LO+16u*(uint32_t)(s-slots));
+}
+static int leaf_import(void *opaque,uint64_t target) {
+    /* Even a pure API uses the ordinary envelope when pending scheduler/deferred
+     * work or a callback scope could require park_native. Do not consume that work. */
+    if(!w32_thread_leaf_ready())return 0;
+    slot_t *s=opaque;(void)target;
+    int sample=X86_PROFILE_ENABLED&&(s->hits%X86_PROFILE_SAMPLE)==0;
+    double start=sample?x86_profile_clock():0;
+    trace((uint32_t)(s-slots));
+    for(uint32_t a=0;a<4;a++){trace(ARG(a));trace((uint32_t)(ARG64(a)>>32));}
+    s->hits++;w32_m.api_calls++;
+    static const int reg[4]={ECX,EDX,R8,R9};
+    for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);
+    X.r[EAX]=s->leaf(0);
+    w32_trace_result(X.r[EAX]);
+    X.eip=(uint32_t)x86_pop();
+    if(sample){s->timing_us+=x86_profile_clock()-start;s->timing_samples++;}
+    return 1;
 }
 
 /* LANE-K6d: CRT search-handle creators (_findfirst32/64i32/..., _wfindfirst...). */
@@ -645,7 +673,13 @@ static int bind_imports(w32_module_t *m) {
                            ? w32_data_import(name)
                            : w32_thunk_for(dll, name);
             }
-            w32_wrptr(m->base + iat + w32_ptr_size() * k, addr);
+            uint32_t cell=m->base+iat+w32_ptr_size()*k;
+            w32_wrptr(cell, addr);
+            if(X.mode64 && addr>=W32_THUNK_LO && addr<W32_THUNK_LO+16u*nslots &&
+               !((addr-W32_THUNK_LO)&15u)) {
+                slot_t *s=&slots[(addr-W32_THUNK_LO)/16u];
+                x86_bind_import(cell,addr,s,bound_import,s->leaf?leaf_import:0);
+            }
         }
     }
     return 1;
@@ -821,6 +855,9 @@ const char *w32_metrics_json(void) {
     jkv("tail_calls_lifted", x86_metrics.tail_calls_lifted);
     jkv("continues_interpreted", x86_metrics.continues_interpreted);
     jkv("api_calls", w32_m.api_calls);
+    jkv("thunk_dispatches",x86_metrics.thunk_dispatches);
+    jkv("direct_import_calls",x86_metrics.direct_import_calls);
+    jkv("leaf_import_calls",x86_metrics.leaf_import_calls);
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
     /* LANE-GL */

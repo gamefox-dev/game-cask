@@ -5,9 +5,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { compileC } from '../support/compile';
+import { perTestTool } from '../support/per-test-tool';
 import { ROOT } from '../support/headless';
 // @ts-expect-error plain ESM
 import { x86tool } from '../../tools/build/pipeline.mjs';
+// Each matrix test keeps its inputs fixed; repeated harnesses need not rescan the SDK.
+const codegenTool = perTestTool(x86tool);
 const base = 0x01001000;
 
 // Minimal original PE32+ container with one .pdata range. No host execution or external binary input.
@@ -35,7 +38,7 @@ it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', 
     try {
       const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
       writeFileSync(input, pe(Buffer.from('4883c001c3', 'hex')));
-      const tool = x86tool();
+      const tool = codegenTool();
       const args = ['lift', input, '--name', 'probe', '--out', output, option];
       const invalid = spawnSync(tool, [...args, 'banana'], { encoding: 'utf8' });
       expect(invalid.error).toBeUndefined();
@@ -57,7 +60,7 @@ async function harness(hex: string, defines: string[] = []) {
   const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'case-')), code = Buffer.from(hex, 'hex');
   writeFileSync(join(dir, 'input.exe'), pe(code));
-  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
+  execFileSync(codegenTool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
@@ -418,7 +421,7 @@ it.each(['f2', 'f3'].flatMap(prefix => ['', '48'].map(wide => [prefix, wide])))(
       const h = await harness(`${prefix}${wide}0f${op}c1c3`);
       expect(h.stats.generic).toBe(0);
       if (op === '2a') {
-        const listing = execFileSync(x86tool(), ['disasm', h.input], { encoding: 'utf8' });
+        const listing = execFileSync(codegenTool(), ['disasm', h.input], { encoding: 'utf8' });
         expect(listing).toContain(`cvtsi2${prefix === 'f2' ? 'sd' : 'ss'} xmm0, ${wide ? 'rcx' : 'ecx'}`);
       }
       for (const rc of [0, 1, 2, 3]) for (const bits of [0n, 0x3ff8000000000000n,
