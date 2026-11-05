@@ -23,7 +23,7 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
     writeFileSync(join(dir,'entry.c'),
       '__declspec(dllimport) void __stdcall ExitProcess(unsigned); int _tls_index; static void (*volatile entry_anchor)(void); void entry(void){entry_anchor=entry;ExitProcess(0);}'+'\n');
     writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 helper cache',sources:['helper.c'],pipeline:{
-      platform:'win32',suspensionBuild:'dual',fixture:{target:'x86_64-windows-gnu',out:'entry.exe',sources:['entry.c'],libs:['kernel32']},
+      platform:'win32',suspensionBuild:'dual',fixture:{target:'x86_64-windows-gnu',crt:true,out:'entry.exe',sources:['entry.c'],libs:['kernel32']},
       modules:[{from:'./build/entry.exe',main:true}],
     }}));
     let linked:Buffer=Buffer.alloc(0);
