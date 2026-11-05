@@ -495,7 +495,10 @@ static int ends_block(const x86_insn_t *in) {
 typedef struct { uint32_t addr; x86_insn_t in; } dc_entry_t;
 static dc_entry_t *dcache;
 
-static const x86_insn_t *decode_at(uint32_t eip) {
+/* Return an owned value, never a cache pointer: execution can cooperate before
+ * its first operand read (and REP can cooperate internally). Reentrant guest
+ * execution may replace any direct-mapped slot while this C frame is parked. */
+static x86_insn_t decode_at(uint32_t eip) {
     x86_check_access(eip,1,4);
     if (!dcache) {
         dcache = (dc_entry_t *)x86_alloc(DC_SIZE * sizeof(dc_entry_t));
@@ -503,7 +506,7 @@ static const x86_insn_t *decode_at(uint32_t eip) {
         for (uint32_t i = 0; i < DC_SIZE; i++) dcache[i].addr = 0xffffffffu;
     }
     dc_entry_t *e = &dcache[(eip ^ (eip >> 13)) & (DC_SIZE - 1)];
-    if (e->addr == eip) return &e->in;
+    if (e->addr == eip) return e->in;
     uint8_t buf[15];
     uint32_t avail = 0;
     for (; avail < 15; avail++) {
@@ -520,7 +523,7 @@ static const x86_insn_t *decode_at(uint32_t eip) {
 #endif
         &e->in)) x86_fault("undecodable instruction", eip);
     e->addr = eip;
-    return &e->in;
+    return e->in;
 }
 
 /* run until EIP == ret_addr with ESP > esp_floor */
@@ -555,7 +558,8 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 interpreter_span_set(1);
                 double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
                 if(interpreter_start>=0)exclusive_span=&excluded;
-                const x86_insn_t *in = decode_at(X.eip);
+                const x86_insn_t decoded = decode_at(X.eip);
+                const x86_insn_t *in = &decoded;
                 int counted_entry = interpreted_entry(X.eip, entry);
                 const x86_code_range_t *owner = cached_range;
                 uint32_t budget = X.frame_insns, addr = in->addr;
@@ -599,7 +603,8 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         interpreter_span_set(1);
         double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
         if(interpreter_start>=0)exclusive_span=&excluded;
-        const x86_insn_t *in = decode_at(eip);
+        const x86_insn_t decoded = decode_at(eip);
+        const x86_insn_t *in = &decoded;
         int counted_entry = interpreted_entry(eip, entry);
         const x86_code_range_t *owner = cached_range;
         int string = is_string(in->op), rep = in->rep, next_entry = ends_block(in);
@@ -693,7 +698,8 @@ void x86_continue(uint32_t ra, uint32_t esp0) {
 void x86_lift_block(uint32_t count) {
     uint64_t bucket=x86_profile_exit(X.eip,x86_lift_reason);
     while (count--) {
-        const x86_insn_t *in = decode_at(X.eip);
+        const x86_insn_t decoded = decode_at(X.eip);
+        const x86_insn_t *in = &decoded;
         uint32_t next = in->addr + in->len;
         int call = in->op == XO_CALL || in->op == XO_CALL_IND;
         x86_profile_instruction(bucket);
