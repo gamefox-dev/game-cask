@@ -15,7 +15,7 @@ import {transform} from '../../tools/build/asyncify.mjs';
 // @ts-expect-error plain ESM
 import {WASM_OPT_FEATURES} from '../../tools/build/build.mjs';
 type Ex={set_import_mode(n:number):void;total():number;sample_open():number;idle_end():void;import_calls():number;direct_calls():bigint;leaf_calls():bigint;bgt_profile_abort(n:number):void};
-for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as const)it('hand-times direct leaf / bound imports and exception cleanup in '+suspension,async()=>{
+for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[])it('hand-times direct leaf / bound imports and exception cleanup in '+suspension,async()=>{
  const raw=await compileC('tests/fixtures/c/interpreter-dispatch-spans.c',['MODE64=1','X86_PROFILE_ENABLED=1'],true);
  const dir=mkdtempSync(join(tmpdir(),'bgt-import-spans-'));
  try {
