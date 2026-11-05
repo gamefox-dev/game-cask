@@ -1,0 +1,1 @@
+import { defineConfig } from 'vitest/config'; export default defineConfig({test:{include:['tools/bench/k34-profile.test.ts'],testTimeout:180000,execArgv:['--experimental-wasm-jspi'],fileParallelism:false}});
