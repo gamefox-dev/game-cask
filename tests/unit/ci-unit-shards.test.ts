@@ -9,10 +9,13 @@ import {ROOT} from '../support/headless';
 
 const scale='tests/unit/build-chunks.test.ts';
 const files=['tests/unit/a.test.ts','tests/unit/b.test.ts','tests/oracle/tooling.test.ts'];
-function fixture(drift=false) {
+function fixture(drift=false,sharedExample=false) {
   const dir=mkdtempSync(join(tmpdir(),'bgt-ci-inventory-'));
-  for(const path of ['tools/build','node_modules/vitest','tests/unit'])mkdirSync(join(dir,path),{recursive:true});
-  cpSync(join(ROOT,'tools/build/ci-unit-shards.mjs'),join(dir,'tools/build/ci-unit-shards.mjs'));
+  for(const path of ['tools/build','node_modules/vitest','tests/unit','tests/oracle','examples/x86-heap'])mkdirSync(join(dir,path),{recursive:true});
+  for(const name of ['ci-unit-shards.mjs','test-examples.mjs','toolchain.mjs'])cpSync(join(ROOT,'tools/build',name),join(dir,'tools/build',name));
+  writeFileSync(join(dir,'.zig-version'),'0.13.0');
+  writeFileSync(join(dir,'examples/x86-heap/game.json'),'{}');
+  for(const file of files)writeFileSync(join(dir,file),sharedExample&&file.includes('/unit/')?'// @bgt-examples: x86-heap':'// @bgt-examples: none');
   writeFileSync(join(dir,'vitest.config.ts'),'// inventory fixture only');
   writeFileSync(join(dir,scale),'// scale is covered by its required job');
   // Fake only discovery output, never a build/test success stub. The real helper
@@ -32,6 +35,16 @@ it('deterministically partitions every discovered file exactly once plus the req
     expect([...a,...b].sort()).toEqual([...files].sort());
     expect(new Set([...a,...b]).size).toBe(files.length);
     expect([...a,...b]).not.toContain(scale);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+it('accounts for cold setup and keeps tests sharing an expensive prebuild together',()=>{
+  const dir=fixture(false,true);
+  try {
+    const list=(shard:string)=>execFileSync(process.execPath,[join(dir,'tools/build/ci-unit-shards.mjs'),shard],{encoding:'utf8'}).trim().split('\n');
+    const shards=[list('1/2'),list('2/2')];
+    expect(shards.some(s=>s.includes(files[0])&&s.includes(files[1]))).toBe(true);
+    expect(shards.flat().sort()).toEqual([...files].sort());
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
