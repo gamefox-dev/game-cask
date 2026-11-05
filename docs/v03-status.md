@@ -1,5 +1,37 @@
 # v0.3 merged implementation status
 
+## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
+
+Ordered no-ff merges over dev.16 retain K23 supervised builds and K24/K25 GPU behavior unchanged.
+K28 browser-local GLSL progress; K26 measured interpreter spans/abort boundary/failed-update wall;
+K27 native SIMD/atomic forms, alignment and segmented addr32/EIP-relative repairs; K29 guarded
+leaf/bound imports, full-width string pointers and per-test SSE tool discovery now coexist.
+Only status history conflicted; **no production integration repair**. New hand-clock regression
+covers interpreted CALL→native driver→leaf/bound, nested callback, normal park/rewind and import
+exceptions in actual Asyncify/JSPI. Final source **4099838** differs from initial ebeb4c7 only by an
+erased TypeScript annotation correction (initial typecheck failed; final checks pass).
+
+Final merged-tree doctor, full Clang/GCC lint **38/38 examples each**, explicit Clang host checks,
+typecheck and leakcheck pass; **2,305 units /129 files /0 skips**. Full Asyncify **300 pass /51 existing
+skips /0 failures /0 flaky**, full JSPI **300/51/0/0**, both uninterrupted green, actual required
+WebGL2/WebGPU/auto; exact skip inventory equals I13. GLSL cross cases **17.5/18.5s**, unchanged pixels.
+K24/K25 explicit native replay **11/11**, both backends; K26 + I14 span fixtures **17/17**.
+**34 pipeline fixtures ×2 modes ×300 =20,400 identical pairs**; all68 exit0, zero lifted interpretation/
+stubs, null errors, equal state and semantic traces within/across modes, physical measured interpreter
+time inside actual update budgets. Exact #204 scale-only expected-error contract remains intact.
+
+Matched dev.16 synthetic benchmarks: K27 **500,000→0 generic executions**, empty opcode census
+(size/fast, both suspension modes); K29 all9 hot import forms **reason5 exits0 /thunk dispatches0**,
+**1.81–4.27×** median speedups (actual Asyncify,100000 calls, exact API counts, baseline missing
+boundary counters remain null). These shared-machine measurements are not game performance.
+K26 size attribution/follow-up is retained; **Asyncify may-suspend analysis is not implemented**.
+
+Coordinator-approved I13 review boundary: inherited **vK28/vK26b/vK27b/vK29 PASS**, narrow test-only
+integration-diff read and final-tree author gates; **no independent merged-tree PASS/CI** claimed.
+All runners finished, owned baseline/temporary outputs removed, raw evidence retained. No game,
+physical-device or mobile certification. [Handoff](handoff/integration-i14.md),
+[audited evidence](handoff/integration-i14-evidence.json).
+
 ## K29 gate record — guarded direct imports (unit blocker repaired; acceptance external)
 
 K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
