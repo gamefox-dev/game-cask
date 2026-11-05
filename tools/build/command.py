@@ -1,8 +1,8 @@
 """Portable supervised child transport, including compiler descendants.
 
-Anonymous fds keep build payloads private even when the process group is killed.
-Transport headers are removed from dependency output before their fd is closed;
-only the original semantic flags enter object/cache identity.
+Anonymous fds keep argv payloads private even when the process group is killed.
+Macro headers live in a private temporary directory; supported dependency outputs
+are sanitized before cleanup. Only original semantic flags enter cache identity.
 """
 import json
 import os
@@ -223,11 +223,20 @@ def run_compiler(args, original, macro_path, kwargs):
             stdout = subprocess.PIPE
             kwargs['stderr'] = subprocess.PIPE
         kwargs['stdout'] = subprocess.PIPE
-    result = subprocess.run(args, **kwargs)
-    for depfile in depfiles:
-        if os.path.exists(depfile):
-            with open(depfile, 'rb') as f: data = f.read()
-            with open(depfile, 'wb') as f: f.write(without_dependency(data, macro_path))
+    # check=True must not bypass dependency sanitation on compiler errors.
+    # TimeoutExpired may also carry dependency stdout and leave a partial file.
+    check = kwargs.pop('check', False)
+    try:
+        result = subprocess.run(args, check=False, **kwargs)
+    except subprocess.TimeoutExpired as error:
+        if depstdout and error.output is not None:
+            error.output = without_dependency(error.output, macro_path)
+        raise
+    finally:
+        for depfile in depfiles:
+            if os.path.exists(depfile):
+                with open(depfile, 'rb') as f: data = f.read()
+                with open(depfile, 'wb') as f: f.write(without_dependency(data, macro_path))
     if depstdout:
         result.stdout = without_dependency(result.stdout, macro_path)
         if stdout == subprocess.DEVNULL:
@@ -241,6 +250,8 @@ def run_compiler(args, original, macro_path, kwargs):
                 n = os.write(target, data)
                 data = data[n:]
             result.stdout = None
+    if check:
+        result.check_returncode()
     return result
 
 

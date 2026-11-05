@@ -46,7 +46,7 @@ it.each(compilers)('sanitizes every dependency destination for %s, including std
   for(const n of ['first','second'])writeFileSync(join(nested,n+'.c'),'#include "real.h"\nint '+n+'(void){return VALUE;}\n');
   const common=[...padding(14000),join(nested,'first.c')];
   const clean=(text:string)=>{expect(text).toContain('real.h');expect(text).not.toMatch(/\/dev\/fd\/|bgt-macros-/);};
-  for(const flags of [['-M','-MF','-'],['-MM','-MF-','-MP','-MQ','target with spaces']]){
+  for(const flags of [['-M','-MF','-'],['-MM','-MF-','-MP','-MQ','target with spaces'],['-MD','-MF','-','-c','-o',join(dir,'stdout.o')]]){
    const r=transported([cc,...flags,...common],dir);expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(r.stdout);
   }
   for(const mode of ['-MD','-MMD']){
@@ -62,10 +62,40 @@ it.each(compilers)('sanitizes every dependency destination for %s, including std
   const r=transported([cc,'-MMD','-MF'+explicit,'-MQ','custom target','-c','-o',join(dir,'custom.o'),...common],dir);
   expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(explicit,'utf8'));
   const unsupported=transported([cc,'-Xpreprocessor','-MD',...common],dir);
-  expect(unsupported.status,unsupported.stderr).toBe(90);expect(unsupported.stderr).toMatch(/dependency output.*unsupported.*direct -MD\/\-MF/);
+  expect(unsupported.status,unsupported.stderr).toBe(90);expect(unsupported.stderr).toMatch(/dependency output.*unsupported.*direct -MD\/-MF/);
+  for(const key of ['DEPENDENCIES_OUTPUT','SUNPRO_DEPENDENCIES']){
+   const path=join(dir,key+'.d');
+   const envScript=driver.replace('try:', 'os.environ['+JSON.stringify(key)+']='+JSON.stringify(path)+'\ntry:');
+   const env=pythonPlan(envScript,[cc,'-c','-o',join(dir,'env.o'),...common],dir);
+   expect(env.status,env.stderr).toBe(90);expect(env.stderr).toMatch(/dependency output through environment.*use direct/);
+   expect(readdirSync(dir)).not.toContain(key+'.d');
+  }
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
+
+it.each(compilers)('sanitizes dependency outputs even when %s fails with check=True',cc=>{
+ const dir=mkdtempSync(join(tmpdir(),'bgt-dependency-error-'));
+ try {
+  writeFileSync(join(dir,'real.h'),'#define VALUE 23\n');
+  writeFileSync(join(dir,'bad.c'),'#include "real.h"\nint value(void){return VALUE + ;}\n');
+  const script=[
+   'import json,runpy,subprocess,sys',
+   "run=runpy.run_path(sys.argv[1])['run']",
+   'try:',
+   ' run(json.load(sys.stdin),check=True,capture_output=True)',
+   'except subprocess.CalledProcessError as e:',
+   ' sys.stdout.buffer.write(e.output);sys.stderr.buffer.write(e.stderr);sys.exit(e.returncode)',
+  ].join('\n');
+  for(const destination of ['-',join(dir,'errors.d')]){
+   const r=pythonPlan(script,[cc,'-MD','-MF',destination,'-c','-o',join(dir,'bad.o'),...padding(14000),join(dir,'bad.c')],dir);
+   expect(r.error).toBeUndefined();expect(r.status).toBe(1);
+   const deps=destination==='-'?r.stdout:readFileSync(destination,'utf8');
+   expect(deps).toContain('real.h');expect(deps).not.toMatch(/\/dev\/fd\/|bgt-macros-/);
+   expect(r.stderr).toMatch(/error:/);
+  }
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});
 
 it('admits every kit example option inventory and a port-sized 4096-object compiler plan',()=>{
  const plans=readdirSync(join(ROOT,'examples')).filter(n=>{try{return !!JSON.parse(readFileSync(join(ROOT,'examples',n,'game.json'),'utf8'));}catch{return false;}}).map(n=>{
