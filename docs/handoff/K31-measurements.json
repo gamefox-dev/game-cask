@@ -1,0 +1,2174 @@
+{
+  "schema": "game-cask/K31-evidence/1",
+  "status": "Author expanded Tier1 green at99329ac and fresh bounded vK31b PASS; benchmark source f65d33c; no game/CI certification",
+  "overhead": {
+    "schema": "game-cask/accounting-overhead/1",
+    "identity": "d4054da5432c41a61e6d397bfbcd7c5a414e0833",
+    "node": "v24.19.0",
+    "start": {
+      "when": "2026-11-05T07:48:54.481Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        4.20458984375,
+        4.1318359375,
+        3.9345703125
+      ],
+      "freeRamBytes": 955252736,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 2366835261,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "end": {
+      "when": "2026-11-05T08:23:14.651Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        10.7734375,
+        8.25830078125,
+        7.4111328125
+      ],
+      "freeRamBytes": 159301632,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 2588609085,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "method": "300 headless update/render/consume per fresh instance; init/compile excluded. One discarded warmup per artifact/mode; 9 interleaved paired samples with alternating order. Same guest/API/state traces required. profile0 isolates exact retirement; profile1 on/off additionally measures scheduler/snapshot cost. Shared machine, no GPU rasterization or game-speed claim.",
+    "rows": [
+      {
+        "id": "cpu-x86",
+        "profile": "0",
+        "mode": "asyncify",
+        "samples": [
+          [
+            102.27620799999568,
+            43.50487499999872,
+            113.06070899999759,
+            43.29608400000143,
+            108.71816599999147,
+            43.60599999999977,
+            105.87679199999548,
+            43.64816599999904,
+            100.99850000000151
+          ],
+          [
+            49.91425000000163,
+            123.37445800000569,
+            46.89620799999102,
+            134.4515839999949,
+            51.04983299999731,
+            133.33400000000256,
+            47.073458999992,
+            126.18079099999159,
+            44.554624999989755
+          ]
+        ],
+        "offMedianMs": 100.99850000000151,
+        "onMedianMs": 51.04983299999731,
+        "overheadPercent": -49.45486022069977,
+        "resources": {
+          "when": "2026-11-05T07:50:16.787Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            5.1806640625,
+            4.39111328125,
+            4.0439453125
+          ],
+          "freeRamBytes": 275251200,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "e397f3d2",
+          "trace": 3818386386,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 132059,
+          "generic": 0,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=c97a45d2d5939eb8",
+              "size": 2299795,
+              "sha256": "c97a45d2d5939eb8c8f4acad1050e77ddf0da5a39b2925e1debd07b81ae4429e"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=d3473f762228ecb6",
+              "size": 2501087,
+              "sha256": "d3473f762228ecb6818f11d04a90db03cd82981ea70286e0b8c821905e141962"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x86",
+        "profile": "0",
+        "mode": "jspi",
+        "samples": [
+          [
+            42.516417000006186,
+            42.322541000001365,
+            41.890792000005604,
+            41.703415999989375,
+            42.02470799999719,
+            41.8370419999992,
+            42.11012500000652,
+            41.82908399999724,
+            41.75520800000231
+          ],
+          [
+            43.175124999994296,
+            42.98637499999313,
+            42.239500000010594,
+            42.24070799999754,
+            42.18433299999742,
+            42.059875000006286,
+            42.74495900000329,
+            42.44416700000875,
+            42.41541599998891
+          ]
+        ],
+        "offMedianMs": 41.890792000005604,
+        "onMedianMs": 42.41541599998891,
+        "overheadPercent": 1.2523611393721934,
+        "resources": {
+          "when": "2026-11-05T07:50:17.899Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            5.1806640625,
+            4.39111328125,
+            4.0439453125
+          ],
+          "freeRamBytes": 98664448,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "e397f3d2",
+          "trace": 3818386386,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 132059,
+          "generic": 0,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=c97a45d2d5939eb8",
+              "size": 2299795,
+              "sha256": "c97a45d2d5939eb8c8f4acad1050e77ddf0da5a39b2925e1debd07b81ae4429e"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=d3473f762228ecb6",
+              "size": 2501087,
+              "sha256": "d3473f762228ecb6818f11d04a90db03cd82981ea70286e0b8c821905e141962"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x86",
+        "profile": "1",
+        "mode": "asyncify",
+        "samples": [
+          [
+            119.06058299998404,
+            45.81241600000067,
+            116.65641600001254,
+            44.47583400001167,
+            113.36887500001467,
+            43.39179199998034,
+            111.66279199998826,
+            43.494166999997105,
+            109.29837500001304
+          ],
+          [
+            49.29479099999298,
+            122.01004200000898,
+            46.7166670000006,
+            121.4043749999837,
+            46.56120799999917,
+            140.12833400000818,
+            51.07949999999255,
+            128.18104100000346,
+            47.38125000000582
+          ]
+        ],
+        "offMedianMs": 109.29837500001304,
+        "onMedianMs": 51.07949999999255,
+        "overheadPercent": -53.26600235366129,
+        "resources": {
+          "when": "2026-11-05T07:51:25.494Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.36279296875,
+            4.32177734375,
+            4.04345703125
+          ],
+          "freeRamBytes": 465321984,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "e397f3d2",
+          "trace": 3818386386,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 132059,
+          "generic": 0,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=51d9508cb8a25dea",
+              "size": 2302655,
+              "sha256": "51d9508cb8a25dea8a7b5ddfa45202596c224d6b3afd8636b1c42645f5818496"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=dc53a0c9760af47d",
+              "size": 2509936,
+              "sha256": "dc53a0c9760af47d369c4cea020d541b4405432276a9461093374c4bd86bd35c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x86",
+        "profile": "1",
+        "mode": "jspi",
+        "samples": [
+          [
+            42.306959000008646,
+            42.29908299999079,
+            42.086624999996275,
+            41.24575000000186,
+            41.405750000005355,
+            41.17949999999837,
+            41.377292000019224,
+            41.682041000021854,
+            41.33595899998909
+          ],
+          [
+            45.62295799999265,
+            44.99370900000213,
+            45.70783400000073,
+            44.69704199998523,
+            44.77033400000073,
+            44.109207999979844,
+            44.012957999977516,
+            44.97279199998593,
+            44.3302079999994
+          ]
+        ],
+        "offMedianMs": 41.405750000005355,
+        "onMedianMs": 44.77033400000073,
+        "overheadPercent": 8.125885897477868,
+        "resources": {
+          "when": "2026-11-05T07:51:26.609Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.25341796875,
+            4.2998046875,
+            4.037109375
+          ],
+          "freeRamBytes": 290127872,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "e397f3d2",
+          "trace": 3818386386,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 132059,
+          "generic": 0,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=51d9508cb8a25dea",
+              "size": 2302655,
+              "sha256": "51d9508cb8a25dea8a7b5ddfa45202596c224d6b3afd8636b1c42645f5818496"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=dc53a0c9760af47d",
+              "size": 2509936,
+              "sha256": "dc53a0c9760af47d369c4cea020d541b4405432276a9461093374c4bd86bd35c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          },
+          {
+            "lifted": "9051049",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "9051049"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x64",
+        "profile": "0",
+        "mode": "asyncify",
+        "samples": [
+          [
+            12.915959000005387,
+            9.22179199999664,
+            12.930458000017097,
+            10.200749999989057,
+            13.157458000001498,
+            9.758583000017097,
+            13.359040999988792,
+            8.91133400000399,
+            14.34299999999348
+          ],
+          [
+            8.882916999980807,
+            13.283792000001995,
+            8.91258299999754,
+            13.194791999994777,
+            9.019875000027241,
+            13.180457999987993,
+            8.836416999984067,
+            13.392792000027839,
+            8.842708000011044
+          ]
+        ],
+        "offMedianMs": 12.915959000005387,
+        "onMedianMs": 9.019875000027241,
+        "overheadPercent": -30.164883613957905,
+        "resources": {
+          "when": "2026-11-05T07:52:11.238Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.2939453125,
+            4.314453125,
+            4.05615234375
+          ],
+          "freeRamBytes": 494387200,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "2c6535da",
+          "trace": 744830426,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 263133,
+          "generic": 260,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=6d9855e8c1474eb9",
+              "size": 1087927,
+              "sha256": "6d9855e8c1474eb9ff33a58894d724f76018f8923e6501d5ac91ca7d33f5c978"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=0670b17e09c01fa1",
+              "size": 1106557,
+              "sha256": "0670b17e09c01fa1971486481a794f785ab71d858ee840980284ee79ee29fc0c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x64",
+        "profile": "0",
+        "mode": "jspi",
+        "samples": [
+          [
+            9.087916999997105,
+            8.921457999997074,
+            10.903375000023516,
+            8.266792000009445,
+            7.5792920000094455,
+            8.25037500000326,
+            7.749459000013303,
+            7.6704590000153985,
+            7.606334000010975
+          ],
+          [
+            9.265499999979511,
+            8.879667000001064,
+            8.967624999990221,
+            7.785875000001397,
+            7.703166999999667,
+            7.940292000013869,
+            7.9554169999901205,
+            7.810666000004858,
+            7.738666999997804
+          ]
+        ],
+        "offMedianMs": 8.25037500000326,
+        "onMedianMs": 7.940292000013869,
+        "overheadPercent": -3.7584109811889532,
+        "resources": {
+          "when": "2026-11-05T07:52:11.590Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.2939453125,
+            4.314453125,
+            4.05615234375
+          ],
+          "freeRamBytes": 180322304,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "2c6535da",
+          "trace": 744830426,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 263133,
+          "generic": 260,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=6d9855e8c1474eb9",
+              "size": 1087927,
+              "sha256": "6d9855e8c1474eb9ff33a58894d724f76018f8923e6501d5ac91ca7d33f5c978"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=0670b17e09c01fa1",
+              "size": 1106557,
+              "sha256": "0670b17e09c01fa1971486481a794f785ab71d858ee840980284ee79ee29fc0c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x64",
+        "profile": "1",
+        "mode": "asyncify",
+        "samples": [
+          [
+            14.53416699997615,
+            8.894750000006752,
+            14.949708999978611,
+            8.65458299999591,
+            14.609457999991719,
+            8.90791600002558,
+            12.734375,
+            21.694541000004392,
+            14.46012500001234
+          ],
+          [
+            9.386250000010477,
+            15.736707999982173,
+            9.662332999985665,
+            15.539875000016764,
+            9.640791999991052,
+            16.607791999995243,
+            9.568207999982405,
+            15.697125000006054,
+            9.407375000009779
+          ]
+        ],
+        "offMedianMs": 14.46012500001234,
+        "onMedianMs": 9.662332999985665,
+        "overheadPercent": -33.17946421640602,
+        "resources": {
+          "when": "2026-11-05T07:52:44.480Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.30322265625,
+            4.3271484375,
+            4.0703125
+          ],
+          "freeRamBytes": 2199109632,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              false,
+              true
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "2c6535da",
+          "trace": 744830426,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 263133,
+          "generic": 260,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=899c297794946d0b",
+              "size": 1092567,
+              "sha256": "899c297794946d0b1ec96c9387de6b86b21546ff8248fb60a336178b9e9bcef3"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=2dfd090f0406aa04",
+              "size": 1116886,
+              "sha256": "2dfd090f0406aa04bddd27dfdde044c8b83d42b4ab0349387eeeeaee3cb1229c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          }
+        ]
+      },
+      {
+        "id": "cpu-x64",
+        "profile": "1",
+        "mode": "jspi",
+        "samples": [
+          [
+            9.127832999976818,
+            8.873833000019658,
+            13.308542000013404,
+            7.842665999982273,
+            7.577457999985199,
+            7.431500000006054,
+            7.463667000003625,
+            7.645375000021886,
+            7.630790999974124
+          ],
+          [
+            9.775666000001365,
+            9.973583000013605,
+            10.377999999996973,
+            8.534375000017462,
+            8.407291999988956,
+            8.434166999999434,
+            8.670624999998836,
+            8.671666999987792,
+            8.708958000002895
+          ]
+        ],
+        "offMedianMs": 7.645375000021886,
+        "onMedianMs": 8.671666999987792,
+        "overheadPercent": 13.423697332870766,
+        "resources": {
+          "when": "2026-11-05T07:52:44.822Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            4.30322265625,
+            4.3271484375,
+            4.0703125
+          ],
+          "freeRamBytes": 2244722688,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              false,
+              true
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "2c6535da",
+          "trace": 744830426,
+          "logs": [
+            "guest: accounting checksum e3580001"
+          ],
+          "lifted": 263133,
+          "generic": 260,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=899c297794946d0b",
+              "size": 1092567,
+              "sha256": "899c297794946d0b1ec96c9387de6b86b21546ff8248fb60a336178b9e9bcef3"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=2dfd090f0406aa04",
+              "size": 1116886,
+              "sha256": "2dfd090f0406aa04bddd27dfdde044c8b83d42b4ab0349387eeeeaee3cb1229c"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          },
+          {
+            "lifted": "9190047",
+            "generic": "260",
+            "interpreted": "0",
+            "total": "9190307"
+          }
+        ]
+      },
+      {
+        "id": "x64-scale",
+        "profile": "0",
+        "mode": "asyncify",
+        "samples": [
+          [
+            2590.207374999998,
+            57.40758299990557,
+            2465.492207999807,
+            55.425540999975055,
+            2560.3428330000024,
+            48.770332999993116,
+            2432.573083000025,
+            49.42587499995716,
+            2565.617749999976
+          ],
+          [
+            54.89958299999125,
+            2803.8322499999776,
+            50.010082999942824,
+            2781.297874999931,
+            50.75654099998064,
+            2701.64629100007,
+            52.052040999988094,
+            2755.057083999971,
+            51.431291999993846
+          ]
+        ],
+        "offMedianMs": 2432.573083000025,
+        "onMedianMs": 54.89958299999125,
+        "overheadPercent": -97.74314764133273,
+        "resources": {
+          "when": "2026-11-05T08:09:15.522Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            6.74072265625,
+            7.947265625,
+            6.99560546875
+          ],
+          "freeRamBytes": 97026048,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "f674cbe2",
+          "trace": 4134849506,
+          "logs": [
+            "guest: scale checksum 31c9ceb2 functions 12000",
+            "guest: scale tick 0 939774da",
+            "guest: scale tick 60 5cfe4c05",
+            "guest: scale tick 120 3eb80774",
+            "guest: scale tick 180 91ba49a6",
+            "guest: scale tick 240 5d239563",
+            "guest: scale tick 300 41c43c16"
+          ],
+          "lifted": 25044,
+          "generic": 1,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=a38d610ef11ecd71",
+              "size": 66076700,
+              "sha256": "a38d610ef11ecd7168a530e2c8c42c39088cfeea40344772008f52d7cccfb698"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=68f3533034a8954d",
+              "size": 70119524,
+              "sha256": "68f3533034a8954d76a5d6c4087d26a3744c1cf706f01cee83527adaf6c8d97d"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          }
+        ]
+      },
+      {
+        "id": "x64-scale",
+        "profile": "0",
+        "mode": "jspi",
+        "samples": [
+          [
+            44.656792000168934,
+            35.134874999988824,
+            35.96395799983293,
+            37.5435830000788,
+            31.407416000030935,
+            33.31412500003353,
+            31.62616700003855,
+            30.87250000005588,
+            31.121375000104308
+          ],
+          [
+            32.21225000009872,
+            54.35825000004843,
+            41.12154099997133,
+            41.22387500014156,
+            39.68891700007953,
+            29.92783399997279,
+            32.028458000160754,
+            36.784166999859735,
+            50.554082999937236
+          ]
+        ],
+        "offMedianMs": 33.31412500003353,
+        "onMedianMs": 39.68891700007953,
+        "overheadPercent": 19.135402775968412,
+        "resources": {
+          "when": "2026-11-05T08:09:18.644Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            7.56201171875,
+            8.09716796875,
+            7.05419921875
+          ],
+          "freeRamBytes": 97583104,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2366835261,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "f674cbe2",
+          "trace": 4134849506,
+          "logs": [
+            "guest: scale checksum 31c9ceb2 functions 12000",
+            "guest: scale tick 0 939774da",
+            "guest: scale tick 60 5cfe4c05",
+            "guest: scale tick 120 3eb80774",
+            "guest: scale tick 180 91ba49a6",
+            "guest: scale tick 240 5d239563",
+            "guest: scale tick 300 41c43c16"
+          ],
+          "lifted": 25044,
+          "generic": 1,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=a38d610ef11ecd71",
+              "size": 66076700,
+              "sha256": "a38d610ef11ecd7168a530e2c8c42c39088cfeea40344772008f52d7cccfb698"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=68f3533034a8954d",
+              "size": 70119524,
+              "sha256": "68f3533034a8954d76a5d6c4087d26a3744c1cf706f01cee83527adaf6c8d97d"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          }
+        ]
+      },
+      {
+        "id": "x64-scale",
+        "profile": "1",
+        "mode": "asyncify",
+        "samples": [
+          [
+            4392.381208000006,
+            85.828125,
+            4120.430584000191,
+            98.2350419999566,
+            3743.0154999999795,
+            68.10874999989755,
+            3044.0067920000292,
+            95.47079199994914,
+            2775.0614580002148
+          ],
+          [
+            104.16837499989197,
+            4278.02008399996,
+            112.6150829999242,
+            4577.617708999896,
+            96.23050000006333,
+            4255.673375000013,
+            105.61641700007021,
+            3043.2746250000782,
+            75.9301249999553
+          ]
+        ],
+        "offMedianMs": 2775.0614580002148,
+        "onMedianMs": 112.6150829999242,
+        "overheadPercent": -95.9418886859148,
+        "resources": {
+          "when": "2026-11-05T08:23:09.441Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            11.36328125,
+            8.33056640625,
+            7.431640625
+          ],
+          "freeRamBytes": 83558400,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "f674cbe2",
+          "trace": 4134849506,
+          "logs": [
+            "guest: scale checksum 31c9ceb2 functions 12000",
+            "guest: scale tick 0 939774da",
+            "guest: scale tick 60 5cfe4c05",
+            "guest: scale tick 120 3eb80774",
+            "guest: scale tick 180 91ba49a6",
+            "guest: scale tick 240 5d239563",
+            "guest: scale tick 300 41c43c16"
+          ],
+          "lifted": 25044,
+          "generic": 1,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=c96eb09955dc21fe",
+              "size": 66082005,
+              "sha256": "c96eb09955dc21fe591189ff522c316731c709c9df571cf69e588620df7c439e"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=3c01c32c1141af9c",
+              "size": 70130620,
+              "sha256": "3c01c32c1141af9ce98cf406719e1aa30970a16727156bb841c74c3b61e7c069"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          }
+        ]
+      },
+      {
+        "id": "x64-scale",
+        "profile": "1",
+        "mode": "jspi",
+        "samples": [
+          [
+            109.15024999994785,
+            44.56741699995473,
+            40.90641700010747,
+            87.42524999985471,
+            41.574958000099286,
+            86.86737499991432,
+            43.05087500018999,
+            75.53554200008512,
+            40.74991700006649
+          ],
+          [
+            73.35187499993481,
+            79.44316700007766,
+            61.9945000000298,
+            71.82849999982864,
+            93.49970899987966,
+            68.877208000049,
+            74.06224999995902,
+            65.49062500009313,
+            89.07966699986719
+          ]
+        ],
+        "offMedianMs": 44.56741699995473,
+        "onMedianMs": 73.35187499993481,
+        "overheadPercent": 64.58632772011292,
+        "resources": {
+          "when": "2026-11-05T08:23:14.427Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            10.7734375,
+            8.25830078125,
+            7.4111328125
+          ],
+          "freeRamBytes": 132530176,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              true
+            ],
+            "queued": 3
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        },
+        "semantic": {
+          "hash": "f674cbe2",
+          "trace": 4134849506,
+          "logs": [
+            "guest: scale checksum 31c9ceb2 functions 12000",
+            "guest: scale tick 0 939774da",
+            "guest: scale tick 60 5cfe4c05",
+            "guest: scale tick 120 3eb80774",
+            "guest: scale tick 180 91ba49a6",
+            "guest: scale tick 240 5d239563",
+            "guest: scale tick 300 41c43c16"
+          ],
+          "lifted": 25044,
+          "generic": 1,
+          "interp": 0,
+          "stubs": []
+        },
+        "builds": [
+          {
+            "account": "0",
+            "wasm": {
+              "url": "game.wasm?h=c96eb09955dc21fe",
+              "size": 66082005,
+              "sha256": "c96eb09955dc21fe591189ff522c316731c709c9df571cf69e588620df7c439e"
+            },
+            "variants": null
+          },
+          {
+            "account": "1",
+            "wasm": {
+              "url": "game.wasm?h=3c01c32c1141af9c",
+              "size": 70130620,
+              "sha256": "3c01c32c1141af9ce98cf406719e1aa30970a16727156bb841c74c3b61e7c069"
+            },
+            "variants": null
+          }
+        ],
+        "retired_samples": [
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          }
+        ]
+      }
+    ]
+  },
+  "overhead_raw_sha256": "c62cf83426b3be977f9a1fb3f77fee3c76e3bfb7fc0b3bac2cb63e867785f98e",
+  "present_overhead": {
+    "schema": "game-cask/present-accounting-overhead/1",
+    "start": {
+      "when": "2026-11-05T08:27:27.428Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        9.224609375,
+        8.85205078125,
+        7.873046875
+      ],
+      "freeRamBytes": 876773376,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 2588609085,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          false
+        ],
+        "queued": 2
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "hashes": [
+      [
+        "ec1df2e331e57c8f4e2803a0cb218a57ecc1774b42c4516828b65ce6815cc756",
+        "f09efabfd423f5fd5a144b97a8becf9356825eb15e57a23eb8c7976f04401f0b"
+      ],
+      [
+        "7705d4f9a75b24e00d91ff7fe0e1b45c8e31a8c21a1d8c02c70297c846bfbba4",
+        "4b041c293337e697fa5dc7a5d16235d3343c45344ebd6c9b33f43dc89d648830"
+      ]
+    ],
+    "rows": [
+      {
+        "threads": 1,
+        "mode": "asyncify",
+        "presents": 100000,
+        "samples": [
+          [
+            3.109124999999949,
+            3.0276670000002923,
+            3.1604999999999563,
+            3.07483400000001,
+            3.1641669999999067,
+            3.112833000000137,
+            3.148666999999932,
+            3.065458000000035,
+            3.057499999999891
+          ],
+          [
+            6.663832999999613,
+            6.339666000000307,
+            6.291124999999738,
+            7.258916000000227,
+            6.703791999999794,
+            6.423624999999902,
+            6.257167000000209,
+            6.296207999999751,
+            6.443499999999858
+          ]
+        ],
+        "offMedianMs": 3.109124999999949,
+        "onMedianMs": 6.423624999999902,
+        "incrementalNanosecondsPerPresent": 33.14499999999953,
+        "resources": {
+          "when": "2026-11-05T08:27:29.855Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            9.224609375,
+            8.85205078125,
+            7.873046875
+          ],
+          "freeRamBytes": 771801088,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              false
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      {
+        "threads": 1,
+        "mode": "jspi",
+        "presents": 100000,
+        "samples": [
+          [
+            3.2003749999998945,
+            3.170708000000104,
+            3.227374999999938,
+            3.219333000000006,
+            3.0475000000001273,
+            3.1150000000002365,
+            3.217999999999847,
+            3.109834000000319,
+            3.061999999999898
+          ],
+          [
+            6.326624999999694,
+            6.658957999999984,
+            7.270542000000205,
+            8.264333000000079,
+            6.260915999999725,
+            6.455583999999817,
+            6.313834000000043,
+            6.25649999999996,
+            6.212875000000167
+          ]
+        ],
+        "offMedianMs": 3.170708000000104,
+        "onMedianMs": 6.326624999999694,
+        "incrementalNanosecondsPerPresent": 31.559169999995902,
+        "resources": {
+          "when": "2026-11-05T08:27:29.981Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.88623046875,
+            8.7880859375,
+            7.85595703125
+          ],
+          "freeRamBytes": 771735552,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              false
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      {
+        "threads": 64,
+        "mode": "asyncify",
+        "presents": 100000,
+        "samples": [
+          [
+            3.124499999999898,
+            3.1018749999998363,
+            3.9200419999997393,
+            3.0903330000001006,
+            3.1505419999998594,
+            4.357249999999567,
+            3.061916999999994,
+            3.166458000000148,
+            3.082708999999795
+          ],
+          [
+            8.897457999999915,
+            9.276542000000063,
+            16.608166999999867,
+            19.277207999999973,
+            14.04699999999957,
+            8.807832999999846,
+            9.007834000000003,
+            9.012291999999889,
+            8.711499999999887
+          ]
+        ],
+        "offMedianMs": 3.124499999999898,
+        "onMedianMs": 9.012291999999889,
+        "incrementalNanosecondsPerPresent": 58.877919999999904,
+        "resources": {
+          "when": "2026-11-05T08:27:30.164Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.88623046875,
+            8.7880859375,
+            7.85595703125
+          ],
+          "freeRamBytes": 777420800,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              false
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      },
+      {
+        "threads": 64,
+        "mode": "jspi",
+        "presents": 100000,
+        "samples": [
+          [
+            3.101042000000234,
+            3.0960409999997864,
+            3.1213339999999334,
+            3.018499999999676,
+            3.0798749999999018,
+            3.124083000000155,
+            3.16991599999983,
+            3.0969159999999647,
+            3.132665999999972
+          ],
+          [
+            9.7739160000001,
+            9.039500000000317,
+            8.992874999999913,
+            8.81270799999993,
+            8.788749999999709,
+            8.949083999999857,
+            8.747082999999748,
+            8.953167000000121,
+            8.823167000000012
+          ]
+        ],
+        "offMedianMs": 3.101042000000234,
+        "onMedianMs": 8.949083999999857,
+        "incrementalNanosecondsPerPresent": 58.48041999999623,
+        "resources": {
+          "when": "2026-11-05T08:27:30.308Z",
+          "platform": "darwin/arm64",
+          "cpuCount": 10,
+          "cpuModel": "Apple M4",
+          "loadAverage": [
+            8.88623046875,
+            8.7880859375,
+            7.85595703125
+          ],
+          "freeRamBytes": 790347776,
+          "totalRamBytes": 17179869184,
+          "swapUsedBytes": 2588609085,
+          "heavyGate": {
+            "slots": 3,
+            "occupied": [
+              true,
+              true,
+              false
+            ],
+            "queued": 2
+          },
+          "topCpuProcesses": null,
+          "errors": [
+            "ps: spawnSync ps EPERM"
+          ]
+        }
+      }
+    ]
+  },
+  "sensitivity": [
+    {
+      "name": "retirement-removed",
+      "exit": 1,
+      "log_sha256": "09e4c7a457a3c0d63f20e1774bf8f781abec946f7eb27669a928efd52d412a28"
+    },
+    {
+      "name": "attempts-counted",
+      "exit": 1,
+      "log_sha256": "8967caf0ef5b9621fd80b7cb6907fa7d806996b68b3bae5657f90b18caa89d83"
+    },
+    {
+      "name": "process-restored",
+      "exit": 1,
+      "log_sha256": "33fcf84e6115205e04bd813f6e548e3ecad461f79b94d8f98265d5a8d8e864de"
+    },
+    {
+      "name": "park-counted-active",
+      "exit": 1,
+      "log_sha256": "6ccc66f7e566ab2c0f68c4a2df41b1ac0fbb8bebbc20d1e97781c22816669577"
+    },
+    {
+      "name": "drops-lost",
+      "exit": 1,
+      "log_sha256": "809577539443a59c3d98b01eec1bda026395bc7a7592a9b220492550041444b0"
+    },
+    {
+      "name": "unsafe-before-subtraction",
+      "exit": 1,
+      "log_sha256": "0570f9a59b308ce48db4a1d7c1fd424b2a41d99b98bfaf0a30a18398955c024e"
+    },
+    {
+      "name": "post-present-tail",
+      "exit": 1,
+      "log_sha256": "9b04673c46f675318ddd532d77753b2cf8569130e517d4c38a6fc62600c13401"
+    }
+  ],
+  "negative_assertions": {
+    "retirement-removed": "0 != 18",
+    "attempts-counted": "1 != 0 before execution",
+    "process-restored": "18 != 36",
+    "park-counted-active": "1000000 != 0",
+    "drops-lost": "0 != 8",
+    "unsafe-before-subtraction": "40 != 42",
+    "post-present-tail": "90 != 3"
+  },
+  "default_decision": "OFF per reviewer267; full scale profile0 JSPI +19.1354%, target ~2%. Asyncify large favorable differences are code-shape/shared-machine observations, not robust speedups. Profile1 additional scheduler costs are not isolated retirement.",
+  "reviewer_gate_decision": "Completed broad default-OFF plus ON full units/all300-frame oracles with identical ON/OFF traces and WebGPU both suspension modes; gate evidence in K31-gate-evidence.json",
+  "attribution": {
+    "evidence": "K31-attribution.json",
+    "sha256": "be8f55622db756dc6f972cf1dbd066eb01d0c9e721508c2d8de8dce20b01d1de",
+    "result": "PASS; later BOTH/OFF +4.2711%, noisy ablations not additive causal decomposition; default OFF unchanged"
+  }
+}

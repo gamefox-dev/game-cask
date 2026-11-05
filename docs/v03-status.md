@@ -1,5 +1,31 @@
 # v0.3 merged implementation status
 
+## Integration I15 final — K31 accounting over K32
+
+No-ff merge **0edf02c** integrates lane/K31 (288f7f2) over dev.19 (958d5f0), retaining both lane
+records below. Accounting remains **default OFF**; BGT_CPU_ACCOUNTING=1 opts in, unavailable/null
+when disabled. K32 guarded native/cross-chunk calls, exact-PC sites, owner chaining and separate
+stats opt-in remain. One interaction repair excludes a high invalid CALL target **before** K32
+early state publication; the old flat-boundary-only adjustment was too late. Four reproduced
+assertion failures are fixed; focused **36/36 PASS**, including known counts, complete CPU/RAM,
+fallback/cache/chaining/recursion, actual Asyncify/JSPI park/rewind and direct-call SEH accounting.
+
+Fresh merged-source serial gates all PASS: doctor, full Clang + real GCC14 lint (**38 example
+checks each**), explicit Clang host checks, typecheck, leakcheck; full units **2364/138 files/0 skips
+in each OFF and ON run**. OFF browsers both actual modes **300 pass/51 inherited skips/0 fail/0
+flaky**, required native WebGPU/WebGL2/auto; ON WebGPU both modes **157/26/0/0**. Every pipeline
+oracle **34 fixtures ×2 modes ×2 accounting settings ×300 =40800 identical frame pairs**; all136
+reports audited, ON/OFF/cross-mode traces identical. Exact final and per-present process/thread
+retirement agrees with interpretation; OFF availability, string/ring contracts, exact inherited
+skips and unchanged GL-scale-only expected errors checked.
+
+K32 five-fixture OFF paired benchmark versus dev.19: five A/B pairs + warmup in both modes, all
+300-update oracle hashes equal, **no regression beyond noisy paired spread**, no speedup claim.
+Fresh independent **bounded source-review PASS**, not independent gate/CI execution. No game,
+physical-device, hardware CPU-time or universal zero-overhead claim. Owned suites exited; temporary
+worktree/benchmark outputs and owned Zig cache removed (~9.1GiB free).
+[Handoff](handoff/integration-i15.md), [structured gate/paired evidence](handoff/integration-i15-evidence.json).
+
 ## K32 lane record — bounded native calls / indirect sites / owner regions
 
 Implementation6297545 over dev.18 211daca; **author implementation Tier1 green, external focused
@@ -27,6 +53,28 @@ an explicit kit follow-up (RaiseException fails closed). Final lane evidence: [g
 Coordinator accepted test-only54c40eb after review: actual parked/resumed direct-call AMD64 SEH,
 300-update/full-CPU identity across engines/modes, missing-unwind-metadata mutant fails/restored2/2 pass;
 i386 missing dispatcher fails closed. No production code changed after external review.
+
+## K31 — Q78 exact accounting (lane source99329ac, author gates green)
+
+Opt-in **BGT_CPU_ACCOUNTING=1** provides monotonic process/stable-thread retirement, scheduler-owned
+active/wait/ready/park and virtual-time budgets, bounded64 native-present snapshots and BigInt-first
+per-frame/active-wall throughput summaries. Default **OFF** after CC0 full12000-owner profile0 JSPI
+**+19.1354%** (target approximately2%); compiled-out data is unavailable/null, never measured zero.
+Hardware CPU time stays null; TSC/RDTSC/scheduling/ABI unchanged. All accounting u64/timestamps use
+decimal strings. Startup abort-hook and precision defects from vK31 repaired; **fresh vK31b PASS**
+at99329ac. No code/test change after reviewed source.
+
+Final author serial broad default-OFF gates: doctor, full lint38 examples/real GCC, explicit clang,
+types, **2329 units/136 files/no skips**, leakcheck, full browsers **300 pass/51 inherited skips/0
+failures/0 flaky** in both modes (native WebGL2/WebGPU/auto), every34×2×300 oracle. Additional ON:
+full2329 units, WebGPU **157/26/0/0** both modes, every34×2×300 oracle. All136 reports audited,
+ON/OFF/cross-mode semantic traces identical, exact inherited skip inventories, unchanged strict
+GL-scale-only expected-error contract. Independent review was bounded, not full-gate/CI certification.
+Private attribution passed: later BOTH/OFF +4.27% (not a reproduction of +19.14%); changed region
+body sizes/locals, unchanged wrapper counts/sizes, noisy ablations preclude additive causal cost
+shares. Default OFF unchanged; all owned suites/temporary outputs cleaned. No game/60fps/device claim.
+[Handoff](handoff/K31.md), [gate evidence](handoff/K31-gate-evidence.json),
+[measurements](handoff/K31-measurements.json), [repair sensitivity](handoff/K31-repair-evidence.json).
 
 ## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
 
