@@ -32,6 +32,7 @@ void x86_account_idle(int begin, double now) {
         if (account_parked) return;
         account_charge(x86_current, now, observed_virtual);
         idle_state = x86_accounts[x86_current].state;
+        if (idle_state == XA_EXITED || idle_state == XA_INACTIVE) return;
         if (idle_state == XA_RUNNING) x86_accounts[x86_current].state = XA_HOST_YIELD;
         account_parked = 1; park_start = now;
     } else if (account_parked) {
@@ -49,6 +50,7 @@ void x86_account_abort(double now) {
 #if X86_ACCOUNTING_ENABLED
 void x86_account_create(uint32_t i, uint32_t start, unsigned state, uint64_t virtual_ms) {
     x86_account_t *a=&x86_accounts[i];a->id=i+1;a->start_address=start;a->state=state;
+    if(i==0){a->retired=*x86_thread_retired;x86_thread_retired=&a->retired;}
 #if X86_PROFILE_ENABLED
     account_wall[i]=bgt_time_us();account_virtual[i]=virtual_ms;
 #endif

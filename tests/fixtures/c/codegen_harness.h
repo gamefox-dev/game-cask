@@ -1,6 +1,11 @@
 /* Original CC0 deterministic lifted/interpreted CPU snapshot harness (not a platform mock oracle). */
 #define X86_FLAT_GUEST 1
 #define X86_FLAT_BYTES 65536ull
+/* Snapshot-only harness: no profiling clock/provider. Real timing/accounting
+ * integration uses x86_rt.c in the dedicated Q78 fixtures. */
+#ifndef X86_PROFILE_ENABLED
+#define X86_PROFILE_ENABLED 0
+#endif
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
 #include "../../../platforms/x86/x86_coverage.h"

@@ -1,5 +1,10 @@
 /* CC0: synthetic decoder/lifter execution and architectural state assertions. */
 #define X86_WIDE_CPU 1
+/* Snapshot-only harness: no profiling clock/provider. Real timing/accounting
+ * integration uses x86_rt.c in the dedicated Q78 fixtures. */
+#ifndef X86_PROFILE_ENABLED
+#define X86_PROFILE_ENABLED 0
+#endif
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
 #include "../../../platforms/x86/x86_coverage.h"

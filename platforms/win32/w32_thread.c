@@ -355,9 +355,10 @@ static void tls_notify(uint32_t reason) {
     }
 }
 void w32_thread_init(void) {
-    x86_sched_init();
+#if X86_ACCOUNTING_ENABLED
     w32_module_t *main=w32_mod_by_handle(0);
     x86_account_create(0,main?main->entry:0,XA_RUNNING,w32_now_ms64());
+#endif
     threads[0].teb = W32_TEB;
     if (!W32_64) {
         tls_image(W32_TEB);
@@ -367,6 +368,7 @@ void w32_thread_init(void) {
         }
         tls_notify(1);
     }
+    x86_sched_init();
 }
 void w32_thread_return(uint32_t code) {
     X.transfer = 0; /* A normal guest RET arrives via the scheduler transfer sentinel. */
@@ -729,7 +731,13 @@ static uint64_t thread_api(const char *name) {
         }
         if(!x86_tasks[tid].live){t->error=5;return FAILED;}
         uint32_t old = threads[tid].suspended;
-        if (old) { threads[tid].suspended--; if(!threads[tid].suspended && threads[tid].kind==NONE) {x86_tasks[tid].ready = 1;x86_account_state(tid,XA_READY,w32_now_ms64());} }
+        if (old) {
+            threads[tid].suspended--;
+            if(!threads[tid].suspended) {
+                if(threads[tid].kind==NONE)x86_tasks[tid].ready = 1;
+                x86_account_state(tid,threads[tid].kind==NONE?XA_READY:threads[tid].kind==SLEEPING?XA_SLEEP:XA_OBJECT,w32_now_ms64());
+            }
+        }
         return old;
     }
     if (IS("WaitForSingleObject") || IS("WaitForSingleObjectEx")) return wait_objects(0);

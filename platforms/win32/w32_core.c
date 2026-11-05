@@ -748,6 +748,13 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 }
 
 void w32_wait_frame(void) {
+#if X86_ACCOUNTING_ENABLED
+    static int accounted_exit;
+    if(w32_exited && !accounted_exit) {
+        for(unsigned i=0;i<X86_THREADS;i++)if(x86_accounts[i].id)x86_account_state(i,XA_EXITED,w32_now_ms64());
+        accounted_exit=1;
+    }
+#endif
     w32_m.yields++;
     X.frame_insns=0;
     w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
