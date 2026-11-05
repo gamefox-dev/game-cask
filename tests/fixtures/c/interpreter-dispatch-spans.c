@@ -42,7 +42,37 @@ void x86_exec_insn(const x86_insn_t *in) { work(10);measured_insn_body(in); }
 void x86_exec64(const x86_insn_t *in) { work(10);measured_64_body(in); }
 static unsigned calls,completed,quantum;
 static void callback(void) { if(x86_callback(0x2000,0,0)!=42)__builtin_trap(); }
-static void native(void) { work(100);callback();work(100);X.eip=(uint32_t)x86_pop(); }
+/* I14: a real interpreted CALL enters the native driver, then either K29
+ * import path. The existing K26 native boundary must exclude the whole API,
+ * while bound callbacks still contribute their own disjoint interpreted spans. */
+static unsigned import_mode,import_hits;
+static x86_import_site_t import_site={.iat=0x7000};
+static int import_leaf(void *opaque,uint64_t target) {
+    (void)opaque;(void)target;import_hits++;work(100);
+    X.eip=(uint32_t)x86_pop();return 1;
+}
+static void import_bound(void *opaque) {
+    (void)opaque;import_hits++;work(100);callback();
+    if(import_mode==3){x86_profile_idle_begin();bgt_yield();x86_profile_idle_end();}
+    work(100);X.eip=(uint32_t)x86_pop();
+}
+static void import_step(uint32_t pc) {
+    (void)pc;X.tsc++;X.eip=0x5000;
+    if(!x86_try_import(&import_site,0x5000)&&!x86_defer_import(&import_site,0x5000))__builtin_trap();
+}
+BGT_EXPORT(set_import_mode) void set_import_mode(unsigned mode) {
+    import_mode=mode;
+    /* NOP; CALL native; NOP; RET: no dynamic API in this I14 program. */
+    x86_wr8(0x1006,0x90);x86_wr8(0x1007,0xc3);
+    x86_bind_import(0x7000,0x5000,0,import_bound,mode==1?import_leaf:0);
+}
+BGT_EXPORT(import_calls) unsigned import_calls(void) { return import_hits; }
+BGT_EXPORT(direct_calls) uint64_t direct_calls(void) { return x86_metrics.direct_import_calls; }
+BGT_EXPORT(leaf_calls) uint64_t leaf_calls(void) { return x86_metrics.leaf_import_calls; }
+static void native(void) {
+    if(import_mode){x86_run_native(import_step);return;}
+    work(100);callback();work(100);X.eip=(uint32_t)x86_pop();
+}
 static int thunk(uint32_t addr) {
     (void)addr;work(100);callback();
     x86_profile_idle_begin();bgt_yield();x86_profile_idle_end();
