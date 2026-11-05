@@ -19,9 +19,12 @@ for(const wide of [false,true])for(const startup of ['tls','dll'])it('startup '+
    'PIMAGE_TLS_CALLBACK tls_callbacks[]={callback,0};\n'+
    'const IMAGE_TLS_DIRECTORY _tls_used __attribute__((used))={(ULONG_PTR)tls_raw,(ULONG_PTR)(tls_raw+1),(ULONG_PTR)&_tls_index,(ULONG_PTR)tls_callbacks,0,0};\n':'';
   writeFileSync(join(dir,'entry.c'),'/* CC0 */\n#include <windows.h>\nint _tls_index;\n'+callbacks+
-   'void entry(void){OutputDebugStringA("entry-unreached");for(;;)Sleep(10);}\n');
+   'void entry(void){OutputDebugStringA("entry-unreached");for(;;)Sleep(10); }\n'+
+   // An absolute data reference makes even the tiny AMD64 main relocatable.
+   'void (*volatile entry_anchor)(void)=entry;\n');
   if(startup==='dll') {
-   writeFileSync(join(dir,'startup.c'),'/* CC0 */\n#include <windows.h>\nBOOL WINAPI DllMain(HINSTANCE m,DWORD r,LPVOID p){(void)m;(void)r;(void)p;OutputDebugStringA("startup-fault");return TRUE;}\n');
+   writeFileSync(join(dir,'startup.c'),'/* CC0 */\n#include <windows.h>\nint _tls_index; BOOL WINAPI DllMain(HINSTANCE m,DWORD r,LPVOID p){(void)m;(void)r;(void)p;OutputDebugStringA("startup-fault");return TRUE;}\n'+
+    'BOOL (WINAPI *volatile dll_anchor)(HINSTANCE,DWORD,LPVOID)=DllMain;\n');
    const zig=JSON.parse(execFileSync('zig',['env'],{encoding:'utf8'}));
    execFileSync('zig',['cc','-target',target,'-isystem',join(zig.lib_dir,'libc/include/any-windows-any'),'-O1','-fno-stack-protector','-shared','-nostdlib','-Wl,--entry,DllMain','-o',join(dir,'startup.dll'),join(dir,'startup.c'),'-lkernel32'],{stdio:'pipe'});
   }
