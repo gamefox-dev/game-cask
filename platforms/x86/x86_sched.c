@@ -2,7 +2,9 @@
  * Blocking thunks complete their guest return before requesting X86_SCHEDULE;
  * dispatch propagates that transfer to the outer loop. SPDX-License-Identifier: MIT */
 #include "x86_sched.h"
+#if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
 #include "bgt.h"
+#endif
 x86_account_t x86_accounts[X86_THREADS];
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
 static double account_wall[X86_THREADS], park_start;
@@ -52,6 +54,9 @@ void x86_account_create(uint32_t i, uint32_t start, unsigned state, uint64_t vir
     x86_account_t *a=&x86_accounts[i];a->id=i+1;a->start_address=start;a->state=state;
     if(i==0){a->retired=*x86_thread_retired;x86_thread_retired=&a->retired;}
 #if X86_PROFILE_ENABLED
+    /* First identity precedes process TLS/DllMain, which can throw via imports.
+     * Hook lifetime must start with the span, not the later scheduler init. */
+    x86_account_abort_hook = x86_account_abort;
     account_wall[i]=bgt_time_us();account_virtual[i]=virtual_ms;
 #endif
     (void)virtual_ms;
@@ -72,9 +77,6 @@ int x86_sched_set_priority(uint32_t task, int priority) {
 int x86_sched_get_priority(uint32_t task) { return task < X86_THREADS ? priorities[task] : 0; }
 void x86_sched_init(void) {
     x86_current = 0;
-#if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
-    x86_account_abort_hook = x86_account_abort;
-#endif
 #if X86_ACCOUNTING_ENABLED
     x86_accounts[0].retired = *x86_thread_retired;
     x86_thread_retired = &x86_accounts[0].retired;

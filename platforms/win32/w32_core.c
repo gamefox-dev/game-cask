@@ -870,13 +870,17 @@ static void jkv(const char *k, uint64_t v) { jput("\""); jput(k); jput("\":"); j
 /* Decimal strings preserve all 64 bits; JS summary subtracts with BigInt before
  * converting safe results. Existing legacy execution counters remain untouched. */
 #if X86_ACCOUNTING_ENABLED
+/* All accounting u64s use decimal strings. Host wall values are measured
+ * doubles quantized to integer microseconds, not exact hardware CPU clocks. */
+static void jexact(uint64_t v) { jput("\"");jnum(v);jput("\""); }
+static inline void jexactkv(const char *k, uint64_t v) { jput("\"");jput(k);jput("\":");jexact(v);jput(","); }
 static void jretired(const x86_retired_t *r) {
     static const char *const keys[]={"lifted","generic","interpreted"};
     uint64_t total=0;jput("{");
     for(unsigned k=0;k<XR_KINDS;k++) {
-        if(k)jput(",");jput("\"");jput(keys[k]);jput("\":\"");jnum(r->instructions[k]);jput("\"");total+=r->instructions[k];
+        if(k)jput(",");jput("\"");jput(keys[k]);jput("\":");jexact(r->instructions[k]);total+=r->instructions[k];
     }
-    jput(",\"total\":\"");jnum(total);jput("\"}");
+    jput(",\"total\":");jexact(total);jput("}");
 }
 static void jaccounts(const x86_account_t *accounts) {
     static const char *const states[]={"inactive","running","ready","sleep_timer","wait_objects","io","suspended","host_yield","exited"};
@@ -886,13 +890,13 @@ static void jaccounts(const x86_account_t *accounts) {
         if(!first)jput(",");first=0;jput("{");jkv("id",a->id);jkv("start_address",a->start_address);
         jput("\"state\":\"");jput(states[a->state]);jput("\",\"retired\":");jretired(&a->retired);
 #if X86_PROFILE_ENABLED
-        jput(",");jkv("switches_in",a->switches);jkv("sleep_requested_ms",a->sleep_requested_ms);
-        jkv("object_requested_ms",a->object_requested_ms);jkv("infinite_waits",a->infinite_waits);
-        jkv("parked_host_us",(uint64_t)a->parked_us);
+        jput(",");jexactkv("switches_in",a->switches);jexactkv("sleep_requested_ms",a->sleep_requested_ms);
+        jexactkv("object_requested_ms",a->object_requested_ms);jexactkv("infinite_waits",a->infinite_waits);
+        jexactkv("parked_host_us",(uint64_t)a->parked_us);
         jput("\"wall_us\":{");
-        for(unsigned s=1;s<XA_EXITED;s++){if(s>1)jput(",");jput("\"");jput(states[s]);jput("\":");jnum((uint64_t)a->wall_us[s]);}
+        for(unsigned s=1;s<XA_EXITED;s++){if(s>1)jput(",");jput("\"");jput(states[s]);jput("\":");jexact((uint64_t)a->wall_us[s]);}
         jput("},\"virtual_ms\":{");
-        for(unsigned s=1;s<XA_EXITED;s++){if(s>1)jput(",");jput("\"");jput(states[s]);jput("\":");jnum(a->virtual_ms[s]);}
+        for(unsigned s=1;s<XA_EXITED;s++){if(s>1)jput(",");jput("\"");jput(states[s]);jput("\":");jexact(a->virtual_ms[s]);}
         jput("}");
 #else
         jput(",\"wall_us\":null,\"virtual_ms\":null,\"switches_in\":null");
@@ -916,11 +920,11 @@ static void jaccounting(void) {
 #endif
     jput(",\"frames\":");
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
-    jput("{");jkv("capacity",ACCOUNT_FRAMES);jkv("dropped",account_dropped);jput("\"snapshots\":[");
+    jput("{");jkv("capacity",ACCOUNT_FRAMES);jexactkv("dropped",account_dropped);jput("\"snapshots\":[");
     for(unsigned n=0;n<account_length;n++) {
         const account_frame_t *f=&account_frames[((account_length==ACCOUNT_FRAMES?account_next:0)+n)%ACCOUNT_FRAMES];
-        if(n)jput(",");jput("{");jkv("present",f->present);jkv("wall_us",(uint64_t)f->wall_us);
-        jkv("lifted_calls",f->lifted_calls);jkv("generic_insn_execs",f->generic_insn_execs);
+        if(n)jput(",");jput("{");jexactkv("present",f->present);jexactkv("wall_us",(uint64_t)f->wall_us);
+        jexactkv("lifted_calls",f->lifted_calls);jexactkv("generic_insn_execs",f->generic_insn_execs);
         jput("\"retired\":");jretired(&f->retired);jput(",\"threads\":");jaccounts(f->threads);jput("}");
     }
     jput("]}");
@@ -1091,6 +1095,7 @@ void wj_int(w32_json_t *j, int64_t v) {
     if (v < 0 && j->n + 1 < j->cap) j->b[j->n++] = '-';
     while (n && j->n + 1 < j->cap) j->b[j->n++] = t[--n];
 }
+
 void wj_rect(w32_json_t *j, int32_t x, int32_t y, int32_t w, int32_t h) {
     wj_raw(j, "["); wj_int(j, x); wj_raw(j, ","); wj_int(j, y); wj_raw(j, ","); wj_int(j, w); wj_raw(j, ","); wj_int(j, h); wj_raw(j, "]");
 }

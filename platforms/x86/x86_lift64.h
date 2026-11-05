@@ -1,7 +1,7 @@
 /* Helpers for specialized AMD64 emission. No unchecked guest pointers. SPDX-License-Identifier: MIT */
 #ifndef X86_LIFT64_H
 #define X86_LIFT64_H
-#include "x86_profile.h"
+#include "x86_retire.h"
 #include "x86_sem64.h"
 #include "x86_sse.h"
 #include "x86_simd_fault.h"

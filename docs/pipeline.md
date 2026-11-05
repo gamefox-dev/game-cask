@@ -203,6 +203,14 @@ criterion. Full measurements and shared-machine/code-shape caveats: [K31](handof
   callback setup/return scaffolding and handwritten overrides do not invent guest instructions; actually
   dispatched callback instructions count normally. Context restore and census reset do not restore/reset
   retirement. Legacy `generic_insn_execs` and `interp_insns` retain their previous dispatch-count rules.
+- All accounting counter/timestamp values use unsigned decimal **strings**, including thread
+  `switches_in`, `sleep_requested_ms`, `object_requested_ms`, `infinite_waits`, `parked_host_us`,
+  every `wall_us` / `virtual_ms` bucket, ring `dropped`, and each snapshot's `present`, `wall_us`,
+  `lifted_calls` and `generic_insn_execs`. The bounded numeric fields `enabled`, `timing_enabled`,
+  `id`, `start_address` and `capacity` remain numbers. Wall strings preserve the serializer's
+  integer-microsecond observation of a host double, not additional hardware-clock precision.
+  Summaries subtract strings as BigInt before converting only safe integer deltas; unsafe
+  legacy numeric counters are unavailable, not rounded. Raw exact strings remain in metrics.
 - `threads` retains up to the scheduler's 64 non-reused identities, including exited threads. Each row has
   `id`, `start_address` (guest address, no inferred role/name), current `state` and matching retirement.
   `switches_in` counts changes **to** the task, not initial selection or re-selection of the same task.

@@ -16,9 +16,14 @@ function retired(v: unknown, previous?: unknown) {
   }
   return result;
 }
+// Accept old safe numeric snapshots, but never promote an already-rounded
+// legacy Number to an exact count. New counters/timestamps are decimal strings.
+function integer(v: unknown): bigint | null {
+  return count(v) ?? (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? BigInt(v) : null);
+}
 function difference(v: unknown, previous: unknown, missingIsZero=false) {
-  const n=numeric(v),p=previous===undefined&&missingIsZero?0:numeric(previous);
-  return n!==null&&p!==null&&n>=p?n-p:null;
+  const n=integer(v),p=previous===undefined&&missingIsZero?0n:integer(previous);
+  return n!==null&&p!==null&&n>=p?safe(n-p):null;
 }
 function thread(now: Row, previous?: Row) {
   const r=retired(now.retired,previous?.retired),wall=object(now.wall_us),oldWall=object(previous?.wall_us);
@@ -35,7 +40,7 @@ function thread(now: Row, previous?: Row) {
     executing_instructions_per_second:instructions!==null&&active!==null&&active>0?instructions*1e6/active:null};
 }
 function activeTotal(rows: ReturnType<typeof thread>[] | null): number | null {
-  return rows?.reduce((sum,t)=>sum!==null&&t.active_wall_us!==null?sum+t.active_wall_us:null,0 as number|null) ?? null;
+  return rows?.reduce((sum,t)=>sum!==null&&t.active_wall_us!==null&&Number.isSafeInteger(sum+t.active_wall_us)?sum+t.active_wall_us:null,0 as number|null) ?? null;
 }
 function threads(now: unknown, previous?: unknown) {
   const before=new Map((Array.isArray(previous)?previous:[]).map(object).filter((r):r is Row=>!!r).map(r=>[r.id,r]));
@@ -49,7 +54,8 @@ export function instructionSummary(metrics: Row) {
   const frames=[];
   for(let i=1;i<snapshots.length;i++) {
     const before=snapshots[i-1],now=snapshots[i];
-    if(typeof now.present!=='number'||typeof before.present!=='number'||now.present!==before.present+1)continue;
+    const ordinal=integer(now.present),previousOrdinal=integer(before.present);
+    if(ordinal===null||previousOrdinal===null||ordinal!==previousOrdinal+1n)continue;
     const work=retired(now.retired,before.retired),n=safe(count(work.total)),rows=threads(now.threads,before.threads);
     const active=activeTotal(rows);
     frames.push({from_present:before.present,to_present:now.present,wall_us:difference(now.wall_us,before.wall_us),

@@ -50,20 +50,20 @@ for(const wide of [false,true])it('scheduler-owned exact waits, work, presents a
   const m=host.metrics() as any,a=m.execution_accounting;
   expect(a.retired.total).toBe('6');expect(a.cpu_time_us).toBeNull();
   expect(a.threads.map((t:any)=>t.retired.total)).toEqual(['3','3']);
-  expect(a.threads[0]).toMatchObject({state:'running',sleep_requested_ms:10,switches_in:3,wall_us:{running:160,ready:190,sleep_timer:70}});
-  expect(a.threads[1]).toMatchObject({state:'exited',infinite_waits:1,parked_host_us:100,switches_in:3,
-   wall_us:{running:100,ready:130,wait_objects:30,io:20,host_yield:100,suspended:10}});
+  expect(a.threads[0]).toMatchObject({state:'running',sleep_requested_ms:'10',switches_in:'3',wall_us:{running:'160',ready:'190',sleep_timer:'70'}});
+  expect(a.threads[1]).toMatchObject({state:'exited',infinite_waits:'1',parked_host_us:'100',switches_in:'3',
+   wall_us:{running:'100',ready:'130',wait_objects:'30',io:'20',host_yield:'100',suspended:'10'}});
   const s=instructionSummary(m);expect(s.instructions_per_guest_frame).toBe(3);
   expect(s.frames?.intervals).toHaveLength(1);expect(s.frames?.intervals[0].retired.total).toBe('3');
   expect(s.frames?.intervals[0].threads?.map(t=>t.instructions)).toEqual([0,3]);
   expect(s.frames?.intervals[0]).toMatchObject({wall_us:320,active_wall_us:160,executing_instructions_per_second:18750});
-  expect(a.threads[0].virtual_ms.sleep_timer).toBe(16);
+  expect(a.threads[0].virtual_ms.sleep_timer).toBe('16');
   for(let i=0;i<70;i++){us+=10;ex.account_work();ex.account_present();if(i===34)ex.bgt_profile_reset();}
   ex.account_work(); // This tail MUST NOT leak into the last native present.
   const last=(host.metrics() as any).execution_accounting;
-  expect(last.retired.total).toBe('219');expect(last.frames.dropped).toBe(8);
-  expect(last.frames.snapshots).toHaveLength(64);expect(last.frames.snapshots[0].present).toBe(9);
-  expect(last.frames.snapshots.at(-1)).toMatchObject({present:72,retired:{total:'216'}});
+  expect(last.retired.total).toBe('219');expect(last.frames.dropped).toBe('8');
+  expect(last.frames.snapshots).toHaveLength(64);expect(last.frames.snapshots[0].present).toBe('9');
+  expect(last.frames.snapshots.at(-1)).toMatchObject({present:'72',retired:{total:'216'}});
   expect(instructionSummary(host.metrics() as any).instructions_per_guest_frame).toBe(3);
   us+=10;expect(()=>ex.account_fault()).toThrow();
   const failed=(host.metrics() as any).execution_accounting;

@@ -72,8 +72,8 @@ for(const wide of [false,true])it('guest-import exact multithread retirement, Sl
     const before=(host.metrics() as any).execution_accounting;
     expect(before.threads.map((t:any)=>t.state)).toEqual(['io','wait_objects']);
     us=1000;await host.update();const parked=(host.metrics() as any).execution_accounting;
-    expect(parked.retired).toEqual(before.retired);expect(parked.threads[0].wall_us.running).toBe(0);
-    expect(parked.threads[0].wall_us.io).toBe(1000);expect(parked.threads[1].wall_us.wait_objects).toBe(1000);
+    expect(parked.retired).toEqual(before.retired);expect(parked.threads[0].wall_us.running).toBe('0');
+    expect(parked.threads[0].wall_us.io).toBe('1000');expect(parked.threads[1].wall_us.wait_objects).toBe('1000');
     release(new Uint8Array([1,2,3,4]));await host.settleRequests();
     for(let i=0;i<30&&!logs.some(s=>s.includes('ExitProcess'));i++){us+=100;await host.update();}
     expect(logs).toContain('win32 profile: ExitProcess');expect(reads).toEqual([{path:'known.bin',offset:0,length:4}]);
@@ -81,9 +81,9 @@ for(const wide of [false,true])it('guest-import exact multithread retirement, Sl
     expect(a.retired.total).toBe(String(p.counts[0]+p.counts[1]));
     expect(a.threads.map((t:any)=>t.retired.total)).toEqual(p.counts.map(String));
     expect(a.threads.map((t:any)=>t.state)).toEqual(['exited','exited']);
-    expect(a.threads.map((t:any)=>t.sleep_requested_ms)).toEqual([10,5]);expect(a.threads[1].infinite_waits).toBe(1);
-    expect(a.threads[0].switches_in).toBeGreaterThan(0);expect(a.threads[1].switches_in).toBeGreaterThan(0);
-    expect(a.threads[0].wall_us.io).toBe(1100);expect(a.threads[1].wall_us.wait_objects).toBe(1100);
+    expect(a.threads.map((t:any)=>t.sleep_requested_ms)).toEqual(['10','5']);expect(a.threads[1].infinite_waits).toBe('1');
+    expect(BigInt(a.threads[0].switches_in)>0n).toBe(true);expect(BigInt(a.threads[1].switches_in)>0n).toBe(true);
+    expect(a.threads[0].wall_us.io).toBe('1100');expect(a.threads[1].wall_us.wait_objects).toBe('1100');
     expect(m.apis_hit).toEqual(expect.arrayContaining(['CreateThread','Sleep','WaitForSingleObject','SwitchToThread','ReadFile']));
     if(interpreted)expect(a.retired.interpreted).toBe(a.retired.total);else{expect(a.retired.interpreted).toBe('0');expect(m.interp_insns).toBe(0);}
     us+=1000000;host.profileReset();expect((host.metrics() as any).execution_accounting.threads).toEqual(a.threads);
