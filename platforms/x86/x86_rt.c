@@ -264,7 +264,8 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 
 /* ------------------------------------------------------------------ lifted registry */
 static const x86_lifted_entry_t *lifted;
-static uint32_t nlifted;
+static uint32_t nlifted, lifted_generation = 1;
+unsigned x86_native_chain;
 /* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
  * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
 static struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid; } lifted_cache[1024];
@@ -272,6 +273,7 @@ static struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
+    if (!++lifted_generation) x86_fault("lifted generation exhausted",0);
     __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
@@ -316,6 +318,15 @@ static x86_native_fn find_native(uint32_t addr) {
  * a caller continuation past the return requested by callbacks or cold generic CALLs. */
 static uint32_t native_stop, native_floor;
 static int native_limit;
+static unsigned native_depth;
+x86_native_stats_t x86_native_stats;
+#if X86_NATIVE_STATS
+#define NATIVE_COUNT(field) (x86_native_stats.field++)
+#define NATIVE_PEAK() do { if(native_depth>x86_native_stats.peak_depth) x86_native_stats.peak_depth=native_depth; } while(0)
+#else
+#define NATIVE_COUNT(field) ((void)0)
+#define NATIVE_PEAK() ((void)0)
+#endif
 
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
@@ -372,13 +383,71 @@ void x86_lift_thunk(void) {
 #endif
 }
 
-/* One flat native driver for all owners. Native steps return before host calls/suspension;
- * guest recursion and tail cycles consume no recursive C frames. Legacy/override entries
+/* No suspendable API, generic semantic work or scheduler runs under fast-call
+ * frames. Existing K29 explicitly non-suspending leaves retain their guarded path.
+ * Recheck the outer invocation stop before either a call or a resumed continuation. */
+int x86_native_ready(void) {
+    return native_limit && !X.transfer && !x86_lift_pending && !x86_lift_count && !pending_import &&
+        !(X.eip == native_stop && X.r[ESP] > native_floor);
+}
+int x86_native_enter(uint32_t target, x86_native_fn expected) {
+    if (!expected || native_depth >= 32 || !x86_native_ready() || find_native(target) != expected) return 0;
+    native_depth++;
+    NATIVE_PEAK();
+    NATIVE_COUNT(calls); x86_metrics.lifted_calls++;
+    return 1;
+}
+void x86_native_drop(void) { native_depth--; }
+int x86_native_rechain(x86_native_fn owner) {
+    if (!x86_native_ready() || find_native(X.eip) != owner) return 0;
+    x86_metrics.lifted_calls++; NATIVE_COUNT(region_chains);
+    return 1;
+}
+x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
+    if (native_depth >= 32 || !x86_native_ready() || x86_force_interp) return 0;
+    /* Exact-PC immutable registry results only; guest tables/vtables are read at
+     * every instruction. Page protections and strict membership remain dynamic. */
+    if (x86_pages[target>>12] && x86_protection[target>>12]) x86_check_access(target,1,4);
+    if (site->generation != lifted_generation) {
+        __builtin_memset(site,0,sizeof *site); site->generation=lifted_generation;
+    }
+    x86_native_fn step=0;
+    unsigned i;
+    for(i=0;i<4;i++) if(site->step[i] && site->target[i]==target) { step=site->step[i]; break; }
+    if (step) {
+        NATIVE_COUNT(indirect_hits);
+#if X86_COVERAGE_MODE == 2
+        x86_coverage_entry(target,1);
+#endif
+    } else {
+        NATIVE_COUNT(indirect_misses);
+        step=find_native(target);
+        if (!step) return 0;
+        i=site->next++ & 3u; site->target[i]=target; site->step[i]=step;
+    }
+    native_depth++;
+    NATIVE_PEAK();
+    NATIVE_COUNT(calls); x86_metrics.lifted_calls++;
+    return step;
+}
+int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
+    native_depth--;
+    if (X.eip != next || X.r[ESP] <= floor || !x86_native_ready() || find_native(next) != caller) return 0;
+    NATIVE_COUNT(resumes); x86_metrics.lifted_calls++;
+    return 1;
+}
+
+/* One flat native driver for all owners. Native steps unwind bounded generated calls
+ * before suspension; the depth cap routes recursion/tail cycles back here. Legacy/override entries
  * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
 void x86_run_native(x86_native_fn step) {
 #ifdef X86_FLAT_GUEST
     uint32_t stop = native_stop, floor = native_floor; int limit = native_limit;
+    /* A previous aborted wasm export may have abandoned fast frames. Every driver
+     * entry is outside them, including nested callbacks after an import boundary. */
+    native_depth = 0;
     for (;;) {
+        NATIVE_COUNT(driver_steps);
         uint32_t old = X.eip; uint64_t clock = X.tsc;
         step(X.eip);
         if (X.transfer || x86_lift_pending || x86_lift_count) return;

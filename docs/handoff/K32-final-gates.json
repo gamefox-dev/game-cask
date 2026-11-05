@@ -1,0 +1,1352 @@
+{
+  "schema": "game-cask/k32-gates/1",
+  "implementation": "6297545b05ea32de1f2aeddf79e14f9dd05e36ac",
+  "auditedHead": "54c40eb",
+  "review": "External focused vK32 PASS at6297545; coordinator accepted test-only SEH delta54c40eb after assertion review. No CI or independent full-Tier1 claim.",
+  "environment": {
+    "BGT_BUILD_JOBS": 2,
+    "BGT_E2E_PORT": 5277,
+    "BGT_TEST_JSPI": 1,
+    "BGT_SUSPENSION_BUILD": "dual",
+    "BGT_REQUIRE_WEBGPU": 1,
+    "BGT_CI_LIGHT": "unset"
+  },
+  "gates": {
+    "doctor-final": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/doctor-final.log",
+      "bytes": 303,
+      "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b",
+      "start": "2026-11-05T08:21:41Z",
+      "end": "2026-11-05T08:21:41Z"
+    },
+    "lint-clang": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/lint-clang.log",
+      "bytes": 44641,
+      "sha256": "155cd56e78671acd81c97b2fbb4747014e8b85baab2ed7e86d04613599e5c1b4",
+      "start": "2026-11-05T08:21:41Z",
+      "end": "2026-11-05T08:48:01Z"
+    },
+    "host-clang": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/host-clang.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "start": "2026-11-05T08:48:01Z",
+      "end": "2026-11-05T08:48:04Z"
+    },
+    "lint-gcc": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/lint-gcc.log",
+      "bytes": 26241,
+      "sha256": "8248dc3144bd806d4e80fc3b4d2a15ad37af2d66e4c376b2e139e7e83334efa0",
+      "start": "2026-11-05T08:48:04Z",
+      "end": "2026-11-05T08:51:12Z"
+    },
+    "types-final": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/types-final.log",
+      "bytes": 68,
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398",
+      "start": "2026-11-05T08:51:12Z",
+      "end": "2026-11-05T08:51:14Z"
+    },
+    "units-final": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/units-final.log",
+      "bytes": 143126,
+      "sha256": "bdd1b57d2b1e4ae1d9c3299a357cb019d6068ea19e6a73aa907c7dd7ed87379e",
+      "start": "2026-11-05T08:51:14Z",
+      "end": "2026-11-05T09:35:27Z"
+    },
+    "focused-final3": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/focused-final3.log",
+      "bytes": 9260,
+      "sha256": "607c3d34767fba46ac064ca083ef8506aaf4bd82992dec3e2040691c2183cd5f",
+      "start": null,
+      "end": null
+    },
+    "e2e-asyncify": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/e2e-asyncify.log",
+      "bytes": 79640,
+      "sha256": "a6c8542a2e329a53b544a19d506848bdc7a1614c98048a79824bc431aa805bf2",
+      "start": "2026-11-05T09:35:27Z",
+      "end": "2026-11-05T09:52:01Z"
+    },
+    "e2e-jspi": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/e2e-jspi.log",
+      "bytes": 79498,
+      "sha256": "f4b0782e6a6b271e86bd38c94480c50ffec274201f405ef4cff11e02e60b4cde",
+      "start": "2026-11-05T09:58:40Z",
+      "end": "2026-11-05T10:06:13Z"
+    },
+    "scale-check": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/scale-check.log",
+      "bytes": 558,
+      "sha256": "bc8698112c444dfebe8aa19360d6d094d29355aa56dbf9b9d68702c3de2fce6b",
+      "start": "2026-11-05T10:10:31Z",
+      "end": "2026-11-05T10:10:38Z"
+    },
+    "counted-final-jspi": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/counted-final-jspi.log",
+      "bytes": 5717,
+      "sha256": "781caacc52db8a339489d3acc2edc58c8c66f3af43e324886c34e0cc2c306618",
+      "start": "2026-11-05T10:10:38Z",
+      "end": "2026-11-05T10:11:28Z"
+    },
+    "leak-final": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/leak-final.log",
+      "bytes": 118,
+      "sha256": "b1c78093b98a81e9f139f35a5a0fbfea34de88d90f94005bd2293e62c1043f81",
+      "start": "2026-11-05T10:11:28Z",
+      "end": "2026-11-05T10:11:28Z"
+    },
+    "diff-final": {
+      "exit": 0,
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/diff-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "start": "2026-11-05T10:11:28Z",
+      "end": "2026-11-05T10:11:28Z"
+    }
+  },
+  "units": {
+    "tests": 2335,
+    "files": 131,
+    "skips": 0,
+    "raw": {
+      "path": "/Users/dev/projects/pi-work/scratch-K32/work/units-final.log",
+      "bytes": 143126,
+      "sha256": "bdd1b57d2b1e4ae1d9c3299a357cb019d6068ea19e6a73aa907c7dd7ed87379e"
+    }
+  },
+  "oracleContract": "Every pipeline oracle 300 updates, lifted interp0/stubs0, same state+semantic hashes across engines/modes. Scale-only exact expected BUFFER_CREATE E_LIMIT/recovery and ten named recording-only GPU failures enforced by unchanged tests/support/gl-scale-contract.ts; no raster claim.",
+  "externalReview": {
+    "final-result.txt": {
+      "path": "/Users/dev/projects/pi-work/inputs/vK32/final-result.txt",
+      "bytes": 1012,
+      "sha256": "bf27a18a355221d3c5fc132cf7b2d266695015e39ac6d00908a00f2b3be12ffd"
+    },
+    "review-notes.md": {
+      "path": "/Users/dev/projects/pi-work/inputs/vK32/review-notes.md",
+      "bytes": 4659,
+      "sha256": "faaf89833a23599badb0274cecb9496703a783bc9afab2e41b4285c76dfffda0"
+    }
+  },
+  "counted": {
+    "asyncify": [
+      {
+        "pattern": "direct",
+        "before": [
+          "3200006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "19",
+          "1600001",
+          "1599986",
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "pattern": "deep",
+        "before": [
+          "19200028",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "19200027",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "pattern": "indirect",
+        "before": [
+          "200006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "4",
+          "100001",
+          "100001",
+          "0",
+          "99996",
+          "4"
+        ]
+      },
+      {
+        "pattern": "tail",
+        "before": [
+          "300006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "4",
+          "200001",
+          "100001",
+          "0",
+          "99996",
+          "4"
+        ]
+      },
+      {
+        "pattern": "regions",
+        "before": [
+          "11700004",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "27",
+          "1",
+          "0",
+          "299977",
+          "0",
+          "0"
+        ]
+      }
+    ],
+    "jspi": [
+      {
+        "pattern": "direct",
+        "before": [
+          "3200006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "19",
+          "1600001",
+          "1599986",
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "pattern": "deep",
+        "before": [
+          "19200028",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "19200027",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "pattern": "indirect",
+        "before": [
+          "200006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "4",
+          "100001",
+          "100001",
+          "0",
+          "99996",
+          "4"
+        ]
+      },
+      {
+        "pattern": "tail",
+        "before": [
+          "300006",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "4",
+          "200001",
+          "100001",
+          "0",
+          "99996",
+          "4"
+        ]
+      },
+      {
+        "pattern": "regions",
+        "before": [
+          "11700004",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "after": [
+          "27",
+          "1",
+          "0",
+          "299977",
+          "0",
+          "0"
+        ]
+      }
+    ]
+  },
+  "rawAudit": {
+    "path": "/Users/dev/projects/pi-work/scratch-K32/work/K32-final-gates.raw.json",
+    "bytes": 241345,
+    "sha256": "799fe051987b990dee876ccef9857ebc9e994105c2c09c019a2b69ef44fb2a3c"
+  },
+  "browsers": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-05T09:44:56.566Z",
+        "duration": 424659.54000000004,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "inventoryCount": 351,
+      "skipCount": 51,
+      "inventorySha256": "a0aa2e31f748c363a8034ea6c6681f42ffdf8c52a8bd57a922fbfa7ab0f90b80",
+      "skipsSha256": "b5d3537cf590b6b797b793cbab3c5e4ddb2902f56ff5ed8af8322ee7061c71de",
+      "matchesI14": true,
+      "raw": {
+        "path": "/Users/dev/projects/pi-work/scratch-K32/work/e2e-asyncify.json",
+        "bytes": 8042066,
+        "sha256": "fc57400e4cea0bd0c39f95d3d605cd8d06fa338b44deb73779aa0f7be045fa40"
+      }
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-05T10:00:13.282Z",
+        "duration": 360423.69,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "inventoryCount": 351,
+      "skipCount": 51,
+      "inventorySha256": "a0aa2e31f748c363a8034ea6c6681f42ffdf8c52a8bd57a922fbfa7ab0f90b80",
+      "skipsSha256": "b5d3537cf590b6b797b793cbab3c5e4ddb2902f56ff5ed8af8322ee7061c71de",
+      "matchesI14": true,
+      "raw": {
+        "path": "/Users/dev/projects/pi-work/scratch-K32/work/e2e-jspi.json",
+        "bytes": 8041245,
+        "sha256": "621def8aef1606d7f6183cc409223df7f4d2dd7b4a432c618cf651f0beb96804"
+      }
+    }
+  },
+  "oracles": [
+    {
+      "game": "win32-conformance",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "cac197f9",
+      "trace_sha256_all_engines_modes": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          25.636,
+          50.59341299999778
+        ],
+        "jspi": [
+          17.934,
+          34.87480100000266
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "d0c1bd96849101bb3eda570a4c762592bf23e96053aaf47fe438aeb6d5f17aa5",
+        "jspi": "a4fd43448178a0685a715cb0617f568e528f4ece5afecc81e39c771ca019fb9b"
+      }
+    },
+    {
+      "game": "win32-hello",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "3aee6ab3",
+      "trace_sha256_all_engines_modes": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          7.994,
+          17.03396199998042
+        ],
+        "jspi": [
+          5.061,
+          10.179210999991483
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "cab07ce0b9c82979a6f8a866026ccf3472c12ac91dadbe88291eb7ac22a2f599",
+        "jspi": "d8559fbaa42298f35ae337a0cafb422d90b3496320e982b47bea83f2de9ffffa"
+      }
+    },
+    {
+      "game": "x64-audio",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "74d37eff",
+      "trace_sha256_all_engines_modes": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          33.316,
+          38.916091999992204
+        ],
+        "jspi": [
+          25.425,
+          31.570326999993995
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "7cf6d008e9c39615b891b1578e48b749e35f7d647bb35e9ed8a1c22215b8f0bc",
+        "jspi": "477e802a1fb30ac1634f7cc20b5c23461b4b88785c408125f3ca4d81d07e24c4"
+      }
+    },
+    {
+      "game": "x64-audio-init",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "d02de26a",
+      "trace_sha256_all_engines_modes": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          19.308,
+          25.563319999993837
+        ],
+        "jspi": [
+          10.806,
+          14.853553000003558
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "e87a7bf6d17567b34e4ae2f98ecce8b2a7f034bed0041aceb090d37688cfcbaf",
+        "jspi": "ca72fbd09dda1b2fd39f2dc652170141c6491f31877f34a463878832c8890ded"
+      }
+    },
+    {
+      "game": "x64-basics",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "fa722538",
+      "trace_sha256_all_engines_modes": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          1.797,
+          6.570991999998114
+        ],
+        "jspi": [
+          1.523,
+          5.257663999994293
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "3ec3c7f610393df2403aef48c1cd02d562f6d850dd1d7bd1bf7f62ea0f1a55d4",
+        "jspi": "8cab5c751e41201820cba328d02066d897fb9f627236edfeaa2aa8447449b94a"
+      }
+    },
+    {
+      "game": "x64-contracts",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "0514c1ba",
+      "trace_sha256_all_engines_modes": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          6.452,
+          22.362461999990956
+        ],
+        "jspi": [
+          3.899,
+          12.404128999990462
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "d8f1655aa1c4aba9407bf05109a185a73349406829bb5f58ea1de0f10c3bdf68",
+        "jspi": "d900a25f104dcfb6bd6cf7dbc3ba7e29da82f9629520099e8c1e7bbf54f9ff66"
+      }
+    },
+    {
+      "game": "x64-cpp",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "eadc23f1",
+      "trace_sha256_all_engines_modes": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          5.095,
+          13.839463000003889
+        ],
+        "jspi": [
+          5.349,
+          13.036650999989433
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "db5678e02888c248347df911db85df53eccf933e5e1aa9d28869510cbb9ca8af",
+        "jspi": "ecf14e80819a1d6cc83407ed68b5e4d836006d46536aef5d3238bd1d67206b54"
+      }
+    },
+    {
+      "game": "x64-cpprt",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "8e59b196",
+      "trace_sha256_all_engines_modes": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          15.18,
+          19.990123999998104
+        ],
+        "jspi": [
+          20.012,
+          26.550672999999733
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "ca6c0a9c74db14dfdf8686e802fc31c8ffbba85b2c3f6aa7160db87736e6deeb",
+        "jspi": "767404b0b4f10f6192de69ff5ebc3c6e97a1450ddeb30a4f0da93bf6a12f89b4"
+      }
+    },
+    {
+      "game": "x64-crt",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "bae2920f",
+      "trace_sha256_all_engines_modes": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          4.82,
+          20.804623999991236
+        ],
+        "jspi": [
+          5.234,
+          17.871710000005805
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "9f1077e6466ee0c67f8f709bff555f9c54aaa8a3013ad315de749f2320d7314e",
+        "jspi": "5863ce22181d2c248d1d176cef188482f34c2896df12f2c595c77d3acad51eb9"
+      }
+    },
+    {
+      "game": "x64-gl",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "47b028e6:01c4aa76",
+      "trace_sha256_all_engines_modes": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          8.47,
+          96.39691500000845
+        ],
+        "jspi": [
+          11.385,
+          121.8327960000097
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "7c2d023c102bc842d374b664d3394e3daf343ea963cd5a3a8708b6eb8dba1143",
+        "jspi": "3091013241f999d45792f59db508101afee1327c9db36f18961bccaebfbcb08a"
+      }
+    },
+    {
+      "game": "x64-gl-blit",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "6bc914b7:b46fb07b",
+      "trace_sha256_all_engines_modes": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          5.357,
+          26.97351099997468
+        ],
+        "jspi": [
+          3.872,
+          28.40387800001008
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "618006cfdc6ea074351d063f1ed9c12dc2754994ffff79fb84dbfe0060b4db03",
+        "jspi": "a32b502c21f02c0ae6f66591a85f4b904bde56d1371e8f6b6df8db787ad67f88"
+      }
+    },
+    {
+      "game": "x64-gl-capacity",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "d402933e:811c9dc5",
+      "trace_sha256_all_engines_modes": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          200.76,
+          706.6147530000289
+        ],
+        "jspi": [
+          233.938,
+          907.8643830000001
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "32b52fd08788b5c5b971ff04469a5def9827ac4cd04375c274875bca9e4e787c",
+        "jspi": "519776b85c097700872cb620eb0d2cf880d0cc4cfe7a3c498c77b4d7a523ca11"
+      }
+    },
+    {
+      "game": "x64-gl-current",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "1130f0ae:5a8d64ad",
+      "trace_sha256_all_engines_modes": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          15.768,
+          126.81031699999221
+        ],
+        "jspi": [
+          11.785,
+          111.98195999998643
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "beb6809df8375e8f7a772bde452bd6c392bcda4cebbbfdff83ebe26532611b35",
+        "jspi": "3d2358c76f2fc4bea472963a084718a34e9dd1842aeeb6a56ffba4df41f5cefe"
+      }
+    },
+    {
+      "game": "x64-gl-default-vao",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "558085bd:61d8bdd0",
+      "trace_sha256_all_engines_modes": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          9.935,
+          75.08336700003201
+        ],
+        "jspi": [
+          5.811,
+          54.447550999994746
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "eb4682f8514c413c8d820900a9ce65d38caa93627263f5b23bfce47ff8a05bc8",
+        "jspi": "ff0fcbc8a27d956b50124e6afd1215924e3ba4ed07d2dc15244da75e6111f806"
+      }
+    },
+    {
+      "game": "x64-gl-fbo",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "884b43af:ec039dc1",
+      "trace_sha256_all_engines_modes": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          27.334,
+          258.80391199996666
+        ],
+        "jspi": [
+          23.655,
+          188.596042999995
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "6addb8233138263567f805e81b09e484431bfb521723fb1e87c9357489a375f2",
+        "jspi": "0051ea0ab2be97e08e09ab8c0e9ce5dd4e49e6ccf8c94c528bde83c973fad548"
+      }
+    },
+    {
+      "game": "x64-gl-feedback",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "b8fb8e26:811c9dc5",
+      "trace_sha256_all_engines_modes": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          4.192,
+          37.95546199995806
+        ],
+        "jspi": [
+          4.277,
+          24.899328000003152
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "925c1af2e8d786b1269244c0a38df815115cb7feeee84836afa39cd824edbdb4",
+        "jspi": "a6725dbe05f77e9c584ce62b42ad82835d517e42250b0f070d5631c3d9b31a85"
+      }
+    },
+    {
+      "game": "x64-gl-integer",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "5ed6b84d:4de7479f",
+      "trace_sha256_all_engines_modes": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          5.735,
+          49.48878799999147
+        ],
+        "jspi": [
+          6.936,
+          55.12575099999685
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "32eaffe307b5b8aa37764f03ca587e74ceba37f9c359c9f12ddbe049f63d872d",
+        "jspi": "b60e37ec14ce4dd9a1255ea0205070ae97cd33b5fe2467011c29dae8064ab1c3"
+      }
+    },
+    {
+      "game": "x64-gl-ranges",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "acab916b:811c9dc5",
+      "trace_sha256_all_engines_modes": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          18.072,
+          121.707384000003
+        ],
+        "jspi": [
+          17.787,
+          155.4104499999812
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "c67c2e6cf7c6f11600fae534e2e95dfc37632965be7ccc11192dd086f45733f8",
+        "jspi": "ccaee2228b4ae9d410f84e45fb31bcbf9da01ba7fc7abe53181852ed3ed6e627"
+      }
+    },
+    {
+      "game": "x64-gl-scale",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "328a3899:811c9dc5",
+      "trace_sha256_all_engines_modes": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          60.531,
+          401.9801220000081
+        ],
+        "jspi": [
+          72.291,
+          503.81182799999806
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "2a6d0a37dd742684b85467d0ae3c3aab3462e629d26d1e023b2180f93138c741",
+        "jspi": "c63fbdfd4fa0cfbc65943890472b408364ad41fc86fd66c7b0903edacfc840e9"
+      }
+    },
+    {
+      "game": "x64-glsl",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "7531959c:62477e5d",
+      "trace_sha256_all_engines_modes": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          44.556,
+          107.36871999999858
+        ],
+        "jspi": [
+          34.997,
+          89.92817200000718
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "40a2108cac052533feceba90b028ed7e861d6a0f010c456f0f50562e80e40873",
+        "jspi": "b4c2f565359499731a169a62a9d18fa5881e2bc95519a71afacb22a5f8cabbd7"
+      }
+    },
+    {
+      "game": "x64-gui",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "cae2906b",
+      "trace_sha256_all_engines_modes": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          3.75,
+          8.467176000012842
+        ],
+        "jspi": [
+          2.459,
+          6.053960000002007
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "9770e2609f4625075f852f826093c73e6404d860d849fc1792c070e724e1aaab",
+        "jspi": "380c297f35f2c64821c722aec6049ba929e3728f0af75bbdaad351bbd0e5fb8d"
+      }
+    },
+    {
+      "game": "x64-handles",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "9c945881",
+      "trace_sha256_all_engines_modes": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          18.065,
+          33.887247999992724
+        ],
+        "jspi": [
+          16.313,
+          38.018550000003415
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "41a8249165dcf9d03864efb97b52de25119bf18f01c06ffb30e146bfcc6f5662",
+        "jspi": "0b8a7c8b061d5d7386f81bb9ed75f87ab6505e28f02e594d892d249ba6f87351"
+      }
+    },
+    {
+      "game": "x64-heap",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "dfa6e55f",
+      "trace_sha256_all_engines_modes": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          892.926,
+          930.2460460000029
+        ],
+        "jspi": [
+          1005.329,
+          1048.7903720000068
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "8cd19d4dff12d2a5cd5a54145a088ab48a6e33caf65cdd5e55a67ad6b817768b",
+        "jspi": "8cc3f70c4f907853aae5f9d1dae09ecd41c145a7d03ad78efd79aec0a44c4185"
+      }
+    },
+    {
+      "game": "x64-imports",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "4a8febdb",
+      "trace_sha256_all_engines_modes": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          1.424,
+          3.9717120000013892
+        ],
+        "jspi": [
+          2.147,
+          5.613754999999401
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "f08dd2fffcdcc9d221488d4d161c018c22e153fbd04838cd6cf9592657bdf787",
+        "jspi": "994ff824b713d15d1e938f90bab55c7293e3b7d573dfa422b442cb81e173038c"
+      }
+    },
+    {
+      "game": "x64-input",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "bd47b0f2",
+      "trace_sha256_all_engines_modes": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          156.286,
+          319.2591569999977
+        ],
+        "jspi": [
+          135.077,
+          294.1320359999918
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "c1c3a2ec5adf1b0f343bd5f7663b30d9ef472a8115f39d8c2c635e9a7a0d46af",
+        "jspi": "dafb3700624634ea17aaa411f0db8d8c5fea5c93cacebfeb018bdef677ef1ddf"
+      }
+    },
+    {
+      "game": "x64-memory",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "b4565d5d",
+      "trace_sha256_all_engines_modes": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          3779.401,
+          3786.8260139999848
+        ],
+        "jspi": [
+          3034.828,
+          3041.5267950000034
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "1e35f681c50d53965dd7033594951c3489f8b8b8efcb8ec7afd5c0bf5d582a44",
+        "jspi": "999a5e31564585285d8e16398c2fdafac4685834db487399ac924ce70e5eeca6"
+      }
+    },
+    {
+      "game": "x64-scale",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "f674cbe2",
+      "trace_sha256_all_engines_modes": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          121.127,
+          126.28328900005727
+        ],
+        "jspi": [
+          105.941,
+          113.84833499998604
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "39aeaedaa4e28f94a005b91af1714d7329bed1f7cb7b4c936d9320fd3dfdd017",
+        "jspi": "9a3528234fb29e1247272164b0217a9257e73b79d90d3a6d042b802ed55748d3"
+      }
+    },
+    {
+      "game": "x64-smoke",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "31054bb2:01c4aa76",
+      "trace_sha256_all_engines_modes": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          241.045,
+          343.1737499999954
+        ],
+        "jspi": [
+          160.49,
+          246.14674900000227
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "3b67bfda2fba5cad8b1d6a912c3247eb4eec8f949f84ef23541dfd16cdeeca30",
+        "jspi": "c16512805bb391082c37a924a7b0a48870bbff612409f4ef247aa1cfbb18a7ea"
+      }
+    },
+    {
+      "game": "x64-sysdlls",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "9fdbaf40",
+      "trace_sha256_all_engines_modes": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          9.27,
+          23.68441299999722
+        ],
+        "jspi": [
+          8.649,
+          27.745209999994586
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "f9674afca478afd1a1315d8db0c9a786afd1ff59ab303de23083c03d432eb6ef",
+        "jspi": "4a51658ae3afa1911a9ccf1fd04b71a0954649459c5c3604a9d4632e3bcbd1c9"
+      }
+    },
+    {
+      "game": "x64-threads",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "57670827",
+      "trace_sha256_all_engines_modes": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          68.372,
+          77.72341699999924
+        ],
+        "jspi": [
+          75.961,
+          83.7295079999949
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "7a65be031a22cbcb72c64034419445207c3a4466e97a1b2dbd3f21d1184ae57c",
+        "jspi": "440c410d8b7c7b5fad0294e33173e1c612c8cab14d1ac2dbbc52a1f078d718fb"
+      }
+    },
+    {
+      "game": "x64-tls",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "ff6d2761",
+      "trace_sha256_all_engines_modes": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          2.225,
+          11.144630000000689
+        ],
+        "jspi": [
+          2.231,
+          9.113699999998062
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "22c02fde48255c72f8d68335e8c1f4827f2815fa0a8d31ecd9f22f784939116b",
+        "jspi": "e3fae42adcd52be687b2e4be5297bc0bc6e57aaf3941516ac3b1bc439edd1865"
+      }
+    },
+    {
+      "game": "x86-handles",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "ab4cc133",
+      "trace_sha256_all_engines_modes": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          15.182,
+          36.07587799999055
+        ],
+        "jspi": [
+          17.941,
+          56.033416000002035
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "7e6228f6d2d2edeb2483409ac52588b2f7466a06b91641aa85493bc019d36be9",
+        "jspi": "735f1d30253f7cc6f7a111308c9b147fb4913bf0554d00e1382e520cf86bf350"
+      }
+    },
+    {
+      "game": "x86-heap",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "ae4a7fb3",
+      "trace_sha256_all_engines_modes": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          954.212,
+          980.3295419999913
+        ],
+        "jspi": [
+          900.46,
+          923.7335530000028
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "d03cc4adac20cc3562c918b30b1d836202ac83ca5ffd5b0923726a2018dc0dc8",
+        "jspi": "0b3922e97c68914c6310e309bd6136f3870eeb3fd29b1ace67be0e6cb4332781"
+      }
+    },
+    {
+      "game": "x86-threads",
+      "compared_per_mode": 300,
+      "state_hash_all_engines_modes": "55742fef",
+      "trace_sha256_all_engines_modes": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+      "interpreter_measured_ms_and_update_wall_ms": {
+        "asyncify": [
+          1.666,
+          13.834868000002643
+        ],
+        "jspi": [
+          2.938,
+          13.48420699999042
+        ]
+      },
+      "raw_report_sha256": {
+        "asyncify": "397a6786063a638521a1715b1fa4adc38b7a8b3a061a168b334965f6edcd6cb3",
+        "jspi": "69d5c23ac80fd017b54999d1ac93355a70b94850765f6029756578457dbcc1a6"
+      }
+    }
+  ],
+  "seh_delta": {
+    "commit": "54c40eb",
+    "review": "Coordinator accepted test-only delta after assertion review; i386 successful frame-based SEH remains a kit follow-up",
+    "files": {
+      "tests/fixtures/win32/native-seh.c": {
+        "path": "/Users/dev/projects/pi-work/lane-K32/tests/fixtures/win32/native-seh.c",
+        "bytes": 3008,
+        "sha256": "1a55295d5e59468b0c3a44e4430c1b6f9767bffabd4ebee63342a1a1ea619bc7"
+      },
+      "tests/fixtures/win32/native-seh64.S": {
+        "path": "/Users/dev/projects/pi-work/lane-K32/tests/fixtures/win32/native-seh64.S",
+        "bytes": 1660,
+        "sha256": "3da551e423e1778cbca4d04104817e7a4a6828f2d6529ec904d2398ec68f7fa2"
+      },
+      "tests/unit/native-seh.test.ts": {
+        "path": "/Users/dev/projects/pi-work/lane-K32/tests/unit/native-seh.test.ts",
+        "bytes": 5860,
+        "sha256": "4b2e9298d503c8ae30fd7663577ba9fccfd3dad9780e85de3b42373181e4fa10"
+      }
+    },
+    "gates": {
+      "seh-first": {
+        "exit": 1,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-first.log",
+          "bytes": 3605,
+          "sha256": "71a8696883cbffb81bd001e12773b97c398490a42fc04ed06d7139891ca73593"
+        }
+      },
+      "seh-types": {
+        "exit": 0,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-types.log",
+          "bytes": 68,
+          "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+        }
+      },
+      "seh-eslint": {
+        "exit": 1,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-eslint.log",
+          "bytes": 186,
+          "sha256": "532210719e87ff6066484e7ba51edf6cc486b8ec4fabb88c1ba0333ee932d1e7"
+        }
+      },
+      "seh-second": {
+        "exit": 0,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-second.log",
+          "bytes": 1591,
+          "sha256": "ad132f08421e1250d7682f74c7be516d578264aec0f08af663d2db44ea856289"
+        }
+      },
+      "seh-types2": {
+        "exit": 0,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-types2.log",
+          "bytes": 68,
+          "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+        }
+      },
+      "seh-eslint2": {
+        "exit": 0,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-eslint2.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "seh-mutant": {
+        "exit": 1,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-mutant.log",
+          "bytes": 2617,
+          "sha256": "0c11181831450c2d5849b221986525992317ddb4aedbbaf966c4412283fe32ac"
+        }
+      },
+      "seh-restored": {
+        "exit": 0,
+        "log": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-restored.log",
+          "bytes": 1475,
+          "sha256": "cf1356b8419e5424cb191a63e2166d12a78efaf77333890186384dcea25c8c41"
+        }
+      }
+    },
+    "rows": [
+      {
+        "width": 64,
+        "raw": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-evidence-64.json",
+          "bytes": 47750,
+          "sha256": "3c56a6c0470a4065909825dcb9005090a7c7d6edb90ae0c87d87cdb18c23eb64"
+        },
+        "per_mode_engine": [
+          {
+            "mode": "asyncify",
+            "interpreted": false,
+            "actual_park": true,
+            "markers": [
+              {
+                "message": "guest: SEH bridge",
+                "calls": 2
+              },
+              {
+                "message": "guest: SEH raising",
+                "calls": 3
+              }
+            ],
+            "semantic_sha256": "618e3f97f96bc408fa2855b789ae6f588069590d777f64a1d3a7f886d17930c7",
+            "full_cpu_sha256": "95e297c224930c34d474a5b5a539efdc653d8c15cc75efe1ace345f4ddef6861",
+            "lifted_interpreted_instructions": 0
+          },
+          {
+            "mode": "asyncify",
+            "interpreted": true,
+            "actual_park": true,
+            "markers": [
+              {
+                "message": "guest: SEH bridge",
+                "calls": 0
+              },
+              {
+                "message": "guest: SEH raising",
+                "calls": 0
+              }
+            ],
+            "semantic_sha256": "618e3f97f96bc408fa2855b789ae6f588069590d777f64a1d3a7f886d17930c7",
+            "full_cpu_sha256": "95e297c224930c34d474a5b5a539efdc653d8c15cc75efe1ace345f4ddef6861",
+            "lifted_interpreted_instructions": 152
+          },
+          {
+            "mode": "jspi",
+            "interpreted": false,
+            "actual_park": true,
+            "markers": [
+              {
+                "message": "guest: SEH bridge",
+                "calls": 2
+              },
+              {
+                "message": "guest: SEH raising",
+                "calls": 3
+              }
+            ],
+            "semantic_sha256": "618e3f97f96bc408fa2855b789ae6f588069590d777f64a1d3a7f886d17930c7",
+            "full_cpu_sha256": "95e297c224930c34d474a5b5a539efdc653d8c15cc75efe1ace345f4ddef6861",
+            "lifted_interpreted_instructions": 0
+          },
+          {
+            "mode": "jspi",
+            "interpreted": true,
+            "actual_park": true,
+            "markers": [
+              {
+                "message": "guest: SEH bridge",
+                "calls": 0
+              },
+              {
+                "message": "guest: SEH raising",
+                "calls": 0
+              }
+            ],
+            "semantic_sha256": "618e3f97f96bc408fa2855b789ae6f588069590d777f64a1d3a7f886d17930c7",
+            "full_cpu_sha256": "95e297c224930c34d474a5b5a539efdc653d8c15cc75efe1ace345f4ddef6861",
+            "lifted_interpreted_instructions": 152
+          }
+        ]
+      },
+      {
+        "width": 32,
+        "raw": {
+          "path": "/Users/dev/projects/pi-work/scratch-K32/work/seh-evidence-32.json",
+          "bytes": 32415,
+          "sha256": "d170915b7b5211aa2f907ccd3a86c156f5307d73b5482ca526aeea4efc68c79c"
+        },
+        "per_mode_engine": [
+          {
+            "mode": "asyncify",
+            "interpreted": false,
+            "actual_park": false,
+            "markers": [],
+            "semantic_sha256": "ac28f9f96e961232ec406ccf71bff1ccaa9584d0486dfec8d68ab00bd5be1a6a",
+            "full_cpu_sha256": "065cbc37d939119519f877f35cd23fa1bd88d077d760b50d749095fc4d822566",
+            "lifted_interpreted_instructions": 0
+          },
+          {
+            "mode": "asyncify",
+            "interpreted": true,
+            "actual_park": false,
+            "markers": [],
+            "semantic_sha256": "ac28f9f96e961232ec406ccf71bff1ccaa9584d0486dfec8d68ab00bd5be1a6a",
+            "full_cpu_sha256": "065cbc37d939119519f877f35cd23fa1bd88d077d760b50d749095fc4d822566",
+            "lifted_interpreted_instructions": 16
+          },
+          {
+            "mode": "jspi",
+            "interpreted": false,
+            "actual_park": false,
+            "markers": [],
+            "semantic_sha256": "ac28f9f96e961232ec406ccf71bff1ccaa9584d0486dfec8d68ab00bd5be1a6a",
+            "full_cpu_sha256": "065cbc37d939119519f877f35cd23fa1bd88d077d760b50d749095fc4d822566",
+            "lifted_interpreted_instructions": 0
+          },
+          {
+            "mode": "jspi",
+            "interpreted": true,
+            "actual_park": false,
+            "markers": [],
+            "semantic_sha256": "ac28f9f96e961232ec406ccf71bff1ccaa9584d0486dfec8d68ab00bd5be1a6a",
+            "full_cpu_sha256": "065cbc37d939119519f877f35cd23fa1bd88d077d760b50d749095fc4d822566",
+            "lifted_interpreted_instructions": 16
+          }
+        ]
+      }
+    ],
+    "mutation": "Delete only bridge .seh_stackalloc32: successful unwind aborts unhandled guest exception, not compile failure. Restore2/2 PASS (both modes). Initial authoring failures retained, corrected without weakening interp0 or other requirements."
+  },
+  "closeout": {
+    "closeout-leak": {
+      "exit": 0,
+      "sha256": "b1c78093b98a81e9f139f35a5a0fbfea34de88d90f94005bd2293e62c1043f81",
+      "log": "/Users/dev/projects/pi-work/scratch-K32/work/closeout-leak.log"
+    },
+    "closeout-diff": {
+      "exit": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "log": "/Users/dev/projects/pi-work/scratch-K32/work/closeout-diff.log"
+    },
+    "leak_files": 869
+  },
+  "delta_after_6297545": {
+    "test_code_commit": "54c40eb",
+    "test_code_files": [
+      "tests/fixtures/win32/native-seh.c",
+      "tests/fixtures/win32/native-seh64.S",
+      "tests/unit/native-seh.test.ts"
+    ],
+    "all_other_changes": "documentation/evidence only; no production sources",
+    "measurement_archive_reduction": {
+      "summary_bytes": 18010,
+      "raw_archives": "scratch-K32/work/K32-{a,b}-measurements.raw.json"
+    }
+  }
+}
