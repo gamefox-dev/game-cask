@@ -21,7 +21,7 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
       '__attribute__((export_name("cache_alu"))) uint32_t cache_alu(uint32_t a,uint32_t b){uint32_t f=0;return (uint32_t)xl_alu_full(XO_ADD,a,b,4,&f)^f;}',
     ].join('\n'));
     writeFileSync(join(dir,'entry.c'),
-      '__declspec(dllimport) void __stdcall ExitProcess(unsigned); int _tls_index; void entry(void){ExitProcess(0);}'+'\n');
+      '__declspec(dllimport) void __stdcall ExitProcess(unsigned); int _tls_index; static void (*volatile entry_anchor)(void); void entry(void){entry_anchor=entry;ExitProcess(0);}'+'\n');
     writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 helper cache',sources:['helper.c'],pipeline:{
       platform:'win32',suspensionBuild:'dual',fixture:{target:'x86_64-windows-gnu',out:'entry.exe',sources:['entry.c'],libs:['kernel32']},
       modules:[{from:'./build/entry.exe',main:true}],
