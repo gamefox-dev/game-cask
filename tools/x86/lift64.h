@@ -22,7 +22,9 @@ static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
     else snprintf(base, sizeof base, "(r[%u]+0x%llxull)", p->base,
                   (unsigned long long)(uint64_t)(int64_t)p->disp);
     if (p->index != X86_NOREG) snprintf(index, sizeof index, "+(r[%u]<<%u)", p->index, p->scale);
-    if (segment && p->seg_fs) snprintf(seg, sizeof seg, "+X.%s_base", p->seg_fs == 2 ? "gs" : "fs");
+    /* Address-size truncates the offset only. Segment bases are stored as uint32_t in
+     * this bounded runtime, so explicitly promote before forming the linear address. */
+    if (segment && p->seg_fs) snprintf(seg, sizeof seg, "+(uint64_t)X.%s_base", p->seg_fs == 2 ? "gs" : "fs");
     snprintf(expr, sizeof expr, "(%s%s)", base, index);
     snprintf(s, cap, "(%s%s%s)", (p->pad & 1) ? "(uint32_t)" : "", expr, seg);
 }
@@ -135,6 +137,8 @@ static l64_replay_t *l64_replays(func_t *f, x86_insn_t *ins, const uint8_t *star
         uint32_t r, w; l64_flag_io(in, &r, &w);
         if (a->kind == XK_REG && (a->reg == p.reg || (a->reg >= 16 && a->reg - 16 == p.reg)) &&
             in->op != XO_CMP && in->op != XO_TEST && in->op != XO_PUSH) p.mask = 0;
+        if (in->op == XO_SIMD && in->simd_op == 0x7e && in->simd_prefix != 0xf3 &&
+            b->kind == XK_REG && (b->reg == p.reg || (b->reg >= 16 && b->reg - 16 == p.reg))) p.mask = 0;
         if (in->op == XO_XCHG || in->op == XO_CDQ || in->op == XO_CWDE ||
             in->op == XO_LEAVE || in->op == XO_POP) p.mask = 0;
         if (!w) { if (r == L64_FLAGS) p.mask = 0; continue; }
@@ -194,9 +198,130 @@ static void l64_edge(FILE *o, func_t *f, uint32_t target, uint32_t from) {
         fprintf(o, "pc=0x%08xu;goto exit;\n", target);
     }
 }
+/* Bit-preserving moves/shuffles: no FP conversion, host SIMD, or alias-sensitive lane writes. */
+static int l64_simd_bits(const x86_insn_t *in) {
+    unsigned op = in->simd_op, pre = in->simd_prefix;
+    return op == 0x12 || op == 0x13 || op == 0x14 || op == 0x15 || op == 0x16 || op == 0x17 ||
+        op == 0x6e || op == 0x7e || op == 0xc6 || op == 0x70 || (op == 0xd6 && pre == 0x66) ||
+        (pre == 0x66 && ((op >= 0x60 && op <= 0x62) || (op >= 0x68 && op <= 0x6a) || op == 0x6c || op == 0x6d));
+}
+static void l64_simd_bit_emit(FILE *o, const x86_insn_t *in, uint32_t next) {
+    const x86_opnd_t *a = &in->o[0], *b = &in->o[1];
+    unsigned op = in->simd_op, pre = in->simd_prefix, imm = in->simd_imm;
+    if (op == 0x6e) {
+        l64_read(o, b, "t", next);
+        fprintf(o, "X.xmm[%u]=(x86_vec_t){0};X.xmm[%u].u64[0]=t;", a->reg, a->reg); return;
+    }
+    if (op == 0x7e && pre != 0xf3) {
+        fprintf(o, "t=X.xmm[%u].u64[0];", a->reg); l64_write(o, b, "t", next); return;
+    }
+    fprintf(o, "av=X.xmm[%u];", a->reg);
+    if (op == 0x13 || op == 0x17 || op == 0xd6) {
+        if (op == 0x17) fprintf(o, "av.u64[0]=av.u64[1];");
+        fprintf(o, "av.u64[1]=0;");
+        if (b->kind == XK_XMM) fprintf(o, "X.xmm[%u]=av;", b->reg);
+        else {
+            char ea[300]; l64_ea(ea, sizeof ea, b, 1);
+            l64_pointer(o, ea, 8, next, 2, "0"); fprintf(o, "__builtin_memcpy(p,&av,8);");
+        }
+        return;
+    }
+    if (b->kind == XK_XMM) fprintf(o, "bv=X.xmm[%u];", b->reg);
+    else {
+        char ea[300]; l64_ea(ea, sizeof ea, b, 1);
+        if (x86_simd_aligned_legacy(op, pre)) {
+            uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (5 << 5) | b->size;
+            fprintf(o, "address=%s;if(address&15){", ea); l64_replay_flags(o);
+            fprintf(o, "value=0x%llxull;fault=0x%llxull;goto memory_fault;}",
+                (unsigned long long)(((uint64_t)in->addr << 32) | (pre << 8) | op), (unsigned long long)meta);
+        }
+        l64_pointer(o, ea, b->size, next, 3, "0");
+        fprintf(o, "bv=(x86_vec_t){0};__builtin_memcpy(&bv,p,%u);", b->size);
+    }
+    if (op == 0x7e) fprintf(o, "av=(x86_vec_t){0};av.u64[0]=bv.u64[0];");
+    else if (op == 0x12 && pre == 0xf2) fprintf(o, "av.u64[0]=av.u64[1]=bv.u64[0];");
+    else if ((op == 0x12 || op == 0x16) && pre == 0xf3) {
+        for (int i = 0; i < 4; i++) fprintf(o, "av.u32[%d]=bv.u32[%d];", i, (i & 2) + (op == 0x16));
+    } else if (op == 0x12 || op == 0x16)
+        fprintf(o, "av.u64[%u]=bv.u64[%u];", op == 0x16, b->kind == XK_XMM && op == 0x12);
+    else if (op == 0xc6) {
+        /* av is both source and result; take a snapshot before any lane assignment. */
+        fprintf(o, "{x86_vec_t src=av;");
+        if (pre == 0x66) fprintf(o, "av.u64[0]=src.u64[%u];av.u64[1]=bv.u64[%u];", imm & 1, (imm >> 1) & 1);
+        else fprintf(o, "av.u32[0]=src.u32[%u];av.u32[1]=src.u32[%u];av.u32[2]=bv.u32[%u];av.u32[3]=bv.u32[%u];",
+            imm & 3, (imm >> 2) & 3, (imm >> 4) & 3, (imm >> 6) & 3);
+        fprintf(o, "}");
+    } else if (op == 0x70) {
+        fprintf(o, "av=bv;");
+        int base = pre == 0xf3 ? 4 : 0;
+        for (int i = 0; i < 4; i++) {
+            if (pre == 0x66) fprintf(o, "av.u32[%d]=bv.u32[%u];", i, (imm >> (2 * i)) & 3);
+            else fprintf(o, "av.u16[%d]=bv.u16[%u];", base + i, base + ((imm >> (2 * i)) & 3));
+        }
+    } else {
+        int width = op <= 0x15 ? (pre == 0x66 ? 8 : 4) : op == 0x6c || op == 0x6d ? 8 : 1 << ((op & 7) % 3);
+        int high = op == 0x15 || (op >= 0x68 && op <= 0x6a) || op == 0x6d;
+        fprintf(o, "{x86_vec_t src=av;");
+        for (int i = 0; i < 8 / width; i++) fprintf(o, "av.u%u[%d]=src.u%u[%d];av.u%u[%d]=bv.u%u[%d];",
+            width * 8, 2 * i, width * 8, high * (8 / width) + i,
+            width * 8, 2 * i + 1, width * 8, high * (8 / width) + i);
+        fprintf(o, "}");
+    }
+    fprintf(o, "X.xmm[%u]=av;", a->reg);
+}
+static int l64_atomic(const x86_insn_t *in) {
+    return in->op == XO_XADD || in->op == XO_CMPXCHG || in->op == XO_CMPXCHG_PAIR ||
+        (in->o[0].kind == XK_MEM && (in->op == XO_XCHG || (in->lock &&
+         (in->op <= XO_XOR || in->op == XO_INC || in->op == XO_DEC || in->op == XO_NEG || in->op == XO_NOT ||
+          in->op == XO_BTS || in->op == XO_BTR || in->op == XO_BTC))));
+}
+static void l64_atomic_emit(FILE *o, const x86_insn_t *in, uint32_t next) {
+    const x86_opnd_t *a = &in->o[0], *b = &in->o[1]; int n = a->size, op = in->op;
+    int bitop = op == XO_BTS || op == XO_BTR || op == XO_BTC;
+    if (a->kind == XK_MEM) {
+        char ea[300]; l64_ea(ea, sizeof ea, a, 1);
+        if (bitop) l64_read(o, b, "u", next);
+        fprintf(o, "address=%s;", ea);
+        if (bitop && b->kind == XK_REG) fprintf(o, "address=xa_bit_address(address,u,%d,%d,%s);", n, !!(a->pad & 1), a->seg_fs ? (a->seg_fs == 2 ? "X.gs_base" : "X.fs_base") : "0");
+        uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (4 << 5) | n;
+        fprintf(o, "p=%s(address,%u,3);if(!p%s){",
+            lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, n == 16 ? "||(address&15)" : "");
+        l64_replay_flags(o);
+        fprintf(o, "fault=0x%llxull;goto memory_fault;}xa_fence();", (unsigned long long)meta);
+        if (n == 16) fprintf(o, "t=xl_load(p,8);u=xl_load(p+8,8);");
+        else fprintf(o, "t=xl_load(p,%u);", n);
+    } else l64_read(o, a, "t", next);
+    if (op == XO_CMPXCHG_PAIR) {
+        if (n == 16) fprintf(o, "if(t==r[0]&&u==r[2]){xl_store(p,r[3],8);xl_store(p+8,r[1],8);flags|=F_ZF;}"
+            "else{xl_store(p,t,8);xl_store(p+8,u,8);r[0]=t;r[2]=u;flags&=~F_ZF;}");
+        else fprintf(o, "if(t==(((uint64_t)(uint32_t)r[2]<<32)|(uint32_t)r[0])){"
+            "xl_store(p,((uint64_t)(uint32_t)r[1]<<32)|(uint32_t)r[3],8);flags|=F_ZF;}"
+            "else{xl_store(p,t,8);r[0]=(uint32_t)t;r[2]=(uint32_t)(t>>32);flags&=~F_ZF;}");
+    } else {
+        if (in->nops > 1) l64_read(o, b, "u", next);
+        if (bitop) fprintf(o, "{uint64_t bit=1ull<<(u&%u);flags=(flags&~F_CF)|((t&bit)?F_CF:0);v=%s;}",
+            n * 8 - 1, op == XO_BTS ? "t|bit" : op == XO_BTR ? "t&~bit" : "t^bit");
+        else if (op == XO_CMPXCHG) {
+            fprintf(o, "(void)xl_alu(%u,r[0],t,%d,&flags,0x%xu);if(flags&F_ZF)v=u;else{v=t;", XO_CMP, n, L64_FLAGS);
+            x86_opnd_t acc = {.kind = XK_REG, .reg = EAX, .size = (uint8_t)n};
+            l64_write(o, &acc, "t", next); fprintf(o, "}");
+        } else if (op == XO_XADD) {
+            fprintf(o, "v=xl_alu(%u,t,u,%d,&flags,0x%xu);", XO_ADD, n, L64_FLAGS); l64_write(o, b, "t", next);
+        } else if (op == XO_XCHG) fprintf(o, "v=u;");
+        else if (op == XO_NOT) fprintf(o, "v=~t;");
+        else if (op == XO_NEG) fprintf(o, "v=xl_alu(%u,0,t,%d,&flags,0x%xu);", XO_SUB, n, L64_FLAGS);
+        else if (op == XO_INC || op == XO_DEC) fprintf(o, "v=xl_alu(%u,t,1,%d,&flags,0x%xu);",
+            op == XO_INC ? XO_ADD : XO_SUB, n, L64_FLAGS & ~F_CF);
+        else fprintf(o, "v=xl_alu(%u,t,u,%d,&flags,0x%xu);", op, n, L64_FLAGS);
+        if (a->kind == XK_MEM) fprintf(o, "xl_store(p,v,%d);", n); else l64_write(o, a, "v", next);
+        if (op == XO_XCHG) l64_write(o, b, "t", next);
+    }
+    if (a->kind == XK_MEM) fprintf(o, "xa_fence();");
+}
+
 static int l64_simd_supported(const x86_insn_t *in) {
     unsigned op = in->simd_op;
-    return op == 0x10 || op == 0x11 || op == 0x28 || op == 0x29 || op == 0x6f || op == 0x7f ||
+    return l64_simd_bits(in) || op == 0x10 || op == 0x11 || op == 0x28 || op == 0x29 || op == 0x6f || op == 0x7f ||
         op == 0x54 || op == 0x55 || op == 0x56 || op == 0x57 || op == 0xdb || op == 0xdf ||
         op == 0xeb || op == 0xef || op == 0x58 || op == 0x59 || op == 0x5c || op == 0x5d ||
         op == 0x5e || op == 0x5f || op == 0x2e || op == 0x2f || op == 0x51 || op == 0xc2 ||
@@ -207,6 +332,7 @@ static void l64_simd(FILE *o, const x86_insn_t *in, uint32_t next) {
     const x86_opnd_t *a = &in->o[0], *b = &in->o[1];
     unsigned op = in->simd_op, pre = in->simd_prefix;
     int scalar = pre == 0xf2 || pre == 0xf3, dbl = pre == 0xf2 || pre == 0x66, bytes = dbl ? 8 : 4;
+    if (l64_simd_bits(in)) { l64_simd_bit_emit(o, in, next); return; }
     if (op == 0x2a) {
         l64_read(o, b, "t", next);
         fprintf(o, "X.xmm[%u].%s[0]=(%s)xs_from_int((int64_t)x64_sext(t,%u),%d,X.mxcsr);",
@@ -284,6 +410,7 @@ static void l64_simd(FILE *o, const x86_insn_t *in, uint32_t next) {
     fprintf(o, "X.xmm[%u]=av;", a->reg);
 }
 static int l64_specialized(const x86_insn_t *in) {
+    if (l64_atomic(in)) return 1;
     switch (in->op) {
     case XO_MOV: case XO_MOVZX: case XO_MOVSX: case XO_LEA:
     case XO_ADD: case XO_OR: case XO_ADC: case XO_SBB: case XO_AND: case XO_SUB: case XO_XOR:
@@ -291,6 +418,7 @@ static int l64_specialized(const x86_insn_t *in) {
     case XO_PUSH: case XO_POP: case XO_CMOVCC: case XO_SETCC: case XO_NOP:
     case XO_ROL: case XO_ROR: case XO_RCL: case XO_RCR: case XO_SHL: case XO_SHR: case XO_SAL: case XO_SAR:
     case XO_BSWAP: case XO_CWDE: case XO_CDQ: case XO_XCHG: case XO_LEAVE:
+    case XO_XADD: case XO_CMPXCHG: case XO_CMPXCHG_PAIR:
     case XO_JCC: case XO_JMP: case XO_JMP_IND: case XO_CALL: case XO_CALL_IND: case XO_RET: return 1;
     case XO_SIMD: return l64_simd_supported(in);
     default: return 0;
@@ -350,7 +478,12 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             if (in->op == XO_CWDE || in->op == XO_CDQ) {
                 l64_used |= 1u << EAX; l64_written |= 1u << (in->op == XO_CWDE ? EAX : EDX);
             }
-            if (in->op == XO_XCHG && in->o[1].kind == XK_REG)
+            if (in->op == XO_CMPXCHG || in->op == XO_CMPXCHG_PAIR) {
+                l64_used |= 1u << EAX; l64_written |= 1u << EAX;
+                if (in->op == XO_CMPXCHG_PAIR) { l64_used |= (1u << EBX) | (1u << ECX) | (1u << EDX); l64_written |= 1u << EDX; }
+            }
+            if ((in->op == XO_XCHG || in->op == XO_XADD ||
+                 (in->op == XO_SIMD && in->simd_op == 0x7e && in->simd_prefix != 0xf3)) && in->o[1].kind == XK_REG)
                 l64_written |= 1u << (in->o[1].reg >= 16 ? in->o[1].reg - 16 : in->o[1].reg);
             if (in->op == XO_LEAVE) { l64_used |= (1u << EBP) | (1u << ESP); l64_written |= l64_used; }
             if (in->op == XO_CALL || in->op == XO_CALL_IND || in->op == XO_RET ||
@@ -417,7 +550,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 in->op != XO_CALL_IND && in->op != XO_JMP_IND) writes |= 1u << (aa->reg >= 16 ? aa->reg - 16 : aa->reg);
             if (in->op == XO_CWDE) writes |= 1u << EAX;
             if (in->op == XO_CDQ) writes |= 1u << EDX;
-            if (in->op == XO_XCHG && bb->kind == XK_REG) writes |= 1u << (bb->reg >= 16 ? bb->reg - 16 : bb->reg);
+            if (in->op == XO_CMPXCHG || in->op == XO_CMPXCHG_PAIR) writes |= 1u << EAX;
+            if (in->op == XO_CMPXCHG_PAIR) writes |= 1u << EDX;
+            if ((in->op == XO_XCHG || in->op == XO_XADD ||
+                 (in->op == XO_SIMD && in->simd_op == 0x7e && in->simd_prefix != 0xf3)) && bb->kind == XK_REG) writes |= 1u << (bb->reg >= 16 ? bb->reg - 16 : bb->reg);
             if (in->op == XO_PUSH || in->op == XO_POP || in->op == XO_CALL || in->op == XO_CALL_IND ||
                 in->op == XO_RET || in->op == XO_LEAVE) writes |= 1u << ESP;
             if (in->op == XO_LEAVE) writes |= 1u << EBP;
@@ -428,7 +564,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             uint32_t mask = live[k] & L64_FLAGS;
             /* Read-modify-write faults expose the computed flags before the store fails. */
             if (aa->kind == XK_MEM && !l64_guarded) mask = L64_FLAGS;
-            switch (in->op) {
+            if (l64_atomic(in)) { l64_atomic_emit(o, in, next); } else switch (in->op) {
             case XO_MOV: case XO_MOVZX: case XO_MOVSX:
                 l64_read(o, bb, "t", next);
                 if (in->op == XO_MOVSX) fprintf(o, "t=x64_sext(t,%u);", bb->size);
@@ -531,7 +667,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "landing:\n");
         fprintf(o, "switch(pc){\n");
         for (uint32_t k = 0; k < f->insns.n; k++) if (!starts[k] &&
-                (f->insns.n <= 8 || ins[k].op == XO_SIMD)) {
+                (f->insns.n <= 8 || ins[k].op == XO_SIMD || l64_atomic(&ins[k]))) {
             uint32_t end = k + 1; while (end < f->insns.n && !starts[end]) end++;
             uint32_t va = f->insns.v[k], count = end - k;
             fprintf(o, "case 0x%08xu:exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);entry_index=%uu;", va, k);
@@ -557,12 +693,12 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else if(action==1)x86_lift_count=count;"
                    "else{X.eip=x86_address(t);if(action==3)X.r[4]+=value;}return;\n");
         fprintf(o, "memory_fault: __attribute__((unused));\n"
-                   "pc=(uint32_t)(fault>>32);width=fault&31;writing=(fault>>5)&3;");
+                   "pc=(uint32_t)(fault>>32);width=fault&31;writing=(fault>>5)&7;");
         if (lift_affine_counting) fprintf(o, "clock+=(uint32_t)(debt+((fault>>8)&0xffffffu));"
                    "budget+=(uint32_t)(debt+((fault>>8)&0xffffffu));\n");
         else fprintf(o, "clock-=(fault>>8)&0xffffffu;budget-=(fault>>8)&0xffffffu;\n");
         l64_sync(o, 0);
-        fprintf(o, "X.eip=pc;{uint32_t a=x86_address(address);"
+        fprintf(o, "X.eip=pc;{if(writing==4){(void)xa_check(address,(unsigned)width);x86_fault(\"invalid atomic memory\",(uint32_t)address);}uint32_t a=x86_address(address);if(writing==5)xs_alignment_fault(a,(uint32_t)(value>>32),(unsigned)value&255,((unsigned)value>>8)&255);"
                    "if(writing==2){for(int j=0;j<width;j++)x86_wr8(a+(uint32_t)j,av.u8[j]);}"
                    "else if(writing==3){for(int j=0;j<width;j++)(void)x86_rd8(a+(uint32_t)j);}"
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"

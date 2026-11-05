@@ -3,6 +3,8 @@
 #define X86_LIFT64_H
 #include "x86_sem64.h"
 #include "x86_sse.h"
+#include "x86_simd_fault.h"
+#include "x86_atomic.h"
 /* Cleared/consumed by the registry before any callback or suspension. Lifted register-local
  * frames return at generic and quantum boundaries rather than adding Asyncify stack frames. */
 extern const x86_insn_t *x86_lift_pending;

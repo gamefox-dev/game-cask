@@ -12,6 +12,13 @@ typedef union { uint8_t u8[16]; uint16_t u16[8]; uint32_t u32[4]; uint64_t u64[2
 #define F_DF 0x400u
 #define F_OF 0x800u
 
+/* Legacy SSE shuffle/unpack m128 operands require 16-byte alignment. Half/quad moves
+ * and SSE3 duplicate moves do not. This is independent of optional #AC handling. */
+static inline int x86_simd_aligned_legacy(unsigned op, unsigned prefix) {
+    return op == 0xc6 || op == 0x70 || op == 0x14 || op == 0x15 ||
+        (prefix == 0x66 && ((op >= 0x60 && op <= 0x62) || (op >= 0x68 && op <= 0x6a) || op == 0x6c || op == 0x6d));
+}
+
 /* Stable lifted/native exit-reason ABI. */
 enum { XE_FORM=1, XE_GUARD, XE_QUANTUM, XE_INTERIOR, XE_INDIRECT, XE_OTHER, XE_INTERPRETER };
 #endif

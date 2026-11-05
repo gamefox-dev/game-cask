@@ -1,6 +1,7 @@
 /* Baseline SSE/SSE2 exact-width scalar implementation, no host SIMD alignment assumptions. MIT. */
 #include "x86_sem64.h"
 #include "x86_sse.h"
+#include "x86_simd_fault.h"
 #if defined(X86_FLAT_GUEST) || defined(X86_WIDE_CPU)
 static x86_vec_t loadv(const x86_opnd_t *o,int bytes) {
     x86_vec_t v = {0};
@@ -49,6 +50,8 @@ void x86_simd(const x86_insn_t *in) {
     if(op==0xc4){x86_opnd_t g=*b;if(g.kind==XK_XMM)g.kind=XK_REG;g.size=2;r.u16[in->simd_imm&7]=(uint16_t)x64_read(&g);X.xmm[a->reg]=r;return;}
     if(op==0x11 || op==0x29 || op==0x7f || op==0x2b || op==0xe7){int count=(op==0x11&&scalar)?bytes:16;if(b->kind==XK_XMM&&scalar){bv=X.xmm[b->reg];__builtin_memcpy(&bv,&av,(uint32_t)count);storev(b,bv,16);}else storev(b,av,count);return;}
     if(op==0x13 || op==0x17){bv=(x86_vec_t){0};bv.u64[0]=av.u64[op==0x17];storev(b,bv,8);return;}
+    if(op==0x12 && prefix==0xf2){bv=loadv(b,8);r.u64[0]=r.u64[1]=bv.u64[0];X.xmm[a->reg]=r;return;}
+    if((op==0x12 || op==0x16) && prefix==0xf3){bv=loadv(b,16);int base=op==0x16;for(int i=0;i<4;i++)r.u32[i]=bv.u32[(i&2)+base];X.xmm[a->reg]=r;return;}
     if(op==0x12 || op==0x16){bv=loadv(b,8);r.u64[op==0x16]=b->kind==XK_XMM?(op==0x12?bv.u64[1]:bv.u64[0]):bv.u64[0];X.xmm[a->reg]=r;return;}
     if(op==0x71 || op==0x72 || op==0x73){int width=op==0x71?2:op==0x72?4:8;unsigned group=a->reg&7,count=in->simd_imm;bv=loadv(b,16);r=bv;
         if(op==0x73&&(group==3||group==7)){r=(x86_vec_t){0};if(count<16)for(int i=0;i<16;i++){int src=group==3?i+(int)count:i-(int)count;if(src>=0&&src<16)r.u8[i]=bv.u8[src];}}
@@ -57,6 +60,7 @@ void x86_simd(const x86_insn_t *in) {
     }
     int readbytes=(op==0x10&&scalar)||(op==0x5a&&scalar)||(op==0xc2&&scalar)||(op>=0x2e&&op<=0x2f)?bytes:(op==0x7e?8:scalar&&op>=0x51&&op<=0x5f?bytes:16);
     if((op==0x5a&&prefix==0)||(op==0xe6&&prefix==0xf3))readbytes=8;
+    if(b->kind==XK_MEM && x86_simd_aligned_legacy(op,prefix)){uint32_t p=x64_ea(b);if(p&15)xs_alignment_fault(p,in->addr,op,prefix);}
     bv=loadv(b,readbytes);
     if(op==0x10 || op==0x28 || op==0x6f || op==0x7e){if(op==0x7e){r=(x86_vec_t){0};r.u64[0]=bv.u64[0];}else if(op==0x10&&scalar){if(b->kind==XK_MEM)r=(x86_vec_t){0};__builtin_memcpy(&r,&bv,(uint32_t)bytes);}else r=bv;X.xmm[a->reg]=r;return;}
     if(op==0x2e || op==0x2f){double x=dbl?av.f64[0]:av.f32[0],y=dbl?bv.f64[0]:bv.f32[0];X.flags&=~(F_OF|F_SF|F_AF|F_ZF|F_PF|F_CF);if(x!=x||y!=y)X.flags|=F_ZF|F_PF|F_CF;else if(x==y)X.flags|=F_ZF;else if(x<y)X.flags|=F_CF;return;}
