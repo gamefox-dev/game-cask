@@ -475,8 +475,10 @@ available through `pipeline.flagLiveness: true`; calls/branches/unknown instruct
 four opt-in AMD64 lifted-code policies, all defaulting to the size-oriented behavior: `liftInlineMemory`,
 `liftInlineAlu`, `liftAffineCounting`, and `liftOptimizeSmall`. `pipeline.liftPreset: "fast"` enables all four;
 `"size"` (the default when omitted) disables them. These are codegen policies, not game-specific behavior, and
-are part of the lift cache key. `liftInlineMemory` uses an inline same-page mapped/unprotected check with a cold
-full check; `liftInlineAlu` uses specialized live-flag helpers and cold recoverable fault recipes; `liftAffineCounting`
+are part of the lift cache key. K34 additionally makes the default AMD64 scalar full-flag ALU wrapper and common operand checked-pointer fast path inline;
+constant opcode/width/access arguments fold at the call site, while cold full checks retain exact page/permission/fault
+ordering. `liftInlineMemory` still selects inline span guards, and `liftInlineAlu` still enables the optional cold
+inverse-flag recipes; neither policy caches a guest pointer across a boundary. `liftAffineCounting`
 settles the instruction debt at control/observation boundaries; `liftOptimizeSmall` drops `minsize` only for tiny
 regions. On one shared macOS arm64 machine, sequential cumulative A/B measurements were:
 

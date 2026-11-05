@@ -115,6 +115,29 @@ BGT_EXPORT(check) unsigned check(void) {
   expect((instance.exports.check as () => number)()).toBe(0);
 });
 
+it('local shift lowering preserves every reference flag for all counts and widths', async () => {
+  const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-shift'); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'probe.c'), `
+#define X86_WIDE_CPU 1
+#include "${ROOT}/platforms/x86/x86_lift64.h"
+#include "bgt.h"
+x86_cpu_t X;
+BGT_EXPORT(check) unsigned check(void) {
+ unsigned ops[]={XO_SHL,XO_SAL,XO_SHR,XO_SAR};
+ uint64_t values[]={0,1,127,128,255,32767,32768,65535,0x7fffffff,0x80000000,
+                    0xffffffff,0x7fffffffffffffffull,0x8000000000000000ull,UINT64_MAX};
+ for(int n=1;n<=8;n*=2)for(unsigned op=0;op<4;op++)for(unsigned i=0;i<14;i++)
+ for(unsigned c=0;c<256;c++)for(unsigned initial=0;initial<2;initial++){
+   X.flags=initial?0xffffffffu:0;uint64_t want=x64_shift(ops[op],values[i],c,n);unsigned wf=X.flags;
+   unsigned f=initial?0xffffffffu:0;uint64_t got=xl_shift(ops[op],values[i],c,n,&f);
+   if(got!=want||f!=wf)return 1;
+ }
+ return 0;
+}`);
+  const { instance } = await WebAssembly.instantiate(await compileC(relative(ROOT, join(dir, 'probe.c'))));
+  expect((instance.exports.check as () => number)()).toBe(0);
+});
+
 it('inline memory checks match the slow path for width, holes, protection and full-width bounds', async () => {
   const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-pointer'); mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'probe.c'), `
@@ -128,7 +151,8 @@ BGT_EXPORT(check) unsigned check(void) {
  for(unsigned mode=0;mode<8;mode++)for(unsigned hole=0;hole<2;hole++) {
   reset(0,0);x86_protection[1]=modes[mode];if(hole)x86_pages[2]=0;
   for(unsigned i=0;i<13;i++)for(unsigned n=0;n<9;n++)for(unsigned a=1;a<=3;a++)
-   if(xl_pointer_access(addresses[i],widths[n],a)!=xl_pointer_slow(addresses[i],widths[n],a))return 1;
+   if(xl_pointer_access(addresses[i],widths[n],a)!=xl_pointer_slow(addresses[i],widths[n],a) ||
+      xl_pointer_checked(addresses[i],widths[n],a)!=xl_pointer_slow(addresses[i],widths[n],a))return 1;
  }
  return 0;
 }`);
@@ -276,6 +300,22 @@ it('SSE interior landings stay native without duplicating every large-region int
     expect(h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size())).toEqual(want);
   }
   h.ex.reset(base + 1, 0); expect(h.ex.run(0)).toBeGreaterThan(0);
+});
+
+it('a mid-region fault publishes promoted GPRs and shift flags with exact PC and clock', async () => {
+  // RBX is changed inside the block, defeating whole-span speculation. The fault
+  // must occur after the ADD/SHR have committed, before the later RAX overwrite.
+  const h = await harness('b8ffffffff4883c00148d1e848c7c300300000488b1348c7c077000000c3');
+  expect(h.text).toContain('t=xl_shift(');
+  const execute = (interp: number) => {
+    h.ex.reset(base, 0); h.ex.unmap(3);
+    expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
+    expect(h.ex.get_reg(0)).toBe(0x80000000n);
+    return { cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu() + h.ex.cpu_size()),
+      ram: h.memory().slice(h.ex.ram(), h.ex.ram() + 65536),
+      address: h.ex.fault_address(), diagnostic: h.ex.fault_hash(), clock: h.ex.clock() };
+  };
+  expect(execute(0)).toEqual(execute(1));
 });
 
 it('flat-memory faults spill locals, live flags and reference partial cross-page stores', async () => {

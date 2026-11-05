@@ -1,0 +1,1309 @@
+{
+  "schema": "k34-measurements/1",
+  "source": {
+    "base": "958d5f0",
+    "merged_dev20": "0edf02c",
+    "production": "4061c0d",
+    "tests": "9500bc0"
+  },
+  "method": "Nine alternating-order same-process fresh-instance pairs per mode after one discarded pair; 30 untimed warmup updates, then 300 timed updates; fresh instances exclude compile/instantiate/init. No samples removed. Milliseconds per 300 updates, not per display frame. Shared host, no game-speed claim.",
+  "profile": {
+    "scope": "100 fresh instances including boot/setup/startup and idle Sleep tail, not sustained split",
+    "wasm_samples": 7608,
+    "alu_full": 1673,
+    "pointer_checked": 640,
+    "shift": 606,
+    "host_allocation_and_map": 942,
+    "at_least_setup_owned": 889,
+    "scheduler": 483
+  },
+  "items": [
+    {
+      "item": "full-flag ALU wrapper",
+      "raw_report": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-alu-paired.json",
+      "sha256": "0b47976ba9488bab445912a264169761aa824908423d8b9ef7397985739c0978",
+      "variants": [
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-base",
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-wrapper"
+      ],
+      "rows": [
+        {
+          "mode": "asyncify",
+          "samples_ms": [
+            [
+              35.672416999999996,
+              36.911333999999954,
+              55.017375000000015,
+              36.79341699999998,
+              36.12733400000002,
+              36.548584000000005,
+              35.88187499999992,
+              36.75020800000016,
+              35.077417000000196
+            ],
+            [
+              24.894375000000025,
+              24.19312500000001,
+              24.841708999999923,
+              23.897500000000036,
+              24.591000000000008,
+              23.90666699999997,
+              24.581125000000156,
+              24.26279099999988,
+              24.666124999999965
+            ]
+          ],
+          "medians_ms": [
+            36.548584000000005,
+            24.581125000000156
+          ],
+          "paired": {
+            "delta": [
+              -10.77804199999997,
+              -12.718208999999945,
+              -30.175666000000092,
+              -12.89591699999994,
+              -11.53633400000001,
+              -12.641917000000035,
+              -11.300749999999766,
+              -12.487417000000278,
+              -10.41129200000023
+            ],
+            "median": -12.487417000000278,
+            "min": -30.175666000000092,
+            "max": -10.41129200000023
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1764802560
+            },
+            {
+              "pair": 0,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1670971392
+            },
+            {
+              "pair": 1,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1620197376
+            },
+            {
+              "pair": 2,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1622884352
+            },
+            {
+              "pair": 3,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1612201984
+            },
+            {
+              "pair": 4,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1609170944
+            },
+            {
+              "pair": 5,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596391424
+            },
+            {
+              "pair": 6,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1598652416
+            },
+            {
+              "pair": 7,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 8,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 35.88187499999992,
+              "candidate_median_ms": 24.666124999999965,
+              "paired_delta_median_ms": -11.300749999999766,
+              "paired_delta_range_ms": [
+                -30.175666000000092,
+                -10.41129200000023
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 36.77181250000007,
+              "candidate_median_ms": 24.04989599999999,
+              "paired_delta_median_ms": -12.68006299999999,
+              "paired_delta_range_ms": [
+                -12.89591699999994,
+                -12.487417000000278
+              ]
+            }
+          ]
+        },
+        {
+          "mode": "jspi",
+          "samples_ms": [
+            [
+              34.50245799999993,
+              34.35129199999983,
+              34.390957999999955,
+              34.34679200000005,
+              34.44479200000001,
+              34.31762499999991,
+              34.37241700000004,
+              34.549208000000135,
+              34.29449999999997
+            ],
+            [
+              22.881875000000036,
+              22.918750000000045,
+              22.745084000000134,
+              22.77258299999994,
+              22.651583000000073,
+              22.780416999999943,
+              22.802167000000054,
+              22.80941699999994,
+              22.886958999999933
+            ]
+          ],
+          "medians_ms": [
+            34.37241700000004,
+            22.802167000000054
+          ],
+          "paired": {
+            "delta": [
+              -11.620582999999897,
+              -11.432541999999785,
+              -11.645873999999822,
+              -11.57420900000011,
+              -11.793208999999933,
+              -11.537207999999964,
+              -11.570249999999987,
+              -11.739791000000196,
+              -11.407541000000037
+            ],
+            "median": -11.57420900000011,
+            "min": -11.793208999999933,
+            "max": -11.407541000000037
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 0,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 1,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 2,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 3,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 4,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 5,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 6,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1596276736
+            },
+            {
+              "pair": 7,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 1026621440
+            },
+            {
+              "pair": 8,
+              "load": [
+                2.30419921875,
+                3.0458984375,
+                3.9560546875
+              ],
+              "free": 947273728
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 34.390957999999955,
+              "candidate_median_ms": 22.802167000000054,
+              "paired_delta_median_ms": -11.620582999999897,
+              "paired_delta_range_ms": [
+                -11.793208999999933,
+                -11.407541000000037
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 34.34904199999994,
+              "candidate_median_ms": 22.79491699999994,
+              "paired_delta_median_ms": -11.555708500000037,
+              "paired_delta_range_ms": [
+                -11.739791000000196,
+                -11.432541999999785
+              ]
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-base",
+          "asyncify": {
+            "url": "game.wasm?h=44310308efadf3ea",
+            "size": 1287320,
+            "sha256": "44310308efadf3eac9c9ba2554bc6ea73a8467f3c13308d996bc70b83fb9d992"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=5f258f62c824e84b",
+            "size": 1455777,
+            "sha256": "5f258f62c824e84bc7a609e4f239d7ff60735b9befaa3a616dae11eb629c20c5"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        },
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-wrapper",
+          "asyncify": {
+            "url": "game.wasm?h=a560b8dfdf698798",
+            "size": 1304378,
+            "sha256": "a560b8dfdf69879878b991a3ab869d5195e89b0375ad7496c087aa238d89cfea"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=cabdfa53f4769a8e",
+            "size": 1471701,
+            "sha256": "cabdfa53f4769a8e3052ce851346b857d46d27e94f9cd0be94c08d1834ffc48d"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "item": "default checked-pointer same-page path",
+      "raw_report": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-pointer-paired.json",
+      "sha256": "57ab65d92b11414a60da40151c156cec969706bb9e116eb9021ae2ec8f5a66bb",
+      "variants": [
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-wrapper",
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-pointer"
+      ],
+      "rows": [
+        {
+          "mode": "asyncify",
+          "samples_ms": [
+            [
+              25.36179100000004,
+              24.75108399999999,
+              24.473333999999966,
+              24.75737499999991,
+              24.26166599999999,
+              24.661624999999958,
+              24.450207999999975,
+              24.67866700000002,
+              23.872625000000085
+            ],
+            [
+              22.73404099999999,
+              21.97950000000003,
+              22.707832999999937,
+              22.039792000000034,
+              22.455792000000088,
+              21.881583999999975,
+              22.38854200000003,
+              21.86612500000001,
+              22.470166999999947
+            ]
+          ],
+          "medians_ms": [
+            24.661624999999958,
+            22.38854200000003
+          ],
+          "paired": {
+            "delta": [
+              -2.6277500000000487,
+              -2.7715839999999616,
+              -1.7655010000000289,
+              -2.717582999999877,
+              -1.8058739999999034,
+              -2.780040999999983,
+              -2.0616659999999456,
+              -2.8125420000000076,
+              -1.4024580000001379
+            ],
+            "median": -2.6277500000000487,
+            "min": -2.8125420000000076,
+            "max": -1.4024580000001379
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1382481920
+            },
+            {
+              "pair": 0,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1311670272
+            },
+            {
+              "pair": 1,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1266237440
+            },
+            {
+              "pair": 2,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1264779264
+            },
+            {
+              "pair": 3,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1263157248
+            },
+            {
+              "pair": 4,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1265664000
+            },
+            {
+              "pair": 5,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1265664000
+            },
+            {
+              "pair": 6,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1265664000
+            },
+            {
+              "pair": 7,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1265664000
+            },
+            {
+              "pair": 8,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1260077056
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 24.450207999999975,
+              "candidate_median_ms": 22.470166999999947,
+              "paired_delta_median_ms": -1.8058739999999034,
+              "paired_delta_range_ms": [
+                -2.6277500000000487,
+                -1.4024580000001379
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 24.714875500000005,
+              "candidate_median_ms": 21.930542000000003,
+              "paired_delta_median_ms": -2.7758124999999723,
+              "paired_delta_range_ms": [
+                -2.8125420000000076,
+                -2.717582999999877
+              ]
+            }
+          ]
+        },
+        {
+          "mode": "jspi",
+          "samples_ms": [
+            [
+              23.080375000000004,
+              22.78470900000002,
+              22.8420000000001,
+              22.79950000000008,
+              22.94487500000014,
+              22.81016599999998,
+              22.798958000000084,
+              22.750999999999976,
+              22.77841599999988
+            ],
+            [
+              19.93058300000007,
+              19.938500000000204,
+              20.166167000000087,
+              19.808291999999938,
+              19.840124999999944,
+              20.02037499999983,
+              19.916666000000077,
+              20.087792000000036,
+              19.77370800000017
+            ]
+          ],
+          "medians_ms": [
+            22.79950000000008,
+            19.93058300000007
+          ],
+          "paired": {
+            "delta": [
+              -3.149791999999934,
+              -2.846208999999817,
+              -2.6758330000000115,
+              -2.9912080000001424,
+              -3.1047500000001946,
+              -2.7897910000001502,
+              -2.8822920000000067,
+              -2.6632079999999405,
+              -3.0047079999997095
+            ],
+            "median": -2.8822920000000067,
+            "min": -3.149791999999934,
+            "max": -2.6632079999999405
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1263042560
+            },
+            {
+              "pair": 0,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1260978176
+            },
+            {
+              "pair": 1,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1179385856
+            },
+            {
+              "pair": 2,
+              "load": [
+                2.52685546875,
+                2.97216796875,
+                3.85986328125
+              ],
+              "free": 1104183296
+            },
+            {
+              "pair": 3,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 1028128768
+            },
+            {
+              "pair": 4,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 948731904
+            },
+            {
+              "pair": 5,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 865124352
+            },
+            {
+              "pair": 6,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 785694720
+            },
+            {
+              "pair": 7,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 706985984
+            },
+            {
+              "pair": 8,
+              "load": [
+                2.564453125,
+                2.97216796875,
+                3.8544921875
+              ],
+              "free": 706985984
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 22.8420000000001,
+              "candidate_median_ms": 19.916666000000077,
+              "paired_delta_median_ms": -3.0047079999997095,
+              "paired_delta_range_ms": [
+                -3.149791999999934,
+                -2.6758330000000115
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 22.79210450000005,
+              "candidate_median_ms": 19.979437500000017,
+              "paired_delta_median_ms": -2.8179999999999836,
+              "paired_delta_range_ms": [
+                -2.9912080000001424,
+                -2.6632079999999405
+              ]
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-wrapper",
+          "asyncify": {
+            "url": "game.wasm?h=a560b8dfdf698798",
+            "size": 1304378,
+            "sha256": "a560b8dfdf69879878b991a3ab869d5195e89b0375ad7496c087aa238d89cfea"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=cabdfa53f4769a8e",
+            "size": 1471701,
+            "sha256": "cabdfa53f4769a8e3052ce851346b857d46d27e94f9cd0be94c08d1834ffc48d"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        },
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-pointer",
+          "asyncify": {
+            "url": "game.wasm?h=872c8693370eb873",
+            "size": 1321244,
+            "sha256": "872c8693370eb8732096e62748d85e6746ae65e7d6e37b4c5b64acf14f253fa1"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=d7b849de785dd88b",
+            "size": 1489687,
+            "sha256": "d7b849de785dd88b517a2e4c92f431d3df7e81e42664907e16de0585a9f4f01b"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "item": "scalar SHL/SAL/SHR/SAR",
+      "raw_report": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-shift-paired.json",
+      "sha256": "6309e0608e8e31027f5da6c87cadbebf1db987dc0ae89c8b1a549f8e9e138eed",
+      "variants": [
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-pointer",
+        "/Users/dev/projects/pi-work/scratch-K34/b/sustained-shift"
+      ],
+      "rows": [
+        {
+          "mode": "asyncify",
+          "samples_ms": [
+            [
+              22.787541999999974,
+              22.498291999999992,
+              22.195290999999997,
+              22.930584000000067,
+              21.8944580000001,
+              22.278833000000077,
+              21.862333000000035,
+              22.265833000000043,
+              21.74770799999999
+            ],
+            [
+              19.332749999999976,
+              18.79833400000001,
+              19.20712500000002,
+              18.588333000000034,
+              19.074749999999995,
+              18.332208000000037,
+              19.021332999999913,
+              18.261750000000006,
+              18.84616600000004
+            ]
+          ],
+          "medians_ms": [
+            22.265833000000043,
+            18.84616600000004
+          ],
+          "paired": {
+            "delta": [
+              -3.4547919999999976,
+              -3.699957999999981,
+              -2.9881659999999783,
+              -4.342251000000033,
+              -2.819708000000105,
+              -3.94662500000004,
+              -2.841000000000122,
+              -4.004083000000037,
+              -2.9015419999999494
+            ],
+            "median": -3.4547919999999976,
+            "min": -4.342251000000033,
+            "max": -2.819708000000105
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1942732800
+            },
+            {
+              "pair": 0,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 1,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 2,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 3,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 4,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 5,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 6,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 7,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            },
+            {
+              "pair": 8,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1863352320
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 21.8944580000001,
+              "candidate_median_ms": 19.074749999999995,
+              "paired_delta_median_ms": -2.9015419999999494,
+              "paired_delta_range_ms": [
+                -3.4547919999999976,
+                -2.819708000000105
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 22.388562500000035,
+              "candidate_median_ms": 18.460270500000036,
+              "paired_delta_median_ms": -3.9753540000000385,
+              "paired_delta_range_ms": [
+                -4.342251000000033,
+                -3.699957999999981
+              ]
+            }
+          ]
+        },
+        {
+          "mode": "jspi",
+          "samples_ms": [
+            [
+              20.299082999999882,
+              20.171082999999953,
+              20.27020799999991,
+              20.098042000000078,
+              20.196042000000034,
+              20.007540999999947,
+              20.039457999999968,
+              19.959542000000056,
+              20.035333000000037
+            ],
+            [
+              16.633916,
+              16.736374999999953,
+              16.580416000000014,
+              16.71841600000016,
+              16.81766700000003,
+              16.745583000000124,
+              16.53908299999989,
+              16.616833000000042,
+              16.526834000000008
+            ]
+          ],
+          "medians_ms": [
+            20.098042000000078,
+            16.633916
+          ],
+          "paired": {
+            "delta": [
+              -3.665166999999883,
+              -3.4347080000000005,
+              -3.6897919999998976,
+              -3.3796259999999165,
+              -3.3783750000000055,
+              -3.2619579999998223,
+              -3.5003750000000764,
+              -3.3427090000000135,
+              -3.508499000000029
+            ],
+            "median": -3.4347080000000005,
+            "min": -3.6897919999998976,
+            "max": -3.2619579999998223
+          },
+          "resources": [
+            {
+              "pair": -1,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1694531584
+            },
+            {
+              "pair": 0,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1689337856
+            },
+            {
+              "pair": 1,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1605468160
+            },
+            {
+              "pair": 2,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1525809152
+            },
+            {
+              "pair": 3,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            },
+            {
+              "pair": 4,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            },
+            {
+              "pair": 5,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            },
+            {
+              "pair": 6,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            },
+            {
+              "pair": 7,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            },
+            {
+              "pair": 8,
+              "load": [
+                3.376953125,
+                3.76318359375,
+                3.87890625
+              ],
+              "free": 1450344448
+            }
+          ],
+          "orders": [
+            {
+              "order": "baseline-candidate",
+              "pairs": 5,
+              "baseline_median_ms": 20.196042000000034,
+              "candidate_median_ms": 16.580416000000014,
+              "paired_delta_median_ms": -3.508499000000029,
+              "paired_delta_range_ms": [
+                -3.6897919999998976,
+                -3.3783750000000055
+              ]
+            },
+            {
+              "order": "candidate-baseline",
+              "pairs": 4,
+              "baseline_median_ms": 20.052791500000012,
+              "candidate_median_ms": 16.727395500000057,
+              "paired_delta_median_ms": -3.361167499999965,
+              "paired_delta_range_ms": [
+                -3.4347080000000005,
+                -3.2619579999998223
+              ]
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-pointer",
+          "asyncify": {
+            "url": "game.wasm?h=872c8693370eb873",
+            "size": 1321244,
+            "sha256": "872c8693370eb8732096e62748d85e6746ae65e7d6e37b4c5b64acf14f253fa1"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=d7b849de785dd88b",
+            "size": 1489687,
+            "sha256": "d7b849de785dd88b517a2e4c92f431d3df7e81e42664907e16de0585a9f4f01b"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        },
+        {
+          "path": "/Users/dev/projects/pi-work/scratch-K34/b/sustained-shift",
+          "asyncify": {
+            "url": "game.wasm?h=a333dc3f638ed6ba",
+            "size": 1321322,
+            "sha256": "a333dc3f638ed6ba59681c5910fed8b89299f2b5d749e11c973921100860bf90"
+          },
+          "jspi": {
+            "url": "game.jspi.wasm?h=e8e5269f648906b3",
+            "size": 1489372,
+            "sha256": "e8e5269f648906b3dc904f0f188b3fb9a8876efeb2072244e95fe98a89d6b164"
+          },
+          "oracles": [
+            {
+              "mode": "asyncify",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            },
+            {
+              "mode": "jspi",
+              "requestedFrames": 300,
+              "comparedFrames": 300,
+              "hashes": {
+                "lifted": "8eb8fd18",
+                "interpreted": "8eb8fd18",
+                "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+                "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+              },
+              "lifted_interp_insns": 0,
+              "stubs": [],
+              "generic_insn_execs": 130,
+              "guest_instruction_clock": 19803048
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
