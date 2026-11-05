@@ -2,7 +2,7 @@
 // Original CC0. On/off isolates retirement at profile0, and scheduler/snapshots at
 // profile1. Artifacts coexist privately; samples interleave, no publication race.
 import {it,expect} from 'vitest';
-import {cpSync,mkdirSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
+import {cpSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {loadHeadless,ROOT} from '../../tests/support/headless';
@@ -57,7 +57,7 @@ int _tls_index;
     for(let n=-1;n<9;n++)for(const account of (n%2===0?[1,0]:[0,1])) {
      const h=await loadHeadless(id,{dir:paths[account],suspension:mode});
      const begin=performance.now();await h.stepAsync(300);const ms=performance.now()-begin;
-     const m=h.host.metrics() as any;
+     const m=h.host.metrics() as {trace_hash:unknown;lifted_calls:unknown;generic_insn_execs:unknown;interp_insns:number;stubs:unknown[];execution_accounting:{enabled:number;retired:unknown;frames?:{dropped:number}}};
      const semantic={hash:h.host.stateHash(),trace:m.trace_hash,logs:h.logs,lifted:m.lifted_calls,generic:m.generic_insn_execs,interp:m.interp_insns,stubs:m.stubs};
      if(expected===null)expected=semantic;else expect(semantic).toEqual(expected);
      expect(m.interp_insns).toBe(0);expect(m.stubs).toEqual([]);

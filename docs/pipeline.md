@@ -187,10 +187,12 @@ metrics; rebuild before changing variants and do not measure while another task 
 ### Exact retirement and scheduler accounting (Q78, validation in progress)
 
 The additive `execution_accounting` object is independent of the legacy TSC and sampled census.
-Build with `BGT_CPU_ACCOUNTING=0` to erase retirement updates, local retirement debt and scheduler
-accounting from hot paths. Disabled artifacts report `enabled:0`, null retirement/thread/frame data;
-legacy artifacts without the object are also **unavailable**, not measured zero. Default-on remains
-conditional on matched overhead measurements (target under approximately 2%); see [K31](handoff/K31.md).
+Accounting defaults **off**: set `BGT_CPU_ACCOUNTING=1` and rebuild to enable it. Disabled builds
+erase retirement updates, local retirement debt and scheduler accounting from hot paths; an explicit
+`BGT_CPU_ACCOUNTING=0` also disables it. Disabled artifacts report `enabled:0`, null retirement/thread/frame
+data; legacy artifacts without the object are also **unavailable**, not measured zero. The matched CC0
+12000-owner scale profile-off JSPI measurement was **+19.14%**, above the approximately 2% default-on
+criterion. Full measurements and shared-machine/code-shape caveats: [K31](handoff/K31.md).
 
 - `retired.{total,lifted,generic,interpreted}` are cumulative **unsigned decimal strings**, not JSON
   doubles. Process and stable-thread totals only advance on completed guest instructions, exactly once.

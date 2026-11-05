@@ -4,6 +4,9 @@
 #include "../../../platforms/x86/x86_sched.c"
 #include "../../../platforms/win32/w32_core.c"
 BGT_DEFINE_IO(io)
+static uint8_t async_buf[4096] __attribute__((aligned(16)));
+BGT_EXPORT(bgt_async_buffer) uint32_t async_buffer(void){return (uint32_t)(uintptr_t)async_buf;}
+BGT_EXPORT(bgt_async_buffer_size) uint32_t async_size(void){return sizeof async_buf;}
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p){(void)p;w32_io=&io;io.logical_width=io.logical_height=64;return BGT_OK;}
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt){(void)dt;}
 BGT_EXPORT(bgt_render) void bgt_render(void){}

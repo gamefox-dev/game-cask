@@ -25,6 +25,11 @@ BGT_EXPORT(account_schedule) uint32_t account_schedule(void){w32_thread_schedule
 BGT_EXPORT(account_work) void account_work(void){
     X.transfer=0;x86_push(0x2000);x86_invoke(0x1000,0x2000);
 }
+BGT_EXPORT(account_fault) void account_fault(void){
+    /* NOP retires; MOV EAX,[RAX] faults before retirement. */
+    x86_wr8(0x1100,0x90);x86_wr8(0x1101,0x8b);x86_wr8(0x1102,0x00);
+    X.r[EAX]=0x3000000;X.transfer=0;x86_push(0x2000);x86_invoke(0x1100,0x2000);
+}
 BGT_EXPORT(account_io) void account_io(int begin){w32_thread_io_wait(begin);}
 BGT_EXPORT(account_present) void account_present(void){w32_guest_present(1);}
 BGT_EXPORT(account_exit) void account_exit(void){w32_thread_return(7);}

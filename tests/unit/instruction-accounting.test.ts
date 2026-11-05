@@ -35,3 +35,13 @@ it('does not silently replace a missing thread timing budget with zero active ti
  expect(s.executing_instructions_per_second).toBeNull();expect(s.frames?.intervals[0].active_wall_us).toBeNull();
  expect(s.frames?.intervals[0].executing_instructions_per_second).toBeNull();
 });
+
+it('excludes work after the last native present from exact frame intervals',()=>{
+ const first=row(1,10n,100),last=row(1,13n,110),tail=row(1,100n,120);
+ const s=instructionSummary({execution_accounting:{enabled:1,timing_enabled:1,retired:tail.retired,threads:[tail],
+  frames:{capacity:64,dropped:0,snapshots:[
+   {present:1,wall_us:1000,retired:first.retired,threads:[first]},
+   {present:2,wall_us:2000,retired:last.retired,threads:[last]}]}}});
+ expect(s.instructions).toBe(100);expect(s.instructions_per_guest_frame).toBe(3);
+ expect(s.frames?.intervals[0]).toMatchObject({instructions:3,active_wall_us:10,executing_instructions_per_second:300000});
+});

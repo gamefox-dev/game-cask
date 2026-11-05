@@ -11,7 +11,7 @@
 /* Separate from sampled profiling: exact instruction retirement is never X.tsc.
  * Compiling accounting out erases both local debt and counter updates. */
 #ifndef X86_ACCOUNTING_ENABLED
-#define X86_ACCOUNTING_ENABLED 1
+#define X86_ACCOUNTING_ENABLED 0
 #endif
 enum { XR_LIFTED, XR_GENERIC, XR_INTERPRETED, XR_KINDS };
 typedef struct { uint64_t instructions[XR_KINDS]; } x86_retired_t;

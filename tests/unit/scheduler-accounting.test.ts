@@ -11,7 +11,7 @@ import {instructionSummary} from '../../bgt/runtime/instruction-accounting';
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
 type Ex={account_setup():void;account_api(op:number,a:number,b:number):bigint;account_schedule():number;
- account_work():void;account_io(begin:number):void;account_present():void;account_exit():void;
+ account_work():void;account_fault():void;account_io(begin:number):void;account_present():void;account_exit():void;
  account_idle(begin:number):void;account_tick(frame:number):void;bgt_profile_reset():void};
 for(const wide of [false,true])it('scheduler-owned exact waits, work, presents and drops '+(wide?'AMD64':'i386'),async()=>{
  const root=join(ROOT,'node_modules/.cache/bgt/scheduler-accounting');mkdirSync(root,{recursive:true});
@@ -65,5 +65,13 @@ for(const wide of [false,true])it('scheduler-owned exact waits, work, presents a
   expect(last.frames.snapshots).toHaveLength(64);expect(last.frames.snapshots[0].present).toBe(9);
   expect(last.frames.snapshots.at(-1)).toMatchObject({present:72,retired:{total:'216'}});
   expect(instructionSummary(host.metrics() as any).instructions_per_guest_frame).toBe(3);
+  us+=10;expect(()=>ex.account_fault()).toThrow();
+  const failed=(host.metrics() as any).execution_accounting;
+  expect(failed.retired.total).toBe('220');expect(failed.threads[0].state).toBe('ready');
+  us+=1000000;ex.bgt_profile_reset();const frozen=(host.metrics() as any).execution_accounting;
+  expect(frozen.retired).toEqual(failed.retired);
+  expect(frozen.threads[0].wall_us.running).toBe(failed.threads[0].wall_us.running);
+  expect(frozen.threads[1]).toEqual(failed.threads[1]); // exited lifetime never accrues active/wait wall
+  expect(frozen.frames).toEqual(failed.frames);
  } finally {rmSync(dir,{recursive:true,force:true});}
 },600000);

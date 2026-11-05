@@ -9,6 +9,8 @@ it('serializes all 4096 maximum-length printable import names without truncation
   expect(n).toBeGreaterThan(524288);return JSON.parse(new TextDecoder().decode(bytes.subarray(0,n)));};
  ex.prepare(0);const m=metrics();expect(m.imports_bound).toBe(4096);expect(m.apis_hit).toHaveLength(4096);
  expect(m.gl_objects).toEqual({});
+ expect(m.execution_accounting.enabled).toBe(0); // standalone header ships default OFF
+ expect(instructionSummary(m).status).toBe('unavailable');
  expect(m.interpreter_exclusive_us).toBe(123);
  expect(m.interpreter_exclusive_sample_us).toBe(25);
  expect(m.interpreter_exclusive_estimated_us).toBe(0); // no sampled dispatches in this serializer-only fixture
