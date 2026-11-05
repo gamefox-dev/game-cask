@@ -1,0 +1,3668 @@
+{
+  "schema": "k34-gate-evidence/1",
+  "source": "beb1b4f471d50358b6eb30b9dcae93ac7b5794f6",
+  "raw_root": "/Users/dev/projects/pi-work/scratch-K34/tier1",
+  "gates": [
+    {
+      "name": "doctor",
+      "exit": 0,
+      "started": "2026-11-05T20:55:41Z",
+      "finished": "2026-11-05T20:55:41Z",
+      "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+    },
+    {
+      "name": "lint-clang",
+      "exit": 0,
+      "started": "2026-11-05T20:55:41Z",
+      "finished": "2026-11-05T21:22:34Z",
+      "sha256": "eb1bc8aff2e15dbb93987e75e7b8cfe1e556eeb27d27f5b261739c338c9bc391"
+    },
+    {
+      "name": "lint-gcc",
+      "exit": 0,
+      "started": "2026-11-05T21:22:34Z",
+      "finished": "2026-11-05T21:23:37Z",
+      "sha256": "0cf1d3fd17854f0ab6182ca6963e8201bf7bde26fcb31457f30c50bb91677bd2"
+    },
+    {
+      "name": "explicit-clang",
+      "exit": 0,
+      "started": "2026-11-05T21:23:37Z",
+      "finished": "2026-11-05T21:23:40Z",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "explicit-scale-check",
+      "exit": 0,
+      "started": "2026-11-05T21:23:40Z",
+      "finished": "2026-11-05T21:23:46Z",
+      "sha256": "50ba2baddd55b6785f7cecb30e16ff376fb5a0820cba9de54029c810761bb9ad"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "started": "2026-11-05T21:23:46Z",
+      "finished": "2026-11-05T21:23:48Z",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "name": "e2e-asyncify",
+      "exit": 0,
+      "started": "2026-11-05T22:40:41Z",
+      "finished": "2026-11-05T23:01:50Z",
+      "sha256": "dc4fd5c29188bc13e0b0293237be2bba6c8c5ec687412792817c60c1850bbdcb"
+    },
+    {
+      "name": "e2e-jspi",
+      "exit": 0,
+      "started": "2026-11-05T23:01:51Z",
+      "finished": "2026-11-05T23:09:16Z",
+      "sha256": "055971d0100961634ade578078064ba53f74a8099cc7f112bc1e24beda2fc746"
+    },
+    {
+      "name": "leakcheck",
+      "exit": 0,
+      "started": "2026-11-05T23:17:41Z",
+      "finished": "2026-11-05T23:17:42Z",
+      "sha256": "d30c0280da8446094c469ac342d64fba85e7030cc3e89bbc4510e98c72e254f6"
+    },
+    {
+      "name": "diffcheck",
+      "exit": 0,
+      "started": "2026-11-05T23:17:42Z",
+      "finished": "2026-11-05T23:17:42Z",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "browser": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-05T22:54:26.613Z",
+        "duration": 444124.438,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        },
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "sha256": "d06334de70262d45766fed755512eb06a9d9dd0f1d7f969502dcd8ec6faccf2a"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-05T23:03:18.619Z",
+        "duration": 357256.276,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        },
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "sha256": "8e976bd8d0a3ae743601175ab704f7c485d2ef26ba28ea805cc83c5fd2fd61ff"
+    }
+  },
+  "oracles": [
+    {
+      "id": "win32-conformance",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "sha256": "c6556516815fb0fac7100a7e7ddd7620e44d02cc64dde4c3380b28f2155451f0",
+      "gateExit": 0,
+      "logSha256": "bda473363db5b94a4b004d17fc1dea77a608d742917cfe3f584c2fdb1d30ff79"
+    },
+    {
+      "id": "win32-conformance",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "sha256": "eaced7a279c5c3f118ad826c30e4a45c7e7f4fc5977c3db4e636575b8aa4a4ee",
+      "gateExit": 0,
+      "logSha256": "4a8208de8b896a91fc62990268de1d7a5aa37ff4567051f6604ddb33d47d99f0"
+    },
+    {
+      "id": "win32-hello",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "sha256": "ccc87f90ab7d35f7c489aa4219c81408dc83c86f5323975acfdae108bafca71a",
+      "gateExit": 0,
+      "logSha256": "2690462f54edddb7ca42efa43a455e3bb07f96cf6e86030cba9afebc32c3290c"
+    },
+    {
+      "id": "win32-hello",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "sha256": "62147ca5a996e95deed4950441c8e7e76ff17a10ca4fa4f545ebe245b848ff6c",
+      "gateExit": 0,
+      "logSha256": "3e0e02386f7f39a03c21acf2b833452ff37de63cfda296c199dcd8a0b8b387ab"
+    },
+    {
+      "id": "x64-audio",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "sha256": "95eff492189d5a931e1e8aa3ebdf60ab5865f748ec40505e62f283903a2f4653",
+      "gateExit": 0,
+      "logSha256": "87af7f57b68aba9b70bca9fd895957d0fd3165423764b35bb69be64db73b497b"
+    },
+    {
+      "id": "x64-audio",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "sha256": "9ee899f41c260e050494913ec5fe9f64bb5e90c9b2201cc717112b10c00e928a",
+      "gateExit": 0,
+      "logSha256": "6e4917e855122933f361085d0f0c359b860a2d3bd702d63bc2952972194609e4"
+    },
+    {
+      "id": "x64-audio-init",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "sha256": "53133d52ae71799bcf0193cfc06e746c6ba2fa8aa6be48810bc4856db3b2670d",
+      "gateExit": 0,
+      "logSha256": "58f97302ad2644d8deea2c1b08d6be6f8ec2d813455eca0d36c247b01bc90248"
+    },
+    {
+      "id": "x64-audio-init",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "sha256": "eca3f75e8614ee346116a51fb216baa2c69f6530333d5982de0f1ea0c8f907c8",
+      "gateExit": 0,
+      "logSha256": "b74c0899c0cc13ba7ae337f7636e0b323d48ae968c91a830f93db6629aeb1011"
+    },
+    {
+      "id": "x64-basics",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "sha256": "2bc26ebb67ffd641bb2d352b511e47901b19737b34d7902ae5222c28c1eef460",
+      "gateExit": 0,
+      "logSha256": "f7d3c0fc52609fbe01818eb51bf1c75639df9f5e9064646a250cdf5ee23e57f0"
+    },
+    {
+      "id": "x64-basics",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "sha256": "044201bea3661233e40e295ae36f8aa8182f7721086041abbea0d5ee6f61ad2f",
+      "gateExit": 0,
+      "logSha256": "56c1b50e706514bd1b3b42bb036b2154d7ac892b355eb7db3e0768d40840019a"
+    },
+    {
+      "id": "x64-contracts",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "sha256": "e995c086ea123493534fd8dbc0ea71f84033e8e37cc87d42ef8fb805b0ae3b34",
+      "gateExit": 0,
+      "logSha256": "aa34890781c6abfa3b28bbd5e73feb151534e7b3963c61a7fb836c2d077f9b86"
+    },
+    {
+      "id": "x64-contracts",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "sha256": "129b50de8e06f439fdcbebdb9f3386ae07d3c24b64e336ef9e6e2fa24a9deef4",
+      "gateExit": 0,
+      "logSha256": "fbe02cc9e2d882b678990718397cf25116c182bca22d14c8b87e7b0289d30015"
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "sha256": "f7dddc227b119dfaf0addfa0bf7e30be37485fd7504b7af37b2fc2cd828b9728",
+      "gateExit": 0,
+      "logSha256": "8b94e78fc14c2f2bb15f8f9f11a3ef8d269fef22f4794ee07290cf8a095ace6c"
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "sha256": "55e0d738c405c76c5431f3790fc0ac5ed7a3148f993ea4ee9d840dc3c956f787",
+      "gateExit": 0,
+      "logSha256": "d3d67a5f4b5728099462ce07b98fd7e6b20813bc9f10082e56894af4b882a89c"
+    },
+    {
+      "id": "x64-cpprt",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "sha256": "9828c3d9a32aa1fa6b9d506a014604f5429baf574856037e0808b8f84dad7d31",
+      "gateExit": 0,
+      "logSha256": "8a519f93750339606c604b17b405d14adf48894ad2d6a02959a5c8258f6a1be2"
+    },
+    {
+      "id": "x64-cpprt",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "sha256": "b8144b6d84367461eaebbff6dd8b272de721f61a8a1fbf5ea894ba0b653396cb",
+      "gateExit": 0,
+      "logSha256": "b70959147cb9832a380a394c7e635170487627960bc6f784e7c75b98c119a544"
+    },
+    {
+      "id": "x64-crt",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "sha256": "248af95bc019cd48b35f6437748cec5ccda68a131d3d6b62937fdbbf3a4afc76",
+      "gateExit": 0,
+      "logSha256": "cd6734f78c10285b73806c30372c2f27adddbcf5a8cc232303e2dd77d71db6e5"
+    },
+    {
+      "id": "x64-crt",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "sha256": "d9dd0e80728a75f13d02cab827ba669108cc13a41656e7e90cd3d087a463b41e",
+      "gateExit": 0,
+      "logSha256": "a164a307e779b0baf3ace5e066e168e84f6fcb6398c6fc3cdd8f1144b4c31f1d"
+    },
+    {
+      "id": "x64-gl",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "sha256": "48cdfc3b4b590b864d28354f914e0adfb9437dc6c0ed4a2ec9e435cae8e96a86",
+      "gateExit": 0,
+      "logSha256": "f8200b9b0a0d0ca3f9818f203771c67553666784a8c12feda7326655bdb48990"
+    },
+    {
+      "id": "x64-gl",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "sha256": "55913fb7c86c6f8628f2b05afb04b02213646ce2fdf2b285daad50f929b10408",
+      "gateExit": 0,
+      "logSha256": "0f37db09a771c0febc6b8f8bed3d6a93a64da5590d9d97e510899866770be31d"
+    },
+    {
+      "id": "x64-gl-blit",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "sha256": "d0641dc7a7be21e324a2fbc80faa852075dc394ca5d4ffb5a9faed4f408545f4",
+      "gateExit": 0,
+      "logSha256": "da3031b29c5a2b9323cc44f4012cf12a354ef80c457ad4a1ddd98e5541bcc326"
+    },
+    {
+      "id": "x64-gl-blit",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "sha256": "3e0ba745f294e6ef597f047fe8e6f8e35572d83cbb3c19b6806d68f431e2d8d3",
+      "gateExit": 0,
+      "logSha256": "a92c5188946a78183d283576f7d6f2d11606885ee3c9e5824bf5bbae5ba4331f"
+    },
+    {
+      "id": "x64-gl-capacity",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "sha256": "ce8b9678093e6e020e61a42cab0fbd0eadd9dacc45bac65ad275434d77d7a6d1",
+      "gateExit": 0,
+      "logSha256": "5998abfc7f068485c986a6142ebbed57a3f4a21e3d029390a7b1a12730039e6f"
+    },
+    {
+      "id": "x64-gl-capacity",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "sha256": "97eebbf9f4aed48c0a4a5adc4ef46e624c8470a236e296aad905f463b2590cae",
+      "gateExit": 0,
+      "logSha256": "5704ed2616dd972e7148cdb3c6637cade81e6bd980768ca503ccaeae48e59ec0"
+    },
+    {
+      "id": "x64-gl-current",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "sha256": "f6f8205068bd58f926b6f2e5b3312931e0d6c9645dc06834ad0cd4fbca0b3b99",
+      "gateExit": 0,
+      "logSha256": "80216122de6872e6dcf0ed3ae2c4dfd71bc2fa917734edda855c3a868932f742"
+    },
+    {
+      "id": "x64-gl-current",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "sha256": "6733b401cd2d079975378fa4eef4fd9ae1019d2c093c88e3bfd67d843a7640c2",
+      "gateExit": 0,
+      "logSha256": "947cf3f8bef9788a9ca81cff0b047f660dcfbac230c7e9df316fcaeb2ee26adf"
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "sha256": "88793c235f58869d3c26f26dc048268bbf30b33c34e5ea293b0b4cf376b0a2d6",
+      "gateExit": 0,
+      "logSha256": "753f9d898040e88feaff8141ff95f6bcd6d5d833d8a279a2de077cb8147b51a0"
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "sha256": "9a6fb33fe90f1da682ffd45ab877d8fffe608f77289f85fcfd165161c8962e44",
+      "gateExit": 0,
+      "logSha256": "ab9e4e737721ef74b1d546c165e50950f12d945f6276b534d384500211a922fa"
+    },
+    {
+      "id": "x64-gl-fbo",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "sha256": "a0d29c93067671d4fa965100b6010d5693c6c73e422ccb1901b7c3a5dba03938",
+      "gateExit": 0,
+      "logSha256": "5c018402d6c1f8e559c3a06287baca9823e937c44c12df9cec9960add0482202"
+    },
+    {
+      "id": "x64-gl-fbo",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "sha256": "b7c3cb4ab57b10f99b4d98754d853cc08a516f3c6d66ae66a06cae1958368dfc",
+      "gateExit": 0,
+      "logSha256": "fac4baacf53eb99a37db8f20515131dcaab2c28f28cc048b53ae7f2f50749aa8"
+    },
+    {
+      "id": "x64-gl-feedback",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "sha256": "0153e7784a9d5331597c4b019d91a20a3c1d15bef9a712934c41b878f6c68dc2",
+      "gateExit": 0,
+      "logSha256": "e0461f9547455df21fada3c8782d2b098794019f9e67341f308ce917541e0d63"
+    },
+    {
+      "id": "x64-gl-feedback",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "sha256": "2d3e3c53a3918479fe5897b9d51cf4e8b4938c499799644c295bde498b56ed36",
+      "gateExit": 0,
+      "logSha256": "2fc1238740d5ab840bf0fd4183824e29f3c75753856d2b36e63b93ddb767a62c"
+    },
+    {
+      "id": "x64-gl-integer",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "sha256": "8447ae56cb1a7ad4c507deb4bc7dc4258ce6de16fbcb47b500cbe0c2437b7634",
+      "gateExit": 0,
+      "logSha256": "16ca2134e7d32a5be941d873f172e8f36b0655c3a162c83f1d6bf80b38fcdbde"
+    },
+    {
+      "id": "x64-gl-integer",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "sha256": "5576d5c8dd0660de121c115fb4d67a0ca360e748b9882111eeb4b1953fc15b38",
+      "gateExit": 0,
+      "logSha256": "57fb2fd491061c3f42b5dd7b6fa7d939f624238c78904b3a99ae7cfc16ee1366"
+    },
+    {
+      "id": "x64-gl-ranges",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "sha256": "882f51208a5f8d5f4fbd2921ccbbf4479ab7df20b77f886bad367bd1dd17ac6e",
+      "gateExit": 0,
+      "logSha256": "fb4238f3185acb1881c6510f51cca462b0f8b92136e26c760e50b74791dcd7c1"
+    },
+    {
+      "id": "x64-gl-ranges",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "sha256": "f0da0beb2bae8be6f4ac97544b59cb8ed69140565a0d0e53fc1d22812cc81f54",
+      "gateExit": 0,
+      "logSha256": "5fb19ad09794a9d89750e65eddc9184015a498247c8efd8ed16e72cbdfa31126"
+    },
+    {
+      "id": "x64-gl-scale",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "sha256": "516f3cf62f7c4695cbc797904362535b1606563e5327c337639d7f105a3c9a43",
+      "gateExit": 0,
+      "logSha256": "44fa3586a2c6205f6ee9d6d7fbc88ad842cbeba70ac62099456745e758863e69"
+    },
+    {
+      "id": "x64-gl-scale",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "sha256": "2820b8b9bdca902bdf68d7ed07d38f85e9ba8f67b7655392f104d1ed30606778",
+      "gateExit": 0,
+      "logSha256": "b3e023ccf91c2314f4726312f236c98ada2a9046664be093797570b95c305b07"
+    },
+    {
+      "id": "x64-glsl",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "sha256": "7321d8f169b0c90364c9de256494716a7f57927834e204c343ce9e660118d40a",
+      "gateExit": 0,
+      "logSha256": "9663d5c7f90997ae1242c68440a2679222014946ed786bd9855945f6d0281d63"
+    },
+    {
+      "id": "x64-glsl",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "sha256": "8bedf72ef9ef84ea467bab52d4f348a8031a391655cf2fee1cb579ed9541da45",
+      "gateExit": 0,
+      "logSha256": "2ef144c3bbda22e427cf098486126060a27086085d5eb2eb6c9255d6004c290b"
+    },
+    {
+      "id": "x64-gui",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "sha256": "22bb1e5800fa097da1897e2dcacb826e9b031c95ab2edacb43b69594fc7bc084",
+      "gateExit": 0,
+      "logSha256": "9046540d7a73a445e04fef96549f796f39d2e32b31f13e993d5e0b233a69c785"
+    },
+    {
+      "id": "x64-gui",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "sha256": "90da84614d1875ee462843fa22fce522d0dc4be625d03fe6151347b42f824a6b",
+      "gateExit": 0,
+      "logSha256": "e23d6ab333bf09ab453ca7568b9f0fd5fd644ab71b38aeb6bbc58183b3a7f630"
+    },
+    {
+      "id": "x64-handles",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "sha256": "d8e172ba7dda2c9f24147dded74823d8a837a6a6e5ec90964220595d25129299",
+      "gateExit": 0,
+      "logSha256": "3f4fa7d6ea280d6820250f3a37dcbaa5030f54c960d025b911c2d24d19f8320b"
+    },
+    {
+      "id": "x64-handles",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "sha256": "d3e5b76012a9d275a82aaba998d4665eafd5fbcfc130bdf683804070f2ceec1d",
+      "gateExit": 0,
+      "logSha256": "4eff9542494699fede3b8a0fec4641f30bf66a5d347533b4671d36ea10be3a99"
+    },
+    {
+      "id": "x64-heap",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "sha256": "d218558d676d3445e9a2273a2142ab0b4b7416e8ec87b9cfa00a3e7130a9e344",
+      "gateExit": 0,
+      "logSha256": "74c85f6fac88b5940bc6eaf77c9e23f79835b44d5fb17c0d2fef06738d595cb2"
+    },
+    {
+      "id": "x64-heap",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "sha256": "b7b91a8b9da4f30577a765ca63332924c8823a16e1715f6060571864d368f5ac",
+      "gateExit": 0,
+      "logSha256": "0a8f1efc0a5f0ed7ee06257a4e7c8d6cf776a5b45519070037c39a293d043376"
+    },
+    {
+      "id": "x64-imports",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "sha256": "a3b3a7c0c03ecb5b793596db731c17c7d94022f03ddb8fdf22d2c87db5dac68b",
+      "gateExit": 0,
+      "logSha256": "9f203be855f80c9b351eec8ec1c1d6cf65bd1610c6f6f3af150e15f89d2ae2a5"
+    },
+    {
+      "id": "x64-imports",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "sha256": "6b8122c6368a4aec916e382f966bd7c7301033195d5f58a68c946108fbdcc708",
+      "gateExit": 0,
+      "logSha256": "dfb4c10ce7ef995d5c00d467634a08dd6e2a202778f5715fda8e65fa26ff6da7"
+    },
+    {
+      "id": "x64-input",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "sha256": "eff25c4017bf378a6bbf4322bea4c3010bee9703afb3a2ca4be772c0bb302e2e",
+      "gateExit": 0,
+      "logSha256": "f53873ddf43733f2f8326390d17311a3b0ab559cb820f9397a89f886deffc1fe"
+    },
+    {
+      "id": "x64-input",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "sha256": "5320ae2bbf74310118cb65455f19b7ad995db0f40a7e2cbd66644175a04f1f1e",
+      "gateExit": 0,
+      "logSha256": "85bbe7da0034db86eabcf95c85ca10ac15c5505913995fc578762e821885208d"
+    },
+    {
+      "id": "x64-memory",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "sha256": "fc525fb0b2678f696a912f40b938321870705c2708c5e85c6be172ec23c7f43b",
+      "gateExit": 0,
+      "logSha256": "6e1a118a0ccce2a638323dbbdf76ea27b9527d705a6c58d524bbbd050a31e205"
+    },
+    {
+      "id": "x64-memory",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "sha256": "7803544e31b0e1af25b00ce900b7e8314659e51d23104d80e51658def4be754c",
+      "gateExit": 0,
+      "logSha256": "132d3f11c190b8bf4ebcc8f748e5e583c2813841b6ffba4c3f9258dad1ca72e3"
+    },
+    {
+      "id": "x64-scale",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "sha256": "c65a430c82bf18626cd25db810a1218ff2157edd303cb6251433f75dd91a0849",
+      "gateExit": 0,
+      "logSha256": "d19b7c352ed26cb6905fc5717eb96e9e1dc874df19a3e2b1b9892aa9a20c434c"
+    },
+    {
+      "id": "x64-scale",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "sha256": "29b271d885c84a8ed5d070a162db9d78109c516cc1e61d200154e53d4bb580a0",
+      "gateExit": 0,
+      "logSha256": "60cc87cfdffadfa06fd209f289e3eb2c3b18ef0fa02a7e1de4ed6b3736bcd666"
+    },
+    {
+      "id": "x64-smoke",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "sha256": "be1f5b2168de2e7b563ae8f631c5522135cfbf2bc9fb39bb44c39b6b8e20e54f",
+      "gateExit": 0,
+      "logSha256": "015b30ecae0e59852812dc92e5966e766ec0681e9d894a8f5050a0eeeb0d3514"
+    },
+    {
+      "id": "x64-smoke",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "sha256": "de1f044bd39c53d95b223114d8e4dc616bdc9493465a59084d0a8b65c0b3c08a",
+      "gateExit": 0,
+      "logSha256": "9f52f14a10511deb78feb6a6bc35c59b28db33f7bbfe6ffb0d6d860b72867ffc"
+    },
+    {
+      "id": "x64-sysdlls",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "sha256": "f84361b0b9c7c9b38f25755941f713baae7933d65f34fcafdb05a671ebd8e3f7",
+      "gateExit": 0,
+      "logSha256": "b129bcb8d570acce8e29a41a65d8cffa311f23630a22faee9222ea23603f3237"
+    },
+    {
+      "id": "x64-sysdlls",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "sha256": "da26b491fbf20191c091cf154d308b1b6d926e3d97945393fa35ec646784bde2",
+      "gateExit": 0,
+      "logSha256": "bd3a69857766f950d261001fa6b20a1a684ba4c2162a54a40589a5918073b825"
+    },
+    {
+      "id": "x64-threads",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "sha256": "4495657e5c6dec07594f86d4925d90e79b41c2a0a37981945411893472c0e799",
+      "gateExit": 0,
+      "logSha256": "6c41a28508f14e4e0a85fa009bfffa1b03085921910b7618149668ba921534e9"
+    },
+    {
+      "id": "x64-threads",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "sha256": "f55030807bfa5d154e7dd8d59d674f90f4999a7002d07b5e5538e848fb74040d",
+      "gateExit": 0,
+      "logSha256": "3d4ad640ff2761450d49943b063a229afc80d6f8d39c74f09db2bc68e790a150"
+    },
+    {
+      "id": "x64-tls",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "sha256": "07547132f1afe3ab173e2c9df19ad91dabe2ea86507f0a04ba8dd62ccd75140f",
+      "gateExit": 0,
+      "logSha256": "b64e3606bd79f7eda8dacf44b7900e0e3f9e2a91de76bcf336b667e91d5cae82"
+    },
+    {
+      "id": "x64-tls",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "sha256": "be86074dabd13acafb6793b650e754ba3ece7994684d0438e758b37935a93f6b",
+      "gateExit": 0,
+      "logSha256": "a680aa3235989e468c06a8cfb1f6c4770c6cf635c3306f0d85c3df163988ea07"
+    },
+    {
+      "id": "x86-handles",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "sha256": "d1ef354cc1afd73d6521e9724ef0bfdefb4de57a94cb9671eb29dcf336f44f5e",
+      "gateExit": 0,
+      "logSha256": "128eca7eeaecf5ff8e34b102250379ef504240dad6c8d9dd04f4d13fe5814c93"
+    },
+    {
+      "id": "x86-handles",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "sha256": "c316674589b65007d4eeae061d1f18e27914483b0abd29ebbbd7482ea4496418",
+      "gateExit": 0,
+      "logSha256": "9d507518e85ce20c3ef7dd0ae93c683bc348e67a42a6e53e8b9d0baf4c4814f4"
+    },
+    {
+      "id": "x86-heap",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "sha256": "eb856cd6a55c0c5979aa89d4b7adb8a059723e15169b4f25a79a5fff46cd461f",
+      "gateExit": 0,
+      "logSha256": "eb74a1299a524cb69dc33e575aee383da5948b2abcb1ac606f36503348f79211"
+    },
+    {
+      "id": "x86-heap",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "sha256": "18e6f937843441050026ff2b18358b566b97d56865747dac411c39e281628668",
+      "gateExit": 0,
+      "logSha256": "1f8f5bb2d82b04c9461c66df56d95192ec0b43d101a5e652387aa7c25c0e8186"
+    },
+    {
+      "id": "x86-threads",
+      "mode": "asyncify",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "sha256": "bee638702345d8f5071baf9da1772d95dd02f74558ea2700413c015276c4c7be",
+      "gateExit": 0,
+      "logSha256": "9b2c465672a3d8f137c3142e201dedce02460d0485627bca75215acf9b619bd1"
+    },
+    {
+      "id": "x86-threads",
+      "mode": "jspi",
+      "requestedFrames": 300,
+      "comparedFrames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "sha256": "6fc156d811f7148af6537de106b0e86a25f1af3887e005d982f899fd4c410569",
+      "gateExit": 0,
+      "logSha256": "335fc25400fce2624237c96e9602c3b83ccad8187fa9754b67a9981c18312191"
+    }
+  ],
+  "unitRecovery": {
+    "originalFull": {
+      "passed": 2368,
+      "failed": 1,
+      "files": 139,
+      "exit": 1,
+      "sha256": "c08e332091bede54abca0b1adc70b3f3f2f20d27d1f8c5c9a4ec71e5ea72ec04"
+    },
+    "repair": "beb1b4f",
+    "repairedFileRuns": [
+      {
+        "exit": 0,
+        "sha256": "5526e3e5eeca14f7651987c74fe7eea72640d24ded8ef562ee7e9e6450ed3e97"
+      },
+      {
+        "exit": 0,
+        "sha256": "c85f7e911197934fa9fcd3ce14abe6a64d74c9aa833181bac0f7e5755b0a010a"
+      }
+    ],
+    "acceptance": "Reviewer accepted combined full2368 passes plus repaired test passing twice; integration reruns full units. Not uninterrupted full green."
+  },
+  "independentReview": {
+    "verdict": "PASS K34 regression scope",
+    "head": "9500bc0",
+    "summary": {
+      "scope": {
+        "base": "9f157b1",
+        "head": "9500bc0",
+        "production": "4061c0d",
+        "acceptance": "K34 interpreter-equivalence/no regressions; baseline architecture defects separately reported, per reviewer clarification"
+      },
+      "results": {
+        "codegen": 176,
+        "retirementAndHeaderCache": 8,
+        "randomEdgeRegisterCases": 692544,
+        "faultMatrixCases": 22592,
+        "additionalAccountingAndParkingTests": 3,
+        "baselineDefectProbes": 2,
+        "oracles": {
+          "freshBuilds": 2,
+          "modes": [
+            "asyncify",
+            "jspi"
+          ],
+          "frames": 300,
+          "identical": true,
+          "hash": "8eb8fd18",
+          "trace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+        },
+        "freshArtifactsByteIdenticalToRetained": true
+      },
+      "performance": {
+        "fresh": [
+          {
+            "mode": "asyncify",
+            "medians": [
+              37.39908300000002,
+              18.790583999999967
+            ],
+            "delta": -18.886167000000114,
+            "orders": [
+              {
+                "baselineFirst": true,
+                "delta": -17.260375000000067
+              },
+              {
+                "baselineFirst": false,
+                "delta": -18.966666000000032
+              }
+            ]
+          },
+          {
+            "mode": "jspi",
+            "medians": [
+              34.78358400000002,
+              16.765707999999904
+            ],
+            "delta": -17.972125000000005,
+            "orders": [
+              {
+                "baselineFirst": true,
+                "delta": -18.06558400000017
+              },
+              {
+                "baselineFirst": false,
+                "delta": -17.937500999999884
+              }
+            ]
+          }
+        ],
+        "perItem": [
+          {
+            "mode": "asyncify",
+            "medians": [
+              37.226208999999926,
+              24.666957999999795,
+              22.971082999999908,
+              19.181249999999864
+            ],
+            "incremental": [
+              -12.420875999999907,
+              -1.875,
+              -3.848333000000366
+            ]
+          },
+          {
+            "mode": "jspi",
+            "medians": [
+              34.88266599999997,
+              22.75887499999999,
+              20.16625000000022,
+              16.76445799999965
+            ],
+            "incremental": [
+              -12.174665999999888,
+              -2.592624999999771,
+              -3.470625000000382
+            ]
+          }
+        ]
+      },
+      "infrastructureNotes": [
+        "Original node_modules symlink was read-only from sandbox; all execution moved to a source archive with private dependency copy under scratch.",
+        "Initial reviewer RAM deep-equality matrix exceeded a 20-minute timeout; complete exact Buffer byte-equality rerun passed without dropping any cases.",
+        "First paired invocations had shell JSON quoting errors before any measurements; corrected shell runner produced paired2/fresh-paired2 passing results."
+      ],
+      "fullSuitesRun": false,
+      "trackedFilesEdited": false
+    },
+    "files": {
+      "review-notes.md": "c7456764ddab09d25dfeb773844f1b46e60a27c417745835f9463aa5cde4a485",
+      "review-summary.json": "84f8d1ec5798f2bc9e6db5960cc6a294cf120e7ca12ec727960a549347417756",
+      "final-result.txt": "c34f301752ffbf020a2b632953fcea75891ac5ea717fd8e51a2c35bf3912a93f"
+    }
+  },
+  "initialSource": "9500bc07fe6ab0ed8841cf0b0b57e89081d281b9",
+  "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "tier1Boundary": {
+    "completedAfterInitialFailure": true,
+    "initialRunnerExit": 1,
+    "remainingRunnerExit": 0,
+    "initialUnitExit": 1,
+    "remainingSourceDiff": "empty for platforms/tools/tests",
+    "port": 5279,
+    "buildJobs": 2,
+    "suspensionBuild": "dual",
+    "requiredWebGPU": true,
+    "actualNodeJSPI": true,
+    "lightExclusions": false,
+    "oracleCount": 68,
+    "oracleFrames": 300,
+    "oracleIds": 34,
+    "allOracleExit0": true,
+    "timingAudit": "all interpreter measured-exclusive totals equal summaries and fit update wall; no rows exceed wall"
+  },
+  "gateExitMarkers": {
+    "oracle-asyncify-x64-cpprt": 0,
+    "oracle-asyncify-x86-handles": 0,
+    "oracle-jspi-x64-basics": 0,
+    "oracle-asyncify-x64-gl-scale": 0,
+    "leakcheck": 0,
+    "oracle-jspi-x64-cpprt": 0,
+    "oracle-asyncify-x64-input": 0,
+    "oracle-asyncify-x64-contracts": 0,
+    "oracle-asyncify-x64-threads": 0,
+    "oracle-asyncify-win32-hello": 0,
+    "oracle-jspi-x64-input": 0,
+    "oracle-asyncify-win32-conformance": 0,
+    "oracle-jspi-win32-hello": 0,
+    "oracle-jspi-x64-threads": 0,
+    "oracle-asyncify-x64-gl-ranges": 0,
+    "oracle-asyncify-x64-glsl": 0,
+    "oracle-jspi-x64-heap": 0,
+    "oracle-asyncify-x86-heap": 0,
+    "oracle-jspi-x86-handles": 0,
+    "oracle-jspi-x64-crt": 0,
+    "oracle-asyncify-x64-gl-current": 0,
+    "oracle-asyncify-x64-basics": 0,
+    "oracle-jspi-x64-gl-default-vao": 0,
+    "units": 1,
+    "oracle-jspi-x86-heap": 0,
+    "oracle-asyncify-x64-cpp": 0,
+    "oracle-jspi-x64-gl-feedback": 0,
+    "oracle-asyncify-x64-gl-feedback": 0,
+    "oracle-jspi-x64-gl-blit": 0,
+    "oracle-asyncify-x64-heap": 0,
+    "oracle-jspi-x64-glsl": 0,
+    "oracle-jspi-x64-gl-fbo": 0,
+    "oracle-asyncify-x64-scale": 0,
+    "oracle-asyncify-x64-gui": 0,
+    "oracle-jspi-x64-audio-init": 0,
+    "oracle-jspi-x64-gl-scale": 0,
+    "lint-clang": 0,
+    "oracle-jspi-x64-scale": 0,
+    "explicit-scale-check": 0,
+    "oracle-asyncify-x64-gl-fbo": 0,
+    "oracle-asyncify-x64-tls": 0,
+    "explicit-clang": 0,
+    "oracle-asyncify-x64-gl-integer": 0,
+    "oracle-asyncify-x64-gl-default-vao": 0,
+    "oracle-asyncify-x64-gl-blit": 0,
+    "lint-gcc": 0,
+    "oracle-asyncify-x86-threads": 0,
+    "oracle-jspi-x64-gl-current": 0,
+    "oracle-asyncify-x64-audio": 0,
+    "oracle-asyncify-x64-handles": 0,
+    "oracle-jspi-x64-sysdlls": 0,
+    "oracle-jspi-x64-smoke": 0,
+    "oracle-jspi-x64-imports": 0,
+    "oracle-jspi-x64-audio": 0,
+    "oracle-jspi-x64-tls": 0,
+    "oracle-asyncify-x64-smoke": 0,
+    "oracle-asyncify-x64-imports": 0,
+    "oracle-jspi-x64-gui": 0,
+    "oracle-asyncify-x64-sysdlls": 0,
+    "doctor": 0,
+    "oracle-jspi-x64-handles": 0,
+    "oracle-jspi-x64-cpp": 0,
+    "oracle-jspi-x86-threads": 0,
+    "oracle-asyncify-x64-memory": 0,
+    "oracle-jspi-x64-contracts": 0,
+    "oracle-jspi-win32-conformance": 0,
+    "oracle-asyncify-x64-crt": 0,
+    "oracle-jspi-x64-gl-integer": 0,
+    "diffcheck": 0,
+    "typecheck": 0,
+    "oracle-asyncify-x64-audio-init": 0,
+    "oracle-asyncify-x64-gl-capacity": 0,
+    "oracle-jspi-x64-gl": 0,
+    "e2e-jspi": 0,
+    "oracle-jspi-x64-gl-capacity": 0,
+    "oracle-jspi-x64-memory": 0,
+    "oracle-asyncify-x64-gl": 0,
+    "oracle-jspi-x64-gl-ranges": 0,
+    "e2e-asyncify": 0
+  },
+  "browserInventory": [
+    [
+      "audio-input.spec.ts",
+      "WASAPI tone reaches browser stereo audio after a real gesture",
+      "chromium-webgl2"
+    ],
+    [
+      "audio-input.spec.ts",
+      "WASAPI tone reaches browser stereo audio after a real gesture",
+      "chromium-webgpu"
+    ],
+    [
+      "audio-input.spec.ts",
+      "XInput + Raw Input: state and pixels change on gamepad, keyboard, mouse, then release",
+      "chromium-webgl2"
+    ],
+    [
+      "audio-input.spec.ts",
+      "XInput + Raw Input: state and pixels change on gamepad, keyboard, mouse, then release",
+      "chromium-webgpu"
+    ],
+    [
+      "boot.spec.ts",
+      "sample boots to its title screen with no errors",
+      "chromium-auto"
+    ],
+    [
+      "boot.spec.ts",
+      "sample boots to its title screen with no errors",
+      "chromium-webgl2"
+    ],
+    [
+      "boot.spec.ts",
+      "sample boots to its title screen with no errors",
+      "chromium-webgpu"
+    ],
+    [
+      "chrome-styles.spec.ts",
+      "resource separator flags/height and dialog caption style buttons are rendered and close through input",
+      "chromium-webgl2"
+    ],
+    [
+      "chrome-styles.spec.ts",
+      "resource separator flags/height and dialog caption style buttons are rendered and close through input",
+      "chromium-webgpu"
+    ],
+    [
+      "contracts.spec.ts",
+      "normal Win64 startup and DLL/FILE contracts produce known results on the browser runtime",
+      "chromium-webgl2"
+    ],
+    [
+      "contracts.spec.ts",
+      "normal Win64 startup and DLL/FILE contracts produce known results on the browser runtime",
+      "chromium-webgpu"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-cpprt: normal CRT checksums match native source in the browser",
+      "chromium-webgl2"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-cpprt: normal CRT checksums match native source in the browser",
+      "chromium-webgpu"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-crt: normal CRT checksums match native source in the browser",
+      "chromium-webgl2"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-crt: normal CRT checksums match native source in the browser",
+      "chromium-webgpu"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-memory: normal CRT checksums match native source in the browser",
+      "chromium-webgl2"
+    ],
+    [
+      "crt.spec.ts",
+      "x64-memory: normal CRT checksums match native source in the browser",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "auto selection picks WebGPU when available, otherwise WebGL 2, and reports why",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "auto selection picks WebGPU when available, otherwise WebGL 2, and reports why",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "auto selection picks WebGPU when available, otherwise WebGL 2, and reports why",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "intentional WebGPU failure falls back to WebGL 2 and still plays",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "intentional WebGPU failure falls back to WebGL 2 and still plays",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "intentional WebGPU failure falls back to WebGL 2 and still plays",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "missing game shows an accessible error, not a blank page",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "missing game shows an accessible error, not a blank page",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "missing game shows an accessible error, not a blank page",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "no usable graphics backend shows an accessible error",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "no usable graphics backend shows an accessible error",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "no usable graphics backend shows an accessible error",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (device): auto falls back before guest startup and still renders",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (device): auto falls back before guest startup and still renders",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (device): auto falls back before guest startup and still renders",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (lost): auto falls back before guest startup and still renders",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (lost): auto falls back before guest startup and still renders",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (lost): auto falls back before guest startup and still renders",
+      "chromium-webgpu"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (submission): auto falls back before guest startup and still renders",
+      "chromium-auto"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (submission): auto falls back before guest startup and still renders",
+      "chromium-webgl2"
+    ],
+    [
+      "fallback.spec.ts",
+      "present-but-broken WebGPU (submission): auto falls back before guest startup and still renders",
+      "chromium-webgpu"
+    ],
+    [
+      "files.spec.ts",
+      "streamed executable self-open and large sparse ranges seek/read/EOF without preloading file contents",
+      "chromium-webgl2"
+    ],
+    [
+      "files.spec.ts",
+      "streamed executable self-open and large sparse ranges seek/read/EOF without preloading file contents",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "L3: a full authentic loop \u2014 start, collect all coins, win, return to title",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "L3: a full authentic loop \u2014 start, collect all coins, win, return to title",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "audio unlocks on a user gesture and gameplay pushes samples",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "audio unlocks on a user gesture and gameplay pushes samples",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "losing all lives reaches game over, then restarts",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "losing all lives reaches game over, then restarts",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "real keyboard events drive the game while running free",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "real keyboard events drive the game while running free",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "scripted input moves the player (state and pixels)",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "scripted input moves the player (state and pixels)",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "simulation is deterministic and matches the headless Node host",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "simulation is deterministic and matches the headless Node host",
+      "chromium-webgpu"
+    ],
+    [
+      "gameplay.spec.ts",
+      "touch overlay buttons and canvas taps provide input",
+      "chromium-webgl2"
+    ],
+    [
+      "gameplay.spec.ts",
+      "touch overlay buttons and canvas taps provide input",
+      "chromium-webgpu"
+    ],
+    [
+      "gl-materialization-failure.spec.ts",
+      "partial two-block materialization retires generated private UBOs after upload/wire limits and recovery succeeds",
+      "chromium-webgl2"
+    ],
+    [
+      "gl-materialization-failure.spec.ts",
+      "partial two-block materialization retires generated private UBOs after upload/wire limits and recovery succeeds",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-buffer-copy.spec.ts",
+      "GPU byte copies preserve all surrounding bytes for every alignment and same-buffer nonoverlap",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-buffer-copy.spec.ts",
+      "GPU byte copies preserve all surrounding bytes for every alignment and same-buffer nonoverlap",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-buffer-handles.spec.ts",
+      "12,000 full-u32 native buffer IDs, all-byte copy/readback and three churn generations",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-buffer-handles.spec.ts",
+      "12,000 full-u32 native buffer IDs, all-byte copy/readback and three churn generations",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 0..47",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 0..47",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 144..191",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 144..191",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 192..239",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 192..239",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 240..287",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 240..287",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 288..312",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 288..312",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 48..95",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 48..95",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 96..143",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL builtins known-answer pixels 96..143",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL texture offsets require constant expressions",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "GLSL texture offsets require constant expressions",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "WebGL depth32f linear filtering is counted nearest approximation",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-builtins.spec.ts",
+      "WebGL depth32f linear filtering is counted nearest approximation",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 0: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 0: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 0: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 1: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 1: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 1: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 2: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 2: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 2: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 3: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 3: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 3: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 4: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 4: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 4: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 5: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 5: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 5: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 6: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 6: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 6: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 7: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 7: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 7: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 8: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 8: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 8: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 9: backend execution and readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 9: backend execution and readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-cross-backend.spec.ts",
+      "GPU shared scene 9: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-depth.spec.ts",
+      "GPU depth: ordered uploads, partial updates, sampling and post-render readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-depth.spec.ts",
+      "GPU depth: ordered uploads, partial updates, sampling and post-render readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-feedback.spec.ts",
+      "GPU feedback preserves integer, aggregate, lazy and copy-out expressions",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-feedback.spec.ts",
+      "GPU feedback preserves integer, aggregate, lazy and copy-out expressions",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-feedback.spec.ts",
+      "GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded dispatch and loss contract",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-feedback.spec.ts",
+      "GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded dispatch and loss contract",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-glsl.spec.ts",
+      "GLSL contracts: typed selector and construct known-answer pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-glsl.spec.ts",
+      "GLSL contracts: typed selector and construct known-answer pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-opaque.spec.ts",
+      "only selected sampler overloads contribute profile bindings and native pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-opaque.spec.ts",
+      "only selected sampler overloads contribute profile bindings and native pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-opaque.spec.ts",
+      "opaque sampler helpers: direct and GL canonical known-answer pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-opaque.spec.ts",
+      "opaque sampler helpers: direct and GL canonical known-answer pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-outputs.spec.ts",
+      "GPU sparse fragment outputs preserve unwritten MRT attachments and masks in both GLSL languages",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-outputs.spec.ts",
+      "GPU sparse fragment outputs preserve unwritten MRT attachments and masks in both GLSL languages",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-pipeline-lifetime.spec.ts",
+      "failed native pipelines reject feedback, binds and draws without stale executable reuse",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-pipeline-lifetime.spec.ts",
+      "failed native pipelines reject feedback, binds and draws without stale executable reuse",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-presentation.spec.ts",
+      "GPU presentation: empty paused captures retain the final mixed 2D/GPU/2D image",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-presentation.spec.ts",
+      "GPU presentation: empty paused captures retain the final mixed 2D/GPU/2D image",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-review.spec.ts",
+      "vK17a local-const- known-answer pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-review.spec.ts",
+      "vK17a local-const- known-answer pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-review.spec.ts",
+      "vK17a user- known-answer pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-review.spec.ts",
+      "vK17a user- known-answer pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-texture-extensions.spec.ts",
+      "\u00a713.7 recovery preserves explicit mip levels and post-generation partial/base uploads",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-texture-extensions.spec.ts",
+      "\u00a713.7 recovery preserves explicit mip levels and post-generation partial/base uploads",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-vertex-components.spec.ts",
+      "vertex fetch fills and truncates components like native GL, including feedback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-vertex-components.spec.ts",
+      "vertex fetch fills and truncates components like native GL, including feedback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-vertex-wgsl.spec.ts",
+      "native WGSL vertex fetch uses the same class-preserving component fill @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-capability.spec.ts",
+      "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: nonzero first instance render through the native C fixture",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: nonzero first instance render through the native C fixture",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2-contract.spec.ts",
+      "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: native C submits and executes every section 13 opcode",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: native C submits and executes every section 13 opcode",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 0 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 0 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 1 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 1 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 2 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 2 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 3 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 3 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 4 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 4 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 6 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 6 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 7 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 7 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 8 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 8 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 9 resources survive browser context loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU WebGL2: scene 9 resources survive browser context loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: 1,000 instance-buffer sprites including final instance",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: 1,000 instance-buffer sprites including final instance",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: GLSLES300 portable fragment positions are top-left",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: GLSLES300 portable fragment positions are top-left",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: alpha textured quad uses uploaded mip one",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: alpha textured quad uses uploaded mip one",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: indexed RGB triangle, GLSL330 and ordered ABI readback",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: indexed RGB triangle, GLSL330 and ordered ABI readback",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: legacy 2D, GPU load/viewport, then legacy 2D share one screen",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: legacy 2D, GPU load/viewport, then legacy 2D share one screen",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: near red wins depth only inside stencil mask",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: near red wins depth only inside stencil mask",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: std140 uniform buffer animation changes pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: std140 uniform buffer animation changes pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: two rendered color attachments are sampled together",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgl2.spec.ts",
+      "GPU shared: two rendered color attachments are sampled together",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu-conformance.spec.ts",
+      "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: 1000 instanced sprites",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: 1000 instanced sprites",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: 2D GPU interleaving",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: 2D GPU interleaving",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: depth and stencil",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: depth and stencil",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: indexed coloured triangle",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: indexed coloured triangle",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: mipmapped alpha quad",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: mipmapped alpha quad",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: two colour attachments",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: two colour attachments",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: uniform animation",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 native: uniform animation",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+      "chromium-webgpu"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+      "chromium-webgl2"
+    ],
+    [
+      "gpu-webgpu.spec.ts",
+      "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+      "chromium-webgpu"
+    ],
+    [
+      "handles.spec.ts",
+      "x64-handles: pseudo conversion, owned aliases and mixed waits complete",
+      "chromium-webgl2"
+    ],
+    [
+      "handles.spec.ts",
+      "x64-handles: pseudo conversion, owned aliases and mixed waits complete",
+      "chromium-webgpu"
+    ],
+    [
+      "handles.spec.ts",
+      "x86-handles: pseudo conversion, owned aliases and mixed waits complete",
+      "chromium-webgl2"
+    ],
+    [
+      "handles.spec.ts",
+      "x86-handles: pseudo conversion, owned aliases and mixed waits complete",
+      "chromium-webgpu"
+    ],
+    [
+      "heap.spec.ts",
+      "x64-heap: allocator contracts preserve contents, ownership and flags",
+      "chromium-webgl2"
+    ],
+    [
+      "heap.spec.ts",
+      "x64-heap: allocator contracts preserve contents, ownership and flags",
+      "chromium-webgpu"
+    ],
+    [
+      "heap.spec.ts",
+      "x86-heap: allocator contracts preserve contents, ownership and flags",
+      "chromium-webgl2"
+    ],
+    [
+      "heap.spec.ts",
+      "x86-heap: allocator contracts preserve contents, ownership and flags",
+      "chromium-webgpu"
+    ],
+    [
+      "jspi.spec.ts",
+      "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+      "chromium-webgl2"
+    ],
+    [
+      "jspi.spec.ts",
+      "JSPI parks a deep C shadow stack for 300 render/update boundaries",
+      "chromium-webgpu"
+    ],
+    [
+      "jspi.spec.ts",
+      "JSPI-only loader runs its oracle and diagnoses missing API/fallback",
+      "chromium-webgl2"
+    ],
+    [
+      "jspi.spec.ts",
+      "JSPI-only loader runs its oracle and diagnoses missing API/fallback",
+      "chromium-webgpu"
+    ],
+    [
+      "jspi.spec.ts",
+      "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+      "chromium-webgl2"
+    ],
+    [
+      "jspi.spec.ts",
+      "dual loader defaults/fallback/opt-in have identical 300-frame runtime traces",
+      "chromium-webgpu"
+    ],
+    [
+      "jspi.spec.ts",
+      "per-game JSPI preference selects real JSPI and reports it, with unsupported fallback",
+      "chromium-webgl2"
+    ],
+    [
+      "jspi.spec.ts",
+      "per-game JSPI preference selects real JSPI and reports it, with unsupported fallback",
+      "chromium-webgpu"
+    ],
+    [
+      "phase0.spec.ts",
+      "Phase 0: MessageBox icons/default button and ShellAboutW are modal and dismissible",
+      "chromium-webgl2"
+    ],
+    [
+      "phase0.spec.ts",
+      "Phase 0: MessageBox icons/default button and ShellAboutW are modal and dismissible",
+      "chromium-webgpu"
+    ],
+    [
+      "phase0.spec.ts",
+      "Phase 0: virtual waits, shared font metrics, multi-rect parent clipping, prefixes and styled controls",
+      "chromium-webgl2"
+    ],
+    [
+      "phase0.spec.ts",
+      "Phase 0: virtual waits, shared font metrics, multi-rect parent clipping, prefixes and styled controls",
+      "chromium-webgpu"
+    ],
+    [
+      "readback.spec.ts",
+      "ABI v0.3: batched target/screen readbacks retain command order and complete after yield",
+      "chromium-webgl2"
+    ],
+    [
+      "readback.spec.ts",
+      "ABI v0.3: batched target/screen readbacks retain command order and complete after yield",
+      "chromium-webgpu"
+    ],
+    [
+      "recording-variants.spec.ts",
+      "startup recorder preserves every frame across Asyncify and JSPI loader variants",
+      "chromium-webgl2"
+    ],
+    [
+      "recording-variants.spec.ts",
+      "startup recorder preserves every frame across Asyncify and JSPI loader variants",
+      "chromium-webgpu"
+    ],
+    [
+      "renderer-float-boundary.spec.ts",
+      "native float16 conversion boundary retains exact RGBA8 integer and depth controls @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "renderer-frame-replay.spec.ts",
+      "opaque screen boundaries preserve offscreen alpha and destination-alpha blending @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "renderer-frame-replay.spec.ts",
+      "standalone multipass recording preserves float blending, native blits and handle generations @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "renderer-legacy-alpha.spec.ts",
+      "legacy draws preserve opaque physical and logical screens, not offscreen alpha",
+      "chromium-webgl2"
+    ],
+    [
+      "renderer-legacy-alpha.spec.ts",
+      "legacy draws preserve opaque physical and logical screens, not offscreen alpha",
+      "chromium-webgpu"
+    ],
+    [
+      "renderer-scale.spec.ts",
+      "nearest scale preserves exact small controls and pins native adjacent-texel boundary @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "GPU device/context loss is recovered and textures are restored",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "GPU device/context loss is recovered and textures are restored",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "high-DPR display uses a device-pixel backing store",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "high-DPR display uses a device-pixel backing store",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "malformed command streams are rejected with explicit errors and the game keeps running",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "malformed command streams are rejected with explicit errors and the game keeps running",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "resize, orientation change and DPR keep the game correctly letterboxed",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "resize, orientation change and DPR keep the game correctly letterboxed",
+      "chromium-webgpu"
+    ],
+    [
+      "robustness.spec.ts",
+      "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+      "chromium-webgl2"
+    ],
+    [
+      "robustness.spec.ts",
+      "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+      "chromium-webgpu"
+    ],
+    [
+      "runtime-recording.spec.ts",
+      "capture and draw use one atomic size across ResizeObserver delivery",
+      "chromium-webgl2"
+    ],
+    [
+      "runtime-recording.spec.ts",
+      "capture and draw use one atomic size across ResizeObserver delivery",
+      "chromium-webgpu"
+    ],
+    [
+      "runtime-recording.spec.ts",
+      "documented capture command writes a complete startup-to-target recording",
+      "chromium-webgl2"
+    ],
+    [
+      "runtime-recording.spec.ts",
+      "documented capture command writes a complete startup-to-target recording",
+      "chromium-webgpu"
+    ],
+    [
+      "slice.spec.ts",
+      "an omitted streamed executable range pauses as outside-slice before any 404 or full-file fallback",
+      "chromium-webgl2"
+    ],
+    [
+      "slice.spec.ts",
+      "an omitted streamed executable range pauses as outside-slice before any 404 or full-file fallback",
+      "chromium-webgpu"
+    ],
+    [
+      "slice.spec.ts",
+      "recorded boot slice loads, then pauses visibly without a trap on an uncovered callback",
+      "chromium-webgl2"
+    ],
+    [
+      "slice.spec.ts",
+      "recorded boot slice loads, then pauses visibly without a trap on an uncovered callback",
+      "chromium-webgpu"
+    ],
+    [
+      "sysdlls.spec.ts",
+      "system DLLs: real startup contracts and DirectInput input/pixel change",
+      "chromium-webgl2"
+    ],
+    [
+      "sysdlls.spec.ts",
+      "system DLLs: real startup contracts and DirectInput input/pixel change",
+      "chromium-webgpu"
+    ],
+    [
+      "threads.spec.ts",
+      "x64-threads: worker synchronisation and private thread state complete in a real browser",
+      "chromium-webgl2"
+    ],
+    [
+      "threads.spec.ts",
+      "x64-threads: worker synchronisation and private thread state complete in a real browser",
+      "chromium-webgpu"
+    ],
+    [
+      "threads.spec.ts",
+      "x86-threads: worker synchronisation and private thread state complete in a real browser",
+      "chromium-webgl2"
+    ],
+    [
+      "threads.spec.ts",
+      "x86-threads: worker synchronisation and private thread state complete in a real browser",
+      "chromium-webgpu"
+    ],
+    [
+      "tour.spec.ts",
+      "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+      "chromium-webgl2"
+    ],
+    [
+      "tour.spec.ts",
+      "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+      "chromium-webgpu"
+    ],
+    [
+      "visual.spec.ts",
+      "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+      "chromium-webgl2"
+    ],
+    [
+      "visual.spec.ts",
+      "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+      "chromium-webgpu"
+    ],
+    [
+      "visual.spec.ts",
+      "conformance scene: every v0.1 2D operation renders correctly on this backend",
+      "chromium-webgl2"
+    ],
+    [
+      "visual.spec.ts",
+      "conformance scene: every v0.1 2D operation renders correctly on this backend",
+      "chromium-webgpu"
+    ],
+    [
+      "visual.spec.ts",
+      "visual checkpoint: title screen is stable across frames and reloads",
+      "chromium-webgl2"
+    ],
+    [
+      "visual.spec.ts",
+      "visual checkpoint: title screen is stable across frames and reloads",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken device",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken lost",
+      "chromium-webgpu"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgl2"
+    ],
+    [
+      "webgpu-availability.spec.ts",
+      "WebGPU-only availability policy: injected broken submission",
+      "chromium-webgpu"
+    ],
+    [
+      "win32-conformance.spec.ts",
+      "CPU replay of GDI ops matches GPU output for every recorded op kind; loader follows Win32",
+      "chromium-webgl2"
+    ],
+    [
+      "win32-conformance.spec.ts",
+      "CPU replay of GDI ops matches GPU output for every recorded op kind; loader follows Win32",
+      "chromium-webgpu"
+    ],
+    [
+      "win32.spec.ts",
+      "a click selects a tile (InvertRect) and the timer keeps ticking",
+      "chromium-webgl2"
+    ],
+    [
+      "win32.spec.ts",
+      "a click selects a tile (InvertRect) and the timer keeps ticking",
+      "chromium-webgpu"
+    ],
+    [
+      "win32.spec.ts",
+      "boots: lifted code creates its window, menu and paints through GDI on BGT",
+      "chromium-webgl2"
+    ],
+    [
+      "win32.spec.ts",
+      "boots: lifted code creates its window, menu and paints through GDI on BGT",
+      "chromium-webgpu"
+    ],
+    [
+      "win32.spec.ts",
+      "menu bar opens and Help > About shows a modal message box",
+      "chromium-webgl2"
+    ],
+    [
+      "win32.spec.ts",
+      "menu bar opens and Help > About shows a modal message box",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-blit.spec.ts",
+      "x64-gl-blit: cross-backend exact image @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-blit.spec.ts",
+      "x64-gl-blit: scaled/flipped/masked/default/depth/stencil transfers",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-blit.spec.ts",
+      "x64-gl-blit: scaled/flipped/masked/default/depth/stencil transfers",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-capacity.spec.ts",
+      "x64-gl-capacity: >600 live texture/buffer objects, late draws, real exhaustion",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-capacity.spec.ts",
+      "x64-gl-capacity: >600 live texture/buffer objects, late draws, real exhaustion",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-current.spec.ts",
+      "x64-gl-current: cross-backend comparison @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-current.spec.ts",
+      "x64-gl-current: current attribute and swizzle pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-current.spec.ts",
+      "x64-gl-current: current attribute and swizzle pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-default-vao.spec.ts",
+      "x64-gl-default-vao: core upload under VAO0 persists into five real indexed VAOs with exact pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-default-vao.spec.ts",
+      "x64-gl-default-vao: core upload under VAO0 persists into five real indexed VAOs with exact pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-fbo.spec.ts",
+      "x64-gl-fbo: GL contracts, completeness and pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-fbo.spec.ts",
+      "x64-gl-fbo: GL contracts, completeness and pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-fbo.spec.ts",
+      "x64-gl-fbo: cross-backend images agree @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-feedback.spec.ts",
+      "x64-gl-feedback: cross-backend pixels @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-feedback.spec.ts",
+      "x64-gl-feedback: exact captured bytes, GL errors, queries and draw from GPU output",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-feedback.spec.ts",
+      "x64-gl-feedback: exact captured bytes, GL errors, queries and draw from GPU output",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-integer.spec.ts",
+      "x64-gl-integer: Q21 cross-backend image equality @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-integer.spec.ts",
+      "x64-gl-integer: Q21 finish-line pixels and exact GL contracts",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-integer.spec.ts",
+      "x64-gl-integer: Q21 finish-line pixels and exact GL contracts",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-ranges.spec.ts",
+      "GL range and continuation cross-backend exact finish @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-ranges.spec.ts",
+      "GL sparse MRT, per-program std140 ranges, and 3000 ordered feedback draws",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-ranges.spec.ts",
+      "GL sparse MRT, per-program std140 ranges, and 3000 ordered feedback draws",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl-scale.spec.ts",
+      "12,000 live GL buffer/VAO pairs draw, churn and recover from real byte exhaustion",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl-scale.spec.ts",
+      "12,000 live GL buffer/VAO pairs draw, churn and recover from real byte exhaustion",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl.spec.ts",
+      "x64-gl: all seven real scenes have pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-gl.spec.ts",
+      "x64-gl: all seven real scenes have pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-gl.spec.ts",
+      "x64-gl: cross-backend images agree @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-glsl.spec.ts",
+      "x64-glsl: all eight shader tiles have exact pixels",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-glsl.spec.ts",
+      "x64-glsl: all eight shader tiles have exact pixels",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-glsl.spec.ts",
+      "x64-glsl: cross-backend images agree @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-scale.spec.ts",
+      "scale: 1.6M instructions execute 300 fully lifted frames with native checksum",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-scale.spec.ts",
+      "scale: 1.6M instructions execute 300 fully lifted frames with native checksum",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-smoke.spec.ts",
+      "x64-smoke: 600 GL frames, worker/file/audio threads and XInput across both renderers @webgpu",
+      "chromium-webgpu"
+    ],
+    [
+      "x64-smoke.spec.ts",
+      "x64-smoke: 600 GL frames, worker/file/audio threads and XInput on this renderer",
+      "chromium-webgl2"
+    ],
+    [
+      "x64-smoke.spec.ts",
+      "x64-smoke: 600 GL frames, worker/file/audio threads and XInput on this renderer",
+      "chromium-webgpu"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-basics: AMD64 binary executes known results fully lifted",
+      "chromium-webgl2"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-basics: AMD64 binary executes known results fully lifted",
+      "chromium-webgpu"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-cpp: AMD64 binary executes known results fully lifted",
+      "chromium-webgl2"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-cpp: AMD64 binary executes known results fully lifted",
+      "chromium-webgpu"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-gui: AMD64 binary executes known results fully lifted",
+      "chromium-webgl2"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-gui: AMD64 binary executes known results fully lifted",
+      "chromium-webgpu"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-tls: AMD64 binary executes known results fully lifted",
+      "chromium-webgl2"
+    ],
+    [
+      "x64.spec.ts",
+      "x64-tls: AMD64 binary executes known results fully lifted",
+      "chromium-webgpu"
+    ]
+  ],
+  "oracleInvariants": {
+    "requestedAndComparedFrames": 300,
+    "nullErrorsStageDivergence": true,
+    "zeroLiftedInterpretation": true,
+    "emptyStubsAndGLStubs": true,
+    "withinAndCrossModeHashesEqual": true,
+    "accountingDefaultOffUnavailable": true,
+    "actualSuspensionMatchesMode": true,
+    "measuredInterpreterTotalsFitHostUpdateWall": true
+  }
+}
