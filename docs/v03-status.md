@@ -1,6 +1,5 @@
 # v0.3 merged implementation status
 
-<<<<<<< HEAD
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
@@ -26,7 +25,6 @@ background roots exited;27 owned temporary directories removed only afterward. F
 Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
 no separate independent merged-tree PASS/CI, game or physical-device claim.
 [I13 handoff](handoff/integration-i13.md), [audited evidence](handoff/integration-i13-evidence.json).
-=======
 ## K26g exception-boundary repair — author Tier 1 green; delta review pending
 
 External vK26 FAIL on cd28ca8 found host exceptions bypassing C span cleanup (P2).
@@ -72,7 +70,6 @@ Shared-machine runtime samples are retained without claiming isolated causal ove
 changes here. **No independent K26 review or CI claimed**; external reviewer coordination remains.
 [Handoff and approved spec](handoff/K26.md), [gates](handoff/K26-gate-evidence.json),
 [timing](handoff/K26-timing-evidence.json), [size](handoff/K26-size-evidence.json).
->>>>>>> lane/K26
 
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 
