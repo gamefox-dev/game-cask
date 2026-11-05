@@ -12,7 +12,14 @@ Generated calls publish written GPRs, flags, clock/budget and reload used/writte
 
 K32-measurements.json retains every timing sample, oracle hashes/resources/counters; raw reports/logs/failures stay in scratch. ns/guest call, region ns/iteration; median5 fresh instances after1warmup,5000 iterations. Shared machine, not quiet-machine/game/isolated-wasm latency. Markers delimit assembly loops only.
 
-TABLE_PLACEHOLDER
+| Pattern | Asyncify before | Asyncify current | Actual JSPI current (no baseline) |
+|---|---:|---:|---:|
+| direct | 33.559 | 24.568 | 27.848 |
+| deep | 34.293 | 33.473 | 34.217 |
+| indirect | 46.267 | 40.233 | 41.642 |
+| tail | 64.617 | 48.075 | 130.150 |
+| regions | 6034.250 | 76.733 | 75.000 |
+
 
 No matched JSPI baseline exists: never derive JSPI speedup from Asyncify before. All five before/after300-update state and semantic hashes agree; lifted interp0/stubs0/census drops0. Final Asyncify precedes only conservative analyzer guards/table-label edits, which do not affect these fixture paths; actual JSPI is current source.
 
