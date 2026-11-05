@@ -83,12 +83,10 @@ def run(args, **kwargs):
             transported = [args[0], str(Path(__file__).with_name('node-args.mjs')), path]
         elif name in ('cc', 'c++', 'gcc', 'g++', 'clang', 'clang++', 'zig') or name.startswith(('gcc-', 'clang-')):
             prefix = 2 if name == 'zig' and len(args) > 1 and args[1] in ('cc', 'c++') else 1
-            macro = None
             # GCC/Clang/Zig use GNU quoting; JSON is NOT a response-file grammar.
             # GCC expands @files before spawning cc1, so move large macro payloads
             # into a forced include as well as using the response file.
             compiler_args, macros = compiler_macro_transport(args, prefix)
-            macro = None
             if macros:
                 macro = tempfile.NamedTemporaryFile(mode='w+', encoding='utf8')
                 macro.write('\n'.join(macros) + '\n')
