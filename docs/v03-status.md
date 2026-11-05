@@ -1,14 +1,30 @@
 # v0.3 merged implementation status
 
-## Integration I15 — K31 accounting over K32 (validation in progress)
+## Integration I15 final — K31 accounting over K32
 
-No-ff integration of lane/K31 (288f7f2) over dev.19 (958d5f0), retaining both lane records below.
-K32 fast CALLs publish architectural state before validating full-width indirect targets; exclude
-the faulting CALL from retirement **before** that publication, not only at the old flat boundary.
-The adjustment compiles away with accounting OFF. Known-count/full-state regressions cover direct
-and cross-chunk weak calls, fallback, warm indirect CALL/tail sites, chained regions, recursive gates,
-quantum/generic exits, actual Asyncify/JSPI parking and direct-call SEH unwind. Focused **36/36 PASS**;
-full integration gates and paired OFF benchmark are pending, not implied by lane acceptance.
+No-ff merge **0edf02c** integrates lane/K31 (288f7f2) over dev.19 (958d5f0), retaining both lane
+records below. Accounting remains **default OFF**; BGT_CPU_ACCOUNTING=1 opts in, unavailable/null
+when disabled. K32 guarded native/cross-chunk calls, exact-PC sites, owner chaining and separate
+stats opt-in remain. One interaction repair excludes a high invalid CALL target **before** K32
+early state publication; the old flat-boundary-only adjustment was too late. Four reproduced
+assertion failures are fixed; focused **36/36 PASS**, including known counts, complete CPU/RAM,
+fallback/cache/chaining/recursion, actual Asyncify/JSPI park/rewind and direct-call SEH accounting.
+
+Fresh merged-source serial gates all PASS: doctor, full Clang + real GCC14 lint (**38 example
+checks each**), explicit Clang host checks, typecheck, leakcheck; full units **2364/138 files/0 skips
+in each OFF and ON run**. OFF browsers both actual modes **300 pass/51 inherited skips/0 fail/0
+flaky**, required native WebGPU/WebGL2/auto; ON WebGPU both modes **157/26/0/0**. Every pipeline
+oracle **34 fixtures ×2 modes ×2 accounting settings ×300 =40800 identical frame pairs**; all136
+reports audited, ON/OFF/cross-mode traces identical. Exact final and per-present process/thread
+retirement agrees with interpretation; OFF availability, string/ring contracts, exact inherited
+skips and unchanged GL-scale-only expected errors checked.
+
+K32 five-fixture OFF paired benchmark versus dev.19: five A/B pairs + warmup in both modes, all
+300-update oracle hashes equal, **no regression beyond noisy paired spread**, no speedup claim.
+Fresh independent **bounded source-review PASS**, not independent gate/CI execution. No game,
+physical-device, hardware CPU-time or universal zero-overhead claim. Owned suites exited; temporary
+worktree/benchmark outputs and owned Zig cache removed (~9.1GiB free).
+[Handoff](handoff/integration-i15.md), [structured gate/paired evidence](handoff/integration-i15-evidence.json).
 
 ## K32 lane record — bounded native calls / indirect sites / owner regions
 
