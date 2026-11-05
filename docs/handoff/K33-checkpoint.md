@@ -1,4 +1,97 @@
-# K33 checkpoint — reviewer #310 (K33f)
+# K33 checkpoint — reviewer #322 (K33g)
+
+Branch lane/K33; source HEAD fc6e561, base dev.19 958d5f0. **WIP: NOT final Tier1/CI/review PASS.**
+Checkpoint explicitly requested at context boundary. No pushes/web/installs/game files/deadline changes.
+
+## Latest reviewer results
+- ci/k33e =3eb773a, run42092343084: every required job PASS except unit_1 (925/926 tests).
+  Partitioned convergence failed at193773ms against unchanged180s. unit_1 finished inside60min (~59min); unit_2 PASS~46min.
+  Read-only targeted log: /Users/dev/projects/pi-work/inputs/ci/k33e-unit_1.log. No unit_2 e log supplied yet.
+- vK33b on3eb773a FAIL with one P1 remaining: dependency transport leaks through -M -MF - stdout,
+  -Wp,-MD,deps.d, and second implicit depfile of multi-source -MD. Reviewer report inputs/vK33b/ currently
+  contained only final-result.txt. Held evidence:80/80 focused realGCC14/clang, convergence13/13.
+- #320 approves262144-byte forced partitions for convergence, SAME70000-NOP workload, ALL assertions and180s.
+  Condition: retain >=16-part index-space merging elsewhere. Strengthened suspension-scale first case to1024byte
+  budget; observed38parts, new >=16 assertion; all300checksum frames/10500parked stacks/realJSPI remain.
+- #319 asks move~6min toward unit2. Refreshed all64 observed unit1 file timings, including previously unknown
+  heap261s/partitioned-pipeline140s/asyncify-boundaries75s. Deterministic LPT uses unchanged declared setup costs.
+  New shards65+68 (plus scale), estimated tests2145s/2041s and setup1098s/1202s =>~3243s each (54min).
+  Coverage/partitioned-pipeline/suspension-scale now shard2. Predictions retain old slow convergence weight;
+  actual 262144byte test reduction not discounted yet. No CI verification of new placement.
+
+## Commits this continuation
+- 3eb773a finite-file stdin in compiler test probes, unchanged8s deadline. Fixes test using sync Node pipe JSON
+  despite K23 known EOF stalls. Intermittent earlier GCC -M/-MP timeout did not reproduce:128direct probes PASS.
+- ad3ff1e dependency-output repair: direct -M/-MM stdout (incl-MF-), explicit -MF file/joined flags and
+  -Wp,-MD/-MMD destinations sanitized. Multiple explicit destinations collected, real headers retained.
+  FAIL CLOSED when macro transport active for ALL implicit -MD/-MMD .d names (single OR multi-source),
+  opaque -Xpreprocessor/-Xclang, unknown -Wp spellings, dump/save-temps naming flags, unknown -M options,
+  dependency-file/fdep flags and DEPENDENCIES_OUTPUT/SUNPRO_DEPENDENCIES env; actionable use explicit-MF advice.
+  This deliberately avoids guessing compiler/version/language/link-dependent implicit names. Reviewer #317
+  allowed sanitization OR fail-closed. Multi-source regression asserts rejection BEFORE any .d creation.
+  Macro header now real command-line.h in private0700 bgt-macros-* TemporaryDirectory instead of /dev/fd:
+  missed case cannot hash parent fd. Normal/nonzero/exception cleanup via context; SIGKILL can leave private
+  temp dir (unlike anonymous prior header). Cache keys still retain original semantic macro flags.
+- 37f2eea convergence256KiB +38-part small fixture per #320; no assertion/deadline/workload reduction.
+- fc6e561 measured k33e unit1 weights; fail-closed exact inventory union unchanged.
+
+## Local results (all ignored reports/k33/)
+- compiler-final:8/8 at1d145d5 original unchanged8s,7.18s. compiler-final2:8/8 at3eb773a,6.13s.
+- convergence-final:all4cases ordinaryNode PASS174.25s total (9filtered skips);
+  convergence-jspi-final:all4 with realJSPI PASS86.13s warm total. These predate latest production repair.
+- old-transport-probe.log and old-transport-probe-after.log: isolated old40d44b7 command.py vs latest helper.
+  OLD6000defs realGCC wrapper observes172105byte max/env(COLLECT172084) and rejects; NEW executes real
+  cc1/as/collect2 max1794bytes; OLDdepstdout /dev/fd/4 vs NEWclean with realvalue.h; OLDbackslash/newline/order
+  corrupts macro output, NEWexact hello-backslash /7/23. No production old-source mutation. Probe script
+  reports observations, not automatic assertion status; raw output retained. /tmp/k33-old-command.py is
+  old helper snapshot from git; remove ONLY own file later. Earlier script syntax failures overwritten before
+  final correct evidence; do not claim those attempts passed.
+- deps-forms-final:15/15 in2files20.66s (intermediate implicit-default sanitization attempt).
+  deps-forms2 and deps-forms3:final explicit/FAIL-CLOSED compiler transport10/10 PASS7.60s/7.56s, realGCC+clang.
+  New2parameterized cases each assert -M-MF-/-MM-MF-, -Wp,-MD/-MMD, multi-source implicit rejection,
+  joined explicit-MF/MQ target and opaque-Xpreprocessor rejection. Existing8tests retained. No env regression
+  was added yet (an edit failed atomically); env rejection implemented, add focused coverage if needed.
+- Suspension first test at1024bytes:38parts,~10.6s; full small file5/5 incl actualJSPI PASS in deps-forms-final.
+- convergence-256k: FULL coverage.test.ts13/13 PASS148.53s with BGT_JSPI=1+BGT_TEST_JSPI=1.
+  cases asyncify53019ms /partitioned56487ms /jspi-preferred18097ms /jspi-only16786ms.
+  Partitioned first build independent transform remains byte-identical and >1part; observed4parts.
+  This was before final fail-closed implicit-output edit, but same convergence source/semantics.
+- git diff --check PASS. Final production head still needs focused/full/static/Tier1/re-review.
+
+## Interrupted gates / no active suites
+- units-clean-dual:started3eb773a clean (full38example cold setup, actual dualJSPI), progressed~70minutes.
+  Stopped on vK33b finding BEFORE editing source: owned roots27842/27952 killed TERM; no result marker claimed.
+  Raw reports/k33/units-clean-dual.log retained. NOT green, NOT a completed final full-unit run.
+- Waiting queue38106 reports/k33/queue-g.sh was terminated while waiting units-clean-dual.done.
+  Do NOT fabricate marker/resume blindly. Queue would run focused/static/lint/browser/all68oracles serially.
+- Focused roots35483,90375,679 and coverage51101 finished (last launch679 deps-forms3 done10/10).
+  No K33 suite intentionally active at checkpoint. Verify pgrep ownership before any signal; other lanes active.
+- No post-repair full e2e/oracles/final lint/doctor/typecheck/leakcheck. Historical evidence below NOT final green.
+- Last disk~7GiB free. No ENOSPC seen. Do not remove live caches/lock inodes/other-lane data.
+- Removed only generated tools/build/__pycache__ before checkpoint commit; do not commit pyc files.
+
+## Exact next steps
+1. Read source and this checkpoint. Verify no owned suite active. Do not reuse old completion markers.
+2. Critically audit ad3ff1e dependency routing: explicit stdout/file forms vs fail-closed implicit/opaque forms,
+   real-temp cleanup/privacy tradeoff. Add env/stdout-MD/MF- regression if needed (deadline8s unchanged).
+   Check subprocess check=True/error sanitation behavior and unsupported compiler spelling boundaries.
+3. At clean head run focused compiler/transport/locks/cache/hermetic/host/shard suites; typecheck/ESLint.
+   Run new dependency-channel regressions against isolated OLD3eb773a command.py then latest. Existing
+   standalone probe covers original40d44b7 findings, not all three vK33b new channel reproducers yet.
+4. Ask reviewer for vK33c re-review of ad3ff1e/37f2eea/fc6e561 after focus passes; precisely list later edits.
+   No CI candidate request sent after k33e. Current headfc6e561 is WIP, NOT YET CI-READY.
+   Request next reviewer-run CI once focused/static checks stable; never push.
+5. Full clean dual units with BGT_JSPI=1 BGT_TEST_JSPI=1 npm test -- --maxWorkers=1. Then full both-mode
+   required-WebGPU/WebGL2/auto browsers and34x2x300oracles, lint including38examples+realGCC and explicitclang,
+   doctor/typecheck/leakcheck+negative. Serial background queues only, port5278. Stop/report ENOSPC.
+6. Audit markers, expected300pass51skip/351browser cases eachmode, exact hashes/stubs/errors all68oracles.
+   Existing reports/k33/audit-final.mjs still uses obsolete40d44b7 +old marker names; update before use.
+7. Finish docs/handoff/K33.md only with audited final evidence. Existing interim handoff is stale; preserve
+   GCC scopeA and37guest-source followups. Independent and tier2 PASS still pending. Final<200words.
+
+---
+
+# Historical checkpoint — reviewer #310 (K33f)
 
 Branch lane/K33; base dev.19 958d5f0. **WIP, NOT final Tier 1/CI PASS.**
 Current source commits: b47190a, be80b3b, 2063596 (details below). No pushes.
