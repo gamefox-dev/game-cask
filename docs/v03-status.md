@@ -1,5 +1,33 @@
 # v0.3 merged implementation status
 
+## K32 lane record — bounded native calls / indirect sites / owner regions
+
+Implementation6297545 over dev.18 211daca; **author implementation Tier1 green, external focused
+vK32 PASS at6297545**, not a merged release or independent full-Tier1/CI claim. Direct AMD64 lifted calls
+use bounded guarded N calls/resumes; cross-chunk weak targets require nonnull+registry equality; exact-PC
+indirect sites and native owner-region entries avoid repeated driver/generic crossings. Self-recursive
+owners remain flat after measured regression. Actual Asyncify/JSPI, exact full CPU/RAM, suspension/nonlocal
+transfers, strict/permission/registry/table guards, cache freshness and seven behavioural mutations pass.
+
+Shared-machine uninstrumented five-pair A/B: direct36.06→26.52ns Asyncify /33.23→26.81ns JSPI;
+tail56.59→44.96 /50.90→38.95ns. Owner regions6452.09→44.68 /5426.03→54.67ns per iteration include
+removing generic/interior resumptions. Deep/indirect within paired spread: **no speedup claim**. Separate
+both-mode counted driver steps reproduce; stats default-off, no production hot diagnostic increments.
+No game speedup or resolution of507 game indirect sites, isolated wasm-call latency or self-modifying
+code support claimed. Decoder REX.B opcode90 repair has independent width-correct regressions.
+
+Author gates: doctor, Clang+realGCC lint37 default checks each, explicit Clang host/38th scale check,
+types, **2335 units/131files/0skips**, uninterrupted browsers **300pass/51existing skips each mode**,
+required WebGL2/WebGPU/auto, all**34×2×300=20400** identical oracle pairs, leak/diff checks. Exact skip
+inventory matches I14; measured interpreter spans fit host budgets; no exclusions/deadline weakening.
+Reviewer-requested post6297545 **test-only SEH integration delta** is documented separately in the
+[handoff](handoff/K32.md); successful AMD64 table unwind is supported, i386 frame-based SEH remains
+an explicit kit follow-up (RaiseException fails closed). Final lane evidence: [gates](handoff/K32-final-gates.json),
+[compact paired timing/mutations](handoff/K32-measurements.json) (raw archives cited in scratch).
+Coordinator accepted test-only54c40eb after review: actual parked/resumed direct-call AMD64 SEH,
+300-update/full-CPU identity across engines/modes, missing-unwind-metadata mutant fails/restored2/2 pass;
+i386 missing dispatcher fails closed. No production code changed after external review.
+
 ## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
 
 Ordered no-ff merges over dev.16 retain K23 supervised builds and K24/K25 GPU behavior unchanged.

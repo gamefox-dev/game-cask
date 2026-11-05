@@ -19,7 +19,13 @@ uint32_t x86_lift_count;
 unsigned x86_lift_reason;
 uint64_t x86_profile_exit(uint32_t address,uint32_t reason){(void)address;(void)reason;return 0;}
 /* Single-step snapshot harness; production flat chaining is tested with the real runtime. */
+unsigned x86_native_chain;
+int x86_native_rechain(x86_native_fn fn){(void)fn;return 0;}
+x86_native_fn x86_native_indirect(x86_native_site_t *site,uint32_t target){(void)site;(void)target;return 0;}
+void x86_native_drop(void){__builtin_trap();}
 void x86_run_native(x86_native_fn step){step(X.eip);}
+int x86_native_enter(uint32_t target,x86_native_fn fn){(void)target;(void)fn;return 0;}
+int x86_native_resume(uint32_t next,uint64_t floor,x86_native_fn fn){(void)next;(void)floor;(void)fn;__builtin_trap();}
 void x86_fault(const char *m,uint32_t p){(void)m;(void)p;__builtin_trap();}
 uint32_t x86_address(uint64_t a){if(a>0xffffffffu)__builtin_trap();return (uint32_t)a;}
 void x86_cooperate(void){__builtin_trap();}

@@ -434,6 +434,19 @@ static int l64_entry_cmp(const void *a, const void *b) {
 static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
     fprintf(o, "/* GENERATED AMD64 register-local code. */\n#include \"x86_lift64.h\"\n");
     vec_t order = {0}, ends = {0};
+    /* Cross-chunk native symbols are weak: absent selection/overrides resolve to
+     * NULL, and the runtime must also match the active registry before calling. */
+    for (uint32_t i=0;i<a->nf;i++) if (lift_selected(a->f[i].addr) && !vhas(&skip,a->f[i].addr))
+        fprintf(o,"void N_%08x(uint32_t);\n",a->f[i].addr);
+    vec_t weak={0};
+    for(uint32_t i=0;i<a->nf;i++) if(lift_selected(a->f[i].addr))
+        for(uint32_t j=0;j<a->f[i].calls.n;j++) {
+            uint32_t target=a->f[i].calls.v[j];
+            if(!lift_selected(target)&&!vhas(&skip,target)&&func_index(a,target)>=0)vpush(&weak,target);
+        }
+    vsort_uniq(&weak);
+    for(uint32_t i=0;i<weak.n;i++)fprintf(o,"__attribute__((weak)) void N_%08x(uint32_t);\n",weak.v[i]);
+    free(weak.v);
     /* Bound optimizer CFG size independently of guest function size. Internal region entries still
      * cover every landing pad; edges across regions return to the registry without interpreting. */
     for (uint32_t i = 0; i < a->nf; i++) {
@@ -457,6 +470,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         l64_used = l64_written = 0;
         for (uint32_t k = 0; k < f->insns.n; k++) {
             x86_insn_t *in = &ins[k];
+            /* Branches in another optimizer region still define native block entries. */
+            if(vhas(&original->labels,in->addr)) starts[k]=1;
             if (in->flags & (X86_F_BRANCH | X86_F_INDIRECT | X86_F_CALL) ||
                 !l64_specialized(in) || in->op == XO_RET) {
                 starts[k + 1] = 1;
@@ -501,8 +516,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         l64_replay_t *replays = l64_replays(f, ins, starts);
         uint32_t *live = l64_liveness(f, ins, guarded, starts, replays);
         l64_used |= l64_written;
-        /* A leaf call is a full architectural observation boundary. Reload every
-         * register afterward, including volatile returns not explicitly written here. */
+        /* Native calls spill every register this region may have written, and reload
+         * every register it uses (including writes). Other callee changes remain in X.
+         * Imports additionally consume arbitrary Win64 arguments: retain all registers. */
         for(uint32_t k=begin;k<end;k++)if(import_hints[k]){l64_used=l64_written=0xffffu;break;}
         /* A distinct signature keeps Asyncify's conservative void(void) scheduler-call target
          * set from including native regions, which cannot suspend. Registry wrappers stay tiny. */
@@ -671,7 +687,24 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     l64_edge(o,f,next,k);
                     fprintf(o,"}if(x86_defer_import(&site,t))return;}\n");
                 }
-                fprintf(o, "pc=0x%08xu;action=2;goto boundary;\n", next); continue;
+                if ((in->op == XO_CALL && in->target!=original->addr && !vhas(&skip,in->target) && func_index(a,in->target)>=0 &&
+                     !vhas(&a->f[func_index(a,in->target)].calls,in->target)) || in->op == XO_CALL_IND) {
+                    l64_sync(o,0);
+                    fprintf(o,"X.eip=0x%08xu;X.eip=x86_address(t);",next);
+                    if(in->op==XO_CALL)
+                        fprintf(o,"if(x86_native_enter(X.eip,N_%08x)){uint64_t floor=X.r[4];N_%08x(X.eip);",in->target,in->target);
+                    else fprintf(o,"{static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,X.eip);if(step){uint64_t floor=X.r[4];step(X.eip);");
+                    fprintf(o,"if(!x86_native_resume(0x%08xu,floor,N_%08x))return;",next,original->addr);
+                    l64_sync(o,1);
+                    fprintf(o,"dirty=0;pc=X.eip;x86_coverage_lifted(pc,1);");
+                    /* A callee may have used the rest of our quantum reservation. */
+                    if(l64_index(f,next)>=0) fprintf(o,"goto L_%08x;\n",next);
+                    else { l64_flush(o,k+1); fprintf(o,"goto exit;\n"); }
+                    fprintf(o,in->op==XO_CALL?"}\n":"}}\n");
+                    /* Failed fast entry has already published exact architectural state. */
+                    fprintf(o,"return;\n");
+                } else fprintf(o, "pc=0x%08xu;action=2;goto boundary;\n", next);
+                continue;
             case XO_RET:
                 l64_flush(o, k + 1);
                 l64_pointer(o, "r[4]", 8, next, 0, "0"); fprintf(o, "t=xl_load(p,8);r[4]+=8;");
@@ -723,19 +756,32 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else if(writing==3){for(int j=0;j<width;j++)(void)x86_rd8(a+(uint32_t)j);}"
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"
                    "x86_fault(\"unmapped flat guest memory\",(uint32_t)address);\n");
-        fprintf(o, "exit:\n"); l64_sync(o, 0); fprintf(o, "X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
+        fprintf(o, "exit:\n"); l64_sync(o, 0);
+        if(vhas(&original->calls,original->addr)) {
+            /* Self-recursive owners stay entirely on the proven flat step path. */
+            fprintf(o,"X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
+        } else fprintf(o,"X.eip=pc;if(pc>=0x%08xu&&pc<0x%08xu&&(pc<0x%08xu||pc>=0x%08xu)){x86_native_chain=1;return;}"
+                  "if(exit_reason==XE_INDIRECT){static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,pc);if(step){step(pc);x86_native_drop();return;}}"
+                  "x86_profile_exit(pc,exit_reason);return;\n}\n",original->addr,original->end,f->addr,f->end);
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
         free(import_hints);
         fprintf(o, "void N_%08x(uint32_t pc){\n", original->addr);
+        if(original->insns.n<=256) {
+            /* No owner-region loop/check for the dominant tiny-function case. */
+            fprintf(o,"R_%08x_%08x(pc);}\nvoid F_%08x(void){x86_run_native(N_%08x); }\n",
+                original->addr,original->insns.v[0],original->addr,original->addr);
+        } else {
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)
             fprintf(o, "R_%08x_%08x,", original->addr, original->insns.v[begin]);
-        fprintf(o, "};unsigned region=0;\n");
+        fprintf(o, "};for(;;){unsigned region=0;\n");
         for (uint32_t begin = 256; begin < original->insns.n; begin += 256)
             fprintf(o, "if(pc>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
-        fprintf(o, "regions[region](pc);}\nvoid F_%08x(void){x86_run_native(N_%08x);}\n",
-            original->addr, original->addr); vpush(&order, original->addr); vpush(&ends, original->end);
+        fprintf(o, "x86_native_chain=0;regions[region](pc);if(!x86_native_chain)return;x86_native_chain=0;if(!x86_native_rechain(N_%08x))return;pc=X.eip;}}\nvoid F_%08x(void){x86_run_native(N_%08x);}\n",original->addr,
+            original->addr, original->addr);
+        }
+        vpush(&order, original->addr); vpush(&ends, original->end);
         for (uint32_t j = 0; j < original->nij; j++) if (!original->ij[j].resolved) st->unresolved++;
     }
     l64_entry_t *entries = xcalloc(order.n, sizeof *entries);
