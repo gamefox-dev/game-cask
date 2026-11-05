@@ -292,6 +292,10 @@ static void resolve_table(an_t *a, func_t *f, const x86_insn_t *in, ijump_t *j) 
                 if(found&&p.o[0].size==4)base=(uint32_t)base;
                 break;
             }
+            /* Implicit/multiple destinations (CPUID, MUL, XCHG, POP...) are not
+             * represented by o[0]. Refuse intervening work rather than invent
+             * constant provenance across an unmodelled register clobber. */
+            if(p.op!=XO_NOP && p.op!=XO_CMP && p.op!=XO_TEST)break;
         }
         if(!found)return;
     }

@@ -198,6 +198,9 @@ void x86_run_native(x86_native_fn step);
 /* Bounded non-suspending generated calls. A false entry leaves dispatch to the flat
  * driver; a false resume propagates the already-spilled state out of all native frames. */
 #define X86_NATIVE_FAST_VERSION 1
+#ifndef X86_NATIVE_STATS
+#define X86_NATIVE_STATS 0 /* CC0 fixtures only; production has no per-step counter work. */
+#endif
 int x86_native_enter(uint32_t target, x86_native_fn expected);
 int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller);
 int x86_native_ready(void);

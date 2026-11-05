@@ -28,7 +28,7 @@ export function callsFixture(dir, pattern, count = 5000) {
   asm += proc('benchmark_loop',body);
   writeFileSync(join(dir,'loop.S'),asm);
   writeFileSync(join(dir,'bench.c'),'/* Original CC0-1.0. */\n#include <windows.h>\nint _tls_index;\nextern unsigned benchmark_loop(void);\nstatic void *volatile relocation_anchor=(void *)&relocation_anchor;\nvoid entry(void){(void)relocation_anchor;OutputDebugStringA("CALLS begin");unsigned result=benchmark_loop();OutputDebugStringA("CALLS end");unsigned fail=result!='+expected+'u;OutputDebugStringA(fail?"CALLS FAIL":"CALLS PASS");ExitProcess(fail); }\n');
-  writeFileSync(join(dir,'stats.c'),'#include "x86_lift64.h"\n#include "bgt.h"\n#ifdef X86_NATIVE_FAST_VERSION\nBGT_EXPORT(k32_stats) unsigned stats(void){return (unsigned)(uintptr_t)&x86_native_stats;}\n#endif\n');
-  writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 K32 '+pattern,sources:['stats.c'],includes:['../../../../platforms/x86'],pipeline:{platform:'win32',fixture:{target:'x86_64-windows-gnu',sources:['bench.c','loop.S'],out:'bench.exe',libs:['kernel32']},modules:[{from:'./build/bench.exe',main:true}]}}));
+  writeFileSync(join(dir,'stats.c'),'#include "x86_lift64.h"\n#include "bgt.h"\n#if defined(X86_NATIVE_FAST_VERSION) && X86_NATIVE_STATS\nBGT_EXPORT(k32_stats) unsigned stats(void){return (unsigned)(uintptr_t)&x86_native_stats;}\n#endif\n');
+  writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 K32 '+pattern,sources:['stats.c'],cflags:process.env.BGT_CALLS_STATS==='1'?['-DX86_NATIVE_STATS=1']:[],includes:['../../../../platforms/x86'],pipeline:{platform:'win32',fixture:{target:'x86_64-windows-gnu',sources:['bench.c','loop.S'],out:'bench.exe',libs:['kernel32']},modules:[{from:'./build/bench.exe',main:true}]}}));
   return {id,pattern,count,calls,expected};
 }

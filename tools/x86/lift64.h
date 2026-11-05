@@ -687,7 +687,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     l64_edge(o,f,next,k);
                     fprintf(o,"}if(x86_defer_import(&site,t))return;}\n");
                 }
-                if ((in->op == XO_CALL && in->target!=original->addr && !vhas(&skip,in->target) && func_index(a,in->target)>=0) || in->op == XO_CALL_IND) {
+                if ((in->op == XO_CALL && in->target!=original->addr && !vhas(&skip,in->target) && func_index(a,in->target)>=0 &&
+                     !vhas(&a->f[func_index(a,in->target)].calls,in->target)) || in->op == XO_CALL_IND) {
                     l64_sync(o,0);
                     fprintf(o,"X.eip=0x%08xu;X.eip=x86_address(t);",next);
                     if(in->op==XO_CALL)
@@ -756,13 +757,21 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "else if(writing)x64_store(a,value,width);else (void)x64_load(a,width);}"
                    "x86_fault(\"unmapped flat guest memory\",(uint32_t)address);\n");
         fprintf(o, "exit:\n"); l64_sync(o, 0);
-        fprintf(o,"X.eip=pc;if(pc>=0x%08xu&&pc<0x%08xu&&(pc<0x%08xu||pc>=0x%08xu)){x86_native_chain=1;return;}"
+        if(vhas(&original->calls,original->addr)) {
+            /* Self-recursive owners stay entirely on the proven flat step path. */
+            fprintf(o,"X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
+        } else fprintf(o,"X.eip=pc;if(pc>=0x%08xu&&pc<0x%08xu&&(pc<0x%08xu||pc>=0x%08xu)){x86_native_chain=1;return;}"
                   "if(exit_reason==XE_INDIRECT){static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,pc);if(step){step(pc);x86_native_drop();return;}}"
                   "x86_profile_exit(pc,exit_reason);return;\n}\n",original->addr,original->end,f->addr,f->end);
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
         free(import_hints);
         fprintf(o, "void N_%08x(uint32_t pc){\n", original->addr);
+        if(original->insns.n<=256) {
+            /* No owner-region loop/check for the dominant tiny-function case. */
+            fprintf(o,"R_%08x_%08x(pc);}\nvoid F_%08x(void){x86_run_native(N_%08x); }\n",
+                original->addr,original->insns.v[0],original->addr,original->addr);
+        } else {
         fprintf(o, "static void (*const regions[])(uint32_t)={");
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256)
             fprintf(o, "R_%08x_%08x,", original->addr, original->insns.v[begin]);
@@ -770,7 +779,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         for (uint32_t begin = 256; begin < original->insns.n; begin += 256)
             fprintf(o, "if(pc>=0x%08xu)region=%uu;\n", original->insns.v[begin], begin / 256);
         fprintf(o, "x86_native_chain=0;regions[region](pc);if(!x86_native_chain)return;x86_native_chain=0;if(!x86_native_rechain(N_%08x))return;pc=X.eip;}}\nvoid F_%08x(void){x86_run_native(N_%08x);}\n",original->addr,
-            original->addr, original->addr); vpush(&order, original->addr); vpush(&ends, original->end);
+            original->addr, original->addr);
+        }
+        vpush(&order, original->addr); vpush(&ends, original->end);
         for (uint32_t j = 0; j < original->nij; j++) if (!original->ij[j].resolved) st->unresolved++;
     }
     l64_entry_t *entries = xcalloc(order.n, sizeof *entries);

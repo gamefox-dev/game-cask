@@ -25,6 +25,11 @@ static void invoke_root(void){X.r[ESP]=0x8000;x86_push(0xfffffff4u);x86_invoke(0
 BGT_EXPORT(guards) unsigned guards(void){
  prepare();entered=replacement=mode=0;x86_register_lifted(normal,2);invoke_root();
  if(entered!=1||X.r[EAX]!=7)return 1;
+#if X86_NATIVE_STATS
+ if(!x86_native_stats.calls||!x86_native_stats.driver_steps)return 7;
+#else
+ if(x86_native_stats.calls||x86_native_stats.driver_steps||x86_native_stats.indirect_hits)return 8;
+#endif
  mode=1;invoke_root();invoke_root();if(entered!=3)return 2;
  x86_register_lifted(changed,2);invoke_root();if(replacement!=1||entered!=3||X.r[EAX]!=9)return 3;
  /* Expected symbol mismatch must not run the old direct body. */
@@ -32,6 +37,12 @@ BGT_EXPORT(guards) unsigned guards(void){
  /* Full-width indirect operands are validated by the emitter, not truncated here.
   * NULL weak functions and absent native overrides are never accepted. */
  if(x86_native_enter(0x2000,0))return 5;
- x86_register_lifted(normal,2);return 0;
+ x86_register_lifted(normal,2);native_limit=1;X.eip=0x2000;X.transfer=0;x86_force_interp=1;
+ if(x86_native_enter(0x2000,target)||x86_native_indirect(&site,0x2000)||x86_native_rechain(target))return 6;
+ x86_force_interp=0;native_limit=0;
+#if !X86_NATIVE_STATS
+ static const x86_native_stats_t empty={0};if(__builtin_memcmp(&empty,&x86_native_stats,sizeof empty))return 9;
+#endif
+ return 0;
 }
-BGT_EXPORT(nx_fast) void nx_fast(void){prepare();mode=2;x86_register_lifted(normal,2);invoke_root();}
+BGT_EXPORT(nx_fast) void nx_fast(void){prepare();mode=1;x86_register_lifted(normal,2);invoke_root();mode=2;invoke_root();}

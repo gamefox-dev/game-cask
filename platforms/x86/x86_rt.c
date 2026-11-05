@@ -320,6 +320,13 @@ static uint32_t native_stop, native_floor;
 static int native_limit;
 static unsigned native_depth;
 x86_native_stats_t x86_native_stats;
+#if X86_NATIVE_STATS
+#define NATIVE_COUNT(field) (x86_native_stats.field++)
+#define NATIVE_PEAK() do { if(native_depth>x86_native_stats.peak_depth) x86_native_stats.peak_depth=native_depth; } while(0)
+#else
+#define NATIVE_COUNT(field) ((void)0)
+#define NATIVE_PEAK() ((void)0)
+#endif
 
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
@@ -376,7 +383,8 @@ void x86_lift_thunk(void) {
 #endif
 }
 
-/* No host implementation, semantic work or scheduler runs under fast-call frames.
+/* No suspendable API, generic semantic work or scheduler runs under fast-call
+ * frames. Existing K29 explicitly non-suspending leaves retain their guarded path.
  * Recheck the outer invocation stop before either a call or a resumed continuation. */
 int x86_native_ready(void) {
     return native_limit && !X.transfer && !x86_lift_pending && !x86_lift_count && !pending_import &&
@@ -385,14 +393,14 @@ int x86_native_ready(void) {
 int x86_native_enter(uint32_t target, x86_native_fn expected) {
     if (!expected || native_depth >= 32 || !x86_native_ready() || find_native(target) != expected) return 0;
     native_depth++;
-    if (native_depth > x86_native_stats.peak_depth) x86_native_stats.peak_depth = native_depth;
-    x86_native_stats.calls++; x86_metrics.lifted_calls++;
+    NATIVE_PEAK();
+    NATIVE_COUNT(calls); x86_metrics.lifted_calls++;
     return 1;
 }
 void x86_native_drop(void) { native_depth--; }
 int x86_native_rechain(x86_native_fn owner) {
     if (!x86_native_ready() || find_native(X.eip) != owner) return 0;
-    x86_metrics.lifted_calls++; x86_native_stats.region_chains++;
+    x86_metrics.lifted_calls++; NATIVE_COUNT(region_chains);
     return 1;
 }
 x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
@@ -407,30 +415,30 @@ x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
     unsigned i;
     for(i=0;i<4;i++) if(site->step[i] && site->target[i]==target) { step=site->step[i]; break; }
     if (step) {
-        x86_native_stats.indirect_hits++;
+        NATIVE_COUNT(indirect_hits);
 #if X86_COVERAGE_MODE == 2
         x86_coverage_entry(target,1);
 #endif
     } else {
-        x86_native_stats.indirect_misses++;
+        NATIVE_COUNT(indirect_misses);
         step=find_native(target);
         if (!step) return 0;
         i=site->next++ & 3u; site->target[i]=target; site->step[i]=step;
     }
     native_depth++;
-    if (native_depth > x86_native_stats.peak_depth) x86_native_stats.peak_depth=native_depth;
-    x86_native_stats.calls++; x86_metrics.lifted_calls++;
+    NATIVE_PEAK();
+    NATIVE_COUNT(calls); x86_metrics.lifted_calls++;
     return step;
 }
 int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
     native_depth--;
     if (X.eip != next || X.r[ESP] <= floor || !x86_native_ready() || find_native(next) != caller) return 0;
-    x86_native_stats.resumes++; x86_metrics.lifted_calls++;
+    NATIVE_COUNT(resumes); x86_metrics.lifted_calls++;
     return 1;
 }
 
-/* One flat native driver for all owners. Native steps return before host calls/suspension;
- * guest recursion and tail cycles consume no recursive C frames. Legacy/override entries
+/* One flat native driver for all owners. Native steps unwind bounded generated calls
+ * before suspension; the depth cap routes recursion/tail cycles back here. Legacy/override entries
  * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
 void x86_run_native(x86_native_fn step) {
 #ifdef X86_FLAT_GUEST
@@ -439,7 +447,7 @@ void x86_run_native(x86_native_fn step) {
      * entry is outside them, including nested callbacks after an import boundary. */
     native_depth = 0;
     for (;;) {
-        x86_native_stats.driver_steps++;
+        NATIVE_COUNT(driver_steps);
         uint32_t old = X.eip; uint64_t clock = X.tsc;
         step(X.eip);
         if (X.transfer || x86_lift_pending || x86_lift_count) return;

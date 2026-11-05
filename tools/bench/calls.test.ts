@@ -1,6 +1,6 @@
 // Original CC0-1.0. Same workload for all revisions; no host PE execution.
 import { it, expect } from 'vitest';
-import { writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { writeFileSync, rmSync, readFileSync, cpSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { loadHeadless, ROOT } from '../../tests/support/headless';
@@ -38,6 +38,7 @@ it('measures small calls, bounded deep recursion, vtables, tail jumps and same-o
     samples.push({warmup:run===0,ms:end-begin,ns_per_call_or_iteration:(end-begin)*1e6/calls,dispatchExits,nativeStats,metrics});
    }
    rows.push({...fixture,oracle:comparison,build:manifest.pipeline.metrics,wasm:manifest.wasm,samples});
+   if(process.env.BGT_CALLS_KEEP)cpSync(join(ROOT,'web/public/games',id),join(process.env.BGT_CALLS_KEEP,id),{recursive:true});
   } finally {
    for(const suffix of ['', '-interp']) {
     rmSync(join(ROOT,'web/public/games',id+suffix),{recursive:true,force:true});
@@ -47,7 +48,7 @@ it('measures small calls, bounded deep recursion, vtables, tail jumps and same-o
   }
  }
  resources.end=resourceSnapshot();
- const report={at:new Date().toISOString(),commit:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),sourceDiff:execFileSync('git',['diff','--stat'],{cwd:ROOT,encoding:'utf8'}),mode:process.env.BGT_ORACLE_SUSPENSION??'asyncify',resources,rows};
+ const report={at:new Date().toISOString(),commit:execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(),instrumented:process.env.BGT_CALLS_STATS==='1',sourceDiff:execFileSync('git',['diff','--stat'],{cwd:ROOT,encoding:'utf8'}),mode:process.env.BGT_ORACLE_SUSPENSION??'asyncify',resources,rows};
  const file=process.env.BGT_CALLS_REPORT;
  if(file)writeFileSync(file,JSON.stringify(report,null,2)+'\n'); else console.log(JSON.stringify(report));
  if(process.env.BGT_CALLS_REFERENCE) {
