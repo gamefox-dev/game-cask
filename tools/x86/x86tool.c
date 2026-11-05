@@ -794,12 +794,13 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             break;
         }
         /* ---- control flow (always lifted explicitly) */
-        case XO_JCC: fprintf(o, "if (xs_cond(%u)) goto L_%08x;", in.cc, in.target); break;
-        case XO_LOOP: fprintf(o, "if (--X.r[ECX]) goto L_%08x;", in.target); break;
-        case XO_LOOPE: fprintf(o, "if (--X.r[ECX] && (X.flags & F_ZF)) goto L_%08x;", in.target); break;
-        case XO_LOOPNE: fprintf(o, "if (--X.r[ECX] && !(X.flags & F_ZF)) goto L_%08x;", in.target); break;
-        case XO_JECXZ: fprintf(o, "if (!X.r[ECX]) goto L_%08x;", in.target); break;
+        case XO_JCC: fprintf(o, "x86_retire(XR_LIFTED,1);if (xs_cond(%u)) goto L_%08x;", in.cc, in.target); break;
+        case XO_LOOP: fprintf(o, "x86_retire(XR_LIFTED,1);if (--X.r[ECX]) goto L_%08x;", in.target); break;
+        case XO_LOOPE: fprintf(o, "x86_retire(XR_LIFTED,1);if (--X.r[ECX] && (X.flags & F_ZF)) goto L_%08x;", in.target); break;
+        case XO_LOOPNE: fprintf(o, "x86_retire(XR_LIFTED,1);if (--X.r[ECX] && !(X.flags & F_ZF)) goto L_%08x;", in.target); break;
+        case XO_JECXZ: fprintf(o, "x86_retire(XR_LIFTED,1);if (!X.r[ECX]) goto L_%08x;", in.target); break;
         case XO_JMP:
+            fprintf(o, "x86_retire(XR_LIFTED,1);");
             if (vhas(&f->labels, in.target) && (in.target != f->addr || 1)) {
                 int inside = 0;
                 for (uint32_t q = 0; q < f->insns.n; q++) if (f->insns.v[q] == in.target) { inside = 1; break; }
@@ -814,15 +815,15 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (lifted_has(a, in.target))
                 /* LANE-C */
                 fprintf(o, "x86_push(0x%08xu); X.eip = 0x%08xu; x86_metrics.lifted_calls++; "
-                    "x86_coverage_lifted(X.eip,1); F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
+                    "x86_retire(XR_LIFTED,1);x86_coverage_lifted(X.eip,1); F_%08x(); if (X.transfer) return; if (X.eip != 0x%08xu) "
                     "x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, in.target, next, va);
-            else fprintf(o, "x86_call(0x%08xu, 0x%08xu);", in.target, next);
+            else fprintf(o, "x86_push(0x%08xu);x86_retire(XR_LIFTED,1);x86_invoke(0x%08xu,0x%08xu);if(!X.transfer&&X.eip!=0x%08xu)x86_fault(\"callee returned to an unexpected address\",0x%08xu);", next, in.target, next, next, in.target);
             break;
-        case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "x86_call(%s, 0x%08xu);", t1, next); break;
-        case XO_RET: fprintf(o, "X.eip = x86_pop(); X.r[ESP] += %uu; return;", (uint32_t)A->imm); break;
+        case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "t=%s;x86_push(0x%08xu);x86_retire(XR_LIFTED,1);x86_invoke(t,0x%08xu);if(!X.transfer&&X.eip!=0x%08xu)x86_fault(\"callee returned to an unexpected address\",t);", t1, next, next, next); break;
+        case XO_RET: fprintf(o, "X.eip = x86_pop(); X.r[ESP] += %uu;x86_retire(XR_LIFTED,1); return;", (uint32_t)A->imm); break;
         case XO_JMP_IND: {
             rd(t1, sizeof t1, A);
-            fprintf(o, "t = %s;", t1);
+            fprintf(o, "t = %s;x86_retire(XR_LIFTED,1);", t1);
             ijump_t *j = 0;
             for (uint32_t q = 0; q < f->nij; q++) if (f->ij[q].at == va) j = &f->ij[q];
             if (j && j->targets.n) {
@@ -849,6 +850,9 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             if (in.flags & X86_F_TERMINATOR) fprintf(o, " x86_fault(\"fell through terminator\", 0x%08xu);", va);
         } else {
             st->specialized++;
+            if (in.op != XO_JCC && in.op != XO_LOOP && in.op != XO_LOOPE && in.op != XO_LOOPNE &&
+                in.op != XO_JECXZ && in.op != XO_JMP && in.op != XO_JMP_IND &&
+                in.op != XO_CALL && in.op != XO_CALL_IND && in.op != XO_RET) fprintf(o,"x86_retire(XR_LIFTED,1);");
         }
         if (in.op == XO_CALL || in.op == XO_CALL_IND) fprintf(o, " if (X.transfer) return;"); /* LANE-C */
         fprintf(o, "\n");

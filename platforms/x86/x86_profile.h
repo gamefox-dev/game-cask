@@ -8,6 +8,7 @@
 #ifndef X86_PROFILE_SAMPLE
 #define X86_PROFILE_SAMPLE 1024u
 #endif
+#include "x86_retire.h"
 #define X86_CENSUS_CAP 262144u
 #define X86_CENSUS_TOP 32u
 enum { XP_NATIVE, XP_GENERIC, XP_INTERPRETER, XP_API, XP_CATEGORIES };
@@ -25,6 +26,7 @@ extern double x86_interpreter_exclusive_sample_us;
 double x86_interpreter_exclusive_us(void);
 /* Host exception/trap boundary; timestamp in bgt.time_us units, NaN discards open span. */
 void x86_profile_abort(double now_us);
+extern void (*x86_account_abort_hook)(double now_us);
 /* Returns an index+1; zero is a counted overflow. No eviction or invented counts. */
 uint64_t x86_profile_exit(uint32_t address, uint32_t reason);
 void x86_profile_instruction(uint64_t bucket);

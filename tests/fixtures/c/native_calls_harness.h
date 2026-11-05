@@ -36,10 +36,13 @@ BGT_EXPORT(cpu) unsigned cpu(void){return (unsigned)(uintptr_t)&X;}
 BGT_EXPORT(cpu_size) unsigned cpu_size(void){return sizeof X;}
 BGT_EXPORT(ram) unsigned ram(void){return (unsigned)(uintptr_t)x86_flat;}
 BGT_EXPORT(stats) unsigned stats(void){return (unsigned)(uintptr_t)&x86_native_stats;}
+BGT_EXPORT(retired) uint64_t retired(void){return x86_retired.instructions[0]+x86_retired.instructions[1]+x86_retired.instructions[2];}
+BGT_EXPORT(thread_retired) uint64_t thread_retired(void){return x86_thread_retired->instructions[0]+x86_thread_retired->instructions[1]+x86_thread_retired->instructions[2];}
 BGT_EXPORT(interpretation) unsigned interpretation(void){return x86_metrics.interp_insns;}
 BGT_EXPORT(generic) unsigned generic(void){return x86_metrics.generic_insn_execs;}
 BGT_EXPORT(set_reg) void set_reg(unsigned i,uint64_t v){X.r[i]=v;}
 BGT_EXPORT(prepare) void prepare(unsigned interpreted,unsigned pc,unsigned budget){
+ __builtin_memset(&x86_retired,0,sizeof x86_retired);__builtin_memset(x86_thread_retired,0,sizeof *x86_thread_retired);
  __builtin_memset(&X,0,sizeof X);__builtin_memset(&x86_metrics,0,sizeof x86_metrics);__builtin_memset(&x86_native_stats,0,sizeof x86_native_stats);
  x86_map(0x1000,0x9000);__builtin_memset(x86_flat+0x1000,0,0x9000);__builtin_memcpy(x86_flat+0x2000,test_code,sizeof test_code);
  X.mode64=1;X.eip=pc;X.r[4]=0x9000;X.mxcsr=0x1f80;X.frame_insns=budget;X.flags=0x202;

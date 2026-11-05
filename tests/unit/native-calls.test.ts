@@ -29,7 +29,7 @@ function pe(code:Buffer, cuts:number[]) {
  for(const [i,name,rva,size,raw] of [[0,'.text',0x1000,code.length,0x400],[1,'.pdata',0x200,cuts.length*12,0x200]] as const){const s=0x188+i*40;b.write(name,s);b.writeUInt32LE(size,s+8);b.writeUInt32LE(rva,s+12);b.writeUInt32LE(size,s+16);b.writeUInt32LE(raw,s+20);b.writeUInt32LE(i?0x40000040:0x60000020,s+36);}
  cuts.forEach((off,i)=>{b.writeUInt32LE(0x1000+off,0x200+i*12);b.writeUInt32LE(0x1000+(cuts[i+1]??code.length),0x204+i*12);});code.copy(b,0x400);return b;
 }
-async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],layout?:'split'|'override',suspension?:'asyncify'|'jspi') {
+async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],layout?:'split'|'override',suspension?:'asyncify'|'jspi',accounting=1) {
  const root=join(ROOT,'node_modules/.cache/bgt/native-calls');mkdirSync(root,{recursive:true});const dir=mkdtempSync(join(root,'case-'));
  try{
   writeFileSync(join(dir,'test.exe'),pe(code,cuts));
@@ -48,11 +48,11 @@ async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],
    text='#include "x86_lift64.h"\n'+allRows.flatMap(r=>r.declarations).join('\n')+'\nconst x86_lifted_entry_t x86_lifted_probe[]={\n'+allRows.map(r=>r.row).join('\n')+'\n};\nconst unsigned x86_lifted_probe_count='+allRows.length+';\n';
    if(layout==='override')text+='void F_00002040(void){X.tsc++;X.r[0]=19;X.eip=(uint32_t)x86_pop();}\n';
   }
-  writeFileSync(join(dir,'test.c'),'#define X86_NATIVE_STATS 1\n#define X86_FLAT_GUEST 1\n#define X86_FLAT_BYTES 65536ull\n#define X86_PROFILE_ENABLED 0\n#define X86_COVERAGE_MODE 0\nstatic const unsigned char test_code[]={'+[...code].join(',')+'};\n'+text.replace('#include "x86_lift64.h"','#include "'+ROOT+'/platforms/x86/x86_lift64.h"')+'\n#include "'+ROOT+'/tests/fixtures/c/native_calls_harness.h"\n');
+  writeFileSync(join(dir,'test.c'),'#define X86_ACCOUNTING_ENABLED '+accounting+'\n#define X86_NATIVE_STATS 1\n#define X86_FLAT_GUEST 1\n#define X86_FLAT_BYTES 65536ull\n#define X86_PROFILE_ENABLED 0\n#define X86_COVERAGE_MODE 0\nstatic const unsigned char test_code[]={'+[...code].join(',')+'};\n'+text.replace('#include "x86_lift64.h"','#include "'+ROOT+'/platforms/x86/x86_lift64.h"')+'\n#include "'+ROOT+'/tests/fixtures/c/native_calls_harness.h"\n');
   let raw:Uint8Array<ArrayBuffer>;
   if(extra.length||suspension){
    const out=join(dir,'raw.wasm');
-   execFileSync(requireZig({quiet:true}).path,['cc',...CFLAGS,'-DX86_NATIVE_STATS=1','-DX86_FLAT_GUEST=1','-DX86_FLAT_BYTES=65536ull','-DX86_PROFILE_ENABLED=0','-DX86_COVERAGE_MODE=0','-I',join(ROOT,'bgt/include'),'-I',join(ROOT,'platforms/x86'),join(dir,'test.c'),...extra,join(ROOT,'bgt/sdk/bgt_libc.c'),...LDFLAGS.filter((f:string)=>f!=='-Wl,--strip-debug'),'-o',out]);
+   execFileSync(requireZig({quiet:true}).path,['cc',...CFLAGS,'-DX86_ACCOUNTING_ENABLED='+accounting,'-DX86_NATIVE_STATS=1','-DX86_FLAT_GUEST=1','-DX86_FLAT_BYTES=65536ull','-DX86_PROFILE_ENABLED=0','-DX86_COVERAGE_MODE=0','-I',join(ROOT,'bgt/include'),'-I',join(ROOT,'platforms/x86'),join(dir,'test.c'),...extra,join(ROOT,'bgt/sdk/bgt_libc.c'),...LDFLAGS.filter((f:string)=>f!=='-Wl,--strip-debug'),'-o',out]);
    raw=new Uint8Array(readFileSync(out));
   }else raw=await compileC(relative(ROOT,join(dir,'test.c')));
   if(suspension==='asyncify'){
@@ -64,8 +64,8 @@ async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],
    raw=new Uint8Array(readFileSync(out));
   }
   const {exports,host}=await instantiateFixture(raw,suspension?{suspensionMode:suspension}:{});
-  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number};
-  const snap=()=>({cpu:new Uint8Array(ex.memory.buffer).slice(ex.cpu(),ex.cpu()+ex.cpu_size()),ram:new Uint8Array(ex.memory.buffer).slice(ex.ram()+0x1000,ex.ram()+0xa000)});
+  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number;retired():bigint;thread_retired():bigint};
+  const snap=()=>({retired:ex.retired(),threadRetired:ex.thread_retired(),cpu:new Uint8Array(ex.memory.buffer).slice(ex.cpu(),ex.cpu()+ex.cpu_size()),ram:new Uint8Array(ex.memory.buffer).slice(ex.ram()+0x1000,ex.ram()+0xa000)});
   return {ex,host,text,snap,stats:()=>Array.from(new BigUint64Array(ex.memory.buffer,ex.stats(),6),Number),peak:()=>new DataView(ex.memory.buffer).getUint32(ex.stats()+48,true)};
  } finally {rmSync(dir,{recursive:true,force:true});}
 }
@@ -104,7 +104,7 @@ it.each(['size','fast'])('indirect calls and cold generic exits retain exact sta
  // mov rax,callee; call rax; inc eax; ret; callee: CPUID; mov eax,7; ret
  const code=Buffer.alloc(0x50,0x90);Buffer.from('48c7c040200000ffd0ffc0c3','hex').copy(code);Buffer.from('0fa2b807000000c3','hex').copy(code,0x40);
  const h=await harness(code,[0,0x40],preset);
- h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.ex.interpretation()).toBe(0);expect(h.ex.generic()).toBe(1);
+ h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.ex.interpretation()).toBe(0);expect(h.ex.generic()).toBe(1);expect(h.ex.retired()).toBe(7n);
  h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
 });
 it.each(['size','fast'])('weak missing selection links and falls back; RET imm and high indirect faults preserve exact state (%s)',async(preset)=>{
@@ -122,9 +122,31 @@ it.each(['size','fast'])('weak missing selection links and falls back; RET imm a
 it.each(['size','fast'])('cross-region fallthrough and conditional backedges remain inside the owner (%s)',async(preset)=>{
  const code=Buffer.concat([Buffer.from('b90300000031c0','hex'),Buffer.from('ffc0'.repeat(600),'hex'),Buffer.from('ffc9','hex'),Buffer.alloc(6),Buffer.from('c3','hex')]);
  code[1209]=0x0f;code[1210]=0x85;code.writeInt32LE(7-1215,1211);
- const h=await harness(code,[0],preset);h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.ex.interpretation()).toBe(0);expect(h.stats()[3]).toBeGreaterThan(0);
- h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
+ for(const accounting of [0,1]){
+  const h=await harness(code,[0],preset,undefined,undefined,undefined,accounting);h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.ex.interpretation()).toBe(0);expect(h.stats()[3]).toBeGreaterThan(0);expect(h.ex.retired()).toBe(accounting?1809n:0n);
+  h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
+ }
 });
+
+// Known answers exercise warm exact-PC sites and cross-chunk weak N calls in
+// both accounting modes. OFF must leave all counters zero without disabling K32.
+for(const accounting of [0,1])for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[])
+it('exact warm indirect CALL/tail retirement, separate objects '+accounting+' '+suspension,async()=>{
+ for(const tail of [false,true]){
+  const code=Buffer.alloc(0x100,0x90);
+  Buffer.from('b9040000004c8d05b4000000','hex').copy(code);
+  const next=tail?17:15;
+  Buffer.from(tail?'e82f000000':'41ff10','hex').copy(code,12);
+  Buffer.from('ffc97500c3','hex').copy(code,next);code[next+3]=256+12-(next+4);
+  if(tail)Buffer.from('41ff20','hex').copy(code,0x40);
+  Buffer.from('ffc0c3','hex').copy(code,tail?0x80:0x40);code.writeBigUInt64LE(tail?0x2080n:0x2040n,0xc0);
+  const h=await harness(code,tail?[0,0x40,0x80]:[0,0x40],'fast',undefined,'split',suspension,accounting);
+  h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();
+  expect(h.ex.interpretation()).toBe(0);expect(h.stats()[4]).toBe(3);expect(h.stats()[5]).toBe(1);
+  expect(h.ex.retired()).toBe(accounting?(tail?27n:23n):0n);
+  h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
+ }
+},60000);
 
 // Separate object files exercise real weak linkage, not concatenated definitions.
 for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[]) {
@@ -136,7 +158,7 @@ for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'
    expect(h.ex.interpretation()).toBe(0);expect(h.stats()[1]).toBe(layout==='split'?1:0);
    expect(h.stats()[2]).toBe(layout==='split'?1:0);
    expect(new DataView(h.ex.memory.buffer).getBigUint64(h.ex.cpu(),true)).toBe(layout==='split'?8n:20n);
-   if(layout==='split'){h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());}
+   if(layout==='split'){expect(h.ex.retired()).toBe(5n);h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());}
   }
   const missing=await harness(code,[0,0x40],'size',[0x2000],undefined,suspension);
   missing.ex.prepare(0,0x2000,0);missing.ex.execute();const state=missing.snap();expect(missing.stats()[1]).toBe(0);expect(missing.ex.interpretation()).toBeGreaterThan(0);
@@ -156,6 +178,7 @@ for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'
     if(mode===1){expect(h.host.suspended).toBe(true);expect(h.ex.service_complete()).toBe(0);await h.host.update();}
     expect(h.host.suspended).toBe(false);expect(h.ex.service_count()).toBe(1);expect(h.ex.service_frames()).toBe(0);expect(h.ex.service_complete()).toBe(1);
     if(!interpreted){expect(h.stats()[1]).toBeGreaterThan(0);expect(h.ex.interpretation()).toBe(0);}
+    expect(h.ex.retired()).toBe(mode===2?8n:12n);
     snapshots.push(h.snap());
    }
    expect(snapshots[0]).toEqual(snapshots[1]);
@@ -228,6 +251,6 @@ it.each(['size','fast'])('self-recursive targets retain the flat path without fa
  const code=Buffer.alloc(0x50,0x90);Buffer.from('b903000000e836000000c3','hex').copy(code);Buffer.from('85c97407ffc9e8f5ffffffffc0c3','hex').copy(code,0x40);
  const h=await harness(code,[0,0x40],preset);
  expect(h.text).not.toContain('x86_native_enter(X.eip,N_00002040)');
- h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.stats()[1]).toBe(0);expect(h.ex.interpretation()).toBe(0);
+ h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.stats()[1]).toBe(0);expect(h.ex.interpretation()).toBe(0);expect(h.ex.retired()).toBe(25n);
  h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
 });
