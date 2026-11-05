@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import re
+import stat
 
 
 _MACRO = re.compile(r'([A-Za-z_][A-Za-z0-9_]*(?:\([^\r\n)]*\))?)(?:=(.*))?\Z', re.S)
@@ -27,6 +28,32 @@ def extract_macro(option, value=None):
     if kind == 'U':
         return '#undef ' + name
     replacement = '1' if replacement is None else replacement
+    if '(' in name:
+        parameters = name[name.index('(') + 1:-1].strip()
+        if parameters and not re.fullmatch(r'(?:[A-Za-z_][A-Za-z0-9_]*|\.\.\.)(?:\s*,\s*(?:[A-Za-z_][A-Za-z0-9_]*|\.\.\.))*', parameters):
+            raise ValueError('macro has no safe file transport: unsupported parameter spelling')
+    # A command-line replacement can retain an unterminated quoted token for
+    # later stringification. Appending our splice guard would change that token.
+    # Reject every unbalanced literal instead of attempting to repair its text.
+    i = 0
+    while i < len(replacement):
+        if replacement.startswith('//', i): break
+        if replacement.startswith('/*', i):
+            end = replacement.find('*/', i + 2)
+            if end < 0: raise ValueError('macro has no safe file transport: unterminated comment')
+            i = end + 2
+            continue
+        if replacement[i] in ('"', "'"):
+            quote = replacement[i]
+            i += 1
+            while i < len(replacement) and replacement[i] != quote:
+                i += 2 if replacement[i] == '\\' else 1
+            if i >= len(replacement):
+                raise ValueError('macro has no safe file transport: unbalanced quoted replacement')
+        i += 1
+    tail = replacement.rstrip(' \t\v\f')
+    if len(tail) - len(tail.rstrip('\\')) > 1 or (tail.endswith('\\') and tail != replacement):
+        raise ValueError('macro has no safe file transport: unsupported trailing backslashes')
     # Reject unterminated block comments rather than letting them consume the
     # next definition. Quoted comment spellings are ordinary replacement tokens.
     tokens = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//.*|/\*.*?\*/', '', replacement)
@@ -120,7 +147,7 @@ def check_compiler_budget(args, env):
 # forms and real-descendant test wrapper. Do not forward unknown options: new
 # driver aliases can create outputs that expose or depend on the private header.
 _TRANSPORT_FLAGS = frozenset({
-    '-c', '-E', '-P', '-s', '-M', '-MM', '-MD', '-MMD', '-MP', '-MG',
+    '-c', '-E', '-P', '-s', '-M', '-MD',
     '-std=c11', '-O1', '-O2', '-g0',
     '-ffreestanding', '-fno-stack-protector', '-fno-math-errno',
     '-ffunction-sections', '-fdata-sections', '-nostdlib',
@@ -139,7 +166,7 @@ _TRANSPORT_FLAGS = frozenset({
 })
 _TRANSPORT_OPERANDS = frozenset({
     '-I', '-isystem', '-iquote', '-idirafter', '-include', '-imacros',
-    '-o', '-MF', '-MT', '-MQ', '-D', '-U', '-wrapper', '-x', '-target',
+    '-o', '-MF', '-MT', '-D', '-U', '-wrapper', '-x', '-target',
 })
 
 def validate_transport_options(args):
@@ -160,7 +187,7 @@ def validate_transport_options(args):
             i += 1
             continue
         # Exact prefix forms with semantic operands, never arbitrary -f/-W/-m.
-        if any(a.startswith(p) and len(a) > len(p) for p in ('-D', '-U', '-I', '-MF', '-MT', '-MQ')):
+        if any(a.startswith(p) and len(a) > len(p) for p in ('-D', '-U', '-I')):
             i += 1
             continue
         if any(a.startswith(p) and '=' in a[len(p):] for p in ('-ffile-prefix-map=', '-fmacro-prefix-map=')):
@@ -173,56 +200,52 @@ def validate_transport_options(args):
 
 
 def dependency_output(args, cwd):
-    """Return every dependency destination that transport can contaminate.
+    """Kit discovery uses only -M/-MD with separate -MF FILE -MT bgt.
 
-    GCC and Clang accept dependency switches both as driver options and through
-    -Wp.  A forced macro file is an input to the preprocessor, so missing even
-    one destination can leave /dev/fd/N in a cache depfile.  Unknown dependency
-    spellings fail closed before the compiler runs.
+    Never infer default names or sanitize dependency stdout. Reject non-kit
+    dependency grammars, including GNU aliases, joined options and -Wp.
     """
     validate_transport_options(args)
-    base = cwd or os.getcwd()
-    files, stdout = set(), False
-    modes = set()
-    explicit = []
+    destinations, modes = [], []
     output = None
-    explicit_destination = False
-    i = 0
-    def add_destination(value):
-        nonlocal stdout, explicit_destination
-        explicit_destination = True
-        if value is None or value == '':
-            raise ValueError('compiler dependency output has no destination; unsupported transport form')
-        if value == '-': stdout = True
-        else: explicit.append(value)
+    i = 1
     while i < len(args):
         a = args[i]
-        if a in ('-M', '-MM', '-MD', '-MMD'):
-            modes.add(a)
-        elif a in ('-MF', '-MT', '-MQ', '-o'):
-            if i + 1 >= len(args):
-                if a == '-MF': raise ValueError('compiler dependency output has missing -MF destination')
-                i += 1
-                continue
-            if a == '-MF': add_destination(args[i + 1])
-            elif a == '-o': output = args[i + 1]
+        if a in ('-M', '-MD'):
+            modes.append(a)
+        elif a in _TRANSPORT_OPERANDS:
+            value = args[i + 1]
+            if a == '-MF':
+                if not value or value == '-':
+                    raise ValueError('compiler dependency stdout is unsupported under macro transport; use -MF FILE -MT bgt')
+                destinations.append(value)
+            elif a == '-MT' and value != 'bgt':
+                raise ValueError('compiler macro transport supports only dependency target -MT bgt')
+            elif a == '-o': output = value
             i += 1
-        elif a.startswith('-MF') and len(a) > 3:
-            add_destination(a[3:])
-        elif a.startswith('-o') and len(a) > 2:
-            output = a[2:]
         i += 1
-    if not modes and not explicit_destination: return [], False
-    if any(m in modes for m in ('-M', '-MM')) and not explicit_destination:
-        if output: explicit.append(output)
-        else: stdout = True
-    if any(m in modes for m in ('-MD', '-MMD')) and not explicit_destination:
-        # Driver default names depend on language, compile vs link, dumpbase,
-        # multiple sources, and toolchain version. Do not guess one filename.
-        raise ValueError('compiler dependency output with implicit .d names has no safe macro transport; supply explicit -MF PATH (or -MF - for stdout)')
-    for path in explicit:
-        files.add(path if os.path.isabs(path) else os.path.join(base, path))
-    return files, stdout
+    if modes and not destinations:
+        raise ValueError('compiler dependency output without explicit file is unsupported under macro transport; use -MF FILE -MT bgt (implicit .d names and stdout are unsupported)')
+    if destinations and not modes:
+        raise ValueError('compiler macro transport requires -M or -MD with -MF FILE')
+    if modes and output == '-':
+        raise ValueError('compiler dependency stdout is unsupported under macro transport; use -MF FILE -MT bgt')
+    base = cwd or os.getcwd()
+    return {os.path.join(base, path) for path in destinations}
+
+
+def macro_directory():
+    # Never derive compiler-visible transport paths from TMPDIR. Make escaping
+    # differs across drivers; this owned directory's full canonical path has a
+    # grammar needing no escaping. Refuse symlink/ownership/permission surprises.
+    base = '/tmp/bgt-compiler-' + str(os.getuid())
+    try: os.mkdir(base, 0o700)
+    except FileExistsError: pass
+    info = os.lstat(base)
+    real = os.path.realpath(base)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700 or not re.fullmatch(r'[A-Za-z0-9._/-]+', real):
+        raise ValueError('compiler macro transport needs an owned mode-0700 safe-path directory at ' + base)
+    return tempfile.TemporaryDirectory(prefix='bgt-macros-', dir=real)
 
 
 def sanitize_transport(data, path):
@@ -237,8 +260,11 @@ def sanitize_transport(data, path):
 def without_dependency(data, path):
     binary = isinstance(data, bytes)
     text = data.decode('utf8', errors='surrogateescape') if binary else data
-    # GNU make escaping; remove this one complete prerequisite, not real headers.
-    escaped = path.replace('\\', '\\\\').replace('$', '$$').replace('#', '\\#').replace(' ', '\\ ').replace('\t', '\\\t')
+    # The kit-controlled header path needs no make escaping. Never guess at
+    # compiler-specific escaping: reject any path outside this safe grammar.
+    if not re.fullmatch(r'[A-Za-z0-9._/-]+', path):
+        raise ValueError('compiler macro transport header path is not safe')
+    escaped = path
     text = re.sub(r'(?m)^' + re.escape(escaped) + r':[ \t]*\n', '', text)
     text = re.sub(r'(?<!\S)' + re.escape(escaped) + r'(?=\s|$)', '', text)
     return text.encode('utf8', errors='surrogateescape') if binary else text
@@ -249,7 +275,9 @@ def run_compiler(args, original, macro_path, kwargs):
     env = kwargs.get('env') or os.environ
     if any(env.get(key) for key in ('DEPENDENCIES_OUTPUT', 'SUNPRO_DEPENDENCIES')):
         raise ValueError('compiler dependency output through environment has no safe macro transport; use direct -MD/-MF options')
-    depfiles, depstdout = dependency_output(original, kwargs.get('cwd'))
+    if not re.fullmatch(r'[A-Za-z0-9._/-]+', macro_path):
+        raise ValueError('compiler macro transport header path is not safe')
+    depfiles = dependency_output(original, kwargs.get('cwd'))
     stdout = kwargs.get('stdout')
     capture_output = kwargs.pop('capture_output', False)
     stderr_target = kwargs.get('stderr')
@@ -257,7 +285,6 @@ def run_compiler(args, original, macro_path, kwargs):
         if stdout is not None or stderr_target is not None: raise ValueError('capture_output conflicts with stdout/stderr')
         stdout = subprocess.PIPE
         stderr_target = subprocess.PIPE
-    if depstdout: kwargs['stdout'] = subprocess.PIPE
     if capture_output:
         kwargs['stdout'] = subprocess.PIPE
     if stderr_target == subprocess.STDOUT:
@@ -272,8 +299,7 @@ def run_compiler(args, original, macro_path, kwargs):
     try:
         result = subprocess.run(args, check=False, **kwargs)
     except subprocess.TimeoutExpired as error:
-        if depstdout and error.output is not None:
-            error.output = without_dependency(error.output, macro_path)
+        error.output = sanitize_transport(error.output, macro_path)
         error.stderr = sanitize_transport(error.stderr, macro_path)
         raise
     finally:
@@ -291,19 +317,6 @@ def run_compiler(args, original, macro_path, kwargs):
                 n = os.write(target, data)
                 data = data[n:]
         result.stderr = None
-    if depstdout:
-        result.stdout = without_dependency(result.stdout, macro_path)
-        if stdout == subprocess.DEVNULL:
-            result.stdout = None
-        elif stdout != subprocess.PIPE:
-            data = result.stdout
-            if isinstance(data, str): data = data.encode(kwargs.get('encoding') or 'utf8')
-            target = 1 if stdout is None else stdout if isinstance(stdout, int) else stdout.fileno()
-            # os.write may be partial for large dependency listings.
-            while data:
-                n = os.write(target, data)
-                data = data[n:]
-            result.stdout = None
     if check:
         result.check_returncode()
     return result
@@ -322,7 +335,7 @@ def run(args, **kwargs):
         if compiler: check_compiler_budget(args, env)
         else: check_budget(args, env)
         return subprocess.run(args, **kwargs)
-    with tempfile.TemporaryFile(mode='w+', encoding='utf8') as payload, tempfile.TemporaryDirectory(prefix='bgt-macros-') as macro_dir:
+    with tempfile.TemporaryFile(mode='w+', encoding='utf8') as payload, macro_directory() as macro_dir:
         path = '/dev/fd/' + str(payload.fileno())
         macro_path = None
         fds = [payload.fileno()]

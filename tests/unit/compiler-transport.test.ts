@@ -40,7 +40,7 @@ function pythonPlan(script:string,input:unknown,cwd?:string,timeout=8000){
 }
 function transported(args:string[],cwd:string){return pythonPlan(driver,args,cwd);}
 
-it.each(compilers)('sanitizes supported dependency destinations for %s and rejects opaque or implicit forms',cc=>{
+it.each(compilers)('accepts only file dependency plans for %s, independent of hostile TMPDIR spelling',cc=>{
  const dir=mkdtempSync(join(tmpdir(),'bgt-dependency-forms-'));
  try {
   const nested=join(dir,'inputs');mkdirSync(nested);
@@ -48,31 +48,27 @@ it.each(compilers)('sanitizes supported dependency destinations for %s and rejec
   for(const n of ['first','second'])writeFileSync(join(nested,n+'.c'),'#include "real.h"\nint '+n+'(void){return VALUE;}\n');
   const common=[...padding(14000),join(nested,'first.c')];
   const clean=(text:string)=>{expect(text).toContain('real.h');expect(text).not.toMatch(/\/dev\/fd\/|bgt-macros-/);};
-  for(const flags of [['-M','-MF','-'],['-MM','-MF-','-MP','-MQ','target with spaces'],['-MD','-MF','-','-c','-o',join(dir,'stdout.o')]]){
-   const r=transported([cc,...flags,...common],dir);expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(r.stdout);
+  for(const spelling of ['ordinary','back\\slash','tab\tpath']){
+   const ambient=join(dir,spelling);mkdirSync(ambient);
+   const envScript=driver.replace('try:', 'os.environ["TMPDIR"]='+JSON.stringify(ambient)+'\nimport tempfile;tempfile.tempdir=None\ntry:');
+   for(const mode of ['-M','-MD']){
+    const dep=join(dir,'explicit.d');
+    const flags=mode==='-MD'?['-c','-o',join(dir,'file.o')]:[];
+    const r=pythonPlan(envScript,[cc,mode,'-MF',dep,'-MT','bgt',...flags,...common],dir);
+    expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(dep,'utf8'));
+   }
   }
-  for(const mode of ['-MD','-MMD']){
-   const path=join(dir,'wp'+mode+'.d');
-   const r=transported([cc,'-Wp,'+mode+','+path,'-c','-o',join(dir,'wp.o'),...common],dir);
+  const forms=[['-M','-o','-'],['-MM','-o','-'],['-M','-MF','-'],['-M','-MP','-MF','-'],['-MD','-MF','-'],
+   ['-M'],['-MD','-c'],['-MD','-c',join(nested,'second.c')],['-M','-MFjoined.d'],['-MMD','-MF','unwanted.d'],
+   ['-Wp,-MD,unwanted.d'],['--dependencies'],['--user-dependencies'],['--write-dependencies'],['--write-user-dependencies'],
+   ['-H'],['-v'],['-funknown-bgt-option'],['-Wunknown-warning'],['-object-file-name=unexpected'],['-opt-record-file=unexpected'],['-Xpreprocessor','-MD']];
+  for(const flags of forms){
+   const r=transported([cc,...flags,...common],dir);
    expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(90);
-   expect(r.stderr).toMatch(/option unsupported under macro transport.*direct -MD\/-MF/);
-   expect(readdirSync(dir)).not.toContain('wp'+mode+'.d');
-  }
-  const multi=transported([cc,'-MD','-MP','-c',...common,join(nested,'second.c')],dir);
-  expect(multi.error).toBeUndefined();expect(multi.status,multi.stderr).toBe(90);
-  expect(multi.stderr).toMatch(/implicit \.d.*supply explicit -MF/);
-  expect(readdirSync(dir)).not.toContain('first.d');expect(readdirSync(dir)).not.toContain('second.d');
-  const explicit=join(dir,'named.d');
-  const r=transported([cc,'-MMD','-MF'+explicit,'-MQ','custom target','-c','-o',join(dir,'custom.o'),...common],dir);
-  expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(explicit,'utf8'));
-  for(const unsupportedOption of ['--dependencies','--user-dependencies','--write-dependencies','--write-user-dependencies','-H','-v','-funknown-bgt-option','-Wunknown-warning','-object-file-name=unexpected','-opt-record-file=unexpected']){
-   const r=transported([cc,unsupportedOption,...common],dir);
-   expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(90);
-   expect(r.stderr).toMatch(/option unsupported under macro transport.*supported kit options/);
+   expect(r.stderr).toMatch(/unsupported under macro transport|option unsupported under macro transport/);
    expect(r.stderr).not.toMatch(/bgt-macros-/);
   }
-  const unsupported=transported([cc,'-Xpreprocessor','-MD',...common],dir);
-  expect(unsupported.status,unsupported.stderr).toBe(90);expect(unsupported.stderr).toMatch(/dependency output.*unsupported.*direct -MD\/-MF/);
+  expect(readdirSync(dir)).not.toContain('first.d');expect(readdirSync(dir)).not.toContain('second.d');expect(readdirSync(dir)).not.toContain('unwanted.d');
   for(const key of ['DEPENDENCIES_OUTPUT','SUNPRO_DEPENDENCIES']){
    const path=join(dir,key+'.d');
    const envScript=driver.replace('try:', 'os.environ['+JSON.stringify(key)+']='+JSON.stringify(path)+'\ntry:');
@@ -97,10 +93,10 @@ it.each(compilers)('sanitizes dependency outputs even when %s fails with check=T
    'except subprocess.CalledProcessError as e:',
    ' sys.stdout.buffer.write(e.output);sys.stderr.buffer.write(e.stderr);sys.exit(e.returncode)',
   ].join('\n');
-  for(const destination of ['-',join(dir,'errors.d')]){
-   const r=pythonPlan(script,[cc,'-MD','-MF',destination,'-c','-o',join(dir,'bad.o'),...padding(14000),join(dir,'bad.c')],dir);
+  for(const destination of [join(dir,'errors.d')]){
+   const r=pythonPlan(script,[cc,'-MD','-MF',destination,'-MT','bgt','-c','-o',join(dir,'bad.o'),...padding(14000),join(dir,'bad.c')],dir);
    expect(r.error).toBeUndefined();expect(r.status).toBe(1);
-   const deps=destination==='-'?r.stdout:readFileSync(destination,'utf8');
+   const deps=readFileSync(destination,'utf8');
    expect(deps).toContain('real.h');expect(deps).not.toMatch(/\/dev\/fd\/|bgt-macros-/);
    expect(r.stderr).toMatch(/error:/);
   }
@@ -154,7 +150,7 @@ it('admits every kit example option inventory and a port-sized 4096-object compi
   const flags=portableFlags([...CFLAGS.filter((f:string)=>!f.startsWith('--target=')),'--target='+target,
    '-DX86_COVERAGE_MODE='+mode,'-DX86_PROFILE_ENABLED=0','-DX86_FLAT_GUEST=1','-DX86_FLAT_BYTES=256ull*1048576ull','-DX86_HOST_ARENA_BYTES=64u*1048576u',
    '-D_GNU_SOURCE','-fno-math-errno','-Wno-unused-label','-Wno-unused-but-set-variable','-Wno-unused-variable',...hermeticTimeFlags()],ROOT);
-  for(const tail of [['-c','-o','game.o'],['-E','-MD','-MF','probe.d','-MT','bgt','-o','/dev/null','-Wsystem-headers','-Werror=date-time'],['-M','-MT','bgt'],['-mexec-model=reactor',...LDFLAGS.filter((f:string)=>f!=='-nostdlib'),'-o','game.wasm']])plans.push(['zig','cc',...flags,'-I',ROOT+'/bgt/include','source.c',...tail]);
+  for(const tail of [['-c','-o','game.o'],['-E','-MD','-MF','probe.d','-MT','bgt','-o','/dev/null','-Wsystem-headers','-Werror=date-time'],['-M','-MF','probe.d','-MT','bgt'],['-mexec-model=reactor',...LDFLAGS.filter((f:string)=>f!=='-nostdlib'),'-o','game.wasm']])plans.push(['zig','cc',...flags,'-I',ROOT+'/bgt/include','source.c',...tail]);
  }
  for(const n of readdirSync(join(ROOT,'examples'))){
   let fx;try{fx=JSON.parse(readFileSync(join(ROOT,'examples',n,'game.json'),'utf8')).pipeline?.fixture;}catch{continue;}
@@ -224,6 +220,25 @@ it.each(compilers)('preserves trailing backslash, newline truncation and -U/-D o
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
+it.each(compilers)('rejects ambiguous quoted replacements instead of changing %s stringification',cc=>{
+ const dir=mkdtempSync(join(tmpdir(),'bgt-macro-quotes-'));
+ try {
+  const source=join(dir,'quoted.c');
+  writeFileSync(source,'#define STR_I(x) #x\n#define STR(x) STR_I(x)\nconst char *value=STR(FOO);\nint main(void){return value[0]!=34;}\n');
+  // The compiler accepts this command-line token and later stringifies it. The
+  // file splice guard must not silently become part of that unbalanced string.
+  const direct=spawnSync(cc,['-DFOO="unterminated',source,'-o',join(dir,'quoted')],{encoding:'utf8',timeout:8000});
+  expect(direct.error).toBeUndefined();expect(direct.status,direct.stderr).toBe(0);
+  expect(spawnSync(join(dir,'quoted'),[],{timeout:8000}).status).toBe(0);
+  for(const value of ['"unterminated',"'unterminated",'"escaped'+String.fromCharCode(92),'hello'+String.fromCharCode(92).repeat(2),'hello'+String.fromCharCode(92)+' ']){
+   const r=transported([cc,...padding(14000),'-DFOO='+value,source,'-o',join(dir,'invalid')],dir);
+   expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(90);
+   expect(r.stderr).toMatch(/macro has no safe file transport: unbalanced quoted replacement|unsupported trailing backslashes/);
+   expect(readdirSync(dir)).not.toContain('invalid');
+  }
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
 it.each(compilers)('rejects untransportable oversized compiler options before %s can spawn a child',cc=>{
  const dir=mkdtempSync(join(tmpdir(),'bgt-compiler-budget-'));
  try{
@@ -255,7 +270,8 @@ it.each(compilers)('keeps 14000-definition transport headers out of %s dependenc
   const d=JSON.parse(r.stdout);expect(d.first.objects_compiled).toBe(1);expect(d.second.objects_cached).toBe(1);
   expect(d.keys[0]).toBe(d.keys[1]);expect(d.keys[2]).not.toBe(d.keys[1]);
   expect(d.manifests.join('')).not.toMatch(/\/dev\/fd\/|bgt-macros-/);
-  const deps=transported([cc,'-M','-MP','-MT','bgt',...padding(14000),join(dir,'value.c')],dir);
-  expect(deps.error).toBeUndefined();expect(deps.status,deps.stderr).toBe(0);expect(deps.stdout).toContain('value.h');expect(deps.stdout).not.toContain('/dev/fd/');
+  const depfile=join(dir,'value.d');
+  const deps=transported([cc,'-M','-MF',depfile,'-MT','bgt',...padding(14000),join(dir,'value.c')],dir);
+  expect(deps.error).toBeUndefined();expect(deps.status,deps.stderr).toBe(0);expect(readFileSync(depfile,'utf8')).toContain('value.h');expect(readFileSync(depfile,'utf8')).not.toMatch(/\/dev\/fd\/|bgt-macros-/);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
