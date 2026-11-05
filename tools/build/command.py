@@ -115,6 +115,63 @@ def check_compiler_budget(args, env):
     check_budget(args, env)
 
 
+# Transport's accepted grammar is intentionally narrower than a compiler's.
+# These are kit compile/link/probe options, plus the explicit short dependency
+# forms and real-descendant test wrapper. Do not forward unknown options: new
+# driver aliases can create outputs that expose or depend on the private header.
+_TRANSPORT_FLAGS = frozenset({
+    '-c', '-E', '-P', '-s', '-M', '-MM', '-MD', '-MMD', '-MP', '-MG',
+    '-std=c11', '-O1', '-O2', '-g0',
+    '-ffreestanding', '-fno-stack-protector', '-fno-math-errno',
+    '-ffunction-sections', '-fdata-sections', '-nostdlib',
+    '-mcpu=i686', '-funwind-tables', '-fno-lto', '-fno-emulated-tls',
+    '-Wl,--entry,entry', '-ladvapi32', '-lavrt', '-lbcrypt', '-ldinput8',
+    '-ldwmapi', '-ldxguid', '-lgdi32', '-limm32', '-liphlpapi', '-lkernel32',
+    '-lole32', '-lopengl32', '-lpropsys', '-lshell32', '-lshlwapi', '-luser32',
+    '-luuid', '-lws2_32', '-lwsock32', '-lxinput1_4',
+    '-mbulk-memory', '-mnontrapping-fptoint', '-msign-ext', '-mexec-model=reactor',
+    '--target=wasm32-freestanding', '--target=wasm32-wasi',
+    '-Wall', '-Wextra', '-Werror', '-Wsystem-headers', '-Werror=date-time',
+    '-Wno-unused-function', '-Wno-unused-label', '-Wno-unused-but-set-variable',
+    '-Wno-unused-variable', '-Wno-builtin-macro-redefined',
+    '-Wl,--no-entry', '-Wl,--strip-debug', '-Wl,-z,stack-size=1048576',
+    '-Wl,--gc-sections', '-Wl,--subsystem,windows', '-Wl,--image-base,0x140000000',
+})
+_TRANSPORT_OPERANDS = frozenset({
+    '-I', '-isystem', '-iquote', '-idirafter', '-include', '-imacros',
+    '-o', '-MF', '-MT', '-MQ', '-D', '-U', '-wrapper', '-x', '-target',
+})
+
+def validate_transport_options(args):
+    prefix = 2 if os.path.basename(args[0]) == 'zig' and len(args) > 1 and args[1] in ('cc', 'c++') else 1
+    i = prefix
+    while i < len(args):
+        a = args[i]
+        if a in _TRANSPORT_OPERANDS:
+            if i + 1 >= len(args):
+                raise ValueError('compiler macro transport: missing operand for ' + a)
+            if a == '-x' and args[i + 1] != 'c':
+                raise ValueError('compiler macro transport supports only -x c')
+            if a == '-target' and args[i + 1] not in ('x86-windows-gnu', 'x86_64-windows-gnu'):
+                raise ValueError('compiler macro transport: unsupported target')
+            i += 2
+            continue
+        if a in _TRANSPORT_FLAGS:
+            i += 1
+            continue
+        # Exact prefix forms with semantic operands, never arbitrary -f/-W/-m.
+        if any(a.startswith(p) and len(a) > len(p) for p in ('-D', '-U', '-I', '-MF', '-MT', '-MQ')):
+            i += 1
+            continue
+        if any(a.startswith(p) and '=' in a[len(p):] for p in ('-ffile-prefix-map=', '-fmacro-prefix-map=')):
+            i += 1
+            continue
+        if not a.startswith(('-', '@')):
+            i += 1
+            continue
+        raise ValueError('compiler dependency output / option unsupported under macro transport: ' + a[:160] + '; use supported kit options (direct -MD/-MF for dependencies), or reduce options below the transport budget')
+
+
 def dependency_output(args, cwd):
     """Return every dependency destination that transport can contaminate.
 
@@ -123,6 +180,7 @@ def dependency_output(args, cwd):
     one destination can leave /dev/fd/N in a cache depfile.  Unknown dependency
     spellings fail closed before the compiler runs.
     """
+    validate_transport_options(args)
     base = cwd or os.getcwd()
     files, stdout = set(), False
     modes = set()
@@ -153,39 +211,6 @@ def dependency_output(args, cwd):
             add_destination(a[3:])
         elif a.startswith('-o') and len(a) > 2:
             output = a[2:]
-        elif a.startswith('-Wp,'):
-            wp = a[4:].split(',')
-            j = 0
-            while j < len(wp):
-                token = wp[j]
-                if token in ('-M', '-MM'):
-                    modes.add(token)
-                elif token in ('-MD', '-MMD'):
-                    modes.add(token)
-                    if j + 1 >= len(wp) or wp[j + 1].startswith('-'):
-                        raise ValueError('compiler dependency output has unsupported -Wp dependency destination')
-                    add_destination(wp[j + 1]); j += 1
-                elif token in ('-MF',):
-                    if j + 1 >= len(wp):
-                        raise ValueError('compiler dependency output has missing -Wp,-MF destination')
-                    add_destination(wp[j + 1]); j += 1
-                elif token in ('-MT', '-MQ'):
-                    if j + 1 >= len(wp):
-                        raise ValueError('compiler dependency output has missing -Wp target')
-                    j += 1
-                elif token.startswith('-MF') and len(token) > 3:
-                    add_destination(token[3:])
-                elif token.startswith(('-MT', '-MQ')):
-                    pass
-                elif token in ('-MP', '-MG'):
-                    pass
-                else:
-                    raise ValueError('compiler dependency output has unsupported -Wp spelling: ' + token + '; use direct -MD/-MF options for macro transport')
-                j += 1
-        elif a in ('-Xpreprocessor', '-Xclang', '--') or a.startswith(('-dump', '-auxbase', '-save-temps', '-fdeps', '-fdep')) or 'dependency-file' in a:
-            raise ValueError('compiler dependency output has unsupported option: ' + a + '; use direct -MD/-MF options for macro transport')
-        elif a.startswith('-M') and a not in ('-MP', '-MG') and not a.startswith(('-MT', '-MQ')):
-            raise ValueError('compiler dependency output has unsupported option: ' + a + '; use direct -MD/-MF options for macro transport')
         i += 1
     if not modes and not explicit_destination: return [], False
     if any(m in modes for m in ('-M', '-MM')) and not explicit_destination:
@@ -199,6 +224,15 @@ def dependency_output(args, cwd):
         files.add(path if os.path.isabs(path) else os.path.join(base, path))
     return files, stdout
 
+
+def sanitize_transport(data, path):
+    if data is None: return data
+    binary = isinstance(data, bytes)
+    text = data.decode('utf8', errors='surrogateescape') if binary else data
+    # Syntax/preprocessor diagnostics may include the forced header's path even
+    # without explicit diagnostic flags (-H/-v are rejected by the allowlist).
+    text = text.replace(path, '<command-line.h>')
+    return text.encode('utf8', errors='surrogateescape') if binary else text
 
 def without_dependency(data, path):
     binary = isinstance(data, bytes)
@@ -217,12 +251,21 @@ def run_compiler(args, original, macro_path, kwargs):
         raise ValueError('compiler dependency output through environment has no safe macro transport; use direct -MD/-MF options')
     depfiles, depstdout = dependency_output(original, kwargs.get('cwd'))
     stdout = kwargs.get('stdout')
-    if depstdout:
-        if kwargs.pop('capture_output', False):
-            if stdout is not None or kwargs.get('stderr') is not None: raise ValueError('capture_output conflicts with stdout/stderr')
-            stdout = subprocess.PIPE
-            kwargs['stderr'] = subprocess.PIPE
+    capture_output = kwargs.pop('capture_output', False)
+    stderr_target = kwargs.get('stderr')
+    if capture_output:
+        if stdout is not None or stderr_target is not None: raise ValueError('capture_output conflicts with stdout/stderr')
+        stdout = subprocess.PIPE
+        stderr_target = subprocess.PIPE
+    if depstdout: kwargs['stdout'] = subprocess.PIPE
+    if capture_output:
         kwargs['stdout'] = subprocess.PIPE
+    if stderr_target == subprocess.STDOUT:
+        raise ValueError('compiler macro transport requires separate diagnostic output; do not merge stderr into stdout')
+    if capture_output or stderr_target != subprocess.PIPE:
+        # Capture diagnostics so the private macro path can be replaced before
+        # forwarding it to the caller's original stream.
+        kwargs['stderr'] = subprocess.PIPE
     # check=True must not bypass dependency sanitation on compiler errors.
     # TimeoutExpired may also carry dependency stdout and leave a partial file.
     check = kwargs.pop('check', False)
@@ -231,12 +274,23 @@ def run_compiler(args, original, macro_path, kwargs):
     except subprocess.TimeoutExpired as error:
         if depstdout and error.output is not None:
             error.output = without_dependency(error.output, macro_path)
+        error.stderr = sanitize_transport(error.stderr, macro_path)
         raise
     finally:
         for depfile in depfiles:
             if os.path.exists(depfile):
                 with open(depfile, 'rb') as f: data = f.read()
                 with open(depfile, 'wb') as f: f.write(without_dependency(data, macro_path))
+    result.stderr = sanitize_transport(result.stderr, macro_path)
+    if stderr_target != subprocess.PIPE:
+        data = result.stderr
+        if data and stderr_target != subprocess.DEVNULL:
+            if isinstance(data, str): data = data.encode(kwargs.get('encoding') or 'utf8')
+            target = 2 if stderr_target is None else stderr_target if isinstance(stderr_target, int) else stderr_target.fileno()
+            while data:
+                n = os.write(target, data)
+                data = data[n:]
+        result.stderr = None
     if depstdout:
         result.stdout = without_dependency(result.stdout, macro_path)
         if stdout == subprocess.DEVNULL:
@@ -289,6 +343,7 @@ def run(args, **kwargs):
                 compiler_args = ['-imacros', macro_path] + compiler_args
             compiler_args = args[:prefix] + compiler_args
             check_compiler_budget(compiler_args, env)
+            validate_transport_options(args)
             for arg in compiler_args[prefix:]:
                 payload.write('"' + arg.replace('\\', '\\\\').replace('"', '\\"') + '"\n')
             transported = compiler_args[:prefix] + ['@' + path]
