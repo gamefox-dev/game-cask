@@ -606,3 +606,10 @@ RSS). `x64-memory` writes **all 629145600 bytes**, verifies **153600 pages** and
 AMD64 execution now cooperatively yields after a deterministic two-million-instruction quantum instead of aborting
 CPU-heavy legitimate programs. Both oracle modes use the same quantum and virtual clock; this is not multithreading.
 Leaf tail-call helpers and callbacks referenced from leaf functions are also discovered without requiring .pdata.
+
+**Decode cache ownership (K30).** The interpreter's 8,192-entry direct-mapped decode cache is shared by every guest
+thread. `decode_at` returns the decoded instruction **by value**, and each interpreter frame, lifted-block
+continuation (`x86_lift_block`) and REP loop executes its own copy. Execution may cooperate with the scheduler before
+its first operand read (quantum edge) or inside a REP iteration, and another task can then replace the slot; a
+borrowed cache pointer would resume a runtime-to-guest call (for example the CRT `qsort` comparator) into that other
+task's instruction. Regression: `tests/unit/decode-cooperation.test.ts`. See [K30](handoff/K30.md).
