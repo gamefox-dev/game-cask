@@ -1,6 +1,7 @@
 // @bgt-examples: none
 // CC0 harness: exercise a copy of the real helper header, never mutate shared source.
 import { basename, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { ROOT } from '../support/headless';
@@ -19,6 +20,10 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
     writeFileSync(join(dir,'helper.c'),[
       '#define X86_WIDE_CPU 1',
       '#include "helper.h"',
+      // Distinct linked bytes per test invocation keep the cold-postprocess assertion
+      // independent of earlier runs in the content-addressed Asyncify cache. This
+      // identity is generated once; all four builds below keep source bytes fixed.
+      `__attribute__((export_name("cache_identity"))) const char *cache_identity(void){return ${JSON.stringify(randomUUID())};}`,
       '__attribute__((export_name("cache_alu"))) uint32_t cache_alu(uint32_t a,uint32_t b){uint32_t f=0;return (uint32_t)xl_alu_full(XO_ADD,a,b,4,&f)^f;}',
     ].join('\n'));
     writeFileSync(join(dir,'entry.c'),
