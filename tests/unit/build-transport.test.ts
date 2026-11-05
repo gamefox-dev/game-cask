@@ -70,7 +70,7 @@ it('bounds oversized lift argv on macOS as on Linux', () => {
 
 it('moves oversized compiler argv through a response file with exact quoting', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bgt-rsp-boundary-')); const source = join(dir, 'value.c'); const out = join(dir, 'value.o');
-  writeFileSync(source, 'int value(void){return 23;}\n');
+  writeFileSync(source, '#if BGT_PADDING_21999 != 21999\n#error padding macro was lost\n#endif\nconst char *quoted = BGT_QUOTED;\nint value(void){return quoted[0] ? 23 : 0;}\n');
   const padding = Array.from({length: 22000}, (_, i) => '-DBGT_PADDING_'+i+'='+i).concat(['-DBGT_QUOTED="λ😀"']);
   try {
     const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out, args: ['cc', '-std=c11', '-Wall', '-Werror', '-c', source, ...padding]}], jobs: 1}), encoding: 'utf8' }));
