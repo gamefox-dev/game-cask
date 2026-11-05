@@ -2,7 +2,7 @@
 // vK33: compiler descendants, dep discovery and macro tokenization are OS boundaries too.
 import {it, expect} from 'vitest';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {chmodSync, closeSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync} from 'node:fs';
+import {chmodSync, closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ROOT} from '../support/headless';
@@ -37,6 +37,35 @@ function pythonPlan(script:string,input:unknown,cwd?:string,timeout=8000){
  } finally {if(fd!==undefined)closeSync(fd);rmSync(dir,{recursive:true,force:true});}
 }
 function transported(args:string[],cwd:string){return pythonPlan(driver,args,cwd);}
+
+it.each(compilers)('sanitizes every dependency destination for %s, including stdout, -Wp and multi-source defaults',cc=>{
+ const dir=mkdtempSync(join(tmpdir(),'bgt-dependency-forms-'));
+ try {
+  const nested=join(dir,'inputs');mkdirSync(nested);
+  writeFileSync(join(nested,'real.h'),'#define VALUE 23\n');
+  for(const n of ['first','second'])writeFileSync(join(nested,n+'.c'),'#include "real.h"\nint '+n+'(void){return VALUE;}\n');
+  const common=[...padding(14000),join(nested,'first.c')];
+  const clean=(text:string)=>{expect(text).toContain('real.h');expect(text).not.toMatch(/\/dev\/fd\/|bgt-macros-/);};
+  for(const flags of [['-M','-MF','-'],['-MM','-MF-','-MP','-MQ','target with spaces']]){
+   const r=transported([cc,...flags,...common],dir);expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(r.stdout);
+  }
+  for(const mode of ['-MD','-MMD']){
+   const path=join(dir,'wp'+mode+'.d');
+   const r=transported([cc,'-Wp,'+mode+','+path,'-c','-o',join(dir,'wp.o'),...common],dir);
+   expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(path,'utf8'));
+  }
+  const multi=transported([cc,'-MD','-MP','-c',...common,join(nested,'second.c')],dir);
+  expect(multi.error).toBeUndefined();expect(multi.status,multi.stderr).toBe(90);
+  expect(multi.stderr).toMatch(/implicit \.d.*supply explicit -MF/);
+  expect(readdirSync(dir)).not.toContain('first.d');expect(readdirSync(dir)).not.toContain('second.d');
+  const explicit=join(dir,'named.d');
+  const r=transported([cc,'-MMD','-MF'+explicit,'-MQ','custom target','-c','-o',join(dir,'custom.o'),...common],dir);
+  expect(r.error).toBeUndefined();expect(r.status,r.stderr).toBe(0);clean(readFileSync(explicit,'utf8'));
+  const unsupported=transported([cc,'-Xpreprocessor','-MD',...common],dir);
+  expect(unsupported.status,unsupported.stderr).toBe(90);expect(unsupported.stderr).toMatch(/dependency output.*unsupported.*direct -MD\/\-MF/);
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
 
 it('admits every kit example option inventory and a port-sized 4096-object compiler plan',()=>{
  const plans=readdirSync(join(ROOT,'examples')).filter(n=>{try{return !!JSON.parse(readFileSync(join(ROOT,'examples',n,'game.json'),'utf8'));}catch{return false;}}).map(n=>{

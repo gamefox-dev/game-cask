@@ -116,22 +116,88 @@ def check_compiler_budget(args, env):
 
 
 def dependency_output(args, cwd):
-    def value(flag):
-        result = None
-        for i, a in enumerate(args):
-            if a == flag and i + 1 < len(args): result = args[i + 1]
-            elif a.startswith(flag) and len(a) > len(flag): result = a[len(flag):]
-        return result
-    mf = value('-MF')
-    only = '-M' in args or '-MM' in args
-    if not (mf or only or '-MD' in args or '-MMD' in args): return None, False
-    output = value('-o')
-    if mf: path = mf
-    elif only: path = output
-    else:
-        source = next((a for a in args if a.endswith(('.c', '.cc', '.cpp', '.cxx', '.s', '.S'))), None)
-        path = str(Path(output or os.path.basename(source or 'a.o')).with_suffix('.d'))
-    return (os.path.join(cwd or os.getcwd(), path) if path else None), only and not path
+    """Return every dependency destination that transport can contaminate.
+
+    GCC and Clang accept dependency switches both as driver options and through
+    -Wp.  A forced macro file is an input to the preprocessor, so missing even
+    one destination can leave /dev/fd/N in a cache depfile.  Unknown dependency
+    spellings fail closed before the compiler runs.
+    """
+    base = cwd or os.getcwd()
+    files, stdout = set(), False
+    modes = set()
+    explicit = []
+    output = None
+    explicit_destination = False
+    i = 0
+    def add_destination(value):
+        nonlocal stdout, explicit_destination
+        explicit_destination = True
+        if value is None or value == '':
+            raise ValueError('compiler dependency output has no destination; unsupported transport form')
+        if value == '-': stdout = True
+        else: explicit.append(value)
+    while i < len(args):
+        a = args[i]
+        if a in ('-M', '-MM', '-MD', '-MMD'):
+            modes.add(a)
+        elif a in ('-MF', '-MT', '-MQ', '-o'):
+            if i + 1 >= len(args):
+                if a == '-MF': raise ValueError('compiler dependency output has missing -MF destination')
+                i += 1
+                continue
+            if a == '-MF': add_destination(args[i + 1])
+            elif a == '-o': output = args[i + 1]
+            i += 1
+        elif a.startswith('-MF') and len(a) > 3:
+            add_destination(a[3:])
+        elif a.startswith('-o') and len(a) > 2:
+            output = a[2:]
+        elif a.startswith('-Wp,'):
+            wp = a[4:].split(',')
+            j = 0
+            while j < len(wp):
+                token = wp[j]
+                if token in ('-M', '-MM'):
+                    modes.add(token)
+                elif token in ('-MD', '-MMD'):
+                    modes.add(token)
+                    if j + 1 >= len(wp) or wp[j + 1].startswith('-'):
+                        raise ValueError('compiler dependency output has unsupported -Wp dependency destination')
+                    add_destination(wp[j + 1]); j += 1
+                elif token in ('-MF',):
+                    if j + 1 >= len(wp):
+                        raise ValueError('compiler dependency output has missing -Wp,-MF destination')
+                    add_destination(wp[j + 1]); j += 1
+                elif token in ('-MT', '-MQ'):
+                    if j + 1 >= len(wp):
+                        raise ValueError('compiler dependency output has missing -Wp target')
+                    j += 1
+                elif token.startswith('-MF') and len(token) > 3:
+                    add_destination(token[3:])
+                elif token.startswith(('-MT', '-MQ')):
+                    pass
+                elif token in ('-MP', '-MG'):
+                    pass
+                else:
+                    raise ValueError('compiler dependency output has unsupported -Wp spelling: ' + token + '; use direct -MD/-MF options for macro transport')
+                j += 1
+        elif a in ('-Xpreprocessor', '-Xclang', '--') or a.startswith(('-dump', '-auxbase', '-save-temps', '-fdeps', '-fdep')) or 'dependency-file' in a:
+            raise ValueError('compiler dependency output has unsupported option: ' + a + '; use direct -MD/-MF options for macro transport')
+        elif a.startswith('-M') and a not in ('-MP', '-MG') and not a.startswith(('-MT', '-MQ')):
+            raise ValueError('compiler dependency output has unsupported option: ' + a + '; use direct -MD/-MF options for macro transport')
+        i += 1
+    if not modes and not explicit_destination: return [], False
+    if any(m in modes for m in ('-M', '-MM')) and not explicit_destination:
+        if output: explicit.append(output)
+        else: stdout = True
+    if any(m in modes for m in ('-MD', '-MMD')) and not explicit_destination:
+        # Driver default names depend on language, compile vs link, dumpbase,
+        # multiple sources, and toolchain version. Do not guess one filename.
+        raise ValueError('compiler dependency output with implicit .d names has no safe macro transport; supply explicit -MF PATH (or -MF - for stdout)')
+    for path in explicit:
+        files.add(path if os.path.isabs(path) else os.path.join(base, path))
+    return files, stdout
 
 
 def without_dependency(data, path):
@@ -146,7 +212,10 @@ def without_dependency(data, path):
 
 def run_compiler(args, original, macro_path, kwargs):
     if macro_path is None: return subprocess.run(args, **kwargs)
-    depfile, depstdout = dependency_output(original, kwargs.get('cwd'))
+    env = kwargs.get('env') or os.environ
+    if any(env.get(key) for key in ('DEPENDENCIES_OUTPUT', 'SUNPRO_DEPENDENCIES')):
+        raise ValueError('compiler dependency output through environment has no safe macro transport; use direct -MD/-MF options')
+    depfiles, depstdout = dependency_output(original, kwargs.get('cwd'))
     stdout = kwargs.get('stdout')
     if depstdout:
         if kwargs.pop('capture_output', False):
@@ -155,9 +224,10 @@ def run_compiler(args, original, macro_path, kwargs):
             kwargs['stderr'] = subprocess.PIPE
         kwargs['stdout'] = subprocess.PIPE
     result = subprocess.run(args, **kwargs)
-    if depfile and os.path.exists(depfile):
-        with open(depfile, 'rb') as f: data = f.read()
-        with open(depfile, 'wb') as f: f.write(without_dependency(data, macro_path))
+    for depfile in depfiles:
+        if os.path.exists(depfile):
+            with open(depfile, 'rb') as f: data = f.read()
+            with open(depfile, 'wb') as f: f.write(without_dependency(data, macro_path))
     if depstdout:
         result.stdout = without_dependency(result.stdout, macro_path)
         if stdout == subprocess.DEVNULL:
@@ -187,7 +257,7 @@ def run(args, **kwargs):
         if compiler: check_compiler_budget(args, env)
         else: check_budget(args, env)
         return subprocess.run(args, **kwargs)
-    with tempfile.TemporaryFile(mode='w+', encoding='utf8') as payload, tempfile.TemporaryFile(mode='w+', encoding='utf8') as macro:
+    with tempfile.TemporaryFile(mode='w+', encoding='utf8') as payload, tempfile.TemporaryDirectory(prefix='bgt-macros-') as macro_dir:
         path = '/dev/fd/' + str(payload.fileno())
         macro_path = None
         fds = [payload.fileno()]
@@ -198,13 +268,14 @@ def run(args, **kwargs):
             prefix = 2 if name == 'zig' and len(args) > 1 and args[1] in ('cc', 'c++') else 1
             compiler_args, macros = compiler_macro_transport(args, prefix)
             if macros:
-                macro.write('#line 1 "<command-line>"\n' + '\n'.join(macros) + '\n')
-                macro.flush(); macro.seek(0)
-                macro_path = '/dev/fd/' + str(macro.fileno())
+                macro_path = os.path.join(macro_dir, 'command-line.h')
+                with open(macro_path, 'w', encoding='utf8') as macro:
+                    macro.write('#line 1 "<command-line>"\n' + '\n'.join(macros) + '\n')
                 # Command-line macros run BEFORE all user -imacros and
                 # -include files. This must be the FIRST -imacros input.
+                # A real path also makes a missed dependency case harmless to
+                # parent-fd reuse; supported outputs are still sanitized below.
                 compiler_args = ['-imacros', macro_path] + compiler_args
-                fds.append(macro.fileno())
             compiler_args = args[:prefix] + compiler_args
             check_compiler_budget(compiler_args, env)
             for arg in compiler_args[prefix:]:
