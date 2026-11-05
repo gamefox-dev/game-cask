@@ -1,4 +1,9 @@
-# K32b checkpoint — WIP, NOT accepted
+# Historical K32b checkpoint — superseded
+
+The live jobs below subsequently completed. Final implementation Tier1 green, external focused vK32
+PASS at6297545, accepted test-only SEH delta54c40eb: see [final handoff](K32.md). Large measurement
+archives were moved to scratch by coordinator request; [compact summary](K32-measurements.json)
+retains paths/hashes. This checkpoint records the earlier pending state, not current acceptance.
 
 Reviewer #283 directed checkpoint/end; **leave detached Tier1 jobs running**. Branch lane/K32, source
 **6297545** over dev.18 **211daca**; following checkpoint commit is DOCS/EVIDENCE ONLY. External fresh
@@ -79,7 +84,7 @@ Conservative qword-table analysis now refuses implicit/multi-destination clobber
 ## Final matched A/B (uninstrumented,100000 iterations, shared machine)
 
 Five alternating A/B pairs + discarded warmup pair, fresh instances, same process,300 updates. Load and all
-samples retained **D/paired.json** and [K32-b-measurements.json](K32-b-measurements.json). Prepared baseline/
+samples retained **D/paired.json** and [compact K32-measurements.json](K32-measurements.json). Prepared baseline/
 current300-update lifted/interpreted state+semantic hashes equal; no errors/interp/stubs/drops. Not quiet
 machine/game/isolated-wasm-call measurements. Delta=median of paired differences; range=min..max delta.
 
@@ -129,7 +134,8 @@ high-call operand truncated(full fault snapshot mismatch), REX.B decode reverted
 clobber guard removed(false table resolution). Compile-only initial registry mutant corrected; all seven final
 fail on assertions. Initial full-width selector ambiguous and didn't run, corrected. Logs D/mutation-NAME.log.
 Old pieces runner initially failed header redefinition (diagnostic typedef outside guard), corrected and second
-run succeeds. Wrong-mode/short-noisy first-session samples remain in old K32-measurements/checkpoint history.
+run succeeds. Wrong-mode/short-noisy first-session samples remain in scratch-K32/work/K32-a-measurements.raw.json
+(original K32-measurements.json) and checkpoint history.
 
 ## Fresh-session remaining work
 

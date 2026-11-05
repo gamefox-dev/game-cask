@@ -281,6 +281,30 @@ jump tables and exception landing pads inside each range stay fully lifted. Indi
 resolved are reported as unresolved; this does not mean interpretation if the target remains in a lifted range.
 The four fixtures assert zero interpreted instructions through startup and the 300-frame run.
 
+### Bounded native guest calls and owner-region chaining (K32)
+
+AMD64 calls to known non-self-recursive lifted targets now use direct wasm N calls under a32-frame cap,
+with exact guest return-address/RSP mutation and guarded continuation resumes. Cross-chunk weak N symbols
+require nonnull **and active-registry equality**; absent targets/overrides retain flat dispatch. Full dirty
+state is published before calls and caller-used/written registers reloaded; no guest pointer survives.
+Suspendable imports, generic semantics, callbacks, scheduling and nonlocal transfers run only after native
+frames return. Guarded K29 non-suspending leaves retain their existing envelope. Self-recursive owners and
+calls into them remain flat after measured overhead; mutual recursion uses the cap and guarded fallback.
+
+Exact-PC four-target indirect-site caches retain immutable registry results, not folded guest table values.
+Registration generation invalidates them; warm hits still enforce execute permissions, strict membership
+and force-interpreter. Indirect operands remain full-width checked reads every time. Conservative constant
+AMD64 qword-table analysis refuses segments/addr32, high pointers and implicit/multiple-register clobbers.
+Same-owner fallthrough/conditional/backedge regions chain internally, with native cross-region entries;
+coverage entry/resumption evidence and exact quantum/outer-return stops remain enforced.
+
+CC0 interleaved five-pair A/B in actual Asyncify+JSPI shows consistent direct/tail/owner-region gains;
+deep recursion and indirect calls are within paired spread (no speedup claim). The region gain mostly
+removes generic interior resumptions, not isolated loop/call latency. Diagnostic native stats are compile-time
+opt-in/default-off and counted separately from timings. No game speedup, resolution of507 game sites,
+self-modifying-code support or pure wasm-call latency is claimed. Exact timing, driver-step counts,
+mutation proof, review boundary and Tier1 evidence: [K32 handoff](handoff/K32.md).
+
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)
 
 AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance
