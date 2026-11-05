@@ -27,8 +27,8 @@ modes:
 | same | JSPI | 34.37 | 22.80 | -11.57 (-11.79..-11.41) |
 | default checked-pointer same-page fast path | Asyncify | 24.66 | 22.39 | -2.63 (-2.81..-1.40) |
 | same | JSPI | 22.80 | 19.93 | -2.88 (-3.15..-2.66) |
-| always-inline SHL/SAL/SHR/SAR | Asyncify | 24.66 | 21.20 | -3.45 (-4.34..-2.82) |
-| same | JSPI | 22.80 | 19.37 | -3.43 (-3.69..-3.26) |
+| always-inline SHL/SAL/SHR/SAR | Asyncify | 22.27 | 18.85 | -3.45 (-4.34..-2.82) |
+| same | JSPI | 20.10 | 16.63 | -3.43 (-3.69..-3.26) |
 
 Sustained lifted/interpreted hashes and traces were identical in both modes for every candidate; zero
 interpreted instructions and no stubs were observed. The source changes are in platforms/x86/x86_lift64.h,
@@ -50,5 +50,29 @@ suspension modes.
    all pipeline 300-frame oracles, leakcheck, and required port gates with BGT_E2E_PORT; do not claim any unrun gate.
 3. Rebuild one clean fixture with the final source and verify the lift/cache invalidation report and both
    suspension artifacts. Remove owned temporary k34 outputs and scratch artifacts only after recording evidence.
-4. Commit the implementation, tests, benchmark fixture/harness, docs/pipeline update and this checkpoint;
-   then write the final docs/handoff/K34.md conclusion with exact gate results. Never push.
+4. Implementation/test/docs checkpoint committed as 4061c0d (following docs correction commit does not change source).
+   Write the final docs/handoff/K34.md conclusion with exact gate results. Never push.
+
+## Live jobs and retained evidence
+
+Scratch root: /Users/dev/projects/pi-work/scratch-K34. All measurements are under b/: base, inline
+(existing opt-in ALU), pointer (existing opt-in memory), wrapper (default ALU), sustained-base,
+sustained-wrapper, sustained-pointer, sustained-shift. Every directory has game/ and evidence.json with
+manifest and both-mode 300-frame oracle results. Reports: alu-paired.json, wrapper-paired.json,
+pointer-paired.json, yield-paired.json, sustained-alu-paired.json, sustained-pointer-paired.json,
+sustained-shift-paired.json. Keep contaminated samples; no quiet-host/game-speed claim.
+
+Live detached launch roots observed: codegen2 PID86415, final-focused PID6289. Identity is an observation,
+not permission to signal later reused PIDs. Logs/exit markers are scratch-K34/codegen2.log/.exit and
+final-focused.log/.exit. These were accidentally launched overlapping (contrary to desired serial policy);
+no timing evidence was collected during their overlap. Do not launch more suites until both exit.
+codegen2 may have loaded an earlier version of the new expected-value assertion; final-focused source
+has the corrected RAX=0x80000000 expectation. One final source test edit adds default-pointer-vs-full-helper
+equality; it happened after launch, so inspect whether final-focused loaded it; rerun if necessary.
+Earlier focused.log/.exit PASS177 (includes codegen+build-chunks), codegen.log/.exit PASS172
+(ALU/pointer only). Final source shifts are not yet a completed full-matrix pass. Disk6.4GiB free.
+
+Remaining reviewer request: add helper-header object/linked/Asyncify invalidation regression if existing
+cache dependency tests do not establish it. Do not bump cache schema or change build ownership gratuitously;
+reviewer approved existing content fingerprints. Also inspect actual final wasm helper call elimination
+and quantify synchronization separately if useful. No full Tier1, final external validation or CI claim.
