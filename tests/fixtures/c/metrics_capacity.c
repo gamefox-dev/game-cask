@@ -8,7 +8,9 @@ uint64_t x86_host_limit(void){return X86_HOST_ARENA_BYTES;}
 x86_metrics_t x86_metrics;
 x86_retired_t x86_retired;
 x86_account_t x86_accounts[X86_THREADS];
+#if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
 void x86_account_observe(double now,uint64_t virtual_ms){(void)now;(void)virtual_ms;}
+#endif
 x86_timing_t x86_timings[XP_CATEGORIES];
 x86_census_t x86_census[X86_CENSUS_CAP];
 uint64_t x86_census_generation,x86_census_window_start_clock;

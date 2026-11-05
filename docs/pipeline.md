@@ -109,9 +109,9 @@ and the headless/port-test hosts expose it. Build and probe normally; a port tes
 `(await diagnostics(page)).metrics`. Coverage snapshots retain `metrics.execution` and runtime I/O/GPU timing.
 
 - `guest_instruction_clock` is the **raw active CPU context's `X.tsc`** (AMD64); it is included in probes and bench
-  runtime output. It is not yet a process-total retired-instruction counter: cooperative context restore can
-  change it, a pre-execution quantum attempt advances it, and i386 currently leaves it zero. Do not derive exact
-  threaded instructions/s from it. Exact process retirement accounting is a separate code-model task.
+  runtime output. It is **not** a process-total retired-instruction counter: cooperative context restore can
+  change it, a pre-execution quantum attempt advances it, and i386 leaves it zero. Do not derive exact threaded
+  instructions/s from it. Separate Q78 retirement counters below do not alter TSC/RDTSC semantics.
 - `cpu_profile.categories`: lifted-native dispatch, generic/shared semantics, interpreter. Each has `calls`,
   `samples`, `sample_us`, `estimated_us`. Timers sample about 1/1024 calls with jitter to avoid regular-loop aliasing;
   totals extrapolate sample mean × calls. Small sample counts are noisy; these are not CPU hardware counters.
@@ -183,6 +183,55 @@ samples: 300-update median overhead **8.3% x64-crt / 3.6% x64-cpp** in short sta
 in both variants; this isolates the C instrumentation, not total instrumentation cost. These millisecond fixtures
 are noisy, not a bound for an engine workload. `tools/bench/codegen.test.ts` now records resources alongside runtime
 metrics; rebuild before changing variants and do not measure while another task republishes the same fixture.
+
+### Exact retirement and scheduler accounting (Q78, validation in progress)
+
+The additive `execution_accounting` object is independent of the legacy TSC and sampled census.
+Build with `BGT_CPU_ACCOUNTING=0` to erase retirement updates, local retirement debt and scheduler
+accounting from hot paths. Disabled artifacts report `enabled:0`, null retirement/thread/frame data;
+legacy artifacts without the object are also **unavailable**, not measured zero. Default-on remains
+conditional on matched overhead measurements (target under approximately 2%); see [K31](handoff/K31.md).
+
+- `retired.{total,lifted,generic,interpreted}` are cumulative **unsigned decimal strings**, not JSON
+  doubles. Process and stable-thread totals only advance on completed guest instructions, exactly once.
+  AMD64 native regions batch deltas at existing synchronization boundaries; i386 commits after semantics
+  and before control transfers. Generic and interpreted paths commit after semantic completion. Pre-execution
+  quantum attempts and faulting instructions do not retire. A partially executed REP retires once at final
+  completion, **not** per iteration or partial dispatch; a zero-count REP retires once. Import/thunk bodies,
+  callback setup/return scaffolding and handwritten overrides do not invent guest instructions; actually
+  dispatched callback instructions count normally. Context restore and census reset do not restore/reset
+  retirement. Legacy `generic_insn_execs` and `interp_insns` retain their previous dispatch-count rules.
+- `threads` retains up to the scheduler's 64 non-reused identities, including exited threads. Each row has
+  `id`, `start_address` (guest address, no inferred role/name), current `state` and matching retirement.
+  `switches_in` counts changes **to** the task, not initial selection or re-selection of the same task.
+- With profiling enabled, scheduler-owned lazy `wall_us` buckets distinguish `running`, `ready`
+  (runnable but not running), `sleep_timer`, `wait_objects` (events/locks/other waits), `io`,
+  `suspended` and `host_yield`. These are **host monotonic wall microseconds, not hardware CPU time**.
+  Native/API/callback work while selected is included in running until a block/park transition; scheduler
+  selection work is not guest execution. Exited identities no longer accrue active/wait time.
+  `cpu_time_us:null` is deliberate. `parked_host_us` separately records actual host parking (including
+  probe think time); it overlaps the state buckets and must not be summed with them. A blocked task remains
+  blocked during parking, whereas a selected running task transitions to host_yield until resume.
+- `virtual_ms` has the same state keys but uses the scheduler's virtual guest clock. Requested finite
+  waits are separate `sleep_requested_ms` / `object_requested_ms` totals; `infinite_waits` counts
+  requests without manufacturing a finite duration. Virtual milliseconds are not real host sleeping.
+  `BGT_CPU_PROFILE=0` retains exact retirement and metadata but disables these timings and snapshots;
+  `timing_enabled:0` and null timing fields mean unavailable, never zero CPU cost.
+- `frames` contains a 64-entry ring of **native guest-present** cumulative snapshots (GDI or SwapBuffers),
+  oldest first, with `capacity`, `dropped` overwrite count, presentation ordinal, host `wall_us`,
+  process/thread retirement and scheduler buckets, plus legacy lifted-call/generic counts. A snapshot is
+  captured at the present, not after the host update. Reads/census reset do not consume or reset the ring.
+  Host redraws are not guest presents; a lone snapshot provides no wholly-contained frame interval.
+
+`metrics.execution_summary.instructions` subtracts consecutive present snapshots using BigInt **before**
+safe numeric conversion. Raw strings remain available above Number.MAX_SAFE_INTEGER; unsafe numeric fields
+are null with `integer-range-exceeded` status. It reports per-interval instructions and thread budgets,
+mean `instructions_per_guest_frame` across retained consecutive intervals, explicit drops and
+`executing_instructions_per_second` = retired instructions / summed scheduler-active host seconds.
+This denominator is explicitly active wall, not CPU cycles, inclusive sampled C timers or parked wall.
+Missing timing or a zero denominator yields null. No interval is bridged across a presentation gap; partial
+first/last frames and work after the last present are excluded. Probe JSON retains the full per-thread and
+per-frame breakdown; the terminal summary labels instructions/active-wall-second and snapshot drops.
 
 ### Buffered coverage and Asyncify boundaries
 

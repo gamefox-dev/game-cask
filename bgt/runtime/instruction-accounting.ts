@@ -23,7 +23,7 @@ function difference(v: unknown, previous: unknown, missingIsZero=false) {
 function thread(now: Row, previous?: Row) {
   const r=retired(now.retired,previous?.retired),wall=object(now.wall_us),oldWall=object(previous?.wall_us);
   const virtual=object(now.virtual_ms),oldVirtual=object(previous?.virtual_ms);
-  const delta=(rows:Row|null,old:Row|null)=>rows?Object.fromEntries(Object.entries(rows).map(([k,v])=>[k,difference(v,old?.[k],true)])):null;
+  const delta=(rows:Row|null,old:Row|null)=>rows?Object.fromEntries(Object.entries(rows).map(([k,v])=>[k,difference(v,old?.[k],previous===undefined)])):null;
   const wallUs=delta(wall,oldWall),active=numeric(wallUs?.running),instructions=safe(count(r.total));
   return {id:now.id,start_address:now.start_address,state:now.state,retired:r,instructions,
     active_wall_us:active,wall_us:wallUs,virtual_ms:delta(virtual,oldVirtual),
@@ -33,6 +33,9 @@ function thread(now: Row, previous?: Row) {
     infinite_waits:difference(now.infinite_waits,previous?.infinite_waits,true),
     parked_host_us:difference(now.parked_host_us,previous?.parked_host_us,true),
     executing_instructions_per_second:instructions!==null&&active!==null&&active>0?instructions*1e6/active:null};
+}
+function activeTotal(rows: ReturnType<typeof thread>[] | null): number | null {
+  return rows?.reduce((sum,t)=>sum!==null&&t.active_wall_us!==null?sum+t.active_wall_us:null,0 as number|null) ?? null;
 }
 function threads(now: unknown, previous?: unknown) {
   const before=new Map((Array.isArray(previous)?previous:[]).map(object).filter((r):r is Row=>!!r).map(r=>[r.id,r]));
@@ -48,14 +51,14 @@ export function instructionSummary(metrics: Row) {
     const before=snapshots[i-1],now=snapshots[i];
     if(typeof now.present!=='number'||typeof before.present!=='number'||now.present!==before.present+1)continue;
     const work=retired(now.retired,before.retired),n=safe(count(work.total)),rows=threads(now.threads,before.threads);
-    const active=rows?.reduce((s,t)=>s+(t.active_wall_us ?? 0),0) ?? null;
+    const active=activeTotal(rows);
     frames.push({from_present:before.present,to_present:now.present,wall_us:difference(now.wall_us,before.wall_us),
       retired:work,instructions:n,threads:rows,active_wall_us:active,
       lifted_calls:difference(now.lifted_calls,before.lifted_calls),generic_insn_execs:difference(now.generic_insn_execs,before.generic_insn_execs),
       executing_instructions_per_second:n!==null&&active!==null&&active>0?n*1e6/active:null});
   }
   const exact=frames.reduce((sum,f)=>{const n=count(f.retired.total);return sum!==null&&n!==null?sum+n:null;},0n as bigint|null);
-  const measured=safe(exact),active=current?.reduce((sum,t)=>sum+(t.active_wall_us ?? 0),0) ?? null;
+  const measured=safe(exact),active=activeTotal(current);
   return {status:instructions===null?'integer-range-exceeded':'available',retired:r,instructions,threads:current,
     timing:a.timing_enabled===1?'scheduler-active-host-wall':'unavailable',cpu_time_us:null,active_wall_us:a.timing_enabled===1?active:null,
     executing_instructions_per_second:a.timing_enabled===1&&instructions!==null&&active!==null&&active>0?instructions*1e6/active:null,

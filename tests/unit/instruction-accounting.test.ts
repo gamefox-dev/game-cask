@@ -26,3 +26,12 @@ it('never bridges a dropped/nonconsecutive interval or fabricates negative retir
   {present:1,retired:retired(9n),threads:[]},{present:3,retired:retired(10n),threads:[]},{present:4,retired:retired(4n),threads:[]}]}}});
  expect(s.frames?.intervals).toHaveLength(1);expect(s.frames?.intervals[0].instructions).toBeNull();expect(s.instructions_per_guest_frame).toBeNull();
 });
+it('does not silently replace a missing thread timing budget with zero active time',()=>{
+ const before=row(1,10n,100),after=row(1,20n,110),missing={...row(2,12n,3),wall_us:null};
+ const s=instructionSummary({execution_accounting:{enabled:1,timing_enabled:1,retired:retired(32n),threads:[after,missing],
+  frames:{capacity:64,dropped:0,snapshots:[{present:1,retired:retired(10n),threads:[before]},
+   {present:2,retired:retired(32n),threads:[after,missing]}]}}});
+ expect(s.instructions_per_guest_frame).toBe(22);expect(s.active_wall_us).toBeNull();
+ expect(s.executing_instructions_per_second).toBeNull();expect(s.frames?.intervals[0].active_wall_us).toBeNull();
+ expect(s.frames?.intervals[0].executing_instructions_per_second).toBeNull();
+});

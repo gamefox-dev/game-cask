@@ -786,7 +786,7 @@ static void lift_func(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
                     "x86_fault(\"unexpected return\", 0x%08xu);", next, in.target, in.target, next, va);
             else fprintf(o, "x86_push(0x%08xu);x86_retire(XR_LIFTED,1);x86_invoke(0x%08xu,0x%08xu);if(!X.transfer&&X.eip!=0x%08xu)x86_fault(\"callee returned to an unexpected address\",0x%08xu);", next, in.target, next, next, in.target);
             break;
-        case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "t=%s;x86_push(0x%08xu);x86_retire(XR_LIFTED,1);x86_invoke(t,0x%08xu);if(!X.transfer&&X.eip!=0x%08xu)x86_fault(\"callee returned to an unexpected address\",X.eip);", t1, next, next, next); break;
+        case XO_CALL_IND: st->calls_indirect++; rd(t1, sizeof t1, A); fprintf(o, "t=%s;x86_push(0x%08xu);x86_retire(XR_LIFTED,1);x86_invoke(t,0x%08xu);if(!X.transfer&&X.eip!=0x%08xu)x86_fault(\"callee returned to an unexpected address\",t);", t1, next, next, next); break;
         case XO_RET: fprintf(o, "X.eip = x86_pop(); X.r[ESP] += %uu;x86_retire(XR_LIFTED,1); return;", (uint32_t)A->imm); break;
         case XO_JMP_IND: {
             rd(t1, sizeof t1, A);

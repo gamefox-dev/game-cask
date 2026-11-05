@@ -32,7 +32,7 @@ function pe(code:Buffer,wide:number) {
 type Ex={prepare(interpreted:number,entry:number):void;run(entry:number):void;resume():void;
  retired(kind:number):bigint;thread_retired(i:number):bigint;clock():bigint;set_budget(n:number):void;
  stop(yes:number,park:number):void;clear_transfer():void;reset_census():void;set_reg(i:number,n:number):void;
- pc():number;transfer():number;remaining():number;select_task(i:number,pc:number):void};
+ pc():number;transfer():number;remaining():number;select_task(i:number,pc:number):void;active_time():number;parked_time():number};
 async function fixture(hex:string,width:number,preset:string,account=1,profile=1) {
  const root=join(ROOT,'node_modules/.cache/bgt/retirement-tests');mkdirSync(root,{recursive:true});
  const dir=mkdtempSync(join(root,'case-')),code=Buffer.from(hex,'hex');
@@ -41,13 +41,13 @@ async function fixture(hex:string,width:number,preset:string,account=1,profile=1
   execFileSync(x86tool(),['lift',join(dir,'input.exe'),'--name','probe','--out',join(dir,'lifted.c'),'--lift-preset',preset]);
   const generated=readFileSync(join(dir,'lifted.c'),'utf8').replace(/#include "x86_lift(64)?.h"/g,(_,w)=>'#include "'+ROOT+'/platforms/x86/x86_lift'+(w??'')+'.h"');
   writeFileSync(join(dir,'probe.c'),'static const unsigned char test_code[]={'+[...code].join(',')+'};\n#include "'+ROOT+'/tests/fixtures/c/retirement_runtime.h"\n'+generated);
-  return await compileC(relative(ROOT,join(dir,'probe.c')),['MODE64='+width,'X86_ACCOUNTING_ENABLED='+account,'X86_PROFILE_ENABLED='+profile]);
+  return await compileC(relative(ROOT,join(dir,'probe.c')),['MODE64='+width,'X86_ACCOUNTING_ENABLED='+account,'X86_PROFILE_ENABLED='+profile],true);
  }finally{rmSync(dir,{recursive:true,force:true});}
 }
 for(const width of [0,1])for(const preset of ['size','fast'])it('exact mixed retirement / quantum / REP / context restoration '+width+' '+preset,async()=>{
  // 18: MOV,XOR; three ADD/DEC/JNZ; CPUID; MOV; zero-count REP;
- // CALL; main RET; callee NOP,RET. CPUID and AMD64 REP use generic semantics.
- const code='b90300000031c083c007ffc975f90fa2b900000000f3aae801000000c390c3';
+ // CALL; main RET; callee NOP,RET. i386 BSWAP / AMD64 CPUID are generic.
+ const code='b90300000031c083c007ffc975f9'+(width?'0fa2':'0fc8')+'b900000000f3aae801000000c390c3';
  for(const profile of [0,1])for(const interpreted of [0,1]) {
   const {exports}=await instantiateFixture(await fixture(code,width,preset,1,profile));const ex=exports as unknown as Ex;
   ex.prepare(interpreted,BASE);ex.set_reg(7,0x2000);ex.set_budget(2000000);ex.stop(1,0);
@@ -75,6 +75,19 @@ for(const width of [0,1])for(const preset of ['size','fast'])it('exact mixed ret
  const {exports}=await instantiateFixture(await fixture(code,width,preset,0));const ex=exports as unknown as Ex;
  ex.prepare(0,BASE);ex.run(BASE);expect(ex.retired(3)).toBe(0n);
 },600000);
+for(const preset of ['size','fast'])it('full-width control-target faults exclude the failing native or interpreted instruction '+preset,async()=>{
+ for(const [code,expected] of [
+  ['48b80000000001000000ffd0',1n], // MOV RAX,2^32; CALL RAX (invalid target)
+  ['48b80000000001000000ffe0',1n], // MOV; JMP RAX (invalid target)
+  ['48b8000000000100000050c3',2n], // MOV; PUSH RAX; RET (invalid target)
+ ] as const) {
+  const raw=await fixture(code,1,preset);
+  for(const interpreted of [0,1]) {
+   const {exports}=await instantiateFixture(raw),ex=exports as unknown as Ex;
+   ex.prepare(interpreted,BASE);expect(()=>ex.run(BASE)).toThrow();expect(ex.retired(3)).toBe(expected);
+  }
+ }
+},600000);
 it('retirement commits once across actual Asyncify rewind and JSPI parked continuation',async()=>{
  if(process.env.BGT_TEST_JSPI==='1')expect(jspiApi()).not.toBeNull();
  const raw=await fixture('b80100000083c002c3',1,'fast');
@@ -82,11 +95,13 @@ it('retirement commits once across actual Asyncify rewind and JSPI parked contin
  try {
   writeFileSync(join(dir,'raw.wasm'),raw);transform(join(dir,'raw.wasm'),join(dir,'async.wasm'),[...WASM_OPT_FEATURES,'-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield']);
   for(const mode of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[])for(const interpreted of [0,1]) {
-   const host=await GameHost.create(mode==='jspi'?raw:readFileSync(join(dir,'async.wasm')),{vfs:new Vfs(),now:()=>0,log:()=>{}},{backend:3,caps:0,seed:1,displayWidth:64,displayHeight:64,arg0:0,arg1:0,suspensionMode:mode});
+   let now=0;
+   const host=await GameHost.create(mode==='jspi'?raw:readFileSync(join(dir,'async.wasm')),{vfs:new Vfs(),now:()=>now,log:()=>{}},{backend:3,caps:0,seed:1,displayWidth:64,displayHeight:64,arg0:0,arg1:0,suspensionMode:mode});
    const ex=(host as unknown as {exports:Ex}).exports;ex.prepare(interpreted,BASE);ex.set_budget(2000000);ex.stop(0,1);
    host.init();await host.update();expect(host.suspended).toBe(true);expect(ex.retired(3)).toBe(0n);
+   now=1000;expect(ex.active_time()).toBe(0);expect(ex.parked_time()).toBe(1000000);
    await host.update();expect(host.suspended).toBe(false);
-   expect(ex.retired(3)).toBe(3n);
+   expect(ex.retired(3)).toBe(3n);expect(ex.active_time()).toBe(0);expect(ex.parked_time()).toBe(1000000);
   }
  }finally{rmSync(dir,{recursive:true,force:true});}
 },600000);

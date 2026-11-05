@@ -1,5 +1,6 @@
 /* Original CC0-1.0: real mixed dispatcher, semantics and context scheduler.
  * Program bytes and generated lifts are supplied by retirement.test.ts. */
+#include "wasi_offline.h" /* Real x87/libm is linked; no host WASI entropy. */
 #define X86_COVERAGE_MODE 0
 #if MODE64
 #define X86_FLAT_GUEST 1
@@ -16,7 +17,11 @@ extern const x86_lifted_entry_t x86_lifted_probe[];
 extern const uint32_t x86_lifted_probe_count;
 static unsigned stopped,parking;
 static void cooperate(void) {
-    if(parking){x86_profile_idle_begin();bgt_yield();x86_profile_idle_end();}
+    if(parking){
+        x86_account_observe(bgt_time_us(),0);x86_account_idle(1,bgt_time_us());
+        x86_profile_idle_begin();bgt_yield();x86_profile_idle_end();
+        x86_account_observe(bgt_time_us(),0);x86_account_idle(0,bgt_time_us());
+    }
     if(stopped)X.transfer=X86_SCHEDULE;
 }
 BGT_EXPORT(retired) uint64_t retired(unsigned kind) {
@@ -27,6 +32,8 @@ BGT_EXPORT(thread_retired) uint64_t thread_retired(unsigned i) {
     x86_retired_t *r=&x86_accounts[i].retired;
     return r->instructions[0]+r->instructions[1]+r->instructions[2];
 }
+BGT_EXPORT(active_time) double active_time(void){x86_account_observe(bgt_time_us(),0);return x86_accounts[0].wall_us[XA_RUNNING];}
+BGT_EXPORT(parked_time) double parked_time(void){x86_account_observe(bgt_time_us(),0);return x86_accounts[0].parked_us;}
 BGT_EXPORT(clock) uint64_t clock_count(void){return X.tsc;}
 BGT_EXPORT(set_reg) void set_reg(unsigned i,uint32_t n){X.r[i]=n;}
 BGT_EXPORT(set_budget) void set_budget(unsigned n){X.frame_insns=n;}
