@@ -76,3 +76,8 @@ Remaining reviewer request: add helper-header object/linked/Asyncify invalidatio
 cache dependency tests do not establish it. Do not bump cache schema or change build ownership gratuitously;
 reviewer approved existing content fingerprints. Also inspect actual final wasm helper call elimination
 and quantify synchronization separately if useful. No full Tier1, final external validation or CI claim.
+## Continuation checkpoint — reviewer #322
+
+The inherited final-focused codegen matrix completed 181/181 PASS (two files, exit 0) and loaded the corrected RAX=0x80000000 assertion. The earlier overlapping codegen2 run is retained as a stale-source failure (174 pass / 2 failed) from the old RAX=0 expectation, not a current-source failure. A focused CC0 cache regression was added in tests/unit/lifted-header-cache.test.ts and passes: a private copied helper-header change rebuilds one dependent object, changes the linked and JSPI hashes, misses Asyncify, and then warm-caches all artifacts. It uses a reloc-free x86 fixture after the first AMD64 no-relocation diagnostic. Typecheck and focused ESLint pass. Commits are 6a514c2, 9bbddc4, 36a396b and 9500bc0; inspect the log before final handoff.
+
+A fresh serial Tier-1 runner is active at /Users/dev/projects/pi-work/scratch-K34/tier1, with BGT_E2E_PORT=5279, dual/real JSPI, WebGPU required, and no light exclusions. Doctor exited 0; lint and remaining gates are still running. Do not claim any gate until its exit marker and log are inspected. Previous failed focused cache attempts are retained; no assertions were weakened.
