@@ -22,7 +22,7 @@ static inline int xl_contains(const uint32_t *entries, unsigned n, uint32_t pc) 
 /* Returning NULL sends generated code to its single spill/fault boundary. The slow operation there
  * retains the reference's diagnostic and partial cross-page-store behaviour. No host pointer is cached
  * across a call, memory growth, yield, exception or generic instruction. */
-static __attribute__((noinline)) uint8_t *xl_pointer_checked(uint64_t a, unsigned n, unsigned access) {
+static __attribute__((noinline)) uint8_t *xl_pointer_full(uint64_t a, unsigned n, unsigned access) {
 #ifdef X86_FLAT_GUEST
     if (!n || a >= X86_FLAT_BYTES || n > X86_FLAT_BYTES - a || !x86_pages[a >> 12] ||
         !x86_pages[(a + n - 1) >> 12]) return 0;
@@ -36,7 +36,7 @@ static __attribute__((noinline)) uint8_t *xl_pointer_checked(uint64_t a, unsigne
 #endif
 }
 static __attribute__((noinline,cold)) uint8_t *xl_pointer_slow(uint64_t a, unsigned n, unsigned access) {
-    return xl_pointer_checked(a, n, access);
+    return xl_pointer_full(a, n, access);
 }
 /* The common operand needs one page lookup, not a call plus two endpoint lookups.
  * Keep the full-width range check: wasm bounds alone cannot detect unmapped guest holes,
@@ -48,6 +48,10 @@ static inline __attribute__((always_inline)) uint8_t *xl_pointer_access(uint64_t
         return x86_flat + (uint32_t)a;
 #endif
     return xl_pointer_slow(a, n, access);
+}
+/* Default operand/span sites also specialize their constant width/access. */
+static inline __attribute__((always_inline)) uint8_t *xl_pointer_checked(uint64_t a, unsigned n, unsigned access) {
+    return xl_pointer_access(a, n, access);
 }
 static inline uint8_t *xl_pointer(uint64_t a,unsigned n) { return xl_pointer_checked(a,n,3); }
 static inline uint8_t *xl_pointer_fast(uint64_t a,unsigned n) { return xl_pointer_access(a,n,3); }
@@ -89,8 +93,39 @@ static inline __attribute__((always_inline)) uint64_t xl_alu(int op, uint64_t a,
     *flags = (*flags & ~live) | f;
     return r;
 }
-static __attribute__((noinline)) uint64_t xl_alu_full(int op, uint64_t a, uint64_t b, int n, uint32_t *flags) {
+/* Full-flag sites are constant-op/width call sites. Inline the wrapper so the
+ * always-inline xl_alu can constant-fold its dispatch and flag masks; keep the
+ * generated helper spelling for size-policy compatibility and diagnostics. */
+static inline __attribute__((always_inline)) uint64_t xl_alu_full(int op, uint64_t a, uint64_t b, int n, uint32_t *flags) {
     return xl_alu(op, a, b, n, flags, F_CF | F_PF | F_AF | F_ZF | F_SF | F_OF);
+}
+/* Constant opcode/width shifts keep flags in the region local. The oversized
+ * count and OF choices match the reference, including its deterministic choices
+ * for architecturally undefined flags. Carry rotates retain the shared helper. */
+static inline __attribute__((always_inline)) uint64_t xl_shift(int op, uint64_t a, uint32_t c, int n, uint32_t *flags) {
+    unsigned bits = (unsigned)n * 8;
+    uint64_t m = x64_mask(n), sign = 1ull << (bits - 1), r;
+    uint32_t cf, of;
+    a &= m; c &= n == 8 ? 63 : 31;
+    if (!c) return a;
+    if (op == XO_SHL || op == XO_SAL) {
+        r = c >= bits ? 0 : (a << c) & m;
+        cf = c <= bits && ((a >> (bits - c)) & 1);
+        of = !!(r & sign) ^ cf;
+    } else if (op == XO_SHR) {
+        r = c >= bits ? 0 : a >> c;
+        cf = c <= bits && ((a >> (c - 1)) & 1);
+        of = !!(a & sign);
+    } else {
+        unsigned k = c >= bits ? bits - 1 : c;
+        int64_t sa = (int64_t)x64_sext(a, n);
+        r = (uint64_t)(sa >> k) & m;
+        cf = (sa >> (k - 1)) & 1; of = 0;
+    }
+    *flags = (*flags & ~(F_CF | F_OF | F_ZF | F_SF | F_PF)) |
+        (cf ? F_CF : 0) | (of ? F_OF : 0) | (!r ? F_ZF : 0) |
+        ((r & sign) ? F_SF : 0) | (xs_parity((uint32_t)r) ? F_PF : 0);
+    return r;
 }
 /* Keep wide overflow arithmetic out of every call site; wasm has no native i128 multiply. */
 static __attribute__((noinline)) uint64_t xl_imul(uint64_t a, uint64_t b, int n, uint32_t *flags) {

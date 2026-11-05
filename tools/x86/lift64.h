@@ -618,7 +618,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             case XO_ROL: case XO_ROR: case XO_RCL: case XO_RCR: case XO_SHL: case XO_SHR: case XO_SAL: case XO_SAR:
                 l64_fault_writes = L64_FLAGS;
                 l64_read(o, aa, "t", next); l64_read(o, bb, "u", next);
-                fprintf(o, "X.flags=flags;t=x64_shift(%u,t,(uint32_t)u,%d);flags=X.flags;", in->op, n);
+                if (in->op == XO_SHL || in->op == XO_SAL || in->op == XO_SHR || in->op == XO_SAR)
+                    fprintf(o, "t=xl_shift(%u,t,(uint32_t)u,%d,&flags);", in->op, n);
+                else fprintf(o, "X.flags=flags;t=x64_shift(%u,t,(uint32_t)u,%d);flags=X.flags;", in->op, n);
                 l64_write(o, aa, "t", next); break;
             case XO_BSWAP:
                 l64_read(o, aa, "t", next);
