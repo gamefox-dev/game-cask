@@ -1,6 +1,6 @@
 {
   "schema": "game-cask/K31-evidence/1",
-  "status": "WIP; author focused/overhead only, not Tier1 acceptance",
+  "status": "Author expanded Tier1 green at99329ac and fresh bounded vK31b PASS; benchmark source f65d33c; no game/CI certification",
   "overhead": {
     "schema": "game-cask/accounting-overhead/1",
     "identity": "d4054da5432c41a61e6d397bfbcd7c5a414e0833",
@@ -2165,5 +2165,10 @@
     "post-present-tail": "90 != 3"
   },
   "default_decision": "OFF per reviewer267; full scale profile0 JSPI +19.1354%, target ~2%. Asyncify large favorable differences are code-shape/shared-machine observations, not robust speedups. Profile1 additional scheduler costs are not isolated retirement.",
-  "reviewer_gate_decision": "Complete broad Tier1 default OFF; additionally ON full units/all300-frame oracles with ON/OFF trace equality and WebGPU both suspension modes. Attribution requested, pending."
+  "reviewer_gate_decision": "Completed broad default-OFF plus ON full units/all300-frame oracles with identical ON/OFF traces and WebGPU both suspension modes; gate evidence in K31-gate-evidence.json",
+  "attribution": {
+    "evidence": "K31-attribution.json",
+    "sha256": "be8f55622db756dc6f972cf1dbd066eb01d0c9e721508c2d8de8dce20b01d1de",
+    "result": "PASS; later BOTH/OFF +4.2711%, noisy ablations not additive causal decomposition; default OFF unchanged"
+  }
 }

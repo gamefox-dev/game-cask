@@ -184,7 +184,7 @@ in both variants; this isolates the C instrumentation, not total instrumentation
 are noisy, not a bound for an engine workload. `tools/bench/codegen.test.ts` now records resources alongside runtime
 metrics; rebuild before changing variants and do not measure while another task republishes the same fixture.
 
-### Exact retirement and scheduler accounting (Q78, validation in progress)
+### Exact retirement and scheduler accounting (Q78)
 
 The additive `execution_accounting` object is independent of the legacy TSC and sampled census.
 Accounting defaults **off**: set `BGT_CPU_ACCOUNTING=1` and rebuild to enable it. Disabled builds

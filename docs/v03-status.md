@@ -1,5 +1,27 @@
 # v0.3 merged implementation status
 
+## K31 — Q78 exact accounting (lane source99329ac, author gates green)
+
+Opt-in **BGT_CPU_ACCOUNTING=1** provides monotonic process/stable-thread retirement, scheduler-owned
+active/wait/ready/park and virtual-time budgets, bounded64 native-present snapshots and BigInt-first
+per-frame/active-wall throughput summaries. Default **OFF** after CC0 full12000-owner profile0 JSPI
+**+19.1354%** (target approximately2%); compiled-out data is unavailable/null, never measured zero.
+Hardware CPU time stays null; TSC/RDTSC/scheduling/ABI unchanged. All accounting u64/timestamps use
+decimal strings. Startup abort-hook and precision defects from vK31 repaired; **fresh vK31b PASS**
+at99329ac. No code/test change after reviewed source.
+
+Final author serial broad default-OFF gates: doctor, full lint38 examples/real GCC, explicit clang,
+types, **2329 units/136 files/no skips**, leakcheck, full browsers **300 pass/51 inherited skips/0
+failures/0 flaky** in both modes (native WebGL2/WebGPU/auto), every34×2×300 oracle. Additional ON:
+full2329 units, WebGPU **157/26/0/0** both modes, every34×2×300 oracle. All136 reports audited,
+ON/OFF/cross-mode semantic traces identical, exact inherited skip inventories, unchanged strict
+GL-scale-only expected-error contract. Independent review was bounded, not full-gate/CI certification.
+Private attribution passed: later BOTH/OFF +4.27% (not a reproduction of +19.14%); changed region
+body sizes/locals, unchanged wrapper counts/sizes, noisy ablations preclude additive causal cost
+shares. Default OFF unchanged; all owned suites/temporary outputs cleaned. No game/60fps/device claim.
+[Handoff](handoff/K31.md), [gate evidence](handoff/K31-gate-evidence.json),
+[measurements](handoff/K31-measurements.json), [repair sensitivity](handoff/K31-repair-evidence.json).
+
 ## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
 
 Ordered no-ff merges over dev.16 retain K23 supervised builds and K24/K25 GPU behavior unchanged.
