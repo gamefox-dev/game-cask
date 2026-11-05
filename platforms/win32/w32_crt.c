@@ -82,6 +82,24 @@ const w32_crt_entry_t *w32_find_crt(const char *name) {
     for (uint32_t i = 0; i < w32_crt_table_n; i++) if (!strcmp(name, w32_crt_table[i].name)) return &w32_crt_table[i];
     return 0;
 }
+/* Audited leaf set: guest heap allocation with flags=0 never raises SEH, and these
+ * string primitives neither allocate host buffers nor call guest code. No generic
+ * CRT function pointer is invoked from this signature's call graph. */
+#define CRT_LEAVES(X) \
+ X(c_malloc) X(c_free) X(c_calloc) X(c_realloc) \
+ X(c_strlen) X(c_wcslen) X(c_strcmp) X(c_wcscmp) X(c_strncmp) X(c_wcsncmp)
+#define LEAF_WRAP(fn) static uint64_t leaf_##fn(uint32_t unused) {(void)unused;return fn();}
+CRT_LEAVES(LEAF_WRAP)
+#undef LEAF_WRAP
+w32_leaf_fn w32_crt_leaf(const w32_crt_entry_t *entry) {
+    if(!entry)return 0;
+#define LEAF_MATCH(impl) if(entry->fn==impl)return leaf_##impl;
+    CRT_LEAVES(LEAF_MATCH)
+#undef LEAF_MATCH
+    return 0;
+}
+#undef CRT_LEAVES
 #else
+w32_leaf_fn w32_crt_leaf(const w32_crt_entry_t *entry) {(void)entry;return 0;}
 const w32_crt_entry_t *w32_find_crt(const char *name) { (void)name; return 0; }
 #endif

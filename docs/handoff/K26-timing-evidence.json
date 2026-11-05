@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "source": "ea57b43 with final fixture harness feature flags, deterministic stack-cookie adapter and explicit-fault regression (see final K26 source commit)",
+  "method": "Original CC0 fixture; nine sequential samples per operation after 100k warmup; one million iterations. Imported monotonic = performance.now()*1000; constant import isolates crossing. transitions = physical enter+exit (two clocks when enabled). Shared-machine observations, not normalized game overhead. no_timer arithmetic may be optimized; disabled transitions measured at clock resolution and not a latency claim.",
+  "clock": {
+    "node": "v24.19.0",
+    "resources": {
+      "when": "2026-11-04T11:55:31.264Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        8.82080078125,
+        12.9404296875,
+        25.62255859375
+      ],
+      "freeRamBytes": 656179200,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 8933542461,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          false,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "resourcesEnd": {
+      "when": "2026-11-04T11:55:32.743Z",
+      "platform": "darwin/arm64",
+      "cpuCount": 10,
+      "cpuModel": "Apple M4",
+      "loadAverage": [
+        8.9150390625,
+        12.8916015625,
+        25.53076171875
+      ],
+      "freeRamBytes": 153812992,
+      "totalRamBytes": 17179869184,
+      "swapUsedBytes": 8933542461,
+      "heavyGate": {
+        "slots": 3,
+        "occupied": [
+          true,
+          true,
+          true
+        ],
+        "queued": 3
+      },
+      "topCpuProcesses": null,
+      "errors": [
+        "ps: spawnSync ps EPERM"
+      ]
+    },
+    "rows": [
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          3.850250000000017,
+          3.368499999999983,
+          3.373833999999988,
+          3.3737500000000296,
+          3.0988340000000107,
+          3.179124999999999,
+          3.1667919999999867,
+          3.1339169999999967,
+          3.136332999999979
+        ],
+        "medianMs": 3.179124999999999,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.041333000000008724,
+          0.04108299999995779,
+          0.04108399999995527,
+          0.033165999999994256,
+          0.033167000000048574,
+          0.040625000000034106,
+          0.03316699999999173,
+          0.03308299999997644,
+          0.04066700000004175
+        ],
+        "medianMs": 0.040625000000034106,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "constant",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.0003329999999550637,
+          0.00016600000003563764,
+          0.00020799999998644125,
+          0.00016699999997626946,
+          0.00016699999997626946,
+          0.00020799999998644125,
+          0.00016700000003311288,
+          0.00016700000003311288,
+          0.00016599999997879422
+        ],
+        "medianMs": 0.00016700000003311288,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          29.110291000000018,
+          27.827083999999957,
+          27.646957999999984,
+          27.667417,
+          27.772875,
+          27.860166999999933,
+          28.134707999999932,
+          31.402917000000002,
+          28.161957999999913
+        ],
+        "medianMs": 27.860166999999933,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.041166999999973086,
+          0.04104199999994762,
+          0.041125000000079126,
+          0.04754200000002129,
+          0.041249999999990905,
+          0.03274999999996453,
+          0.03262500000005275,
+          0.04095900000004349,
+          0.032665999999949236
+        ],
+        "medianMs": 0.04104199999994762,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 0,
+        "clock": "monotonic",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.00020799999992959783,
+          0.00016700000003311288,
+          0.00012500000002546585,
+          0.00012500000002546585,
+          0.00012499999991177901,
+          0.00016600000003563764,
+          0.00012500000002546585,
+          0.00012500000002546585,
+          0.00012500000002546585
+        ],
+        "medianMs": 0.00012500000002546585,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          4.53616599999998,
+          3.7226670000000013,
+          3.7255830000000287,
+          3.722082999999998,
+          3.7323750000000473,
+          3.722750000000019,
+          3.7238330000000133,
+          3.7562090000000126,
+          3.899499999999989
+        ],
+        "medianMs": 3.7255830000000287,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.043207999999935964,
+          0.04404099999999289,
+          0.045040999999969245,
+          0.043000000000006366,
+          0.0428749999999809,
+          0.02437499999996362,
+          0.04250000000001819,
+          0.0428749999999809,
+          0.041707999999971435
+        ],
+        "medianMs": 0.0428749999999809,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "constant",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          9.930082999999968,
+          9.022958000000017,
+          9.345000000000027,
+          8.353250000000003,
+          8.515625,
+          9.186707999999953,
+          9.05033400000002,
+          9.044832999999926,
+          8.871457999999961
+        ],
+        "medianMs": 9.044832999999926,
+        "clockCalls": 18000000
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          28.312416999999982,
+          27.69150000000002,
+          28.71712500000001,
+          27.845291999999972,
+          27.64387499999998,
+          27.5607500000001,
+          27.890249999999924,
+          27.78283300000021,
+          30.58750000000009
+        ],
+        "medianMs": 27.845291999999972,
+        "clockCalls": 9000000
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "no_timer",
+        "iterations": 1000000,
+        "samplesMs": [
+          0.04099999999993997,
+          0.04095800000004601,
+          0.040750000000116415,
+          0.048833000000058746,
+          0.04095800000004601,
+          0.04099999999993997,
+          0.04099999999993997,
+          0.0409589999999298,
+          0.04100000000016735
+        ],
+        "medianMs": 0.04099999999993997,
+        "clockCalls": 0
+      },
+      {
+        "enabled": 1,
+        "clock": "monotonic",
+        "op": "transitions",
+        "iterations": 1000000,
+        "samplesMs": [
+          55.622499999999945,
+          57.34958400000005,
+          55.400249999999915,
+          56.35141700000008,
+          56.59116599999993,
+          55.62866600000007,
+          55.411959000000024,
+          55.51958400000012,
+          55.64700000000016
+        ],
+        "medianMs": 55.62866600000007,
+        "clockCalls": 18000000
+      }
+    ]
+  },
+  "handTimed": {
+    "fixture": "tests/fixtures/c/interpreter-dispatch-spans.c",
+    "modes": [
+      "asyncify",
+      "real-jspi"
+    ],
+    "widths": [
+      "i386",
+      "AMD64"
+    ],
+    "profile": [
+      0,
+      1
+    ],
+    "hostUpdatesPerCase": 300,
+    "suspensionsPerCase": 150,
+    "perCompletedRunMs": {
+      "i386": 80,
+      "AMD64": 90,
+      "excludedNativeAndApi": 400
+    },
+    "atParkMs": {
+      "i386": 60,
+      "AMD64": 70
+    },
+    "completionMs": 20,
+    "parkingMs": 1000000,
+    "checks": [
+      "raw time exact; cumulative and per-update raw time <= host update wall",
+      "actual execution_summary status measured/disabled and time/share exact",
+      "reset/render/consume/park excluded",
+      "pre-execution quantum and REP transfer; zero-count REP",
+      "10002 decoded instruction loop <100 clock imports; profiling off zero",
+      "explicit fault freezes accumulator"
+    ]
+  },
+  "focused": {
+    "files": 3,
+    "tests": 7,
+    "exit": 0,
+    "realJspi": true,
+    "seconds": 12.39
+  },
+  "static": {
+    "typecheck": 0,
+    "eslint": 0
+  },
+  "negativeControls": {
+    "method": "Private git archive, unchanged assertions; unique compile define per mutation; no production mutation. Exit 1 is expected test assertion failure.",
+    "idle": {
+      "exit": 1,
+      "hookExpectedUs": 45,
+      "hookActualUs": 1000045
+    },
+    "restore": {
+      "exit": 1,
+      "filesFailed": 2,
+      "testsFailed": 3
+    },
+    "fault": {
+      "exit": 1,
+      "testsFailed": 2,
+      "expectedFrozenUs": [
+        112070000,
+        113580000
+      ],
+      "actualAfterParkUs": [
+        1112070000,
+        1113580000
+      ]
+    },
+    "limitations": "Initial narrower idle/return controls did not fail the dispatcher: yield occurs inside an already excluded API thunk, and outer invoke restoration covers inner return closure. Initial fault-only run also returned 0; retained as non-evidence. Final unique-define controls and diagnostic fault-state print expose actual active-state leak; root #error confirms private source paths. No sensitivity claim for initial controls."
+  }
+}

@@ -1,5 +1,61 @@
 # v0.3 merged implementation status
 
+## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
+
+Ordered no-ff merges over dev.16 retain K23 supervised builds and K24/K25 GPU behavior unchanged.
+K28 browser-local GLSL progress; K26 measured interpreter spans/abort boundary/failed-update wall;
+K27 native SIMD/atomic forms, alignment and segmented addr32/EIP-relative repairs; K29 guarded
+leaf/bound imports, full-width string pointers and per-test SSE tool discovery now coexist.
+Only status history conflicted; **no production integration repair**. New hand-clock regression
+covers interpreted CALL→native driver→leaf/bound, nested callback, normal park/rewind and import
+exceptions in actual Asyncify/JSPI. Final source **4099838** differs from initial ebeb4c7 only by an
+erased TypeScript annotation correction (initial typecheck failed; final checks pass).
+
+Final merged-tree doctor, full Clang/GCC lint **38/38 examples each**, explicit Clang host checks,
+typecheck and leakcheck pass; **2,305 units /129 files /0 skips**. Full Asyncify **300 pass /51 existing
+skips /0 failures /0 flaky**, full JSPI **300/51/0/0**, both uninterrupted green, actual required
+WebGL2/WebGPU/auto; exact skip inventory equals I13. GLSL cross cases **17.5/18.5s**, unchanged pixels.
+K24/K25 explicit native replay **11/11**, both backends; K26 + I14 span fixtures **17/17**.
+**34 pipeline fixtures ×2 modes ×300 =20,400 identical pairs**; all68 exit0, zero lifted interpretation/
+stubs, null errors, equal state and semantic traces within/across modes, physical measured interpreter
+time inside actual update budgets. Exact #204 scale-only expected-error contract remains intact.
+
+Matched dev.16 synthetic benchmarks: K27 **500,000→0 generic executions**, empty opcode census
+(size/fast, both suspension modes); K29 all9 hot import forms **reason5 exits0 /thunk dispatches0**,
+**1.81–4.27×** median speedups (actual Asyncify,100000 calls, exact API counts, baseline missing
+boundary counters remain null). These shared-machine measurements are not game performance.
+K26 size attribution/follow-up is retained; **Asyncify may-suspend analysis is not implemented**.
+
+Coordinator-approved I13 review boundary: inherited **vK28/vK26b/vK27b/vK29 PASS**, narrow test-only
+integration-diff read and final-tree author gates; **no independent merged-tree PASS/CI** claimed.
+All runners finished, owned baseline/temporary outputs removed, raw evidence retained. No game,
+physical-device or mobile certification. [Handoff](handoff/integration-i14.md),
+[audited evidence](handoff/integration-i14-evidence.json).
+
+## K29 gate record — guarded direct imports (unit blocker repaired; acceptance external)
+
+K29 adds full-width guarded IAT/provenance lowering and explicit non-suspending CRT/thread leaf
+bindings; callback/suspending APIs retain a bound outer-driver path, changed operands dynamic fallback.
+Focused profile/snapshot/string/context tests pass; guard-removal and pointer-truncation mutations
+fail their assertions. The serial nine-case100000-call dev.16 A/B has zero final reason5 exits/dynamic
+thunk crossings, identical300-update oracle hashes across versions, and synthetic call-loop medians
+1.76–4.42× faster. Baseline IAT/register forms already have zero reason5 exits; missing baseline
+dynamic counters are not reported as zero. Final gate audit retains doctor, Clang/GCC lint (38 examples),
+typecheck, full leakcheck, both suspension browser runs (300 pass/51 intentional skips each, both native
+backends), and all34×2×300 pipeline oracles (20,400 identical frame pairs, matching cross-suspension
+hashes). K29h actually measures all four SSE-matrix cases on dev.16 and incoming HEAD: both
+time out at the unchanged60000ms deadline under the same current conditions; 106 paired emitted
+C files are identical. Repeated tool freshness discovery (median1319ms versus2.24ms native lift)
+is the dominant avoidable setup cost. Reviewer-authorized per-test lazy discovery reuse keeps the
+first lookup inside the deadline and invalidates between tests; real tool-source/SDK-header freshness
+regressions pass and fail when reset is removed. All four cases now pass in22.3–30.4s; full units
+**2075/2075,119 files,no skips** pass. No production/build-layer/assertion/deadline/skip change.
+The prior byte-identity-only inheritance claim was insufficient; the new A/B is actual evidence, not
+a claim that the historical I13 green run was false. Independent validation and real-game remeasurement
+remain external. Memory faults retain the abort
+contract, not new SEH. [Gate evidence](handoff/K29-gates.json); actual failures, repairs, samples and
+remaining boundaries: [K29 handoff](handoff/K29.md).
+
 ## Integration I13 final — K23 + K25 + K24 (merged-tree gates complete)
 
 Ordered no-ff merges over dev.15 preserve K21/K22 coverage convergence and bounded suspension.
@@ -25,6 +81,51 @@ background roots exited;27 owned temporary directories removed only afterward. F
 Inherited external vK23b/vK25/vK24 PASS plus reviewer **#228** repair-diff read is the accepted review boundary;
 no separate independent merged-tree PASS/CI, game or physical-device claim.
 [I13 handoff](handoff/integration-i13.md), [audited evidence](handoff/integration-i13-evidence.json).
+## K26g exception-boundary repair — author Tier 1 green; delta review pending
+
+External vK26 FAIL on cd28ca8 found host exceptions bypassing C span cleanup (P2).
+Decision #251 repair **f1a7621** adds optional `bgt_profile_abort(now_us)`, host export/rejection
+guards and failed-update wall accounting; closes/discards spans and clears abandoned sampled/idle
+state without masking original errors. All four width/suspension reviewer regressions fail before
+and pass after; absent-export compatibility and normal-yield zero-cleanup/exact80/90ms tests pass.
+Private stack/idle cleanup mutants fail both widths. Focused **24/24**, full units **2,027 /109 files**.
+
+Clean repair source full author Tier 1: doctor, ESLint + real GCC **36/36 example checks**, explicit
+clang, types, leakcheck; full browsers **291 pass /51 unchanged skips /0 failures /0 flaky per
+suspension mode**, required WebGL2/WebGPU; **32 fixtures ×2 modes ×300 =19,200 identical oracle
+frame pairs**, lifted interp0/stubs[], null errors, equal cross-mode hashes. All64 interpreted
+physical totals fit actual host update budgets (maximum99.78%). Refreshed clock median27.49ns/import,
+55.30ns/transition pair; disabled transitions0 clocks; shared-machine samples, not game overhead.
+Finalization is documentation/evidence only. **External delta re-review pending**, not an independent
+PASS or CI claim. Review cd28ca8..f1a7621; no production build/emitter changes.
+[Repair handoff](handoff/K26.md), [repair gates](handoff/K26-repair-gate-evidence.json),
+[repair timing/sensitivity](handoff/K26-repair-timing-evidence.json). Historical source gates below
+remain correctly scoped to d454da7.
+
+## K26 historical normal-path gates — physical interpreter timing / measured size attribution
+
+Q73 no longer extrapolates timer overhead into a physical exclusive budget. Disjoint measured
+interpreter spans use the host monotonic clock, exclude native/API/scheduler/parked work, survive
+census reset, and close on return/fault. Raw sampled diagnostics remain labelled; unavailable or
+invalid update budgets give explicit null/status, not clamped shares. Exact hand-clock CC0 tests
+cover real i386/AMD64 dispatch, nesting, 300 GameHost updates, Asyncify/real JSPI and profiling0/1;
+three private-archive negative controls fail as intended. Clock median27.8ns/import,55.6ns per
+enter/exit pair; disabled transitions0 clocks (shared-machine observations, not game overhead).
+
+Clean source **d454da7**: doctor; full lint **36/36 examples**, real GCC + explicit clang; types;
+**2,019 units /108 files /0 skips**; full browser **291 pass /51 unchanged skips /0 failures /0 flaky
+per suspension mode**, both backends required; leakcheck; **32 pipeline fixtures ×2 modes ×300
+=19,200 identical oracle frame pairs**, lifted interp0/stubs[], equal cross-variant hashes.
+All64 real interpreted oracle summaries fit wall time; maximum share99.71%. Finalization docs only.
+
+Matched CC0 attribution separates **528,241B lost whole-module optimization** from **646,375B
+conservative shard-summary expansion**; wholeO2→partition **+13.46%**. Supplied read-only porter
+manifests place99.74% of final growth at postprocessing, not new per-lifted-function hooks.
+Shared-machine runtime samples are retained without claiming isolated causal overhead. Reviewer
+**#232 approved a separate conservative may-suspend analysis follow-up**; no production build/emitter
+changes here. **No independent K26 review or CI claimed**; external reviewer coordination remains.
+[Handoff and approved spec](handoff/K26.md), [gates](handoff/K26-gate-evidence.json),
+[timing](handoff/K26-timing-evidence.json), [size](handoff/K26-size-evidence.json).
 
 ## Integration I12 final — K21 + K22 (merged-tree gates complete)
 

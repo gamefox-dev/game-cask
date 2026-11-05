@@ -206,6 +206,28 @@ typedef int (*x86_thunk_fn)(uint32_t addr);
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn);
 int x86_is_thunk(uint32_t addr);
 
+/* Loader-owned import bindings. Generated sites are hints, never authority: the actual
+ * full-width operand must equal the original target. A patched slot/register falls back.
+ * Leaf has a distinct signature and MUST NOT yield, callback or dispatch SEH. */
+typedef void (*x86_bound_import_fn)(void *);
+/* Returns 0 without side effects when this execution context requires the slow envelope. */
+typedef int (*x86_leaf_import_fn)(void *, uint64_t);
+typedef struct x86_import_binding {
+    uint32_t iat, target;
+    void *opaque;
+    x86_bound_import_fn call;
+    x86_leaf_import_fn leaf;
+    struct x86_import_binding *next;
+} x86_import_binding_t;
+typedef struct {
+    uint32_t iat, generation;
+    const x86_import_binding_t *binding;
+} x86_import_site_t;
+void x86_bind_import(uint32_t iat, uint32_t target, void *opaque,
+                     x86_bound_import_fn call, x86_leaf_import_fn leaf);
+int x86_try_import(x86_import_site_t *site, uint64_t target);
+int x86_defer_import(x86_import_site_t *site, uint64_t target);
+
 /* Run guest code at `target` (with the return address already pushed) until control returns to
  * `ret_addr` with ESP above the pushed return address. Lifted code is preferred; otherwise the
  * interpreter runs (and switches back to lifted code at every call into a lifted function). */
@@ -276,7 +298,8 @@ typedef struct {
     uint64_t tail_calls_lifted;     /* lifted jumps out of a function resolved straight to a lifted entry (tail calls) */
     uint64_t continues_interpreted; /* lifted frames that had to continue in the interpreter (unresolved jumps,
                                        code beyond known functions) */
-    uint64_t thunk_dispatches;      /* import thunks reached through x86_invoke/the interpreter (== platform API calls) */
+    uint64_t thunk_dispatches;      /* imports reached through the dynamic thunk dispatcher */
+    uint64_t direct_import_calls, leaf_import_calls; /* guarded loader bindings; leaf is call-site subset */
     uint32_t lifted_functions;      /* registered lifted functions */
 } x86_metrics_t;
 extern x86_metrics_t x86_metrics;

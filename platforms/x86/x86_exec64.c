@@ -1,5 +1,6 @@
 /* AMD64 semantic execution, also used by predecoded lifted blocks. MIT. */
 #include "x86_sem64.h"
+#include "x86_atomic.h"
 #if defined(X86_FLAT_GUEST) || defined(X86_WIDE_CPU)
 static void cpuid(void) {
     uint32_t leaf=(uint32_t)X.r[EAX];X.r[EAX]=X.r[EBX]=X.r[ECX]=X.r[EDX]=0;
@@ -20,6 +21,9 @@ void x86_exec64(const x86_insn_t *in) {
 #endif
     }
     const x86_opnd_t *a=&in->o[0],*b=&in->o[1],*c=&in->o[2];int n=a->size?a->size:in->osz;uint32_t next=in->addr+in->len;X.eip=next;
+    if ((in->lock && in->op != XO_UNSUPPORTED) ||
+        in->op == XO_XADD || in->op == XO_CMPXCHG || in->op == XO_CMPXCHG_PAIR ||
+        (in->op == XO_XCHG && a->kind == XK_MEM)) { xa_exec(in); return; }
     switch(in->op) {
     case XO_MOV:case XO_MOVZX:x64_write(a,x64_read(b));return;
     case XO_MOVSX:x64_write(a,x64_sext(x64_read(b),b->size));return;
@@ -37,11 +41,7 @@ void x86_exec64(const x86_insn_t *in) {
         else{__int128 s=n==8?(__int128)num:n==4?(int64_t)(uint64_t)num:n==2?(int32_t)(uint32_t)num:(int16_t)(uint16_t)num,d=(int64_t)x64_sext(v,n);if(d==-1 && (__uint128_t)s==((__uint128_t)1<<127))x86_fault("divide overflow",in->addr);__int128 t=s/d;if(t!=(__int128)(int64_t)x64_sext((uint64_t)t,n))x86_fault("divide overflow",in->addr);q=(uint64_t)t;r=(uint64_t)(s%d);}
         x64_set(EAX,n,q);x64_set(n==1?16:EDX,n,r);return;}
     case XO_XCHG:{uint64_t av=x64_read(a),bv=x64_read(b);x64_write(a,bv);x64_write(b,av);return;}
-    case XO_XADD:{uint64_t v=x64_read(a),r=x64_alu(XO_ADD,v,x64_read(b),n);x64_write(b,v);x64_write(a,r);return;}
-    case XO_CMPXCHG_PAIR:{uint32_t p=x64_ea(a);if(a->kind!=XK_MEM)x86_fault("CMPXCHG pair requires memory",in->addr);
-        if(n==16){uint64_t lo=x86_rd64(p),hi=x86_rd64(p+8);int same=lo==X.r[EAX]&&hi==X.r[EDX];xs_setf(F_ZF,same);if(same){x86_wr64(p,X.r[EBX]);x86_wr64(p+8,X.r[ECX]);}else{X.r[EAX]=lo;X.r[EDX]=hi;}}
-        else{uint64_t v=x86_rd64(p),cmp=((uint64_t)(uint32_t)X.r[EDX]<<32)|(uint32_t)X.r[EAX];xs_setf(F_ZF,v==cmp);if(v==cmp)x86_wr64(p,((uint64_t)(uint32_t)X.r[ECX]<<32)|(uint32_t)X.r[EBX]);else{X.r[EAX]=(uint32_t)v;X.r[EDX]=(uint32_t)(v>>32);}}return;}
-    case XO_CMPXCHG:{uint64_t v=x64_read(a);x64_alu(XO_CMP,x64_reg(EAX,n),v,n);if(X.flags&F_ZF)x64_write(a,x64_read(b));else x64_set(EAX,n,v);return;}
+
     case XO_PUSH:{uint64_t v=x64_read(a);if(n==2){X.r[ESP]-=2;x86_wr16((uint32_t)X.r[ESP],(uint32_t)v);}else x86_push(v);return;}
     case XO_POP:{uint64_t v;if(n==2){v=x86_rd16((uint32_t)X.r[ESP]);X.r[ESP]+=2;}else v=x86_pop();x64_write(a,v);return;}
     case XO_PUSHF:x86_push(X.flags|2);return;case XO_POPF:X.flags=(uint32_t)x86_pop()&0xcd5;return;

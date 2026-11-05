@@ -1,0 +1,3258 @@
+{
+  "schema": 1,
+  "baseline": "3cbcb25",
+  "after": "8e3b1e466e1e6dbbfd8f98ee5ead8698b8abd458",
+  "scope": "Original CC0 fixture, no rendering; 300 cooperative updates including guest startup, not guest display frames. Shared machine, sequential samples. No game speedup projection.",
+  "reports": [
+    {
+      "commit": "8e3b1e466e1e6dbbfd8f98ee5ead8698b8abd458",
+      "beforeCommit": "3cbcb252230f997924cee61443b7a27c1a54b3d3",
+      "suspension": "asyncify",
+      "complete": true,
+      "method": "Same machine, serial full builds, discarded fresh-instance warmup + seven fresh-instance samples; 300 updates including startup, not guest presents; no rendering.",
+      "start": {
+        "when": "2026-11-04T13:54:35.733Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          16.0498046875,
+          12.4091796875,
+          13.89990234375
+        ],
+        "freeRamBytes": 358678528,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10383723069,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            true
+          ],
+          "queued": 3
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "end": {
+        "when": "2026-11-04T13:55:00.479Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          15.04345703125,
+          12.48291015625,
+          13.8837890625
+        ],
+        "freeRamBytes": 189693952,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10681382339,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            true
+          ],
+          "queued": 3
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "rawReportSha256": "01ef83b8d9fe0129ebf555cee9c651e057e1fcb65c35adbb8a05f823c864ac98",
+      "rawReportPath": "/Users/dev/projects/pi-work/scratch-K27/continuation-d/benchmark-asyncify.json",
+      "rows": [
+        {
+          "id": "native-forms-size-before",
+          "preset": "size",
+          "variant": "before",
+          "median_ms": 26.33900000000085,
+          "samples_ms": [
+            30.05699999999979,
+            24.97162500000013,
+            26.33900000000085,
+            23.821583000000828,
+            27.516457999999147,
+            26.677166999999827,
+            24.283707999999933
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:54:36.030Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              16.0498046875,
+              12.4091796875,
+              13.89990234375
+            ],
+            "freeRamBytes": 365608960,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10383723069,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:54:43.043Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              16.52587890625,
+              12.568359375,
+              13.947265625
+            ],
+            "freeRamBytes": 266780672,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10562180219,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 500000,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 26.66858299999967,
+              "updates_per_second": 11249.191604968426,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 16781334,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781329,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781339,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781363,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781348,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 226.726,
+            "peak_child_rss_bytes": 55525376,
+            "compile_ms": 2.683,
+            "link_ms": 223.966,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3061628928,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-before/pipeline_main.c",
+                "key": "c994d6c6bf8ab90f7d6aa98c1cb686c9130a0e850079733641a262598e9f37d5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-before/lifted_bench_exe.c",
+                "key": "80542eab790be66dacfdcdd51fcca42d6c45882d777bee4c270779157ef6a611.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "63caf825955d1ee031e0f407f358d0abefd59b01eb6f61973638c1fdbc56ceb6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e7cbb6f1334648838a96fe799b236178dbb66b5db5fb4890e49bb5a4a9b1e648.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "141d12e80e4e70038062a62a32ebca0f4e6869124ee98c00cd60fc584f5ca7b5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "e44fbb4a4131f65eb751a27f8d26cc577886bc65374361218e3d6c16867bafad.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9cda35024840b385e8b618bc4fea332188c99b433771d4e41182006a677ad521.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "1ec54f6ebd9449505619a78eb3ecb0544b29d3896bca829bfcde546d2ff2417b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "6e5fd868e349e441143527ac1d5d1e5b0bb42786671bef8007859e4375c2aaab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "fbede8756314e7492ebabc9914961915de7fc665b450b0b67f4d2959e2a3d985.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "c660cba5da4140bf2bb8c7b84aac111beffe55f18efb7b5a0b9f2f947bff705b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "34d76a6fd5790d3befea1c0c2a2a571206181ed970f5847d40e5fd214160452c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "ba8f481fa66a504702e2f201f9cd51cf1aff15865215c89569d3d07ba499a80a.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "52ec8ba07926602b7504ddb20ddbdb80fd96ab587ca22db4c9b163a2a034e7ab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "81b2674e7889a35f433fba32afd7d5df1b4e9ba1bf2c11d313823e29440b6339.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "e5f833eb53d7443cb5509628c0921bf5250e3f816c2d863155d10a39befe6db7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "243d6388c9b38b5f0e214c22a83e41eac8f19b4a24d40016436b36073e78b713.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "d42ddfd678f0da4728d0cc6609956fa1ce1e27973169f5938adb82c08ff5c45d.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "3d7553a045a098d166a34062473b4f45af767eeee5a205873d2c9a977f7f7aa2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "6fbb9b13ddaaca712bc38d2999352af8ee206ca25e46aa64efedca3b844a68bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "470f967cb9c81965b66c765362cd9ea800c03cf38bc8da83efce1d00a6482ef8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "6a65b1ab541e989a68ab8920abd060a5a18a7db8d5f2d602fd0f052d2273ccb0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "15d35b20b39d23887e552508cc5c7de5400108fce15ac93c1da3473ac8de6c59.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "224a02ba8eb7ea965e4a14241ae9f2aa23df9960535dd464a70ee1152c23ab08.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "99a2b28a3e36b0e0ad534e7ff9037c326d1e687d3e77480fb88fb64eedf7c1ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "f027879462e07f2880c842a806a674cee03c9122fbc843cd725da80b5669dbbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "3c3e77bc728c32497344b172eda0d59a6f3751d5c5e5834540776cd93a1c37d7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "c2e2ef0d2a5112263daebd84175b910af276a7d71b6c3dd1971d71f240cc46df.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "f405b3c7369137adafaa12dafeaf08699d3ab7656ae1c471f39400872531a01b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "733ff6f36d7d61a2aebf94f02a6daff38bf78f1b3b74082bc650b93f14c626d4.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 55525376,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 1,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 32.5984999999996,
+              "lift_ms": 9.822,
+              "c_generation_cpu_ms": 0.128,
+              "compile_ms": 2.683,
+              "link_ms": 223.966,
+              "wasm_opt_ms": 173.85424999999987
+            },
+            "jspi_bytes": 1188192,
+            "jspi_emit_ms": 5.190375000000131,
+            "jspi_ready_ms": 2958.645209,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 173.85424999999987,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1188192,
+            "build_ms": 3227.583,
+            "wasm_bytes": 1016337,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37642.11111111111,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-size-after",
+          "preset": "size",
+          "variant": "after",
+          "median_ms": 4.496165999998993,
+          "samples_ms": [
+            4.623416000000361,
+            5.666250000000218,
+            4.665291999999681,
+            4.496165999998993,
+            4.262166000000434,
+            4.344708999999057,
+            4.347791000000143
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:54:43.132Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              16.52587890625,
+              12.568359375,
+              13.947265625
+            ],
+            "freeRamBytes": 263438336,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10589694853,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:54:49.008Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.6826171875,
+              12.458984375,
+              13.900390625
+            ],
+            "freeRamBytes": 279986176,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10689770947,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 0,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 5.864041999999245,
+              "updates_per_second": 51159.251587904495,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 147.788,
+            "peak_child_rss_bytes": 55459840,
+            "compile_ms": 1.885,
+            "link_ms": 145.84,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3089334272,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-after/pipeline_main.c",
+                "key": "495ad5a08d5f5bb0aeed3cb0d5391e6e56bdefc58fde0d2cae2a33c0fe7d22ae.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-after/lifted_bench_exe.c",
+                "key": "d5f8d3063b7ca88b96aac07289735c02ac14915f2ca104c4cdba61f9610c20f6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "d5896021fd4c17f834504bbecd52760ab8dc8f5a860f757f9d4219037fe9dfbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e30d0f7a9e617c6c2cd6147583f03124005ee9e0f26381445cae6c02feaf1e44.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "d4cebbc4e3ca79c024059363a0c2466f1c96f591717a631afa57512c4d4896e3.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "acad62667e2e0f3c57f558ac52fda60e001ac3aea63012bf48a740b921f1b3b9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9e29540a3507b17b5ee79c52f2ffb48295b46de00a7130c3e2388426eab752c8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "9f9881c3b08624177bd7482cf9ad708c5616d8584dbf98fb7c81817d5b72f058.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "773f08f9bb3180fb971cba98421840f980b167ca7adcf76c93445baaf1071df9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "91d5ba4728d1f694636201a35d5b381d49107ef18c4308d7e904a35999f1e435.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "58742fd9ee02ce1a912732488754690617c1c77afb0cb6c8a361dc288e4fd900.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "602227e8beafb0953f5f191ae6542a5de6c431e859a7183c33f5cb1fa19b65ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "107e4a20c507ebc3dbc4ee828ac5a21b307af874edb951a9cd0d181d95595509.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "53ba10ad907a076ee64cebe7442e9f3667c7c90b8ef68bb5325f97facbc70312.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "2ccfa3621f3a44b3b61ed4838572c45e05540c8aa1d511ac1a6d48b5b0c94a0c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "32814a98a5fa4e0ab2209aa63d301621f06700888c96bf806449d9095bee3c45.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "c38a7aa6fd7d0c8faadfe86759569f149773f97ddc34b6faa97cb42f24534c43.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "3a6cb66104d368695cfc559b523309907da40c5b77d00efc475a6aa63e7221f0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "5ddb9b153b47d6bfb0046e8457ffcf27b1e4bff6dfebd51492ae7a9f7d564946.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "caf7b7b3868127ab5ccaa2af38f93108e06f52557282a91ba316a34dba265637.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "bc59fcd1ed4ef5b4b11799fb2b15c1d18bce3bab4fcbed920d8b388cf357b230.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "7c854f0a9a5481021397e9aaaa2171ffd0f9735b74780e5d2ac6fdb5af27a420.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "ab77644b56097ec4e70dc8dc07472f00b58c987b8f7ed757a9c4a72d70c79ea6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "9ab35b0b34a63141007e1656f15d6c061690ad862543d9c1671c5df79fdedc94.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "fc045523b8d8ffce36ba8aa9897c29ac445818d148c5db203a41e01ce1716f50.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "04992387ef482767e398e9f04c3aba57b42456e2278d432d7fb1cede71e033b2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "4d6e86ac8df35a2e6b4e9fd9107378f0daa9c2dc63a73a9be1330c0d905078bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "030c5517f68c5b63ccf3ee11958a05c9144dff6621170756572067072b206d55.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "051f894972c45094af10662eb9fe7e83ec0e7db1c5542085db303c6e5e4a9808.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "3b983b01e79800d43916d30b835849c958b420b49a4ce0a963e7495c32f87b83.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 55459840,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 1,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 32.5161250000001,
+              "lift_ms": 7.225,
+              "c_generation_cpu_ms": 0.151,
+              "compile_ms": 1.885,
+              "link_ms": 145.84,
+              "wasm_opt_ms": 171.07620899999893
+            },
+            "jspi_bytes": 1193735,
+            "jspi_emit_ms": 4.906084000000192,
+            "jspi_ready_ms": 2722.736791999999,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 171.07620899999893,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1193735,
+            "build_ms": 2972.445,
+            "wasm_bytes": 1021258,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37824.37037037037,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-fast-before",
+          "preset": "fast",
+          "variant": "before",
+          "median_ms": 22.653582999999344,
+          "samples_ms": [
+            21.90625,
+            21.804791999998997,
+            29.086875000000873,
+            26.195167000001675,
+            25.41204199999993,
+            22.653582999999344,
+            21.354166000000987
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:54:49.075Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.6826171875,
+              12.458984375,
+              13.900390625
+            ],
+            "freeRamBytes": 265011200,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10689770947,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:54:54.698Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.5478515625,
+              12.484375,
+              13.90087890625
+            ],
+            "freeRamBytes": 118439936,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10689770947,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 500000,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 22.916666000000987,
+              "updates_per_second": 13090.909471734985,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 16781334,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781329,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781339,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781363,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781348,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 132.27,
+            "peak_child_rss_bytes": 55590912,
+            "compile_ms": 2.113,
+            "link_ms": 130.101,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3300114432,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-before/pipeline_main.c",
+                "key": "0151ff9814e0ef470d685032c53ce19b0e7a661502337d89f264c3824f725e91.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-before/lifted_bench_exe.c",
+                "key": "c7598832607938eb7e150b0f4d074096389ce99579116dce4545e95254bc9404.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "63caf825955d1ee031e0f407f358d0abefd59b01eb6f61973638c1fdbc56ceb6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e7cbb6f1334648838a96fe799b236178dbb66b5db5fb4890e49bb5a4a9b1e648.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "141d12e80e4e70038062a62a32ebca0f4e6869124ee98c00cd60fc584f5ca7b5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "e44fbb4a4131f65eb751a27f8d26cc577886bc65374361218e3d6c16867bafad.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9cda35024840b385e8b618bc4fea332188c99b433771d4e41182006a677ad521.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "1ec54f6ebd9449505619a78eb3ecb0544b29d3896bca829bfcde546d2ff2417b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "6e5fd868e349e441143527ac1d5d1e5b0bb42786671bef8007859e4375c2aaab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "fbede8756314e7492ebabc9914961915de7fc665b450b0b67f4d2959e2a3d985.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "c660cba5da4140bf2bb8c7b84aac111beffe55f18efb7b5a0b9f2f947bff705b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "34d76a6fd5790d3befea1c0c2a2a571206181ed970f5847d40e5fd214160452c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "ba8f481fa66a504702e2f201f9cd51cf1aff15865215c89569d3d07ba499a80a.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "52ec8ba07926602b7504ddb20ddbdb80fd96ab587ca22db4c9b163a2a034e7ab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "81b2674e7889a35f433fba32afd7d5df1b4e9ba1bf2c11d313823e29440b6339.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "e5f833eb53d7443cb5509628c0921bf5250e3f816c2d863155d10a39befe6db7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "243d6388c9b38b5f0e214c22a83e41eac8f19b4a24d40016436b36073e78b713.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "d42ddfd678f0da4728d0cc6609956fa1ce1e27973169f5938adb82c08ff5c45d.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "3d7553a045a098d166a34062473b4f45af767eeee5a205873d2c9a977f7f7aa2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "6fbb9b13ddaaca712bc38d2999352af8ee206ca25e46aa64efedca3b844a68bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "470f967cb9c81965b66c765362cd9ea800c03cf38bc8da83efce1d00a6482ef8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "6a65b1ab541e989a68ab8920abd060a5a18a7db8d5f2d602fd0f052d2273ccb0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "15d35b20b39d23887e552508cc5c7de5400108fce15ac93c1da3473ac8de6c59.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "224a02ba8eb7ea965e4a14241ae9f2aa23df9960535dd464a70ee1152c23ab08.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "99a2b28a3e36b0e0ad534e7ff9037c326d1e687d3e77480fb88fb64eedf7c1ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "f027879462e07f2880c842a806a674cee03c9122fbc843cd725da80b5669dbbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "3c3e77bc728c32497344b172eda0d59a6f3751d5c5e5834540776cd93a1c37d7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "c2e2ef0d2a5112263daebd84175b910af276a7d71b6c3dd1971d71f240cc46df.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "f405b3c7369137adafaa12dafeaf08699d3ab7656ae1c471f39400872531a01b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "733ff6f36d7d61a2aebf94f02a6daff38bf78f1b3b74082bc650b93f14c626d4.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 111181824,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 2,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 28.932290999999168,
+              "lift_ms": 11.015,
+              "c_generation_cpu_ms": 0.334,
+              "compile_ms": 2.113,
+              "link_ms": 130.101,
+              "wasm_opt_ms": 153.24933300000157
+            },
+            "jspi_bytes": 1188164,
+            "jspi_emit_ms": 4.1009589999994205,
+            "jspi_ready_ms": 2435.8145000000004,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 153.24933300000157,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1188164,
+            "build_ms": 2662.596,
+            "wasm_bytes": 1016350,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37642.59259259259,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-fast-after",
+          "preset": "fast",
+          "variant": "after",
+          "median_ms": 3.734707999999955,
+          "samples_ms": [
+            3.734707999999955,
+            3.687707999997656,
+            4.052625000000262,
+            3.6641249999993306,
+            5.06683300000077,
+            3.858083999999508,
+            3.6496250000018335
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:54:54.761Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.5478515625,
+              12.484375,
+              13.90087890625
+            ],
+            "freeRamBytes": 182861824,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10689770947,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:55:00.417Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.04345703125,
+              12.48291015625,
+              13.8837890625
+            ],
+            "freeRamBytes": 189415424,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10681382339,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 0,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 5.143499999998312,
+              "updates_per_second": 58326.042578030225,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 160.609,
+            "peak_child_rss_bytes": 55279616,
+            "compile_ms": 2.453,
+            "link_ms": 158.09,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3264610304,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-after/pipeline_main.c",
+                "key": "80f4935e7e8b68731610293732a072528fa2c95b3abff918e50c51c04da10998.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-after/lifted_bench_exe.c",
+                "key": "d6f06e69a0d66478a8c89877308e3b1be55bb236223aecbf5b8eca91bae309be.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "d5896021fd4c17f834504bbecd52760ab8dc8f5a860f757f9d4219037fe9dfbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e30d0f7a9e617c6c2cd6147583f03124005ee9e0f26381445cae6c02feaf1e44.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "d4cebbc4e3ca79c024059363a0c2466f1c96f591717a631afa57512c4d4896e3.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "acad62667e2e0f3c57f558ac52fda60e001ac3aea63012bf48a740b921f1b3b9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9e29540a3507b17b5ee79c52f2ffb48295b46de00a7130c3e2388426eab752c8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "9f9881c3b08624177bd7482cf9ad708c5616d8584dbf98fb7c81817d5b72f058.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "773f08f9bb3180fb971cba98421840f980b167ca7adcf76c93445baaf1071df9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "91d5ba4728d1f694636201a35d5b381d49107ef18c4308d7e904a35999f1e435.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "58742fd9ee02ce1a912732488754690617c1c77afb0cb6c8a361dc288e4fd900.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "602227e8beafb0953f5f191ae6542a5de6c431e859a7183c33f5cb1fa19b65ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "107e4a20c507ebc3dbc4ee828ac5a21b307af874edb951a9cd0d181d95595509.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "53ba10ad907a076ee64cebe7442e9f3667c7c90b8ef68bb5325f97facbc70312.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "2ccfa3621f3a44b3b61ed4838572c45e05540c8aa1d511ac1a6d48b5b0c94a0c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "32814a98a5fa4e0ab2209aa63d301621f06700888c96bf806449d9095bee3c45.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "c38a7aa6fd7d0c8faadfe86759569f149773f97ddc34b6faa97cb42f24534c43.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "3a6cb66104d368695cfc559b523309907da40c5b77d00efc475a6aa63e7221f0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "5ddb9b153b47d6bfb0046e8457ffcf27b1e4bff6dfebd51492ae7a9f7d564946.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "caf7b7b3868127ab5ccaa2af38f93108e06f52557282a91ba316a34dba265637.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "bc59fcd1ed4ef5b4b11799fb2b15c1d18bce3bab4fcbed920d8b388cf357b230.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "7c854f0a9a5481021397e9aaaa2171ffd0f9735b74780e5d2ac6fdb5af27a420.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "ab77644b56097ec4e70dc8dc07472f00b58c987b8f7ed757a9c4a72d70c79ea6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "9ab35b0b34a63141007e1656f15d6c061690ad862543d9c1671c5df79fdedc94.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "fc045523b8d8ffce36ba8aa9897c29ac445818d148c5db203a41e01ce1716f50.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "04992387ef482767e398e9f04c3aba57b42456e2278d432d7fb1cede71e033b2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "4d6e86ac8df35a2e6b4e9fd9107378f0daa9c2dc63a73a9be1330c0d905078bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "030c5517f68c5b63ccf3ee11958a05c9144dff6621170756572067072b206d55.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "051f894972c45094af10662eb9fe7e83ec0e7db1c5542085db303c6e5e4a9808.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "3b983b01e79800d43916d30b835849c958b420b49a4ce0a963e7495c32f87b83.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 110559232,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 2,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 36.049542000000656,
+              "lift_ms": 7.615,
+              "c_generation_cpu_ms": 0.156,
+              "compile_ms": 2.453,
+              "link_ms": 158.09,
+              "wasm_opt_ms": 169.51916699999856
+            },
+            "jspi_bytes": 1193881,
+            "jspi_emit_ms": 5.20141700000022,
+            "jspi_ready_ms": 2614.6200419999986,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 169.51916699999856,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1193881,
+            "build_ms": 2855.95,
+            "wasm_bytes": 1021416,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37830.22222222222,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "commit": "8e3b1e466e1e6dbbfd8f98ee5ead8698b8abd458",
+      "beforeCommit": "3cbcb252230f997924cee61443b7a27c1a54b3d3",
+      "suspension": "jspi",
+      "complete": true,
+      "method": "Same machine, serial full builds, discarded fresh-instance warmup + seven fresh-instance samples; 300 updates including startup, not guest presents; no rendering.",
+      "start": {
+        "when": "2026-11-04T13:55:01.460Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          15.04345703125,
+          12.48291015625,
+          13.8837890625
+        ],
+        "freeRamBytes": 570064896,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10681382339,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            true
+          ],
+          "queued": 3
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "end": {
+        "when": "2026-11-04T13:55:28.849Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          15.81689453125,
+          12.87451171875,
+          13.984375
+        ],
+        "freeRamBytes": 164610048,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10902306816,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            true
+          ],
+          "queued": 3
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "rawReportSha256": "23d2380fd17f6b9cec91b5c450f9e83ea1415fa655c98bbc45865f7cc649107f",
+      "rawReportPath": "/Users/dev/projects/pi-work/scratch-K27/continuation-d/benchmark-jspi.json",
+      "rows": [
+        {
+          "id": "native-forms-size-before",
+          "preset": "size",
+          "variant": "before",
+          "median_ms": 20.425333000000137,
+          "samples_ms": [
+            20.92620799999986,
+            20.425333000000137,
+            20.640959000000294,
+            21.125958000000537,
+            20.12133300000005,
+            19.782000000000153,
+            19.873790999999983
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:55:01.489Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.04345703125,
+              12.48291015625,
+              13.8837890625
+            ],
+            "freeRamBytes": 573915136,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10681382339,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:55:07.593Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              16.32080078125,
+              12.7900390625,
+              13.98388671875
+            ],
+            "freeRamBytes": 268435456,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10681382339,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 500000,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "jspi",
+              "updates": 300,
+              "elapsed_ms": 21.92645799999991,
+              "updates_per_second": 13682.100410380976,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 16781334,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781329,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781339,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781363,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781348,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 147.451,
+            "peak_child_rss_bytes": 55394304,
+            "compile_ms": 2.027,
+            "link_ms": 145.373,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3569500160,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-before/pipeline_main.c",
+                "key": "c994d6c6bf8ab90f7d6aa98c1cb686c9130a0e850079733641a262598e9f37d5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-before/lifted_bench_exe.c",
+                "key": "80542eab790be66dacfdcdd51fcca42d6c45882d777bee4c270779157ef6a611.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "63caf825955d1ee031e0f407f358d0abefd59b01eb6f61973638c1fdbc56ceb6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e7cbb6f1334648838a96fe799b236178dbb66b5db5fb4890e49bb5a4a9b1e648.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "141d12e80e4e70038062a62a32ebca0f4e6869124ee98c00cd60fc584f5ca7b5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "e44fbb4a4131f65eb751a27f8d26cc577886bc65374361218e3d6c16867bafad.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9cda35024840b385e8b618bc4fea332188c99b433771d4e41182006a677ad521.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "1ec54f6ebd9449505619a78eb3ecb0544b29d3896bca829bfcde546d2ff2417b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "6e5fd868e349e441143527ac1d5d1e5b0bb42786671bef8007859e4375c2aaab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "fbede8756314e7492ebabc9914961915de7fc665b450b0b67f4d2959e2a3d985.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "c660cba5da4140bf2bb8c7b84aac111beffe55f18efb7b5a0b9f2f947bff705b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "34d76a6fd5790d3befea1c0c2a2a571206181ed970f5847d40e5fd214160452c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "ba8f481fa66a504702e2f201f9cd51cf1aff15865215c89569d3d07ba499a80a.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "52ec8ba07926602b7504ddb20ddbdb80fd96ab587ca22db4c9b163a2a034e7ab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "81b2674e7889a35f433fba32afd7d5df1b4e9ba1bf2c11d313823e29440b6339.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "e5f833eb53d7443cb5509628c0921bf5250e3f816c2d863155d10a39befe6db7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "243d6388c9b38b5f0e214c22a83e41eac8f19b4a24d40016436b36073e78b713.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "d42ddfd678f0da4728d0cc6609956fa1ce1e27973169f5938adb82c08ff5c45d.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "3d7553a045a098d166a34062473b4f45af767eeee5a205873d2c9a977f7f7aa2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "6fbb9b13ddaaca712bc38d2999352af8ee206ca25e46aa64efedca3b844a68bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "470f967cb9c81965b66c765362cd9ea800c03cf38bc8da83efce1d00a6482ef8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "6a65b1ab541e989a68ab8920abd060a5a18a7db8d5f2d602fd0f052d2273ccb0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "15d35b20b39d23887e552508cc5c7de5400108fce15ac93c1da3473ac8de6c59.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "224a02ba8eb7ea965e4a14241ae9f2aa23df9960535dd464a70ee1152c23ab08.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "99a2b28a3e36b0e0ad534e7ff9037c326d1e687d3e77480fb88fb64eedf7c1ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "f027879462e07f2880c842a806a674cee03c9122fbc843cd725da80b5669dbbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "3c3e77bc728c32497344b172eda0d59a6f3751d5c5e5834540776cd93a1c37d7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "c2e2ef0d2a5112263daebd84175b910af276a7d71b6c3dd1971d71f240cc46df.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "f405b3c7369137adafaa12dafeaf08699d3ab7656ae1c471f39400872531a01b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "733ff6f36d7d61a2aebf94f02a6daff38bf78f1b3b74082bc650b93f14c626d4.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 110788608,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 2,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 27.77866700000004,
+              "lift_ms": 5.501,
+              "c_generation_cpu_ms": 0.144,
+              "compile_ms": 2.027,
+              "link_ms": 145.373,
+              "wasm_opt_ms": 148.83954200000016
+            },
+            "jspi_bytes": 1188192,
+            "jspi_emit_ms": 5.6666660000000775,
+            "jspi_ready_ms": 2458.5181249999996,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 148.83954200000016,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1188192,
+            "build_ms": 2678.935,
+            "wasm_bytes": 1016337,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37642.11111111111,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-size-after",
+          "preset": "size",
+          "variant": "after",
+          "median_ms": 6.076666999999361,
+          "samples_ms": [
+            5.927625000000262,
+            5.737042000000656,
+            6.076666999999361,
+            6.387749999999869,
+            6.50512499999968,
+            6.112457999999606,
+            5.343082999999751
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:55:07.648Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              16.32080078125,
+              12.7900390625,
+              13.98388671875
+            ],
+            "freeRamBytes": 263274496,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10681382339,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:55:14.322Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.494140625,
+              12.67724609375,
+              13.93701171875
+            ],
+            "freeRamBytes": 154566656,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10735058944,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 0,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "jspi",
+              "updates": 300,
+              "elapsed_ms": 7.083000000000538,
+              "updates_per_second": 42354.93434984854,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 146.216,
+            "peak_child_rss_bytes": 55590912,
+            "compile_ms": 2.355,
+            "link_ms": 143.776,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3583688704,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-after/pipeline_main.c",
+                "key": "495ad5a08d5f5bb0aeed3cb0d5391e6e56bdefc58fde0d2cae2a33c0fe7d22ae.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-size-after/lifted_bench_exe.c",
+                "key": "d5f8d3063b7ca88b96aac07289735c02ac14915f2ca104c4cdba61f9610c20f6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "d5896021fd4c17f834504bbecd52760ab8dc8f5a860f757f9d4219037fe9dfbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e30d0f7a9e617c6c2cd6147583f03124005ee9e0f26381445cae6c02feaf1e44.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "d4cebbc4e3ca79c024059363a0c2466f1c96f591717a631afa57512c4d4896e3.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "acad62667e2e0f3c57f558ac52fda60e001ac3aea63012bf48a740b921f1b3b9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9e29540a3507b17b5ee79c52f2ffb48295b46de00a7130c3e2388426eab752c8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "9f9881c3b08624177bd7482cf9ad708c5616d8584dbf98fb7c81817d5b72f058.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "773f08f9bb3180fb971cba98421840f980b167ca7adcf76c93445baaf1071df9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "91d5ba4728d1f694636201a35d5b381d49107ef18c4308d7e904a35999f1e435.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "58742fd9ee02ce1a912732488754690617c1c77afb0cb6c8a361dc288e4fd900.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "602227e8beafb0953f5f191ae6542a5de6c431e859a7183c33f5cb1fa19b65ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "107e4a20c507ebc3dbc4ee828ac5a21b307af874edb951a9cd0d181d95595509.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "53ba10ad907a076ee64cebe7442e9f3667c7c90b8ef68bb5325f97facbc70312.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "2ccfa3621f3a44b3b61ed4838572c45e05540c8aa1d511ac1a6d48b5b0c94a0c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "32814a98a5fa4e0ab2209aa63d301621f06700888c96bf806449d9095bee3c45.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "c38a7aa6fd7d0c8faadfe86759569f149773f97ddc34b6faa97cb42f24534c43.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "3a6cb66104d368695cfc559b523309907da40c5b77d00efc475a6aa63e7221f0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "5ddb9b153b47d6bfb0046e8457ffcf27b1e4bff6dfebd51492ae7a9f7d564946.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "caf7b7b3868127ab5ccaa2af38f93108e06f52557282a91ba316a34dba265637.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "bc59fcd1ed4ef5b4b11799fb2b15c1d18bce3bab4fcbed920d8b388cf357b230.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "7c854f0a9a5481021397e9aaaa2171ffd0f9735b74780e5d2ac6fdb5af27a420.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "ab77644b56097ec4e70dc8dc07472f00b58c987b8f7ed757a9c4a72d70c79ea6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "9ab35b0b34a63141007e1656f15d6c061690ad862543d9c1671c5df79fdedc94.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "fc045523b8d8ffce36ba8aa9897c29ac445818d148c5db203a41e01ce1716f50.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "04992387ef482767e398e9f04c3aba57b42456e2278d432d7fb1cede71e033b2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "4d6e86ac8df35a2e6b4e9fd9107378f0daa9c2dc63a73a9be1330c0d905078bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "030c5517f68c5b63ccf3ee11958a05c9144dff6621170756572067072b206d55.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "051f894972c45094af10662eb9fe7e83ec0e7db1c5542085db303c6e5e4a9808.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "3b983b01e79800d43916d30b835849c958b420b49a4ce0a963e7495c32f87b83.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 111181824,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 2,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 31.74291699999958,
+              "lift_ms": 5.931,
+              "c_generation_cpu_ms": 0.129,
+              "compile_ms": 2.355,
+              "link_ms": 143.776,
+              "wasm_opt_ms": 174.8792089999988
+            },
+            "jspi_bytes": 1193735,
+            "jspi_emit_ms": 3.5466250000008586,
+            "jspi_ready_ms": 2851.454708000001,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 174.8792089999988,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1193735,
+            "build_ms": 3114.731,
+            "wasm_bytes": 1021258,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37824.37037037037,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-fast-before",
+          "preset": "fast",
+          "variant": "before",
+          "median_ms": 27.306916000001365,
+          "samples_ms": [
+            25.225040999997873,
+            26.322917000001326,
+            35.020541999998386,
+            75.73358299999745,
+            35.60020799999984,
+            27.306916000001365,
+            24.325165999998717
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:55:14.417Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.494140625,
+              12.67724609375,
+              13.93701171875
+            ],
+            "freeRamBytes": 149356544,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10735058944,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:55:21.217Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.88818359375,
+              12.8388671875,
+              13.978515625
+            ],
+            "freeRamBytes": 380551168,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10935861248,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 500000,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "jspi",
+              "updates": 300,
+              "elapsed_ms": 25.877917000001617,
+              "updates_per_second": 11592.89598154215,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 16781334,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781329,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781339,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781363,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 16781348,
+                "reason": 1,
+                "count": 100000,
+                "instructions": 100000
+              },
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 131.616,
+            "peak_child_rss_bytes": 55721984,
+            "compile_ms": 1.906,
+            "link_ms": 129.65,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 2993438720,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-before/pipeline_main.c",
+                "key": "0151ff9814e0ef470d685032c53ce19b0e7a661502337d89f264c3824f725e91.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-before/lifted_bench_exe.c",
+                "key": "c7598832607938eb7e150b0f4d074096389ce99579116dce4545e95254bc9404.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "63caf825955d1ee031e0f407f358d0abefd59b01eb6f61973638c1fdbc56ceb6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e7cbb6f1334648838a96fe799b236178dbb66b5db5fb4890e49bb5a4a9b1e648.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "141d12e80e4e70038062a62a32ebca0f4e6869124ee98c00cd60fc584f5ca7b5.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "e44fbb4a4131f65eb751a27f8d26cc577886bc65374361218e3d6c16867bafad.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9cda35024840b385e8b618bc4fea332188c99b433771d4e41182006a677ad521.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "1ec54f6ebd9449505619a78eb3ecb0544b29d3896bca829bfcde546d2ff2417b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "6e5fd868e349e441143527ac1d5d1e5b0bb42786671bef8007859e4375c2aaab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "fbede8756314e7492ebabc9914961915de7fc665b450b0b67f4d2959e2a3d985.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "c660cba5da4140bf2bb8c7b84aac111beffe55f18efb7b5a0b9f2f947bff705b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "34d76a6fd5790d3befea1c0c2a2a571206181ed970f5847d40e5fd214160452c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "ba8f481fa66a504702e2f201f9cd51cf1aff15865215c89569d3d07ba499a80a.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "52ec8ba07926602b7504ddb20ddbdb80fd96ab587ca22db4c9b163a2a034e7ab.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "81b2674e7889a35f433fba32afd7d5df1b4e9ba1bf2c11d313823e29440b6339.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "e5f833eb53d7443cb5509628c0921bf5250e3f816c2d863155d10a39befe6db7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "243d6388c9b38b5f0e214c22a83e41eac8f19b4a24d40016436b36073e78b713.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "d42ddfd678f0da4728d0cc6609956fa1ce1e27973169f5938adb82c08ff5c45d.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "3d7553a045a098d166a34062473b4f45af767eeee5a205873d2c9a977f7f7aa2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "6fbb9b13ddaaca712bc38d2999352af8ee206ca25e46aa64efedca3b844a68bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "470f967cb9c81965b66c765362cd9ea800c03cf38bc8da83efce1d00a6482ef8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "6a65b1ab541e989a68ab8920abd060a5a18a7db8d5f2d602fd0f052d2273ccb0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "15d35b20b39d23887e552508cc5c7de5400108fce15ac93c1da3473ac8de6c59.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "224a02ba8eb7ea965e4a14241ae9f2aa23df9960535dd464a70ee1152c23ab08.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "99a2b28a3e36b0e0ad534e7ff9037c326d1e687d3e77480fb88fb64eedf7c1ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "f027879462e07f2880c842a806a674cee03c9122fbc843cd725da80b5669dbbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "3c3e77bc728c32497344b172eda0d59a6f3751d5c5e5834540776cd93a1c37d7.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "c2e2ef0d2a5112263daebd84175b910af276a7d71b6c3dd1971d71f240cc46df.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "f405b3c7369137adafaa12dafeaf08699d3ab7656ae1c471f39400872531a01b.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "733ff6f36d7d61a2aebf94f02a6daff38bf78f1b3b74082bc650b93f14c626d4.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 55721984,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 1,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 27.038375000000087,
+              "lift_ms": 5.276,
+              "c_generation_cpu_ms": 0.133,
+              "compile_ms": 1.906,
+              "link_ms": 129.65,
+              "wasm_opt_ms": 137.66362499999923
+            },
+            "jspi_bytes": 1188164,
+            "jspi_emit_ms": 3.169207999999344,
+            "jspi_ready_ms": 2936.703583999999,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 137.66362499999923,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1188164,
+            "build_ms": 3142.153,
+            "wasm_bytes": 1016350,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37642.59259259259,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        },
+        {
+          "id": "native-forms-fast-after",
+          "preset": "fast",
+          "variant": "after",
+          "median_ms": 4.923584000000119,
+          "samples_ms": [
+            4.237042000000656,
+            5.482332999999926,
+            4.244959000003291,
+            4.923584000000119,
+            4.9180840000008175,
+            6.2913749999970605,
+            7.705999999998312
+          ],
+          "resourcesBefore": {
+            "when": "2026-11-04T13:55:21.311Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.88818359375,
+              12.8388671875,
+              13.978515625
+            ],
+            "freeRamBytes": 333987840,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10935861248,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "resourcesAfter": {
+            "when": "2026-11-04T13:55:28.757Z",
+            "platform": "darwin/arm64",
+            "cpuCount": 10,
+            "cpuModel": "Apple M4",
+            "loadAverage": [
+              15.81689453125,
+              12.87451171875,
+              13.984375
+            ],
+            "freeRamBytes": 157564928,
+            "totalRamBytes": 17179869184,
+            "swapUsedBytes": 10902306816,
+            "heavyGate": {
+              "slots": 3,
+              "occupied": [
+                true,
+                true,
+                true
+              ],
+              "queued": 3
+            },
+            "topCpuProcesses": null,
+            "errors": [
+              "ps: spawnSync ps EPERM"
+            ]
+          },
+          "metrics": {
+            "interp_insns": 0,
+            "generic_insn_execs": 0,
+            "stubs": [],
+            "guest_instruction_clock": 1104014,
+            "execution_summary": {
+              "suspension": "jspi",
+              "updates": 300,
+              "elapsed_ms": 9.482207999997627,
+              "updates_per_second": 31638.20072287753,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "cpu_profile": {
+            "exits": [
+              {
+                "address": 11534352,
+                "reason": 5,
+                "count": 1001,
+                "instructions": 0
+              },
+              {
+                "address": 11534336,
+                "reason": 5,
+                "count": 1,
+                "instructions": 0
+              }
+            ],
+            "census_dropped": 0
+          },
+          "pipeline_metrics": {
+            "duration_ms": 303.529,
+            "peak_child_rss_bytes": 55427072,
+            "compile_ms": 4.972,
+            "link_ms": 298.493,
+            "object_timings": [],
+            "memory": {
+              "available_bytes": 3184377856,
+              "reserve_bytes": 1073741824,
+              "per_worker_bytes": 1073741824,
+              "cap": 4,
+              "probe_error": null,
+              "scope": "heavy-gate physical headroom at phase entry; not a reservation"
+            },
+            "object_cache_decisions": [
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-after/pipeline_main.c",
+                "key": "80f4935e7e8b68731610293732a072528fa2c95b3abff918e50c51c04da10998.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/node_modules/.cache/bgt/pipeline/native-forms-fast-after/lifted_bench_exe.c",
+                "key": "d6f06e69a0d66478a8c89877308e3b1be55bb236223aecbf5b8eca91bae309be.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_decode.c",
+                "key": "d5896021fd4c17f834504bbecd52760ab8dc8f5a860f757f9d4219037fe9dfbc.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec.c",
+                "key": "e30d0f7a9e617c6c2cd6147583f03124005ee9e0f26381445cae6c02feaf1e44.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_rt.c",
+                "key": "d4cebbc4e3ca79c024059363a0c2466f1c96f591717a631afa57512c4d4896e3.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_exec64.c",
+                "key": "acad62667e2e0f3c57f558ac52fda60e001ac3aea63012bf48a740b921f1b3b9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_simd.c",
+                "key": "9e29540a3507b17b5ee79c52f2ffb48295b46de00a7130c3e2388426eab752c8.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_x87.c",
+                "key": "9f9881c3b08624177bd7482cf9ad708c5616d8584dbf98fb7c81817d5b72f058.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_audio.c",
+                "key": "773f08f9bb3180fb971cba98421840f980b167ca7adcf76c93445baaf1071df9.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_com.c",
+                "key": "91d5ba4728d1f694636201a35d5b381d49107ef18c4308d7e904a35999f1e435.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_input.c",
+                "key": "58742fd9ee02ce1a912732488754690617c1c77afb0cb6c8a361dc288e4fd900.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gl.c",
+                "key": "602227e8beafb0953f5f191ae6542a5de6c431e859a7183c33f5cb1fa19b65ee.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_avrt.c",
+                "key": "107e4a20c507ebc3dbc4ee828ac5a21b307af874edb951a9cd0d181d95595509.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_bcrypt.c",
+                "key": "53ba10ad907a076ee64cebe7442e9f3667c7c90b8ef68bb5325f97facbc70312.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dinput8.c",
+                "key": "2ccfa3621f3a44b3b61ed4838572c45e05540c8aa1d511ac1a6d48b5b0c94a0c.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_dwmapi.c",
+                "key": "32814a98a5fa4e0ab2209aa63d301621f06700888c96bf806449d9095bee3c45.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_imm32.c",
+                "key": "c38a7aa6fd7d0c8faadfe86759569f149773f97ddc34b6faa97cb42f24534c43.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_iphlpapi.c",
+                "key": "3a6cb66104d368695cfc559b523309907da40c5b77d00efc475a6aa63e7221f0.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_shlwapi.c",
+                "key": "5ddb9b153b47d6bfb0046e8457ffcf27b1e4bff6dfebd51492ae7a9f7d564946.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_ws2_32.c",
+                "key": "caf7b7b3868127ab5ccaa2af38f93108e06f52557282a91ba316a34dba265637.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_wsock32.c",
+                "key": "bc59fcd1ed4ef5b4b11799fb2b15c1d18bce3bab4fcbed920d8b388cf357b230.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_x64.c",
+                "key": "7c854f0a9a5481021397e9aaaa2171ffd0f9735b74780e5d2ac6fdb5af27a420.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_thread.c",
+                "key": "ab77644b56097ec4e70dc8dc07472f00b58c987b8f7ed757a9c4a72d70c79ea6.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/x86/x86_sched.c",
+                "key": "9ab35b0b34a63141007e1656f15d6c061690ad862543d9c1671c5df79fdedc94.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_core.c",
+                "key": "fc045523b8d8ffce36ba8aa9897c29ac445818d148c5db203a41e01ce1716f50.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_kernel.c",
+                "key": "04992387ef482767e398e9f04c3aba57b42456e2278d432d7fb1cede71e033b2.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_user.c",
+                "key": "4d6e86ac8df35a2e6b4e9fd9107378f0daa9c2dc63a73a9be1330c0d905078bf.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_gdi.c",
+                "key": "030c5517f68c5b63ccf3ee11958a05c9144dff6621170756572067072b206d55.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_replay.c",
+                "key": "051f894972c45094af10662eb9fe7e83ec0e7db1c5542085db303c6e5e4a9808.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/win32/w32_crt.c",
+                "key": "3b983b01e79800d43916d30b835849c958b420b49a4ce0a963e7495c32f87b83.o",
+                "hit": true,
+                "reasons": []
+              },
+              {
+                "source": "@/platforms/common/font5x7.c",
+                "key": "c5eebbd3647b61b6d601f36f2e011f92849a190c7f32351a9d9bddc511819b14.o",
+                "hit": true,
+                "reasons": []
+              }
+            ],
+            "parallel_rss_upper_bound_bytes": 55427072,
+            "objects_uncacheable": 0,
+            "objects_compiled": 0,
+            "objects_cached": 31,
+            "jobs": 1,
+            "object_cache": {
+              "bytes": 235237031,
+              "removed": 0,
+              "pinnedBytes": 0
+            },
+            "phase_timings": {
+              "analysis_ms": 33.747707999998966,
+              "lift_ms": 5.286,
+              "c_generation_cpu_ms": 0.148,
+              "compile_ms": 4.972,
+              "link_ms": 298.493,
+              "wasm_opt_ms": 243.04362499999843
+            },
+            "jspi_bytes": 1193881,
+            "jspi_emit_ms": 5.987291000001278,
+            "jspi_ready_ms": 3241.6469590000015,
+            "phase_timing_scope": "phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive",
+            "asyncify_cached": true,
+            "asyncify_ms": 243.04362499999843,
+            "asyncify_mode": "amd64-native-boundaries",
+            "asyncify_remove_count": 3,
+            "asyncify_remove_sha256": "4f737d7469e4b63d67e4e2dea6b035d42417ca243a7462f7f00ddb6d4cace198",
+            "pre_asyncify_bytes": 1193881,
+            "build_ms": 3595.707,
+            "wasm_bytes": 1021416,
+            "lifted_insns": 27,
+            "wasm_bytes_per_insn": 37830.22222222222,
+            "wasm_bytes_per_insn_scope": "total module including profile/asyncify; not marginal lifted-code cost"
+          },
+          "oracle": {
+            "identical": true,
+            "comparedFrames": 300,
+            "requestedFrames": 300,
+            "failureStage": null,
+            "error": null,
+            "errors": {
+              "lifted": null,
+              "interpreted": null
+            },
+            "firstDivergence": null,
+            "hashes": {
+              "lifted": "fb599c2b",
+              "interpreted": "fb599c2b",
+              "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+              "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

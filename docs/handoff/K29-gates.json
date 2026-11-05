@@ -1,0 +1,5007 @@
+{
+  "schema": 1,
+  "authorRun": true,
+  "independentValidation": false,
+  "auditedHead": "3039efd41199c342597831486d7d318186e457a2",
+  "implementationCommit": "6d4cc0e",
+  "benchmarkAssertionCommit": "c0114da",
+  "notes": [
+    "Only docs and one benchmark boundary assertion changed between implementation and auditedHead. Gates reused without routine reruns.",
+    "Original full unit sweep: 2068 passed / 4 inherited SSE matrix timeouts; unchanged individual serial reruns are separate evidence, not a rewritten full-run exit.",
+    "No test assertion, deadline, skip policy or fixture source changed for these final gates.",
+    "Browser skips: all 51 intentional policy/project skips; ten missing descriptions audited as explicit WebGPU-only test.skip guards. No unavailable backend.",
+    "Oracle x64-gl-scale retains unchanged fixture-only strict BUFFER_CREATE/E_LIMIT and recording-pixel contract; all other fixtures retain zero command-error policy.",
+    "No independent in-lane review or real-game remeasurement performed."
+  ],
+  "sourceSha256": {
+    "examples/x64-imports/forms.S": "5f91249fcbf86765475a53c78d6e374200f13a40998c4d01c48c2020602d246a",
+    "examples/x64-imports/game.json": "10a5edcd1fa31d504fbcf42d8ae7452e6f380e911e10b442db7d5673d96ab674",
+    "examples/x64-imports/generate.mjs": "5de2f1e27ac768c970fe66595ecbc53ef7e6539565ff4fd16c5b418fc6258ad8",
+    "examples/x64-imports/imports.c": "a7cfe4db4b59e5d5b818efdfc30d2fae692552a93f24cd056ab8796ef1f80ddd",
+    "platforms/win32/w32_core.c": "b5b4000ec07d5b953750e1a6ec0d7b7569e36694b466e2a043619df08e6017c4",
+    "platforms/win32/w32_crt.c": "07e02fb373d07917e87ebae3484f19e785dafab629bda13d2ae9acecd9fbb13e",
+    "platforms/win32/w32_crt_string.h": "b807362353e1e02e1b57a382c25d78ca5e7e25c826bbd625638a1d3eebd44bd2",
+    "platforms/win32/w32_int.h": "74ba38110cb9b41a8a9d3f87dd910fa164dc2487f278e39cc3c246ffec135ade",
+    "platforms/win32/w32_thread.c": "055fe3aabf3d48405fa6e8af792d89bd4eb29c67ca4cac3f02837270bb39c69a",
+    "platforms/win32/w32_thread.h": "184517b75c02eff8946c445c8ce3fa056f1b5fd4f11ee38c4234fa7ffb08d7e9",
+    "platforms/x86/x86_guest.h": "e5012bd4cedb658ed5ad07677a0e507fdfbbc9b9bcfac9472f38f49b6c423650",
+    "platforms/x86/x86_rt.c": "ca3d54ae8d8cee533220b7d8483fb172dd94ba2281fb1234b4eb81644b5c1ba6",
+    "tests/fixtures/c/import_bindings.c": "f8893c60af5366abf190b21c8f61dcee22579ecf8bc9db98d72288d7e63979ca",
+    "tests/fixtures/c/import_codegen.h": "aacd082bf6f4b84beb38c72a4ea1712c0f6539bee9d0d271f14a799f3ad58310",
+    "tests/fixtures/c/import_leaf_context.c": "8a3bbac1f50c7c7fa76ac04112840acf29cace05bed6ecf0148a5ee44c59d27a",
+    "tests/fixtures/c/import_strings.c": "d649f3239e0c00842edf37cd1cd05a4ee11e92ab5b8576007053fde72032a75a",
+    "tests/unit/import-codegen.test.ts": "54b771fe53eadd43ffc913e5ec85151851f35f5c7c291999686592de15847122",
+    "tests/unit/import-leaves.test.ts": "a1af16305292efc98012d48622f0587ccf85ef3c3379681d7123c6830e43e5c8",
+    "tests/unit/import-lowering.test.ts": "be20dcbc542a7cdac3aa368047e39d25b8d2a014c677e69ce6b679b1bb09a9bf",
+    "tests/unit/import-strings.test.ts": "ef1590b9e64d8578ecfeadddabb01b837c094784e56ffe0e722ad13fd7be19a4",
+    "tests/unit/lift-dispatch.test.ts": "2dadc6d069a27856574ea5800ebc45606381faa891de378aeb6c7717bb9b8718",
+    "tools/bench/README-imports.md": "841b0de3bd54eece623f86c0ec6144022855fb57f6aab9f6f5b586ef9431caa7",
+    "tools/bench/imports.config.ts": "ab33d17136b6cd62553762b00d3bd5d02db5cdf17b2892f61382a3ab7e212ef1",
+    "tools/bench/imports.test.ts": "acafef53994afa66cee6360912adc7c1175133d5e4e68381940acf16ac9afa12",
+    "tools/x86/lift64.h": "d0a7ceda298208449333e2d7ded05d2b4ceb7c6f98696b6f4b8e57aafec36668",
+    "tools/x86/lift64_imports.h": "aae61cd62939c30f350851c707943c1eb3979773bfa84643c623eef657bb20e8",
+    "tests/unit/codegen.test.ts": "658ddff8b03b5573e99c6c29c050b7370afae05e17f1025907c27e6363080859",
+    "vitest.config.ts": "52463d0db700539663277c9b74934bc7aef00090f58b2aab8969fb137afc1394",
+    "tests/support/compile.ts": "5fbd92ffb1f65f4e531021a278c4b11cc9944fea6ac4184d17b8152f08c214df",
+    "tests/support/gl-scale-contract.ts": "0f66e9963e95a5e4f96ed85fdcd08125081c165fe92943e97bcbbdb62ec0cf09"
+  },
+  "driver": {
+    "file": "gates.py",
+    "bytes": 3507,
+    "sha256": "b41c88921a46470dd250069c02343f5e76d433c8366657e38e5584fcc166f47a"
+  },
+  "gateSteps": [
+    {
+      "name": "direct-off-runtime",
+      "args": [
+        "npx",
+        "vitest",
+        "run",
+        "--maxWorkers=1",
+        "tests/unit/import-codegen.test.ts"
+      ],
+      "env": {},
+      "exit": 1,
+      "begin": 1793810606.624804,
+      "end": 1793811044.3752708,
+      "log": {
+        "file": "direct-off-runtime.log",
+        "bytes": 1582,
+        "sha256": "591049e6443ee29b218592657308995d3d55c6b4ba5c440c5ddd074075be60ed"
+      },
+      "classification": "expected mutant failure"
+    },
+    {
+      "name": "direct-restored",
+      "args": [
+        "npx",
+        "vitest",
+        "run",
+        "--maxWorkers=1",
+        "tests/unit/import-codegen.test.ts"
+      ],
+      "env": {},
+      "exit": 0,
+      "begin": 1793811044.3757849,
+      "end": 1793811060.093337,
+      "log": {
+        "file": "direct-restored.log",
+        "bytes": 555,
+        "sha256": "2a6aa716aa186122c37ec37692107c6111fc793c53d37cea20a18e9296945937"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "doctor",
+      "args": [
+        "npm",
+        "run",
+        "doctor"
+      ],
+      "env": {},
+      "exit": 0,
+      "begin": 1793811060.093518,
+      "end": 1793811060.4827971,
+      "log": {
+        "file": "doctor.log",
+        "bytes": 303,
+        "sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "lint-clang",
+      "args": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "env": {
+        "CC": "clang",
+        "BGT_INCLUDE_SCALE": "1"
+      },
+      "exit": 0,
+      "begin": 1793811060.482999,
+      "end": 1793813258.3910809,
+      "log": {
+        "file": "lint-clang.log",
+        "bytes": 54035,
+        "sha256": "8e0941392e2f763442c6cc860c0c5b1356d19ae983a825621fafb4c88884a405"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "lint-gcc",
+      "args": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "env": {
+        "CC": "/opt/homebrew/bin/gcc-14",
+        "BGT_INCLUDE_SCALE": "1"
+      },
+      "exit": 0,
+      "begin": 1793813258.391506,
+      "end": 1793813371.975223,
+      "log": {
+        "file": "lint-gcc.log",
+        "bytes": 35359,
+        "sha256": "a676bf35f71f6fcf3c3d8861a6573d3443e57d2920e3b610dd57fca730a2b16f"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "clang-host",
+      "args": [
+        "npm",
+        "exec",
+        "--",
+        "node",
+        "--input-type=module",
+        "-e",
+        "import {checkHostGcc} from \"./tools/build/check-host-gcc.mjs\";checkHostGcc(\"clang\");"
+      ],
+      "env": {},
+      "exit": 0,
+      "begin": 1793813371.9755788,
+      "end": 1793813375.208898,
+      "log": {
+        "file": "clang-host.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "typecheck",
+      "args": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "env": {},
+      "exit": 0,
+      "begin": 1793813375.209125,
+      "end": 1793813377.014378,
+      "log": {
+        "file": "typecheck.log",
+        "bytes": 68,
+        "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "unit",
+      "args": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=1"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2"
+      },
+      "exit": 1,
+      "begin": 1793813377.014594,
+      "end": 1793816646.739278,
+      "log": {
+        "file": "unit.log",
+        "bytes": 102485,
+        "sha256": "1e03c2546f43fd724f6fbf50738a8032ca51ab4b5b6c088790f93d3acbdc97d6"
+      },
+      "classification": "inherited SSE matrix timeouts; serial retries recorded separately"
+    },
+    {
+      "name": "browser-asyncify",
+      "args": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "--trace",
+        "off"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_E2E_SUSPENSION": "asyncify",
+        "BGT_REQUIRE_WEBGPU": "1"
+      },
+      "exit": 0,
+      "begin": 1793816646.739774,
+      "end": 1793818131.018,
+      "log": {
+        "file": "browser-asyncify.log",
+        "bytes": 78563,
+        "sha256": "bbbd68e0ef25f94efdee7fd73d29f8c1a2cc6bc0e8c4dd9200a7554f2fbd9f4e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "browser-jspi",
+      "args": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "--trace",
+        "off"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_E2E_SUSPENSION": "jspi",
+        "BGT_REQUIRE_WEBGPU": "1"
+      },
+      "exit": 0,
+      "begin": 1793818131.0228171,
+      "end": 1793819384.777382,
+      "log": {
+        "file": "browser-jspi.log",
+        "bytes": 78323,
+        "sha256": "7dae2ecca381831f29bf91544834d68696c8ea0a0f4251f7b10e9ce1bf35c0b5"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "leakcheck",
+      "args": [
+        "npm",
+        "run",
+        "leakcheck"
+      ],
+      "env": {},
+      "exit": 0,
+      "begin": 1793819384.781996,
+      "end": 1793819385.0995781,
+      "log": {
+        "file": "leakcheck.log",
+        "bytes": 118,
+        "sha256": "b5b19adc187d7071332a51f1c9a82c5faf4b5aa06065584134a207d25046801e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-win32-conformance",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/win32-conformance",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819385.101077,
+      "end": 1793819395.883989,
+      "log": {
+        "file": "oracle-asyncify-win32-conformance.log",
+        "bytes": 2038,
+        "sha256": "20ac90874999439314865a12f9850f796858a989d04303a9be6508635b4938f8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-win32-hello",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/win32-hello",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819395.889138,
+      "end": 1793819406.267978,
+      "log": {
+        "file": "oracle-asyncify-win32-hello.log",
+        "bytes": 1977,
+        "sha256": "383c381dde252813affeedab906ab02087b641343c480daf7f985027e243d085"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-audio",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-audio",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819406.2688901,
+      "end": 1793819421.4993799,
+      "log": {
+        "file": "oracle-asyncify-x64-audio.log",
+        "bytes": 1689,
+        "sha256": "2868d67a1b342670038274f665e215e92fbddd5ac351c26b4066cbabfd7a727e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-audio-init",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-audio-init",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819421.5003111,
+      "end": 1793819436.702482,
+      "log": {
+        "file": "oracle-asyncify-x64-audio-init.log",
+        "bytes": 1850,
+        "sha256": "8c3fe88e4fe724eff45fc8d45fd3543ac21b2b9dab7b5173c1a89aad6f210583"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-basics",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-basics",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819436.703562,
+      "end": 1793819446.9500868,
+      "log": {
+        "file": "oracle-asyncify-x64-basics.log",
+        "bytes": 2771,
+        "sha256": "ab7ce114a72901f5cd56ee3b912ce40c9141f44d83aa01508f3af717842c01c8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-contracts",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-contracts",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819446.9510012,
+      "end": 1793819457.2684438,
+      "log": {
+        "file": "oracle-asyncify-x64-contracts.log",
+        "bytes": 1844,
+        "sha256": "69cfadd8fbd983bd09c44e46b9062914c53a433a915311b625753feb3548ed8b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-cpp",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-cpp",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819457.269527,
+      "end": 1793819467.6797261,
+      "log": {
+        "file": "oracle-asyncify-x64-cpp.log",
+        "bytes": 1680,
+        "sha256": "78609364222f533c9ab0fd0b65cec3f2f6ccf2ee32f1ea6c075bb72e83bff6af"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-cpprt",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-cpprt",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819467.680702,
+      "end": 1793819478.4246788,
+      "log": {
+        "file": "oracle-asyncify-x64-cpprt.log",
+        "bytes": 1819,
+        "sha256": "ce4ea9a7e5fe17c6bad54c95b59bf7fda4e6c6eab2ae068128afc705c29562d1"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-crt",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-crt",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819478.425753,
+      "end": 1793819488.702487,
+      "log": {
+        "file": "oracle-asyncify-x64-crt.log",
+        "bytes": 1674,
+        "sha256": "f5ea56533561fa18468decaea2ed982d530be582421ce5cccd67ed2bfcaddfeb"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819488.7036731,
+      "end": 1793819504.149489,
+      "log": {
+        "file": "oracle-asyncify-x64-gl.log",
+        "bytes": 1778,
+        "sha256": "1ecfc284bba6b1c7ebbba6d2da3bade5c8b24ce7dcde7c3a1132351a73705a4f"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-blit",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-blit",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819504.150493,
+      "end": 1793819536.28233,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-blit.log",
+        "bytes": 1699,
+        "sha256": "b8e3895d71d56b94b940e9ef1910f622b92b488b51897b7ed0a0ae91f0778484"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-capacity",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-capacity",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819536.283317,
+      "end": 1793819559.0392141,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-capacity.log",
+        "bytes": 1728,
+        "sha256": "d087fdbd76a55d0ea03cba2e2183c276d6800ed4ed4dd73e2f5aa60765b189d5"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-current",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-current",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819559.040162,
+      "end": 1793819581.1173959,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-current.log",
+        "bytes": 1720,
+        "sha256": "985e178d99dd0bd3525d689e153d7a788bbfb43b36a6758b1cffc0951beb92de"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-default-vao",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-default-vao",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819581.118405,
+      "end": 1793819598.040305,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-default-vao.log",
+        "bytes": 1865,
+        "sha256": "ca09629aff34b7f80c46c51602441d2e5e8a23aad4ab974a9ba732a62bb63e15"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-fbo",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-fbo",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819598.041409,
+      "end": 1793819620.144097,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-fbo.log",
+        "bytes": 1693,
+        "sha256": "5f92ab720f4f6210f73244e50ad182402c338d769d09f20c0715e24e85ce9691"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-feedback",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-feedback",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819620.14515,
+      "end": 1793819642.142692,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-feedback.log",
+        "bytes": 1728,
+        "sha256": "abfbf690f3cf88ed3603fdb0c47445872dd2ad2b0a4083d1103a84c352b9f8da"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-integer",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-integer",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819642.143734,
+      "end": 1793819659.13954,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-integer.log",
+        "bytes": 1837,
+        "sha256": "fe240fa76125c063bf457a04925bf02eab703544d0362eda102e98589ada06ad"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-ranges",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-ranges",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819659.1405828,
+      "end": 1793819676.318804,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-ranges.log",
+        "bytes": 1713,
+        "sha256": "05efb959a18d01696151daf27514512ae84c4938b5cd86dfbcbee8823e232887"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gl-scale",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-scale",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819676.3197582,
+      "end": 1793819699.546634,
+      "log": {
+        "file": "oracle-asyncify-x64-gl-scale.log",
+        "bytes": 1707,
+        "sha256": "47d910d949c6bed4b877802b7c2d9a8d55171aaf6e5ea0b0007773b8e2c07d8b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-glsl",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-glsl",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819699.5476549,
+      "end": 1793819714.9482272,
+      "log": {
+        "file": "oracle-asyncify-x64-glsl.log",
+        "bytes": 1682,
+        "sha256": "c4adcd41fcd8226f336edcffc3e9d03a10e86f9ba935827bdd1fadf7e9bc02b7"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-gui",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gui",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819714.949524,
+      "end": 1793819725.180586,
+      "log": {
+        "file": "oracle-asyncify-x64-gui.log",
+        "bytes": 1785,
+        "sha256": "0e5a3d05a23cd2ae3aaab3ab65727ed291f81f7855fa7e4d5d51fe14d6d3e67f"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-handles",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-handles",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819725.1815848,
+      "end": 1793819740.5977778,
+      "log": {
+        "file": "oracle-asyncify-x64-handles.log",
+        "bytes": 1707,
+        "sha256": "9c2f8c7e71f14157c0d97285cadb48c22b5d14a9cb901cde52e6c1659480414b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-heap",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-heap",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819740.5989928,
+      "end": 1793819752.231903,
+      "log": {
+        "file": "oracle-asyncify-x64-heap.log",
+        "bytes": 1956,
+        "sha256": "277e123b05658c4367c5544f6c37ad27cb795f0f116ba8ec5d6f5ffa28fc9f23"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-imports",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-imports",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819752.232951,
+      "end": 1793819762.892823,
+      "log": {
+        "file": "oracle-asyncify-x64-imports.log",
+        "bytes": 2783,
+        "sha256": "8479497fb43f572529d603978f7330a2b732ad98d89589f62d9c0d561801da18"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-input",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-input",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819762.8938081,
+      "end": 1793819773.376205,
+      "log": {
+        "file": "oracle-asyncify-x64-input.log",
+        "bytes": 1804,
+        "sha256": "cc67a16426174940bd5b37678525a22ae88c39897dfeb0027a44147559b406b2"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-memory",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-memory",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819773.3772001,
+      "end": 1793819791.737866,
+      "log": {
+        "file": "oracle-asyncify-x64-memory.log",
+        "bytes": 1697,
+        "sha256": "98d00cc6a3831d6baffce8324b2d8bd60f6787590ce833a52e845b3c579f3fe2"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-scale",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-scale",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819791.738982,
+      "end": 1793819865.755091,
+      "log": {
+        "file": "oracle-asyncify-x64-scale.log",
+        "bytes": 1714,
+        "sha256": "6726db7983ca84830dc487e90733f5afe7ad49f56a50e952e7e4c076ef7fa727"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-smoke",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-smoke",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819865.757497,
+      "end": 1793819876.430908,
+      "log": {
+        "file": "oracle-asyncify-x64-smoke.log",
+        "bytes": 1804,
+        "sha256": "c383f560242fa9893c551cf195c1b21e4970f217a1ab442c298e34728f9f7d53"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-sysdlls",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-sysdlls",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819876.43193,
+      "end": 1793819891.623393,
+      "log": {
+        "file": "oracle-asyncify-x64-sysdlls.log",
+        "bytes": 1710,
+        "sha256": "244927ecf07062238d772c8c51d318bf6ee99f8b6ae084a27a63f2c14afc5fe6"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-threads",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-threads",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819891.624387,
+      "end": 1793819901.9197161,
+      "log": {
+        "file": "oracle-asyncify-x64-threads.log",
+        "bytes": 1821,
+        "sha256": "60ffcda5bafa5adc3c19ee6226c4965bc891f01a6b9f648c7e7e67ef454d64b5"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x64-tls",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-tls",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819901.920707,
+      "end": 1793819917.0297961,
+      "log": {
+        "file": "oracle-asyncify-x64-tls.log",
+        "bytes": 1670,
+        "sha256": "813b053c030f4337eced08369b7b0799debb5ea818d70f2f760d1adeb33b4535"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x86-handles",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-handles",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819917.030828,
+      "end": 1793819929.225599,
+      "log": {
+        "file": "oracle-asyncify-x86-handles.log",
+        "bytes": 2011,
+        "sha256": "49e148747f7564f1d0e2de188052b10f31a177d6d3406705b1ff54c1a1e64754"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x86-heap",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-heap",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819929.2266612,
+      "end": 1793819941.945787,
+      "log": {
+        "file": "oracle-asyncify-x86-heap.log",
+        "bytes": 1861,
+        "sha256": "120ca7e74abdb5efbab60984b6ffa80ef81388ccbe1da15e8f7f86a57b601ce2"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-asyncify-x86-threads",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-threads",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "asyncify"
+      },
+      "exit": 0,
+      "begin": 1793819941.946781,
+      "end": 1793819952.208631,
+      "log": {
+        "file": "oracle-asyncify-x86-threads.log",
+        "bytes": 1980,
+        "sha256": "3d62bacf80e01d928767139b4551c29398c5dea91032aa5509ca3f72de4d192b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-win32-conformance",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/win32-conformance",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793819952.209578,
+      "end": 1793819967.7531772,
+      "log": {
+        "file": "oracle-jspi-win32-conformance.log",
+        "bytes": 2037,
+        "sha256": "fb54b527bea0888fee6f47adbd5c22e2bbb2c418e947ad26503d428dd6c66c23"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-win32-hello",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/win32-hello",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793819967.7587352,
+      "end": 1793819978.017351,
+      "log": {
+        "file": "oracle-jspi-win32-hello.log",
+        "bytes": 1860,
+        "sha256": "a725209b75feec44c4ce7d55f30a7b85e2f20c7b0a840f7f2778092cccdf8eb8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-audio",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-audio",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793819978.0183182,
+      "end": 1793819993.369281,
+      "log": {
+        "file": "oracle-jspi-x64-audio.log",
+        "bytes": 1688,
+        "sha256": "4ba8173e45c61a1974d103f8971bb48a8b961de7e7d1700d6f782062e832092d"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-audio-init",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-audio-init",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793819993.3703759,
+      "end": 1793820003.840117,
+      "log": {
+        "file": "oracle-jspi-x64-audio-init.log",
+        "bytes": 1850,
+        "sha256": "7d32037eb01101112bfe5bc619c9a13b07ed863215ebb1ed8e17e4c80dcfcfcc"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-basics",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-basics",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820003.841276,
+      "end": 1793820014.1222458,
+      "log": {
+        "file": "oracle-jspi-x64-basics.log",
+        "bytes": 2770,
+        "sha256": "e37837e0d682e2e5572f2ff6b5753f58f85342b90dd2e33f933986bdae4687f8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-contracts",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-contracts",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820014.123253,
+      "end": 1793820024.413118,
+      "log": {
+        "file": "oracle-jspi-x64-contracts.log",
+        "bytes": 1844,
+        "sha256": "a98d86ebb28a93f654e2ee4b288b6c9232068a4cd17c647a511b529173060227"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-cpp",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-cpp",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820024.414489,
+      "end": 1793820034.753862,
+      "log": {
+        "file": "oracle-jspi-x64-cpp.log",
+        "bytes": 1678,
+        "sha256": "c715a80f10c3cd1f86dd3d55fa826d60191d32ed81dd20af06f3a5ef257035d7"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-cpprt",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-cpprt",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820034.755002,
+      "end": 1793820045.644354,
+      "log": {
+        "file": "oracle-jspi-x64-cpprt.log",
+        "bytes": 1820,
+        "sha256": "4d48aadd44703f7e5d61c7fa742f7dbd28b3b8801c945ac82f00519fbc9c08cf"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-crt",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-crt",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820045.64549,
+      "end": 1793820060.952919,
+      "log": {
+        "file": "oracle-jspi-x64-crt.log",
+        "bytes": 1675,
+        "sha256": "70209d2d2dcf8a2debcb25c1b11a9eb20c7b57979a17363c1c0de8c42d9857db"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820060.954018,
+      "end": 1793820081.530257,
+      "log": {
+        "file": "oracle-jspi-x64-gl.log",
+        "bytes": 1660,
+        "sha256": "7fecb02fa44254ebf15b74749027c4a659d0c60dbc07b7223ec21eaf31404e6b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-blit",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-blit",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820081.531258,
+      "end": 1793820096.7790542,
+      "log": {
+        "file": "oracle-jspi-x64-gl-blit.log",
+        "bytes": 1695,
+        "sha256": "35d98dcb688cdbcdcf764b71810e7a3175bf8851e110de10c964472c41e6fe62"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-capacity",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-capacity",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820096.780117,
+      "end": 1793820112.9422982,
+      "log": {
+        "file": "oracle-jspi-x64-gl-capacity.log",
+        "bytes": 1724,
+        "sha256": "07c217af7c4041b3e24d9c393e998b269ccdae1122bf2555a3e11776b105921b"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-current",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-current",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820112.943342,
+      "end": 1793820118.4258502,
+      "log": {
+        "file": "oracle-jspi-x64-gl-current.log",
+        "bytes": 1717,
+        "sha256": "8953810682ad70418497823a826edeca4048f50566f1640045c9b99db28c6279"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-default-vao",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-default-vao",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820118.4269922,
+      "end": 1793820123.9410088,
+      "log": {
+        "file": "oracle-jspi-x64-gl-default-vao.log",
+        "bytes": 1746,
+        "sha256": "047c5d4e374c6d38f4865b42d66c6a833487a831cc0fe1195d9e8ff58fb710b0"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-fbo",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-fbo",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820123.9421172,
+      "end": 1793820129.795102,
+      "log": {
+        "file": "oracle-jspi-x64-gl-fbo.log",
+        "bytes": 1690,
+        "sha256": "35f0e5c06cf74d6bff2a98c185fd232555aa6465cb35235bf691b5f82dd3628f"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-feedback",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-feedback",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820129.796279,
+      "end": 1793820134.871555,
+      "log": {
+        "file": "oracle-jspi-x64-gl-feedback.log",
+        "bytes": 1724,
+        "sha256": "d5934152a59bdd3e99d36dbcecdbc81327296c5a6665fb31f821a581a68d2d92"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-integer",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-integer",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820134.872561,
+      "end": 1793820139.95425,
+      "log": {
+        "file": "oracle-jspi-x64-gl-integer.log",
+        "bytes": 1717,
+        "sha256": "176e0f535d8c20a210a059154508bf8fdc918bc8982e7750de1660d5b9ad3842"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-ranges",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-ranges",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820139.955276,
+      "end": 1793820145.216764,
+      "log": {
+        "file": "oracle-jspi-x64-gl-ranges.log",
+        "bytes": 1710,
+        "sha256": "766f38674a724b87d93b7deff3349d89254d12a39f5227c5752067c512345cbe"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gl-scale",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gl-scale",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820145.2178292,
+      "end": 1793820151.386513,
+      "log": {
+        "file": "oracle-jspi-x64-gl-scale.log",
+        "bytes": 1703,
+        "sha256": "5028426e210ee3aa0921830ce0d9584b4c25bcc923e8a7e0a20f5efa1ceed38a"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-glsl",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-glsl",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820151.387722,
+      "end": 1793820156.5038168,
+      "log": {
+        "file": "oracle-jspi-x64-glsl.log",
+        "bytes": 1678,
+        "sha256": "4f5a66ef65d3e0eb9ff3ff06824641fc4f3e630afba29a6188f20cce19deea86"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-gui",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-gui",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820156.505226,
+      "end": 1793820161.5044029,
+      "log": {
+        "file": "oracle-jspi-x64-gui.log",
+        "bytes": 1667,
+        "sha256": "c4f9e6f9f3ae056ecb87e08af8cdcb1b152c9bd491ed796ec5829f28c864371e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-handles",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-handles",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820161.505444,
+      "end": 1793820166.567457,
+      "log": {
+        "file": "oracle-jspi-x64-handles.log",
+        "bytes": 1705,
+        "sha256": "f869569cd9a1429c5873f5ed576fcbdd222ce87d5c2d76fba541c5f577865a17"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-heap",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-heap",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820166.5685399,
+      "end": 1793820172.500454,
+      "log": {
+        "file": "oracle-jspi-x64-heap.log",
+        "bytes": 1839,
+        "sha256": "4a2001726fbf3263557cd6e9fe4440e0936cb0b77aa2d1120deae1839b73e203"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-imports",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-imports",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820172.5014231,
+      "end": 1793820177.846851,
+      "log": {
+        "file": "oracle-jspi-x64-imports.log",
+        "bytes": 2780,
+        "sha256": "fc4f6dca50d91a1f94e8295d7299504497a0c80e02cc9a3a21d3c29f8d54d00e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-input",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-input",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820177.848146,
+      "end": 1793820183.32968,
+      "log": {
+        "file": "oracle-jspi-x64-input.log",
+        "bytes": 1688,
+        "sha256": "d16bb879454643870304be2c83a4ac8a10d6c89e9c2eb0b87938df70a0c47e5a"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-memory",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-memory",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820183.33075,
+      "end": 1793820190.920175,
+      "log": {
+        "file": "oracle-jspi-x64-memory.log",
+        "bytes": 1695,
+        "sha256": "da5d2e9035411941dc208f0534520e5221d9ff60ad78ae719dee40555595bc46"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-scale",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-scale",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820190.921215,
+      "end": 1793820199.681278,
+      "log": {
+        "file": "oracle-jspi-x64-scale.log",
+        "bytes": 1708,
+        "sha256": "2f340fba3aabc331bbd6ee86aa7ee5f7aba4b3fbb42fe66bf99ce0c19e4c18a8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-smoke",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-smoke",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820199.6831949,
+      "end": 1793820205.098285,
+      "log": {
+        "file": "oracle-jspi-x64-smoke.log",
+        "bytes": 1688,
+        "sha256": "f1bee1a0aa79affe7cc3c11ffdfcc42653a7e3d2a93807f6f45e164b4d27c4e8"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-sysdlls",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-sysdlls",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820205.0993888,
+      "end": 1793820210.180643,
+      "log": {
+        "file": "oracle-jspi-x64-sysdlls.log",
+        "bytes": 1709,
+        "sha256": "05ab61fce2954eb0e44d1c62fd95c3f3a26dda587fee0873a699ac2691f70ae5"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-threads",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-threads",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820210.181681,
+      "end": 1793820215.235245,
+      "log": {
+        "file": "oracle-jspi-x64-threads.log",
+        "bytes": 1706,
+        "sha256": "3aecb6ba9c46ff7b7a1341a1d6b1dc57aaf5bbafb8abc14eefc8b123cd63b2ca"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x64-tls",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x64-tls",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820215.236246,
+      "end": 1793820220.226215,
+      "log": {
+        "file": "oracle-jspi-x64-tls.log",
+        "bytes": 1669,
+        "sha256": "42cc547d0f8a38cc71e7e523b96a1d47af54c6244d006e480a73ee8c12aed965"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x86-handles",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-handles",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820220.227266,
+      "end": 1793820227.0778382,
+      "log": {
+        "file": "oracle-jspi-x86-handles.log",
+        "bytes": 1894,
+        "sha256": "b150804fe5d62127007c39f6b6d1f54ef40ed48991a62425e250a49ee0a757eb"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x86-heap",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-heap",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820227.078783,
+      "end": 1793820234.358664,
+      "log": {
+        "file": "oracle-jspi-x86-heap.log",
+        "bytes": 1863,
+        "sha256": "080b89fae470baa439c553ab2c2833d9993864c467e69990e450a0261aec0b5e"
+      },
+      "classification": "pass"
+    },
+    {
+      "name": "oracle-jspi-x86-threads",
+      "args": [
+        "npm",
+        "run",
+        "oracle",
+        "--",
+        "examples/x86-threads",
+        "300"
+      ],
+      "env": {
+        "BGT_JSPI": "1",
+        "BGT_TEST_JSPI": "1",
+        "BGT_BUILD_JOBS": "2",
+        "BGT_ORACLE_SUSPENSION": "jspi"
+      },
+      "exit": 0,
+      "begin": 1793820234.359623,
+      "end": 1793820239.3877819,
+      "log": {
+        "file": "oracle-jspi-x86-threads.log",
+        "bytes": 1863,
+        "sha256": "4b71424e28af1d67338b216819554e0827fcdeda788d8b3b96486c737a37b799"
+      },
+      "classification": "pass"
+    }
+  ],
+  "unit": {
+    "passed": 2068,
+    "failed": 4,
+    "filesPassed": 117,
+    "filesFailed": 1,
+    "durationSeconds": 3269.45,
+    "deadlineMs": 60000,
+    "serialReruns": [
+      {
+        "name": "size-scalar",
+        "args": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=1",
+          "tests/unit/codegen.test.ts",
+          "-t",
+          "lift preset size.*scalar conversions and COMI/UCOMI"
+        ],
+        "exit": 1,
+        "begin": 1793832760.524218,
+        "end": 1793832826.436586,
+        "log": {
+          "file": "size-scalar.log",
+          "bytes": 5082,
+          "sha256": "8d4cf2558b3e288adcefbf3e23a014ee3d832e93e4c674f09bfcdfdad22fc164"
+        },
+        "failure": "Test timed out in 60000ms",
+        "testDurationMs": 60152,
+        "otherTestsUnselected": 61,
+        "env": {
+          "BGT_JSPI": "1",
+          "BGT_TEST_JSPI": "1",
+          "BGT_BUILD_JOBS": "2",
+          "BGT_E2E_PORT": "5270"
+        }
+      },
+      {
+        "name": "size-memory",
+        "args": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=1",
+          "tests/unit/codegen.test.ts",
+          "-t",
+          "lift preset size.*native SSE memory reads accept read-only pages"
+        ],
+        "exit": 1,
+        "begin": 1793832826.436723,
+        "end": 1793832898.653743,
+        "log": {
+          "file": "size-memory.log",
+          "bytes": 5100,
+          "sha256": "70fedf104b77867368c369884ebde5b3abc800d414d83d10709c7def750edd5d"
+        },
+        "failure": "Test timed out in 60000ms",
+        "testDurationMs": 62176,
+        "otherTestsUnselected": 61,
+        "env": {
+          "BGT_JSPI": "1",
+          "BGT_TEST_JSPI": "1",
+          "BGT_BUILD_JOBS": "2",
+          "BGT_E2E_PORT": "5270"
+        }
+      },
+      {
+        "name": "fast-scalar",
+        "args": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=1",
+          "tests/unit/codegen.test.ts",
+          "-t",
+          "lift preset fast.*scalar conversions and COMI/UCOMI"
+        ],
+        "exit": 1,
+        "begin": 1793832898.6538858,
+        "end": 1793832965.3052301,
+        "log": {
+          "file": "fast-scalar.log",
+          "bytes": 5239,
+          "sha256": "e6599a098c68dacc702650dc9b0fa67da742ac53c9cfeb9c463e2e7df50a704b"
+        },
+        "failure": "Test timed out in 60000ms",
+        "testDurationMs": 61553,
+        "otherTestsUnselected": 61,
+        "env": {
+          "BGT_JSPI": "1",
+          "BGT_TEST_JSPI": "1",
+          "BGT_BUILD_JOBS": "2",
+          "BGT_E2E_PORT": "5270"
+        }
+      },
+      {
+        "name": "fast-memory",
+        "args": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=1",
+          "tests/unit/codegen.test.ts",
+          "-t",
+          "lift preset fast.*native SSE memory reads accept read-only pages"
+        ],
+        "exit": 1,
+        "begin": 1793832965.305345,
+        "end": 1793833033.9310899,
+        "log": {
+          "file": "fast-memory.log",
+          "bytes": 5880,
+          "sha256": "bf51836f0ec5559c57abe91271d124541a132784b6a0b8af18d41931da90c8c5"
+        },
+        "failure": "Test timed out in 60000ms",
+        "testDurationMs": 61093,
+        "otherTestsUnselected": 61,
+        "env": {
+          "BGT_JSPI": "1",
+          "BGT_TEST_JSPI": "1",
+          "BGT_BUILD_JOBS": "2",
+          "BGT_E2E_PORT": "5270"
+        }
+      }
+    ],
+    "testSourcesUnchangedFromBase": "50960e9"
+  },
+  "browser": {
+    "asyncify": {
+      "report": {
+        "file": "browser-asyncify.json",
+        "bytes": 8112674,
+        "sha256": "fc33063a4e3991ec65d1bf884fcceaf0c461fa418c3f991009b9591fb9b68f79"
+      },
+      "stats": {
+        "startTime": "2026-11-04T18:34:35.838Z",
+        "duration": 854634.983,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 157,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      }
+    },
+    "jspi": {
+      "report": {
+        "file": "browser-jspi.json",
+        "bytes": 8112582,
+        "sha256": "83f279a527f42786da9d83b4b4ac0ffdc764d5a3bde98aff50f83a766025055a"
+      },
+      "stats": {
+        "startTime": "2026-11-04T18:57:15.452Z",
+        "duration": 748811.83,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 157,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      }
+    }
+  },
+  "browserSkipInventory": [
+    {
+      "file": "fallback.spec.ts",
+      "line": 5,
+      "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+          "location": {
+            "file": "tests/e2e/fallback.spec.ts",
+            "line": 7,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "fallback.spec.ts",
+      "line": 5,
+      "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+          "location": {
+            "file": "tests/e2e/fallback.spec.ts",
+            "line": 7,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "fallback.spec.ts",
+      "line": 5,
+      "title": "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+      "project": "chromium-auto",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in BGT_E2E_NO_WEBGPU=1 software/no-adapter reproduction",
+          "location": {
+            "file": "tests/e2e/fallback.spec.ts",
+            "line": 7,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-capability.spec.ts",
+      "line": 7,
+      "title": "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-capability.spec.ts",
+            "line": 9,
+            "column": 12
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-capability.spec.ts",
+      "line": 7,
+      "title": "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-capability.spec.ts",
+            "line": 9,
+            "column": 12
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 22,
+      "title": "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 23,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 39,
+      "title": "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 41,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 50,
+      "title": "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 52,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 65,
+      "title": "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 66,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 73,
+      "title": "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 75,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 81,
+      "title": "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 83,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 94,
+      "title": "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 95,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2-contract.spec.ts",
+      "line": 94,
+      "title": "GPU WebGL2: nonzero first instance render through the native C fixture",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2-contract.spec.ts",
+            "line": 95,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 115,
+      "title": "GPU WebGL2: native C submits and executes every section 13 opcode",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 116,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 0 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 1 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 2 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 3 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 4 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 6 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 7 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 8 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgl2.spec.ts",
+      "line": 128,
+      "title": "GPU WebGL2: scene 9 resources survive browser context loss",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL2-specific backend contract",
+          "location": {
+            "file": "tests/e2e/gpu-webgl2.spec.ts",
+            "line": 129,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 7,
+      "title": "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 10,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 39,
+      "title": "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 42,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 52,
+      "title": "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 55,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 63,
+      "title": "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 67,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 88,
+      "title": "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 91,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu-conformance.spec.ts",
+      "line": 135,
+      "title": "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu-conformance.spec.ts",
+            "line": 138,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: indexed coloured triangle",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: mipmapped alpha quad",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: two colour attachments",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: depth and stencil",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: 1000 instanced sprites",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: uniform animation",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 8,
+      "title": "WebGPU \u00a713 native: 2D GPU interleaving",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGPU lane fixture; WebGL has its own equivalent fixture",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 49,
+      "title": "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 52,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 49,
+      "title": "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 52,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 49,
+      "title": "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 52,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "gpu-webgpu.spec.ts",
+      "line": 49,
+      "title": "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "location": {
+            "file": "tests/e2e/gpu-webgpu.spec.ts",
+            "line": 52,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "robustness.spec.ts",
+      "line": 111,
+      "title": "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "needs a WebGPU start",
+          "location": {
+            "file": "tests/e2e/robustness.spec.ts",
+            "line": 113,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "robustness.spec.ts",
+      "line": 140,
+      "title": "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "WebGL 2 is the last backend",
+          "location": {
+            "file": "tests/e2e/robustness.spec.ts",
+            "line": 142,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "tour.spec.ts",
+      "line": 8,
+      "title": "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "the tour is backend-independent input + layout; one backend is enough",
+          "location": {
+            "file": "tests/e2e/tour.spec.ts",
+            "line": 11,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "visual.spec.ts",
+      "line": 74,
+      "title": "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "runs in the WebGPU project, which can create both backends",
+          "location": {
+            "file": "tests/e2e/visual.spec.ts",
+            "line": 76,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken device",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken submission",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken lost",
+      "project": "chromium-webgl2",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken device",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken submission",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    },
+    {
+      "file": "webgpu-availability.spec.ts",
+      "line": 8,
+      "title": "WebGPU-only availability policy: injected broken lost",
+      "project": "chromium-webgpu",
+      "annotations": [
+        {
+          "type": "skip",
+          "description": "opt-in policy check: BGT_TEST_BROKEN_WEBGPU=1 (required mode must fail)",
+          "location": {
+            "file": "tests/e2e/webgpu-availability.spec.ts",
+            "line": 9,
+            "column": 10
+          }
+        }
+      ]
+    }
+  ],
+  "oracle": {
+    "fixtures": 34,
+    "runs": 68,
+    "framesPerRun": 300,
+    "totalIdenticalFramePairs": 20400,
+    "crossSuspensionHashesIdentical": true,
+    "results": [
+      {
+        "fixture": "win32-conformance",
+        "game": "win32-conformance",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "cac197f9",
+          "interpreted": "cac197f9",
+          "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+          "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-win32-conformance.json",
+              "bytes": 45196,
+              "sha256": "491bf466894023058ad31d4c5cbf5c873bfcd49d6d3406dfb002df5849be4a53"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 22.805374999999913,
+              "interpreted": 48.175208999999995
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 56275
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-win32-conformance.json",
+              "bytes": 45182,
+              "sha256": "8abf63e4b13eac5cb75bd16fd7491571a64379254a482ada6bfebfb36907216b"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 22.769500000000335,
+              "interpreted": 33.94524999999976
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 56275
+          }
+        }
+      },
+      {
+        "fixture": "win32-hello",
+        "game": "win32-hello",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "3aee6ab3",
+          "interpreted": "3aee6ab3",
+          "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+          "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-win32-hello.json",
+              "bytes": 43641,
+              "sha256": "a43aeea16da511958f8f3d1930d67a11fd849eb770fc8007b35f0ca2e405cc15"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 20.58508299999994,
+              "interpreted": 19.201750000000175
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 4295
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-win32-hello.json",
+              "bytes": 43653,
+              "sha256": "22a1d769f270cb18e7b61af548552aace0c29b49973c3e0e44e0958521604568"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 11.952958999999282,
+              "interpreted": 15.181333999999879
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 4295
+          }
+        }
+      },
+      {
+        "fixture": "x64-audio",
+        "game": "x64-audio",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "74d37eff",
+          "interpreted": "74d37eff",
+          "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+          "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-audio.json",
+              "bytes": 51438,
+              "sha256": "fbabfe38fe773ce86e932a74610feda383360b0d9d8ab0598f746a91fd412fef"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 22.443458000000646,
+              "interpreted": 39.481707999999344
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 470,
+            "leaf_import_calls": 7,
+            "thunk_dispatches": 611
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-audio.json",
+              "bytes": 51421,
+              "sha256": "314acc22c2d99d30991863066fb6b97a200587686c125d28e8568274baa07834"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 17.956707999999708,
+              "interpreted": 34.37091700000019
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 470,
+            "leaf_import_calls": 7,
+            "thunk_dispatches": 611
+          }
+        }
+      },
+      {
+        "fixture": "x64-audio-init",
+        "game": "x64-audio-init",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "d02de26a",
+          "interpreted": "d02de26a",
+          "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+          "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-audio-init.json",
+              "bytes": 49165,
+              "sha256": "2c3a275fe358ecc84f0a2a01d864138df3320b6bceb59cd7c348d0e1d18227b9"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 10.542374999999993,
+              "interpreted": 26.765625
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 42,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 487
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-audio-init.json",
+              "bytes": 49174,
+              "sha256": "ab676bac9240fc4db56588898f8ed982f036dad83693fc7ef2eacc68ba33a913"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 9.444165999999313,
+              "interpreted": 19.625458000000435
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 42,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 487
+          }
+        }
+      },
+      {
+        "fixture": "x64-basics",
+        "game": "x64-basics",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "fa722538",
+          "interpreted": "fa722538",
+          "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+          "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-basics.json",
+              "bytes": 23910,
+              "sha256": "fad71d1389c848113c0b175948f4cba49ebd3dc0b1e69c060b70d9c022f3c0bd"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 7.422209000000294,
+              "interpreted": 9.824542000000292
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1003,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 0
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-basics.json",
+              "bytes": 23936,
+              "sha256": "c97fe5048b65bdfab34d044b955017c620031fd040f752cbcb688332e1e81304"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 7.771500000000742,
+              "interpreted": 8.802208000000064
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1003,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 0
+          }
+        }
+      },
+      {
+        "fixture": "x64-contracts",
+        "game": "x64-contracts",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "0514c1ba",
+          "interpreted": "0514c1ba",
+          "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+          "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-contracts.json",
+              "bytes": 123428,
+              "sha256": "2a7eba37f731f1c6478eba60573a1737e6498cd83330365d4e352f54a949a6aa"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 22.118625000000065,
+              "interpreted": 21.126874999999927
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 31,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 1463
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-contracts.json",
+              "bytes": 123469,
+              "sha256": "28e552aec5751ab80d1449f055b443954572bbf3c60a0bb88e037101a85d7653"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 19.217333000000508,
+              "interpreted": 21.299540999999408
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 31,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 1463
+          }
+        }
+      },
+      {
+        "fixture": "x64-cpp",
+        "game": "x64-cpp",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "eadc23f1",
+          "interpreted": "eadc23f1",
+          "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+          "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-cpp.json",
+              "bytes": 41548,
+              "sha256": "04528e203c2a72c82af12f0daef0b2bc2aa0f1c3cc928a9c67bca51713aadcb8"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 11.004417000000103,
+              "interpreted": 16.12774999999965
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1106,
+            "leaf_import_calls": 4,
+            "thunk_dispatches": 0
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-cpp.json",
+              "bytes": 41542,
+              "sha256": "1fde7999e11b90d64d8d5cbe4baf12fa8d112758d3b9241f71a732688becc463"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 9.49591700000019,
+              "interpreted": 14.506249999999454
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1106,
+            "leaf_import_calls": 4,
+            "thunk_dispatches": 0
+          }
+        }
+      },
+      {
+        "fixture": "x64-cpprt",
+        "game": "x64-cpprt",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "8e59b196",
+          "interpreted": "8e59b196",
+          "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+          "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-cpprt.json",
+              "bytes": 45995,
+              "sha256": "2fc078aa2f31581cf785a10457ecde91f4db65d1080efa1c73c80e35db610eea"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 10.08929199999966,
+              "interpreted": 20.566375000000335
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 401,
+            "leaf_import_calls": 116,
+            "thunk_dispatches": 0
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-cpprt.json",
+              "bytes": 45993,
+              "sha256": "beeef6de6f8311bceacec555c393117d19d5760989790c81dd180bf3d94c6bb0"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 8.203416000000288,
+              "interpreted": 15.53466600000047
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 401,
+            "leaf_import_calls": 116,
+            "thunk_dispatches": 0
+          }
+        }
+      },
+      {
+        "fixture": "x64-crt",
+        "game": "x64-crt",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "bae2920f",
+          "interpreted": "bae2920f",
+          "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+          "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-crt.json",
+              "bytes": 118508,
+              "sha256": "eeedbf241b7c827c57159bbf83ed7585fbb9656daa09d102ef84a2419f1a6779"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 15.375875000000633,
+              "interpreted": 24.474959000000126
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 380,
+            "leaf_import_calls": 15,
+            "thunk_dispatches": 409
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-crt.json",
+              "bytes": 118447,
+              "sha256": "3ec246799a1b5ab4309bb2effb83ed3dbafd89fd766b6509734fd84e1befa3f7"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 10.67450000000008,
+              "interpreted": 15.963958999999704
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 380,
+            "leaf_import_calls": 15,
+            "thunk_dispatches": 409
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl",
+        "game": "x64-gl",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "47b028e6:01c4aa76",
+          "interpreted": "47b028e6:01c4aa76",
+          "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+          "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl.json",
+              "bytes": 87530,
+              "sha256": "8cdcbfc2b7c2f850053d06a0bf42304d2782ee0ee9f81b057d421e54f57767eb"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 99.84587499999998,
+              "interpreted": 99.81750000000011
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 100,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 14535
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl.json",
+              "bytes": 87549,
+              "sha256": "2a65f4e55ea3ad4ad2462a366185f4dc7410067a792df032b6c5b5603753d48d"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 93.13575000000037,
+              "interpreted": 93.58683400000064
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 100,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 14535
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-blit",
+        "game": "x64-gl-blit",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "6bc914b7:b46fb07b",
+          "interpreted": "6bc914b7:b46fb07b",
+          "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+          "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-blit.json",
+              "bytes": 72182,
+              "sha256": "4bdf2ec2061f6ef3b98519199b7b528d8ce2e85128848de9d9e77b508266f0c9"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 16.37987500000054,
+              "interpreted": 24.679916999999477
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 434,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 1088
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-blit.json",
+              "bytes": 71626,
+              "sha256": "bdd1c7b6093c010af77cbce7e06aef5680a4f1b1463772c643d52c22479e00f7"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 15.230875000000196,
+              "interpreted": 17.44720799999959
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 434,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 1088
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-capacity",
+        "game": "x64-gl-capacity",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "d402933e:811c9dc5",
+          "interpreted": "d402933e:811c9dc5",
+          "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+          "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-capacity.json",
+              "bytes": 79506,
+              "sha256": "6a1f197d1f7e18569c6e4585187c131d2626488f4cf5bf51b46b48c8bd064353"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 364.2649160000001,
+              "interpreted": 482.25066700000025
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 716,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 8560
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-capacity.json",
+              "bytes": 78891,
+              "sha256": "697472a8b1cfabeda8900ea424e9fcc0a45e68f744e821798908c803f7418208"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 355.9728329999998,
+              "interpreted": 463.92562499999985
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 716,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 8560
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-current",
+        "game": "x64-gl-current",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "1130f0ae:5a8d64ad",
+          "interpreted": "1130f0ae:5a8d64ad",
+          "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+          "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-current.json",
+              "bytes": 80585,
+              "sha256": "2ab1709f30c44830812f77f45a433bee1a9feb02142fefbec8b0504e710296c9"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 156.3252080000002,
+              "interpreted": 129.58812500000022
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 966,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 23231
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-current.json",
+              "bytes": 80030,
+              "sha256": "0efd87742e6c8c4913e8b73422bcbc1c099a661a092a8a6c8156d2d0ea791a02"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 141.42099999999937,
+              "interpreted": 152.5756250000004
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 966,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 23231
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-default-vao",
+        "game": "x64-gl-default-vao",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "558085bd:61d8bdd0",
+          "interpreted": "558085bd:61d8bdd0",
+          "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+          "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-default-vao.json",
+              "bytes": 76229,
+              "sha256": "84c7ebaae61beb74f06e9718304be089cf24d2d99eec8dbe8ac008337754af5e"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 61.71241700000064,
+              "interpreted": 62.809666999999536
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 445,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 6642
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-default-vao.json",
+              "bytes": 75693,
+              "sha256": "faab8fac733b50a9ce8c5d90a381e630a5a5dc6a34799bc5a6f82bcb94b944b8"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 53.18104200000016,
+              "interpreted": 64.04166600000008
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 445,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 6642
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-fbo",
+        "game": "x64-gl-fbo",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "884b43af:ec039dc1",
+          "interpreted": "884b43af:ec039dc1",
+          "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+          "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-fbo.json",
+              "bytes": 87720,
+              "sha256": "f409e70d22bbee619b7ceacbaf70242bea6463f0145b42b8a835154bc5ddb12e"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 182.31875000000036,
+              "interpreted": 149.43395899999996
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 364,
+            "leaf_import_calls": 13,
+            "thunk_dispatches": 45008
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-fbo.json",
+              "bytes": 87269,
+              "sha256": "a09c93e445a4044d09f17873310d934d1c4bf4d92a17c01872a5e0b2e83ec490"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 165.3573750000005,
+              "interpreted": 149.02862499999992
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 364,
+            "leaf_import_calls": 13,
+            "thunk_dispatches": 45008
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-feedback",
+        "game": "x64-gl-feedback",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "b8fb8e26:811c9dc5",
+          "interpreted": "b8fb8e26:811c9dc5",
+          "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+          "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-feedback.json",
+              "bytes": 78645,
+              "sha256": "6a324e875ebb48e8bf670c91b1a2267769eda6e7a347a8a5eb4b045ab2e3626f"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 24.77141699999993,
+              "interpreted": 26.92058299999917
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 783,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 464
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-feedback.json",
+              "bytes": 78120,
+              "sha256": "4d6adc98db04cc68c20a622661099996b88f4ca71d614b669368a7c070a1c65d"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 18.56800000000021,
+              "interpreted": 22.770916999999827
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 783,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 464
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-integer",
+        "game": "x64-gl-integer",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "5ed6b84d:4de7479f",
+          "interpreted": "5ed6b84d:4de7479f",
+          "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+          "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-integer.json",
+              "bytes": 77066,
+              "sha256": "af2be2a09d19b24be7d2f8d744d1d02094ffb855994ec607678b0b4ed39acb46"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 67.13637500000004,
+              "interpreted": 55.12254100000064
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 640,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 4949
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-integer.json",
+              "bytes": 76730,
+              "sha256": "d04304e4023da4fd4845bc43b5722a1415f70bac62b1332b01d5170c50148e69"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 44.01637500000015,
+              "interpreted": 44.39704200000051
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 640,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 4949
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-ranges",
+        "game": "x64-gl-ranges",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "acab916b:811c9dc5",
+          "interpreted": "acab916b:811c9dc5",
+          "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+          "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-ranges.json",
+              "bytes": 79407,
+              "sha256": "368d73252accdff2cdea6d7e237f512a2977d88416711377b53e4486b344d257"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 148.8924590000006,
+              "interpreted": 131.80875000000015
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 805,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 27462
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-ranges.json",
+              "bytes": 78903,
+              "sha256": "9c80c3258510a1c63c7d8ec7223e9eef322243b65b1a143172d2c95c5e2a4cc7"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 137.85425000000032,
+              "interpreted": 126.84825000000001
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 805,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 27462
+          }
+        }
+      },
+      {
+        "fixture": "x64-gl-scale",
+        "game": "x64-gl-scale",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "328a3899:811c9dc5",
+          "interpreted": "328a3899:811c9dc5",
+          "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+          "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gl-scale.json",
+              "bytes": 75454,
+              "sha256": "fafbd251593140d7b202406e22444bfed16f0585442147853754805d2cfacb32"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 649.0479590000014,
+              "interpreted": 601.601541
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 719,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 264156
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gl-scale.json",
+              "bytes": 74853,
+              "sha256": "4ae9e7cd8017425efa46dfd3984aad092e0714ddd5d7acf49e54957c6b133d01"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 570.6472079999994,
+              "interpreted": 601.5048339999994
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 719,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 264156
+          }
+        }
+      },
+      {
+        "fixture": "x64-glsl",
+        "game": "x64-glsl",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "7531959c:62477e5d",
+          "interpreted": "7531959c:62477e5d",
+          "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+          "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-glsl.json",
+              "bytes": 50236,
+              "sha256": "27c75da2796c4c6bdb11667c120fde29bfd673d1ea0e69442bf0afb9d5fae6ee"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 69.58741699999973,
+              "interpreted": 66.90508399999999
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1722,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 291
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-glsl.json",
+              "bytes": 50221,
+              "sha256": "858696824df2558078f2460cc3c1de04fbcb53a0c3702431e9bf8860a8f0238f"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 47.66595799999959,
+              "interpreted": 58.625458999999864
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1722,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 291
+          }
+        }
+      },
+      {
+        "fixture": "x64-gui",
+        "game": "x64-gui",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "cae2906b",
+          "interpreted": "cae2906b",
+          "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+          "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-gui.json",
+              "bytes": 46330,
+              "sha256": "bb8ae5ddc8cf496ca523df74551529532f55a4454fc0ea12a39f2a0f1e79a92a"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 9.08545900000081,
+              "interpreted": 14.599417000000358
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1745,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 0
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-gui.json",
+              "bytes": 46308,
+              "sha256": "85033adbacb2ee6e19e8eadac0e13cff963620c31aec5dba38166191a20f75c3"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 8.137708999999631,
+              "interpreted": 10.319040999999743
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1745,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 0
+          }
+        }
+      },
+      {
+        "fixture": "x64-handles",
+        "game": "x64-handles",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "9c945881",
+          "interpreted": "9c945881",
+          "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+          "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-handles.json",
+              "bytes": 65096,
+              "sha256": "9a64a8a64d2318c5c616cc4691abb58ce8671e40b9bb26156458962b3d66ac56"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 26.21087499999976,
+              "interpreted": 29.15099999999984
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 14765,
+            "leaf_import_calls": 111,
+            "thunk_dispatches": 8313
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-handles.json",
+              "bytes": 65107,
+              "sha256": "d6b8688331ce7565b4e3f6e0e38f7b831b5c955bc135e84c0e6b45ce844fb7d5"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 19.883292000000438,
+              "interpreted": 22.56737500000054
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 14765,
+            "leaf_import_calls": 111,
+            "thunk_dispatches": 8313
+          }
+        }
+      },
+      {
+        "fixture": "x64-heap",
+        "game": "x64-heap",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "dfa6e55f",
+          "interpreted": "dfa6e55f",
+          "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+          "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-heap.json",
+              "bytes": 38710,
+              "sha256": "e22caa1273c2a2672dcb64c0f775354d3be89041a4ab7a9de8fc5f12b2f4a7a5"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 482.1104580000001,
+              "interpreted": 714.5939170000001
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 3,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 43558
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-heap.json",
+              "bytes": 38713,
+              "sha256": "c403ce98e4320301124b05f48c91eca625f83e6f1b37b50fee66ecb3c7cfeda7"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 351.2919160000001,
+              "interpreted": 542.9622910000007
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 3,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 43558
+          }
+        }
+      },
+      {
+        "fixture": "x64-imports",
+        "game": "x64-imports",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "4a8febdb",
+          "interpreted": "4a8febdb",
+          "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+          "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-imports.json",
+              "bytes": 27708,
+              "sha256": "6ca0cf1d635426dc80e43af772e7ad1cf512e53e916bb5148f46bcc4e41ada92"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 6.483040999999503,
+              "interpreted": 9.337875000000167
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 21,
+            "leaf_import_calls": 14,
+            "thunk_dispatches": 5
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-imports.json",
+              "bytes": 27694,
+              "sha256": "c277b55a64ab9184efa8bbd83f1bf5153a6238e5f329e4d97ae394e01ccdbf58"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 6.256999999999607,
+              "interpreted": 8.014083000000028
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 21,
+            "leaf_import_calls": 14,
+            "thunk_dispatches": 5
+          }
+        }
+      },
+      {
+        "fixture": "x64-input",
+        "game": "x64-input",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "bd47b0f2",
+          "interpreted": "bd47b0f2",
+          "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+          "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-input.json",
+              "bytes": 57950,
+              "sha256": "424ba91dcedffc5e17c5ad877b512e08664e2313c295cadb427ed05052db97bc"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 189.39941700000054,
+              "interpreted": 260.32275000000027
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 293987,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 253675
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-input.json",
+              "bytes": 57984,
+              "sha256": "a2ffd3302bd922ac1f5f7519a5843fed58eea41b7476d908e394333828a29ff0"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 169.90037500000017,
+              "interpreted": 225.1710409999996
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 293987,
+            "leaf_import_calls": 3,
+            "thunk_dispatches": 253675
+          }
+        }
+      },
+      {
+        "fixture": "x64-memory",
+        "game": "x64-memory",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "b4565d5d",
+          "interpreted": "b4565d5d",
+          "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+          "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-memory.json",
+              "bytes": 36455,
+              "sha256": "d8ff9861552cf00a783bce44ae942c97018f28e0ed2ab9068bb4f6313e3b9406"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 164.7041250000002,
+              "interpreted": 2768.5350419999995
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 23,
+            "leaf_import_calls": 5,
+            "thunk_dispatches": 2
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-memory.json",
+              "bytes": 36443,
+              "sha256": "3dfeeeab5892f69613fa2f5e4fdcd45676e1cd1537a7ae02551227fdd20a54f8"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 153.02716599999985,
+              "interpreted": 2404.475541
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 23,
+            "leaf_import_calls": 5,
+            "thunk_dispatches": 2
+          }
+        }
+      },
+      {
+        "fixture": "x64-scale",
+        "game": "x64-scale",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "f674cbe2",
+          "interpreted": "f674cbe2",
+          "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+          "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-scale.json",
+              "bytes": 33378,
+              "sha256": "b9b773bf3ddaf49bd638ea68f5205755521a66bae39d6c5477da7f432c11c148"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 49.64058400000067,
+              "interpreted": 116.02295900000172
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 34,
+            "leaf_import_calls": 5,
+            "thunk_dispatches": 313
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-scale.json",
+              "bytes": 33363,
+              "sha256": "f7c2925f48d443fafc0cd2680d4e706db8cb806f051f602105ac75e8ce203577"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 35.025792000000365,
+              "interpreted": 102.66912500000035
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 34,
+            "leaf_import_calls": 5,
+            "thunk_dispatches": 313
+          }
+        }
+      },
+      {
+        "fixture": "x64-smoke",
+        "game": "x64-smoke",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "31054bb2:01c4aa76",
+          "interpreted": "31054bb2:01c4aa76",
+          "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+          "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-smoke.json",
+              "bytes": 111493,
+              "sha256": "00df42d1f32dd469628dd3b08b0a6111c9226c4c450894080e329f97a375560d"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 181.66795899999943,
+              "interpreted": 273.78858299999956
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1797,
+            "leaf_import_calls": 7,
+            "thunk_dispatches": 17806
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-smoke.json",
+              "bytes": 111538,
+              "sha256": "e91f22dec6aac8fa4c7ab8ac53238482ec235721ef5e720ce2712fe194b844ad"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 158.37629200000083,
+              "interpreted": 227.6999169999999
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1797,
+            "leaf_import_calls": 7,
+            "thunk_dispatches": 17806
+          }
+        }
+      },
+      {
+        "fixture": "x64-sysdlls",
+        "game": "x64-sysdlls",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "9fdbaf40",
+          "interpreted": "9fdbaf40",
+          "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+          "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-sysdlls.json",
+              "bytes": 88264,
+              "sha256": "d1c9760319ad4d063c9492ac717502fd8663a2c8331d810e6a0b6ce9987147cc"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 21.823832999999468,
+              "interpreted": 23.54558300000008
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 5532,
+            "leaf_import_calls": 12,
+            "thunk_dispatches": 1664
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-sysdlls.json",
+              "bytes": 88315,
+              "sha256": "35ff6fb75a8047e24e6eec89d1e4e3be5c13b12e82eb424779d46ed322b80e8d"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 15.140832999999475,
+              "interpreted": 20.01825000000008
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 5532,
+            "leaf_import_calls": 12,
+            "thunk_dispatches": 1664
+          }
+        }
+      },
+      {
+        "fixture": "x64-threads",
+        "game": "x64-threads",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "57670827",
+          "interpreted": "57670827",
+          "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+          "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-threads.json",
+              "bytes": 55248,
+              "sha256": "ddf1656c681cf3e242b90f0a574d56ac08b859b61796c586abee09ff4d704742"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 14.532874999999876,
+              "interpreted": 69.38866699999926
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 3455,
+            "leaf_import_calls": 30,
+            "thunk_dispatches": 4
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-threads.json",
+              "bytes": 55237,
+              "sha256": "890e854e0c20c4bdf0347a08641dca1092c5db7d1c5e56049c48fc06f6bbc906"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 13.698624999999993,
+              "interpreted": 50.495334000000184
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 3455,
+            "leaf_import_calls": 30,
+            "thunk_dispatches": 4
+          }
+        }
+      },
+      {
+        "fixture": "x64-tls",
+        "game": "x64-tls",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "ff6d2761",
+          "interpreted": "ff6d2761",
+          "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+          "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x64-tls.json",
+              "bytes": 37671,
+              "sha256": "ddd30d7f63d502a07786775871658389d27ab802e840e8b1e0a8481efdbc2e2f"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 7.6672499999995125,
+              "interpreted": 14.032458000000588
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1031,
+            "leaf_import_calls": 4,
+            "thunk_dispatches": 2
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x64-tls.json",
+              "bytes": 37676,
+              "sha256": "f3ca5d27999e8f32728592b5eae8b0cca0cde416b50083214c32617d78a57a4a"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 7.4284999999999854,
+              "interpreted": 10.757500000000618
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 1031,
+            "leaf_import_calls": 4,
+            "thunk_dispatches": 2
+          }
+        }
+      },
+      {
+        "fixture": "x86-handles",
+        "game": "x86-handles",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "ab4cc133",
+          "interpreted": "ab4cc133",
+          "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+          "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x86-handles.json",
+              "bytes": 47668,
+              "sha256": "ec3ed5a250b482e802843dfc86c4b463482a1250d8ecf2aa260469a15f0245ff"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 26.656750000000102,
+              "interpreted": 33.759500000000116
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 23026
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x86-handles.json",
+              "bytes": 47665,
+              "sha256": "2388a8d97a03d0128c96e7dca86d93749fb243b537515d6aecd2664a9f65e56b"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 22.238209000000097,
+              "interpreted": 28.020042000000103
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 23026
+          }
+        }
+      },
+      {
+        "fixture": "x86-heap",
+        "game": "x86-heap",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "ae4a7fb3",
+          "interpreted": "ae4a7fb3",
+          "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+          "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x86-heap.json",
+              "bytes": 34211,
+              "sha256": "dd0d8360578bdb76e8ea33c54cce36515e4e0bd3dbb959d090a8b3cdfbf0e5d2"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 140.9677499999998,
+              "interpreted": 772.7397920000003
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 43526
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x86-heap.json",
+              "bytes": 34214,
+              "sha256": "b17c8a5086be2aab6aa53cdb6cce50af8253b719dfa8db101f6aba66084a6342"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 115.70887500000026,
+              "interpreted": 653.0484999999999
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 43526
+          }
+        }
+      },
+      {
+        "fixture": "x86-threads",
+        "game": "x86-threads",
+        "identical": true,
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        },
+        "hashes": {
+          "lifted": "55742fef",
+          "interpreted": "55742fef",
+          "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+          "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+        },
+        "modes": {
+          "asyncify": {
+            "report": {
+              "file": "oracle-asyncify-x86-threads.json",
+              "bytes": 33656,
+              "sha256": "a09900de7dbbf3a6d8afbe72f7dd7c7ae0066dbcfbe06d8c83bae4918e788dcd"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 12.102249999999913,
+              "interpreted": 15.391041999999288
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 2140
+          },
+          "jspi": {
+            "report": {
+              "file": "oracle-jspi-x86-threads.json",
+              "bytes": 33639,
+              "sha256": "b1653025d1b0c6529f9ac7364c04d87abfcaa325462c04256088fdf6687f38f8"
+            },
+            "frames": 300,
+            "elapsedMs": {
+              "lifted": 11.113750000000437,
+              "interpreted": 14.640667000000576
+            },
+            "interp_insns": 0,
+            "stubs": [],
+            "stub_calls": 0,
+            "census_dropped": 0,
+            "direct_import_calls": 0,
+            "leaf_import_calls": 0,
+            "thunk_dispatches": 2140
+          }
+        }
+      }
+    ]
+  },
+  "finalStatus": "BLOCKED: four inherited unchanged SSE-matrix unit timeouts persist on individual serial reruns; no full Tier 1 green or independent acceptance",
+  "testPort": 5270,
+  "reviewerRequest": {
+    "purpose": "Acceptance boundary if unchanged individual SSE reruns still time out: record blocker and stop, or authorize out-of-ownership harness-efficiency repair preserving all cases/assertions/deadlines",
+    "timeoutSeconds": 900,
+    "result": "Reviewer timeout; using default: record blocker, commit evidence/docs, stop; no Tier1-green claim",
+    "decisionReceived": false
+  },
+  "cleanup": {
+    "ownedRerunCaseDirectoriesRemoved": 102,
+    "bytesRemoved": 967019,
+    "runningOwnedDrivers": 0,
+    "driverAbsenceVerified": "libproc proc_pidpath: recorded gate PID55966 and rerun PID5739 absent",
+    "diskFreeGiB": 11
+  },
+  "finalDocsLeakcheck": {
+    "exit": 0,
+    "committableFiles": 805,
+    "log": {
+      "file": "leakcheck-final.log",
+      "bytes": 118,
+      "sha256": "1997ae962714aa0317f1ac23906cdc53327756c23b27f35146b2767d2a28ef5a"
+    }
+  }
+}

@@ -1,0 +1,2081 @@
+{
+  "schema": "game-cask/k26-size-attribution/1",
+  "source": "tools/bench/attribution.test.ts",
+  "command": "BGT_BUILD_JOBS=2 npm test -- --config tools/bench/attribution.config.ts",
+  "node": "v24.19.0",
+  "generatedOwners": 2048,
+  "analyzedOwners": 2126,
+  "liftedInstructions": 275971,
+  "pe_sha256": "3e48afda937b417edc035d74a77b4b633fc13405efd7ba1764913ef6d87c5ef2",
+  "method": "Exact archived dev14/dev15 source, same generated PE. Raw linked capture before postprocess; exact N_* linked removelist. Whole O2, whole fixed-local-pass schedule, forced 8MiB partitions (two). One warmup discarded, five fresh GameHost instances, 300 updates each; checksum log, zero interpretation/stubs, equal every per-update state hash. No rasterization; shared loaded machine, sequential variants, not normalized CPU overhead or game speed. Cumulative update time includes first-update startup 262144 indirect calls and 300x128 per-update calls plus profile/runtime. Throughput counts lifted dispatches (incl CRT), not retired instructions.",
+  "rawReportSha256": "8cb918f746cbea155a0d4be5fefb530d1b0e4fc038680fe494b67af3678cfe71",
+  "rawReportRetainedAt": "$BGT_TRIAL_SCRATCH/attribution-b.json",
+  "sourceIdentity": {
+    "emitterAndCoverageDiffBytes": 0,
+    "comparison": "git diff 4bcc068 3cbcb25 -- tools/x86 platforms/x86/x86_coverage.h",
+    "generatedBodySizesEqual": true,
+    "scope": "name/size distributions equal, not a per-function byte-hash assertion"
+  },
+  "rows": [
+    {
+      "variant": "dev14",
+      "source": "4bcc068",
+      "profile": 1,
+      "mode": "whole",
+      "buildMs": 106842.602833,
+      "transformMs": 40470.66875000001,
+      "linked": {
+        "bytes": 10308102,
+        "sha256": "74008597893f5e75d39b89a142f373f08cdbcabb4646858746d63394ab24e41e",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8864
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 232
+          },
+          {
+            "id": 9,
+            "bytes": 11114
+          },
+          {
+            "id": 10,
+            "bytes": 8793186
+          },
+          {
+            "id": 11,
+            "bytes": 1351670
+          },
+          {
+            "id": 0,
+            "bytes": 141569
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2119,
+            "bytes": 822897
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 191,
+            "bytes": 58206
+          },
+          "w32": {
+            "functions": 174,
+            "bytes": 90559
+          }
+        }
+      },
+      "output": {
+        "bytes": 8713023,
+        "sha256": "973de0deba847de99581c2756881ae8fbc5b1eb6536d313088bfa19bd755fc3a",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 662
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 6141
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 352
+          },
+          {
+            "id": 9,
+            "bytes": 11086
+          },
+          {
+            "id": 12,
+            "bytes": 2
+          },
+          {
+            "id": 10,
+            "bytes": 7428254
+          },
+          {
+            "id": 11,
+            "bytes": 1265796
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 1742,
+            "bytes": 828678
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 6307311
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 189183
+          },
+          "x86": {
+            "functions": 42,
+            "bytes": 37821
+          },
+          "w32": {
+            "functions": 103,
+            "bytes": 55743
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 505.7421669999894,
+          "updateMs": 498.6766679995053,
+          "calls": 599690
+        },
+        {
+          "wallMs": 493.59545799999614,
+          "updateMs": 489.70521299992106,
+          "calls": 599690
+        },
+        {
+          "wallMs": 447.2231669999892,
+          "updateMs": 444.6892079998797,
+          "calls": 599690
+        },
+        {
+          "wallMs": 457.4574169999978,
+          "updateMs": 454.43382600028417,
+          "calls": 599690
+        },
+        {
+          "wallMs": 409.21570800000336,
+          "updateMs": 405.7720889998309,
+          "calls": 599690
+        },
+        {
+          "wallMs": 383.580209000007,
+          "updateMs": 381.4877820004185,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 447.2231669999892,
+      "updateMsMedian": 444.6892079998797,
+      "liftedCallsPerSecondMedian": 1348559.8238313042,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev14",
+      "source": "4bcc068",
+      "profile": 1,
+      "mode": "local",
+      "buildMs": 106842.602833,
+      "transformMs": 11609.521749999985,
+      "linked": {
+        "bytes": 10308102,
+        "sha256": "74008597893f5e75d39b89a142f373f08cdbcabb4646858746d63394ab24e41e",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8864
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 232
+          },
+          {
+            "id": 9,
+            "bytes": 11114
+          },
+          {
+            "id": 10,
+            "bytes": 8793186
+          },
+          {
+            "id": 11,
+            "bytes": 1351670
+          },
+          {
+            "id": 0,
+            "bytes": 141569
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2119,
+            "bytes": 822897
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 191,
+            "bytes": 58206
+          },
+          "w32": {
+            "functions": 174,
+            "bytes": 90559
+          }
+        }
+      },
+      "output": {
+        "bytes": 9240995,
+        "sha256": "9ccd2c2ceec6749ea01737ed473361b76cead0e05968775a3816fb8148dd8e3c",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8869
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 352
+          },
+          {
+            "id": 9,
+            "bytes": 11114
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 7867497
+          },
+          {
+            "id": 11,
+            "bytes": 1351670
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2124,
+            "bytes": 854432
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 191,
+            "bytes": 57461
+          },
+          "w32": {
+            "functions": 174,
+            "bytes": 91862
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 574.9462090000161,
+          "updateMs": 573.0366199998825,
+          "calls": 599690
+        },
+        {
+          "wallMs": 417.42304200000945,
+          "updateMs": 415.36417900017113,
+          "calls": 599690
+        },
+        {
+          "wallMs": 432.53987499998766,
+          "updateMs": 430.5473339999444,
+          "calls": 599690
+        },
+        {
+          "wallMs": 445.3020410000172,
+          "updateMs": 443.2591300001368,
+          "calls": 599690
+        },
+        {
+          "wallMs": 448.07929200000945,
+          "updateMs": 445.6146679999074,
+          "calls": 599690
+        },
+        {
+          "wallMs": 449.1390830000164,
+          "updateMs": 446.9532940002391,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 445.3020410000172,
+      "updateMsMedian": 443.2591300001368,
+      "liftedCallsPerSecondMedian": 1352910.655218348,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev14",
+      "source": "4bcc068",
+      "profile": 1,
+      "mode": "partitioned",
+      "buildMs": 106842.602833,
+      "transformMs": 14794.822791000013,
+      "linked": {
+        "bytes": 10308102,
+        "sha256": "74008597893f5e75d39b89a142f373f08cdbcabb4646858746d63394ab24e41e",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8864
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 232
+          },
+          {
+            "id": 9,
+            "bytes": 11114
+          },
+          {
+            "id": 10,
+            "bytes": 8793186
+          },
+          {
+            "id": 11,
+            "bytes": 1351670
+          },
+          {
+            "id": 0,
+            "bytes": 141569
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2119,
+            "bytes": 822897
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 191,
+            "bytes": 58206
+          },
+          "w32": {
+            "functions": 174,
+            "bytes": 90559
+          }
+        }
+      },
+      "output": {
+        "bytes": 9883186,
+        "sha256": "0435c2e1f1fe1a5626376540efb9c33d78f3c99b6c3126814a8fee91e3398ce3",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8869
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 352
+          },
+          {
+            "id": 9,
+            "bytes": 11114
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 8509688
+          },
+          {
+            "id": 11,
+            "bytes": 1351670
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2124,
+            "bytes": 1432494
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 191,
+            "bytes": 73865
+          },
+          "w32": {
+            "functions": 174,
+            "bytes": 139164
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 637.1347919999971,
+          "updateMs": 633.4816200002388,
+          "calls": 599690
+        },
+        {
+          "wallMs": 528.4289999999746,
+          "updateMs": 524.8394030001946,
+          "calls": 599690
+        },
+        {
+          "wallMs": 497.6639580000192,
+          "updateMs": 494.4483330002113,
+          "calls": 599690
+        },
+        {
+          "wallMs": 509.31583300000057,
+          "updateMs": 506.88323700006003,
+          "calls": 599690
+        },
+        {
+          "wallMs": 500.58620799999335,
+          "updateMs": 497.72560899998643,
+          "calls": 599690
+        },
+        {
+          "wallMs": 499.68325000000186,
+          "updateMs": 497.2261249998701,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 500.58620799999335,
+      "updateMsMedian": 497.72560899998643,
+      "liftedCallsPerSecondMedian": 1204860.64843012,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15",
+      "source": "3cbcb25",
+      "profile": 1,
+      "mode": "whole",
+      "buildMs": 61068.423834000016,
+      "transformMs": 45997.92745800002,
+      "linked": {
+        "bytes": 10319070,
+        "sha256": "bfd492d15471d51ddc25d5d7a2ea347a4e02a1935f125a499c455912db4a2673",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8871
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8795223
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141750
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2122,
+            "bytes": 824368
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 193,
+            "bytes": 58432
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90888
+          }
+        }
+      },
+      "output": {
+        "bytes": 8723719,
+        "sha256": "4d5e4a75b01c7fd5a0a0000e69fc493048196020c0f3aa7d5ac01c91df0ce13b",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 662
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 6144
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11088
+          },
+          {
+            "id": 12,
+            "bytes": 2
+          },
+          {
+            "id": 10,
+            "bytes": 7430248
+          },
+          {
+            "id": 11,
+            "bytes": 1274440
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 1744,
+            "bytes": 830128
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 6307311
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 189183
+          },
+          "x86": {
+            "functions": 42,
+            "bytes": 38100
+          },
+          "w32": {
+            "functions": 104,
+            "bytes": 56005
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 717.3784169999999,
+          "updateMs": 714.0310820003506,
+          "calls": 599690
+        },
+        {
+          "wallMs": 575.2701249999809,
+          "updateMs": 573.466747999948,
+          "calls": 599690
+        },
+        {
+          "wallMs": 437.49379199999385,
+          "updateMs": 434.68415999942226,
+          "calls": 599690
+        },
+        {
+          "wallMs": 468.9562910000095,
+          "updateMs": 466.044318000786,
+          "calls": 599690
+        },
+        {
+          "wallMs": 456.3568749999977,
+          "updateMs": 453.0357140004635,
+          "calls": 599690
+        },
+        {
+          "wallMs": 475.3957919999957,
+          "updateMs": 473.1017879998544,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 468.9562910000095,
+      "updateMsMedian": 466.044318000786,
+      "liftedCallsPerSecondMedian": 1286766.0366990862,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15",
+      "source": "3cbcb25",
+      "profile": 1,
+      "mode": "local",
+      "buildMs": 61068.423834000016,
+      "transformMs": 12641.191374999995,
+      "linked": {
+        "bytes": 10319070,
+        "sha256": "bfd492d15471d51ddc25d5d7a2ea347a4e02a1935f125a499c455912db4a2673",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8871
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8795223
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141750
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2122,
+            "bytes": 824368
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 193,
+            "bytes": 58432
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90888
+          }
+        }
+      },
+      "output": {
+        "bytes": 9251960,
+        "sha256": "1bf11d5e6f9cb8bb0a80a3b0f52deb41c2722c6dbe44069dab87daba4b4f28eb",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8876
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 7869712
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2127,
+            "bytes": 855996
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 193,
+            "bytes": 57823
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 92142
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 629.7697920000064,
+          "updateMs": 626.8280780008645,
+          "calls": 599690
+        },
+        {
+          "wallMs": 654.452249999973,
+          "updateMs": 650.2885500005214,
+          "calls": 599690
+        },
+        {
+          "wallMs": 890.4862500000163,
+          "updateMs": 885.5903810000164,
+          "calls": 599690
+        },
+        {
+          "wallMs": 670.230166000023,
+          "updateMs": 657.9914559996687,
+          "calls": 599690
+        },
+        {
+          "wallMs": 534.0436670000199,
+          "updateMs": 531.0322069998947,
+          "calls": 599690
+        },
+        {
+          "wallMs": 479.31024999998044,
+          "updateMs": 476.43549199961126,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 654.452249999973,
+      "updateMsMedian": 650.2885500005214,
+      "liftedCallsPerSecondMedian": 922190.6183024739,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15",
+      "source": "3cbcb25",
+      "profile": 1,
+      "mode": "partitioned",
+      "buildMs": 61068.423834000016,
+      "transformMs": 19363.203500000003,
+      "linked": {
+        "bytes": 10319070,
+        "sha256": "bfd492d15471d51ddc25d5d7a2ea347a4e02a1935f125a499c455912db4a2673",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8871
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8795223
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141750
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2122,
+            "bytes": 824368
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 193,
+            "bytes": 58432
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90888
+          }
+        }
+      },
+      "output": {
+        "bytes": 9898335,
+        "sha256": "ca8c290396bf60d4d8868b5b8dcdd6be59e599257fab414c9a72f6b95b36954c",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8876
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 8516087
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2127,
+            "bytes": 1436710
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 193,
+            "bytes": 75742
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 139455
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 882.8899160000146,
+          "updateMs": 879.3767470004386,
+          "calls": 599690
+        },
+        {
+          "wallMs": 694.0567499999888,
+          "updateMs": 686.8251750004711,
+          "calls": 599690
+        },
+        {
+          "wallMs": 596.4967079999624,
+          "updateMs": 594.1664640004747,
+          "calls": 599690
+        },
+        {
+          "wallMs": 570.1014580000192,
+          "updateMs": 567.2336570001207,
+          "calls": 599690
+        },
+        {
+          "wallMs": 749.7497500000172,
+          "updateMs": 744.5667119999998,
+          "calls": 599690
+        },
+        {
+          "wallMs": 615.9299580000225,
+          "updateMs": 612.2433390001534,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 615.9299580000225,
+      "updateMsMedian": 612.2433390001534,
+      "liftedCallsPerSecondMedian": 979496.1607574954,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15-profile-off",
+      "source": "3cbcb25",
+      "profile": 0,
+      "mode": "whole",
+      "buildMs": 65504.35295800003,
+      "transformMs": 58732.017333000025,
+      "linked": {
+        "bytes": 10315834,
+        "sha256": "cc8c3eca6ddd4eefe1eced18c0d9882c894f83faf720d0a02cba6d83fccfffe8",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8867
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8792061
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141680
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2121,
+            "bytes": 823308
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 190,
+            "bytes": 56346
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90882
+          }
+        }
+      },
+      "output": {
+        "bytes": 8705139,
+        "sha256": "7fc7c9c1158cd7aeeb9888bf9a9605721c23d33426ed68676cdfc1ce97db6bdc",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 662
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 6142
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11088
+          },
+          {
+            "id": 12,
+            "bytes": 2
+          },
+          {
+            "id": 10,
+            "bytes": 7411674
+          },
+          {
+            "id": 11,
+            "bytes": 1274436
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 1744,
+            "bytes": 827560
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 6292103
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 189183
+          },
+          "x86": {
+            "functions": 40,
+            "bytes": 37303
+          },
+          "w32": {
+            "functions": 104,
+            "bytes": 56007
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 648.7969579999917,
+          "updateMs": 646.0419140004669,
+          "calls": 599690
+        },
+        {
+          "wallMs": 546.1459160000086,
+          "updateMs": 543.5588390005287,
+          "calls": 599690
+        },
+        {
+          "wallMs": 554.07483399997,
+          "updateMs": 551.7629149996792,
+          "calls": 599690
+        },
+        {
+          "wallMs": 541.2226249999949,
+          "updateMs": 538.0015389999026,
+          "calls": 599690
+        },
+        {
+          "wallMs": 547.4602920000325,
+          "updateMs": 545.1742550004274,
+          "calls": 599690
+        },
+        {
+          "wallMs": 558.4512500000419,
+          "updateMs": 556.6671669997158,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 547.4602920000325,
+      "updateMsMedian": 545.1742550004274,
+      "liftedCallsPerSecondMedian": 1099996.9174984791,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15-profile-off",
+      "source": "3cbcb25",
+      "profile": 0,
+      "mode": "local",
+      "buildMs": 65504.35295800003,
+      "transformMs": 13253.492666999984,
+      "linked": {
+        "bytes": 10315834,
+        "sha256": "cc8c3eca6ddd4eefe1eced18c0d9882c894f83faf720d0a02cba6d83fccfffe8",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8867
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8792061
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141680
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2121,
+            "bytes": 823308
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 190,
+            "bytes": 56346
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90882
+          }
+        }
+      },
+      "output": {
+        "bytes": 9247650,
+        "sha256": "e894cc27f1ad6881be0e3f500b71ba840ce610a81dbcd6026c65a2fceb8a7384",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8872
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 7865406
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2126,
+            "bytes": 854711
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 190,
+            "bytes": 54814
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 92138
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 672.5791670000181,
+          "updateMs": 670.2234970002319,
+          "calls": 599690
+        },
+        {
+          "wallMs": 563.4571250000154,
+          "updateMs": 560.3513779995264,
+          "calls": 599690
+        },
+        {
+          "wallMs": 550.1539999999804,
+          "updateMs": 547.7163290004246,
+          "calls": 599690
+        },
+        {
+          "wallMs": 547.9416659999988,
+          "updateMs": 543.2570740000228,
+          "calls": 599690
+        },
+        {
+          "wallMs": 532.429999999993,
+          "updateMs": 529.9771700002602,
+          "calls": 599690
+        },
+        {
+          "wallMs": 602.0604160000221,
+          "updateMs": 599.7590929997386,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 550.1539999999804,
+      "updateMsMedian": 547.7163290004246,
+      "liftedCallsPerSecondMedian": 1094891.5857491903,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    },
+    {
+      "variant": "dev15-profile-off",
+      "source": "3cbcb25",
+      "profile": 0,
+      "mode": "partitioned",
+      "buildMs": 65504.35295800003,
+      "transformMs": 19826.14291699999,
+      "linked": {
+        "bytes": 10315834,
+        "sha256": "cc8c3eca6ddd4eefe1eced18c0d9882c894f83faf720d0a02cba6d83fccfffe8",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8867
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 9
+          },
+          {
+            "id": 7,
+            "bytes": 285
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 10,
+            "bytes": 8792061
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 141680
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 78
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2121,
+            "bytes": 823308
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 21260
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 7758012
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 29764
+          },
+          "x86": {
+            "functions": 190,
+            "bytes": 56346
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 90882
+          }
+        }
+      },
+      "output": {
+        "bytes": 9886684,
+        "sha256": "2e1a889df3a4acb9e9bc66bafb89b1b2b353865bedafe1ab0e4bcf4b2930ef34",
+        "sections": [
+          {
+            "id": 1,
+            "bytes": 762
+          },
+          {
+            "id": 2,
+            "bytes": 494
+          },
+          {
+            "id": 3,
+            "bytes": 8872
+          },
+          {
+            "id": 4,
+            "bytes": 7
+          },
+          {
+            "id": 5,
+            "bytes": 4
+          },
+          {
+            "id": 6,
+            "bytes": 19
+          },
+          {
+            "id": 7,
+            "bytes": 405
+          },
+          {
+            "id": 9,
+            "bytes": 11116
+          },
+          {
+            "id": 12,
+            "bytes": 1
+          },
+          {
+            "id": 10,
+            "bytes": 8504440
+          },
+          {
+            "id": 11,
+            "bytes": 1360358
+          },
+          {
+            "id": 0,
+            "bytes": 67
+          },
+          {
+            "id": 0,
+            "bytes": 95
+          }
+        ],
+        "groups": {
+          "other": {
+            "functions": 2126,
+            "bytes": 1429886
+          },
+          "N": {
+            "functions": 2126,
+            "bytes": 14855
+          },
+          "R": {
+            "functions": 2126,
+            "bytes": 6625917
+          },
+          "F": {
+            "functions": 2126,
+            "bytes": 210443
+          },
+          "x86": {
+            "functions": 190,
+            "bytes": 70930
+          },
+          "w32": {
+            "functions": 176,
+            "bytes": 139458
+          }
+        }
+      },
+      "samples": [
+        {
+          "wallMs": 916.3125420000288,
+          "updateMs": 913.1251330008381,
+          "calls": 599690
+        },
+        {
+          "wallMs": 634.7176659999532,
+          "updateMs": 632.7581649996573,
+          "calls": 599690
+        },
+        {
+          "wallMs": 636.5702499999898,
+          "updateMs": 631.4533449992305,
+          "calls": 599690
+        },
+        {
+          "wallMs": 587.2137499999953,
+          "updateMs": 584.7945099997451,
+          "calls": 599690
+        },
+        {
+          "wallMs": 944.1129169999622,
+          "updateMs": 934.5471729999408,
+          "calls": 599690
+        },
+        {
+          "wallMs": 3074.4033749999944,
+          "updateMs": 3066.241868999263,
+          "calls": 599690
+        }
+      ],
+      "wallMsMedian": 636.5702499999898,
+      "updateMsMedian": 632.7581649996573,
+      "liftedCallsPerSecondMedian": 947739.6471056596,
+      "trace_sha256": "e6806d15b932e4a45dcb224f4f6abf7c06c52a93c5ece9da4961d59f4423de0d"
+    }
+  ],
+  "attribution": {
+    "lostModuleOptimizationBytes": 528241,
+    "conservativeShardSummariesBytes": 646375,
+    "totalPartitionVsWholeBytes": 1174616,
+    "dev15Vs14WholeBytes": 10696,
+    "dev15Vs14LinkedBytes": 10968,
+    "localVsPartitionBodyDeltaByGroup": {
+      "other": 580714,
+      "x86": 17919,
+      "w32": 47313
+    },
+    "largestBodyIncreases": [
+      {
+        "name": "w64_virtual_unwind",
+        "localBytes": 2434,
+        "partitionBytes": 17647,
+        "deltaBytes": 15213
+      },
+      {
+        "name": "format_guest",
+        "localBytes": 6419,
+        "partitionBytes": 13995,
+        "deltaBytes": 7576
+      },
+      {
+        "name": "unwind_exception",
+        "localBytes": 2435,
+        "partitionBytes": 8227,
+        "deltaBytes": 5792
+      },
+      {
+        "name": "send",
+        "localBytes": 6438,
+        "partitionBytes": 12169,
+        "deltaBytes": 5731
+      },
+      {
+        "name": "create_dialog",
+        "localBytes": 3037,
+        "partitionBytes": 8377,
+        "deltaBytes": 5340
+      },
+      {
+        "name": "create_window",
+        "localBytes": 2396,
+        "partitionBytes": 7600,
+        "deltaBytes": 5204
+      },
+      {
+        "name": "do_rop",
+        "localBytes": 1377,
+        "partitionBytes": 6195,
+        "deltaBytes": 4818
+      },
+      {
+        "name": "w32_boot",
+        "localBytes": 5771,
+        "partitionBytes": 10563,
+        "deltaBytes": 4792
+      },
+      {
+        "name": "longjmp64",
+        "localBytes": 729,
+        "partitionBytes": 5011,
+        "deltaBytes": 4282
+      },
+      {
+        "name": "create_thread",
+        "localBytes": 1458,
+        "partitionBytes": 5366,
+        "deltaBytes": 3908
+      },
+      {
+        "name": "w32_thread_api",
+        "localBytes": 9263,
+        "partitionBytes": 13006,
+        "deltaBytes": 3743
+      },
+      {
+        "name": "crt_vscan",
+        "localBytes": 4674,
+        "partitionBytes": 8297,
+        "deltaBytes": 3623
+      },
+      {
+        "name": "setjmp64",
+        "localBytes": 746,
+        "partitionBytes": 4313,
+        "deltaBytes": 3567
+      },
+      {
+        "name": "w32_format_to_guest",
+        "localBytes": 2397,
+        "partitionBytes": 5772,
+        "deltaBytes": 3375
+      },
+      {
+        "name": "locale_init",
+        "localBytes": 775,
+        "partitionBytes": 4103,
+        "deltaBytes": 3328
+      },
+      {
+        "name": "dib_decode",
+        "localBytes": 1161,
+        "partitionBytes": 4448,
+        "deltaBytes": 3287
+      },
+      {
+        "name": "w32_user_present_overlay",
+        "localBytes": 2424,
+        "partitionBytes": 5581,
+        "deltaBytes": 3157
+      },
+      {
+        "name": "file_open",
+        "localBytes": 1521,
+        "partitionBytes": 4527,
+        "deltaBytes": 3006
+      },
+      {
+        "name": "pen_line",
+        "localBytes": 1055,
+        "partitionBytes": 3978,
+        "deltaBytes": 2923
+      },
+      {
+        "name": "hb_realloc",
+        "localBytes": 1129,
+        "partitionBytes": 3709,
+        "deltaBytes": 2580
+      }
+    ]
+  },
+  "porter": {
+    "input": "provided read-only r11b-build-first-manifest.json / r12-i0-manifest.json",
+    "dev14": {
+      "linkedBytes": 161398447,
+      "finalBytes": 144008914
+    },
+    "dev15": {
+      "linkedBytes": 161600733,
+      "finalBytes": 221404083
+    },
+    "linkedGrowthBytes": 202286,
+    "finalGrowthBytes": 77395169,
+    "postprocessDeltaGrowthBytes": 77192883,
+    "functions": 8537,
+    "coldBuildMs": 3794668.765,
+    "coldPhasesMs": {
+      "analysis": 153554.3,
+      "lift": 1366533.8,
+      "compile": 745518.803,
+      "link": 10057.791,
+      "wasmOpt": 1478354.7
+    },
+    "limits": "Phase walls on shared machine, not additive CPU; C generation3140.1ms nested in lift. Earlier r11 manifests143941688B are NOT the selected comparator. No game binary/body or original source was read or built here."
+  },
+  "limits": [
+    "CC0 ratio is not the private target exact per-body decomposition; only supplied target linked/final manifests were inspected.",
+    "Profiling off retains persistent coverage and execution counters; does not isolate all instrumentation.",
+    "Runtime differences reflect shared load/tiering; raw sample ranges retained. Off can measure slower than on; no causal percent claimed.",
+    "Nine traces agree, not a separate independent review or mathematical reference oracle for this modified scale workload."
+  ]
+}

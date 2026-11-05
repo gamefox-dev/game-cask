@@ -27,9 +27,20 @@ void x86_profile_reset(void) {
 }
 double x86_profile_idle_us;
 static double idle_start;
+static int idle_exclusive, idle_pending;
+static int interpreter_span_set(int active);
 double x86_profile_clock(void) { return bgt_time_us() - x86_profile_idle_us; }
-void x86_profile_idle_begin(void) { idle_start = bgt_time_us(); }
-void x86_profile_idle_end(void) { x86_profile_idle_us += bgt_time_us() - idle_start; }
+void x86_profile_idle_begin(void) {
+    idle_exclusive = interpreter_span_set(0);
+    idle_start = bgt_time_us();
+    idle_pending = 1;
+}
+void x86_profile_idle_end(void) {
+    if (!idle_pending) return;
+    idle_pending = 0;
+    x86_profile_idle_us += bgt_time_us() - idle_start;
+    interpreter_span_set(idle_exclusive);
+}
 double x86_profile_begin(unsigned category) {
     if(!X86_PROFILE_ENABLED)return -1;
     static uint32_t countdown[XP_CATEGORIES], random=0x19730119;
@@ -69,6 +80,44 @@ static double *exclusive_pause(double *start) {
 static void exclusive_resume(double *span,double start) {
     if(span){*span+=x86_profile_clock()-start;exclusive_span=span;}
 }
+/* Physical exclusive time is a union of disjoint, non-extrapolated intervals.
+ * Sampling a tiny dispatch also samples timer overhead; scaling that overhead by
+ * ~1024 can exceed the entire update budget. Keep those samples diagnostic only.
+ * A state transition reads the same monotonic host clock as update wall timing.
+ * No clock at consecutive interpreted instructions, and no work when disabled.
+ * Idle closes the interval BEFORE Asyncify unwind/JSPI parking; resume reopens it.
+ * Recursive interpreter/native/scheduler calls save only the prior state, so an
+ * inner interpreter interval is counted once, never both by parent and child. */
+static int interpreter_span_active;
+static double interpreter_span_start,interpreter_span_us;
+static int interpreter_span_set(int active) {
+    if (!X86_PROFILE_ENABLED) return 0;
+    int previous = interpreter_span_active;
+    if (active != previous) {
+        double now = bgt_time_us();
+        if (previous) interpreter_span_us += now - interpreter_span_start;
+        interpreter_span_start = now;
+        interpreter_span_active = active;
+    }
+    return previous;
+}
+double x86_interpreter_exclusive_us(void) {
+    return interpreter_span_us+(interpreter_span_active?bgt_time_us()-interpreter_span_start:0);
+}
+/* C return restorations cannot run after a host exception or wasm trap. The host
+ * calls this only after the abandoned stack has exited (never on a normal yield).
+ * Use its timestamp, not an import that could throw again. Missing/invalid clock
+ * discards only the open interval. Idempotent even after explicit x86_fault.
+ * In particular, never retain a sampled pointer into the abandoned C stack or
+ * reopen a discarded interval through a stale idle_end restoration. Guest SEH
+ * and longjmp use X.transfer and the ordinary return restorations instead. */
+BGT_EXPORT(bgt_profile_abort) void x86_profile_abort(double now_us) {
+    if (interpreter_span_active && __builtin_isfinite(now_us) && now_us >= interpreter_span_start)
+        interpreter_span_us += now_us - interpreter_span_start;
+    interpreter_span_active = 0;
+    exclusive_span = 0;
+    idle_exclusive = idle_pending = 0;
+}
 static uint64_t interpreter_bucket;
 static uint64_t interpreter_generation;
 unsigned x86_lift_reason = XE_FORM;
@@ -86,14 +135,18 @@ void x86_cooperate(void) {
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
     X.frame_insns = 0;
     double start=0,*span=exclusive_pause(&start);
+    int active=interpreter_span_set(0);
     scheduler();
+    interpreter_span_set(active);
     exclusive_resume(span,start);
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 
 static void profiled_native(x86_lifted_fn fn) {
     double paused=0,*span=exclusive_pause(&paused);
+    int active=interpreter_span_set(0);
     double start=x86_profile_begin(XP_NATIVE);fn();x86_profile_end(XP_NATIVE,start);
+    interpreter_span_set(active);
     exclusive_resume(span,paused);
 }
 
@@ -177,6 +230,7 @@ static char fault_buf[768];
 static const char HEX[] = "0123456789abcdef";
 
 void x86_fault(const char *msg, uint32_t eip) {
+    interpreter_span_set(0);
     x86_coverage_flush();
     uint32_t n = 0;
     const char *p = "x86: ";
@@ -266,7 +320,46 @@ static int native_limit;
 /* ------------------------------------------------------------------ thunks */
 static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
-void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) { thunk_lo = lo; thunk_hi = hi; thunk_fn = fn; }
+static x86_import_binding_t *import_buckets[1024];
+static uint32_t import_generation = 1;
+static const x86_import_binding_t *pending_import;
+void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) {
+    thunk_lo = lo; thunk_hi = hi; thunk_fn = fn;
+    __builtin_memset(import_buckets,0,sizeof import_buckets);
+    pending_import=0;
+    if(!++import_generation)x86_fault("import generation exhausted",0);
+}
+void x86_bind_import(uint32_t iat,uint32_t target,void *opaque,
+                     x86_bound_import_fn call,x86_leaf_import_fn leaf) {
+    unsigned h=(iat^(iat>>12))&1023u;
+    x86_import_binding_t *b=x86_alloc(sizeof *b);
+    if(!b)x86_fault("import binding allocation failed",iat);
+    *b=(x86_import_binding_t){iat,target,opaque,call,leaf,import_buckets[h]};
+    import_buckets[h]=b;
+    if(!++import_generation)x86_fault("import generation exhausted",iat);
+}
+static const x86_import_binding_t *import_binding(x86_import_site_t *site,uint64_t target) {
+    if(site->generation!=import_generation) {
+        unsigned h=(site->iat^(site->iat>>12))&1023u;
+        site->binding=import_buckets[h];
+        while(site->binding&&site->binding->iat!=site->iat)site->binding=site->binding->next;
+        site->generation=import_generation;
+    }
+    return site->binding&&target==site->binding->target?site->binding:0;
+}
+int x86_try_import(x86_import_site_t *site,uint64_t target) {
+    const x86_import_binding_t *b=import_binding(site,target);
+    if(!b||!b->leaf)return 0;
+    /* No guest locals/pointers remain authoritative in the caller. This signature's
+     * entire reachable target set is explicitly non-suspending, unlike call(void*). */
+    if(!b->leaf(b->opaque,target))return 0;
+    x86_metrics.direct_import_calls++;x86_metrics.leaf_import_calls++;
+    return 1;
+}
+int x86_defer_import(x86_import_site_t *site,uint64_t target) {
+    pending_import=import_binding(site,target);
+    return pending_import!=0;
+}
 int x86_is_thunk(uint32_t addr) { return addr >= thunk_lo && addr < thunk_hi; }
 /* Native regions have already spilled and returned. Only this tiny wrapper may suspend,
  * invoke callbacks, grow memory or transfer; it never holds a local guest register/pointer. */
@@ -291,7 +384,11 @@ void x86_run_native(x86_native_fn step) {
         if (X.transfer || x86_lift_pending || x86_lift_count) return;
         if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
         if (limit && X.eip == stop && X.r[ESP] > floor) return;
-        if (x86_is_thunk(X.eip)) x86_lift_thunk();
+        if (pending_import) {
+            const x86_import_binding_t *b=pending_import;pending_import=0;
+            x86_metrics.direct_import_calls++;
+            b->call(b->opaque);
+        } else if (x86_is_thunk(X.eip)) x86_lift_thunk();
         if (X.transfer || x86_lift_pending || x86_lift_count) return;
         if (limit && X.eip == stop && X.r[ESP] > floor) return;
         /* A naked call outside invoke has no return boundary; execute only its supplied step. */
@@ -435,12 +532,13 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
             if (X.eip == X86_THREAD_RETURN) X.transfer = X86_SCHEDULE; /* LANE-C */
             if(X.transfer)return;
             if(X.eip==ret_addr && X.r[ESP]>esp_floor)return;
-            if(x86_is_thunk(X.eip)){x86_metrics.thunk_dispatches++;thunk_fn(X.eip);entry=1;continue;}
+            if(x86_is_thunk(X.eip)){interpreter_span_set(0);x86_metrics.thunk_dispatches++;thunk_fn(X.eip);entry=1;continue;}
             x86_lifted_fn f=x86_find_lifted(X.eip);
             if (f) {
                 entry = 1;
                 uint32_t old = X.eip;
                 uint64_t old_clock = X.tsc;
+                interpreter_span_set(0);
                 x86_metrics.lifted_calls++;
                 profiled_native(f);
                 if (x86_lift_pending) {
@@ -454,6 +552,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 }
             }
             else {
+                interpreter_span_set(1);
                 double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
                 if(interpreter_start>=0)exclusive_span=&excluded;
                 const x86_insn_t *in = decode_at(X.eip);
@@ -486,6 +585,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         if (X.transfer) return;
         if (eip == ret_addr && X.r[ESP] > esp_floor) return;
         if (x86_is_thunk(eip)) {
+            interpreter_span_set(0);
             x86_metrics.thunk_dispatches++;
             if (thunk_fn(eip)) return;
             entry = 1;
@@ -493,9 +593,10 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         }
         /* LANE-C: resume a suspended i386 caller without interpreting its continuation. */
         x86_lifted_fn resume = x86_find_lifted(eip);
-        if (resume) { x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
+        if (resume) { interpreter_span_set(0);x86_metrics.lifted_calls++; profiled_native(resume); entry = 1; continue; }
         /* LANE-C: mirror the lifted i386 instruction quantum. */
         if (++X.frame_insns > 2000000u) { x86_cooperate(); if (X.transfer) return; }
+        interpreter_span_set(1);
         double interpreter_start=x86_profile_begin(XP_INTERPRETER),excluded=0;
         if(interpreter_start>=0)exclusive_span=&excluded;
         const x86_insn_t *in = decode_at(eip);
@@ -537,7 +638,9 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
 static void interp_until(uint32_t ret_addr, uint32_t esp_floor) {
     uint32_t saved_stop = native_stop, saved_floor = native_floor; int saved_limit = native_limit;
     native_stop = ret_addr; native_floor = esp_floor; native_limit = 1;
+    int active=interpreter_span_set(0);
     interp_loop(ret_addr, esp_floor);
+    interpreter_span_set(active);
     native_stop = saved_stop; native_floor = saved_floor; native_limit = saved_limit;
 }
 
@@ -560,7 +663,9 @@ static void invoke_inner(uint32_t target, uint32_t ret_addr) {
 
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
     double start=0,*span=exclusive_pause(&start);
+    int active=interpreter_span_set(0);
     invoke_inner(target,ret_addr);
+    interpreter_span_set(active);
     exclusive_resume(span,start);
 }
 

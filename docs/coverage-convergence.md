@@ -77,11 +77,25 @@ Standard `diagnostics().metrics.execution_summary`, probe.json and probe console
   (owner address and exact entry/instruction counts, ranked by instructions). Owner=null stays unowned.
   Missing observation exports yield null owner rankings/classification; an empty strict recorder with nonzero
   interpretation is unknown, not proof that no analyzed code was interpreted.
-- Interpreter timing samples the **exclusive fallback dispatch/semantics path**, including decode/entry work,
-  excluding nested native/callback/scheduler work and parked-yield time. This is a sampled estimate, not CDP
-  self-time or hardware counters. Sparse/biased samples can still extrapolate above wall time; the fraction
-  is not clamped or advertised as a disjoint exact budget. Disabled timing or no samples with nonzero
-  interpretation is null, not guessed zero. Fully lifted execution with enabled timing reports zero.
+- Interpreter timing measures **disjoint exclusive fallback spans**, including decode/entry work and
+  instrumentation inside those spans. Clocks are read only at interpreter/native/thunk/scheduler transitions
+  (not each instruction); nested interpretation counts once. Yield closes before unwind/parking and reopens
+  after resume; return/transfer closes the span. A host exception/trap calls the optional
+  `bgt_profile_abort(now_us)` export after unwinding to close/discard the abandoned interval and
+  sampled/idle restoration state exactly once; normal yields do not call it. Failed-update wall
+  contributes to `host_profile.updateMs`, not the completed update count.
+  `interpreter_exclusive_us` is cumulative, non-extrapolated
+  monotonic host wall time, in the same clock domain as `host_profile.updateMs`, not CPU hardware time.
+  Pipeline guest execution starts inside update, never init/render. Census reset does not reset timing.
+  `measured_ms`/`measured_ms_per_update` and compatibility `estimated_*` keys use only these spans;
+  `timing` is `measured-exclusive-spans`. An available share is necessarily in [0,1]. Disabled/legacy
+  observation is null (`timing_status: disabled/unavailable`); nonfinite/negative time is unavailable, and
+  a measurement beyond the cumulative update budget is null with `invalid-update-budget`, not clamped.
+  This detects an out-of-domain invocation or broken accounting rather than hiding it. Fully lifted
+  execution with enabled timing reports measured zero. Raw `interpreter_samples`,
+  `interpreter_exclusive_sample_us` and `interpreter_exclusive_estimated_us` remain **sample diagnostics only**:
+  extrapolating timer overhead from tiny sampled dispatches caused Q73 (>100%); a large sample count
+  does not remove this systematic bias. Do not use their extrapolation as a physical share.
 - `guest_frames.count`, `swaps`, `gdi_presents`, `per_second`, `frame_ms_avg/p95`, `intervals_measured`.
   Successful GL SwapBuffers calls count as swaps. GDI flushes containing new **guest screen** drawing count
   as GDI presentations; offscreen-only work, chrome and repeated host redraws do not. These are presentation

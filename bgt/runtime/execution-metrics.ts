@@ -36,11 +36,19 @@ export function interpreterSummary(metrics:Record<string,unknown>,coverage:{capa
   }
   const instructions=typeof metrics.interp_insns==='number'?metrics.interp_insns:null;
   const enabled=metrics.interpreter_timing_enabled===1,samples=Number(metrics.interpreter_samples ?? 0);
-  const ms=enabled?(samples?Number(metrics.interpreter_exclusive_estimated_us)/1000:instructions===0?0:null):null;
+  // A sampled tiny dispatch includes the timer's own cost. Extrapolating that
+  // cost by calls/samples is not a physical budget (Q73). Only measured disjoint
+  // spans qualify. Old artifacts keep their raw samples, but have no time/share.
+  const us=metrics.interpreter_exclusive_us;
+  const measured=enabled&&typeof us==='number'&&Number.isFinite(us)&&us>=0?us/1000:null;
+  const valid=measured!==null&&Number.isFinite(updateMs)&&updateMs>=0&&measured<=updateMs;
+  const ms=valid?measured:null;
+  const timingStatus=!enabled?'disabled':measured===null?'unavailable':valid?'measured':'invalid-update-budget';
   const owned=[...owners.keys()].some(owner=>owner!==null);
   return {instructions,instructions_per_update:instructions!==null&&updates?instructions/updates:null,
     estimated_ms:ms,estimated_ms_per_update:ms!==null&&updates?ms/updates:null,
-    estimated_share:ms!==null&&updateMs>0?ms/updateMs:null,samples,timing:'sampled-exclusive-dispatch' as const,
+    estimated_share:ms!==null&&updateMs>0?ms/updateMs:null,samples,timing:'measured-exclusive-spans' as const,timing_status:timingStatus,
+    measured_ms:ms,measured_ms_per_update:ms!==null&&updates?ms/updates:null,
     coverage_dropped:coverage?.dropped ?? null,analyzed_code_interpreted:owned?true:coverage&&!coverage.dropped&&observed===instructions?false:null,
     top_owners:coverage?[...owners.values()].sort((a,b)=>b.instructions-a.instructions||(a.owner ?? -1)-(b.owner ?? -1)).slice(0,32):null};
 }

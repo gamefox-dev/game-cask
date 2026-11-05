@@ -1,0 +1,865 @@
+{
+  "measurements": [
+    {
+      "file": "baseline",
+      "backend": "webgpu",
+      "stepMs": 18443.627287999392,
+      "waitMs": 69774.60077300023,
+      "diagnosticsMs": 35886.29571000053,
+      "frames": 5299,
+      "loadMs": 367.9888329999999,
+      "guestMs": 124135.04824999999,
+      "readbackMs": 64.38749999999709,
+      "shaders": {
+        "createShaderModule": {
+          "count": 1206,
+          "totalMs": 16.880005836486816,
+          "maxMs": 0.17499971389770508,
+          "p95Ms": 0.019999980926513672
+        },
+        "createRenderPipeline": {
+          "count": 29,
+          "totalMs": 0.5600008964538574,
+          "maxMs": 0.434999942779541,
+          "p95Ms": 0.03500032424926758
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2899,
+          "estimated_us": 1548599
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1219,
+          "estimated_us": 403819
+        }
+      ]
+    },
+    {
+      "file": "baseline",
+      "backend": "webgpu",
+      "stepMs": 21644.195024000408,
+      "waitMs": 72530.18965200022,
+      "diagnosticsMs": 40766.20657600032,
+      "frames": 5299,
+      "loadMs": 156.68549999999232,
+      "guestMs": 134978.20829200002,
+      "readbackMs": 68.74158299999544,
+      "shaders": {
+        "createShaderModule": {
+          "count": 1206,
+          "totalMs": 18.084994792938232,
+          "maxMs": 0.630000114440918,
+          "p95Ms": 0.024999618530273438
+        },
+        "createRenderPipeline": {
+          "count": 29,
+          "totalMs": 0.1700000762939453,
+          "maxMs": 0.04499959945678711,
+          "p95Ms": 0.02500009536743164
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2899,
+          "estimated_us": 1548599
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1110,
+          "estimated_us": 367410
+        }
+      ]
+    },
+    {
+      "file": "baseline",
+      "backend": "webgl2",
+      "stepMs": 36486.60649199947,
+      "waitMs": 90289.16553500155,
+      "diagnosticsMs": 57320.16003000265,
+      "frames": 5299,
+      "loadMs": 2812.0060829999857,
+      "guestMs": 184164.2795,
+      "readbackMs": 72.61708300001919,
+      "shaders": {
+        "compileShader": {
+          "count": 1187,
+          "totalMs": 1.599996566772461,
+          "maxMs": 0.019999980926513672,
+          "p95Ms": 0.005000114440917969
+        },
+        "linkProgram": {
+          "count": 9,
+          "totalMs": 0.33500003814697266,
+          "maxMs": 0.28999996185302734,
+          "p95Ms": 0.28999996185302734
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2929,
+          "estimated_us": 1564619
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1200,
+          "estimated_us": 397200
+        }
+      ]
+    },
+    {
+      "file": "optimized",
+      "backend": "webgpu",
+      "stepMs": 3262.1899828910828,
+      "waitMs": 0,
+      "diagnosticsMs": 1916.0500192642212,
+      "frames": 5299,
+      "loadMs": 359.60516699999994,
+      "elapsedMs": 5180.539999961853,
+      "guestMs": 5198.271958,
+      "readbackMs": 67.55966699999954,
+      "shaders": {
+        "createShaderModule": {
+          "count": 1206,
+          "totalMs": 13.534988403320312,
+          "maxMs": 0.10500001907348633,
+          "p95Ms": 0.019999980926513672
+        },
+        "createRenderPipeline": {
+          "count": 29,
+          "totalMs": 0.16499996185302734,
+          "maxMs": 0.03000020980834961,
+          "p95Ms": 0.014999866485595703
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2830,
+          "estimated_us": 1511220
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1094,
+          "estimated_us": 362444
+        }
+      ]
+    },
+    {
+      "file": "optimized",
+      "backend": "webgpu",
+      "stepMs": 3163.8099932670593,
+      "waitMs": 0,
+      "diagnosticsMs": 1874.0000076293945,
+      "frames": 5299,
+      "loadMs": 188.14179199999944,
+      "elapsedMs": 5039.875,
+      "guestMs": 5062.450041,
+      "readbackMs": 81.7182499999999,
+      "shaders": {
+        "createShaderModule": {
+          "count": 1206,
+          "totalMs": 13.560011863708496,
+          "maxMs": 0.09000015258789062,
+          "p95Ms": 0.019999980926513672
+        },
+        "createRenderPipeline": {
+          "count": 29,
+          "totalMs": 0.1549992561340332,
+          "maxMs": 0.03000020980834961,
+          "p95Ms": 0.019999980926513672
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2869,
+          "estimated_us": 1532579
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1335,
+          "estimated_us": 441885
+        }
+      ]
+    },
+    {
+      "file": "optimized",
+      "backend": "webgl2",
+      "stepMs": 10362.314987659454,
+      "waitMs": 0,
+      "diagnosticsMs": 2056.775011062622,
+      "frames": 5299,
+      "loadMs": 2833.1289159999997,
+      "elapsedMs": 12421.210000038147,
+      "guestMs": 12444.986125,
+      "readbackMs": 181.25083299999824,
+      "shaders": {
+        "compileShader": {
+          "count": 1187,
+          "totalMs": 1.1550016403198242,
+          "maxMs": 0.014999866485595703,
+          "p95Ms": 0.005000114440917969
+        },
+        "linkProgram": {
+          "count": 9,
+          "totalMs": 0.19500017166137695,
+          "maxMs": 0.16499996185302734,
+          "p95Ms": 0.16499996185302734
+        }
+      },
+      "apis": [
+        {
+          "dll": "opengl32.dll",
+          "name": "glCompileShader",
+          "count": 534,
+          "samples": 1,
+          "sample_us": 2820,
+          "estimated_us": 1505880
+        },
+        {
+          "dll": "opengl32.dll",
+          "name": "glLinkProgram",
+          "count": 331,
+          "samples": 1,
+          "sample_us": 1135,
+          "estimated_us": 375685
+        }
+      ]
+    }
+  ],
+  "repetitions": [
+    {
+      "n": 1,
+      "code": 0,
+      "wallMs": 141212,
+      "loadStart": [
+        21.11474609375,
+        17.978515625,
+        13.61279296875
+      ],
+      "loadEnd": [
+        43.8857421875,
+        28.87060546875,
+        18.71533203125
+      ],
+      "burners": 24,
+      "cpus": 10
+    },
+    {
+      "n": 2,
+      "code": 0,
+      "wallMs": 126696,
+      "loadStart": [
+        43.8857421875,
+        28.87060546875,
+        18.71533203125
+      ],
+      "loadEnd": [
+        58.318359375,
+        38.0634765625,
+        23.68896484375
+      ],
+      "burners": 24,
+      "cpus": 10
+    },
+    {
+      "n": 3,
+      "code": 0,
+      "wallMs": 168887,
+      "loadStart": [
+        58.318359375,
+        38.0634765625,
+        23.68896484375
+      ],
+      "loadEnd": [
+        65.55517578125,
+        51.35693359375,
+        31.96484375
+      ],
+      "burners": 24,
+      "cpus": 10
+    },
+    {
+      "n": 4,
+      "code": 0,
+      "wallMs": 174989,
+      "loadStart": [
+        65.55517578125,
+        51.35693359375,
+        31.96484375
+      ],
+      "loadEnd": [
+        116.2421875,
+        76.32373046875,
+        45.72509765625
+      ],
+      "burners": 24,
+      "cpus": 10
+    },
+    {
+      "n": 5,
+      "code": 0,
+      "wallMs": 220821,
+      "loadStart": [
+        116.2421875,
+        76.32373046875,
+        45.72509765625
+      ],
+      "loadEnd": [
+        142.8427734375,
+        108.07568359375,
+        66.27001953125
+      ],
+      "burners": 24,
+      "cpus": 10
+    }
+  ],
+  "cases": [
+    {
+      "run": 1,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgl2",
+      "status": "passed",
+      "durationMs": 25615,
+      "captures": [
+        {
+          "backend": "webgl2",
+          "loadMs": 750.2955410000002,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 19786.569995880127,
+            "diagnosticsMs": 2303.7300095558167,
+            "elapsedMs": 22092.55499982834
+          },
+          "readbackMs": 76.73220799999763,
+          "repeatMs": 73.65070800000103,
+          "screenshotMs": 70.33558300000004,
+          "totalMs": 25231.314916
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 12947,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 857.887416,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 7729.364992618561,
+            "diagnosticsMs": 2743.6250038146973,
+            "elapsedMs": 10476.654999732971
+          },
+          "readbackMs": 88.5089169999992,
+          "repeatMs": 154.28920800000014,
+          "screenshotMs": 153.86937500000022,
+          "totalMs": 11867.737958
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "test": "x64-glsl: cross-backend images agree @webgpu",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 57615,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 765.9973750000008,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 7845.46498966217,
+            "diagnosticsMs": 2763.0950050354004,
+            "elapsedMs": 10612.230000019073
+          },
+          "readbackMs": 93.15037500000108,
+          "repeatMs": 169.02120899999863,
+          "screenshotMs": 92.31966599999942,
+          "totalMs": 11827.923957999998
+        },
+        {
+          "backend": "webgl2",
+          "loadMs": 17239.180417,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 21006.48000240326,
+            "diagnosticsMs": 2194.6150069236755,
+            "elapsedMs": 23203.36999988556
+          },
+          "readbackMs": 321.3680000000022,
+          "repeatMs": 68.7858750000014,
+          "screenshotMs": 84.03845900000306,
+          "totalMs": 42656.591583999994
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgl2",
+      "status": "passed",
+      "durationMs": 21491,
+      "captures": [
+        {
+          "backend": "webgl2",
+          "loadMs": 508.856583,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 16425.394998073578,
+            "diagnosticsMs": 1774.7050013542175,
+            "elapsedMs": 18201.980000019073
+          },
+          "readbackMs": 66.0400410000002,
+          "repeatMs": 86.07016699999804,
+          "screenshotMs": 70.95566699999836,
+          "totalMs": 21144.120958
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 6767,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 540.8994170000001,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 3061.8349895477295,
+            "diagnosticsMs": 2019.0450072288513,
+            "elapsedMs": 5083.335000038147
+          },
+          "readbackMs": 71.57866699999977,
+          "repeatMs": 73.82537500000035,
+          "screenshotMs": 89.04266699999971,
+          "totalMs": 5983.9209169999995
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "test": "x64-glsl: cross-backend images agree @webgpu",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 52589,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 484.2376250000016,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 2963.2699818611145,
+            "diagnosticsMs": 1972.16002035141,
+            "elapsedMs": 4937.860000133514
+          },
+          "readbackMs": 66.8874160000014,
+          "repeatMs": 84.05383400000028,
+          "screenshotMs": 85.04670799999985,
+          "totalMs": 5712.322167
+        },
+        {
+          "backend": "webgl2",
+          "loadMs": 13584.510790999999,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 19103.55499601364,
+            "diagnosticsMs": 1796.6850037574768,
+            "elapsedMs": 20901.855000019073
+          },
+          "readbackMs": 309.3234589999993,
+          "repeatMs": 82.15825000000041,
+          "screenshotMs": 79.92370800000208,
+          "totalMs": 36658.696083
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgl2",
+      "status": "passed",
+      "durationMs": 29999,
+      "captures": [
+        {
+          "backend": "webgl2",
+          "loadMs": 974.0412089999998,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 23652.719999313354,
+            "diagnosticsMs": 2080.600000858307,
+            "elapsedMs": 25735.724999904633
+          },
+          "readbackMs": 62.07500000000073,
+          "repeatMs": 99.164166999999,
+          "screenshotMs": 223.18783399999666,
+          "totalMs": 29494.613624999998
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 12687,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 1164.538958,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 6435.569986343384,
+            "diagnosticsMs": 2551.1100220680237,
+            "elapsedMs": 8990.414999961853
+          },
+          "readbackMs": 293.657416,
+          "repeatMs": 79.27191599999969,
+          "screenshotMs": 309.18133300000045,
+          "totalMs": 10982.869290999999
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "test": "x64-glsl: cross-backend images agree @webgpu",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 64274,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 787.333458000001,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 6256.039995193481,
+            "diagnosticsMs": 2513.615005016327,
+            "elapsedMs": 8773.375
+          },
+          "readbackMs": 145.05429200000071,
+          "repeatMs": 143.54237499999726,
+          "screenshotMs": 118.15749999999753,
+          "totalMs": 10147.868291000003
+        },
+        {
+          "backend": "webgl2",
+          "loadMs": 16308.893458999999,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 21349.540014266968,
+            "diagnosticsMs": 1879.7699828147888,
+            "elapsedMs": 23231.44000005722
+          },
+          "readbackMs": 408.7295000000013,
+          "repeatMs": 79.00312500000291,
+          "screenshotMs": 64.88508300000103,
+          "totalMs": 41903.82812499999
+        }
+      ]
+    },
+    {
+      "run": 4,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgl2",
+      "status": "passed",
+      "durationMs": 28343,
+      "captures": [
+        {
+          "backend": "webgl2",
+          "loadMs": 674.7404160000001,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 22621.640016555786,
+            "diagnosticsMs": 2017.5599780082703,
+            "elapsedMs": 24641.34499979019
+          },
+          "readbackMs": 64.19291699999667,
+          "repeatMs": 78.95049999999901,
+          "screenshotMs": 163.52987500000017,
+          "totalMs": 27875.225875
+        }
+      ]
+    },
+    {
+      "run": 4,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 10360,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 1120.507208,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 5792.944979667664,
+            "diagnosticsMs": 2007.2700109481812,
+            "elapsedMs": 7802.590000152588
+          },
+          "readbackMs": 66.56841600000007,
+          "repeatMs": 70.75404199999866,
+          "screenshotMs": 102.91220799999974,
+          "totalMs": 9354.622125
+        }
+      ]
+    },
+    {
+      "run": 4,
+      "test": "x64-glsl: cross-backend images agree @webgpu",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 62384,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 537.3249580000011,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 5858.024996757507,
+            "diagnosticsMs": 1998.815004825592,
+            "elapsedMs": 7859.099999904633
+          },
+          "readbackMs": 70.10699999999997,
+          "repeatMs": 68.90400000000227,
+          "screenshotMs": 89.32079199999862,
+          "totalMs": 8678.163416
+        },
+        {
+          "backend": "webgl2",
+          "loadMs": 13086.256416,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 24474.510006904602,
+            "diagnosticsMs": 1810.9849891662598,
+            "elapsedMs": 26287.659999847412
+          },
+          "readbackMs": 398.9405839999963,
+          "repeatMs": 89.08966700000019,
+          "screenshotMs": 72.99645900000178,
+          "totalMs": 41664.559540999995
+        }
+      ]
+    },
+    {
+      "run": 5,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgl2",
+      "status": "passed",
+      "durationMs": 28509,
+      "captures": [
+        {
+          "backend": "webgl2",
+          "loadMs": 506.671834,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 23379.955009937286,
+            "diagnosticsMs": 1935.0199942588806,
+            "elapsedMs": 25317.210000038147
+          },
+          "readbackMs": 63.15141700000095,
+          "repeatMs": 82.99679099999776,
+          "screenshotMs": 95.61883400000079,
+          "totalMs": 28113.589875
+        }
+      ]
+    },
+    {
+      "run": 5,
+      "test": "x64-glsl: all eight shader tiles have exact pixels",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 12551,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 647.4414590000015,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 3264.2800245285034,
+            "diagnosticsMs": 2118.594973564148,
+            "elapsedMs": 5385.5650000572205
+          },
+          "readbackMs": 69.0838330000006,
+          "repeatMs": 73.30262500000026,
+          "screenshotMs": 93.06116699999984,
+          "totalMs": 6351.727834000001
+        }
+      ]
+    },
+    {
+      "run": 5,
+      "test": "x64-glsl: cross-backend images agree @webgpu",
+      "project": "chromium-webgpu",
+      "status": "passed",
+      "durationMs": 95672,
+      "captures": [
+        {
+          "backend": "webgpu",
+          "loadMs": 517.4040000000005,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 3186.954977989197,
+            "diagnosticsMs": 2086.7700185775757,
+            "elapsedMs": 5276.454999923706
+          },
+          "readbackMs": 82.3244999999988,
+          "repeatMs": 71.54575000000114,
+          "screenshotMs": 88.82462499999747,
+          "totalMs": 6089.065666999999
+        },
+        {
+          "backend": "webgl2",
+          "loadMs": 12552.687708999998,
+          "progress": {
+            "frames": 5299,
+            "stepMs": 44772.91499185562,
+            "diagnosticsMs": 1974.1300077438354,
+            "elapsedMs": 46748.92999982834
+          },
+          "readbackMs": 340.77074999999604,
+          "repeatMs": 65.34037499999977,
+          "screenshotMs": 74.41125000000466,
+          "totalMs": 61477.416125
+        }
+      ]
+    }
+  ],
+  "compilationCompletion": [
+    {
+      "webgpuCompilationMs": {
+        "count": 1185,
+        "totalMs": 246.6500072479248,
+        "minMs": 0.06999969482421875,
+        "p50Ms": 0.18499994277954102,
+        "p95Ms": 0.3899998664855957,
+        "maxMs": 3.434999942779541
+      }
+    },
+    {
+      "webglCompilationMs": {
+        "count": 1187,
+        "totalMs": 1043.5249915122986,
+        "minMs": 0.07999992370605469,
+        "p50Ms": 0.7450003623962402,
+        "p95Ms": 2.1750001907348633,
+        "maxMs": 19.90000009536743
+      }
+    }
+  ],
+  "build": {
+    "x64_glsl_cold_ms": 38058.521,
+    "x64_glsl_cached_ms": 3769.971,
+    "insideTimedTest": false
+  },
+  "negativeControl": {
+    "mutation": "tile0.frag: frag = vec4(c + vec3(0.25, 0.0, 0.0), 1.0); (HTTP route only; matching manifest hash/size)",
+    "backendResults": {
+      "webgl2": {
+        "status": "failed",
+        "assertion": "structure array, scalar array, bool, mat3, macros channel 0",
+        "actualDelta": 64,
+        "allowedDelta": 3
+      },
+      "webgpu": {
+        "status": "failed",
+        "assertion": "structure array, scalar array, bool, mat3, macros channel 0",
+        "actualDelta": 64,
+        "allowedDelta": 3
+      }
+    },
+    "exitStatus": 1
+  },
+  "validation": {
+    "scope": "Reviewer-approved local test-only scope; full npm test and all pipeline oracles deferred to merged-tree integration.",
+    "doctor": "passed",
+    "lint": "passed",
+    "typecheck": "passed",
+    "leakcheck": "passed, including final docs",
+    "helperTests": {
+      "passed": 3,
+      "total": 3
+    },
+    "e2e": {
+      "command": "BGT_REQUIRE_WEBGPU=1 npm run test:e2e -- --trace off",
+      "exitStatus": 0,
+      "passed": 291,
+      "preexistingSkipped": 51,
+      "unexpected": 0,
+      "flaky": 0,
+      "durationMs": 412573.834,
+      "projects": {
+        "chromium-webgl2": {
+          "passed": 131,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "passed": 152,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "passed": 8,
+          "skipped": 1
+        }
+      },
+      "glsl": {
+        "webgl2TilesMs": 9364,
+        "webgpuTilesMs": 5513,
+        "crossMs": 21313
+      }
+    },
+    "independentReview": "Reviewer offered external review; result not received at handoff."
+  },
+  "cleanup": {
+    "removed": [
+      "lane-owned reports except tracked placeholders",
+      "node_modules/.cache/bgt",
+      "web/public/games",
+      "lane scratch zig-cache",
+      "scratch k28 logs/scripts/profiles/screenshots"
+    ],
+    "freeDiskGiBBefore": 6.8,
+    "freeDiskGiBAfter": 8.2
+  }
+}

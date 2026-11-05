@@ -146,6 +146,9 @@ uint32_t w32_data_import(const char *name);
 uint32_t w32_format_to_guest(uint32_t dst, uint32_t cap, int wide, uint32_t fmt, uint32_t va);
 
 /* Shared CRT registry (UCRT api-sets + ucrtbase.dll + msvcrt.dll) */
+/* Explicit non-suspending import implementation. Different from every callback-capable
+ * profile function signature, including CRT and thread dispatch. */
+typedef uint64_t (*w32_leaf_fn)(uint32_t);
 typedef uint64_t (*w32_crt_fn)(void);
 typedef struct {
     const char *name;
@@ -156,6 +159,7 @@ typedef struct {
 extern const w32_crt_entry_t w32_crt_table[];
 extern const uint32_t w32_crt_table_n;
 const w32_crt_entry_t *w32_find_crt(const char *name);
+w32_leaf_fn w32_crt_leaf(const w32_crt_entry_t *entry);
 uint32_t w32_crt_data(const char *name);
 
 /* Profile file access shared with CRT FILE* I/O */
@@ -196,6 +200,7 @@ extern const w32_api_t w32_api_kernel[], w32_api_user[], w32_api_gdi[];
 extern const uint32_t w32_api_kernel_n, w32_api_user_n, w32_api_gdi_n;
 uint32_t w32_thunk_for(const char *dll, const char *name);
 const w32_api_t *w32_find_api(const char *name);
+w32_leaf_fn w32_thread_leaf(const w32_api_t *entry);
 /* thunk (or data cell) for an API the profile implements, 0 if it does not implement `name` */
 uint32_t w32_resolve_api(const char *dll, const char *name);
 /* "C:\\X\\Foo" -> "Foo.dll" (LoadLibrary rules: path stripped, ".dll" appended when there is no extension) */

@@ -34,8 +34,13 @@ it('keeps owner/interior entries and exact counts separate from resettable sampl
  const coverage=readInterpreterCoverage(memory,ptr)!;
  expect(readInterpreterSummary({interp_insns:41},memory,ptr,10,20)).toEqual(interpreterSummary({interp_insns:41},coverage,10,20));
  expect(coverage.entries.map(e=>e.address)).toEqual([0x1010,0x1020]);
- expect(interpreterSummary({interp_insns:41,interpreter_timing_enabled:1,interpreter_samples:10,interpreter_exclusive_estimated_us:5000},coverage,10,20)).toMatchObject({instructions_per_update:4.1,estimated_ms_per_update:.5,estimated_share:.25,coverage_dropped:3,top_owners:[{owner:0x1000,entries:3,instructions:41}]});
+ expect(interpreterSummary({interp_insns:41,interpreter_timing_enabled:1,interpreter_samples:10,interpreter_exclusive_us:5000,interpreter_exclusive_estimated_us:9999999},coverage,10,20)).toMatchObject({instructions_per_update:4.1,estimated_ms_per_update:.5,estimated_share:.25,coverage_dropped:3,top_owners:[{owner:0x1000,entries:3,instructions:41}]});
  expect(interpreterSummary({interp_insns:41},coverage,10,20).estimated_share).toBeNull();
+ // Legacy extrapolations are not a wall-time budget. Never hide them by clamping.
+ expect(interpreterSummary({interp_insns:41,interpreter_timing_enabled:1,interpreter_samples:10,interpreter_exclusive_estimated_us:50000},coverage,10,20)).toMatchObject({estimated_ms:null,estimated_share:null,timing_status:'unavailable'});
+ for(const us of [-1,NaN,Infinity,20001])expect(interpreterSummary({interpreter_timing_enabled:1,interpreter_exclusive_us:us},coverage,10,20).estimated_share).toBeNull();
+ expect(interpreterSummary({interpreter_timing_enabled:1,interpreter_exclusive_us:20000},coverage,10,20)).toMatchObject({estimated_ms:20,estimated_share:1,timing_status:'measured'});
+ expect(interpreterSummary({interpreter_timing_enabled:0,interpreter_exclusive_us:1000},coverage,10,20).estimated_share).toBeNull();
  expect(interpreterSummary({},null,10,20)).toMatchObject({instructions:null,instructions_per_update:null,estimated_share:null,analyzed_code_interpreted:null,top_owners:null});
  expect(interpreterSummary({interp_insns:10},{capacity:1048576,dropped:0,entries:[]},10,20).analyzed_code_interpreted).toBeNull(); // strict builds omit recording
  expect(interpreterSummary({interp_insns:0},{capacity:1048576,dropped:0,entries:[]},10,20).analyzed_code_interpreted).toBe(false);

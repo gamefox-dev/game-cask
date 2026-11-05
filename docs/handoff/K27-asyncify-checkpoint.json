@@ -1,0 +1,4361 @@
+{
+  "schema": 1,
+  "commit": "42699774d37d67178c9cc76ac2429f5d6a2917c0",
+  "beforeCommit": "3cbcb252230f997924cee61443b7a27c1a54b3d3",
+  "suspension": "asyncify",
+  "complete": true,
+  "method": "Same machine, serial full builds, discarded fresh-instance warmup + seven fresh-instance samples; 300 updates including startup, not guest presents; no rendering.",
+  "status": "Checkpoint, not final-source Tier 1. commit is parent HEAD; diagnostic/relocation changes were uncommitted.",
+  "raw_report_external": "/Users/dev/projects/pi-work/scratch-K27/continuation-c/benchmark-asyncify.json",
+  "resource_note": "Original full resources retained externally; compact snapshots omit process commands.",
+  "rows": [
+    {
+      "id": "native-forms-size-before",
+      "preset": "size",
+      "variant": "before",
+      "median_ms": 22.433499999999185,
+      "samples_ms": [
+        22.735333000004175,
+        22.37879200000316,
+        22.433499999999185,
+        21.715082999995502,
+        22.270583999998053,
+        23.045500000000175,
+        22.4965830000001
+      ],
+      "metrics": {
+        "platform": "win32",
+        "lifted_functions": 3,
+        "lifted_calls": 502004,
+        "guest_instruction_clock": 1104014,
+        "coverage_events": 502004,
+        "coverage_crossings": 10,
+        "coverage_cache_hits": 501994,
+        "interp_insns": 0,
+        "interpreter_timing_enabled": 1,
+        "interpreter_samples": 0,
+        "interpreter_exclusive_sample_us": 0,
+        "interpreter_exclusive_estimated_us": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 500000,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 1002,
+        "imports_bound": 2,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_objects": {
+          "textures": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "buffers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "vaos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "fbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "rbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "samplers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "gl_queries": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "shaders": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "programs": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          }
+        },
+        "host_bytes": 16065216,
+        "host_peak": 16065216,
+        "host_reserved": 16187392,
+        "host_limit": 67108864,
+        "host_consumers": {
+          "runtime": {
+            "used": 16065216,
+            "peak": 16065216,
+            "limit": 67108864,
+            "allocations": 8,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 16187392,
+            "shared_limit": true
+          },
+          "gl": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "crt": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "file": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          }
+        },
+        "gl_frontend_bytes": 0,
+        "gl_frontend_peak": 0,
+        "gl_frontend_reserved": 0,
+        "gl_frontend_allocations": 0,
+        "gl_frontend_frees": 0,
+        "gl_frontend_oom": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 0,
+        "guest_committed_bytes": 16818176,
+        "trace_hash": 4216953899,
+        "stubs": [],
+        "apis_hit": [
+          "OutputDebugStringA",
+          "Sleep"
+        ],
+        "cpu_profile": {
+          "sample_period": 1024,
+          "idle_yield_us": 1627,
+          "categories": [
+            {
+              "name": "lifted_native",
+              "calls": 501001,
+              "samples": 490,
+              "sample_us": 36,
+              "estimated_us": 36877
+            },
+            {
+              "name": "generic_shared",
+              "calls": 500000,
+              "samples": 489,
+              "sample_us": 41,
+              "estimated_us": 42009
+            },
+            {
+              "name": "interpreter",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            }
+          ],
+          "apis": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 1,
+              "samples": 1,
+              "sample_us": 33,
+              "estimated_us": 33
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "Sleep",
+              "count": 1001,
+              "samples": 1,
+              "sample_us": 1,
+              "estimated_us": 1835
+            }
+          ],
+          "census_generation": 0,
+          "census_window_start_clock": 0,
+          "census_capacity": 262144,
+          "census_dropped": 0,
+          "exits": [
+            {
+              "address": 16781334,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781329,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781339,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781363,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781348,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 11534352,
+              "reason": 5,
+              "count": 1001,
+              "instructions": 0
+            },
+            {
+              "address": 11534336,
+              "reason": 5,
+              "count": 1,
+              "instructions": 0
+            }
+          ],
+          "interpreter_entries": []
+        },
+        "host_profile": {
+          "updateMs": 21.031809000007343,
+          "renderMs": 1.101100000050792,
+          "ioWaitMs": 0,
+          "imports": {
+            "asset_open": {
+              "samples": 1,
+              "sampleMs": 0.009790999996766914,
+              "estimatedMs": 0.009790999996766914
+            },
+            "asset_size": {
+              "samples": 1,
+              "sampleMs": 0.0004160000025876798,
+              "estimatedMs": 0.0004160000025876798
+            },
+            "asset_read": {
+              "samples": 1,
+              "sampleMs": 0.004833999999391381,
+              "estimatedMs": 0.04833999999391381
+            },
+            "asset_seek": {
+              "samples": 1,
+              "sampleMs": 0.0006250000005820766,
+              "estimatedMs": 0.0056250000052386895
+            },
+            "asset_close": {
+              "samples": 1,
+              "sampleMs": 0.0011660000018309802,
+              "estimatedMs": 0.0011660000018309802
+            },
+            "log": {
+              "samples": 1,
+              "sampleMs": 0.01983299999847077,
+              "estimatedMs": 0.01983299999847077
+            },
+            "yield": {
+              "samples": 1,
+              "sampleMs": 0.00637500000448199,
+              "estimatedMs": 3.818625002684712
+            },
+            "submit_commands": {
+              "samples": 1,
+              "sampleMs": 0.7053749999977299,
+              "estimatedMs": 212.3178749993167
+            }
+          }
+        },
+        "execution_summary": {
+          "suspension": "asyncify",
+          "updates": 300,
+          "elapsed_ms": 23.98833300000115,
+          "updates_per_second": 12506.079517905044,
+          "interpreter": {
+            "instructions": 0,
+            "instructions_per_update": 0,
+            "estimated_ms": 0,
+            "estimated_ms_per_update": 0,
+            "estimated_share": 0,
+            "samples": 0,
+            "timing": "sampled-exclusive-dispatch",
+            "coverage_dropped": 0,
+            "analyzed_code_interpreted": false,
+            "top_owners": []
+          },
+          "guest_frames": {
+            "count": 0,
+            "swaps": 0,
+            "gdi_presents": 0,
+            "per_second": 0,
+            "frame_ms_avg": null,
+            "frame_ms_p95": null,
+            "intervals_measured": 0,
+            "timestamps_ms": [],
+            "clock": "wall-between-guest-presents"
+          }
+        }
+      },
+      "oracle": {
+        "game": "native-forms-size-before",
+        "requestedFrames": 300,
+        "frames": 300,
+        "comparedFrames": 300,
+        "failureStage": null,
+        "error": null,
+        "exitStatus": 0,
+        "identical": true,
+        "elapsedMs": {
+          "lifted": 28.72833399999945,
+          "interpreted": 56.60566600000311
+        },
+        "firstDivergence": null,
+        "hashes": {
+          "lifted": "fb599c2b",
+          "interpreted": "fb599c2b",
+          "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+          "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+        },
+        "metrics": {
+          "lifted": {
+            "platform": "win32",
+            "lifted_functions": 3,
+            "lifted_calls": 502004,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 502004,
+            "coverage_crossings": 10,
+            "coverage_cache_hits": 501994,
+            "interp_insns": 0,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 0,
+            "interpreter_exclusive_sample_us": 0,
+            "interpreter_exclusive_estimated_us": 0,
+            "interp_code_entries": 0,
+            "interp_functions": 0,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 500000,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 16065216,
+            "host_peak": 16065216,
+            "host_reserved": 16187392,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 16065216,
+                "peak": 16065216,
+                "limit": 67108864,
+                "allocations": 8,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 16187392,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 3203,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 501001,
+                  "samples": 490,
+                  "sample_us": 763,
+                  "estimated_us": 781104
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 500000,
+                  "samples": 489,
+                  "sample_us": 66,
+                  "estimated_us": 67572
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 23,
+                  "estimated_us": 23
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 2,
+                  "estimated_us": 2543
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [
+                {
+                  "address": 16781334,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781329,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781339,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781363,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781348,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 11534352,
+                  "reason": 5,
+                  "count": 1001,
+                  "instructions": 0
+                },
+                {
+                  "address": 11534336,
+                  "reason": 5,
+                  "count": 1,
+                  "instructions": 0
+                }
+              ],
+              "interpreter_entries": []
+            },
+            "host_profile": {
+              "updateMs": 23.082324999923003,
+              "renderMs": 1.27505100009148,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.020083000003069174,
+                  "estimatedMs": 0.020083000003069174
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.0006250000005820766,
+                  "estimatedMs": 0.0006250000005820766
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.006541999995533843,
+                  "estimatedMs": 0.06541999995533843
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.0030830000032437965,
+                  "estimatedMs": 0.02774700002919417
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.001083999995898921,
+                  "estimatedMs": 0.001083999995898921
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.014584000004106201,
+                  "estimatedMs": 0.014584000004106201
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.007958000001963228,
+                  "estimatedMs": 4.766842001175974
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.055458000002545305,
+                  "estimatedMs": 16.692858000766137
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 28.254958999998053,
+              "updates_per_second": 10617.60521400936,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "interpreted": {
+            "platform": "win32",
+            "lifted_functions": 0,
+            "lifted_calls": 0,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 103006,
+            "coverage_crossings": 9,
+            "coverage_cache_hits": 102997,
+            "interp_insns": 1104014,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 1077,
+            "interpreter_exclusive_sample_us": 1064,
+            "interpreter_exclusive_estimated_us": 1091558,
+            "interp_code_entries": 103006,
+            "interp_functions": 3,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 21117648,
+            "host_peak": 21117648,
+            "host_reserved": 21364736,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 21117648,
+                "peak": 21117648,
+                "limit": 67108864,
+                "allocations": 11,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 21364736,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 3330,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 1104014,
+                  "samples": 1077,
+                  "sample_us": 1160,
+                  "estimated_us": 1189728
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 81,
+                  "estimated_us": 81
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 11,
+                  "estimated_us": 11594
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [],
+              "interpreter_entries": [
+                {
+                  "address": 16781329,
+                  "count": 99999,
+                  "instructions": 1099989
+                },
+                {
+                  "address": 16781402,
+                  "count": 1001,
+                  "instructions": 2002
+                },
+                {
+                  "address": 16781440,
+                  "count": 1001,
+                  "instructions": 1001
+                },
+                {
+                  "address": 16781412,
+                  "count": 1000,
+                  "instructions": 1000
+                },
+                {
+                  "address": 16781312,
+                  "count": 1,
+                  "instructions": 14
+                },
+                {
+                  "address": 16781381,
+                  "count": 1,
+                  "instructions": 3
+                },
+                {
+                  "address": 16781374,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781390,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781424,
+                  "count": 1,
+                  "instructions": 1
+                }
+              ]
+            },
+            "host_profile": {
+              "updateMs": 50.95658599992021,
+              "renderMs": 1.378037999929802,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.022166000002471264,
+                  "estimatedMs": 0.022166000002471264
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.0005840000012540258,
+                  "estimatedMs": 0.0005840000012540258
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.00516599999536993,
+                  "estimatedMs": 0.0516599999536993
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.0006670000002486631,
+                  "estimatedMs": 0.006003000002237968
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0016250000044237822,
+                  "estimatedMs": 0.0016250000044237822
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.020334000000730157,
+                  "estimatedMs": 0.020334000000730157
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.010500000003958121,
+                  "estimatedMs": 6.2895000023709144
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.05079200000182027,
+                  "estimatedMs": 15.288392000547901
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 56.47024999999849,
+              "updates_per_second": 5312.531819852188,
+              "interpreter": {
+                "instructions": 1104014,
+                "instructions_per_update": 3680.0466666666666,
+                "estimated_ms": 1091.558,
+                "estimated_ms_per_update": 3.6385266666666665,
+                "estimated_share": 21.421333054017968,
+                "samples": 1077,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": true,
+                "top_owners": [
+                  {
+                    "owner": 16781312,
+                    "entries": 102004,
+                    "instructions": 1103012
+                  },
+                  {
+                    "owner": 16781440,
+                    "entries": 1001,
+                    "instructions": 1001
+                  },
+                  {
+                    "owner": 16781424,
+                    "entries": 1,
+                    "instructions": 1
+                  }
+                ]
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          }
+        },
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        }
+      },
+      "resourcesBefore": {
+        "when": "2026-11-04T12:18:28.327Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          11.66650390625,
+          19.85546875,
+          25.00634765625
+        ],
+        "freeRamBytes": 635994112,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 11636897219,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "resourcesAfter": {
+        "when": "2026-11-04T12:19:08.436Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.81884765625,
+          19.4267578125,
+          24.61328125
+        ],
+        "freeRamBytes": 346603520,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 11418793411,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    },
+    {
+      "id": "native-forms-size-after",
+      "preset": "size",
+      "variant": "after",
+      "median_ms": 4.941791999997804,
+      "samples_ms": [
+        5.835291000010329,
+        6.337625000000116,
+        5.8367920000018785,
+        4.077583999998751,
+        4.399250000002212,
+        4.716915999990306,
+        4.941791999997804
+      ],
+      "metrics": {
+        "platform": "win32",
+        "lifted_functions": 3,
+        "lifted_calls": 2004,
+        "guest_instruction_clock": 1104014,
+        "coverage_events": 2004,
+        "coverage_crossings": 5,
+        "coverage_cache_hits": 1999,
+        "interp_insns": 0,
+        "interpreter_timing_enabled": 1,
+        "interpreter_samples": 0,
+        "interpreter_exclusive_sample_us": 0,
+        "interpreter_exclusive_estimated_us": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 0,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 1002,
+        "imports_bound": 2,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_objects": {
+          "textures": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "buffers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "vaos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "fbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "rbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "samplers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "gl_queries": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "shaders": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "programs": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          }
+        },
+        "host_bytes": 16065216,
+        "host_peak": 16065216,
+        "host_reserved": 16187392,
+        "host_limit": 67108864,
+        "host_consumers": {
+          "runtime": {
+            "used": 16065216,
+            "peak": 16065216,
+            "limit": 67108864,
+            "allocations": 8,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 16187392,
+            "shared_limit": true
+          },
+          "gl": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "crt": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "file": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          }
+        },
+        "gl_frontend_bytes": 0,
+        "gl_frontend_peak": 0,
+        "gl_frontend_reserved": 0,
+        "gl_frontend_allocations": 0,
+        "gl_frontend_frees": 0,
+        "gl_frontend_oom": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 0,
+        "guest_committed_bytes": 16818176,
+        "trace_hash": 4216953899,
+        "stubs": [],
+        "apis_hit": [
+          "OutputDebugStringA",
+          "Sleep"
+        ],
+        "cpu_profile": {
+          "sample_period": 1024,
+          "idle_yield_us": 1324,
+          "categories": [
+            {
+              "name": "lifted_native",
+              "calls": 1001,
+              "samples": 1,
+              "sample_us": 1747,
+              "estimated_us": 1748913
+            },
+            {
+              "name": "generic_shared",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            },
+            {
+              "name": "interpreter",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            }
+          ],
+          "apis": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 1,
+              "samples": 1,
+              "sample_us": 11,
+              "estimated_us": 11
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "Sleep",
+              "count": 1001,
+              "samples": 1,
+              "sample_us": 1,
+              "estimated_us": 1334
+            }
+          ],
+          "census_generation": 0,
+          "census_window_start_clock": 0,
+          "census_capacity": 262144,
+          "census_dropped": 0,
+          "exits": [
+            {
+              "address": 11534352,
+              "reason": 5,
+              "count": 1001,
+              "instructions": 0
+            },
+            {
+              "address": 11534336,
+              "reason": 5,
+              "count": 1,
+              "instructions": 0
+            }
+          ],
+          "interpreter_entries": []
+        },
+        "host_profile": {
+          "updateMs": 3.836463000116055,
+          "renderMs": 0.6357529999659164,
+          "ioWaitMs": 0,
+          "imports": {
+            "asset_open": {
+              "samples": 1,
+              "sampleMs": 0.013208000003942288,
+              "estimatedMs": 0.013208000003942288
+            },
+            "asset_size": {
+              "samples": 1,
+              "sampleMs": 0.0003749999887077138,
+              "estimatedMs": 0.0003749999887077138
+            },
+            "asset_read": {
+              "samples": 1,
+              "sampleMs": 0.017291999989538454,
+              "estimatedMs": 0.17291999989538454
+            },
+            "asset_seek": {
+              "samples": 1,
+              "sampleMs": 0.0010840000031748787,
+              "estimatedMs": 0.009756000028573908
+            },
+            "asset_close": {
+              "samples": 1,
+              "sampleMs": 0.0014999999984866008,
+              "estimatedMs": 0.0014999999984866008
+            },
+            "log": {
+              "samples": 1,
+              "sampleMs": 0.00433300000440795,
+              "estimatedMs": 0.00433300000440795
+            },
+            "yield": {
+              "samples": 1,
+              "sampleMs": 0.0009999999892897904,
+              "estimatedMs": 0.5989999935845844
+            },
+            "submit_commands": {
+              "samples": 1,
+              "sampleMs": 0.03041599999414757,
+              "estimatedMs": 9.155215998238418
+            }
+          }
+        },
+        "execution_summary": {
+          "suspension": "asyncify",
+          "updates": 300,
+          "elapsed_ms": 6.805291999990004,
+          "updates_per_second": 44083.339847936084,
+          "interpreter": {
+            "instructions": 0,
+            "instructions_per_update": 0,
+            "estimated_ms": 0,
+            "estimated_ms_per_update": 0,
+            "estimated_share": 0,
+            "samples": 0,
+            "timing": "sampled-exclusive-dispatch",
+            "coverage_dropped": 0,
+            "analyzed_code_interpreted": false,
+            "top_owners": []
+          },
+          "guest_frames": {
+            "count": 0,
+            "swaps": 0,
+            "gdi_presents": 0,
+            "per_second": 0,
+            "frame_ms_avg": null,
+            "frame_ms_p95": null,
+            "intervals_measured": 0,
+            "timestamps_ms": [],
+            "clock": "wall-between-guest-presents"
+          }
+        }
+      },
+      "oracle": {
+        "game": "native-forms-size-after",
+        "requestedFrames": 300,
+        "frames": 300,
+        "comparedFrames": 300,
+        "failureStage": null,
+        "error": null,
+        "exitStatus": 0,
+        "identical": true,
+        "elapsedMs": {
+          "lifted": 10.315499999996973,
+          "interpreted": 81.89366699999664
+        },
+        "firstDivergence": null,
+        "hashes": {
+          "lifted": "fb599c2b",
+          "interpreted": "fb599c2b",
+          "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+          "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+        },
+        "metrics": {
+          "lifted": {
+            "platform": "win32",
+            "lifted_functions": 3,
+            "lifted_calls": 2004,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 2004,
+            "coverage_crossings": 5,
+            "coverage_cache_hits": 1999,
+            "interp_insns": 0,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 0,
+            "interpreter_exclusive_sample_us": 0,
+            "interpreter_exclusive_estimated_us": 0,
+            "interp_code_entries": 0,
+            "interp_functions": 0,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 16065216,
+            "host_peak": 16065216,
+            "host_reserved": 16187392,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 16065216,
+                "peak": 16065216,
+                "limit": 67108864,
+                "allocations": 8,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 16187392,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 1886,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 1001,
+                  "samples": 1,
+                  "sample_us": 1789,
+                  "estimated_us": 1791039
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 16,
+                  "estimated_us": 16
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 6,
+                  "estimated_us": 6881
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [
+                {
+                  "address": 11534352,
+                  "reason": 5,
+                  "count": 1001,
+                  "instructions": 0
+                },
+                {
+                  "address": 11534336,
+                  "reason": 5,
+                  "count": 1,
+                  "instructions": 0
+                }
+              ],
+              "interpreter_entries": []
+            },
+            "host_profile": {
+              "updateMs": 5.074430999913602,
+              "renderMs": 0.7785760000551818,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.006832999992184341,
+                  "estimatedMs": 0.006832999992184341
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.00045900000259280205,
+                  "estimatedMs": 0.00045900000259280205
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.0036249999975552782,
+                  "estimatedMs": 0.03624999997555278
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.0019170000014128163,
+                  "estimatedMs": 0.017253000012715347
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0012089999945601448,
+                  "estimatedMs": 0.0012089999945601448
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.005791000003227964,
+                  "estimatedMs": 0.005791000003227964
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.007166999988839962,
+                  "estimatedMs": 4.293032993315137
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.058707999996840954,
+                  "estimatedMs": 17.671107999049127
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 10.205332999990787,
+              "updates_per_second": 29396.3950025218,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "interpreted": {
+            "platform": "win32",
+            "lifted_functions": 0,
+            "lifted_calls": 0,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 103006,
+            "coverage_crossings": 9,
+            "coverage_cache_hits": 102997,
+            "interp_insns": 1104014,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 1077,
+            "interpreter_exclusive_sample_us": 1516,
+            "interpreter_exclusive_estimated_us": 1554249,
+            "interp_code_entries": 103006,
+            "interp_functions": 3,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 21117648,
+            "host_peak": 21117648,
+            "host_reserved": 21364736,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 21117648,
+                "peak": 21117648,
+                "limit": 67108864,
+                "allocations": 11,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 21364736,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 5311,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 1104014,
+                  "samples": 1077,
+                  "sample_us": 1603,
+                  "estimated_us": 1643890
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 89,
+                  "estimated_us": 89
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 14,
+                  "estimated_us": 14889
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [],
+              "interpreter_entries": [
+                {
+                  "address": 16781329,
+                  "count": 99999,
+                  "instructions": 1099989
+                },
+                {
+                  "address": 16781402,
+                  "count": 1001,
+                  "instructions": 2002
+                },
+                {
+                  "address": 16781440,
+                  "count": 1001,
+                  "instructions": 1001
+                },
+                {
+                  "address": 16781412,
+                  "count": 1000,
+                  "instructions": 1000
+                },
+                {
+                  "address": 16781312,
+                  "count": 1,
+                  "instructions": 14
+                },
+                {
+                  "address": 16781381,
+                  "count": 1,
+                  "instructions": 3
+                },
+                {
+                  "address": 16781374,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781390,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781424,
+                  "count": 1,
+                  "instructions": 1
+                }
+              ]
+            },
+            "host_profile": {
+              "updateMs": 71.20333499994013,
+              "renderMs": 3.0967969999474008,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.01833400000759866,
+                  "estimatedMs": 0.01833400000759866
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.0004160000098636374,
+                  "estimatedMs": 0.0004160000098636374
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.004541999995126389,
+                  "estimatedMs": 0.04541999995126389
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.0004999999946448952,
+                  "estimatedMs": 0.004499999951804057
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.001041999988956377,
+                  "estimatedMs": 0.001041999988956377
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.025041000000783242,
+                  "estimatedMs": 0.025041000000783242
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.011583999992581084,
+                  "estimatedMs": 6.9388159955560695
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 1.4276670000108425,
+                  "estimatedMs": 429.7277670032636
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 81.78541699999187,
+              "updates_per_second": 3668.135604175373,
+              "interpreter": {
+                "instructions": 1104014,
+                "instructions_per_update": 3680.0466666666666,
+                "estimated_ms": 1554.249,
+                "estimated_ms_per_update": 5.18083,
+                "estimated_share": 21.828317451721986,
+                "samples": 1077,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": true,
+                "top_owners": [
+                  {
+                    "owner": 16781312,
+                    "entries": 102004,
+                    "instructions": 1103012
+                  },
+                  {
+                    "owner": 16781440,
+                    "entries": 1001,
+                    "instructions": 1001
+                  },
+                  {
+                    "owner": 16781424,
+                    "entries": 1,
+                    "instructions": 1
+                  }
+                ]
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          }
+        },
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        }
+      },
+      "resourcesBefore": {
+        "when": "2026-11-04T12:19:08.491Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.81884765625,
+          19.4267578125,
+          24.61328125
+        ],
+        "freeRamBytes": 327237632,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 11418793411,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "resourcesAfter": {
+        "when": "2026-11-04T12:19:42.681Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.0791015625,
+          18.64599609375,
+          24.1201171875
+        ],
+        "freeRamBytes": 257523712,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10321070653,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    },
+    {
+      "id": "native-forms-fast-before",
+      "preset": "fast",
+      "variant": "before",
+      "median_ms": 21.269291999997222,
+      "samples_ms": [
+        21.600749999997788,
+        21.16525000000547,
+        21.51720899999782,
+        21.226250000006985,
+        21.074207999990904,
+        22.867249999995693,
+        21.269291999997222
+      ],
+      "metrics": {
+        "platform": "win32",
+        "lifted_functions": 3,
+        "lifted_calls": 502004,
+        "guest_instruction_clock": 1104014,
+        "coverage_events": 502004,
+        "coverage_crossings": 10,
+        "coverage_cache_hits": 501994,
+        "interp_insns": 0,
+        "interpreter_timing_enabled": 1,
+        "interpreter_samples": 0,
+        "interpreter_exclusive_sample_us": 0,
+        "interpreter_exclusive_estimated_us": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 500000,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 1002,
+        "imports_bound": 2,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_objects": {
+          "textures": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "buffers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "vaos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "fbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "rbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "samplers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "gl_queries": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "shaders": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "programs": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          }
+        },
+        "host_bytes": 16065216,
+        "host_peak": 16065216,
+        "host_reserved": 16187392,
+        "host_limit": 67108864,
+        "host_consumers": {
+          "runtime": {
+            "used": 16065216,
+            "peak": 16065216,
+            "limit": 67108864,
+            "allocations": 8,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 16187392,
+            "shared_limit": true
+          },
+          "gl": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "crt": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "file": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          }
+        },
+        "gl_frontend_bytes": 0,
+        "gl_frontend_peak": 0,
+        "gl_frontend_reserved": 0,
+        "gl_frontend_allocations": 0,
+        "gl_frontend_frees": 0,
+        "gl_frontend_oom": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 0,
+        "guest_committed_bytes": 16818176,
+        "trace_hash": 4216953899,
+        "stubs": [],
+        "apis_hit": [
+          "OutputDebugStringA",
+          "Sleep"
+        ],
+        "cpu_profile": {
+          "sample_period": 1024,
+          "idle_yield_us": 850,
+          "categories": [
+            {
+              "name": "lifted_native",
+              "calls": 501001,
+              "samples": 490,
+              "sample_us": 33,
+              "estimated_us": 34154
+            },
+            {
+              "name": "generic_shared",
+              "calls": 500000,
+              "samples": 489,
+              "sample_us": 41,
+              "estimated_us": 42174
+            },
+            {
+              "name": "interpreter",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            }
+          ],
+          "apis": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 1,
+              "samples": 1,
+              "sample_us": 16,
+              "estimated_us": 16
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "Sleep",
+              "count": 1001,
+              "samples": 1,
+              "sample_us": 1,
+              "estimated_us": 1043
+            }
+          ],
+          "census_generation": 0,
+          "census_window_start_clock": 0,
+          "census_capacity": 262144,
+          "census_dropped": 0,
+          "exits": [
+            {
+              "address": 16781334,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781329,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781339,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781363,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 16781348,
+              "reason": 1,
+              "count": 100000,
+              "instructions": 100000
+            },
+            {
+              "address": 11534352,
+              "reason": 5,
+              "count": 1001,
+              "instructions": 0
+            },
+            {
+              "address": 11534336,
+              "reason": 5,
+              "count": 1,
+              "instructions": 0
+            }
+          ],
+          "interpreter_entries": []
+        },
+        "host_profile": {
+          "updateMs": 20.54766700010805,
+          "renderMs": 0.4006100002443418,
+          "ioWaitMs": 0,
+          "imports": {
+            "asset_open": {
+              "samples": 1,
+              "sampleMs": 0.009124999996856786,
+              "estimatedMs": 0.009124999996856786
+            },
+            "asset_size": {
+              "samples": 1,
+              "sampleMs": 0.0004169999883743003,
+              "estimatedMs": 0.0004169999883743003
+            },
+            "asset_read": {
+              "samples": 1,
+              "sampleMs": 0.004457999995793216,
+              "estimatedMs": 0.04457999995793216
+            },
+            "asset_seek": {
+              "samples": 1,
+              "sampleMs": 0.0004579999949783087,
+              "estimatedMs": 0.004121999954804778
+            },
+            "asset_close": {
+              "samples": 1,
+              "sampleMs": 0.0009169999975711107,
+              "estimatedMs": 0.0009169999975711107
+            },
+            "log": {
+              "samples": 1,
+              "sampleMs": 0.0052500000019790605,
+              "estimatedMs": 0.0052500000019790605
+            },
+            "yield": {
+              "samples": 1,
+              "sampleMs": 0.0018330000020796433,
+              "estimatedMs": 1.0979670012457063
+            },
+            "submit_commands": {
+              "samples": 1,
+              "sampleMs": 0.015125000005355105,
+              "estimatedMs": 4.5526250016118865
+            }
+          }
+        },
+        "execution_summary": {
+          "suspension": "asyncify",
+          "updates": 300,
+          "elapsed_ms": 22.534874999997555,
+          "updates_per_second": 13312.698650426619,
+          "interpreter": {
+            "instructions": 0,
+            "instructions_per_update": 0,
+            "estimated_ms": 0,
+            "estimated_ms_per_update": 0,
+            "estimated_share": 0,
+            "samples": 0,
+            "timing": "sampled-exclusive-dispatch",
+            "coverage_dropped": 0,
+            "analyzed_code_interpreted": false,
+            "top_owners": []
+          },
+          "guest_frames": {
+            "count": 0,
+            "swaps": 0,
+            "gdi_presents": 0,
+            "per_second": 0,
+            "frame_ms_avg": null,
+            "frame_ms_p95": null,
+            "intervals_measured": 0,
+            "timestamps_ms": [],
+            "clock": "wall-between-guest-presents"
+          }
+        }
+      },
+      "oracle": {
+        "game": "native-forms-fast-before",
+        "requestedFrames": 300,
+        "frames": 300,
+        "comparedFrames": 300,
+        "failureStage": null,
+        "error": null,
+        "exitStatus": 0,
+        "identical": true,
+        "elapsedMs": {
+          "lifted": 24.53545799999847,
+          "interpreted": 57.80279099999461
+        },
+        "firstDivergence": null,
+        "hashes": {
+          "lifted": "fb599c2b",
+          "interpreted": "fb599c2b",
+          "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+          "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+        },
+        "metrics": {
+          "lifted": {
+            "platform": "win32",
+            "lifted_functions": 3,
+            "lifted_calls": 502004,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 502004,
+            "coverage_crossings": 10,
+            "coverage_cache_hits": 501994,
+            "interp_insns": 0,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 0,
+            "interpreter_exclusive_sample_us": 0,
+            "interpreter_exclusive_estimated_us": 0,
+            "interp_code_entries": 0,
+            "interp_functions": 0,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 500000,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 16065216,
+            "host_peak": 16065216,
+            "host_reserved": 16187392,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 16065216,
+                "peak": 16065216,
+                "limit": 67108864,
+                "allocations": 8,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 16187392,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 1250,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 501001,
+                  "samples": 490,
+                  "sample_us": 37,
+                  "estimated_us": 38079
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 500000,
+                  "samples": 489,
+                  "sample_us": 43,
+                  "estimated_us": 44976
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 24,
+                  "estimated_us": 24
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 2,
+                  "estimated_us": 2377
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [
+                {
+                  "address": 16781334,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781329,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781339,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781363,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 16781348,
+                  "reason": 1,
+                  "count": 100000,
+                  "instructions": 100000
+                },
+                {
+                  "address": 11534352,
+                  "reason": 5,
+                  "count": 1001,
+                  "instructions": 0
+                },
+                {
+                  "address": 11534336,
+                  "reason": 5,
+                  "count": 1,
+                  "instructions": 0
+                }
+              ],
+              "interpreter_entries": []
+            },
+            "host_profile": {
+              "updateMs": 21.283795999901486,
+              "renderMs": 0.49899400006688666,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.013541000007535331,
+                  "estimatedMs": 0.013541000007535331
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.00041599999531172216,
+                  "estimatedMs": 0.00041599999531172216
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.004917000012937933,
+                  "estimatedMs": 0.04917000012937933
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.0004160000098636374,
+                  "estimatedMs": 0.0037440000887727365
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0009999999892897904,
+                  "estimatedMs": 0.0009999999892897904
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.014292000007117167,
+                  "estimatedMs": 0.014292000007117167
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.004665999993449077,
+                  "estimatedMs": 2.794933996075997
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.03816600001300685,
+                  "estimatedMs": 11.487966003915062
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 24.494082999997772,
+              "updates_per_second": 12247.85594137275,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "interpreted": {
+            "platform": "win32",
+            "lifted_functions": 0,
+            "lifted_calls": 0,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 103006,
+            "coverage_crossings": 9,
+            "coverage_cache_hits": 102997,
+            "interp_insns": 1104014,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 1077,
+            "interpreter_exclusive_sample_us": 1286,
+            "interpreter_exclusive_estimated_us": 1319007,
+            "interp_code_entries": 103006,
+            "interp_functions": 3,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 21117648,
+            "host_peak": 21117648,
+            "host_reserved": 21364736,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 21117648,
+                "peak": 21117648,
+                "limit": 67108864,
+                "allocations": 11,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 21364736,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 2001,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 1104014,
+                  "samples": 1077,
+                  "sample_us": 1344,
+                  "estimated_us": 1378219
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 76,
+                  "estimated_us": 76
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 12,
+                  "estimated_us": 12304
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [],
+              "interpreter_entries": [
+                {
+                  "address": 16781329,
+                  "count": 99999,
+                  "instructions": 1099989
+                },
+                {
+                  "address": 16781402,
+                  "count": 1001,
+                  "instructions": 2002
+                },
+                {
+                  "address": 16781440,
+                  "count": 1001,
+                  "instructions": 1001
+                },
+                {
+                  "address": 16781412,
+                  "count": 1000,
+                  "instructions": 1000
+                },
+                {
+                  "address": 16781312,
+                  "count": 1,
+                  "instructions": 14
+                },
+                {
+                  "address": 16781381,
+                  "count": 1,
+                  "instructions": 3
+                },
+                {
+                  "address": 16781374,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781390,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781424,
+                  "count": 1,
+                  "instructions": 1
+                }
+              ]
+            },
+            "host_profile": {
+              "updateMs": 53.75650400010636,
+              "renderMs": 1.3472930000571068,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.023124999992433004,
+                  "estimatedMs": 0.023124999992433004
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.0007080000068526715,
+                  "estimatedMs": 0.0007080000068526715
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.008291999998618849,
+                  "estimatedMs": 0.08291999998618849
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.001041999988956377,
+                  "estimatedMs": 0.009377999900607392
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0012910000077681616,
+                  "estimatedMs": 0.0012910000077681616
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.015666999999666587,
+                  "estimatedMs": 0.015666999999666587
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.008125000007566996,
+                  "estimatedMs": 4.8668750045326306
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.8775000000023283,
+                  "estimatedMs": 264.1275000007008
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 57.7022910000087,
+              "updates_per_second": 5199.100326882251,
+              "interpreter": {
+                "instructions": 1104014,
+                "instructions_per_update": 3680.0466666666666,
+                "estimated_ms": 1319.007,
+                "estimated_ms_per_update": 4.39669,
+                "estimated_share": 24.53669606188286,
+                "samples": 1077,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": true,
+                "top_owners": [
+                  {
+                    "owner": 16781312,
+                    "entries": 102004,
+                    "instructions": 1103012
+                  },
+                  {
+                    "owner": 16781440,
+                    "entries": 1001,
+                    "instructions": 1001
+                  },
+                  {
+                    "owner": 16781424,
+                    "entries": 1,
+                    "instructions": 1
+                  }
+                ]
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          }
+        },
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        }
+      },
+      "resourcesBefore": {
+        "when": "2026-11-04T12:19:42.757Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.0791015625,
+          18.64599609375,
+          24.1201171875
+        ],
+        "freeRamBytes": 249692160,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10321070653,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "resourcesAfter": {
+        "when": "2026-11-04T12:19:56.392Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.26220703125,
+          18.5078125,
+          24.0068359375
+        ],
+        "freeRamBytes": 513998848,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10195241533,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    },
+    {
+      "id": "native-forms-fast-after",
+      "preset": "fast",
+      "variant": "after",
+      "median_ms": 3.6263340000004973,
+      "samples_ms": [
+        3.673624999995809,
+        3.6901249999937136,
+        3.69962499999383,
+        3.574749999999767,
+        3.6263340000004973,
+        3.607124999994994,
+        3.6090410000033444
+      ],
+      "metrics": {
+        "platform": "win32",
+        "lifted_functions": 3,
+        "lifted_calls": 2004,
+        "guest_instruction_clock": 1104014,
+        "coverage_events": 2004,
+        "coverage_crossings": 5,
+        "coverage_cache_hits": 1999,
+        "interp_insns": 0,
+        "interpreter_timing_enabled": 1,
+        "interpreter_samples": 0,
+        "interpreter_exclusive_sample_us": 0,
+        "interpreter_exclusive_estimated_us": 0,
+        "interp_code_entries": 0,
+        "interp_functions": 0,
+        "interp_unowned_entries": 0,
+        "generic_insn_execs": 0,
+        "tail_calls_lifted": 0,
+        "continues_interpreted": 0,
+        "api_calls": 1002,
+        "imports_bound": 2,
+        "stub_calls": 0,
+        "gl_calls": 0,
+        "gl_draws": 0,
+        "gl_state_changes": 0,
+        "gl_pipelines": 0,
+        "gl_unimplemented": 0,
+        "gl_stubs": [],
+        "gl_approximations": 0,
+        "gl_objects": {
+          "textures": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "buffers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "vaos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "fbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "rbos": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "samplers": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "gl_queries": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "shaders": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          },
+          "programs": {
+            "live": 0,
+            "peak": 0,
+            "failures": 0,
+            "failed_requests": 0
+          }
+        },
+        "host_bytes": 16065216,
+        "host_peak": 16065216,
+        "host_reserved": 16187392,
+        "host_limit": 67108864,
+        "host_consumers": {
+          "runtime": {
+            "used": 16065216,
+            "peak": 16065216,
+            "limit": 67108864,
+            "allocations": 8,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 16187392,
+            "shared_limit": true
+          },
+          "gl": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "crt": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          },
+          "file": {
+            "used": 0,
+            "peak": 0,
+            "limit": 67108864,
+            "allocations": 0,
+            "frees": 0,
+            "oom": 0,
+            "backing_requested": 0,
+            "shared_limit": true
+          }
+        },
+        "gl_frontend_bytes": 0,
+        "gl_frontend_peak": 0,
+        "gl_frontend_reserved": 0,
+        "gl_frontend_allocations": 0,
+        "gl_frontend_frees": 0,
+        "gl_frontend_oom": 0,
+        "gl_approximation_kinds": [],
+        "gdi_ops": 0,
+        "chrome_ops": 0,
+        "gdi_approx_rop": 0,
+        "gdi_unsupported": 0,
+        "gdi_pixel_reads": 0,
+        "gdi_cpu_replays": 0,
+        "gdi_replay_compactions": 0,
+        "gdi_getpixel_noread": 0,
+        "pixel_replay": 0,
+        "mono_color_blits": 0,
+        "messages": 0,
+        "paints": 0,
+        "timers_fired": 0,
+        "yields": 300,
+        "peek_yields": 0,
+        "targets_lost": 0,
+        "exited": 0,
+        "heap_bytes": 0,
+        "guest_committed_bytes": 16818176,
+        "trace_hash": 4216953899,
+        "stubs": [],
+        "apis_hit": [
+          "OutputDebugStringA",
+          "Sleep"
+        ],
+        "cpu_profile": {
+          "sample_period": 1024,
+          "idle_yield_us": 817,
+          "categories": [
+            {
+              "name": "lifted_native",
+              "calls": 1001,
+              "samples": 1,
+              "sample_us": 1334,
+              "estimated_us": 1335417
+            },
+            {
+              "name": "generic_shared",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            },
+            {
+              "name": "interpreter",
+              "calls": 0,
+              "samples": 0,
+              "sample_us": 0,
+              "estimated_us": 0
+            }
+          ],
+          "apis": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "OutputDebugStringA",
+              "count": 1,
+              "samples": 1,
+              "sample_us": 7,
+              "estimated_us": 7
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "Sleep",
+              "count": 1001,
+              "samples": 1,
+              "sample_us": 1,
+              "estimated_us": 1376
+            }
+          ],
+          "census_generation": 0,
+          "census_window_start_clock": 0,
+          "census_capacity": 262144,
+          "census_dropped": 0,
+          "exits": [
+            {
+              "address": 11534352,
+              "reason": 5,
+              "count": 1001,
+              "instructions": 0
+            },
+            {
+              "address": 11534336,
+              "reason": 5,
+              "count": 1,
+              "instructions": 0
+            }
+          ],
+          "interpreter_entries": []
+        },
+        "host_profile": {
+          "updateMs": 2.9192949999851407,
+          "renderMs": 0.39320700004464015,
+          "ioWaitMs": 0,
+          "imports": {
+            "asset_open": {
+              "samples": 1,
+              "sampleMs": 0.008958999998867512,
+              "estimatedMs": 0.008958999998867512
+            },
+            "asset_size": {
+              "samples": 1,
+              "sampleMs": 0.000375000003259629,
+              "estimatedMs": 0.000375000003259629
+            },
+            "asset_read": {
+              "samples": 1,
+              "sampleMs": 0.0029159999976400286,
+              "estimatedMs": 0.029159999976400286
+            },
+            "asset_seek": {
+              "samples": 1,
+              "sampleMs": 0.0003749999887077138,
+              "estimatedMs": 0.003374999898369424
+            },
+            "asset_close": {
+              "samples": 1,
+              "sampleMs": 0.0008749999979045242,
+              "estimatedMs": 0.0008749999979045242
+            },
+            "log": {
+              "samples": 1,
+              "sampleMs": 0.002709000007598661,
+              "estimatedMs": 0.002709000007598661
+            },
+            "yield": {
+              "samples": 1,
+              "sampleMs": 0.0010000000038417056,
+              "estimatedMs": 0.5990000023011817
+            },
+            "submit_commands": {
+              "samples": 1,
+              "sampleMs": 0.02158400000189431,
+              "estimatedMs": 6.496784000570187
+            }
+          }
+        },
+        "execution_summary": {
+          "suspension": "asyncify",
+          "updates": 300,
+          "elapsed_ms": 5.034917000011774,
+          "updates_per_second": 59583.90178016807,
+          "interpreter": {
+            "instructions": 0,
+            "instructions_per_update": 0,
+            "estimated_ms": 0,
+            "estimated_ms_per_update": 0,
+            "estimated_share": 0,
+            "samples": 0,
+            "timing": "sampled-exclusive-dispatch",
+            "coverage_dropped": 0,
+            "analyzed_code_interpreted": false,
+            "top_owners": []
+          },
+          "guest_frames": {
+            "count": 0,
+            "swaps": 0,
+            "gdi_presents": 0,
+            "per_second": 0,
+            "frame_ms_avg": null,
+            "frame_ms_p95": null,
+            "intervals_measured": 0,
+            "timestamps_ms": [],
+            "clock": "wall-between-guest-presents"
+          }
+        }
+      },
+      "oracle": {
+        "game": "native-forms-fast-after",
+        "requestedFrames": 300,
+        "frames": 300,
+        "comparedFrames": 300,
+        "failureStage": null,
+        "error": null,
+        "exitStatus": 0,
+        "identical": true,
+        "elapsedMs": {
+          "lifted": 7.894625000000815,
+          "interpreted": 59.850957999995444
+        },
+        "firstDivergence": null,
+        "hashes": {
+          "lifted": "fb599c2b",
+          "interpreted": "fb599c2b",
+          "liftedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90",
+          "interpretedTrace": "3e74613c76ac8b15865ba12ee46afaa56841c465d7243b6fcbd0bba74b61fb90"
+        },
+        "metrics": {
+          "lifted": {
+            "platform": "win32",
+            "lifted_functions": 3,
+            "lifted_calls": 2004,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 2004,
+            "coverage_crossings": 5,
+            "coverage_cache_hits": 1999,
+            "interp_insns": 0,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 0,
+            "interpreter_exclusive_sample_us": 0,
+            "interpreter_exclusive_estimated_us": 0,
+            "interp_code_entries": 0,
+            "interp_functions": 0,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 16065216,
+            "host_peak": 16065216,
+            "host_reserved": 16187392,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 16065216,
+                "peak": 16065216,
+                "limit": 67108864,
+                "allocations": 8,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 16187392,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 1231,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 1001,
+                  "samples": 1,
+                  "sample_us": 1412,
+                  "estimated_us": 1414078
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 11,
+                  "estimated_us": 11
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 2,
+                  "estimated_us": 2877
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [
+                {
+                  "address": 11534352,
+                  "reason": 5,
+                  "count": 1001,
+                  "instructions": 0
+                },
+                {
+                  "address": 11534336,
+                  "reason": 5,
+                  "count": 1,
+                  "instructions": 0
+                }
+              ],
+              "interpreter_entries": []
+            },
+            "host_profile": {
+              "updateMs": 3.940415999983088,
+              "renderMs": 0.5183629998064134,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.009708999990834855,
+                  "estimatedMs": 0.009708999990834855
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.000375000003259629,
+                  "estimatedMs": 0.000375000003259629
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.004167000006418675,
+                  "estimatedMs": 0.04167000006418675
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.00041700000292621553,
+                  "estimatedMs": 0.0037530000263359398
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0010000000038417056,
+                  "estimatedMs": 0.0010000000038417056
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.003916000001481734,
+                  "estimatedMs": 0.003916000001481734
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.0014999999984866008,
+                  "estimatedMs": 0.8984999990934739
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.09629199998744298,
+                  "estimatedMs": 28.983891996220336
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 7.855582999996841,
+              "updates_per_second": 38189.39981922674,
+              "interpreter": {
+                "instructions": 0,
+                "instructions_per_update": 0,
+                "estimated_ms": 0,
+                "estimated_ms_per_update": 0,
+                "estimated_share": 0,
+                "samples": 0,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": false,
+                "top_owners": []
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          },
+          "interpreted": {
+            "platform": "win32",
+            "lifted_functions": 0,
+            "lifted_calls": 0,
+            "guest_instruction_clock": 1104014,
+            "coverage_events": 103006,
+            "coverage_crossings": 9,
+            "coverage_cache_hits": 102997,
+            "interp_insns": 1104014,
+            "interpreter_timing_enabled": 1,
+            "interpreter_samples": 1077,
+            "interpreter_exclusive_sample_us": 1785,
+            "interpreter_exclusive_estimated_us": 1830243,
+            "interp_code_entries": 103006,
+            "interp_functions": 3,
+            "interp_unowned_entries": 0,
+            "generic_insn_execs": 0,
+            "tail_calls_lifted": 0,
+            "continues_interpreted": 0,
+            "api_calls": 1002,
+            "imports_bound": 2,
+            "stub_calls": 0,
+            "gl_calls": 0,
+            "gl_draws": 0,
+            "gl_state_changes": 0,
+            "gl_pipelines": 0,
+            "gl_unimplemented": 0,
+            "gl_stubs": [],
+            "gl_approximations": 0,
+            "gl_objects": {
+              "textures": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "buffers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "vaos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "fbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "rbos": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "samplers": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "gl_queries": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "shaders": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              },
+              "programs": {
+                "live": 0,
+                "peak": 0,
+                "failures": 0,
+                "failed_requests": 0
+              }
+            },
+            "host_bytes": 21117648,
+            "host_peak": 21117648,
+            "host_reserved": 21364736,
+            "host_limit": 67108864,
+            "host_consumers": {
+              "runtime": {
+                "used": 21117648,
+                "peak": 21117648,
+                "limit": 67108864,
+                "allocations": 11,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 21364736,
+                "shared_limit": true
+              },
+              "gl": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "crt": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              },
+              "file": {
+                "used": 0,
+                "peak": 0,
+                "limit": 67108864,
+                "allocations": 0,
+                "frees": 0,
+                "oom": 0,
+                "backing_requested": 0,
+                "shared_limit": true
+              }
+            },
+            "gl_frontend_bytes": 0,
+            "gl_frontend_peak": 0,
+            "gl_frontend_reserved": 0,
+            "gl_frontend_allocations": 0,
+            "gl_frontend_frees": 0,
+            "gl_frontend_oom": 0,
+            "gl_approximation_kinds": [],
+            "gdi_ops": 0,
+            "chrome_ops": 0,
+            "gdi_approx_rop": 0,
+            "gdi_unsupported": 0,
+            "gdi_pixel_reads": 0,
+            "gdi_cpu_replays": 0,
+            "gdi_replay_compactions": 0,
+            "gdi_getpixel_noread": 0,
+            "pixel_replay": 0,
+            "mono_color_blits": 0,
+            "messages": 38,
+            "paints": 0,
+            "timers_fired": 0,
+            "yields": 300,
+            "peek_yields": 0,
+            "targets_lost": 0,
+            "exited": 0,
+            "heap_bytes": 0,
+            "guest_committed_bytes": 16818176,
+            "trace_hash": 4216953899,
+            "stubs": [],
+            "apis_hit": [
+              "OutputDebugStringA",
+              "Sleep"
+            ],
+            "cpu_profile": {
+              "sample_period": 1024,
+              "idle_yield_us": 2061,
+              "categories": [
+                {
+                  "name": "lifted_native",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "generic_shared",
+                  "calls": 0,
+                  "samples": 0,
+                  "sample_us": 0,
+                  "estimated_us": 0
+                },
+                {
+                  "name": "interpreter",
+                  "calls": 1104014,
+                  "samples": 1077,
+                  "sample_us": 1857,
+                  "estimated_us": 1903726
+                }
+              ],
+              "apis": [
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "OutputDebugStringA",
+                  "count": 1,
+                  "samples": 1,
+                  "sample_us": 80,
+                  "estimated_us": 80
+                },
+                {
+                  "dll": "KERNEL32.dll",
+                  "name": "Sleep",
+                  "count": 1001,
+                  "samples": 1,
+                  "sample_us": 12,
+                  "estimated_us": 12179
+                }
+              ],
+              "census_generation": 0,
+              "census_window_start_clock": 0,
+              "census_capacity": 262144,
+              "census_dropped": 0,
+              "exits": [],
+              "interpreter_entries": [
+                {
+                  "address": 16781329,
+                  "count": 99999,
+                  "instructions": 1099989
+                },
+                {
+                  "address": 16781402,
+                  "count": 1001,
+                  "instructions": 2002
+                },
+                {
+                  "address": 16781440,
+                  "count": 1001,
+                  "instructions": 1001
+                },
+                {
+                  "address": 16781412,
+                  "count": 1000,
+                  "instructions": 1000
+                },
+                {
+                  "address": 16781312,
+                  "count": 1,
+                  "instructions": 14
+                },
+                {
+                  "address": 16781381,
+                  "count": 1,
+                  "instructions": 3
+                },
+                {
+                  "address": 16781374,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781390,
+                  "count": 1,
+                  "instructions": 2
+                },
+                {
+                  "address": 16781424,
+                  "count": 1,
+                  "instructions": 1
+                }
+              ]
+            },
+            "host_profile": {
+              "updateMs": 54.71179500008293,
+              "renderMs": 1.3441690001782263,
+              "ioWaitMs": 0,
+              "imports": {
+                "asset_open": {
+                  "samples": 1,
+                  "sampleMs": 0.010083000001031905,
+                  "estimatedMs": 0.010083000001031905
+                },
+                "asset_size": {
+                  "samples": 1,
+                  "sampleMs": 0.0004579999949783087,
+                  "estimatedMs": 0.0004579999949783087
+                },
+                "asset_read": {
+                  "samples": 1,
+                  "sampleMs": 0.0038340000028256327,
+                  "estimatedMs": 0.03834000002825633
+                },
+                "asset_seek": {
+                  "samples": 1,
+                  "sampleMs": 0.00029200001154094934,
+                  "estimatedMs": 0.002628000103868544
+                },
+                "asset_close": {
+                  "samples": 1,
+                  "sampleMs": 0.0010000000038417056,
+                  "estimatedMs": 0.0010000000038417056
+                },
+                "log": {
+                  "samples": 1,
+                  "sampleMs": 0.015417000002344139,
+                  "estimatedMs": 0.015417000002344139
+                },
+                "yield": {
+                  "samples": 1,
+                  "sampleMs": 0.008000000001629815,
+                  "estimatedMs": 4.792000000976259
+                },
+                "submit_commands": {
+                  "samples": 1,
+                  "sampleMs": 0.8433340000046883,
+                  "estimatedMs": 253.84353400141117
+                }
+              }
+            },
+            "execution_summary": {
+              "suspension": "asyncify",
+              "updates": 300,
+              "elapsed_ms": 59.71770799999649,
+              "updates_per_second": 5023.635535376167,
+              "interpreter": {
+                "instructions": 1104014,
+                "instructions_per_update": 3680.0466666666666,
+                "estimated_ms": 1830.243,
+                "estimated_ms_per_update": 6.10081,
+                "estimated_share": 33.45243927743964,
+                "samples": 1077,
+                "timing": "sampled-exclusive-dispatch",
+                "coverage_dropped": 0,
+                "analyzed_code_interpreted": true,
+                "top_owners": [
+                  {
+                    "owner": 16781312,
+                    "entries": 102004,
+                    "instructions": 1103012
+                  },
+                  {
+                    "owner": 16781440,
+                    "entries": 1001,
+                    "instructions": 1001
+                  },
+                  {
+                    "owner": 16781424,
+                    "entries": 1,
+                    "instructions": 1
+                  }
+                ]
+              },
+              "guest_frames": {
+                "count": 0,
+                "swaps": 0,
+                "gdi_presents": 0,
+                "per_second": 0,
+                "frame_ms_avg": null,
+                "frame_ms_p95": null,
+                "intervals_measured": 0,
+                "timestamps_ms": [],
+                "clock": "wall-between-guest-presents"
+              }
+            }
+          }
+        },
+        "errors": {
+          "lifted": null,
+          "interpreted": null
+        }
+      },
+      "resourcesBefore": {
+        "when": "2026-11-04T12:19:56.446Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          13.26220703125,
+          18.5078125,
+          24.0068359375
+        ],
+        "freeRamBytes": 416530432,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10195241533,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      },
+      "resourcesAfter": {
+        "when": "2026-11-04T12:20:10.066Z",
+        "platform": "darwin/arm64",
+        "cpuCount": 10,
+        "cpuModel": "Apple M4",
+        "loadAverage": [
+          11.20947265625,
+          17.79638671875,
+          23.65625
+        ],
+        "freeRamBytes": 187367424,
+        "totalRamBytes": 17179869184,
+        "swapUsedBytes": 10077801021,
+        "heavyGate": {
+          "slots": 3,
+          "occupied": [
+            true,
+            true,
+            false
+          ],
+          "queued": 2
+        },
+        "topCpuProcesses": null,
+        "errors": [
+          "ps: spawnSync ps EPERM"
+        ]
+      }
+    }
+  ]
+}

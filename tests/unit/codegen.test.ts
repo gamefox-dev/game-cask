@@ -5,9 +5,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { compileC } from '../support/compile';
+import { perTestTool } from '../support/per-test-tool';
 import { ROOT } from '../support/headless';
 // @ts-expect-error plain ESM
 import { x86tool } from '../../tools/build/pipeline.mjs';
+// Each matrix test keeps its inputs fixed; repeated harnesses need not rescan the SDK.
+const codegenTool = perTestTool(x86tool);
 const base = 0x01001000;
 
 // Minimal original PE32+ container with one .pdata range. No host execution or external binary input.
@@ -35,7 +38,7 @@ it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', 
     try {
       const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
       writeFileSync(input, pe(Buffer.from('4883c001c3', 'hex')));
-      const tool = x86tool();
+      const tool = codegenTool();
       const args = ['lift', input, '--name', 'probe', '--out', output, option];
       const invalid = spawnSync(tool, [...args, 'banana'], { encoding: 'utf8' });
       expect(invalid.error).toBeUndefined();
@@ -57,7 +60,7 @@ async function harness(hex: string, defines: string[] = []) {
   const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'case-')), code = Buffer.from(hex, 'hex');
   writeFileSync(join(dir, 'input.exe'), pe(code));
-  execFileSync(x86tool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
+  execFileSync(codegenTool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
@@ -411,14 +414,14 @@ it('prefix variants of SSE logical memory operations preserve reference scalar r
   expect(execute(0)).toEqual(execute(1));
 });
 
-it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and integer indefinite', async () => {
-  // Original CC0 encodings. Every form tested with register and exact-width memory operands.
-  for (const prefix of ['f2', 'f3']) for (const wide of ['', '48']) {
+it.each(['f2', 'f3'].flatMap(prefix => ['', '48'].map(wide => [prefix, wide])))('scalar conversions %s/%s use native forms, exact RC and integer indefinite', async (prefix, wide) => {
+  // Same exhaustive cases; independent timed tests avoid compiling 16 probes per deadline.
+  {
     for (const op of ['2a', '2c', '2d']) {
       const h = await harness(`${prefix}${wide}0f${op}c1c3`);
       expect(h.stats.generic).toBe(0);
       if (op === '2a') {
-        const listing = execFileSync(x86tool(), ['disasm', h.input], { encoding: 'utf8' });
+        const listing = execFileSync(codegenTool(), ['disasm', h.input], { encoding: 'utf8' });
         expect(listing).toContain(`cvtsi2${prefix === 'f2' ? 'sd' : 'ss'} xmm0, ${wide ? 'rcx' : 'ecx'}`);
       }
       for (const rc of [0, 1, 2, 3]) for (const bits of [0n, 0x3ff8000000000000n,
@@ -434,7 +437,10 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
       }
     }
   }
-  for (const prefix of ['', '66']) for (const op of ['2e', '2f']) {
+});
+
+it.each(['', '66'].flatMap(prefix => ['2e', '2f'].map(op => [prefix, op])))('COMI/UCOMI %s/%s has independent EFLAGS answers', async (prefix, op) => {
+  {
     const h = await harness(`${prefix}0f${op}c1c3`);
     expect(h.stats.generic).toBe(0);
     const values = prefix ? [0n, 0x3ff0000000000000n, 0xbff0000000000000n, 0x7ff8000000000000n,
@@ -448,7 +454,10 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
       expect(h.ex.get_flags()).toBe((0xffff & ~0x8d5) | expected);
     }
   }
-  for (const prefix of ['f2', 'f3']) for (const rex of ['', '48']) for (const op of ['2a', '2c', '2d']) {
+});
+
+it.each(['f2', 'f3'].flatMap(prefix => ['', '48'].flatMap(rex => ['2a', '2c', '2d'].map(op => [prefix, rex, op]))))('scalar memory conversion %s/%s/%s uses exact width', async (prefix, rex, op) => {
+  {
     const h = await harness(`${prefix}${rex}0f${op}03c3`);
     expect(h.stats.generic).toBe(0);
     const width = op === '2a' ? rex ? 8 : 4 : prefix === 'f2' ? 8 : 4;
@@ -464,6 +473,9 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
       expect(execute(0), `${prefix}/${rex}/${op}/${address}`).toEqual(execute(1));
     }
   }
+});
+
+it('CVTSS2SD/CVTSD2SS read exact page-edge widths and preserve upper lanes', async () => {
   // CVTSS2SD reads 4 bytes at page edge (not 16); CVTSD2SS reads 8. Upper lanes survive.
   for (const [prefix, width, bits, result] of [
     ['f3', 4, 0x3fc00000n, 0x3ff8000000000000n], ['f2', 8, 0x3ff8000000000000n, 0xabcdef013fc00000n],
@@ -478,14 +490,14 @@ it('scalar conversions and COMI/UCOMI use native forms, exact RC, flags and inte
   }
 });
 
-it('native SSE memory reads accept read-only pages while stores and RMW still fault truthfully', async () => {
-  const forms = ['0f2e03', '0f2f03', '660f2e03', '660f2f03', 'f30f5a03', 'f20f5a03',
+const readForms = ['0f2e03', '0f2f03', '660f2e03', '660f2f03', 'f30f5a03', 'f20f5a03',
     '0f5103', '660f5103', 'f30f5103', 'f20f5103', '0fc20300', '660fc20300', 'f30fc20300', 'f20fc20300'];
   for (const prefix of ['f2', 'f3']) for (const rex of ['', '48']) for (const op of ['2a', '2c', '2d'])
-    forms.push(`${prefix}${rex}0f${op}03`);
+    readForms.push(`${prefix}${rex}0f${op}03`);
   // Include existing SIMD readers to audit the shared discriminator beyond the newly native set.
-  forms.push('0f1003', '0f2803', '660f6f03', '660f5403', '660f5803', 'f20f5c03');
-  for (const form of forms) {
+  readForms.push('0f1003', '0f2803', '660f6f03', '660f5403', '660f5803', 'f20f5c03');
+it.each(readForms)('native SSE %s accepts read-only and rejects unreadable pages', async form => {
+  {
     // Changing RBX inside the block defeats the whole-span guard, exposing the operand access check.
     const h = await harness(`48c7c300300000${form}c3`);
     expect(h.stats.generic, form).toBe(0);
@@ -508,7 +520,10 @@ it('native SSE memory reads accept read-only pages while stores and RMW still fa
       expect(denied(0), form).toEqual(denied(1));
     }
   }
-  for (const form of ['488903', 'f20f1103', '660f2903', '48830301']) {
+});
+
+it.each(['488903', 'f20f1103', '660f2903', '48830301'])('store/RMW %s faults truthfully on read-only pages', async form => {
+  {
     const h = await harness(`48c7c300300000${form}c3`);
     const execute = (interp: number) => {
       h.ex.reset(base, 0); h.ex.protect(3, 2);

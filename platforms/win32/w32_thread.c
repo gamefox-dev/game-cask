@@ -197,6 +197,7 @@ static uint32_t block(uint32_t kind, uint32_t ms) {
     return 0;
 }
 int w32_thread_deferred_result(void) { return self()->deferred != 0; }
+int w32_thread_leaf_ready(void) {return !X.callback_depth&&!X.transfer&&self()->kind==NONE&&!yield_requested&&!self()->deferred;}
 int w32_thread_pending(void) {
     int pending = self()->kind != NONE || yield_requested;
     yield_requested = 0;
@@ -544,6 +545,28 @@ static const w32_api_t api[] = {
 };
 const w32_api_t *w32_thread_find(const char *name) {
     for (uint32_t i = 0; i < sizeof api / sizeof api[0]; i++) if (w32_streqi(name, api[i].name)) return &api[i];
+    return 0;
+}
+/* Explicit leaf entrypoints use authoritative per-thread TEB state. They cannot
+ * park_native, run FLS callbacks, yield, or unwind; do not route them via thread_api. */
+static uint64_t leaf_get_error(uint32_t unused) {(void)unused;thread_t *t=self();return t->error=*error_cell(t);}
+static uint64_t leaf_set_error(uint32_t unused) {
+    (void)unused;thread_t *t=self();t->error=ARG(0);*error_cell(t)=t->error;return 0;
+}
+static uint64_t leaf_thread_id(uint32_t unused) {(void)unused;return x86_current+1;}
+static uint64_t leaf_tls_get(uint32_t unused) {
+    (void)unused;thread_t *t=self();uint32_t p=ARG(0);
+    t->error=p>=64||!(tls_mask&(1ull<<p))?87:0;
+    *error_cell(t)=t->error;
+    return t->error?0:w32_rdptr(t->teb+(W32_64?0x1480:0xe10)+p*w32_ptr_size());
+}
+w32_leaf_fn w32_thread_leaf(const w32_api_t *entry) {
+    if(!entry)return 0;
+    static const struct {const char *name;w32_leaf_fn fn;} leaves[]={
+        {"GetLastError",leaf_get_error},{"SetLastError",leaf_set_error},
+        {"GetCurrentThreadId",leaf_thread_id},{"TlsGetValue",leaf_tls_get}};
+    for(unsigned i=0;i<sizeof leaves/sizeof leaves[0];i++)
+        if(w32_streqi(entry->name,leaves[i].name))return leaves[i].fn;
     return 0;
 }
 #define IS(n) w32_streqi(name, n)
