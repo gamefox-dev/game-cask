@@ -1,4 +1,22 @@
-# K33 WIP checkpoint — reviewer #296
+# K33 WIP checkpoint — continued through K33e
+
+**Start with `K33.md` for newer evidence and CI commits.** This file's older sections below are historical.
+K33e source candidate is `40d44b7` (CI `ci/k33d`, run42067318101); docs-only follow-up `8ea8920`.
+Current full dual units are running in `reports/k33/units-dual-final.log`. Queue root38125 is paused
+**only at the parent Bash level**, deliberately allowing its current unit child to finish while preventing
+the next browser build. Wait for the unit log summary (not its `.exit` marker, which the paused Bash
+will write only on resume). Between-suite maintenance: reclaim this lane's stale Zig local compiler cache
+`/Users/dev/projects/pi-work/scratch-K33/zig-cache/local` after the child finishes; then run repaired full
+lint and the new shard test serially if not yet covered; finally `kill -CONT 38125` to continue browsers/oracles.
+A queue space watch90532 writes `queue-final.enospc` and stops the queue group on ENOSPC; stop/report rather
+than resume in that case. Never kill any PID solely from this historical note: verify ownership/activity.
+Local completed: 66file/836test shard PASS, final focused24/24 PASS, corrected dual-SEH2/2 PASS, doctor/types/
+clang-host/ESLint PASS. Initial lint failed quote escapes (fixed40d44b7), so full lint still open.
+Synthetic staged-original negative check PASS with `--root` temporary git repo: real checkout's original/ is
+read-only in the sandbox (denied attempt preserved, no canary created). Final local/browser/oracle and CI gates
+still open. No independent review claimed.
+
+## Historical checkpoint — reviewer #296
 
 Branch `lane/K33`, based on dev.19 `958d5f0`. This is a checkpoint, not completion or CI-ready. No game files, installs, web access, pushes, deadline changes, assertion weakening, or independent review were used. Prior WIP `9dba9cb` was pushed by the reviewer as `ci/k33a` (run `42039181319`); result is pending for the next session.
 
