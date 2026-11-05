@@ -1,136 +1,173 @@
-# K31b checkpoint — reviewer #273 requests a fresh session
+# K31c checkpoint — reviewer #281 requests a fresh session
 
-**WIP, NOT Q78/Tier1 acceptance.** Branch lane/K31, base dev.18 211daca.
-Previous implementation commits f3ed073 + d4054da; this checkpoint's commit contains K31b changes.
-No push/installs/web/game data/compaction. Port BGT_E2E_PORT=5276. Evidence and owned runners:
-**/Users/dev/projects/pi-work/scratch-K31**. Read original brief /Users/dev/projects/pi-work/briefs/k31-counters.md,
-AGENTS.md/CLAUDE.md, docs/pipeline.md, v03-status, K10/K26 and read-only porter perf-mp3 contract.
+**WIP, NOT Q78/Tier1 acceptance.** lane/K31, base dev.18 211daca.
+Source commits f3ed073 + d4054da + b0a57af + **f65d33c**; 69041b5 is handoff-only.
+This checkpoint commit is documentation-only. **No production/test delta after f65d33c.**
+No push/installs/web/game data/compaction. Test port **BGT_E2E_PORT=5276**.
+Read original brief /Users/dev/projects/pi-work/briefs/k31-counters.md, AGENTS.md/CLAUDE.md,
+pipeline/v03-status, K10/K26, and supplied read-only perf-mp3 contract. Evidence/runners:
+**/Users/dev/projects/pi-work/scratch-K31**. Final reply <200 words; end this session now.
 
-## Implementation inherited / K31b changes
+## K31c implementation / completed work (do not redo)
 
-Separate process/per-task u64 retirement, native/generic/interpreted; no restored TSC subtraction.
-AMD64 batches clock deltas at native synchronization boundaries, excludes faulting instruction;
-i386 commits after semantics before transfers. Partial REP retires once at final completion.
-No synthetic thunk/import/callback-scaffolding/override instructions. Context restore and census reset
-preserve retirement. Scheduler owns stable64 identities, metadata/state, active/ready/sleep/object/I/O/
-suspended/host-yield host wall, virtual durations/requested waits/switch-ins/actual host parking.
-CPU time stays null. Native-present cumulative process/thread snapshots: bounded64 ring, explicit drops.
-Strings preserve u64; host BigInt subtraction precedes safe numeric conversion; wholly-contained pairs only.
-BGT_CPU_ACCOUNTING=0 erases hot work and reports unavailable; profile0 retains retirement/metadata only.
+Inherited separate process/per-owner u64 retirement native/generic/interpreted; no TSC subtraction.
+Native batching at existing synchronization excludes current fault; i386 commits after semantics/before
+transfers. Partial REP once at final completion, zero-count once. No synthetic import/thunk/callback/
+override work. Context restore/census reset preserve retirement. Stable64 scheduler identities and
+metadata/state, active/ready/Sleep/object/I/O/suspended/host-yield host wall; virtual requested/elapsed
+waits, switch-ins and actual parking. CPU time null. Native-present64 cumulative process/thread ring,
+explicit drops; decimal strings, BigInt subtraction before safe numeric conversion, contained pairs.
+Profile0 retains retirement/identity/state, not timings/snapshots. Off erases hot work and is unavailable.
 
-K31b:
-- Fixed host summary missing-timing denominator: absent thread timing now makes active total/throughput null,
-  never silently adds zero. Added sensitive regression.
-- Added real Win32 API/scheduler/core full-pipeline hand-clock fixture for both widths. CreateThread,
-  Sleep, event wait/signal, yield, suspend/resume, I/O-account hooks, park and exit. Known3 interpreted
-  instructions under each selected identity; exact running/ready/wait/park buckets, switch-ins,
-  virtual Sleep16ms vs requested10ms, native-present delta3, post-present tail exclusion, reset and ring drops8.
-  This controls real API calls from fixture C; not yet a guest-import-driven hand-counted multithread program.
-- Retirement fixture now actually links real x87/libm with WASI-offline entropy adapter; earlier freestanding
-  compile was not exercised. Added full-width invalid CALL/JMP/RET target faults and actual Asyncify/JSPI
-  parked active-wall freeze/retirement assertions. Mixed fixture uses i386 BSWAP versus AMD64 CPUID:
-  CPUID is unsupported in existing i386 semantics, not a K31 implementation regression. Count remains18.
-- Restored original i386 indirect-call bad-return fault address (target t, not X.eip); no scheduling change.
-- Added serializer accounting0/profile0 availability/no-clock test. Existing overflow/capacity assertions intact.
-- Added retirement4/6 assertions to existing real interpreted CALL -> native import -> nested callback/park/
-  exception fixture. **Not run yet**; queued behind overhead. Handwritten import/native scaffolding contributes0.
-- Documented field rules/clock domains/default condition in docs/pipeline.md (explicit validation-in-progress).
-- Added tools/bench/accounting.{test,config}.ts: original CC0 CPU-heavy i386/AMD64 and full12000-owner scale,
-  private account0/1 artifacts, profile0/1, both real suspension modes,9 alternating paired warmed samples,
-  300 updates each, equal state/API/legacy execution metrics/logs. Full scale in progress.
-- Added present-overhead.c and present-accounting.{test,config}.ts microbenchmark: real capture,1/64 identities,
-  both modes, real clock. **Not compiled/run/typechecked** after creation; not queued. No guest-throughput claim.
+K31c source f65d33c:
+- **Default accounting now OFF**, header and build environment; enable BGT_CPU_ACCOUNTING=1 and rebuild.
+  Disabled/unset reports unavailable/null, never measured0. Reviewer267 threshold was not met.
+- Added actual guest-import-driven known-count straight-line assembly program both widths, both
+  dispatch modes, both real suspensions: i386 main45+worker7, AMD64 main46+worker9. CreateThread,
+  real deferred range ReadFile polling, Sleep10/5, event wait/signal, SwitchToThread, join, closes,
+  ExitProcess. Exact per-owner totals, active freeze during pending I/O, exit/reset lifetime checks.
+- Added real scheduler/core memory fault: NOP retires1, failing MOV0; actual host export abort cleanup
+  freezes running, exited worker/time and snapshots. Existing exact timing/ring assertions preserved.
+- Added explicit post-last-present-tail summary test; default-off standalone serialization assertion.
+- Fixed untested capture microbenchmark scaffolding with required Asyncify buffer exports.
+- Fixed unused import/explicit-any benchmark lint only; no measured code/body semantics changed.
+- Pipeline docs describe measured default-off and enable command. Durable **K31-measurements.json**
+  has compact raw overhead samples/resources/identities and negative-control assertion evidence.
 
-## Actual results (not full finish line)
+## Complete MEASURED overhead / reviewer decisions
 
-- inherited lint-initial **exit0**: full npm run lint, ESLint + real GCC host +38 example check-builds;
-  source changed during early inherited run, and later K31b tests/docs/summary were added. NOT final-tree lint.
-- focus3 **exit1**,11 pass/2 fail: i386 mixed CPUID unsupported. Fixed by supported same-size generic BSWAP.
-- scheduler1 **exit1**,2 failures before execution: tiny PE fixture lacked required _tls_index anchor.
-- focus4 **exit1**,14 pass/1 fail,4 files,185.56s: ALL retirement7, summary4, serializer2 + i386 scheduler pass;
-  AMD64 scheduler fixture could not relocate because empty entry had no relocations. Fixture now references a
-  volatile global pointer (original CC0) and has _tls_index; assertions unchanged.
-- scheduler2 **exit0**,2/2 widths PASS,31.34s after relocation repair. These are clean scheduler fixture results.
-- types4 / continue-types / types5 **exit0**. types5 includes scheduler + main overhead benchmark but predates
-  nested-import assertions and present microbenchmark. types6 queued. No assertion/deadline/skip weakened.
-- git diff --check passed before final checkpoint documentation.
-
-## Partial MEASURED overhead (NOT acceptance/default decision)
-
-Live report **overhead.json** is still being written. First8 rows CPU-heavy complete; full scale pending.
-9 interleaved alternating pairs, one discarded fresh-instance warmup/artifact/mode; host init/build excluded.
-Profile0 isolates retirement; profile1 includes scheduler work in addition. Samples are short/shared-machine,
-large negative Asyncify differences may reflect code shape/JIT effects; do NOT call them a robust speedup.
+Main overhead matrix **1/1 PASS,2060.42s**, overhead2.exit=0.9 alternating paired warmed samples,
+300 fresh-instance updates each, same guest/API/state/legacy counters. Original CC0 CPU-heavy and
+full12000-owner scale (not reduced). Raw full report overhead.json (SHA in committed compact evidence).
 
 | fixture | profile | mode | off median ms | on median ms | on/off-1 |
 |---|---:|---|---:|---:|---:|
-| cpu-x86 |0|Asyncify|100.998500|51.049833|-49.4549%|
-| cpu-x86 |0|JSPI|41.890792|42.415416|+1.2524%|
-| cpu-x64 |0|Asyncify|12.915959|9.019875|-30.1649%|
-| cpu-x64 |0|JSPI|8.250375|7.940292|-3.7584%|
-| cpu-x86 |1|Asyncify|109.298375|51.079500|-53.2660%|
-| cpu-x86 |1|JSPI|41.405750|44.770334|+8.1259%|
-| cpu-x64 |1|Asyncify|14.460125|9.662333|-33.1795%|
-| cpu-x64 |1|JSPI|7.645375|8.671667|+13.4237%|
+|cpu-x86|0|Asyncify|100.998500|51.049833|-49.4549%|
+|cpu-x86|0|JSPI|41.890792|42.415416|+1.2524%|
+|cpu-x64|0|Asyncify|12.915959|9.019875|-30.1649%|
+|cpu-x64|0|JSPI|8.250375|7.940292|-3.7584%|
+|cpu-x86|1|Asyncify|109.298375|51.079500|-53.2660%|
+|cpu-x86|1|JSPI|41.405750|44.770334|+8.1259%|
+|cpu-x64|1|Asyncify|14.460125|9.662333|-33.1795%|
+|cpu-x64|1|JSPI|7.645375|8.671667|+13.4237%|
+|x64-scale|0|Asyncify|2432.5731|54.8996|-97.7431%|
+|x64-scale|0|JSPI|33.314125|39.688917|+19.1354%|
+|x64-scale|1|Asyncify|2775.0615|112.6151|-95.9419%|
+|x64-scale|1|JSPI|44.5674|73.3519|+64.5863%|
 
-Reviewer #267 stands: retain default-on ONLY if measured incremental retirement overhead small (target ~2%)
-on CPU-heavy AND scale BOTH suspension modes, otherwise default off behind BGT_CPU_ACCOUNTING.
-Current default is still WIP on; full matrix missing, no accepted overhead conclusion. Profile1 percentages
-are not isolated retirement cost and include scheduler/snapshot instrumentation (CPU fixtures have no presents).
-Native-present microbenchmark is unmeasured. No game/60fps/hardware throughput improvement claim.
+Profile0 isolates retirement; scale JSPI **+19.1354% >~2%**, so default OFF is settled, not conditional.
+Large favorable Asyncify differences are code-shape/JIT/shared-machine observations, **not robust speedups**.
+Profile1 additionally measures scheduler instrumentation, not isolated retirement. No game/60fps claim.
+Native-present capture microbench **1/1 PASS,3.14s**, present-overhead2.exit0; real clock,1/64 identities,
+both modes,100000 captures x9. One-owner incremental ~33.145ns Asyncify/~31.559ns JSPI; full1/64 raw
+samples/hashes/resources in present-overhead.json and committed evidence. No guest/GPU work or throughput claim.
 
-## Live owned jobs — all serial queues, inspect exit markers
+Reviewer bridge decision in K31c: **entire broad Tier1 at shipped default OFF**; additionally accounting ON:
+full npm test, EVERY pipeline oracle300 with **ON vs OFF traces identical**, and **WebGPU test:e2e in BOTH
+suspension modes**. Need known-count and unavailable controls too. Default-OFF-only broad gates insufficient.
+Reviewer also requests recording where19% goes (counter increments/spills/lost chaining); attribution pending.
 
-No ps permission. Do not generic-kill or remove shared locks/tickets/caches. Do not delete active outputs.
-All paths below in scratch-K31; known roots can be checked via kill -0 (no signal).
+## Focused / sensitivity actual results
 
-1. Root14400 **overhead2-run.sh**: running main overhead matrix. overhead2.log/.exit, report overhead.json.
-   At 14:59 local it had completed CPU8 rows, lifted full scale50 shards and was compiling/postprocessing
-   scale account variants. Full12000 source generated; resource report retained. Artifacts private under
-   node_modules/.cache/bgt/k31-overhead/artifacts; runner removes own wasm trees only after each profile pair.
-   No overhead2.exit yet. Earlier overhead.exit=98 is a deliberately blocked predecessor, NOT measured failure.
-2. Root23570 **post-overhead-run.sh** waits overhead2.exit, THEN import-retire focused, doctor, types6, ESLint6.
-   Pending import-retire.exit, doctor.exit, types6.exit, eslint6.exit. It runs regardless of overhead success,
-   so inspect every result separately. Static/type checks include present microbenchmark if unedited.
-3. Root71026 **negative-queue.sh** waits eslint6.exit, THEN negative-run.py private archive mutations.
-   Pending negative.exit, negative-evidence.json. Script archives committed HEAD + all modified/untracked source,
-   symlinks packages EXCEPT .cache, uses direct Node vitest (serial behind others), removes owned archive only on
-   full completion. Five planned mutants: missing retirement, attempted quantum retired, process restored with
-   context, parked active time, ring drops lost. **No mutants executed yet.** A nonzero test process alone is
-   NOT sensitivity proof: inspect actual assertion failures, reject compile/setup failures. Archive failure
-   can retain negative-tree; clean ONLY after root ends. Script/schema not itself tested yet.
-4. Prior roots50457/3579/52867/63895/85057/12245 finished: explicit lint-initial/focus3/types4/scheduler1/
-   continue-types/overhead98/focus4/types5/scheduler2 exits above. No other K31 heavy root intended.
+- inherited focus4 retirement7/summary4/serializer2 pass (i386 scheduler pass), scheduler2 both widths pass.
+- **import-retire.exit0**,2 tests,6.94s: actual nested native/import/callback/park/exception retirement4/6.
+- **guest-accounting3.exit0**,2 tests,27.62s: all8 width/dispatch/suspension combinations execute.
+- **focus-c.exit0**,9 tests/3files,39.22s: scheduler2 incl new actual fault/abort freeze, summary5,
+  serializer2 incl default-off. Existing hand-clock budgets/drops assertions unchanged.
+- **types7.exit0,eslint7.exit0**. Predate only the guest SafeSEH assembly annotation and artifact-id suffix
+  fixture repairs; broad final checks include those. Earlier types6=2/eslint6=1 escaping+unused import/any fixed.
+- **negative.exit0** runner means7 intended mutants each exit1 at actual assertions (no compile/setup false proof):
+  retirement-removed0!=18; attempts-counted1!=0; process-restored18!=36; parked-running1000000!=0;
+  drops-lost0!=8; unsafe-before-subtraction40!=42; post-present-tail90!=3. Private negative-tree removed.
+  Logs named by mutants and negative-evidence.json retained; hashes/expected failures in committed evidence.
+- guest-accounting initial exit1 no execution: newline string escaping; guest2 exit1 i386 SafeSEH and AMD64
+  interpreted artifact id suffix. Repaired fixture only; guest3 full pass. present-overhead initial exit1 missing
+  Asyncify buffers, repaired; second passes. No assertion/deadline/tolerance/skip weakened.
+- Latest diff--check and commit hooks leakcheck passed. No final full units/browser/oracle result yet.
 
-Disk ~11GiB free at checkpoint; run suites serially/background, remove OWNED large outputs after hashes.
+## LIVE owned jobs — detached serial queue; leave running
 
-## Exact next steps
+At **2026-11-05 08:56:21 UTC** both live roots passed kill -0. ps forbidden. Never generic-kill/remove shared
+locks/caches/tickets or active outputs. All paths below under scratch-K31. Disk **8.3GiB free**.
 
-1. Audit pending overhead2 rows and checks/mutation assertions; repair real compile/type/test failures.
-   Present microbenchmark needs first real compile/run (dedicated config, BGT_PRESENT_ACCOUNTING_REPORT
-   absolute owned path), serial AFTER negative runner. No new overlapping suite. Final fresh summary/serializer/
-   retirement/scheduler focused rerun if source changes; do not rerun unchanged completed gates casually.
-2. Apply reviewer default-on condition honestly using complete scale+CPU profile0 data BOTH modes. If uncertain
-   or noisy not justified, safe default accounting off with explicit BGT_CPU_ACCOUNTING=1 enable and truthful
-   unavailable output. Existing default-dependent dedicated tests may need explicit enable, not weakened assertions.
-   Main benchmark profile1 isolates total scheduler addition with C profiling held on; microbench isolates snapshot.
-   Retain raw samples/resources/identity and artifact hashes before cleaning. No K10 borrowed percentages.
-3. Strengthen end-to-end acceptance where still missing: actual guest-import-driven multithread known-count
-   Sleep/event/yield/callbacks and real range-ReadFile polling (current test directly controls I/O-account hook).
-   Check native present path boundary, actual abort freeze, nested parks, deferred imports, control/memory faults,
-   all clock models, REP rules and exited lifetime. Real scheduler hand-clock fixture already passes exact budgets.
-4. Sensitive controls audit/repair; summary BigInt/post-present boundary mutation still unimplemented.
-5. Finalize docs/pipeline.md with default and measured overhead; durable small evidence/handoff, no giant wasm.
-6. All Tier1 on unchanged final source SERIAL/BACKGROUND: doctor; full lint Clang + real GCC example checks
-   (including scale; explicit Clang host if npm lint uses GCC); types; full npm test; BGT_REQUIRE_WEBGPU=1 full
-   npm run test:e2e BOTH suspension modes (actual WebGL2+WebGPU); leakcheck; EVERY pipeline oracle300 in BOTH
-   modes. Keep exact x64-gl-scale-only expected-error contract. No new skips/deadlines/tolerance weakening.
-7. Fresh independent validation/session reviewer-coordinated; none ran in lane. Commit lane/K31, never push.
-   Finish docs/handoff/K31.md and final <200 words only when honest gates/remaining boundaries recorded.
+### Root **55593** — tier1-run.sh
 
-## Unrun gates / limits
+Runner log tier1-runner.log; evidence **tier1/**. Began on clean source **f65d33c**; commit identity and empty
+initial.diff retained. Only documentation changed afterward. First **default-off/doctor.exit0**. Full lint in
+progress, including real GCC and38 example checks, BGT_INCLUDE_SCALE=1; at last poll finished x86-handles
+and was compiling/postprocessing x86-heap. x86-handles took~300s/1.82GiB peak child on shared machine.
+**No lint.exit yet**, do not duplicate it. All subsequent steps still queued. Heavy shim waits are not failures.
 
-No final-tree doctor, full Clang/GCC lint, full units, browsers, oracle sweep, leakcheck, full overhead,
-completed sensitivity or independent validation/CI. The initial38 check-build lint succeeded but is not final
-source acceptance. docs/handoff/K31.md is older WIP; this checkpoint supersedes its next-step state.
-Reviewer #273 explicitly requests ending session here. No compaction or success claim.
+Exact order, one heavy suite at a time:
+1. **tier1/default-off/**: doctor, full lint, explicit clang host checks, typecheck, full units (maxWorkers1,
+   original test deadlines), full Asyncify browser, full JSPI browser, leakcheck, every pipeline oracle300 both modes.
+   Env BGT_CPU_ACCOUNTING unset (header default0), CPU_PROFILE unset; JSPI/TEST_JSPI=1, requiredWebGPU=1.
+   Gates each name.log/.start/.end/**.exit**. Browser JSON copied to browser-asyncify-results.json / browser-jspi-results.json.
+2. **tier1/accounting-on/**: BGT_CPU_ACCOUNTING=1; full units, WebGPU-only full e2e Asyncify then JSPI,
+   all pipeline oracle300 both modes. Same per-step logs/exits/browser report copies.
+3. Writes **tier1/done** when queue ends (NOT automatic success; inspect every exit).
+
+**tier1-oracles.mjs** enumerates every pipeline example, stores inventory and each **oracles/<id>-<mode>.log/.exit/.json**
+under each configuration, plus parent oracles.log/.exit. No oracle contract/assertions modified; exact existing
+x64-gl-scale expected-error contract must be retained. Must audit requested/compared300, identical, null errors,
+interp0/stubs[], state+semantic trace hashes within/across modes AND accounting configs, actual availability.
+
+Prepared **tier1-audit.py** (NOT RUN): checks exits, workload/errors/traces/availability/cross-mode+ON/OFF,
+browser failure/flaky+mode skip equality; writes tier1/audit.json. Needs inspection and exact expected skip
+inventory/backend/scale error audit added; do not infer acceptance solely from this unfinished auditor.
+
+### Root **24093** — attribution-queue.sh
+
+Waits **tier1/done**, then creates private archive **attribution-tree** from **f65d33c** with symlinked installed
+packages EXCEPT .cache (no original/live production edits). attribution-prepare.py + attribution-test.ts + private
+vitest config; queue log attribution-queue.log; preparation .log/.exit; benchmark **attribution.log/.exit/.json**.
+**No archive created or attribution variant measured yet.** The new script has NOT compiled/run/typechecked.
+
+Proposed diagnostic: same full12000-owner CC0, profile0 JSPI-only (avoid Asyncify confound), private variants
+OFF / accounting enabled-noop / process-only / thread-only / BOTH / diagnostic-sites. All timed first5 interleave
+9 alternating warmed samples, same legacy counters/API/state traces; sites counts retirement commits/zero-sized
+flushes without claiming it as timed production throughput. Captures native R/N/F function bytes/local counts and
+changes versus OFF, raw hashes/resources. Native names >12000 assertion protects absent-name false evidence.
+Archive headers/rt restored in finally; artifacts removed; queue deletes archive ONLY if successful. On failure
+retain and inspect/repair; do not delete active outputs. Private incomplete accounting variants must never ship.
+
+Attribution so far is **source localization only**: two u64 additions (process + selected-thread pointer) at existing
+AMD64 syncs; no new l64_sync boundaries or changed chain transitions; matched scale has same25044 lifted calls,
+generic1/interp0. New local retirement debt and compiler/JIT alias/spill/code-layout effects are NOT causally
+separated. Main measurements alone do not prove percentage spent on increments vs spills. Finish ablation/report
+honestly, avoid an optimization scope creep; reviewer wants a later lane to use attribution.
+
+### Finished roots / cleanup
+
+14400 overhead2,23570 post-overhead,71026 negative,52676 continue-c,13065 apply-default,35899 repair-c,
+48164 guest3 all no longer live. Every relevant result is above. No other K31 heavy root intended.
+negative-tree removed; main benchmark removes owned wasm artifacts after each profile pair. Retain small reports,
+logs, input/artifact hashes/resources before deleting only completed OWNED temporaries. No shared caches touched.
+
+## External independent validation
+
+Reviewer **launched fresh read-only vK31 at f65d33c** after author request. **Still running/no result known**.
+Do not claim independent PASS/CI. Reviewer specifically asks listing all later code deltas for recheck:
+**none after f65d33c**; 69041b5 and this checkpoint are documentation-only. Any next-session source/test repair
+must be named with its exact commit/diff and revalidation boundary. Independent review and Tier1 are separate.
+
+## Exact next steps for K31d
+
+1. Read this checkpoint first, audit current per-step exits/logs and disk without rerunning completed unchanged
+   gates; leave root55593 serial sweep running. Fix genuine failures, never assertions/deadlines/skips. If source
+   changes, stop only owned queue safely at a suite boundary/record which already ran on old source, arrange
+   honest final-source reruns; no concurrent suites. Record all delta for vK31 reviewer.
+2. Audit finished full reports (not merely exit markers), actual WebGL2/WebGPU in default OFF and requiredWebGPU
+   ON, exact unchanged intentional skips, every oracle300/error/stub/trace contract and ON/OFF equality. Runtime
+   accounting-disabled summaries must unavailable, not zero. No finish-line claim before requested matrix green.
+3. Attribution queue follows sweep automatically. Inspect/repair private script real compile/setup problems;
+   collect process/thread/noop ablations, local/body changes and diagnostic commit count. Distinguish counter
+   increment effects from compiler/JIT code shape and unchanged chaining; unknown residuals stay unknown. No
+   game/60fps claims or production optimization to rescue default. Keep default OFF already settled.
+4. Incorporate external vK31 findings; exact sensitive regression and delta re-review if needed. No independent
+   validation result yet. Keep author gates and independent acceptance separately labeled.
+5. Update durable K31 measurements/gate evidence/handoff and pipeline/status only with actual results. Current
+   handoff K31.md is accurate WIP; this checkpoint supersedes its queue details. Clean owned large outputs only
+   after finished roots and hashes; commit lane/K31, never push. Full gate logs external, compact evidence tracked.
+
+Reviewer #281 explicitly requests ending this session here. No compaction or acceptance claim.
