@@ -2,7 +2,7 @@
 // vK33: compiler descendants, dep discovery and macro tokenization are OS boundaries too.
 import {it, expect} from 'vitest';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
+import {chmodSync, closeSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ROOT} from '../support/headless';
@@ -17,7 +17,8 @@ const compilers=[...new Set(['cc',gcc].filter(Boolean))] as string[];
 const command=join(ROOT,'tools/build/command.py');
 const padding=(n:number)=>Array.from({length:n},(_,i)=>'-DBGT_PADDING_'+i+'='+i);
 const driver=[
- 'import json,runpy,sys',
+ 'import json,os,runpy,stat,sys',
+ 'assert stat.S_ISREG(os.fstat(0).st_mode), "compiler probe requires finite-file stdin"',
  "run=runpy.run_path(sys.argv[1])['run']",
  'try:',
  ' r=run(json.load(sys.stdin),stdout=-1,stderr=-1)',
@@ -25,9 +26,17 @@ const driver=[
  'except ValueError as e:',
  ' print(str(e),file=sys.stderr);sys.exit(90)',
 ].join('\n');
-function transported(args:string[],cwd:string){
- return spawnSync('python3',['-I','-c',driver,command],{cwd,input:JSON.stringify(args),encoding:'utf8',timeout:8000});
+// K23: synchronous Node pipe EOF can stall json.load even after all bytes arrive.
+// Exercise compiler transport, not that unrelated pipe race; keep the same deadline.
+function pythonPlan(script:string,input:unknown,cwd?:string,timeout=8000){
+ const dir=mkdtempSync(join(tmpdir(),'bgt-compiler-plan-')),path=join(dir,'stdin');
+ let fd:number|undefined;
+ try {
+  writeFileSync(path,JSON.stringify(input),{mode:0o600});fd=openSync(path,'r');unlinkSync(path);
+  return spawnSync('python3',['-I','-c',script,command],{cwd,stdio:[fd,'pipe','pipe'],encoding:'utf8',timeout});
+ } finally {if(fd!==undefined)closeSync(fd);rmSync(dir,{recursive:true,force:true});}
 }
+function transported(args:string[],cwd:string){return pythonPlan(driver,args,cwd);}
 
 it('admits every kit example option inventory and a port-sized 4096-object compiler plan',()=>{
  const plans=readdirSync(join(ROOT,'examples')).filter(n=>{try{return !!JSON.parse(readFileSync(join(ROOT,'examples',n,'game.json'),'utf8'));}catch{return false;}}).map(n=>{
@@ -44,7 +53,7 @@ it('admits every kit example option inventory and a port-sized 4096-object compi
   " m['check_compiler_budget']([args[0],*rest],os.environ)",
   "print('kit and port plans accepted')",
  ].join('\n');
- const r=spawnSync('python3',['-I','-c',script,command],{input:JSON.stringify(plans),encoding:'utf8',timeout:5000});
+ const r=pythonPlan(script,plans,undefined,5000);
  expect(r.status,r.stderr).toBe(0);expect(r.stdout).toContain('kit and port plans accepted');
 });
 
@@ -125,6 +134,6 @@ it.each(compilers)('keeps 14000-definition transport headers out of %s dependenc
   expect(d.keys[0]).toBe(d.keys[1]);expect(d.keys[2]).not.toBe(d.keys[1]);
   expect(d.manifests.join('')).not.toMatch(/\/dev\/fd\/|bgt-macros-/);
   const deps=transported([cc,'-M','-MP','-MT','bgt',...padding(14000),join(dir,'value.c')],dir);
-  expect(deps.status,deps.stderr).toBe(0);expect(deps.stdout).toContain('value.h');expect(deps.stdout).not.toContain('/dev/fd/');
+  expect(deps.error).toBeUndefined();expect(deps.status,deps.stderr).toBe(0);expect(deps.stdout).toContain('value.h');expect(deps.stdout).not.toContain('/dev/fd/');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
