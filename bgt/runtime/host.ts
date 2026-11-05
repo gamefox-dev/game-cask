@@ -3,6 +3,7 @@
 // browser runtime and directly by Node unit tests (headless backend).
 
 import {readInterpreterCoverage,readInterpreterSummary,readGuestPresentations} from './execution-metrics';
+import {instructionSummary} from './instruction-accounting';
 import {
   ABI_VERSION,
   BGT_OK,
@@ -908,6 +909,7 @@ export class GameHost {
       const presentPtr=this.exports.bgt_guest_presentations?.() ?? 0;
       return { ...metrics, host_profile: this.profile,
         execution_summary:{suspension:this.config.suspensionMode ?? 'asyncify',updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
+          instructions:instructionSummary(metrics),
           interpreter:readInterpreterSummary(metrics,this.exports.memory.buffer,this.exports.bgt_interpreter_coverage?.() ?? 0,this.frameIndex,this.profile.updateMs),
           guest_frames:presentPtr?readGuestPresentations(this.exports.memory.buffer,presentPtr,elapsed):null} };
     } catch {

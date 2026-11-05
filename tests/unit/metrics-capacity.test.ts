@@ -2,7 +2,7 @@
 import {it,expect} from 'vitest';
 import {compileC} from '../support/compile';
 it('serializes all 4096 maximum-length printable import names without truncation and reports pathological overflow truthfully',async()=>{
- const {instance}=await WebAssembly.instantiate(await compileC('tests/fixtures/c/metrics_capacity.c',[],false,['platforms/x86','platforms/win32']));
+ const {instance}=await WebAssembly.instantiate(await compileC('tests/fixtures/c/metrics_capacity.c',[],false,['platforms/x86','platforms/win32']),{bgt:{time_us:()=>0}});
  const ex=instance.exports as unknown as {memory:WebAssembly.Memory;prepare:(mode:number)=>void;metrics:()=>number};
  const metrics=()=>{const ptr=ex.metrics(),bytes=new Uint8Array(ex.memory.buffer,ptr);const n=bytes.indexOf(0);
   expect(n).toBeGreaterThan(524288);return JSON.parse(new TextDecoder().decode(bytes.subarray(0,n)));};

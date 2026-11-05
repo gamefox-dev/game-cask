@@ -194,9 +194,20 @@ static uint32_t block(uint32_t kind, uint32_t ms) {
     thread_t *t = self();
     t->kind = kind; t->deferred = !X.callback_depth; set_timeout(t, ms);
     x86_tasks[x86_current].ready = 0;
+    x86_account_state(x86_current, kind==SLEEPING?XA_SLEEP:XA_OBJECT, w32_now_ms64());
+#if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
+    x86_account_t *a=&x86_accounts[x86_current];
+    if(ms==INFINITE)a->infinite_waits++;
+    else if(kind==SLEEPING)a->sleep_requested_ms+=ms;
+    else a->object_requested_ms+=ms;
+#endif
     return 0;
 }
 int w32_thread_deferred_result(void) { return self()->deferred != 0; }
+void w32_thread_io_wait(int begin) {
+    x86_account_state(x86_current,begin?XA_IO:XA_RUNNING,w32_now_ms64());
+    (void)begin;
+}
 int w32_thread_leaf_ready(void) {return !X.callback_depth&&!X.transfer&&self()->kind==NONE&&!yield_requested&&!self()->deferred;}
 int w32_thread_pending(void) {
     int pending = self()->kind != NONE || yield_requested;
@@ -307,6 +318,7 @@ static void wake_waiters(void) {
         }
         if (done) {
             t->kind = NONE; x86_tasks[i].ready = !t->suspended; x86_tasks[i].cpu.r[EAX] = result;
+            x86_account_state(i, t->suspended?XA_SUSPENDED:XA_READY, w32_now_ms64());
             *error_cell(t) = t->error;
             if (t->deferred) { w32_trace_result(result); t->deferred = 0; }
         }
@@ -343,6 +355,9 @@ static void tls_notify(uint32_t reason) {
     }
 }
 void w32_thread_init(void) {
+    x86_sched_init();
+    w32_module_t *main=w32_mod_by_handle(0);
+    x86_account_create(0,main?main->entry:0,XA_RUNNING,w32_now_ms64());
     threads[0].teb = W32_TEB;
     if (!W32_64) {
         tls_image(W32_TEB);
@@ -352,7 +367,6 @@ void w32_thread_init(void) {
         }
         tls_notify(1);
     }
-    x86_sched_init();
 }
 void w32_thread_return(uint32_t code) {
     X.transfer = 0; /* A normal guest RET arrives via the scheduler transfer sentinel. */
@@ -370,6 +384,7 @@ void w32_thread_return(uint32_t code) {
     uint32_t hi=handle_index(t->object);
     if (t->crt_auto_close && hi && handles[hi].serial==t->object_serial && objects[handles[hi].root].kind==THREAD && objects[handles[hi].root].thread==x86_current) close_handle(t->object,1);
     x86_tasks[x86_current].live = x86_tasks[x86_current].ready = 0;
+    x86_account_state(x86_current,XA_EXITED,w32_now_ms64());
     for(uint32_t i=1;i<=nobjects;i++)if(objects[i].kind==THREAD&&objects[i].thread==x86_current&&!objects[i].refs)objects[i]=(object_t){0};
     for (uint32_t i = 1; i <= nobjects; i++) if (objects[i].kind == MUTEX && objects[i].owner == x86_current) {
         objects[i].owner = INFINITE; objects[i].recursion = 0; objects[i].abandoned = 1;
@@ -385,9 +400,11 @@ void w32_thread_return(uint32_t code) {
 }
 void w32_thread_schedule(void) {
     scheduling = 1;
+    x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_sched_save();
     for (;;) {
         wake_waiters();
+        x86_account_observe(bgt_time_us(),w32_now_ms64());
         if (x86_sched_next()) break;
         w32_sleep_ms(1);
     }
@@ -460,6 +477,7 @@ static uint32_t create_thread(int begin) {
     w32_wrptr((uint32_t)cpu->r[ESP], X86_THREAD_RETURN);
     t->suspended = !!(flags & 4);
     x86_tasks[i].live = 1; x86_tasks[i].ready = !t->suspended;
+    x86_account_create(i,entry,t->suspended?XA_SUSPENDED:XA_READY,w32_now_ms64());
     object(h)->thread = i;
     if (idptr) x86_wr32(idptr, i + 1);
     (void)begin;
@@ -689,6 +707,7 @@ static uint64_t thread_api(const char *name) {
             uint32_t old=threads[tid].suspended;
             if(old==127){t->error=298;return FAILED;}
             threads[tid].suspended++;x86_tasks[tid].ready=0;
+            x86_account_state(tid,XA_SUSPENDED,w32_now_ms64());
             if(tid==x86_current)yield_requested=1;return old;
         }
         t->error=50;return 0; /* no asynchronous context editing */
@@ -710,7 +729,7 @@ static uint64_t thread_api(const char *name) {
         }
         if(!x86_tasks[tid].live){t->error=5;return FAILED;}
         uint32_t old = threads[tid].suspended;
-        if (old) { threads[tid].suspended--; if(!threads[tid].suspended && threads[tid].kind==NONE)x86_tasks[tid].ready = 1; }
+        if (old) { threads[tid].suspended--; if(!threads[tid].suspended && threads[tid].kind==NONE) {x86_tasks[tid].ready = 1;x86_account_state(tid,XA_READY,w32_now_ms64());} }
         return old;
     }
     if (IS("WaitForSingleObject") || IS("WaitForSingleObjectEx")) return wait_objects(0);

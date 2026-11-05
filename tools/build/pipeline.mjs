@@ -428,6 +428,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
+      ...(process.env.BGT_CPU_ACCOUNTING === '0' ? ['-DX86_ACCOUNTING_ENABLED=0'] : []),
       `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
         `-DX86_HOST_ARENA_BYTES=${hostArenaMiB}u*1048576u`,

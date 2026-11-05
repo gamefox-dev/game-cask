@@ -424,7 +424,9 @@ static int file_read_buffered(uint32_t h, uint8_t *dst, uint32_t want, uint32_t 
                                           (uint32_t)(files[i].pos >> 32), n);
         if (r < 0) return 0;
         int32_t status;
+        w32_thread_io_wait(1);
         while ((status = bgt_request_status((uint32_t)r)) == 0) w32_wait_frame();
+        w32_thread_io_wait(0);
         int32_t count = status == 1 ? bgt_request_read((uint32_t)r, dst + *got, n) : status;
         bgt_request_close((uint32_t)r);
         if (count < 0) return 0;
@@ -487,7 +489,9 @@ static uint32_t k_ReadFile(void){
         if(n>files[i].size-files[i].pos)n=(uint32_t)(files[i].size-files[i].pos);
         int32_t request=bgt_asset_range_request(files[i].asset,(uint32_t)files[i].pos,(uint32_t)(files[i].pos>>32),n);
         if(request<0){last_error=30;return 0;}
+        w32_thread_io_wait(1);
         int32_t status;while((status=bgt_request_status((uint32_t)request))==0)w32_wait_frame();
+        w32_thread_io_wait(0);
         int32_t count=status==1?bgt_request_read((uint32_t)request,buffer,sizeof buffer):status;
         bgt_request_close((uint32_t)request);
         if(count<0){last_error=30;return 0;}
