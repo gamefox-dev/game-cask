@@ -1,5 +1,6 @@
 import { test, expect, openGame, assertBackend, step, diagnostics, readPixels, diffFraction, hardwarePixels } from './fixtures';
 import { otherBackend } from './backend-page';
+import { stepUntilLog } from './guest-progress';
 import { compareGpuImages } from '../support/gpu-image';
 import type { Page } from '@playwright/test';
 
@@ -23,15 +24,17 @@ for (const cross of [false, true])
   async ({ page, backendParam, collector }, info) => {
     void collector;
     // 256 real-compiler cycles plus 2048 deferred FILE reads are part of this test, not a cold build.
-    test.setTimeout(360_000);
+    // Measured 5,299 updates/capture: ~6 s WebGPU, ~16 s WebGL including startup.
+    // Budget 60 s/capture (~4x the slower path); cross owns two captures. Builds run
+    // before tests. The 12,000-update bound below independently catches stalled guests.
+    test.setTimeout(cross ? 120_000 : 60_000);
     const capture = async (p: Page, backend: string) => {
+      const started = performance.now();
       const status = await openGame(p, backend, { game: 'x64-glsl' });
+      const loadMs = performance.now() - started;
       await assertBackend(p, backend, info);
       expect(status, JSON.stringify(await diagnostics(p))).toBe('ready');
-      for (let i = 0; i < 12000; i++) {
-        await step(p, 1); await p.waitForTimeout(10);
-        if ((await diagnostics(p)).logs.some(l => l.message.includes('x64-glsl PASS'))) break;
-      }
+      const progress = await stepUntilLog(p, 'x64-glsl PASS', 12000);
       await step(p, 3);
       const d = await diagnostics(p), m = d.metrics as Record<string, any>;
       expect(d.errors).toEqual([]); expect(d.commandErrors.count).toBe(0);
@@ -61,21 +64,30 @@ for (const cross of [false, true])
       expect(charged).toBe(m.host_bytes);
       expect(d.logs.some(l => l.message.includes("glCompileShader: ") && l.message.includes("#error"))).toBe(true);
       expect(d.logs.some(l => l.message.includes("glLinkProgram: ") && l.message.includes("types differ"))).toBe(true);
+      let mark = performance.now();
       const px = await readPixels(p);
+      const readbackMs = performance.now() - mark;
       if (hardwarePixels()) for (const probe of tiles) {
         const x = Math.floor(d.letterbox.x + (probe.x + (probe.ox ?? 0) + .5) * d.letterbox.w / 320);
         const y = Math.floor(d.letterbox.y + (probe.y + (probe.oy ?? 0) + .5) * d.letterbox.h / 200), i = (y * px.width + x) * 4;
         for (let c = 0; c < 3; c++) expect(Math.abs(px.data[i + c] - probe.rgb[c]), `${probe.name} channel ${c}`).toBeLessThanOrEqual(3);
       }
+      mark = performance.now();
       if (hardwarePixels()) expect(diffFraction(px, await readPixels(p), 0), 'repeat capture').toBe(0);
+      const repeatMs = performance.now() - mark;
+      mark = performance.now();
       await info.attach(`x64-glsl-${backend}.png`, { body: await p.locator('canvas').screenshot(), contentType: 'image/png' });
+      const timings = { backend, loadMs, progress, readbackMs, repeatMs, screenshotMs: performance.now() - mark, totalMs: performance.now() - started };
+      console.log('GLSL CAPTURE', timings);
+      await info.attach(`x64-glsl-${backend}-timings.json`, { body: JSON.stringify(timings), contentType: 'application/json' });
       return px;
     };
     const a = await capture(page, backendParam);
     if (!cross) return;
     const backend = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
     const b = await otherBackend(backend, info, p => capture(p, backend));
-    const comparison = compareGpuImages(a, b); console.log('GLSL COMPARISON', comparison);
+    const started = performance.now();
+    const comparison = compareGpuImages(a, b); console.log('GLSL COMPARISON', comparison, { comparisonMs: performance.now() - started });
     expect(comparison.different).toBeLessThanOrEqual(0.015);
     expect(comparison.unmatched).toBeLessThanOrEqual(0.001);
   });
