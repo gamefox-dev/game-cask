@@ -213,7 +213,8 @@ static uint32_t link_program_build(void) {
     }
     invalidate_pipelines();
     if (p->vgpu) release_wire(0x49, p->vgpu, "programs");
-    if (p->fgpu) release_wire(0x49, p->fgpu, "programs"); p->vgpu = p->fgpu = 0;
+    if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+    p->vgpu = p->fgpu = 0;
     if (!shader_link_front(&shaders[p->vs], &log) || (p->fs && !shader_link_front(&shaders[p->fs], &log))) return 0;
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "program link layout"); return 0; }
     GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));

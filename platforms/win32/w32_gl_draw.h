@@ -494,7 +494,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     }
     for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) {
         Attribute *a = &vaos[vao].a[i];
-        uint64_t end = (uint64_t)a->offset + (uint64_t)(a->divisor ? instances - 1 : max_index) * a->stride +
+        uint64_t end = (uint64_t)a->offset + (uint64_t)(a->divisor ? (uint32_t)(instances - 1) : max_index) * a->stride +
             a->count * (a->type == U8 ? 1 : 4);
         if (end > buffers[a->buffer].size) { fail(BAD_OP); return 0; }
     }

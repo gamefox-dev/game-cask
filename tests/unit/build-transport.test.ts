@@ -38,6 +38,28 @@ it('compile and lift share the transport, with and without a writer lease', () =
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+it('moves oversized Node argv through a file after the OS spawn boundary', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-argv-boundary-'));
+  const script = join(dir, 'argv-probe.mjs');
+  const value = 'α😀 quote'.repeat(25000); // over Linux MAX_ARG_STRLEN
+  writeFileSync(script, "import {writeFileSync} from 'node:fs'; const a=process.argv.slice(2), out=a.at(-1); writeFileSync(out, 'ok'); console.log(JSON.stringify({max:Math.max(...a.map(x=>Buffer.byteLength(x)),0),value:a[0],quote:a[1]}));\n");
+  try {
+    const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out: join(dir, 'value.o'), stdout: join(dir, 'observed'), args: [process.execPath, script, value, 'λ "quoted"']}], jobs: 1}), encoding: 'utf8' }));
+    const report = JSON.parse(readFileSync(join(dir, 'observed'), 'utf8'));
+    expect(result.objects_compiled).toBe(1); expect(report.max).toBe(Buffer.byteLength(value)); expect(report.value).toBe(value); expect(report.quote).toBe('λ "quoted"');
+  } finally { rmSync(dir, {recursive:true, force:true}); }
+});
+
+it('moves oversized compiler argv through a response file with exact quoting', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bgt-rsp-boundary-')); const source = join(dir, 'value.c'); const out = join(dir, 'value.o');
+  writeFileSync(source, 'int value(void){return 23;}\n');
+  const padding = Array.from({length: 22000}, (_, i) => '-DBGT_PADDING_'+i+'='+i).concat(['-DBGT_QUOTED="λ😀"']);
+  try {
+    const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({objects: [{out, args: ['cc', '-std=c11', '-Wall', '-Werror', '-c', source, ...padding]}], jobs: 1}), encoding: 'utf8' }));
+    expect(result.objects_compiled).toBe(1); expect(readFileSync(out).length).toBeGreaterThan(0);
+  } finally { rmSync(dir, {recursive:true, force:true}); }
+});
+
 it('reproduces withheld socket EOF deterministically, then bypasses it with finite stdin', () => {
   // All JSON bytes are present; an open peer prevents json.load's unbounded read.
   // Models unavailable EOF, not the exact observed macOS half-close/wakeup race.
@@ -87,7 +109,8 @@ time.sleep(100)`;
     assertGone(JSON.parse(readFileSync(marker, 'utf8')));
     expect(readdirSync(dir).filter((p) => p.endsWith('.tmp'))).toEqual([]);
     // Killed writers release inherited object locks: a real compiler can retry.
-    const source = join(dir, 'value.c'); writeFileSync(source, 'int value(void){return 23;}\n');
+    const source = join(dir, 'value.c');
+    writeFileSync(source, 'int value(void){return 23;}\n');
     const result = JSON.parse(execFileSync('python3', ['-I', compile], { ...options, input: JSON.stringify({
       objects: [{ out: join(dir, 'value.o'), args: ['cc', '-c', source] }], jobs: 1,
     }) }));

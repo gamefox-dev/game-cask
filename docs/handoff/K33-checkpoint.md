@@ -34,6 +34,24 @@ Writes *.exit after each. Doctor exit0. **focused.exit absent at checkpoint**, l
 
 Background root98574 completed GCC probes: gcc-host.exit0, gcc-gl.exit1 (before edits). GCC host helper uses real GCC discovery independent of CC. Syntax-only actual GL flags after edits: gcc-gl-after.exit1. Detailed logs gcc-gl.log (large, compact filter!), gcc-gl.json, gcc-gl-after.log. These are failures, not successful validation. No full build proof for partial edits yet.
 
+## Continuation status — reviewer #293
+
+Fixed in the current WIP (not yet CI-ready):
+
+- Build child payloads now cross the OS boundary through anonymous file descriptors: Node script argv is reconstructed by node-args.mjs, compiler/linker argv uses response files, and small commands retain the direct path. The portable argv/env budget is enforced before every spawn. Asyncify cache identity includes the transport helpers.
+- Build-side removelist truncation was removed; chunk/pipeline override sets use --skip-file. New transport regressions cover >128 KiB Node argv, >256 KiB response-file plans, Unicode/quoting, finite stdin, timeout/lock cleanup and nested supervision. Focused transport suite: **13/13**; host-GCC unit suite: **8/8**.
+- GCC14 and clang compile the actual GL native adapter warning-free with native test flags. check-host-gcc.mjs now checks the GL adapter in addition to x86tool, both heaps and GLSL. ESLint, typecheck and host-GCC helper passed locally.
+- The approved CI fan-out is drafted: parallel lint-js/native/examples, two deterministic unit shards, e2e, unchanged scale, and an aggregate gate that rejects any non-success result. Scale commands/assertions remain unchanged.
+- The partitioned convergence case was rerun unchanged and passed in **173,803 ms**, under its unchanged 180,000 ms deadline.
+
+Open / not claimed:
+
+- No full Tier 1 or Linux CI run has completed. E2E, both suspension-mode browsers, full units, all 300-frame oracles, leakcheck final, and scale CI evidence remain open.
+- The workflow fan-out still needs fresh-session review against GitHub Actions expression/shell behavior and a CI run. It is not ready for the reviewer to push.
+- A broad standalone GCC syntax probe reaches x87/wasm-specific sources outside the existing host-driver gate; those warnings were not suppressed or claimed fixed. The native CI set is x86tool, heap, GLSL and GL adapter checks above.
+- OOM/exhaustion timing was not optimized; assertions and committed deadlines remain unchanged.
+
+**Next session:** inspect this diff and workflow, rerun focused transport/host tests after any review edits, validate the two CI shard file lists, then run final local gates in background (serially), commit implementation chunks, and only ask the reviewer to push a CI-ready commit after all required local evidence is complete. Current commit is WIP and **not CI-ready**.
 ## Exact next steps / unrun gates
 
 1. Read this checkpoint, inspect git status/log, focused.exit/tail. Finish GL warning-only edits; compile both driver variants with real GCC flags and full existing native tests (CC=gcc-14), then clang. Extend lint coverage to actual GL native adapter so future CI catches these before unit runtime. Existing tests/unit/host-gcc.test.ts asserts exact four helper calls; update truthfully if extending. Check **every kit C source applicable flags**, not just current helper.

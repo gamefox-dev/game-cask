@@ -50,7 +50,7 @@ export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=104857
 // binary and name parsers can change partition assembly or exact native exclusions.
 export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],root=ROOT}={}) {
   return sha256(Buffer.concat([wasm,Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),
-    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs'].map(p=>readFileSync(join(root,p))),
+    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/command.py','tools/build/node-args.mjs'].map(p=>readFileSync(join(root,p))),
     Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove}))]));
 }
 
