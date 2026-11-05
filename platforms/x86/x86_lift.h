@@ -7,6 +7,7 @@
  */
 #ifndef X86_LIFT_H
 #define X86_LIFT_H
+#include "x86_retire.h"
 #include "x86_sem.h"
 
 /* Port override (a measured exception): replaces the lifted function at an original address.

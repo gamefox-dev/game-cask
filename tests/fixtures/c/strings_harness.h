@@ -9,6 +9,8 @@
 #include "../../../platforms/x86/x86_coverage.h"
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
+x86_retired_t x86_retired, harness_retired;
+x86_retired_t *x86_thread_retired=&harness_retired;
 uint8_t *x86_pages[1u << 20];
 uint8_t x86_protection[1u << 20];
 int x86_protection_active;

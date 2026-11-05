@@ -16,6 +16,9 @@ uint8_t *x86_pages[1u << 20];
 uint8_t x86_protection[1u << 20];
 int x86_protection_active;
 x86_metrics_t x86_metrics;
+x86_retired_t x86_retired;
+static x86_retired_t initial_retired;
+x86_retired_t *x86_thread_retired = &initial_retired;
 uint64_t x86_guest_instruction_clock(void) { return X.tsc; }
 int x86_force_interp;
 x86_timing_t x86_timings[XP_CATEGORIES];
@@ -111,7 +114,9 @@ double x86_interpreter_exclusive_us(void) {
  * In particular, never retain a sampled pointer into the abandoned C stack or
  * reopen a discarded interval through a stale idle_end restoration. Guest SEH
  * and longjmp use X.transfer and the ordinary return restorations instead. */
+void (*x86_account_abort_hook)(double now_us);
 BGT_EXPORT(bgt_profile_abort) void x86_profile_abort(double now_us) {
+    if(x86_account_abort_hook)x86_account_abort_hook(now_us);
     if (interpreter_span_active && __builtin_isfinite(now_us) && now_us >= interpreter_span_start)
         interpreter_span_us += now_us - interpreter_span_start;
     interpreter_span_active = 0;
@@ -558,6 +563,20 @@ static int ends_block(const x86_insn_t *in) {
     }
 }
 
+/* Retire only after semantic completion. Quantum attempts and incomplete REP
+ * dispatches do not retire. A resumed REP retires once, at its successor; imports
+ * and callbacks have no synthetic instructions. The caller's task is restored
+ * before a parked semantic invocation returns. Faults never reach this commit. */
+static void execute_counted(const x86_insn_t *in, unsigned kind) {
+    uint32_t budget = X.frame_insns, addr = in->addr;
+    int string = is_string(in->op);
+    x86_exec_insn(in);
+    if (string) {
+        if (X.eip != addr + in->len) return;
+    } else if (X.mode64 && budget >= 2000000u && X.transfer && X.eip == addr) return;
+    x86_retire(kind, 1);
+}
+
 /* ------------------------------------------------------------------ interpreter loop */
 /* decoded-instruction cache (direct mapped; self-modifying code is not supported in v0.2) */
 #define DC_SIZE 8192u
@@ -636,7 +655,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 x86_word_t count = X.r[ECX];
                 uint64_t saved_bucket=interpreter_bucket;
                 uint32_t saved_record=interpreter_record;
-                x86_exec64(in);
+                execute_counted(in, XR_INTERPRETED);
                 if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
                 x86_profile_end(XP_INTERPRETER,interpreter_start);
                 interpreter_bucket=saved_bucket;interpreter_record=saved_record;
@@ -686,6 +705,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
             if (fn) {
                 uint32_t next = in->addr + in->len;
                 x86_push(next);
+                x86_retire(XR_INTERPRETED, 1);
                 x86_metrics.lifted_calls++;
                 profiled_native(fn);
                 if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
@@ -698,7 +718,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
         }
         uint64_t saved_bucket=interpreter_bucket;
         uint32_t saved_record=interpreter_record;
-        x86_exec_insn(in);
+        execute_counted(in, XR_INTERPRETED);
         if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}
         x86_profile_end(XP_INTERPRETER,interpreter_start);
         interpreter_bucket=saved_bucket;interpreter_record=saved_record;
@@ -774,7 +794,7 @@ void x86_lift_block(uint32_t count) {
         x86_profile_instruction(bucket);
         x86_metrics.generic_insn_execs++;
         double generic_start=x86_profile_begin(XP_GENERIC);
-        x86_exec_insn(in);
+        execute_counted(in, XR_GENERIC);
         x86_profile_end(XP_GENERIC,generic_start);
         /* LANE-F/C: a quantum transfer can precede this pending CALL's execution. */
         if (X.transfer) return;
@@ -787,7 +807,7 @@ void x86_exec_one(const x86_insn_t *in) {
     x86_profile_instruction(x86_profile_exit(in->addr,XE_FORM));
     x86_metrics.generic_insn_execs++;
     double start=x86_profile_begin(XP_GENERIC);
-    x86_exec_insn(in);
+    execute_counted(in, XR_GENERIC);
     x86_profile_end(XP_GENERIC,start);
 }
 

@@ -10,8 +10,8 @@ static void l64_sync(FILE *o, int load) {
         else if (l64_dirty_boundary) fprintf(o, "if(dirty&0x%xu)X.r[%d]=r[%d];", 1u << i, i, i);
         else fprintf(o, "X.r[%d]=r[%d];", i, i);
     }
-    fprintf(o, load ? "flags=X.flags;clock=X.tsc;budget=X.frame_insns;\n" :
-                     "X.flags=flags;X.tsc=clock;X.frame_insns=budget;\n");
+    fprintf(o, load ? "flags=X.flags;clock=X.tsc;budget=X.frame_insns;retire_clock=clock;\n" :
+                     "x86_retire(XR_LIFTED,clock-retire_clock);retire_clock=clock;X.flags=flags;X.tsc=clock;X.frame_insns=budget;\n");
 }
 static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
     char base[100], index[60] = "", seg[40] = "", expr[240];
@@ -526,7 +526,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
          * Keep large regions size-biased until a coverage hot list can justify their expansion. */
         fprintf(o, "\nstatic %svoid R_%08x_%08x(uint32_t pc){\n",
                 lift_optimize_small && f->insns.n <= 4 ? "" : "__attribute__((minsize,noinline)) ", original->addr, f->addr);
-        fprintf(o, "uint64_t r[16],clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
+        fprintf(o, "uint64_t r[16],clock,retire_clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
                    "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER,entry_index=0;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"
                    "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;(void)debt;(void)entry_index;\n");
@@ -663,8 +663,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             case XO_JMP_IND:
                 l64_read(o, aa, "t", next);
                 if(import_hints[begin+k]) {
-                    l64_flush(o,k+1);l64_sync(o,0);
-                    fprintf(o,"if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
+                    l64_flush(o,k+1);fprintf(o,"if(t<=UINT32_MAX){");l64_sync(o,0);
+                    fprintf(o,"X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
                               "if(x86_try_import(&site,t))return;"
                               "if(x86_defer_import(&site,t))return;}\n",import_hints[begin+k]);
                 }
@@ -678,6 +678,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 fprintf(o, "r[4]-=8;");
                 { char ret[40]; snprintf(ret, sizeof ret, "0x%08xull", next);
                   l64_pointer(o, "r[4]", 8, next, 1, ret); fprintf(o, "xl_store(p,%s,8);", ret); }
+                /* K32 publishes before validating a fast CALL target (including import
+                 * fallbacks). Exclude the faulting CALL before ANY such publication;
+                 * XR_ADD erases the adjustment entirely when accounting is off. */
+                fprintf(o,"XR_ADD(retire_clock,t>UINT32_MAX);");
                 if(import_hints[begin+k]) {
                     l64_sync(o,0);
                     fprintf(o,"if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
@@ -741,7 +745,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
         fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
-        fprintf(o, "boundary:\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
+        fprintf(o, "boundary:\nif(action>=3 && t>UINT32_MAX)retire_clock++;\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
                    "else{X.eip=x86_address(t);if(action==3)X.r[4]+=value;}return;\n");
@@ -750,6 +754,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         if (lift_affine_counting) fprintf(o, "clock+=(uint32_t)(debt+((fault>>8)&0xffffffu));"
                    "budget+=(uint32_t)(debt+((fault>>8)&0xffffffu));\n");
         else fprintf(o, "clock-=(fault>>8)&0xffffffu;budget-=(fault>>8)&0xffffffu;\n");
+        fprintf(o, "retire_clock++; /* faulting instruction did not retire */");
         l64_sync(o, 0);
         fprintf(o, "X.eip=pc;{if(writing==4){(void)xa_check(address,(unsigned)width);x86_fault(\"invalid atomic memory\",(uint32_t)address);}uint32_t a=x86_address(address);if(writing==5)xs_alignment_fault(a,(uint32_t)(value>>32),(unsigned)value&255,((unsigned)value>>8)&255);"
                    "if(writing==2){for(int j=0;j<width;j++)x86_wr8(a+(uint32_t)j,av.u8[j]);}"

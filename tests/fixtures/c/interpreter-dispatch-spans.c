@@ -115,6 +115,9 @@ BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) { phase_failure(5); }
 BGT_EXPORT(bgt_state_hash) uint32_t state_hash(void) { phase_failure(4);return X.eip; }
 BGT_EXPORT(idle_end) void idle_end(void) { x86_profile_idle_end(); }
 BGT_EXPORT(total) double total(void) { return x86_interpreter_exclusive_us(); }
+BGT_EXPORT(retirement) uint64_t retirement(void) {
+    return x86_retired.instructions[XR_LIFTED]+x86_retired.instructions[XR_GENERIC]+x86_retired.instructions[XR_INTERPRETED];
+}
 BGT_EXPORT(sample_open) int sample_open(void) { return exclusive_span!=0; }
 /* Test serializer of actual runtime outputs; production serializer capacity has its own fixture. */
 BGT_EXPORT(bgt_metrics) uint32_t metrics(void) {

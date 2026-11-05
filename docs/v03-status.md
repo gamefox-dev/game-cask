@@ -1,5 +1,15 @@
 # v0.3 merged implementation status
 
+## Integration I15 — K31 accounting over K32 (validation in progress)
+
+No-ff integration of lane/K31 (288f7f2) over dev.19 (958d5f0), retaining both lane records below.
+K32 fast CALLs publish architectural state before validating full-width indirect targets; exclude
+the faulting CALL from retirement **before** that publication, not only at the old flat boundary.
+The adjustment compiles away with accounting OFF. Known-count/full-state regressions cover direct
+and cross-chunk weak calls, fallback, warm indirect CALL/tail sites, chained regions, recursive gates,
+quantum/generic exits, actual Asyncify/JSPI parking and direct-call SEH unwind. Focused **36/36 PASS**;
+full integration gates and paired OFF benchmark are pending, not implied by lane acceptance.
+
 ## K32 lane record — bounded native calls / indirect sites / owner regions
 
 Implementation6297545 over dev.18 211daca; **author implementation Tier1 green, external focused
@@ -27,6 +37,28 @@ an explicit kit follow-up (RaiseException fails closed). Final lane evidence: [g
 Coordinator accepted test-only54c40eb after review: actual parked/resumed direct-call AMD64 SEH,
 300-update/full-CPU identity across engines/modes, missing-unwind-metadata mutant fails/restored2/2 pass;
 i386 missing dispatcher fails closed. No production code changed after external review.
+
+## K31 — Q78 exact accounting (lane source99329ac, author gates green)
+
+Opt-in **BGT_CPU_ACCOUNTING=1** provides monotonic process/stable-thread retirement, scheduler-owned
+active/wait/ready/park and virtual-time budgets, bounded64 native-present snapshots and BigInt-first
+per-frame/active-wall throughput summaries. Default **OFF** after CC0 full12000-owner profile0 JSPI
+**+19.1354%** (target approximately2%); compiled-out data is unavailable/null, never measured zero.
+Hardware CPU time stays null; TSC/RDTSC/scheduling/ABI unchanged. All accounting u64/timestamps use
+decimal strings. Startup abort-hook and precision defects from vK31 repaired; **fresh vK31b PASS**
+at99329ac. No code/test change after reviewed source.
+
+Final author serial broad default-OFF gates: doctor, full lint38 examples/real GCC, explicit clang,
+types, **2329 units/136 files/no skips**, leakcheck, full browsers **300 pass/51 inherited skips/0
+failures/0 flaky** in both modes (native WebGL2/WebGPU/auto), every34×2×300 oracle. Additional ON:
+full2329 units, WebGPU **157/26/0/0** both modes, every34×2×300 oracle. All136 reports audited,
+ON/OFF/cross-mode semantic traces identical, exact inherited skip inventories, unchanged strict
+GL-scale-only expected-error contract. Independent review was bounded, not full-gate/CI certification.
+Private attribution passed: later BOTH/OFF +4.27% (not a reproduction of +19.14%); changed region
+body sizes/locals, unchanged wrapper counts/sizes, noisy ablations preclude additive causal cost
+shares. Default OFF unchanged; all owned suites/temporary outputs cleaned. No game/60fps/device claim.
+[Handoff](handoff/K31.md), [gate evidence](handoff/K31-gate-evidence.json),
+[measurements](handoff/K31-measurements.json), [repair sensitivity](handoff/K31-repair-evidence.json).
 
 ## Integration I14 final — v0.3.0-dev.17 (K28 + K26 + K27 + K29)
 

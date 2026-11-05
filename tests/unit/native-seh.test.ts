@@ -30,7 +30,7 @@ BGT_EXPORT(k32_seh_chain) unsigned chain(void){return x86_rd32(X.fs_base);}
 BGT_EXPORT(k32_seh_read) unsigned read_guest(unsigned a){return x86_rd32(a);}
 `);
   writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 K32 real SEH '+width,
-   sources:['probe.c'],cflags:['-DX86_NATIVE_STATS=1'],includes:['platforms/x86'],
+   sources:['probe.c'],cflags:['-DX86_NATIVE_STATS=1','-DX86_ACCOUNTING_ENABLED=1'],includes:['platforms/x86'],
    pipeline:{platform:'win32',fixture:{target:width===64?'x86_64-windows-gnu':'x86-windows-gnu',
     sources:['native-seh.c',...(width===64?['native-seh64.S']:[])],out:'seh.exe',libs:['kernel32']},
     modules:[{from:'./build/seh.exe',main:true}]}}));
@@ -75,7 +75,11 @@ BGT_EXPORT(k32_seh_read) unsigned read_guest(unsigned a){return x86_rd32(a);}
     }
     const memory=new Uint8Array((exports.memory as WebAssembly.Memory).buffer);
     const cpu=(exports.k32_seh_cpu as ()=>number)(),size=(exports.k32_seh_cpu_size as ()=>number)();
-    runs.push({hashes,cpu:memory.slice(cpu,cpu+size),logs:h.logs});
+    const accounting=(h.host.metrics() as any).execution_accounting;
+    expect(accounting.enabled).toBe(1);
+    expect(BigInt(accounting.retired.total)).toBeGreaterThan(0n);
+    runs.push({hashes,cpu:memory.slice(cpu,cpu+size),logs:h.logs,retired:accounting.retired.total,
+     threads:accounting.threads.map((t:any)=>t.retired.total)});
     evidence.push({width,suspension,interpreted,parked,markers,cpuHash:createHash('sha256').update(memory.slice(cpu,cpu+size)).digest('hex'),hash:createHash('sha256').update(JSON.stringify(hashes)).digest('hex'),metrics:h.host.metrics()});
    }
    expect(runs[0]).toEqual(runs[1]); // All 300 trace hashes + complete architectural CPU bytes + guest logs.

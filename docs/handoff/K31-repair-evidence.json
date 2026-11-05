@@ -1,0 +1,37 @@
+{
+  "source": "99329ace3926566b82b05f0d334bc0a17f3ebcff",
+  "timestamp": "2026-11-05T12:27:37.201670+00:00",
+  "focused": "repair2:34pass,2DLL setupfail; repair5 unchanged assertions both DLLs+TLS all16 combinations PASS; full focus not an uninterrupted green yet",
+  "before": "f65d33c+final regression selections:6intended failures (4i386 TLS+2precision),12controls pass (8DLL+4AMD64TLS); no setup failures",
+  "logs": {
+    "repair2-focus": {
+      "sha256": "1e65d39023066806bb1337cfa70a0d875e7ecccb0bf4a7df344eab1ba7bbf639",
+      "exit": "1"
+    },
+    "repair5-startup": {
+      "sha256": "79efd73807feb9231abd8888d997769a43762f898e51e8f35a7359147ae375f3",
+      "exit": "0"
+    },
+    "repair5-typecheck": {
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398",
+      "exit": "0"
+    },
+    "repair5-eslint": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit": "0"
+    },
+    "before2": {
+      "sha256": "00856327ea9de40c885e05c0544333a82ccb6f75d70aa4df1198b349740c0883",
+      "exit": "1"
+    }
+  },
+  "status": "Both P2 repairs validated by final full units OFF+ON and fresh independent vK31b PASS",
+  "review": {
+    "result": "PASS",
+    "source": "99329ac",
+    "boundary": "Fresh bounded source/regression review, no full gates or CI",
+    "evidence": "/Users/dev/projects/pi-work/inputs/vK31b/final-result.txt",
+    "sha256": "3d543ee502dc5c2d61516e30c2d3df7739dcf7ff271641b4a9599ba79efcf620"
+  },
+  "source_changes_after_99329ac": "none"
+}

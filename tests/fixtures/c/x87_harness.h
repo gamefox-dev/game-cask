@@ -1,10 +1,18 @@
 /* CC0: synthetic decoder/lifter execution and architectural state assertions. */
 #define X86_WIDE_CPU 1
+/* Snapshot-only harness: no profiling clock/provider. Real timing/accounting
+ * integration uses x86_rt.c in the dedicated Q78 fixtures. */
+#ifndef X86_PROFILE_ENABLED
+#define X86_PROFILE_ENABLED 0
+#endif
 #include "../../../platforms/x86/x86_lift64.h"
 #include "bgt.h"
 #include "../../../platforms/x86/x86_coverage.h"
 x86_cpu_t X;
 x86_metrics_t x86_metrics;
+#include "../../../platforms/x86/x86_profile.h"
+x86_retired_t x86_retired, harness_retired;
+x86_retired_t *x86_thread_retired=&harness_retired;
 uint8_t *x86_pages[1u<<20];
 /* K2/K3 integration: paged semantic helpers share protection metadata too. */
 uint8_t x86_protection[1u<<20];

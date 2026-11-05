@@ -14,9 +14,9 @@ import {jspiApi} from '../../bgt/runtime/jspi';
 import {transform} from '../../tools/build/asyncify.mjs';
 // @ts-expect-error plain ESM
 import {WASM_OPT_FEATURES} from '../../tools/build/build.mjs';
-type Ex={set_import_mode(n:number):void;total():number;sample_open():number;idle_end():void;import_calls():number;direct_calls():bigint;leaf_calls():bigint;bgt_profile_abort(n:number):void};
+type Ex={set_import_mode(n:number):void;retirement():bigint;total():number;sample_open():number;idle_end():void;import_calls():number;direct_calls():bigint;leaf_calls():bigint;bgt_profile_abort(n:number):void};
 for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[])it('hand-times direct leaf / bound imports and exception cleanup in '+suspension,async()=>{
- const raw=await compileC('tests/fixtures/c/interpreter-dispatch-spans.c',['MODE64=1','X86_PROFILE_ENABLED=1'],true);
+ const raw=await compileC('tests/fixtures/c/interpreter-dispatch-spans.c',['MODE64=1','X86_PROFILE_ENABLED=1','X86_ACCOUNTING_ENABLED=1'],true);
  const dir=mkdtempSync(join(tmpdir(),'bgt-import-spans-'));
  try {
   writeFileSync(join(dir,'raw.wasm'),raw);
@@ -35,6 +35,7 @@ for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'
    throwApi=fault==='api';
    if(mode===3&&fault!=='api'&&fault!=='callback') {
     await host.update();expect(host.suspended).toBe(true);expect(ex.total()).toBe(40000);
+    expect(ex.retirement()).toBe(4n); // main NOP,CALL + callback MOV,RET; no synthetic import instruction
     expect(cleanup).not.toHaveBeenCalled();now+=1000;expect(ex.total()).toBe(40000);
     throwApi=fault==='resumed';
    }
@@ -42,20 +43,23 @@ for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'
     await host.update();expect(host.suspended).toBe(false);expect(cleanup).not.toHaveBeenCalled();
     expect(ex.total()).toBe(mode===1?40000:60000);
     expect(host.profile.updateMs).toBe(mode===1?140:260);
+    expect(ex.retirement()).toBe(mode===1?4n:6n);
    } else {
     const error=await Promise.resolve().then(()=>host.update()).then(()=>null,e=>e);
     expect(error).toBe(original);expect(cleanup).toHaveBeenCalledTimes(1);
     const measured=fault==='api'?20000:fault==='callback'?30000:40000;
     expect(ex.total()).toBe(measured);expect(host.frameIndex).toBe(mode===3&&fault==='resumed'?1:0);
     expect(host.profile.updateMs).toBe(fault==='api'?120:fault==='callback'?130:240);
+    expect(ex.retirement()).toBe(fault==='resumed'?4n:2n);
    }
    expect(ex.import_calls()).toBe(1);
    // A throwing leaf never increments success counters. Bound dispatch counts entry.
    expect(ex.direct_calls()).toBe(mode===1&&fault!=='none'?0n:1n);
    expect(ex.leaf_calls()).toBe(mode===1&&fault==='none'?1n:0n);
    expect(ex.sample_open()).toBe(0);
-   const frozen=ex.total();now+=1000;ex.idle_end();now+=1000;host.profileReset();
+   const work=ex.retirement(),frozen=ex.total();now+=1000;ex.idle_end();now+=1000;host.profileReset();
    expect(ex.total()).toBe(frozen);expect(ex.total()).toBeLessThanOrEqual(host.profile.updateMs*1000);
+   expect(ex.retirement()).toBe(work);
    const summary=(host.metrics() as {execution_summary:{interpreter:{timing_status:string;measured_ms:number}}}).execution_summary.interpreter;
    expect(summary.timing_status).toBe('measured');expect(summary.measured_ms).toBe(frozen/1000);
   }
