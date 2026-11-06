@@ -1,4 +1,21 @@
-# K35c checkpoint — latest continuation starts here
+# K35d finish — no pending work to resume
+
+Production remains13f3595 (parity fdb7618 + boolean spans), tests6ecaccb; lazy prototype remains rejected.
+Final cumulative A/B was already complete in K35c and was NOT repeated. Final author gates now audited:
+136oracles×300=40800identical pairs, exact accountingON process/thread totals and3772present snapshots;
+full browsers300pass/51inherited skips each actual mode, inventory equal K34; doctor/both full lints/
+types/accounting220/7/leak/diff exit0. Reviewer accepted explicitly combined unit recovery: both full
+sweeps2401pass/1different timeout; unchanged heap12/12 and native-forms94/94recoveries PASS. No
+uninterrupted full-green claim; next complete run at integration. ON Asyncify scale cold-build timeout
+retained as .initial.*; unchanged warm300oracle passed, all failed/unreached gates then finished.
+Public VM restored profile0/accounting0 in both modes, private k35_counts export absent. All owned
+runners exited; owned2.8GiB Zig cache removed after exit, raw samples/rejected patch/reports retained.
+Final handoff **docs/handoff/K35.md**, evidence **K35-gates.json**; external review follows, not claimed.
+No more experiments or suite repetitions required by this checkpoint. Historical states below are stale.
+
+---
+
+# K35c checkpoint — historical continuation
 
 **Reviewer355/356: STOP + fresh session; not lane acceptance.** No structural work is permitted.
 All production remains13f3595 (parity fdb7618 + boolean span), tests/evidence6ecaccb. This session
