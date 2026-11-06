@@ -1,5 +1,21 @@
 # v0.3 merged implementation status
 
+## Integration I16 checkpoint — K33 over dev.21 (gates pending)
+
+Merge **5cc812c** retains K31 accounting/default OFF, K34 helpers and K33 compiler transport.
+**3541c17** repairs a latent filtered-inventory omission with before-failing/after-passing regression.
+**0727828** fixes optional/required JSPI selection in K31 guest/startup tests and expands measured
+CI to three required shards with a strict aggregate (reviewer #345). Full default141-file inventory
+is covered exactly; tools/bench remains intentionally opt-in. Original ci/i16 FAIL (two unavailable
+JSPI cases, second shard60min cancellation); ci/i16c final-source result pending, not PASS.
+
+Local doctor, both full38-example Clang/realGCC lints, explicit Clang, types and compiler allowlist
+checks pass. Serial full units/browser/oracles/sustained dev.21 pairing are not complete. Initial
+unit harness explicitly forced OFF and conflicted with intentionally ON accounting test fixtures;
+failed evidence is retained and a complete unset/default-OFF rerun is queued. Bounded independent
+review3541c17 PASS is not a final-source/full-gate certificate; repair review attempt auth-blocked.
+[Live checkpoint and exact runner/continuation instructions](handoff/integration-i16.md).
+
 ## Integration I15 final — K31 accounting over K32
 
 No-ff merge **0edf02c** integrates lane/K31 (288f7f2) over dev.19 (958d5f0), retaining both lane
