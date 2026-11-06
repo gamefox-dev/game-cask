@@ -8,6 +8,16 @@ import {join} from 'node:path';
 import {ROOT} from '../support/headless';
 import {GameHost} from '../../bgt/runtime/host';
 import {Vfs} from '../../bgt/runtime/vfs';
+import {testSuspensionModes as accountingModes} from '../support/suspension-modes';
+it.each([false,true])('always runs Asyncify and includes available JSPI (required=%s)',required=>{
+ expect(accountingModes(true,required)).toEqual(['asyncify','jspi']);
+});
+it('runs Asyncify alone on an optional Node without JSPI',()=>{
+ expect(accountingModes(false,false)).toEqual(['asyncify']);
+});
+it('fails closed rather than omitting a required unavailable JSPI mode',()=>{
+ expect(()=>accountingModes(false,true)).toThrow('JSPI required by BGT_TEST_JSPI');
+});
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
 function program(wide:boolean) {
@@ -51,6 +61,7 @@ function program(wide:boolean) {
  return {source:text.join('\n')+'\n',counts};
 }
 for(const wide of [false,true])it('guest-import exact multithread retirement, Sleep/event/yield and pending ReadFile '+(wide?'AMD64':'i386'),async()=>{
+ const modes=accountingModes();
  const root=join(ROOT,'node_modules/.cache/bgt/guest-accounting');mkdirSync(root,{recursive:true});
  const dir=mkdtempSync(join(root,'case-')),id='guest-accounting-'+Number(wide),p=program(wide);
  try {
@@ -60,7 +71,7 @@ for(const wide of [false,true])it('guest-import exact multithread retirement, Sl
     fixture:{out:'counts.exe',sources:['counts.S','anchor.c'],libs:['kernel32'],target:wide?'x86_64-windows-gnu':'x86-windows-gnu'},modules:[{from:'./build/counts.exe',main:true}]}}));
   for(const interpreted of [false,true]) {
    const out=join(dir,interpreted?'interpreted':'lifted'),manifest=buildGame(dir,{outRoot:out,interpretOnly:interpreted,quiet:true}),game=join(out,manifest.id);
-   for(const mode of ['asyncify','jspi'] as const){
+   for(const mode of modes){
     const vfs=new Vfs();for(const a of manifest.assets)vfs.add(a.path,new Uint8Array(readFileSync(join(game,'assets',a.path))));vfs.addStream('known.bin',4);
     let us=0,release!:(b:Uint8Array<ArrayBuffer>)=>void;const logs:string[]=[],reads:unknown[]=[];
     const pending=new Promise<Uint8Array<ArrayBuffer>>(r=>{release=r;});
