@@ -216,6 +216,30 @@ it('affine counting preserves RDTSC, forward diamonds, loop yields and every int
   }
 });
 
+it('CMP/TEST adjacent Jcc cannot fuse across observable successor reservations', async () => {
+  // Both successors immediately kill flags (XOR EDX,EDX), but the pre-instruction
+  // quantum/guard boundary observes the CMP/TEST flags first. No lazy descriptor.
+  for (const op of ['4839c8', '4885c8']) {
+    const h = await harness(op + '740431d2eb0231d2c3');
+    const producer = h.text.slice(h.text.indexOf('L_01001000:'), h.text.indexOf('if(xl_cond'));
+    expect(producer).toContain('xl_alu');
+    if (fast) expect(producer).toContain('&flags,0x8d5u)');
+    else expect(producer).toContain('xl_alu_full(');
+    expect(h.text).toContain('L_01001005:');
+    expect(h.text).toContain('L_01001009:');
+    const snapshot = () => ({ cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu()+h.ex.cpu_size()),
+      ram: h.memory().slice(h.ex.ram(), h.ex.ram()+65536), yields: h.ex.yields() });
+    for (const a of [0n, 1n, 0x8000000000000000n]) for (const b of [0n, 1n])
+    for (const budget of [0, 1999998, 1999999, 2000000]) {
+      const run = (reference: number) => {
+        h.ex.reset(base,budget); h.ex.set_flags(0x8d5); h.ex.set_reg(0,a);h.ex.set_reg(1,b);
+        h.ex.stop_at_quantum(1);h.ex.run(reference);return snapshot();
+      };
+      expect(run(0), op+' '+a+' '+b+' '+budget).toEqual(run(1));
+    }
+  }
+});
+
 it('strict host restrictions stop an in-region indirect landing before its memory write',async()=>{
   // MOV EAX, internal target; JMP RAX; MOV [0x2000],123; RET. Target is in the same native region.
   const h=await harness('b807100001ffe0c70425002000007b000000c3',['X86_COVERAGE_MODE=2']);
