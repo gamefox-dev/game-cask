@@ -1,5 +1,5 @@
 // Original CC0-1.0. Serial large-fixture cost probe; no production policy edits.
-import { mkdirSync, writeFileSync, cpSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildGame, WASM_OPT_FEATURES } from '../build/build.mjs';
 import { execFileSync } from '../build/exec.mjs';

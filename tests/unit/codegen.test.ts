@@ -62,6 +62,8 @@ async function harness(hex: string, defines: string[] = []) {
   writeFileSync(join(dir, 'input.exe'), pe(code));
   execFileSync(codegenTool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
+  expect(text).toContain('static __attribute__((noinline)) void R_');
+  expect(text).not.toContain('minsize');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
     + text.replace('#include "x86_lift64.h"', `#include "${ROOT}/platforms/x86/x86_lift64.h"`) + `

@@ -18,7 +18,7 @@ it('prepares isolated lifted-chunk compiler variants and checks both actual susp
  for(const mode of ['asyncify','jspi'] as const){
   const states=[]; const metrics=[];
   for(const variant of [id,id+'-interp']){
-   const h=await loadHeadless(variant,{suspension:mode});const hashes=[];
+   const h=await loadHeadless(variant,{dir: variant===id ? join(out,'game') : join(ROOT,'web/public/games',variant),suspension:mode});const hashes=[];
    for(let n=0;n<300;n++){await h.stepAsync(1); hashes.push(h.host.stateHash());}
    expect(h.logs).toContain(expected);states.push(hashes);metrics.push(h.host.metrics());
   }
