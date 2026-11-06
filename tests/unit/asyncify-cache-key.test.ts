@@ -10,7 +10,7 @@ import {asyncifyCacheKey} from '../../tools/build/build.mjs';
 it('keys linked coverage selections, partition policy, every parser and exact postprocess options',()=>{
  const root=mkdtempSync(join(tmpdir(),'bgt-post-key-'));
  try{
-  const files=['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs'];
+  const files=['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/command.py','tools/build/node-args.mjs'];
   for(const p of files){mkdirSync(dirname(join(root,p)),{recursive:true});writeFileSync(join(root,p),p);}
   const raw=Buffer.from('linked early coverage selection'),key=()=>asyncifyCacheKey(raw,{root});
   const original=key();expect(key()).toBe(original);
@@ -21,5 +21,7 @@ it('keys linked coverage selections, partition policy, every parser and exact po
   expect(asyncifyCacheKey(Buffer.from('linked converged coverage selection'),{root})).not.toBe(original);
   expect(asyncifyCacheKey(raw,{root,profileNames:true})).not.toBe(original);
   expect(asyncifyCacheKey(raw,{root,asyncifyRemove:['N_01001000']})).not.toBe(original);
+  expect(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:65536})).not.toBe(original);
+  expect(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:65536})).not.toBe(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:131072}));
  }finally{rmSync(root,{recursive:true,force:true});}
 });

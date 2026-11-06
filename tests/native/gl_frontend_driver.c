@@ -21,15 +21,18 @@ static uint8_t device_buffers[256][256];
 static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
 /* Bounded guest staging adapter, one live mapping in these focused tests. */
 uint32_t w32_heap_alloc(uint32_t n,int z) {
-    if(heap_live||heap_oom||n>65536)return 0;heap_live=n;
-    if(z)memset(memory+1048576,0,n);return 1048576;
+    if(heap_live||heap_oom||n>65536)return 0;
+    heap_live=n;
+    if(z)memset(memory+1048576,0,n);
+    return 1048576;
 }
 void w32_heap_free(uint32_t p) { if(p!=1048576||!heap_live)abort();heap_live=0; }
 static void *x86_host_backing(uint32_t n) { n=(n+15)&~15u; if(n>sizeof host-top){rejected_size=n;return 0;} void *p=host+top;top+=n;memset(p,0,n);return p; }
 uint64_t x86_host_limit(void) { return sizeof host; }
 static char host_diagnostic[512];
 void bgt_log(uint32_t level,const char *p,uint32_t n) { (void)level;/* no allocator recursion */
-    if(n>=sizeof host_diagnostic)abort();memcpy(host_diagnostic,p,n);host_diagnostic[n]=0;
+    if(n>=sizeof host_diagnostic)abort();
+    memcpy(host_diagnostic,p,n);host_diagnostic[n]=0;
 }
 #include "../../platforms/x86/x86_host.h"
 uint32_t x86_rd8_slow(uint32_t a){return memory[a];}
@@ -93,14 +96,16 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
         if((uint64_t)off+a[4]>=top||!a[4]||host[off+a[4]]||!strstr((char *)host+off,"void main"))abort();
         live_modules[a[0]]=1;module_creates++;request_pending=a[5];
     } else if(code==0x49) {
-        if(n!=28||a[0]>=1024||!live_modules[a[0]])abort();live_modules[a[0]]=0;
+        if(n!=28||a[0]>=1024||!live_modules[a[0]])abort();
+        live_modules[a[0]]=0;
     }
     return 0;
 }
 int32_t bgt_request_status(uint32_t r){if(r!=request_pending||!r)abort();return device_readback&&fail_readback==1?-1:1;}
 int32_t bgt_request_read(uint32_t r,void *p,uint32_t n){if(r!=request_pending)abort();
     if(device_readback){if(n<device_readback)abort();memcpy(p,memory+524288,device_readback);return (int32_t)device_readback-(fail_readback==2);}
-    if(n<4)abort();memcpy(p,&request_result,4);return 4;}
+    if(n<4)abort();
+    memcpy(p,&request_result,4);return 4;}
 int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pending=device_readback=0;return 0;}
 uint32_t w32_pstr(uint32_t a,uint32_t n,int wide,const char *s){(void)wide;uint32_t k=0;while(k+1<n&&s[k]){memory[a+k]=s[k];k++;}if(n)memory[a+k]=0;return k;}
 uint32_t w32_gstr(uint32_t a,int wide,char *s,uint32_t n){(void)wide;snprintf(s,n,"%s",memory+a);return (uint32_t)strlen(s);}
@@ -248,9 +253,11 @@ static void allocator(void) {
         rng=rng*1664525u+1013904223u;uint32_t slot=rng%128;
         if(slots[slot]) {for(uint32_t j=0;j<sizes[slot];j++)CHECK(((uint8_t *)slots[slot])[j]==(uint8_t)slot);glp_free(slots[slot],sizes[slot]);slots[slot]=0;}
         else {rng=rng*1664525u+1013904223u;sizes[slot]=1+rng%100000;slots[slot]=glp_alloc(sizes[slot]);CHECK(slots[slot]);
-            for(uint32_t j=0;j<sizes[slot];j++)CHECK(!((uint8_t *)slots[slot])[j]);memset(slots[slot],slot,sizes[slot]);}
+            for(uint32_t j=0;j<sizes[slot];j++)CHECK(!((uint8_t *)slots[slot])[j]);
+            memset(slots[slot],slot,sizes[slot]);}
     }
-    for(uint32_t i=0;i<128;i++)glp_free(slots[i],sizes[i]);CHECK(w32_gl_frontend_bytes==0);
+    for(uint32_t i=0;i<128;i++)glp_free(slots[i],sizes[i]);
+    CHECK(w32_gl_frontend_bytes==0);
     printf("allocator split/coalesce/zero/overflow OK randomized=24000\n");
 }
 static void buffer_vao(void) {

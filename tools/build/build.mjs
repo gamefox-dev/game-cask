@@ -48,10 +48,10 @@ export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=104857
 
 // Complete post-link identity: thresholds/local passes live in asyncify.mjs; both
 // binary and name parsers can change partition assembly or exact native exclusions.
-export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],root=ROOT}={}) {
+export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],asyncifyPartitionBytes=null,root=ROOT}={}) {
   return sha256(Buffer.concat([wasm,Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),
-    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs'].map(p=>readFileSync(join(root,p))),
-    Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove}))]));
+    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/command.py','tools/build/node-args.mjs'].map(p=>readFileSync(join(root,p))),
+    Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove,asyncifyPartitionBytes}))]));
 }
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
@@ -85,7 +85,9 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null } = {}) {
+  if (asyncifyPartitionBytes !== null && (!Number.isInteger(asyncifyPartitionBytes) || asyncifyPartitionBytes < 1024 || asyncifyPartitionBytes > 16 * 1048576))
+    throw new Error('asyncifyPartitionBytes must be null or an integer in 1024..16777216');
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
@@ -213,15 +215,13 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       // Only generated N_* native steps return before host work and remain safe to exclude.
       asyncifyRemove=pipe.nativeLiftSymbols.filter(n=>n.startsWith('N_') && names.has(n));
       // Steps can all be inlined; an empty intersection is legal, never broaden to F_*.
-      // Stay below macOS's per-process argv ceiling on engine-sized modules. If the exact
-      // step list exceeds the bound, retain conservative analysis, not a partial list.
-      if(asyncifyRemove.join(',').length>180000)asyncifyRemove=[];
+      // Exact lists cross process boundaries through private response files (command.py).
     }
     // v0.2: let blocking loops suspend in bgt_yield (see bgt/abi/ABI.md). Only functions that can
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove});
+    const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove,asyncifyPartitionBytes});
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
@@ -230,6 +230,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
         phase: 'wasm-opt', cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
           ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
+          ...(asyncifyPartitionBytes === null ? [] : ['--bgt-partition-bytes='+asyncifyPartitionBytes]),
           ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
           ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
         encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],

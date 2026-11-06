@@ -282,7 +282,11 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
         for(const a of selected)sliceCode.add(a);
         if(selectedSet){const list=join(work,`selected_${id}.txt`);writeFileSync(list,selected.map((a)=>a.toString(16)).join('\n')+'\n');args.push('--select',list);}
       }
-      if (ov.addrs.length) args.push('--skip', ov.addrs.map((a) => a.toString(16)).join(','));
+      if (ov.addrs.length) {
+        const skipFile = join(work, `skip_${id}.txt`);
+        writeFileSync(skipFile, ov.addrs.map((a) => a.toString(16)).join('\n')+'\n');
+        args.push('--skip-file', skipFile);
+      }
       if (mode64 && p.chunkInstructions !== 0 && measured.analysis.totals.instructions > (p.chunkInstructions ?? 32768)) {
         const result = liftChunks({tool,file,id,base,work,analysis:measured.analysis,key:measured.key,
           selected:selectedSet,skip:ov.addrs,flagLiveness:p.flagLiveness,policy,budget:p.chunkInstructions ?? 32768});

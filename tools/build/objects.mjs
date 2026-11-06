@@ -188,9 +188,10 @@ export function prepareObjects({ sources, flags, includes, compiler, cache, root
           // Unsupported diagnostics/probes are not evidence of cacheability either.
           // Fall back to ordinary dep discovery; the real compile keeps its flags.
           volatile = true;
-          make = execFileSync(compiler.path, [...prefix, ...flags, '-M', '-MT', 'bgt', file], {
-            cwd: root, encoding: 'utf8', maxBuffer: 16 << 20, stdio: ['ignore', 'pipe', 'inherit'],
+          execFileSync(compiler.path, [...prefix, ...flags, '-M', '-MF', depfile, '-MT', 'bgt', file], {
+            cwd: root, encoding: 'utf8', maxBuffer: 16 << 20, stdio: ['ignore', 'ignore', 'inherit'],
           });
+          make = readFileSync(depfile, 'utf8');
         }
       } finally { rmSync(depfile, { force: true }); }
       deps = [...new Set([file, ...parseDependencies(make).map((f) => resolve(root, f))])].sort().map((f) => [f, hash(f)]);

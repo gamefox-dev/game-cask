@@ -1,0 +1,5845 @@
+{
+  "schema": "game-cask/integration-i16-gate-evidence/1",
+  "source": "030ccb6c0ed8884b7aaf880e5ac4ed07f86e3e45",
+  "merge": "5cc812ceac7d46c8aa11e223e4afab454cd9c1b1",
+  "ci": {
+    "source": "030ccb6c0ed8884b7aaf880e5ac4ed07f86e3e45",
+    "ref": "ci/i16d",
+    "run": "42155051200",
+    "result": "PASS",
+    "gate": "PASS",
+    "provenance": "Coordinator returned reviewer bridge #349; no gh or independent CI execution in this session",
+    "jobs": {
+      "unit_1": {
+        "result": "PASS",
+        "reportedMinutes": 38
+      },
+      "unit_2": {
+        "result": "PASS",
+        "reportedMinutes": 37
+      },
+      "unit_3": {
+        "result": "PASS",
+        "reportedMinutes": 45
+      },
+      "e2e": {
+        "result": "PASS",
+        "reportedMinutes": 53
+      },
+      "lint_examples": {
+        "result": "PASS",
+        "reportedMinutes": 44
+      },
+      "scale": {
+        "result": "PASS",
+        "reportedMinutes": 17
+      },
+      "lint_js": {
+        "result": "PASS"
+      },
+      "lint_native": {
+        "result": "PASS"
+      }
+    },
+    "unitAcceptance": {
+      "limitMinutes": 60,
+      "requiredMaxMinutes": 51,
+      "actualMaxMinutes": 45,
+      "headroomMinutes": 15,
+      "meets": true
+    },
+    "coverage": "CI accounting tests run Asyncify only; CI Node has no JSPI. Required-JSPI local tier1 covers both."
+  },
+  "units": {
+    "files": 141,
+    "tests": 2400,
+    "skips": 0,
+    "success": true,
+    "shards": [
+      [
+        "tests/oracle/failures.test.ts",
+        "tests/oracle/tooling.test.ts",
+        "tests/unit/abi-layout.test.ts",
+        "tests/unit/accounting-precision.test.ts",
+        "tests/unit/audio-input.test.ts",
+        "tests/unit/build-cache.test.ts",
+        "tests/unit/build-hermetic-time.test.ts",
+        "tests/unit/build-lock-transport.test.ts",
+        "tests/unit/contracts.test.ts",
+        "tests/unit/coverage-identity.test.ts",
+        "tests/unit/coverage.test.ts",
+        "tests/unit/gl-frontend-memory.test.ts",
+        "tests/unit/gl-scale-memory.test.ts",
+        "tests/unit/glsl-boundaries.test.ts",
+        "tests/unit/glsl-builtins.test.ts",
+        "tests/unit/glsl-integers.test.ts",
+        "tests/unit/glsl-review.test.ts",
+        "tests/unit/gpu-continuation.test.ts",
+        "tests/unit/gpu-limits.test.ts",
+        "tests/unit/gpu-loss-race.test.ts",
+        "tests/unit/guest-progress.test.ts",
+        "tests/unit/heap.test.ts",
+        "tests/unit/import-leaves.test.ts",
+        "tests/unit/import-strings.test.ts",
+        "tests/unit/incremental-build.test.ts",
+        "tests/unit/interpreter-dispatch-spans.test.ts",
+        "tests/unit/interpreter-exception-spans.test.ts",
+        "tests/unit/interpreter-spans.test.ts",
+        "tests/unit/kit-tools.test.ts",
+        "tests/unit/lift-dispatch.test.ts",
+        "tests/unit/lifted-header-cache.test.ts",
+        "tests/unit/metrics-capacity.test.ts",
+        "tests/unit/native-atomic-address.test.ts",
+        "tests/unit/native-calls.test.ts",
+        "tests/unit/oracle-startup.test.ts",
+        "tests/unit/probe-server.test.ts",
+        "tests/unit/range-files.test.ts",
+        "tests/unit/runtime-recording.test.ts",
+        "tests/unit/scale.test.ts",
+        "tests/unit/slice.test.ts",
+        "tests/unit/suspension-scale.test.ts",
+        "tests/unit/tools.test.ts",
+        "tests/unit/webgpu-startup.test.ts",
+        "tests/unit/win32-profile.test.ts",
+        "tests/unit/x64-gl-current.test.ts",
+        "tests/unit/x64-gl-default-vao.test.ts",
+        "tests/unit/x64-gl-fbo.test.ts",
+        "tests/unit/x64-gl-ranges.test.ts",
+        "tests/unit/x64-gl.test.ts",
+        "tests/unit/x86.test.ts",
+        "tests/unit/yield.test.ts"
+      ],
+      [
+        "tests/unit/asyncify-cache-key.test.ts",
+        "tests/unit/build-cache-inputs.test.ts",
+        "tests/unit/build-cache-recovery.test.ts",
+        "tests/unit/build-transport.test.ts",
+        "tests/unit/codegen.test.ts",
+        "tests/unit/commands.test.ts",
+        "tests/unit/cpu-profile.test.ts",
+        "tests/unit/crt-buffer.test.ts",
+        "tests/unit/crt-fs.test.ts",
+        "tests/unit/crt-read-ahead.test.ts",
+        "tests/unit/decode-cooperation.test.ts",
+        "tests/unit/feedback.test.ts",
+        "tests/unit/gl-oracle-contract.test.ts",
+        "tests/unit/glsl-opaque.test.ts",
+        "tests/unit/glsl-regressions.test.ts",
+        "tests/unit/glsl.test.ts",
+        "tests/unit/gpu-image.test.ts",
+        "tests/unit/gpu-pipeline-lifetime.test.ts",
+        "tests/unit/gpu-texture.test.ts",
+        "tests/unit/guest-accounting.test.ts",
+        "tests/unit/handles.test.ts",
+        "tests/unit/host-memory.test.ts",
+        "tests/unit/host.test.ts",
+        "tests/unit/import-codegen.test.ts",
+        "tests/unit/import-lowering.test.ts",
+        "tests/unit/jspi-only-build.test.ts",
+        "tests/unit/jspi.test.ts",
+        "tests/unit/lift-registry.test.ts",
+        "tests/unit/native-examples.test.ts",
+        "tests/unit/native-seh.test.ts",
+        "tests/unit/per-test-tool.test.ts",
+        "tests/unit/pi-bridge.test.ts",
+        "tests/unit/renderer-recording.test.ts",
+        "tests/unit/retirement.test.ts",
+        "tests/unit/slice-policy.test.ts",
+        "tests/unit/strings.test.ts",
+        "tests/unit/sysdlls-host.test.ts",
+        "tests/unit/sysdlls.test.ts",
+        "tests/unit/test-build-selection.test.ts",
+        "tests/unit/threads.test.ts",
+        "tests/unit/visual-availability.test.ts",
+        "tests/unit/webgpu-availability.test.ts",
+        "tests/unit/x64-gl-feedback.test.ts",
+        "tests/unit/x64-gl-integer.test.ts",
+        "tests/unit/x64-gl-scale.test.ts",
+        "tests/unit/x64-glsl.test.ts"
+      ],
+      [
+        "tests/unit/accounting-startup.test.ts",
+        "tests/unit/asyncify-boundaries.test.ts",
+        "tests/unit/audio-init.test.ts",
+        "tests/unit/ci-unit-shards.test.ts",
+        "tests/unit/compiler-transport.test.ts",
+        "tests/unit/coverage-buffer.test.ts",
+        "tests/unit/coverage-publication.test.ts",
+        "tests/unit/coverage-snapshot.test.ts",
+        "tests/unit/crt.test.ts",
+        "tests/unit/execution-metrics.test.ts",
+        "tests/unit/gpu-buffer-handles.test.ts",
+        "tests/unit/gpu-commands.test.ts",
+        "tests/unit/gpu-outputs.test.ts",
+        "tests/unit/gpu-webgpu-shaders.test.ts",
+        "tests/unit/host-gcc.test.ts",
+        "tests/unit/i386-strict-entries.test.ts",
+        "tests/unit/instruction-accounting.test.ts",
+        "tests/unit/integration-i3.test.ts",
+        "tests/unit/interpreter-import-spans.test.ts",
+        "tests/unit/native-address-regressions.test.ts",
+        "tests/unit/native-alignment-fault.test.ts",
+        "tests/unit/native-alignment.test.ts",
+        "tests/unit/native-forms.test.ts",
+        "tests/unit/partitioned-pipeline.test.ts",
+        "tests/unit/phase0-tools.test.ts",
+        "tests/unit/pi-harness.test.ts",
+        "tests/unit/pi-robustness.test.ts",
+        "tests/unit/privacy-scan.test.ts",
+        "tests/unit/requests.test.ts",
+        "tests/unit/runtime-recording-failure.test.ts",
+        "tests/unit/sample.test.ts",
+        "tests/unit/scheduler-accounting.test.ts",
+        "tests/unit/vertex-input.test.ts",
+        "tests/unit/wasm-loader.test.ts",
+        "tests/unit/wasm-names.test.ts",
+        "tests/unit/webgpu-probe.test.ts",
+        "tests/unit/x64-gl-blit.test.ts",
+        "tests/unit/x64-gl-capacity.test.ts",
+        "tests/unit/x64-semantics.test.ts",
+        "tests/unit/x64-smoke.test.ts",
+        "tests/unit/x64.test.ts",
+        "tests/unit/x86-metadata.test.ts",
+        "tests/unit/x87.test.ts"
+      ]
+    ],
+    "durationSeconds": 4381.45,
+    "sourceBoundary": "030ccb6 landed during global prebuild before test files loaded; no production/workflow delta from0727828"
+  },
+  "oracles": [
+    {
+      "config": "default-off",
+      "id": "win32-conformance",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "win32-conformance",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "win32-hello",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "win32-hello",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-audio",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-audio",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-audio-init",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-audio-init",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-basics",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-basics",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-contracts",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-contracts",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-cpp",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-cpp",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-cpprt",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-cpprt",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-crt",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-crt",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-blit",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-blit",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-capacity",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-capacity",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-current",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-current",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-default-vao",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-default-vao",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-fbo",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-fbo",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-feedback",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-feedback",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-integer",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-integer",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-ranges",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-ranges",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-scale",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gl-scale",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-glsl",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-glsl",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gui",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-gui",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-handles",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-handles",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-heap",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-heap",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-imports",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-imports",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-input",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-input",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-memory",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-memory",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-scale",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-scale",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-smoke",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-smoke",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-sysdlls",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-sysdlls",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-threads",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-threads",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-tls",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x64-tls",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-handles",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-handles",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-heap",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-heap",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-threads",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "observations": {}
+    },
+    {
+      "config": "default-off",
+      "id": "x86-threads",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "observations": {}
+    },
+    {
+      "config": "accounting-on",
+      "id": "win32-conformance",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "501208",
+            "generic": "16",
+            "interpreted": "0",
+            "total": "501224"
+          },
+          "threads": 1,
+          "snapshots": 1,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "501224",
+            "total": "501224"
+          },
+          "threads": 1,
+          "snapshots": 1,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "win32-conformance",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "501208",
+            "generic": "16",
+            "interpreted": "0",
+            "total": "501224"
+          },
+          "threads": 1,
+          "snapshots": 1,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "501224",
+            "total": "501224"
+          },
+          "threads": 1,
+          "snapshots": 1,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "win32-hello",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "94617",
+            "generic": "3672",
+            "interpreted": "0",
+            "total": "98289"
+          },
+          "threads": 1,
+          "snapshots": 54,
+          "dropped": "0",
+          "instructions_per_guest_frame": 1829.2830188679245
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "98289",
+            "total": "98289"
+          },
+          "threads": 1,
+          "snapshots": 54,
+          "dropped": "0",
+          "instructions_per_guest_frame": 1829.2830188679245
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "win32-hello",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "94617",
+            "generic": "3672",
+            "interpreted": "0",
+            "total": "98289"
+          },
+          "threads": 1,
+          "snapshots": 54,
+          "dropped": "0",
+          "instructions_per_guest_frame": 1829.2830188679245
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "98289",
+            "total": "98289"
+          },
+          "threads": 1,
+          "snapshots": 54,
+          "dropped": "0",
+          "instructions_per_guest_frame": 1829.2830188679245
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-audio",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "708850",
+            "generic": "84301",
+            "interpreted": "0",
+            "total": "793151"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "793151",
+            "total": "793151"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-audio",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "708850",
+            "generic": "84301",
+            "interpreted": "0",
+            "total": "793151"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "793151",
+            "total": "793151"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-audio-init",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "253494",
+            "generic": "7412",
+            "interpreted": "0",
+            "total": "260906"
+          },
+          "threads": 2,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "260906",
+            "total": "260906"
+          },
+          "threads": 2,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-audio-init",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "253494",
+            "generic": "7412",
+            "interpreted": "0",
+            "total": "260906"
+          },
+          "threads": 2,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "260906",
+            "total": "260906"
+          },
+          "threads": 2,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-basics",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3153",
+            "generic": "3",
+            "interpreted": "0",
+            "total": "3156"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "3156",
+            "total": "3156"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-basics",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3153",
+            "generic": "3",
+            "interpreted": "0",
+            "total": "3156"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "3156",
+            "total": "3156"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-contracts",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3301",
+            "generic": "11222",
+            "interpreted": "0",
+            "total": "14523"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "14523",
+            "total": "14523"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-contracts",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3301",
+            "generic": "11222",
+            "interpreted": "0",
+            "total": "14523"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "14523",
+            "total": "14523"
+          },
+          "threads": 4,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-cpp",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28132",
+            "generic": "41",
+            "interpreted": "0",
+            "total": "28173"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28173",
+            "total": "28173"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-cpp",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28132",
+            "generic": "41",
+            "interpreted": "0",
+            "total": "28173"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28173",
+            "total": "28173"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-cpprt",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "139203",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "139205"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "139205",
+            "total": "139205"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-cpprt",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "139203",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "139205"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "139205",
+            "total": "139205"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-crt",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "6271",
+            "generic": "3674",
+            "interpreted": "0",
+            "total": "9945"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "9945",
+            "total": "9945"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-crt",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "6271",
+            "generic": "3674",
+            "interpreted": "0",
+            "total": "9945"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "9945",
+            "total": "9945"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "62844",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "62845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "230",
+          "instructions_per_guest_frame": 196
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "62845",
+            "total": "62845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "230",
+          "instructions_per_guest_frame": 196
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "62844",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "62845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "230",
+          "instructions_per_guest_frame": 196
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "62845",
+            "total": "62845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "230",
+          "instructions_per_guest_frame": 196
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-blit",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "9650",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "9651"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "209",
+          "instructions_per_guest_frame": 20
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "9651",
+            "total": "9651"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "209",
+          "instructions_per_guest_frame": 20
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-blit",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "9650",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "9651"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "209",
+          "instructions_per_guest_frame": 20
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "9651",
+            "total": "9651"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "209",
+          "instructions_per_guest_frame": 20
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-capacity",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "4922773",
+            "generic": "8",
+            "interpreted": "0",
+            "total": "4922781"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "225",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "4922781",
+            "total": "4922781"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "225",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-capacity",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "4922773",
+            "generic": "8",
+            "interpreted": "0",
+            "total": "4922781"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "225",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "4922781",
+            "total": "4922781"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "225",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-current",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "187229",
+            "generic": "65",
+            "interpreted": "0",
+            "total": "187294"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "208",
+          "instructions_per_guest_frame": 677
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "187294",
+            "total": "187294"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "208",
+          "instructions_per_guest_frame": 677
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-current",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "187229",
+            "generic": "65",
+            "interpreted": "0",
+            "total": "187294"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "208",
+          "instructions_per_guest_frame": 677
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "187294",
+            "total": "187294"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "208",
+          "instructions_per_guest_frame": 677
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-default-vao",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "61648",
+            "generic": "22",
+            "interpreted": "0",
+            "total": "61670"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "217",
+          "instructions_per_guest_frame": 193
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "61670",
+            "total": "61670"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "217",
+          "instructions_per_guest_frame": 193
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-default-vao",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "61648",
+            "generic": "22",
+            "interpreted": "0",
+            "total": "61670"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "217",
+          "instructions_per_guest_frame": 193
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "61670",
+            "total": "61670"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "217",
+          "instructions_per_guest_frame": 193
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-fbo",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "218205",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "218207"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "198",
+          "instructions_per_guest_frame": 804
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "218207",
+            "total": "218207"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "198",
+          "instructions_per_guest_frame": 804
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-fbo",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "218205",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "218207"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "198",
+          "instructions_per_guest_frame": 804
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "218207",
+            "total": "218207"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "198",
+          "instructions_per_guest_frame": 804
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-feedback",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "13224",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "13225"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "186",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "13225",
+            "total": "13225"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "186",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-feedback",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "13224",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "13225"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "186",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "13225",
+            "total": "13225"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "186",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-integer",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28843",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "28845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "87",
+          "instructions_per_guest_frame": 87
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28845",
+            "total": "28845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "87",
+          "instructions_per_guest_frame": 87
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-integer",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28843",
+            "generic": "2",
+            "interpreted": "0",
+            "total": "28845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "87",
+          "instructions_per_guest_frame": 87
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28845",
+            "total": "28845"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "87",
+          "instructions_per_guest_frame": 87
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-ranges",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "225470",
+            "generic": "4",
+            "interpreted": "0",
+            "total": "225474"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "177",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "225474",
+            "total": "225474"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "177",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-ranges",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "225470",
+            "generic": "4",
+            "interpreted": "0",
+            "total": "225474"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "177",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "225474",
+            "total": "225474"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "177",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-scale",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "1168012",
+            "generic": "67",
+            "interpreted": "0",
+            "total": "1168079"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "218",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "1168079",
+            "total": "1168079"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "218",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gl-scale",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "1168012",
+            "generic": "67",
+            "interpreted": "0",
+            "total": "1168079"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "218",
+          "instructions_per_guest_frame": 5
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "1168079",
+            "total": "1168079"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "218",
+          "instructions_per_guest_frame": 5
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-glsl",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "588047",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "588048"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "588048",
+            "total": "588048"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-glsl",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "588047",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "588048"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "588048",
+            "total": "588048"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gui",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "15028",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "15029"
+          },
+          "threads": 1,
+          "snapshots": 56,
+          "dropped": "0",
+          "instructions_per_guest_frame": 259.1636363636364
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "15029",
+            "total": "15029"
+          },
+          "threads": 1,
+          "snapshots": 56,
+          "dropped": "0",
+          "instructions_per_guest_frame": 259.1636363636364
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-gui",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "15028",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "15029"
+          },
+          "threads": 1,
+          "snapshots": 56,
+          "dropped": "0",
+          "instructions_per_guest_frame": 259.1636363636364
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "15029",
+            "total": "15029"
+          },
+          "threads": 1,
+          "snapshots": 56,
+          "dropped": "0",
+          "instructions_per_guest_frame": 259.1636363636364
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-handles",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "153308",
+            "generic": "46916",
+            "interpreted": "0",
+            "total": "200224"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "200224",
+            "total": "200224"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-handles",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "153308",
+            "generic": "46916",
+            "interpreted": "0",
+            "total": "200224"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "200224",
+            "total": "200224"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-heap",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "6217877",
+            "generic": "18778350",
+            "interpreted": "0",
+            "total": "24996227"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "24996227",
+            "total": "24996227"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-heap",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "6217877",
+            "generic": "18778350",
+            "interpreted": "0",
+            "total": "24996227"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "24996227",
+            "total": "24996227"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-imports",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "137",
+            "generic": "34",
+            "interpreted": "0",
+            "total": "171"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "171",
+            "total": "171"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-imports",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "137",
+            "generic": "34",
+            "interpreted": "0",
+            "total": "171"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "171",
+            "total": "171"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-input",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3235370",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "3235371"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 10776
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "3235371",
+            "total": "3235371"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 10776
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-input",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "3235370",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "3235371"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 10776
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "3235371",
+            "total": "3235371"
+          },
+          "threads": 1,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 10776
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-memory",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "101030684",
+            "generic": "284",
+            "interpreted": "0",
+            "total": "101030968"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "101030968",
+            "total": "101030968"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-memory",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "101030684",
+            "generic": "284",
+            "interpreted": "0",
+            "total": "101030968"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "101030968",
+            "total": "101030968"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-scale",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "1776530",
+            "total": "1776530"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-scale",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "1776529",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "1776530"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "1776530",
+            "total": "1776530"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-smoke",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "5088459",
+            "generic": "730292",
+            "interpreted": "0",
+            "total": "5818751"
+          },
+          "threads": 5,
+          "snapshots": 64,
+          "dropped": "246",
+          "instructions_per_guest_frame": 14711.142857142857
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "5818751",
+            "total": "5818751"
+          },
+          "threads": 5,
+          "snapshots": 64,
+          "dropped": "246",
+          "instructions_per_guest_frame": 14711.142857142857
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-smoke",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "5088459",
+            "generic": "730292",
+            "interpreted": "0",
+            "total": "5818751"
+          },
+          "threads": 5,
+          "snapshots": 64,
+          "dropped": "246",
+          "instructions_per_guest_frame": 14711.142857142857
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "5818751",
+            "total": "5818751"
+          },
+          "threads": 5,
+          "snapshots": 64,
+          "dropped": "246",
+          "instructions_per_guest_frame": 14711.142857142857
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-sysdlls",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "47679",
+            "generic": "603",
+            "interpreted": "0",
+            "total": "48282"
+          },
+          "threads": 3,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 116.28571428571429
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "48282",
+            "total": "48282"
+          },
+          "threads": 3,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 116.28571428571429
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-sysdlls",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "47679",
+            "generic": "603",
+            "interpreted": "0",
+            "total": "48282"
+          },
+          "threads": 3,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 116.28571428571429
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "48282",
+            "total": "48282"
+          },
+          "threads": 3,
+          "snapshots": 64,
+          "dropped": "236",
+          "instructions_per_guest_frame": 116.28571428571429
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-threads",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "2024812",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "2024813"
+          },
+          "threads": 7,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "2024813",
+            "total": "2024813"
+          },
+          "threads": 7,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-threads",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "2024812",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "2024813"
+          },
+          "threads": 7,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "2024813",
+            "total": "2024813"
+          },
+          "threads": 7,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-tls",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "5064",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "5065"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "5065",
+            "total": "5065"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x64-tls",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "5064",
+            "generic": "1",
+            "interpreted": "0",
+            "total": "5065"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "5065",
+            "total": "5065"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-handles",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "193258",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "193258"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "193258",
+            "total": "193258"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-handles",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "193258",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "193258"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "193258",
+            "total": "193258"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-heap",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28547499",
+            "generic": "48003",
+            "interpreted": "0",
+            "total": "28595502"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28595502",
+            "total": "28595502"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-heap",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "28547499",
+            "generic": "48003",
+            "interpreted": "0",
+            "total": "28595502"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "28595502",
+            "total": "28595502"
+          },
+          "threads": 1,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-threads",
+      "mode": "asyncify",
+      "frames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "8199",
+            "generic": "3",
+            "interpreted": "0",
+            "total": "8202"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "8202",
+            "total": "8202"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    },
+    {
+      "config": "accounting-on",
+      "id": "x86-threads",
+      "mode": "jspi",
+      "frames": 300,
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "observations": {
+        "lifted": {
+          "retired": {
+            "lifted": "8199",
+            "generic": "3",
+            "interpreted": "0",
+            "total": "8202"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        },
+        "interpreted": {
+          "retired": {
+            "lifted": "0",
+            "generic": "0",
+            "interpreted": "8202",
+            "total": "8202"
+          },
+          "threads": 3,
+          "snapshots": 0,
+          "dropped": "0",
+          "instructions_per_guest_frame": null
+        }
+      }
+    }
+  ],
+  "oracleCount": 136,
+  "benchmark": {
+    "baseline": "fab72573ee17cb948d0837706dbf22701664593b",
+    "candidate": "030ccb6c0ed8884b7aaf880e5ac4ed07f86e3e45",
+    "method": "Nine alternating-order same-process fresh-instance pairs after one discarded pair per mode; 30 untimed warmup updates followed by 300 timed updates with VM work and Sleep. Instantiation/init/compile excluded.",
+    "units": "host milliseconds per300guest updates",
+    "rows": [
+      {
+        "suspension": "asyncify",
+        "samples": [
+          [
+            18.750499999999988,
+            18.57137499999999,
+            18.488917000000015,
+            18.409500000000037,
+            18.387749999999983,
+            18.42287500000009,
+            18.337167000000022,
+            18.34004200000004,
+            18.314084000000094
+          ],
+          [
+            18.646500000000003,
+            18.734916,
+            18.508457999999962,
+            18.521041000000025,
+            18.389707999999928,
+            18.406375000000025,
+            18.25999999999999,
+            18.319208000000003,
+            18.171291999999994
+          ]
+        ],
+        "medians": [
+          18.409500000000037,
+          18.406375000000025
+        ],
+        "resources": [
+          {
+            "pair": -1,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1156317184
+          },
+          {
+            "pair": 0,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1038286848
+          },
+          {
+            "pair": 1,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 2,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 3,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 4,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 5,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 6,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 7,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 8,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          }
+        ],
+        "paired": [
+          {
+            "delta": [
+              -0.103999999999985,
+              0.16354100000000926,
+              0.019540999999946962,
+              0.11154099999998834,
+              0.0019579999999450592,
+              -0.016500000000064574,
+              -0.0771670000000313,
+              -0.020834000000036212,
+              -0.1427920000000995
+            ],
+            "median": -0.016500000000064574,
+            "min": -0.1427920000000995,
+            "max": 0.16354100000000926
+          }
+        ],
+        "orderSubsets": {
+          "AB": {
+            "pairs": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "beforeMedian": 18.387749999999983,
+            "afterMedian": 18.389707999999928,
+            "pairedDeltaMedian": -0.0771670000000313
+          },
+          "BA": {
+            "pairs": [
+              1,
+              3,
+              5,
+              7
+            ],
+            "beforeMedian": 18.416187500000063,
+            "afterMedian": 18.463708000000025,
+            "pairedDeltaMedian": 0.047520499999961885
+          }
+        }
+      },
+      {
+        "suspension": "jspi",
+        "samples": [
+          [
+            17.016083999999978,
+            16.634207999999944,
+            16.520624999999995,
+            16.597082999999884,
+            16.641624999999976,
+            16.650416999999834,
+            16.50320799999986,
+            16.49366699999996,
+            16.46220799999992
+          ],
+          [
+            16.516624999999976,
+            16.546249999999986,
+            16.635041999999885,
+            16.585416000000123,
+            16.604916000000003,
+            16.72550000000001,
+            16.49375000000009,
+            16.712458000000197,
+            16.521291999999903
+          ]
+        ],
+        "medians": [
+          16.597082999999884,
+          16.585416000000123
+        ],
+        "resources": [
+          {
+            "pair": -1,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 0,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 1,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 1039646720
+          },
+          {
+            "pair": 2,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 872218624
+          },
+          {
+            "pair": 3,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 796721152
+          },
+          {
+            "pair": 4,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 717029376
+          },
+          {
+            "pair": 5,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 637337600
+          },
+          {
+            "pair": 6,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 554237952
+          },
+          {
+            "pair": 7,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 474546176
+          },
+          {
+            "pair": 8,
+            "load": [
+              3.31884765625,
+              3.3994140625,
+              3.5205078125
+            ],
+            "free": 386465792
+          }
+        ],
+        "paired": [
+          {
+            "delta": [
+              -0.49945900000000165,
+              -0.08795799999995779,
+              0.11441699999988941,
+              -0.011666999999761174,
+              -0.03670899999997346,
+              0.07508300000017698,
+              -0.009457999999767708,
+              0.21879100000023755,
+              0.05908399999998437
+            ],
+            "median": -0.009457999999767708,
+            "min": -0.49945900000000165,
+            "max": 0.21879100000023755
+          }
+        ],
+        "orderSubsets": {
+          "AB": {
+            "pairs": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "beforeMedian": 16.520624999999995,
+            "afterMedian": 16.521291999999903,
+            "pairedDeltaMedian": -0.009457999999767708
+          },
+          "BA": {
+            "pairs": [
+              1,
+              3,
+              5,
+              7
+            ],
+            "beforeMedian": 16.615645499999914,
+            "afterMedian": 16.64893700000016,
+            "pairedDeltaMedian": 0.0317080000002079
+          }
+        }
+      }
+    ],
+    "artifacts": [
+      {
+        "version": "baseline",
+        "wasm": {
+          "url": "game.wasm?h=a333dc3f638ed6ba",
+          "size": 1321322,
+          "sha256": "a333dc3f638ed6ba59681c5910fed8b89299f2b5d749e11c973921100860bf90"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=e8e5269f648906b3",
+            "size": 1489372,
+            "sha256": "e8e5269f648906b3dc904f0f188b3fb9a8876efeb2072244e95fe98a89d6b164"
+          }
+        },
+        "toolchain": {
+          "zig": "0.13.0",
+          "cflags": [
+            "--target=wasm32-wasi",
+            "-std=c11",
+            "-O2",
+            "-g0",
+            "-ffreestanding",
+            "-fno-stack-protector",
+            "-mbulk-memory",
+            "-mnontrapping-fptoint",
+            "-msign-ext",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-Wno-unused-function",
+            "-DX86_ACCOUNTING_ENABLED=0",
+            "-DX86_COVERAGE_MODE=1",
+            "-DX86_FLAT_GUEST=1",
+            "-DX86_FLAT_BYTES=1024ull*1048576ull",
+            "-DX86_HOST_ARENA_BYTES=64u*1048576u",
+            "-D_GNU_SOURCE",
+            "-fno-math-errno",
+            "-Wno-unused-label",
+            "-Wno-unused-but-set-variable",
+            "-Wno-unused-variable"
+          ],
+          "asyncify": true
+        },
+        "oracles": [
+          {
+            "mode": "asyncify",
+            "frames": 300,
+            "hashes": {
+              "lifted": "8eb8fd18",
+              "interpreted": "8eb8fd18",
+              "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+              "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+            }
+          },
+          {
+            "mode": "jspi",
+            "frames": 300,
+            "hashes": {
+              "lifted": "8eb8fd18",
+              "interpreted": "8eb8fd18",
+              "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+              "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+            }
+          }
+        ]
+      },
+      {
+        "version": "candidate",
+        "wasm": {
+          "url": "game.wasm?h=a333dc3f638ed6ba",
+          "size": 1321322,
+          "sha256": "a333dc3f638ed6ba59681c5910fed8b89299f2b5d749e11c973921100860bf90"
+        },
+        "variants": {
+          "jspi": {
+            "url": "game.jspi.wasm?h=e8e5269f648906b3",
+            "size": 1489372,
+            "sha256": "e8e5269f648906b3dc904f0f188b3fb9a8876efeb2072244e95fe98a89d6b164"
+          }
+        },
+        "toolchain": {
+          "zig": "0.13.0",
+          "cflags": [
+            "--target=wasm32-wasi",
+            "-std=c11",
+            "-O2",
+            "-g0",
+            "-ffreestanding",
+            "-fno-stack-protector",
+            "-mbulk-memory",
+            "-mnontrapping-fptoint",
+            "-msign-ext",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-Wno-unused-function",
+            "-DX86_ACCOUNTING_ENABLED=0",
+            "-DX86_COVERAGE_MODE=1",
+            "-DX86_FLAT_GUEST=1",
+            "-DX86_FLAT_BYTES=1024ull*1048576ull",
+            "-DX86_HOST_ARENA_BYTES=64u*1048576u",
+            "-D_GNU_SOURCE",
+            "-fno-math-errno",
+            "-Wno-unused-label",
+            "-Wno-unused-but-set-variable",
+            "-Wno-unused-variable"
+          ],
+          "asyncify": true
+        },
+        "oracles": [
+          {
+            "mode": "asyncify",
+            "frames": 300,
+            "hashes": {
+              "lifted": "8eb8fd18",
+              "interpreted": "8eb8fd18",
+              "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+              "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+            }
+          },
+          {
+            "mode": "jspi",
+            "frames": 300,
+            "hashes": {
+              "lifted": "8eb8fd18",
+              "interpreted": "8eb8fd18",
+              "liftedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77",
+              "interpretedTrace": "a27272fb27c9ef72d5ed633c97ea9ba6386865bf5d8f31f40eaf8d87766d5d77"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "historicalExplicitOffUnit": {
+    "exit": "1",
+    "sha256": "f57ff89e0c4dea3c1b05bed0a93b985bf4c57f5691c8afbb5fe4e01dbbbbb4d1",
+    "acceptance": false,
+    "reason": "runner explicitly forced OFF conflicting with intentionally ON fixtures; complete clean-default rerun required"
+  },
+  "failures": [],
+  "rawEvidenceRoot": "/Users/dev/projects/pi-work/scratch-I16/i16",
+  "gates": [
+    {
+      "config": "default-off",
+      "name": "doctor",
+      "exit": "0",
+      "sha256": "3be354f3f4a83ed89d502c9507494e332e6c11871c601151fafe449b81c2acd3"
+    },
+    {
+      "config": "default-off",
+      "name": "transport",
+      "exit": "0",
+      "sha256": "5ddbf554306bec565570a154248ff53c713e990bed6b85f7cd150f73d4d7a108"
+    },
+    {
+      "config": "default-off",
+      "name": "lint-clang",
+      "exit": "0",
+      "sha256": "39c30c8602eec5b5076b13c87bb7c40cd456d775ea59e2e8cd2abe4fe6613675"
+    },
+    {
+      "config": "default-off",
+      "name": "lint-gcc",
+      "exit": "0",
+      "sha256": "00983134b0e7d741a11f3c3a55d714bb156aa5958587a7ce14f110de0c7136b6"
+    },
+    {
+      "config": "default-off",
+      "name": "clang",
+      "exit": "0",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "config": "default-off",
+      "name": "typecheck",
+      "exit": "0",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "config": "default-off",
+      "name": "browser-asyncify",
+      "exit": "0",
+      "sha256": "85b1856ad46e34153d4bfeb468b8aef47aa65834d7c7c17376a6533d5427910e"
+    },
+    {
+      "config": "default-off",
+      "name": "browser-jspi",
+      "exit": "0",
+      "sha256": "2679b42a55121a8b7ce096e36180eb67eaebe8f0bfe22251dda9ecb54c44146a"
+    },
+    {
+      "config": "default-off",
+      "name": "leakcheck",
+      "exit": "0",
+      "sha256": "25b337a77c53723dd73c2ac5765817608a950e32b61d8397174188c6059d58dc"
+    },
+    {
+      "config": "default-off",
+      "name": "oracles",
+      "exit": "0",
+      "sha256": "f7d739eac907bd945c6fd12034560de703357f4b80c504c4f1cf8f52f52cd51e"
+    },
+    {
+      "config": "accounting-on",
+      "name": "oracles",
+      "exit": "0",
+      "sha256": "f7d739eac907bd945c6fd12034560de703357f4b80c504c4f1cf8f52f52cd51e"
+    },
+    {
+      "config": "repairs",
+      "name": "unit-default-off",
+      "exit": "0",
+      "sha256": "6a15a352afce65fc797af919dbd2ad1e4ebd5744a8429ce76efa40b44630b850"
+    },
+    {
+      "config": "repairs",
+      "name": "typecheck",
+      "exit": "0",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "config": "repairs",
+      "name": "eslint",
+      "exit": "0",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "config": "final-checks",
+      "name": "optional-node",
+      "exit": "0",
+      "sha256": "6e945c9f765d08e10e21a689242f4d0b4b0c5428464d2a05c60a9c0927454cc9"
+    },
+    {
+      "config": "final-checks",
+      "name": "required-jspi",
+      "exit": "0",
+      "sha256": "c2a84599a5a3432a30117f25ea6a66e56f9d250eb3f52f905d41a415e0257e74"
+    },
+    {
+      "config": "final-checks",
+      "name": "typecheck",
+      "exit": "0",
+      "sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    {
+      "config": "final-checks",
+      "name": "eslint",
+      "exit": "0",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "config": "final-checks",
+      "name": "leakcheck",
+      "exit": "0",
+      "sha256": "25b337a77c53723dd73c2ac5765817608a950e32b61d8397174188c6059d58dc"
+    },
+    {
+      "config": "final-checks",
+      "name": "diffcheck",
+      "exit": "0",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "browsers": {
+    "default-off/asyncify": {
+      "stats": {
+        "startTime": "2026-11-06T04:34:09.433Z",
+        "duration": 435153.858,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "sha256": "5d38cd4c0510bc61cd2e5ff8c771d5cde9208a9df329e78fdb275000dc9ce528"
+    },
+    "default-off/jspi": {
+      "stats": {
+        "startTime": "2026-11-06T04:43:01.921Z",
+        "duration": 349885.09,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      },
+      "skips": [
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-auto"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgl2"
+        ],
+        [
+          "fallback.spec.ts",
+          "no-WebGPU reproduction really has no adapter and still renders on WebGL 2",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing EXT_color_buffer_float clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-capability.spec.ts",
+          "GPU WebGL2: missing OES_draw_buffers_indexed clears CAP_GPU but preserves legacy rendering",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: 2048-byte vertex strides render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: both depth formats initialize to one and support depth-only clears and sampling",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: compilation logs complete once and pipeline reflection rejects incompatible layouts",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: every color format, top-left uploads and independent MRT state",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: fractional asymmetric viewport preserves pixel-center coverage",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: full-width vertex IDs and all-ones indices remain ordinary vertices",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: nonzero first instance render through the native C fixture",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2-contract.spec.ts",
+          "GPU WebGL2: shaders fail once during context loss and queued uploads restore in order",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: native C submits and executes every section 13 opcode",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 0 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 1 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 2 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 3 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 4 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 6 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 7 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 8 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgl2.spec.ts",
+          "GPU WebGL2: scene 9 resources survive browser context loss",
+          "chromium-webgpu"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 GLSL ES300 has the same native scene and readback as GLSL330",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 all \u00a713/\u00a713.7 opcodes execute, including deletion and handle reuse",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 loss before first GPU draw rejects decoded handles and queued work",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native GLSL compiler: matrices, blocks, helpers, loops, gradients and shadow samplers",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 native edge cases: formats, unaligned UNORM, strips, byte updates and pending loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu-conformance.spec.ts",
+          "WebGPU \u00a713 stops rather than silently dropping live resources on unrecoverable loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 1000 instanced sprites",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: 2D GPU interleaving",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: GLSL blocks samplers varyings FragCoord discard",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: depth and stencil",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: indexed coloured triangle",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: mipmapped alpha quad",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: two colour attachments",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 native: uniform animation",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 1: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 2: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 3: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "gpu-webgpu.spec.ts",
+          "WebGPU \u00a713 scene 6: resources and pipelines survive device loss",
+          "chromium-webgl2"
+        ],
+        [
+          "robustness.spec.ts",
+          "a WebGL 2 context that is never restored stops with an accessible error, not a hang",
+          "chromium-webgpu"
+        ],
+        [
+          "robustness.spec.ts",
+          "unrecoverable WebGPU loss mid-game switches to WebGL 2 and keeps playing",
+          "chromium-webgl2"
+        ],
+        [
+          "tour.spec.ts",
+          "resource tour opens every menu item of win32-hello and records dialogs and message boxes",
+          "chromium-webgpu"
+        ],
+        [
+          "visual.spec.ts",
+          "WebGPU and WebGL 2 produce matching images (conformance scene and sample title)",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken device",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken lost",
+          "chromium-webgpu"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgl2"
+        ],
+        [
+          "webgpu-availability.spec.ts",
+          "WebGPU-only availability policy: injected broken submission",
+          "chromium-webgpu"
+        ]
+      ],
+      "sha256": "6b5b95638089d112768f130d81c5130c3606e7642fa850c4d457ec132a6dd6ff"
+    }
+  },
+  "unitResultsSha256": "a32c98c7db9c83252f0ec5666bb01328d3ccaf09f1976641da6ff57b65a1bf09",
+  "expectedErrorContract": "Unchanged production tests/oracle/oracle.ts + tests/support/gl-scale-contract.ts enforce one BUFFER_CREATE E_LIMIT for x64-gl-scale only, all other command errors zero; exactly ten recording-only pixel failures, one GL buffer OOM and recovery. No test bypass.",
+  "onSnapshotsPerEngine": 1886,
+  "audit": {
+    "oracleReports": 136,
+    "failures": [],
+    "exit": "0"
+  },
+  "review": {
+    "independent3541c17": "PASS bounded source/discovery only; no tests/builds/gates/CI",
+    "coordinator3541c17to0727828": "PASS bridge347",
+    "coordinator030ccb6": "PASS extraction-only delta",
+    "blockedAgentAttempt": "exit1 auth missing before starting; not PASS",
+    "scope": "No independent full-Tier1 certificate"
+  },
+  "retainedFailedFocusedRuns": [
+    {
+      "name": "optional-node",
+      "exit": "1",
+      "passed": 15,
+      "failed": 1,
+      "reason": "aggregate regression extraction; repaired030ccb6"
+    },
+    {
+      "name": "required-jspi",
+      "exit": "1",
+      "passed": 15,
+      "failed": 1,
+      "reason": "aggregate regression extraction; repaired030ccb6"
+    }
+  ],
+  "files": [
+    {
+      "path": "accounting-on/oracles/win32-conformance-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/win32-conformance-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/win32-hello-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/win32-hello-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-audio-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-audio-init-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-audio-init-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-audio-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-basics-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-basics-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-contracts-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-contracts-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-cpp-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-cpp-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-cpprt-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-cpprt-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-crt-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-crt-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-blit-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-blit-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-capacity-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-capacity-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-current-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-current-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-default-vao-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-default-vao-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-fbo-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-fbo-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-feedback-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-feedback-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-integer-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-integer-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-ranges-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-ranges-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-scale-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gl-scale-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-glsl-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-glsl-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gui-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-gui-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-handles-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-handles-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-heap-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-heap-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-imports-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-imports-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-input-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-input-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-memory-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-memory-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-scale-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-scale-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-smoke-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-smoke-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-sysdlls-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-sysdlls-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-threads-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-threads-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-tls-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x64-tls-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-handles-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-handles-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-heap-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-heap-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-threads-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles/x86-threads-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "accounting-on/oracles.end",
+      "sha256": "0ab28ce99fe24200bda7b2da39a0cfa76afd0738deac8038db97f0de47b93be7"
+    },
+    {
+      "path": "accounting-on/oracles.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "accounting-on/oracles.start",
+      "sha256": "2d8d8b5f88140af5f08e8defbac16af30759fd93e1498c8ce05041dabafb6795"
+    },
+    {
+      "path": "audit.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "audit.json",
+      "sha256": "2cc9042bf305a9434fc0dfb0b7556a416706f19129ed81f8eb1b21146c9da951"
+    },
+    {
+      "path": "audit.log",
+      "sha256": "488064ce6c22dac2bdee15e6768416224a479c61fad08f991206eb811b66c3a9"
+    },
+    {
+      "path": "audit.py",
+      "sha256": "2e5c92abb39d9631fc61fee1185e847e88f82bb6ec59a579361384569a7db90e"
+    },
+    {
+      "path": "benchmark/paired.end",
+      "sha256": "ee952c92dc9e8d229f7d7ab2e1d4d2a2d956eb9d5830becc919d3b86b22b6eb1"
+    },
+    {
+      "path": "benchmark/paired.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "benchmark/paired.json",
+      "sha256": "dbfd82cf53e03753d098a64ed6c973551f79ef1f98853b161a35940077a7954b"
+    },
+    {
+      "path": "benchmark/paired.start",
+      "sha256": "b2b0ff98f13d3b845373d1a50793644b0dc2c0d7bd2470853592d03a9f014690"
+    },
+    {
+      "path": "benchmark/prepare-after.end",
+      "sha256": "b2b0ff98f13d3b845373d1a50793644b0dc2c0d7bd2470853592d03a9f014690"
+    },
+    {
+      "path": "benchmark/prepare-after.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "benchmark/prepare-after.start",
+      "sha256": "b8675a6250d3855ac21778538ae524a9a28362d7f675a25835ed05f3792e1da8"
+    },
+    {
+      "path": "benchmark/prepare-before.end",
+      "sha256": "b8675a6250d3855ac21778538ae524a9a28362d7f675a25835ed05f3792e1da8"
+    },
+    {
+      "path": "benchmark/prepare-before.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "benchmark/prepare-before.start",
+      "sha256": "0ab28ce99fe24200bda7b2da39a0cfa76afd0738deac8038db97f0de47b93be7"
+    },
+    {
+      "path": "check.py",
+      "sha256": "ed197ee2013a86f22161fca4cdd204798ee2ca6b9052397e3b4a243a06f72e43"
+    },
+    {
+      "path": "ci-final.json",
+      "sha256": "f3d8c2988210e542acbf05162e1633b15baf1f6977492732f1ad884808166b1a"
+    },
+    {
+      "path": "coordinator-repair-review.md",
+      "sha256": "81745766a549752fd62e23a9fd2b28ba5b6b598b9434f8e46e719f9704b2130b"
+    },
+    {
+      "path": "default-off/browser-asyncify.end",
+      "sha256": "4094a70ae7cf8cfbe3bb342752a00bb5171c5acd27102a7f21b114bce27755be"
+    },
+    {
+      "path": "default-off/browser-asyncify.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/browser-asyncify.start",
+      "sha256": "415a31792d789dcb52d9feb0f3362136cc15ed99e5b25a3ff616ad32eb9532cd"
+    },
+    {
+      "path": "default-off/browser-jspi.end",
+      "sha256": "7bbddfd496fd6776a298c202fd57d6faed00921058a2f9c2cee1ecc34d0d913f"
+    },
+    {
+      "path": "default-off/browser-jspi.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/browser-jspi.start",
+      "sha256": "4094a70ae7cf8cfbe3bb342752a00bb5171c5acd27102a7f21b114bce27755be"
+    },
+    {
+      "path": "default-off/clang.end",
+      "sha256": "2dfcee1af5d1250836312aebe446eb9e53e74d090295c2ba56a2e918559d76d5"
+    },
+    {
+      "path": "default-off/clang.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/clang.start",
+      "sha256": "32a5604f2f180058936d016a1b1a0ac0c69fbc79dcac95389d02da9085b70b1c"
+    },
+    {
+      "path": "default-off/doctor.end",
+      "sha256": "0f9de4d9f53faec23296ca95d76adb282b7c22b1261f7e343b899ffa710765a5"
+    },
+    {
+      "path": "default-off/doctor.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/doctor.start",
+      "sha256": "6746f27ea657b8e7c5ea0ff740227c8d342983c0cabc98c5fb25a0753d7ffcf1"
+    },
+    {
+      "path": "default-off/leakcheck.end",
+      "sha256": "7bbddfd496fd6776a298c202fd57d6faed00921058a2f9c2cee1ecc34d0d913f"
+    },
+    {
+      "path": "default-off/leakcheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/leakcheck.start",
+      "sha256": "7bbddfd496fd6776a298c202fd57d6faed00921058a2f9c2cee1ecc34d0d913f"
+    },
+    {
+      "path": "default-off/lint-clang.end",
+      "sha256": "d7e5814ee6c3951b03b8c5e707fdc9d6333520566d5e00f61cb238fd6bef7632"
+    },
+    {
+      "path": "default-off/lint-clang.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/lint-clang.start",
+      "sha256": "9318dd586a33d36e7ee0b0535417e94c3a83cd65bf4ef2bbba20f03b42d82faa"
+    },
+    {
+      "path": "default-off/lint-gcc.end",
+      "sha256": "32a5604f2f180058936d016a1b1a0ac0c69fbc79dcac95389d02da9085b70b1c"
+    },
+    {
+      "path": "default-off/lint-gcc.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/lint-gcc.start",
+      "sha256": "d7e5814ee6c3951b03b8c5e707fdc9d6333520566d5e00f61cb238fd6bef7632"
+    },
+    {
+      "path": "default-off/oracles/win32-conformance-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/win32-conformance-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/win32-hello-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/win32-hello-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-audio-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-audio-init-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-audio-init-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-audio-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-basics-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-basics-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-contracts-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-contracts-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-cpp-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-cpp-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-cpprt-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-cpprt-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-crt-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-crt-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-blit-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-blit-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-capacity-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-capacity-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-current-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-current-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-default-vao-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-default-vao-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-fbo-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-fbo-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-feedback-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-feedback-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-integer-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-integer-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-ranges-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-ranges-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-scale-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gl-scale-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-glsl-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-glsl-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gui-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-gui-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-handles-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-handles-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-heap-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-heap-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-imports-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-imports-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-input-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-input-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-memory-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-memory-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-scale-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-scale-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-smoke-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-smoke-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-sysdlls-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-sysdlls-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-threads-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-threads-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-tls-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x64-tls-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-handles-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-handles-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-heap-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-heap-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-threads-asyncify.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles/x86-threads-jspi.exit",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "default-off/oracles.end",
+      "sha256": "2d8d8b5f88140af5f08e8defbac16af30759fd93e1498c8ce05041dabafb6795"
+    },
+    {
+      "path": "default-off/oracles.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/oracles.start",
+      "sha256": "7bbddfd496fd6776a298c202fd57d6faed00921058a2f9c2cee1ecc34d0d913f"
+    },
+    {
+      "path": "default-off/transport.end",
+      "sha256": "9318dd586a33d36e7ee0b0535417e94c3a83cd65bf4ef2bbba20f03b42d82faa"
+    },
+    {
+      "path": "default-off/transport.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/transport.start",
+      "sha256": "0f9de4d9f53faec23296ca95d76adb282b7c22b1261f7e343b899ffa710765a5"
+    },
+    {
+      "path": "default-off/typecheck.end",
+      "sha256": "07aa6464a45732fb32767f92fa1239760351bc577ba968da38315ced4a753afd"
+    },
+    {
+      "path": "default-off/typecheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "default-off/typecheck.start",
+      "sha256": "2dfcee1af5d1250836312aebe446eb9e53e74d090295c2ba56a2e918559d76d5"
+    },
+    {
+      "path": "default-off/unit.end",
+      "sha256": "415a31792d789dcb52d9feb0f3362136cc15ed99e5b25a3ff616ad32eb9532cd"
+    },
+    {
+      "path": "default-off/unit.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "default-off/unit.start",
+      "sha256": "07aa6464a45732fb32767f92fa1239760351bc577ba968da38315ced4a753afd"
+    },
+    {
+      "path": "final-checks/diffcheck.end",
+      "sha256": "27e1df9eced7220a45c6e2c7d263a69507f81a984137f0377977f0d5c1e747aa"
+    },
+    {
+      "path": "final-checks/diffcheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/diffcheck.start",
+      "sha256": "27e1df9eced7220a45c6e2c7d263a69507f81a984137f0377977f0d5c1e747aa"
+    },
+    {
+      "path": "final-checks/eslint.end",
+      "sha256": "27e1df9eced7220a45c6e2c7d263a69507f81a984137f0377977f0d5c1e747aa"
+    },
+    {
+      "path": "final-checks/eslint.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/eslint.start",
+      "sha256": "f158d97a13e9be07b076f7c751b5df5809bf97f1585ce33441bfd20b22ead9f5"
+    },
+    {
+      "path": "final-checks/leakcheck.end",
+      "sha256": "27e1df9eced7220a45c6e2c7d263a69507f81a984137f0377977f0d5c1e747aa"
+    },
+    {
+      "path": "final-checks/leakcheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/leakcheck.start",
+      "sha256": "27e1df9eced7220a45c6e2c7d263a69507f81a984137f0377977f0d5c1e747aa"
+    },
+    {
+      "path": "final-checks/optional-node.end",
+      "sha256": "fa5c2e1345e06978133017ccacb2efe84e7964f7d27e3bf76dfa8e72fda84b80"
+    },
+    {
+      "path": "final-checks/optional-node.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/optional-node.start",
+      "sha256": "e785895d078dff89ccaa90fab3e52f0b8f163a2b8016891798656452a2e9ec83"
+    },
+    {
+      "path": "final-checks/required-jspi.end",
+      "sha256": "ca330e7cdb93303c3a0f6f21012f928c0039e78b8bd6ba97f6eaaaa50fe7e9ef"
+    },
+    {
+      "path": "final-checks/required-jspi.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/required-jspi.start",
+      "sha256": "fa5c2e1345e06978133017ccacb2efe84e7964f7d27e3bf76dfa8e72fda84b80"
+    },
+    {
+      "path": "final-checks/typecheck.end",
+      "sha256": "f158d97a13e9be07b076f7c751b5df5809bf97f1585ce33441bfd20b22ead9f5"
+    },
+    {
+      "path": "final-checks/typecheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "final-checks/typecheck.start",
+      "sha256": "ca330e7cdb93303c3a0f6f21012f928c0039e78b8bd6ba97f6eaaaa50fe7e9ef"
+    },
+    {
+      "path": "final-checks.sh",
+      "sha256": "f3b92eab8f8cd68dccdfd2a400052479ec8e9fbeca984eb83dd6b2eb50b36d6b"
+    },
+    {
+      "path": "independent-review.md",
+      "sha256": "9874f260f6aa21bc3b8fe7e724915945120b616186dff81458d22485697bbea0"
+    },
+    {
+      "path": "inventory-after.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "inventory-before.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "oracles.mjs",
+      "sha256": "7b7f39d299126262dace264819b797803bf1f71def3eeb4e14a25dad00a73c61"
+    },
+    {
+      "path": "repair-review.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "repair-typecheck-pre.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "repair-typecheck-pre2.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "repairs/eslint.end",
+      "sha256": "4c5a015936c4c2c3a9d76c8c7bc3a11feacc00ee6380df3fa47c794b15ed9050"
+    },
+    {
+      "path": "repairs/eslint.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "repairs/eslint.start",
+      "sha256": "fc8a19bb3a66571990c5f8c70d26b2e0e2806e61a545d022d74df6019bf919e9"
+    },
+    {
+      "path": "repairs/optional-node.end",
+      "sha256": "11ddd59421f193b0e7298242711cd8ba79dea4d17d38580a61022a8c881d4fd1"
+    },
+    {
+      "path": "repairs/optional-node.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "repairs/optional-node.start",
+      "sha256": "f2738520af0eac9dbbe577f3b90246156fa3868ed0f9d6359a11737b502f8ff5"
+    },
+    {
+      "path": "repairs/required-jspi.end",
+      "sha256": "051c9950edaeb85883f623f9302e24e87c107591ba58922422e9d58a2a7ac3f4"
+    },
+    {
+      "path": "repairs/required-jspi.exit",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "repairs/required-jspi.start",
+      "sha256": "11ddd59421f193b0e7298242711cd8ba79dea4d17d38580a61022a8c881d4fd1"
+    },
+    {
+      "path": "repairs/typecheck.end",
+      "sha256": "fc8a19bb3a66571990c5f8c70d26b2e0e2806e61a545d022d74df6019bf919e9"
+    },
+    {
+      "path": "repairs/typecheck.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "repairs/typecheck.start",
+      "sha256": "8aa4e55768221170fc155272787073def502040e76666829c3cc96001083b0e7"
+    },
+    {
+      "path": "repairs/unit-default-off.end",
+      "sha256": "8aa4e55768221170fc155272787073def502040e76666829c3cc96001083b0e7"
+    },
+    {
+      "path": "repairs/unit-default-off.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "repairs/unit-default-off.start",
+      "sha256": "051c9950edaeb85883f623f9302e24e87c107591ba58922422e9d58a2a7ac3f4"
+    },
+    {
+      "path": "repairs.sh",
+      "sha256": "4c5872db1fec5ebdcf0ce7d630ceb1ed6d70f918a918d2ad4e36a183b2121a9d"
+    },
+    {
+      "path": "review.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "serial.sh",
+      "sha256": "0e3c1852ed292ed233f3c3f54a4a5764a43592dbf753b60e06d1800b78944375"
+    }
+  ],
+  "cleanup": {
+    "allQueueRootsExited": true,
+    "dev21WorktreeRemoved": true,
+    "benchmarkWasmCopiesRemoved": true,
+    "ownedZigCacheRemovedGiB": 2.3,
+    "freeGiB": 10.31,
+    "foreignOrSharedCachesRemoved": false
+  },
+  "closeout": {
+    "leakcheck": {
+      "exit": "0",
+      "logSha256": "c6b9a839f1f926c5ef90b53ed5db2927fadea794ac22b551db4c143ff4627c2e"
+    },
+    "diffcheck": {
+      "exit": "0",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

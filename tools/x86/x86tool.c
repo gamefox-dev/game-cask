@@ -944,6 +944,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--lift-affine-counting")) lift_affine_counting = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--lift-optimize-small")) lift_optimize_small = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--flag-liveness")) flag_liveness = strcmp(argv[i + 1], "off") != 0;
+        else if (!strcmp(argv[i], "--skip-file")) {
+            FILE *list=fopen(argv[i+1],"rb");if(!list)die("cannot open override selection");
+            unsigned addr;while(fscanf(list,"%x",&addr)==1)vpush(&skip,(uint32_t)addr);fclose(list);vsort_uniq(&skip);
+        }
         else if (!strcmp(argv[i], "--skip")) {
             for (char *s = argv[i + 1]; *s;) { vpush(&skip, (uint32_t)strtoul(s, &s, 16)); while (*s == ',') s++; }
             vsort_uniq(&skip);

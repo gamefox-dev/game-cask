@@ -359,11 +359,13 @@ static Texture *param_texture(uint32_t target) {
 static uint32_t pcount(uint32_t pname) { return pname == 0x1004 || pname == 0x8e46 ? 4 : 1; }
 static uint32_t api_TexParameteri(void) {
     Texture *t = param_texture(ARG(0)); int32_t v[4] = {(int32_t)ARG(2), 0, 0, 0};
-    if (t) param_set(&t->p, t, ARG(1), 0, v, 0, 0); return 0;
+    if (t) param_set(&t->p, t, ARG(1), 0, v, 0, 0);
+    return 0;
 }
 static uint32_t api_TexParameterf(void) {
     Texture *t = param_texture(ARG(0)); float v[4] = {argf(2), 0, 0, 0};
-    if (t) param_set(&t->p, t, ARG(1), v, 0, 1, 0); return 0;
+    if (t) param_set(&t->p, t, ARG(1), v, 0, 1, 0);
+    return 0;
 }
 static uint32_t api_TexParameteriv(void) {
     Texture *t = param_texture(ARG(0)); if (!t) return 0;
@@ -384,20 +386,24 @@ static Sampler *sampler_object(uint32_t id) {
 static uint32_t api_GenSamplers(void) {
     GEN_CHECK(samplers);
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = alloc_name(samplers, sizeof(Sampler));
-        if (id) params_init(&samplers[id].p); x86_wr32(ARG(1) + i * 4, NAME(samplers, id)); } return 0;
+        if (id) params_init(&samplers[id].p);
+        x86_wr32(ARG(1) + i * 4, NAME(samplers, id)); } return 0;
 }
 static uint32_t api_BindSampler(void) {
     uint32_t id = SLOT(samplers, ARG(1));
     if (ARG(0) >= 8) fail(BAD_VALUE);
-    else if (id >= N) fail(BAD_OP); else samp[ARG(0)] = id; return 0;
+    else if (id >= N) fail(BAD_OP); else samp[ARG(0)] = id;
+    return 0;
 }
 static uint32_t api_SamplerParameteri(void) {
     Sampler *s = sampler_object(ARG(0)); int32_t v[4] = {(int32_t)ARG(2), 0, 0, 0};
-    if (s) param_set(&s->p, 0, ARG(1), 0, v, 0, 1); return 0;
+    if (s) param_set(&s->p, 0, ARG(1), 0, v, 0, 1);
+    return 0;
 }
 static uint32_t api_SamplerParameterf(void) {
     Sampler *s = sampler_object(ARG(0)); float v[4] = {argf(2), 0, 0, 0};
-    if (s) param_set(&s->p, 0, ARG(1), v, 0, 1, 1); return 0;
+    if (s) param_set(&s->p, 0, ARG(1), v, 0, 1, 1);
+    return 0;
 }
 static uint32_t api_SamplerParameteriv(void) {
     Sampler *s = sampler_object(ARG(0)); if (!s) return 0;

@@ -27,25 +27,31 @@ it('GCC lint accepts unversioned Linux GCC and skips quietly when it is unavaila
   expect(called).toBe(false);
 });
 
-it.each([-1, 0, 1, 2, 3])('GCC lint checks x86, both heap widths and GLSL and cleans outputs even on compiler failure at call %s', (failAt) => {
+it.each([-1, 0, 1, 2, 3, 4])('GCC lint checks x86, both heap widths, GLSL and GL adapter and cleans outputs at call %s', (failAt) => {
   const outputs: string[] = [];
   const sources = [
     [expect.stringMatching(/\/tools\/x86\/x86tool\.c$/), expect.stringMatching(/\/platforms\/x86\/x86_decode\.c$/)],
     ['-DW32_64=0', expect.stringMatching(/\/tests\/native\/heap_driver\.c$/)],
     ['-DW32_64=1', expect.stringMatching(/\/tests\/native\/heap_driver\.c$/)],
     [expect.stringMatching(/\/tests\/native\/glsl_driver\.c$/)],
+    [expect.stringMatching(/\/tests\/native\/gl_frontend_driver\.c$/)],
   ];
   const run = (cc: string, args: string[]) => {
     expect(cc).toBe('gcc-14');
-    expect(args.slice(0, 6)).toEqual(['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o']);
     const call = outputs.length;
-    expect(args.slice(7).map((p) => p.replaceAll('\\', '/'))).toEqual(sources[call]);
-    outputs.push(args[6]);
-    mkdirSync(args[6]); // Stand-in artifacts must be removed even when the second compiler fails.
+    if (call < 4) expect(args.slice(0, 6)).toEqual(['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o']);
+    if (call < 4) expect(args.slice(7).map((p) => p.replaceAll('\\', '/'))).toEqual(sources[call]);
+    else {
+      expect(args).toEqual(['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-DW32_GL_TEST_NAME_LIMIT=1023', '-DW32_GL_TEST_WORK',
+        '-ffunction-sections', '-fdata-sections', '-I', expect.stringMatching(/\/bgt\/include$/),
+        '-I', expect.stringMatching(/\/platforms\/x86$/), '-I', expect.stringMatching(/\/platforms\/win32$/), '-c', sources[call][0], '-o', expect.any(String)]);
+    }
+    outputs.push(args[args.indexOf('-o') + 1]);
+    mkdirSync(args[args.indexOf('-o') + 1]); // Stand-in artifacts must be removed even when a later compiler fails.
     if (call === failAt) throw new Error('warning treated as error');
   };
   if (failAt >= 0) expect(() => checkHostGcc('gcc-14', run)).toThrow('warning treated as error');
   else checkHostGcc('gcc-14', run);
-  expect(outputs).toHaveLength(failAt < 0 ? 4 : failAt + 1);
+  expect(outputs).toHaveLength(failAt < 0 ? 5 : failAt + 1);
   for (const output of outputs) expect(existsSync(output)).toBe(false);
 });

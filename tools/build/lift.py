@@ -20,6 +20,9 @@ def digest(path):
     return h.hexdigest()
 
 
+run_command = runpy.run_path(str(Path(__file__).with_name('command.py')))['run']
+
+
 def main():
     # Shared with compile.py: finite regular-file stdin from exec.mjs.
     cfg = json.load(sys.stdin)
@@ -37,7 +40,7 @@ def main():
         try:
             start = time.monotonic()
             with open(os.devnull, 'wb') as sink:
-                subprocess.run(t['args'] + ['--out', temp], check=True, stdout=sink)
+                run_command(t['args'] + ['--out', temp], check=True, stdout=sink)
             elapsed = (time.monotonic()-start)*1000
             with open(temp + '.stats.json') as f: stats = json.load(f)
             marker = {'key': t['key'], 'source': digest(temp), 'stats': digest(temp + '.stats.json')}
