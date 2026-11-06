@@ -1,20 +1,26 @@
 # v0.3 merged implementation status
 
-## Integration I16 checkpoint — K33 over dev.21 (gates pending)
+## Integration I16 final — K33 over dev.21
 
-Merge **5cc812c** retains K31 accounting/default OFF, K34 helpers and K33 compiler transport.
-**3541c17** repairs a latent filtered-inventory omission with before-failing/after-passing regression.
-**0727828** fixes optional/required JSPI selection in K31 guest/startup tests and expands measured
-CI to three required shards with a strict aggregate (reviewer #345). Full default141-file inventory
-is covered exactly; tools/bench remains intentionally opt-in. Original ci/i16 FAIL (two unavailable
-JSPI cases, second shard60min cancellation); ci/i16c final-source result pending, not PASS.
+Final tested source **030ccb6** adds only a test-only aggregate-gate extraction repair atop the
+production/workflow source **0727828**. Merge **5cc812c** retains K31 accounting/default OFF, K34
+helpers and K33 compiler transport. Configured Vitest inventory is exactly **141 files**; all K31/K34
+unit files are included while tools/bench remains intentionally opt-in. Coordinator review of
+3541c17..0727828 and 030ccb6 is PASS (#347/#349).
 
-Local doctor, both full38-example Clang/realGCC lints, explicit Clang, types and compiler allowlist
-checks pass. Serial full units/browser/oracles/sustained dev.21 pairing are not complete. Initial
-unit harness explicitly forced OFF and conflicted with intentionally ON accounting test fixtures;
-failed evidence is retained and a complete unset/default-OFF rerun is queued. Bounded independent
-review3541c17 PASS is not a final-source/full-gate certificate; repair review attempt auth-blocked.
-[Live checkpoint and exact runner/continuation instructions](handoff/integration-i16.md).
+Coordinator CI **ci/i16d/run42155051200** is final PASS: every required job and aggregate gate pass;
+unit_1/2/3 take **38/37/45min** (<=51min requirement), e2e53, lint_examples44, scale17, lint JS/native
+pass. CI Node lacks JSPI, so CI accounting coverage is Asyncify only; local required-JSPI runs cover
+both actual modes.
+
+Local finish-line gates pass: doctor, Clang/realGCC lint (38 examples each), explicit Clang, typecheck,
+clean-default **2400 tests/141 files/0 skips**, both browser modes **300 pass/51 inherited skips/0
+failures/0 flaky**, 34 fixtures ×2 modes ×300 oracles with accounting OFF and ON (136 reports, equal
+hashes and ON/OFF traces), leakcheck, and sustained K34 pairing with no regression beyond paired
+spread. The initial explicitly-OFF unit attempt and focused pre-repair failures remain recorded as
+failed evidence; the clean default rerun and final focused 16/16 runs are the accepted gates.
+
+[Complete handoff](handoff/integration-i16.md) · [structured evidence](handoff/integration-i16-evidence.json).
 
 ## Integration I15 final — K31 accounting over K32
 

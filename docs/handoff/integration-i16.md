@@ -1,98 +1,133 @@
-# Integration I16 — K33 over dev.21 (checkpoint, NOT complete)
+# Integration I16 — K33 over dev.21 (complete)
 
 Branch **integration/p1**, original no-ff merge **5cc812c** = **fab7257** (dev.21/K31/K34) +
-**a11349c** (K33). Current production/test/CI source **0727828**; documentation may advance HEAD.
-Accounting remains default OFF. No runtime, compiler, emitter, ABI, guest scheduling or helper change.
+**a11349c** (K33). Final tested source **030ccb6**, following integration repairs **3541c17** and
+**0727828**. Documentation may advance HEAD. Accounting remains **default OFF**. No runtime,
+compiler, emitter, ABI, scheduling or K34 helper change was needed.
 
-## Repairs committed
+[Structured evidence](integration-i16-evidence.json). Raw logs, reports, exit markers and scripts:
+**/Users/dev/projects/pi-work/scratch-I16/i16/**. Final **audit.exit0**, **136 reports / zero failures**.
 
-- **3541c17**: consume complete Vitest JSON file discovery, not a filtered directory/extension subset.
-  Old filtering could omit the same newly configured file from both full and light inventories and
-  falsely pass their union. Before regression **3 PASS /1 FAIL**; after **4/4 PASS**. Full configured
-  inventory141; original two shards68+72 plus scale1. All K31/K34 unit files present.
-- Coordinator clarified the brief's tools/bench example was mistaken: **tools/bench/accounting.test.ts
-  is opt-in**, outside vitest.config.ts by design. Its own overhead config is not enrolled in default
-  CI; future deliberately configured files outside tests/ must not be filtered out.
-- **0727828**, reviewer **#345**: three required CI unit jobs, strict UNIT3 aggregate; maximum measured
-  test/example costs refreshed from Linux run42141326145. New three-shard union51+46+43 plus scale1
-  equals141, no overlap. Predicted test+cold-example cost **41.11min each**, not actual job duration;
-  reviewer requires actual >=15% headroom (<=51min of60), still pending CI.
-- JSPI availability: guest-accounting previously requested JSPI unconditionally on default CI Node.
-  accounting-startup had the same latent problem (cancelled shard had not reached it). Shared
-  **tests/support/suspension-modes.ts** always runs Asyncify, includes available JSPI, throws when
-  BGT_TEST_JSPI=1 demands unavailable JSPI. Four branch regressions; third-shard union and actual
-  aggregate success/failure/cancelled/skipped regressions. Existing semantic assertions unchanged.
+## Integration repairs and semantic retention
 
-## CI (reviewer-owned; never relabel failures)
+- **3541c17** consumes every configured Vitest JSON file, not a directory/extension-filtered subset.
+  Otherwise the same newly configured file could disappear from both full/light lists and falsely
+  pass the union check. Regression **3 PASS/1 FAIL before**, **4/4 PASS after**. Final configured
+  inventory **141 files**, including all K31/K34 units. Coordinator clarified that
+  **tools/bench/accounting.test.ts is intentionally opt-in**, outside default vitest.config.ts;
+  this integration does not enroll it or weaken the default inventory check.
+- **0727828**, coordinator #345: three required CI unit shards, strict UNIT3 aggregate, refreshed
+  maximum Linux test and unique cold-example setup costs. Exact union **51+46+43+scale1=141**,
+  no overlap. Predicted41.11min each was a planning estimate; actual CI times are below.
+- Both accounting-startup and guest-accounting use **tests/support/suspension-modes.ts**:
+  Asyncify always, JSPI when available, fail closed if BGT_TEST_JSPI=1 requires missing JSPI.
+  Four branch regressions; no semantic assertion, deadline or skip weakened.
+- **030ccb6** repairs the new aggregate test's extraction: the old search matched the earlier
+  workflow_dispatch.inputs.webgpu key, yielding an empty slice. Newline-anchor gate, find the
+  following webgpu job and assert bounds. The actual gate shell still runs against success,
+  failure, cancelled and skipped UNIT3 results. This is test-only; coordinator delta-review PASS.
+- Auto-merged **tools/build/pipeline.mjs** retains K33 skip-file transport plus K31 accounting
+  defines. **tools/x86/x86tool.c** retains K33 skip-file parsing and K31 retirement publication.
+  K34 inline ALU/pointer/shift headers and I15 high-CALL accounting adjustment remain unchanged.
+  K33's **every kit example option inventory +4096-object compiler-plan allowlist** test passes;
+  no fail-closed compiler transport path or allowlist relaxation was needed.
 
-- **ci/i16**,5cc812c,run**42141326145**: FINAL FAIL. Three lints, e2e, scale PASS; unit_1
-  **1436/1438** (two unavailable-JSPI failures), unit_2 cancelled60min, aggregate FAIL.
-  Raw logs **/Users/dev/projects/pi-work/inputs/ci/i16-unit_*.log**.
-- **ci/i16b**,3541c17,run**42143062584**: result not yet returned at checkpoint; expected same issues.
-- **ci/i16c**,0727828,run**42150746419**: reviewer launched; result pending. Reviewer sends results.
-  Do not call gh in this sandbox (operation denied). No lane push.
+## Final CI — coordinator returned
 
-## Local completed vs pending
+**ci/i16d**, source **030ccb6**, run **42155051200**: **every required job PASS; aggregate gate PASS**
+(coordinator bridge #349). Reported job minutes: unit_1 **38**, unit_2 **37**, unit_3 **45**,
+e2e **53**, lint_examples **44**, scale **17**; lint_js and lint_native also PASS.
+Maximum unit45min satisfies <=51min of60, leaving **15min /25% headroom**. These are reported
+whole-minute durations, not raw runner timestamps. **CI Node lacks JSPI: its accounting tests
+cover Asyncify only; local required-JSPI tier1 covers both actual modes.**
 
-Raw root **/Users/dev/projects/pi-work/scratch-I16/i16/**. Main queue **serial.sh**,
-checker **check.py**, oracle sweep **oracles.mjs**, prepared end audit **audit.py**.
-All suites serial in background, own port5286, never5173; build jobs2, dual variants,
-required WebGPU, actual JSPI V8 flag, full default inventory, no CI_LIGHT/exclusions.
+Historical outcomes are not relabelled: ci/i16/5cc812c/run42141326145 FAIL (two unavailable-JSPI
+failures and second shard60min cancellation); ci/i16b/3541c17/run42143062584 is not acceptance
+evidence; ci/i16c/0727828/run42150746419 was cancelled by the coordinator as superseded.
+No gh access or lane push from this sandbox; CI was coordinator-owned.
 
-Completed exits0: doctor; compiler-transport + original shard regression **19/19**, including
-K33's **every kit example option inventory +4096-object compiler-plan allowlist** test; full
-CC=clang lint **38 checks**; full realGCC14 lint **38 checks**; explicit Clang host gate;
-typecheck. Final repair typecheck additionally passed twice. Inventory before/after logs retained.
+## Completed local finish-line gates
 
-**Runner mistake, NOT kit breakage:** initial full-unit queue explicitly exported
-BGT_CPU_ACCOUNTING=0. Several accounting tests intentionally compile ON via fixture cflags; the
-extra OFF environment definition conflicts under -Werror. This full run has real macro-redefinition
-failures; it is NOT green and will not be reused as a full PASS. A complete clean-default rerun
-(with BGT_CPU_ACCOUNTING unset) is queued in **repairs.sh**, plus both plain optional-Node and
-required-JSPI focused runs. Never weaken the compiler warning, delete fixture ON coverage or claim
-these tests should run OFF internally. Baseline product default is OFF; explicit accounting test
-fixtures still exercise ON as always.
+Suites ran **serially in the background**, build jobs2, unit maxWorkers1, full default inventory,
+no CI_LIGHT/exclusions, dual artifacts, actual Node JSPI flag with BGT_TEST_JSPI=1,
+BGT_REQUIRE_WEBGPU=1, own port5286 (never5173), browser traces off.
 
-### Active runner protocol — important
+| Gate | Result |
+| --- | --- |
+| doctor | PASS |
+| full CC=clang lint | PASS,38 example checks |
+| full real Homebrew GCC14 lint | PASS,38 example checks |
+| explicit Clang host checks / typecheck | PASS / PASS |
+| compiler transport + initial inventory regressions | 19/19 PASS |
+| clean-default full npm test | **2400 tests /141 files /0 skips**,4381.45s,exit0 |
+| full Asyncify browser | **300 pass /51 inherited skips /0 failures /0 flaky**,exit0 |
+| full JSPI browser | **300/51/0/0**,exit0 |
+| every pipeline oracle,accounting OFF | **34 fixtures ×2 modes ×300 =68 reports PASS** |
+| every pipeline oracle,accounting ON | **68 reports PASS**,same traces as OFF |
+| sustained dev.21 pairing | PASS,no regression beyond paired spread |
+| leakcheck / final types / focused ESLint / diff-check | all PASS |
+| final optional-Node / required-JSPI focused runs | **16/16 each PASS** |
 
-- Main **serial.pid =74058** is intentionally **SIGSTOPped**, not dead. Its current full-unit child
-  **Vitest47219** continues normally to completion. Original npm wrapper47174 is not the poll target.
-- **repairs.pid** currently points to43167 (check file, not this historical number). It polls47219,
-  then runs optional-Node focused tests, required-JSPI focused tests, **complete default-OFF unit
-  rerun**, typecheck, ESLint, all serially. It then SIGCONTs main74058 and removes **paused**.
-  Do not launch another suite or manually resume main while repairs is active.
-- Main then records the original full unit failure honestly and continues full Asyncify/browser,
-  JSPI/browser, leakcheck, all34 pipeline fixtures x2 modes x300 OFF; then68 ON oracle reports;
-  then sustained K34 preparation/pairing versus a temporary **fab7257** dev.21 worktree.
-- Benchmark worktree **/Users/dev/projects/pi-work/scratch-I16/dev21**, node_modules symlink to kit.
-  Never delete its symlink target. Nine alternating paired samples plus discarded warmup,
- 30 untimed +300 timed updates, both real modes. Oracle/hash evidence prepared for both versions.
-- Main still exports explicit0 for remaining OFF browser/oracle/benchmark builds (no fixture ON
-  conflicts there), then1 only for ON oracles. No ON full units/browser required by this brief.
-- Use **python3 -I /Users/dev/projects/pi-work/scratch-I16/i16/check.py** and inspect markers/logs.
-  Checker currently lists initial unit failure separately; final audit must select the actual
-  **repairs/unit-default-off.exit +repairs/unit-results.json**, not relabel original unit.exit.
-  **audit.py** was adapted from I15 but has NOT run and still needs that final-unit selection and
-  final repair/inventory/CI/benchmark evidence integrated. It already checks all136 oracle reports,
-  accounting availability/strings/owner+present totals, ON/OFF/cross-mode hashes, exact inherited
-  browser skips, strict unchanged GL-scale-only expected errors and K34 paired spread.
+Both browser modes: native WebGL2 **135pass/24skip**, WebGPU **157/26**, auto **8/1**.
+Exact normalized skip inventory matches I14; no backend-unavailable substitution.
 
-## Independent scope / remaining work
+All136 oracles request/compare exactly300 frames, with null errors/stage/divergence, lifted
+interp0/stubs[], and identical state/semantic traces within engines, across actual modes and
+ON versus OFF (**40800 frame pairs**). The x64-smoke deterministic20-update pre-roll is additional,
+not counted as300 comparisons. OFF accounting is unavailable/null; ON decimal u64 fields,
+owner/process sums, bounded64 rings/drop counters and summary contracts are checked. All68 ON
+final process/thread totals and **1886 retained present snapshots per engine** agree exactly with
+interpretation. The unchanged strict **x64-gl-scale-only** expected-error contract is enforced:
+one BUFFER_CREATE E_LIMIT, one buffer OOM/recovery and ten recording-only pixel failures; no
+other command errors. No raster or hardware CPU-time claim is inferred.
 
-Fresh independent pi review at3541c17 **PASS bounded source/discovery scope**:
-**independent-review.md**. It checked both auto-merges retain skip-file transport +accounting,
-K34 helpers/I15 high-CALL accounting unchanged, compiler allowlist compatibility, exact141 union.
-No tests/builds/gates/benchmark/CI ran independently; not final0727828 review.
-A fresh repair-delta review attempt failed before starting: **repair-review.exit1**, auth error
-**CLIPROXYAPI_API_KEY unavailable**; no report, NOT PASS. Do not inspect/log credentials.
+### Retained failed runs and clean recovery
 
-Remaining: finish serial queue; resolve any real failures with regressions; actual ci/i16c jobs
-<=51min and required gate green (reviewer result); independent repair review/explicit coordinator
-boundary; audit exact unit/browser/oracle/paired evidence; finalize docs/v03-status.md and this
-handoff with honest failures/recoveries and compact durable JSON evidence. Delete owned benchmark
-wasm copies (main does after successful pairing), temporary dev21 worktree and owned Zig cache only
-AFTER every suite finishes. No shared locks/caches or foreign outputs. Free space last checked~10GiB
-(coordinator cleanup apparently freed space; this lane did not delete foreign files).
+The original full-unit harness explicitly exported BGT_CPU_ACCOUNTING=0, conflicting under
+-Werror with fixtures deliberately compiling ON. It finished **2389 PASS/11 FAIL,141files**,exit1:
+ten fixture compile failures plus the new aggregate-extraction regression. Two intermediate
+focused commands each **15 PASS/1 FAIL**, solely extraction. These original markers remain1.
 
-No full Tier1/CI completion, final benchmark, game performance, physical-device,60fps or universal
-GCC/guest architecture claim at this checkpoint.
+The complete clean-default rerun **unsets BGT_CPU_ACCOUNTING** (product default OFF; fixtures may
+explicitly opt ON).030ccb6 landed during its global prebuild, before unit files loaded; the
+aggregate test and every other file passed in this uninterrupted full run. After all remaining
+gates, both original focused commands reran on final source, **16/16 each**, then types/ESLint/
+leak/diff passed. No compiler warning, assertion, deadline or fixture ON coverage was weakened.
+
+## K34 sustained OFF comparison versus dev.21
+
+Baseline **fab7257**, candidate **030ccb6**. One discarded pair then **nine alternating AB/BA pairs**
+per actual mode; fresh instances,30untimed warmup updates then300timed updates with real VM work
+on every Sleep. Compile/instantiate/init excluded. Host milliseconds per300updates, **not game
+frames or isolated CPU cycles**. Shared host; no speedup or universal performance claim.
+
+| Mode | Baseline median | Merged median | Paired delta median | Paired min..max |
+| --- | ---: | ---: | ---: | ---: |
+| Asyncify |18.40950|18.40638|−0.01650|−0.14279..+0.16354|
+| JSPI |16.59708|16.58542|−0.00946|−0.49946..+0.21879|
+
+AB subset medians before→after (paired delta): Asyncify18.38775→18.38971(−0.07717),
+JSPI16.52062→16.52129(−0.00946). BA: Asyncify18.41619→18.46371(+0.04752),
+JSPI16.61565→16.64894(+0.03171). Both complete paired ranges include zero: **no regression beyond
+paired spread**. All raw samples/order/load/free-memory observations are retained. Both versions'
+preparation300-update oracles agree in both modes; linked Asyncify and JSPI hashes are also
+identical across versions (not merely equal benchmark checksums). Accounting is OFF in both.
+
+## Independent scope and cleanup
+
+Fresh independent pi review at3541c17: **PASS bounded source/discovery scope**, including both
+auto-merges, unchanged K34/I15 helpers, compiler allowlist compatibility and exact141-file union.
+It ran no tests/builds/gates/benchmarks/CI. The attempted repair-delta agent failed before starting
+with missing-auth error (exit1 retained, not PASS). Coordinator reviewed **3541c17..0727828 PASS**
+(#347) and **030ccb6 PASS**; no further independent agent launched. This is not an independent
+full-Tier1 certificate. K34's inherited partial-cross-page qword-store and oversized narrow-SAR
+architectural follow-ups remain documented in K34.md, not silently changed by integration.
+
+All three owned queue roots exited, no paused runner remains. Removed owned benchmark wasm copies,
+temporary dev.21 worktree (unlinked shared node_modules symlink first), and **I16-owned2.3GiB Zig
+cache** only after every suite finished. ~10GiB free. Shared caches/locks and foreign outputs
+untouched. Raw scripts/logs/reports retained externally; structured evidence includes hashes,
+full oracle rows, exact inventory, CI boundary and complete paired samples. Final documentation
+**leakcheck PASS (918 committable files)** and **diff-check PASS** are recorded separately as
+closeout markers. No game, physical-device,60fps,
+universal GCC or exact architectural-x86 certification.
