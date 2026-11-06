@@ -189,7 +189,8 @@ static uint32_t api_GetAttachedShaders(void) {
     if (!program_ok(id) || (int32_t)max < 0) { fail(BAD_VALUE); return 0; }
     if (programs[id].vs && n < max) x86_wr32(ARG(3) + 4 * n++, NAME(shaders, programs[id].vs));
     if (programs[id].fs && n < max) x86_wr32(ARG(3) + 4 * n++, NAME(shaders, programs[id].fs));
-    if (ARG(2)) x86_wr32(ARG(2), n); return 0;
+    if (ARG(2)) x86_wr32(ARG(2), n);
+    return 0;
 }
 static void invalidate_pipelines(void) {
     for (uint32_t i = 0; i < pipeline_count; i++) if (pipelines[i].used) {
@@ -211,7 +212,9 @@ static uint32_t link_program_build(void) {
         gs_put(&log, "error: both a vertex and a fragment shader must be attached and compiled before link\n"); return 0;
     }
     invalidate_pipelines();
-    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs"); p->vgpu = p->fgpu = 0;
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs");
+    if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+    p->vgpu = p->fgpu = 0;
     if (!shader_link_front(&shaders[p->vs], &log) || (p->fs && !shader_link_front(&shaders[p->fs], &log))) return 0;
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "program link layout"); return 0; }
     GsUnit *vs = shaders[p->vs].unit, *fs = p->fs ? shaders[p->fs].unit : glp_alloc(sizeof(GsUnit));
@@ -269,13 +272,16 @@ static uint32_t api_LinkProgram(void) {
     link_program_build();
     if (p->linked) {
         invalidate_pipelines();
-        if (old->vgpu) release_wire(0x49, old->vgpu, "programs"); if (old->fgpu) release_wire(0x49, old->fgpu, "programs");
+        if (old->vgpu) release_wire(0x49, old->vgpu, "programs");
+        if (old->fgpu) release_wire(0x49, old->fgpu, "programs");
         if (old->ubuf) release_wire(0x42, old->ubuf, "programs");
         program_free_link(old);
     } else {
         char log[4096]; copy(log, p->log, sizeof log);
-        if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
-        if (p->ubuf) release_wire(0x42, p->ubuf, "programs"); program_free_link(p);
+        if (p->vgpu) release_wire(0x49, p->vgpu, "programs");
+        if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+        if (p->ubuf) release_wire(0x42, p->ubuf, "programs");
+        program_free_link(p);
         copy(p, old, sizeof *p); p->linked = 0; copy(p->log, log, sizeof log);
     }
     /* All stage parse tables die at the end of EVERY link attempt, including rollback. */
@@ -372,7 +378,8 @@ static uint32_t api_GetActiveUniform(void) {
     if ((int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     if (ARG(1) >= g->nu) { fail(BAD_VALUE); return 0; }
     GpUniform *u = &g->u[ARG(1)];
-    if (ARG(4)) x86_wr32(ARG(4), (uint32_t)u->size); if (ARG(5)) x86_wr32(ARG(5), u->gl_type);
+    if (ARG(4)) x86_wr32(ARG(4), (uint32_t)u->size);
+    if (ARG(5)) x86_wr32(ARG(5), u->gl_type);
     put_string(ARG(2), ARG(3), ARG(6), gp_name(g, u->name)); return 0;
 }
 static uint32_t api_GetActiveUniformName(void) {
@@ -431,13 +438,15 @@ static uint32_t api_UniformBlockBinding(void) {
     uint32_t id = SLOT(programs, ARG(0));
     if (!program_ok(id)) fail(BAD_VALUE); else if (!programs[id].linked) fail(BAD_OP);
     else if (ARG(1) >= programs[id].nb || ARG(2) >= 8) fail(BAD_VALUE);
-    else programs[id].block[ARG(1)].binding = ARG(2); return 0;
+    else programs[id].block[ARG(1)].binding = ARG(2);
+    return 0;
 }
 static uint32_t api_GetActiveAttrib(void) {
     Gp *g = linked_info(SLOT(programs, ARG(0))); if (!g) return 0;
     if (ARG(1) >= g->na || (int32_t)ARG(2) < 0) { fail(BAD_VALUE); return 0; }
     GpAttrib *a = &g->a[ARG(1)];
-    if (ARG(4)) x86_wr32(ARG(4), (uint32_t)a->size); if (ARG(5)) x86_wr32(ARG(5), a->gl_type);
+    if (ARG(4)) x86_wr32(ARG(4), (uint32_t)a->size);
+    if (ARG(5)) x86_wr32(ARG(5), a->gl_type);
     put_string(ARG(2), ARG(3), ARG(6), gp_name(g, a->name)); return 0;
 }
 static uint32_t api_GetAttribLocation(void) {
@@ -585,7 +594,8 @@ static uint32_t api_DeleteProgram(void) {
 }
 static void release_program(uint32_t id) {
     invalidate_pipelines(); Program *p = &programs[id];
-    if (p->vgpu) release_wire(0x49, p->vgpu, "programs"); if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
+    if (p->vgpu) release_wire(0x49, p->vgpu, "programs");
+    if (p->fgpu) release_wire(0x49, p->fgpu, "programs");
     uint32_t vs = p->vs, fs = p->fs;
     if (p->ubuf) release_wire(0x42, p->ubuf, "programs");
     program_free_link(p); zero(p, sizeof *p); release_shader(vs); release_shader(fs);

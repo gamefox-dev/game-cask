@@ -38,6 +38,12 @@ export function checkHostGcc(cc = findGcc(), run = execFileSync) {
     // unused-but-set and misleading-indentation diagnostics in this header.
     run(cc, ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-o', join(dir, 'glsl-driver'),
       join(ROOT, 'tests/native/glsl_driver.c')], { cwd: ROOT, stdio: 'inherit' });
+    // Compile the actual GL profile adapter with the flags used by native GL unit tests.
+    // This catches GCC-only diagnostics in the profile headers, not merely the GLSL parser.
+    run(cc, ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-DW32_GL_TEST_NAME_LIMIT=1023', '-DW32_GL_TEST_WORK',
+      '-ffunction-sections', '-fdata-sections', '-I', join(ROOT, 'bgt/include'),
+      '-I', join(ROOT, 'platforms/x86'), '-I', join(ROOT, 'platforms/win32'), '-c',
+      join(ROOT, 'tests/native/gl_frontend_driver.c'), '-o', join(dir, 'gl-driver.o')], { cwd: ROOT, stdio: 'inherit' });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

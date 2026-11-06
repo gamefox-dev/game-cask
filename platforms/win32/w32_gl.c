@@ -396,8 +396,10 @@ static uint32_t api_DeleteBuffers(void) {
         }
         for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
-        if (copy_read == id) copy_read = 0; if (copy_write == id) copy_write = 0;
-        if (pixel_pack == id) pixel_pack = 0; if (pixel_unpack == id) pixel_unpack = 0;
+        if (copy_read == id) copy_read = 0;
+        if (copy_write == id) copy_write = 0;
+        if (pixel_pack == id) pixel_pack = 0;
+        if (pixel_unpack == id) pixel_unpack = 0;
         if (texture_buffer == id) texture_buffer = 0;
         for (uint32_t j = 0; j < 4; j++) if (tf_bound[j] == id) tf_bound[j] = 0;
     } collect_deleted(); return 0;
@@ -503,7 +505,8 @@ static void ensure_current_buffer(uint32_t instances) {
 }
 static uint32_t api_VertexAttribDivisor(void) {
     if (ARG(0) >= 16) fail(BAD_VALUE); else if (!vao) fail(BAD_OP);
-    else if (ARG(1) > 1) fail(BAD_VALUE); else vaos[vao].a[ARG(0)].divisor = ARG(1); return 0;
+    else if (ARG(1) > 1) fail(BAD_VALUE); else vaos[vao].a[ARG(0)].divisor = ARG(1);
+    return 0;
 }
 
 #include "w32_gl_buffer.h"
@@ -611,7 +614,8 @@ static const char *entry_objects(const char *name) {
         if (error == OOM && exhaustion_before == gl_exhaustion_events) \
             object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
-        if (pending) error = pending; return result; \
+        if (pending) error = pending; \
+        return result; \
     }
 #define GLSTUB(name, fn, nargs, mutates) \
     static uint32_t call_##fn(void) { w32_gl_calls++; missing(name); fail(BAD_OP); return 0; }

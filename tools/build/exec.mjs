@@ -24,7 +24,7 @@ export function execFileSync(command, args, options = {}) {
   const env = { ...(rest.env ?? process.env) };
   if (nested) env._BGT_BUILD_PROCESS_GROUP = String(inheritedGroup);
   else delete env._BGT_BUILD_PROCESS_GROUP;
-  let dir, fd, result, failure;
+  let dir, fd, argvFd, result, failure;
   const cleanupErrors = [];
   try {
     let stdio = rest.stdio;
@@ -38,8 +38,15 @@ export function execFileSync(command, args, options = {}) {
       stdio = Array.isArray(stdio) ? [...stdio] : [stdio ?? 'pipe', stdio ?? 'pipe', stdio ?? 'pipe'];
       stdio[0] = fd;
     }
+    dir = mkdtempSync(join(tmpdir(), 'bgt-argv-'));
+    const argvPath = join(dir, 'argv.json');
+    writeFileSync(argvPath, JSON.stringify([command, ...args]), { mode: 0o600 });
+    argvFd = openSync(argvPath, 'r');
+    rmSync(dir, { recursive: true }); dir = undefined;
+    stdio = Array.isArray(stdio) ? [...stdio] : [stdio ?? 'pipe', stdio ?? 'pipe', stdio ?? 'pipe'];
+    stdio[3] = argvFd;
     result = nativeExec('python3', ['-I', join(ROOT, 'tools/build/writer.py'), token ?? '-',
-      String(timeout), phase, command, ...args], {
+      String(timeout), phase], {
       ...rest, stdio, detached: !nested, timeout: timeout + 2000, killSignal: 'SIGKILL',
       env,
     });
@@ -58,6 +65,7 @@ export function execFileSync(command, args, options = {}) {
     }
   } finally {
     if (fd !== undefined) { try { closeSync(fd); } catch (e) { cleanupErrors.push(e); } }
+    if (argvFd !== undefined) { try { closeSync(argvFd); } catch (e) { cleanupErrors.push(e); } }
     if (dir) { try { rmSync(dir, { recursive: true, force: true }); } catch (e) { cleanupErrors.push(e); } }
   }
   if (cleanupErrors.length) {

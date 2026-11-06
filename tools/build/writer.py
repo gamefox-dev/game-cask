@@ -6,6 +6,8 @@ A late-starting helper must check the token while holding the shared lock.
 import fcntl
 import json
 import os
+from pathlib import Path
+import runpy
 import signal
 import subprocess
 import sys
@@ -20,7 +22,9 @@ elif os.getpgrp() != os.getpid():
     os.setsid()
 os.environ['_BGT_BUILD_PROCESS_GROUP'] = str(os.getpgrp())
 token, timeout, phase = sys.argv[1:4]
-args = sys.argv[4:]
+# fd3 is an anonymous regular file, independent of the child's stdin.
+with os.fdopen(3) as config: args = json.load(config)
+run_command = runpy.run_path(str(Path(__file__).with_name('command.py')))['run']
 
 
 def abort(reason):
@@ -42,7 +46,7 @@ try:
         except FileNotFoundError: sys.exit('build writer lease expired')
         fcntl.flock(fd, fcntl.LOCK_SH)
         if not os.path.exists(token): sys.exit('build writer lease expired')
-    result = subprocess.run(args, pass_fds=(() if fd is None else (fd,)))
+    result = run_command(args, pass_fds=(() if fd is None else (fd,)))
     if result.returncode:
         abort('failed (exit %s)' % result.returncode)
 finally:

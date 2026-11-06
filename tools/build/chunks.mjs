@@ -75,7 +75,11 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     for (const p of [out, out+'.key', out+'.stats.json', list]) keep.add(p);
     const args = [tool,'lift',file,'--name',name,'--base',base.toString(16),'--select',list,...liftPolicyArgs(policy)];
     if (flagLiveness) args.push('--flag-liveness','on');
-    if (skip.length) args.push('--skip',skip.map((a)=>a.toString(16)).join(','));
+    if (skip.length) {
+      const skipFile = join(dir, name + '.skip.txt');
+      writeFileSync(skipFile, skip.map((a)=>a.toString(16)).join('\n')+'\n');
+      keep.add(skipFile); args.push('--skip-file', skipFile);
+    }
     return {out, args, key:digest(JSON.stringify([key,addresses,skip,!!flagLiveness,policy,'chunks-v2']))};
   });
   const metrics = JSON.parse(execFileSync('python3',['-I',join(ROOT,'tools/build/lift.py')], {

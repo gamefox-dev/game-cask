@@ -46,7 +46,8 @@ static int epilog(uint32_t pc,uint32_t end,uint32_t c) {
     uint64_t regs[16];for(int i=0;i<16;i++)regs[i]=x86_rd64(cr(c,(unsigned)i));
     for(int n=0;n<16 && p<end;n++){
         uint32_t op=x86_rd8(p),rex=0;if(op==0x41){rex=8;p++;op=x86_rd8(p);}
-        if(op<0x58 || op>0x5f)break;regs[(op&7)+rex]=x86_rd64(ptr(sp));sp+=8;p++;
+        if(op<0x58 || op>0x5f)break;
+        regs[(op&7)+rex]=x86_rd64(ptr(sp));sp+=8;p++;
     }
     if(p>=end || (x86_rd8(p)!=0xc3 && x86_rd8(p)!=0xc2))return 0;
     for(unsigned i=0;i<16;i++)x86_wr64(cr(c,i),regs[i]);
@@ -112,7 +113,8 @@ static unsigned depth;
  * C-specific-handler probes; nested dispatched exceptions use depth-specific slots. */
 static uint32_t scratch_ep[17],scratch_oom[16];
 static void unwind_exception(uint32_t record,uint32_t target_frame,uint32_t target_pc,uint64_t retval,uint32_t initial,int phase2) {
-    if(depth>=16)x86_fault("exception nesting limit",record);unsigned d=depth++;
+    if(depth>=16)x86_fault("exception nesting limit",record);
+    unsigned d=depth++;
     if(!scratch_ctx[d]){scratch_ctx[d]=w32_misc_alloc(CTX_BYTES);scratch_next[d]=w32_misc_alloc(CTX_BYTES);scratch_origin[d]=w32_misc_alloc(CTX_BYTES);scratch_disp[d]=w32_misc_alloc(80);scratch_data[d]=w32_misc_alloc(8);scratch_frame[d]=w32_misc_alloc(8);}
     uint32_t c=scratch_ctx[d],next=scratch_next[d],disp=scratch_disp[d],data=scratch_data[d],frame=scratch_frame[d];
     if(initial)for(uint32_t i=0;i<CTX_BYTES;i++)x86_wr8(c+i,x86_rd8(initial+i));else w64_context_save(c,1);
