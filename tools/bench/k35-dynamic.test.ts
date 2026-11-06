@@ -52,7 +52,18 @@ it('counts dynamic guest sites and same-block flag consumers on the sustained VM
       await h.stepAsync(300);
       const counts = [...new BigUint64Array(h.host.memory.buffer, ptr, sites.length)].map(String);
       expect(h.logs).toContain(expected);
-      results.push({ suspension, counts, before, after: h.host.metrics() });
+      const after = h.host.metrics();
+      type Accounting = { execution_accounting: { enabled: number; retired: { total: string; lifted: string; generic: string; interpreted: string } } };
+      const a = (after as unknown as Accounting).execution_accounting;
+      const b = (before as unknown as Accounting).execution_accounting;
+      if (process.env.BGT_CPU_ACCOUNTING === '1') {
+        expect(a.enabled).toBe(1); expect(b.enabled).toBe(1);
+        const native = counts.reduce((sum, n) => sum + BigInt(n), 0n);
+        expect(BigInt(a.retired.lifted) - BigInt(b.retired.lifted)).toBe(native);
+        expect(BigInt(a.retired.interpreted) - BigInt(b.retired.interpreted)).toBe(0n);
+        expect(BigInt(a.retired.total) - BigInt(b.retired.total)).toBe(native + BigInt(a.retired.generic) - BigInt(b.retired.generic));
+      }
+      results.push({ suspension, counts, before, after });
     }
     expect(results[0].counts).toEqual(results[1].counts);
     writeFileSync(join(out, 'dynamic.json'), JSON.stringify({ sites, results, manifest,

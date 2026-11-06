@@ -1,5 +1,8 @@
 # K35 checkpoint — Q74 fewer wasm operations per lifted instruction
 
+**New continuation: read [K35b-checkpoint.md](K35b-checkpoint.md) first.** Boolean spans measured/retained;
+lazy CMP/TEST measured/rejected; serialized broad gates launched. This older checkpoint remains historical.
+
 **Checkpoint only, not lane acceptance.** Branch lane/K35, base030ccb6 (dev.22 candidate).
 Reviewer explicitly stopped this session near150k context to conserve quota; a fresh session continues.
 No compaction, game inputs, ABI/schema/oracle changes, installs, web or push. Sole production edit:

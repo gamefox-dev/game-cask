@@ -1,0 +1,104 @@
+# K35b checkpoint — continue here
+
+**Checkpoint, not lane acceptance.** Branch lane/K35, production13f3595 over fdb7618/030ccb6.
+Read original K35-checkpoint.md and original brief too. Stop/fresh-session rule near150k; no compaction.
+Only retained production changes: parity and boolean whole-block spans. No lazy flags shipped.
+No ABI/layout/schema/reference/oracle changes, installs/web/game inputs or push.
+
+## Finished this session (do not repeat)
+
+Boolean spans: xl_span returns validity, omitting discarded host-pointer construction and permission work
+ONLY behind existing !x86_protection_active gating. Full64-bit bounds/overflow, zero-length rejection,
+<=4096 span limit and both endpoint mappings remain. At most two pages, so no unchecked middle hole.
+Original generic guard failure happens before local mutation, unchanged fault/replay ordering.
+Production/tests commit13f3595. Focused codegen178/178PASS,435.98s, before structural prototype.
+
+Nine alternating-order paired samples after discarded pair;30warmup+300sustained updates,profile0/accounting0.
+Numbers are host milliseconds, not guest frames/cycles/game-speed claims. All3fixtures x2modes x2variants
+have identical300-update lifted/interpreted state/semantic hashes and null errors.
+
+| Item | Fixture | Mode | baseline median | candidate median | paired delta median |
+|---|---|---|---:|---:|---:|
+| boolean | VM | Asyncify |16.901|15.766|−0.789|
+| boolean | VM | JSPI |15.483|13.758|−1.483|
+| boolean | flags | Asyncify |13.891|13.907|−0.010|
+| boolean | flags | JSPI |15.605|15.553|−0.052|
+| boolean | memory | Asyncify |89.553|83.956|−5.459|
+| boolean | memory | JSPI |79.664|74.646|−5.019|
+| lazy CMP/TEST (REJECTED) | VM | Asyncify |15.578|16.296|**+1.208**|
+| lazy CMP/TEST (REJECTED) | VM | JSPI |13.894|14.631|**+0.734**|
+| lazy CMP/TEST (REJECTED) | flags | Asyncify |14.815|13.856|−1.108|
+| lazy CMP/TEST (REJECTED) | flags | JSPI |15.714|14.027|−1.707|
+| lazy CMP/TEST (REJECTED) | memory | Asyncify |86.846|87.570|−0.073|
+| lazy CMP/TEST (REJECTED) | memory | JSPI |77.029|76.522|+0.064|
+
+Small control deltas are not claimed wins. VM/span spreads and all raw samples/resources/oracles:
+**K35b-measurements.json**, external **/Users/dev/projects/pi-work/scratch-K35/b/**.
+Do not replace parity history, including its noisy flagsJSPI regression, with these later timings.
+
+## Dynamic evidence and reviewer structural decision
+
+Decode-address-joined classification, not heuristic substring classification, in b/classify.py and
+b/classification.json. Existing diagnostic1853sites/343active,15,766,947native arrivals both modes.
+Counts:6,382,190scalarALU (3,890,135full-mask,2,488,091zero-mask,3964ZF-only),987,480shift,
+381,640mul/div,1,911,295conditionals,653,065stack/call/ret,584,690unconditional,
+1,758,043memory/move,3,108,544other.3,006,829block entries.1,895,439conditional consumers immediately
+follow same-block CMP/TEST (1,081,819/813,620). Static ops from first handoff remain static, not dynamic wasm ops.
+1,074,687operand-guard arrivals. Existing locals/affine fast-preset counting are not new optimizations.
+
+Final retained source diagnostic **accountingON1/1PASS** in both actual modes: native-site sum15,766,947
+EXACTLY equals lifted-retired delta; generic51,interpreted0,total15,766,998. Tests assert this, not only TSC.
+Source tools/bench/k35-dynamic.test.ts now includes exact accounting assertions when ON. Its scratch source/key
+restore happens in finally. Public VM may still be the private counted ON artifact: rebuild it before closeout.
+Do not use diagnostic wall times as throughput. Dynamic is not included in default unit suite.
+
+Reviewer approved A staged: CMP/TEST first, SUB only if stage1green and faster; compile-time checked mode must
+compare eager at every lazy materialization/condition in fixture matrix/random/allCC/widths/both modes.
+Implemented a region-local captured op/n/a/b/result prototype, direct conditional reads, cold boundary
+materialization, conservative eager materialization before unchecked explicit memory and partial/unknown writers;
+full writers kill pending flags, no descriptor in X/across calls. Block guard/quantum failure sync retained.
+**VM regressed in both modes, so STOP per reviewer: no SUB, no retained lazy optimization.**
+Rejected source/test patch retained externally: b/rejected-lazy-final.patch, shadow test/config in b/.
+Everything in that patch and new shadow files was fully reverted/deleted before broad gates. Do not reapply.
+Exploratory178test run passed but source was edited during early run: NOT final-source certification.
+Frozen rejected-prototype checked focused6PASS (178selection skips, not weakened tests) covers everyCC/width,
+edge/random operand helpers, all instruction entries/guard/quantum/generic/operand/stack faults and609insn random
+alias/branch/multi-region program in size+fast. Separate3fixtures x2modes x400updates eager-shadow PASS.
+These only establish bounded diagnostic correctness, not universal lazy-state correctness or performance.
+A transient erroneous clear-after-conditional edit was immediately undone before prototype fixture builds;
+prepared VM generated C was explicitly checked to have no lazy.op=0;if. No result uses that transient edit.
+
+## RUNNING: serialized broad gates — do not start duplicate suites
+
+Runner **/Users/dev/projects/pi-work/scratch-K35/b/tier1.sh**, root shellPID23955.
+Outer marker b/tier1-runner.exit; per-gate logs/markers b/tier1/; stops on any nonzero status.
+Do not infer completion from a missing marker or a lock message. Existing lockf messages mean host gate occupancy,
+not permission to remove any shared lock. Use BGT_E2E_PORT5280, BGT_BUILD_JOBS2. Disk ~9.5GiB at launch.
+
+Sequence: wait completed dynamicON;doctor;fullClanglint;fullrealGCC14lint;types;fullnpmtest with actualNodeJSPI;
+accountingON focused(guest/scheduler/startup/precision/nativecalls/codegen/headercache);fullbrowser allprojects
+Asyncify thenJSPI(actual requiredWebGPU/nativeWebGL2/auto);every pipeline oracle300frames bothmodes OFF+ON;
+leakcheck/diffcheck. No light exclusions, unchanged assertions/deadlines. CPU_ACCOUNTING unset for full units
+because some fixtures intentionally opt in; broad default accounting remains OFF. Browser reports copied then
+owned HTML/artifacts removed only after successful process exit. Failed artifacts retained.
+
+Check runner source and results. Audit counts, exact inherited skip inventory, every oracle report300 identical/
+null errors, accountingON equal retirement, cross-mode/ON/OFF semantic hashes. Every pipeline fixture inventory
+comes from examples/*/game.json with pipeline; should be34. Do not claim fullTier1 until audited all gates.
+Final types/leak/diff for current docs/dynamic test not yet observed when writing this checkpoint.
+
+## Remaining finish line
+
+1. Let serialized runner finish; localize any failure without weakening tests. Existing tests already cover faults,
+   partial stores, aliases, interior entries, permissions and quantum. Add final span-specific fault sensitivity if
+   reviewer requests; inherited narrowSAR/partialqword followups remain untouched.
+2. Cache invalidation: final runner includes existing real-header cache regression; confirm emitter content key
+   changed and paired artifact hashes differ. No schema bump. No ABI/oracle change authorized/needed.
+3. Final actual wasm comparison for retained boolean step is useful: old xl_pointer returned discarded host base;
+   new inline span should remove helper/base/protection work. Named final VM build/disassembly only after runner,
+   never overlap a throughput pair. Do not redo finished timing measurements.
+4. Restore public VM without diagnostic export. Clean ONLY owned disposable outputs after jobs exit; retain raw
+   paired/oracle reports+rejected patch. No foreign locks/caches/processes touched.
+5. Fresh independent validation still NOT RUN. Use separate real session; never claim nonexistent delegation.
+6. Complete docs/handoff/K35.md with honest modest wins, rejected lazy structural path and unresolved13x ambition;
+   commit docs/evidence/tests on lane/K35, never push. Final reply<200words, no blanket exact-x86/game/60fps claim.
