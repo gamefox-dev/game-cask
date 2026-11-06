@@ -54,6 +54,29 @@ it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', 
   },
 );
 
+it('keeps tiny optimized regions inlineable but outlines larger regions without minsize', () => {
+  const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
+  const dir = mkdtempSync(join(root, 'attributes-'));
+  try {
+    const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
+    const tool = codegenTool();
+    const emit = (hex: string) => {
+      writeFileSync(input, pe(Buffer.from(hex, 'hex')));
+      const result = spawnSync(tool, ['lift', input, '--name', 'probe', '--out', output, '--lift-optimize-small', 'on'], { encoding: 'utf8' });
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      return readFileSync(output, 'utf8');
+    };
+    const tiny = emit('4883c001c3');
+    expect(tiny).toContain('static void R_01001000_01001000(uint32_t pc)');
+    expect(tiny).not.toContain('static __attribute__((noinline)) void R_');
+    expect(tiny).not.toContain('minsize');
+    const large = emit('4883c0014883c0014883c0014883c0014883c001c3');
+    expect(large).toContain('static __attribute__((noinline)) void R_01001000_01001000(uint32_t pc)');
+    expect(large).not.toContain('minsize');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 describe.each(['size', 'fast'])('lift preset %s', (preset) => {
 const fast = preset === 'fast';
 async function harness(hex: string, defines: string[] = []) {
@@ -62,7 +85,6 @@ async function harness(hex: string, defines: string[] = []) {
   writeFileSync(join(dir, 'input.exe'), pe(code));
   execFileSync(codegenTool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
-  expect(text).toContain('static __attribute__((noinline)) void R_');
   expect(text).not.toContain('minsize');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
