@@ -73,7 +73,12 @@ it('accounts for cold setup and keeps tests sharing an expensive prebuild togeth
 
 it('requires the third unit shard to succeed in the actual aggregate gate',()=>{
   const workflow=readFileSync(join(ROOT,'.github/workflows/ci.yml'),'utf8');
-  const gate=workflow.slice(workflow.indexOf('  gate:'),workflow.indexOf('  webgpu:'));
+  const start=workflow.indexOf('\n  gate:');
+  // workflow_dispatch.inputs.webgpu appears before jobs; only the later job
+  // terminates this block. Keep running the actual gate script below.
+  const end=workflow.indexOf('\n  webgpu:',start);
+  expect(start).toBeGreaterThanOrEqual(0);expect(end).toBeGreaterThan(start);
+  const gate=workflow.slice(start,end);
   expect(gate).toMatch(/needs: \[.*unit_3/);
   expect(gate).toContain('UNIT3: ${{ needs.unit_3.result }}');
   const script=gate.split('        run: |\n')[1].trim();
