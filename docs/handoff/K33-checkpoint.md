@@ -1,3 +1,105 @@
+# K33 checkpoint — reviewer #342 (K33h)
+
+Branch lane/K33, base dev.19 958d5f0. **Source HEAD 1f2fc74. WIP: final Tier1/CI-i pending.**
+Checkpoint explicitly requested; leave the active detached queue running. No pushes, installs/web/game
+files, changed deadlines, assertions removed, or new test skips. Current docs-only checkpoint follows source.
+
+## Review / CI chain (latest authoritative state)
+
+- vK33 / vK33b / vK33c / vK33d all FAIL at their reviewed earlier sources. Findings repaired below;
+  do not label them independent PASS. Reports under inputs/vK33*/ (read-only).
+- vK33e and vK33e2 on b8762de were blocked by the provider content filter, NOT PASS.
+- Coordinator #339 reviewed 5ddf7ca..b8762de and accepted its allowlist, owned0700 safe directory,
+  file-only dependencies and macro fail-closed checks, finding one final -E stdout linemarker leak.
+- Coordinator subsequently reviewed b8762de..1f2fc74 and **accepted that final delta**: under transport,
+  -E only with exact -o /dev/null. Explicitly no more external re-review rounds required.
+- ci/k33f **3f8ea13**, run42107007974: ALL required jobs/gate PASS (first green tier2 since dev.8).
+- ci/k33g **5ddf7ca**, run42115618854: ALL required jobs/gate PASS.
+- ci/k33h **b8762de**, run42121507540: ALL required jobs/gate PASS (reviewer #342 confirms).
+- ci/k33i **1f2fc74**, run42127136800: **PENDING**; reviewer pushes/reports, never push locally.
+- Final acceptance boundary: green ci/k33i + clean local full Tier1 on1f2fc74 + final K33.md,
+  with GCC scopeA and guest-only misleading-indentation followups (~50 diagnostic occurrences;
+  the existing handoff lists37 unique locations after width duplicates/fixed sites are excluded).
+
+## Commits in this continuation
+
+- 3f8ea13: check=True/error/timeout compiler depfile sanitation, env and stdout dependency regressions.
+- 5ddf7ca: active compiler transport ALLOWLIST (rather than chasing dependency aliases), unknown/-Wp/
+  -H/-v/etc fail closed, stderr capture/inherit/file forwarding sanitized to logical <command-line.h>.
+  All38example plans, generated pipeline compile/probe variants and source-fixture plans enumerated.
+- b8762de: allow only separate -M/-MD -MF FILE -MT bgt file discovery forms; dependency stdout/defaults/
+  joined options/other modes rejected. objects.mjs fallback now uses explicit -MF file, not stdout.
+  Header in owned0700 /tmp/bgt-compiler-UID, lstat owner/mode/no-symlink check and full canonical
+  [A-Za-z0-9._/-] grammar; private random child, never raw TMPDIR. No make-escaping guesses.
+  Unbalanced quote/macro parameter/ambiguous trailing backslash forms fail closed. Original flags
+  remain semantic keys, prior valid single-terminal-backslash semantics retained.
+- 1f2fc74: final coordinator repair, -E requires explicit -o /dev/null (the actual kit discovery plan).
+  Valid -E -MD -MF FILE -MT bgt -o /dev/null plus rejected -E stdout/file regressions. Macro equality
+  probe now compiles/runs real C rather than using disallowed -E stdout: baseline/transport runtime
+  outputs equal, BAR ordering/newline truncation/huge140KiB definition retained. Both compilers' native
+  stringification warns and drops the final backslash, so an additional syntax-use probe proves that
+  the slash is actually retained (both direct+transport fail where dropping it would compile).
+  No workload, committed timeout/assertion/deadline reduction.
+
+## Completed local evidence (ignored reports/k33/)
+
+- Latest source focused-l **96/96 in10files**, exit0 (~124s). Includes compiler, build transport,
+  inherited locks, Asyncify cache identity, host GCC, shards, cache inputs/recovery/hermetic-time.
+- doctor-l, typecheck-l, eslint-l (full), clang-host-l, leakcheck-negative-l all exit0.
+- preprocess-final2 **16/16** real GCC+clang, exit0; final full ESLint/typecheck before1f2fc74 PASS.
+  Earlier preprocess-final had2failed/94passed: only a mistaken NEW baseline expectation that native
+  stringification retains a slash (it diagnoses/drops it). Fixed by actual native equality plus syntax
+  retention probe above. Preserve failed log, not green evidence.
+- structural-final-focused at b8762de precursor **96/96**; allowlist-focused earlier94/94.
+- vk33c-probe.log: isolated old3f8ea13 vs helper-new real GCC+clang, aliases/-H/-v leak before,
+  reject after; diagnostics captured/inherited/file path sanitation. EXIT0 assertions held.
+- vk33d-probe.log: isolated old5ddf7ca vs b8762de, both compilers: -M/-MM -o- leak before/reject after;
+  supported file dependency with TMPDIR containing backslash+tab leaks before/clean after;
+  two-level unbalanced-quote stringification silently changes before/rejected after. EXIT0.
+- Old helper snapshots /tmp/k33-pre-allowlist-command.py and /tmp/k33-pre-safe-command.py are owned
+  probes only; remove after gates if desired. Production was never mutated for before-tests.
+
+## ACTIVE detached local gates — DO NOT restart / signal stale roots
+
+At checkpoint2026-11-06 00:12Z (~73min into full units):
+- **85915 bash reports/k33/queue-l.sh** is ACTIVE. Current child **12141 Vitest** (worker84214 changes
+  per file); actual BGT_JSPI=1 BGT_TEST_JSPI=1 npm test -- --maxWorkers=1. Clean source1f2fc74 from
+  start; all38examples dual built. Tests progressed through native/codegen/memory and now profile
+  oracle builds; no final unit summary/exit yet. Do NOT claim full unit PASS.
+- Progress reports/k33/queue-l.progress; driver queue-l-driver.log; source queue-l.source exact
+  1f2fc7478ee970085fd4c338edef14d8856d56aa. Per-stage <name>-l.log/.exit; terminal queue-l.done.
+- Existing exit0 markers: doctor/typecheck/focused/eslint/clang-host/leakcheck-negative-l.
+- units-l.exit, lint-l.exit, browser/oracle exits and queue-l.done **do not exist yet**.
+- Next serial stages: full npm run lint (real GCC +38example checks); full required-WebGPU/WebGL2/auto
+  npm run test:e2e -- --trace off, Asyncify and JSPI; all34pipeline oracles×2modes×300frames; leakcheck.
+  BGT_E2E_PORT5278, BGT_BUILD_JOBS2, no software opt-out for local browser pixel checks.
+- Browser archives e2e-<mode>-l-results.json; oracle-<example>-<mode>-l.json. Expected browser
+ 300pass/51pre-existing skips/351cases each mode; verify exact inventories and no unexpected/flaky.
+- Each gate ends with ENOSPC scan and stops/reports on any observed ENOSPC. No active watcher now.
+  Disk currently~7.7GiB free; inspect periodically, never delete live caches or lock inodes.
+- Old queues h/i/j/k were stopped BEFORE their production repairs; their interrupted full-unit logs
+  are NOT final green and must not be resumed. Queue-i had an ignored script naming typo (missing
+  hermetic filter / corrupted future check-host path); stopped after9files/84tests focused completion.
+  It is not relied on. Queue-l was reviewed and contains the correct original commands/filters.
+
+## Exact next steps
+
+1. Verify queue-l ownership/progress/disk; leave it serial and running, do not start another suite.
+2. Wait/audit units-l.exit and full summary (no skips). Then lint, both full browsers and68oracles.
+   No production changes needed/authorized by coordinator review; local failures must be localized.
+3. Obtain final ci/k33i result from reviewer. h/f/g alreadygreen; do not rerun them or reread full logs.
+4. reports/k33/audit-k.mjs is the modern audit template (source dynamic, incomplete pending=>exit2).
+   Create audit-l.mjs using suffix-word-boundary replacement /-k\b/g -> -l; old audit-final is obsolete.
+   Audit every exit marker, browser exact skip/coverage, and68JSON reports:300compared, matching state
+   AND trace hashes within/across engines/modes, null errors/stages/divergence, lifted interp0/stubs0.
+5. Replace stale interim K33.md with final audited evidence/commits/CI/review boundary. Preserve GCC
+   scopeA: every actual CI GCC compile, not target-only guest/WASI/Windows source as host C. Preserve
+   ~50 diagnostic-occurrence followup boundary and existing37unique location inventory there.
+6. Commit docs; final leakcheck/diff. Cleanup only completed-owned temps (not live payload caches/
+   lock inodes/other lanes). Final reply<200words. Do not claim provider-blocked review PASS.
+
+---
+
 # K33 checkpoint — reviewer #322 (K33g)
 
 Branch lane/K33; source HEAD fc6e561, base dev.19 958d5f0. **WIP: NOT final Tier1/CI/review PASS.**
