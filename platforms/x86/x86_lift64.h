@@ -55,6 +55,17 @@ static inline __attribute__((always_inline)) uint8_t *xl_pointer_checked(uint64_
 }
 static inline uint8_t *xl_pointer(uint64_t a,unsigned n) { return xl_pointer_checked(a,n,3); }
 static inline uint8_t *xl_pointer_fast(uint64_t a,unsigned n) { return xl_pointer_access(a,n,3); }
+/* Only whole-block guards, behind !x86_protection_active. Spans are at most
+ * one page long: endpoint mappings prove every covered page. The operands form
+ * their own host addresses; no unused host pointer is returned. */
+static inline __attribute__((always_inline)) int xl_span(uint64_t a, unsigned n) {
+#ifdef X86_FLAT_GUEST
+    return n && n <= X86_PAGE && a < X86_FLAT_BYTES && n <= X86_FLAT_BYTES - a &&
+        x86_pages[a >> 12] && x86_pages[(a + n - 1) >> 12];
+#else
+    (void)a; (void)n; return 0;
+#endif
+}
 static inline __attribute__((always_inline)) uint64_t xl_load(const uint8_t *p, int n) {
     uint64_t v = 0;
     if (n == 8) __builtin_memcpy(&v, p, 8);
