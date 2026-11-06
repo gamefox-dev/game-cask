@@ -1,0 +1,4857 @@
+{
+  "source": "5692550; production13f3595; tests6ecaccb",
+  "raw_root": "/Users/dev/projects/pi-work/scratch-K35/b/tier1",
+  "gate_markers": {
+    "doctor": {
+      "exit": 0,
+      "log_sha256": "b7df8f283a5891721d935acee67dfd9dd6a8c916486673ef77b2845b18beca3b"
+    },
+    "lint-clang": {
+      "exit": 0,
+      "log_sha256": "2be0bdf658e6648a10c9e4a848d71f237698772a0f566b6be48f8003b468bf00"
+    },
+    "lint-gcc": {
+      "exit": 0,
+      "log_sha256": "b959d7cf6e6bd154e200d7061b9dd1e3a564b7851c7ca42a2119f3f66809888f"
+    },
+    "types": {
+      "exit": 0,
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    "heap-recovery": {
+      "exit": 0,
+      "log_sha256": "928aa00995a83c7c2712377f42380a9e83bed09c234369db98d0e67e9100fbd7"
+    },
+    "native-forms-recovery": {
+      "exit": 0,
+      "log_sha256": "43161c8d269650d5f9b304c2ae7018dea8d63e016be08586f9738fa178d6a673"
+    },
+    "accounting": {
+      "exit": 0,
+      "log_sha256": "0fb77558987a77c411b7263391160229b1a35d0d794654c8a14f436f866be4ed"
+    },
+    "browser-asyncify": {
+      "exit": 0,
+      "log_sha256": "df7018f68e5fdd4b04da818fb8f161d535d715a610d84b99300e2f700c0bb02b"
+    },
+    "browser-jspi": {
+      "exit": 0,
+      "log_sha256": "8ce0877815885f549ab4f4d11ed9ddada73fbd844c9603572c2d0b009cf9ab2f"
+    },
+    "leak": {
+      "exit": 0,
+      "log_sha256": "e9f96f925d137da972666d85c55368c71e50608708975b2207e051f2bbaaae64"
+    },
+    "diff": {
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "oracle-0-asyncify-win32-conformance": {
+      "exit": 0,
+      "log_sha256": "338716655cedd639a9c64a818ee987df116c19b9b1d3b6209730eef1a1049180"
+    },
+    "oracle-0-asyncify-win32-hello": {
+      "exit": 0,
+      "log_sha256": "5197a10495bec33580664aeae0ed8d1e8038c46074fb74b8033aaefaa10097f3"
+    },
+    "oracle-0-asyncify-x64-audio": {
+      "exit": 0,
+      "log_sha256": "e0402a3461f19a4dde8a6da89936216f946a1a0643c303d4f0906563c1d2cb21"
+    },
+    "oracle-0-asyncify-x64-audio-init": {
+      "exit": 0,
+      "log_sha256": "c8174836c143c7c3c8843e4a1d4392f3e01be5b287e7c73212a7bc9c3dafb6d8"
+    },
+    "oracle-0-asyncify-x64-basics": {
+      "exit": 0,
+      "log_sha256": "d34f0a006eea5dcf473ccaae7eac78ab79bb2ae230b8b1aeaab3b376301fbfb7"
+    },
+    "oracle-0-asyncify-x64-contracts": {
+      "exit": 0,
+      "log_sha256": "fe8f3b9e848ad5d70f7f4d44f6d7de0ee810ada29d866288df559a9f15225a5e"
+    },
+    "oracle-0-asyncify-x64-cpp": {
+      "exit": 0,
+      "log_sha256": "93df02ba037a57b0c58cdb7606dfa4d8c4c3ab1ba961ffe3d16209bf773b560d"
+    },
+    "oracle-0-asyncify-x64-cpprt": {
+      "exit": 0,
+      "log_sha256": "2c36f11fc3f7a3399e108805e8571140f6a88c9ec9524ed274419ed1ae5d2f0d"
+    },
+    "oracle-0-asyncify-x64-crt": {
+      "exit": 0,
+      "log_sha256": "5fe8f80dbace6150efbc2a3afd5ce1bf96f4230b048519a447be54f644b89014"
+    },
+    "oracle-0-asyncify-x64-gl": {
+      "exit": 0,
+      "log_sha256": "2fe70ded22ccb626ec9ee39b44d92c2a5b53241c06c263ab3fd931185590f107"
+    },
+    "oracle-0-asyncify-x64-gl-blit": {
+      "exit": 0,
+      "log_sha256": "757033b36095fa75151258e45139d6b86165b1414203a4bf2c50c6a3e9c35a49"
+    },
+    "oracle-0-asyncify-x64-gl-capacity": {
+      "exit": 0,
+      "log_sha256": "17d34e7335125ea4072e4aebcd772a5340c8f6e363d79733f302130c114678eb"
+    },
+    "oracle-0-asyncify-x64-gl-current": {
+      "exit": 0,
+      "log_sha256": "773ec074bc4b06192811ee4833ef8465d0beeb809d839a8849f39c3134b76eea"
+    },
+    "oracle-0-asyncify-x64-gl-default-vao": {
+      "exit": 0,
+      "log_sha256": "84cdd824627389166496783f7470f5e9120116908dc13dca6628aca0181c8e42"
+    },
+    "oracle-0-asyncify-x64-gl-fbo": {
+      "exit": 0,
+      "log_sha256": "fc5c72aa7f76edf30305b7f4f6c5a1c2355566e123d3e518661d185d15d274f4"
+    },
+    "oracle-0-asyncify-x64-gl-feedback": {
+      "exit": 0,
+      "log_sha256": "086bfc92da09f54364120de60eb1e2c1bfe031371cb2b9b45bfa635d32e763c8"
+    },
+    "oracle-0-asyncify-x64-gl-integer": {
+      "exit": 0,
+      "log_sha256": "6e612972e1c688c84e74b06dcd67ddd948d254488ea771d0fec0d1c0b669a3e3"
+    },
+    "oracle-0-asyncify-x64-gl-ranges": {
+      "exit": 0,
+      "log_sha256": "2f5b09bd96738ab0430d776f73a45731329dd2e1608dcfe6e989c6a1e6195e3c"
+    },
+    "oracle-0-asyncify-x64-gl-scale": {
+      "exit": 0,
+      "log_sha256": "6cf6cca28b36767157f9b9526370f74a655d4aba80738c41da13daf9ed1c0ca5"
+    },
+    "oracle-0-asyncify-x64-glsl": {
+      "exit": 0,
+      "log_sha256": "75982874f235a18cac280c5b147372d7e61d3d55ffb89e60229cf4a6f2f045b7"
+    },
+    "oracle-0-asyncify-x64-gui": {
+      "exit": 0,
+      "log_sha256": "07473aed3147d3de180f4f745e0a5f81a29c099936aba3f2c0c4eafa232c333c"
+    },
+    "oracle-0-asyncify-x64-handles": {
+      "exit": 0,
+      "log_sha256": "04a44ab48b54aee51383521b23cc2931aa0e7b98675f152656e50b3ae816df4d"
+    },
+    "oracle-0-asyncify-x64-heap": {
+      "exit": 0,
+      "log_sha256": "b0211899542f30219e9df28f87abe65f24ea1d0abc68d1433254e673e350acd7"
+    },
+    "oracle-0-asyncify-x64-imports": {
+      "exit": 0,
+      "log_sha256": "ca2ea9aae9f1debd24c7867105890df05eeb0bc561b3d2aeeae8a58b055f2368"
+    },
+    "oracle-0-asyncify-x64-input": {
+      "exit": 0,
+      "log_sha256": "d028fb44334abf33a627d2739e49e9d3a0c6c4a0ec79f72d5943d30f087d8b6e"
+    },
+    "oracle-0-asyncify-x64-memory": {
+      "exit": 0,
+      "log_sha256": "dfec55e59e5c61d4f56098c662e45984ff61bbb082d896c70b72eed49c7f4506"
+    },
+    "oracle-0-asyncify-x64-scale": {
+      "exit": 0,
+      "log_sha256": "5258fce9f7aa611e349a92febd397a174df880735dc92f26cfa8a3a1379051dc"
+    },
+    "oracle-0-asyncify-x64-smoke": {
+      "exit": 0,
+      "log_sha256": "4eb06906c0d4be3208351445eb5e302630e703e2899b742bfb394d9c4f794e0a"
+    },
+    "oracle-0-asyncify-x64-sysdlls": {
+      "exit": 0,
+      "log_sha256": "f2170c09f63b3dd77e278e250636d7e56343f6af9f20945bb8a48cb2e48ad95a"
+    },
+    "oracle-0-asyncify-x64-threads": {
+      "exit": 0,
+      "log_sha256": "95136e705ce7a99cceb1da3568b0be022836ea7b3ac43402db886eb16233e7ad"
+    },
+    "oracle-0-asyncify-x64-tls": {
+      "exit": 0,
+      "log_sha256": "2bacc7d08775f8975acdf831afddd8388cb72c86115834a38c12b7a8e5f58eb4"
+    },
+    "oracle-0-asyncify-x86-handles": {
+      "exit": 0,
+      "log_sha256": "84329905660e48bb7b5aa700d3e342c5b0a9091708c688cf911b8ae1ba3226cd"
+    },
+    "oracle-0-asyncify-x86-heap": {
+      "exit": 0,
+      "log_sha256": "5ae96ed565446d54e68bf9d1d53de0ed913d1ca133d66848ba48688a880cad0c"
+    },
+    "oracle-0-asyncify-x86-threads": {
+      "exit": 0,
+      "log_sha256": "b52bbf3fc8a1ec62ceb1bd101faeca40c97fc30cec329f9cd9f0219ad50ea6bf"
+    },
+    "oracle-0-jspi-win32-conformance": {
+      "exit": 0,
+      "log_sha256": "ef55b0231295ee48a633fbcd52f547ce879d2538c7f2971cb8397f4bacc3d356"
+    },
+    "oracle-0-jspi-win32-hello": {
+      "exit": 0,
+      "log_sha256": "809089c3424a0afcda03a4f2e62cbe64dee120124557938e7650c855d87345a8"
+    },
+    "oracle-0-jspi-x64-audio": {
+      "exit": 0,
+      "log_sha256": "5762362554c84b006b07997ef902060eb7e28780ad4aa7403122dc913575ba6f"
+    },
+    "oracle-0-jspi-x64-audio-init": {
+      "exit": 0,
+      "log_sha256": "3eee79395c2c283595402b4c8638932405b7ff7dfd14dcb769e51137d3d1e838"
+    },
+    "oracle-0-jspi-x64-basics": {
+      "exit": 0,
+      "log_sha256": "84607e87ad19aa117a0a116d16ef5683d6bee0aac0fff30e22417871a71fed91"
+    },
+    "oracle-0-jspi-x64-contracts": {
+      "exit": 0,
+      "log_sha256": "32ff996ff5bffacec0f1c1c4acbaf33ccd7073b46fc989fafae2e96768718534"
+    },
+    "oracle-0-jspi-x64-cpp": {
+      "exit": 0,
+      "log_sha256": "bd08b23de9e32c71e048cefd1b217d6cc4157d0fc96c6585150a543f4fee6a7e"
+    },
+    "oracle-0-jspi-x64-cpprt": {
+      "exit": 0,
+      "log_sha256": "c3f9ff32db37d89843bd81f89d3f1b6e64b5e8ad5a1246d6eb5eda8c4b16bb9a"
+    },
+    "oracle-0-jspi-x64-crt": {
+      "exit": 0,
+      "log_sha256": "4fe7c529cf45298ed709993ca1d881527fc00e0a50e8e5f4dd11ae85328a5eeb"
+    },
+    "oracle-0-jspi-x64-gl": {
+      "exit": 0,
+      "log_sha256": "19bee685ac25a10a8e58b895a07244ba070a1f2f03bc38e00a61ad721e2e4427"
+    },
+    "oracle-0-jspi-x64-gl-blit": {
+      "exit": 0,
+      "log_sha256": "0b76311c84ba22cb5fba06828f42b4547dab3f464a880cddf7935f1741bc8c03"
+    },
+    "oracle-0-jspi-x64-gl-capacity": {
+      "exit": 0,
+      "log_sha256": "2c2423362ce73b05ce4295eac6d6689d9091fa66bf1bdd8d2c79e575ec297f0d"
+    },
+    "oracle-0-jspi-x64-gl-current": {
+      "exit": 0,
+      "log_sha256": "16c9655389a43f26437d2c5755c266c30975f21cff33d6bd8ad70663a79cac31"
+    },
+    "oracle-0-jspi-x64-gl-default-vao": {
+      "exit": 0,
+      "log_sha256": "22c13474e3915cfd3c29dddad52ac989568a9eea6b76adc5c5a18d85c6deac61"
+    },
+    "oracle-0-jspi-x64-gl-fbo": {
+      "exit": 0,
+      "log_sha256": "a89cf81c88dcdaa5b819be48b9007c1df4296530dffe409e78e95246d483d026"
+    },
+    "oracle-0-jspi-x64-gl-feedback": {
+      "exit": 0,
+      "log_sha256": "0146d7d1954438de6d4c979c716596d8920e72929a56c407918eaa7f177d2da6"
+    },
+    "oracle-0-jspi-x64-gl-integer": {
+      "exit": 0,
+      "log_sha256": "fce20fc428920666a44b1e90f8aec28bfa039a0dae63bb67a3e45b46483118f9"
+    },
+    "oracle-0-jspi-x64-gl-ranges": {
+      "exit": 0,
+      "log_sha256": "c419b5af63de01abb1726f302cf621497924cdd69f5e725aba42706d544a33de"
+    },
+    "oracle-0-jspi-x64-gl-scale": {
+      "exit": 0,
+      "log_sha256": "a2a246869cc1dc0bf8be2433dc418f7c16d7c50e669cad4199fde5045144558d"
+    },
+    "oracle-0-jspi-x64-glsl": {
+      "exit": 0,
+      "log_sha256": "d3875968a5e3e014b8d36112f01305f6a4c768a43ac4333337bcf97056af4c3d"
+    },
+    "oracle-0-jspi-x64-gui": {
+      "exit": 0,
+      "log_sha256": "8cc5d1ebb48831db596a6a48555b73b9c484425baaed2e46bb0a91aed7f5b2f0"
+    },
+    "oracle-0-jspi-x64-handles": {
+      "exit": 0,
+      "log_sha256": "b162bdcc72a61c9f2ae02d31993e093e92676187a8d3e9dc8c37b31de95ad066"
+    },
+    "oracle-0-jspi-x64-heap": {
+      "exit": 0,
+      "log_sha256": "a1873aef4bc90318e76bf08ab957e9596ddb6d49a9e88863a98fd7a456d5afdf"
+    },
+    "oracle-0-jspi-x64-imports": {
+      "exit": 0,
+      "log_sha256": "ffd93dcab26a58cc072f555875d90b4aafa1fbac52b30d46e283b780a2d5412a"
+    },
+    "oracle-0-jspi-x64-input": {
+      "exit": 0,
+      "log_sha256": "2adeae0143e39f948a1243e9af5b7091fce6e4ec4d53999124f1b6cec4830f67"
+    },
+    "oracle-0-jspi-x64-memory": {
+      "exit": 0,
+      "log_sha256": "7019112d65b96b7b24269b099fa30f2d0350ce690b5a9daafee5f90f7538f3ae"
+    },
+    "oracle-0-jspi-x64-scale": {
+      "exit": 0,
+      "log_sha256": "8567ecd514e4be6c3865ce7a7847c10c6b8fe5fbb5d245015610f08744e58c6d"
+    },
+    "oracle-0-jspi-x64-smoke": {
+      "exit": 0,
+      "log_sha256": "045da3ebc0b27d7974a519c152886a830bcb5498dbfcb78c918d27ccf99b84ae"
+    },
+    "oracle-0-jspi-x64-sysdlls": {
+      "exit": 0,
+      "log_sha256": "4b8cbe871a614dc88b0414cbfc4c58e6d7d8f7c54b390a77bba0da3612e841e9"
+    },
+    "oracle-0-jspi-x64-threads": {
+      "exit": 0,
+      "log_sha256": "67ecd83fd5f76aff5c82a19e5410e17211092465b8d64a3ca4cd9341f9de3c4c"
+    },
+    "oracle-0-jspi-x64-tls": {
+      "exit": 0,
+      "log_sha256": "d1c3a2aa35859c99c5815faf38adb59fb9827977a74643f6cd50306fa8633fb7"
+    },
+    "oracle-0-jspi-x86-handles": {
+      "exit": 0,
+      "log_sha256": "edb424d9cca173b4d745e3e60986971a33b75e5eccd4ca719f94c011d49eb31f"
+    },
+    "oracle-0-jspi-x86-heap": {
+      "exit": 0,
+      "log_sha256": "3fb1a894f9f8f414f957fa7e48f5718552b09e7e2aa536dabdae504293042aab"
+    },
+    "oracle-0-jspi-x86-threads": {
+      "exit": 0,
+      "log_sha256": "b6b72344bfda1ab0f4433b4a94243428ec6c86a43361113d56f87cc5bdeef8ba"
+    },
+    "oracle-1-asyncify-win32-conformance": {
+      "exit": 0,
+      "log_sha256": "917b8febaae489d172c479b2d37153dfb19842461eb3bef56ef07ecdbc794851"
+    },
+    "oracle-1-asyncify-win32-hello": {
+      "exit": 0,
+      "log_sha256": "fe66d2c0c64230ab82e6a73166eae7a734a3c4663d8a9308a6e0e3631ed8c9c3"
+    },
+    "oracle-1-asyncify-x64-audio": {
+      "exit": 0,
+      "log_sha256": "4bd6e1cb2ce2a37dfe9440fc660b43ad1f38bef274dabe9731187d0d1592645f"
+    },
+    "oracle-1-asyncify-x64-audio-init": {
+      "exit": 0,
+      "log_sha256": "3acd4d1a8f9ee98684726ca7fd4d363003e9930ee5b217ccf1d8a048c30d3c37"
+    },
+    "oracle-1-asyncify-x64-basics": {
+      "exit": 0,
+      "log_sha256": "efe52301b8478b5c1f98f5e46bdfffa5be36fc1028237f16101f82890919482f"
+    },
+    "oracle-1-asyncify-x64-contracts": {
+      "exit": 0,
+      "log_sha256": "ae82f7f26c32a6f34ba1a641b2842d4bdc9596d8b8020ea66b019b5805d6a848"
+    },
+    "oracle-1-asyncify-x64-cpp": {
+      "exit": 0,
+      "log_sha256": "7604826788b46990a229a02b0264606efdcf03c6b3aa8df83d36674f6fd4d925"
+    },
+    "oracle-1-asyncify-x64-cpprt": {
+      "exit": 0,
+      "log_sha256": "b4d8d04c692d3036dcc71b51a67811443533899f25d099b8d751f21469958ff5"
+    },
+    "oracle-1-asyncify-x64-crt": {
+      "exit": 0,
+      "log_sha256": "3b77bc3a70a5f8ff96b18a2cad2bcd93e5acde01eb4cd637089da4e88774c92f"
+    },
+    "oracle-1-asyncify-x64-gl": {
+      "exit": 0,
+      "log_sha256": "d813717ab836e5fdd7e16a3b6bac76b4586aa002e691fb948eca3cc8dcaacd66"
+    },
+    "oracle-1-asyncify-x64-gl-blit": {
+      "exit": 0,
+      "log_sha256": "db04e4d2d77f58874b1987e94065b7890531a777d67e456cbd29ace358b0f4c7"
+    },
+    "oracle-1-asyncify-x64-gl-capacity": {
+      "exit": 0,
+      "log_sha256": "570b40fbd3862b3016a39ce5b54360742895e2ccd22f129f5ba7a6906c24bd13"
+    },
+    "oracle-1-asyncify-x64-gl-current": {
+      "exit": 0,
+      "log_sha256": "4088cdaec8ffcd39dc2dfbc583efd27335bf36f15c0e5b7ad2ef9b27392678e1"
+    },
+    "oracle-1-asyncify-x64-gl-default-vao": {
+      "exit": 0,
+      "log_sha256": "dd0d53181e3ea76b08e3a2ff299cfb0b322fbbe1b1b25205315485013a83faf6"
+    },
+    "oracle-1-asyncify-x64-gl-fbo": {
+      "exit": 0,
+      "log_sha256": "c0d2eafcfbf8139a482afed14062376f0d789695c39cd41242a0fb3ccb68b472"
+    },
+    "oracle-1-asyncify-x64-gl-feedback": {
+      "exit": 0,
+      "log_sha256": "df0661aedd45ea13bf0cc556eb43d07c24c6d6566b510d82be1bdbe908f0aadc"
+    },
+    "oracle-1-asyncify-x64-gl-integer": {
+      "exit": 0,
+      "log_sha256": "9d51f28238d7ae42c6b94eb59e27ec76e3597ed2496fc2a4b5ea856a967a0878"
+    },
+    "oracle-1-asyncify-x64-gl-ranges": {
+      "exit": 0,
+      "log_sha256": "deeb803f854fe0e31281fc39f51c00ec94236f1ba95d54570569de4e973b4b09"
+    },
+    "oracle-1-asyncify-x64-gl-scale": {
+      "exit": 0,
+      "log_sha256": "d060c9449caa9159e74dee4a70f624da80f3ba85e4d928ce41f7bea401190b3a"
+    },
+    "oracle-1-asyncify-x64-glsl": {
+      "exit": 0,
+      "log_sha256": "37374ed0e0560774539a9bc28f7283531df9106d96b548ee371d47a787728726"
+    },
+    "oracle-1-asyncify-x64-gui": {
+      "exit": 0,
+      "log_sha256": "04a2577518fcb8f62d62edbe6d25b50e6a469485b8f19c11c4b7d0343e9bc0f8"
+    },
+    "oracle-1-asyncify-x64-handles": {
+      "exit": 0,
+      "log_sha256": "f01eb3702111d9f62026d3e4f49b26660d3f4982f9a44267d1c12cc8dd6211e1"
+    },
+    "oracle-1-asyncify-x64-heap": {
+      "exit": 0,
+      "log_sha256": "7247cca8f0798c0bd7dfd5d38d42dacb0d373e568707c31530957493ce5ec296"
+    },
+    "oracle-1-asyncify-x64-imports": {
+      "exit": 0,
+      "log_sha256": "c7c9b54699e5eabfa63c9d1c9c2b8dc0514a9c5fe3346aca1abb10978534311f"
+    },
+    "oracle-1-asyncify-x64-input": {
+      "exit": 0,
+      "log_sha256": "99521d5f06130312e1487bffb9113a6e5b4a6ab596e7c7ed17a6ab31e5f21efd"
+    },
+    "oracle-1-asyncify-x64-memory": {
+      "exit": 0,
+      "log_sha256": "a67d4d70dc9527e3913aaa908fa28ea6f465ce1c92017da62dcc70d336457fb4"
+    },
+    "oracle-1-asyncify-x64-scale": {
+      "exit": 0,
+      "log_sha256": "cce5387930ecd97530b93fccd0ec4c8bacf3da90f1b58afde2369f98be589342"
+    },
+    "oracle-1-asyncify-x64-smoke": {
+      "exit": 0,
+      "log_sha256": "93a66e08467268a2f054a29970bd4976e094231b5023d52417f2d304957294c7"
+    },
+    "oracle-1-asyncify-x64-sysdlls": {
+      "exit": 0,
+      "log_sha256": "d9ac82ff29ae01a75eeadee9e020a53b70765226a357a2a057a7e77938056721"
+    },
+    "oracle-1-asyncify-x64-threads": {
+      "exit": 0,
+      "log_sha256": "589a4a0420c0de25d12f66492dc7df0d0cd6a95ed784b0da210da290a810f502"
+    },
+    "oracle-1-asyncify-x64-tls": {
+      "exit": 0,
+      "log_sha256": "0b2ca4f0dca2ec36e42792a2fba867bdd158c8b9a1ed08d9c5ec12bbb1f733c6"
+    },
+    "oracle-1-asyncify-x86-handles": {
+      "exit": 0,
+      "log_sha256": "0e093a25b774fd18379e8efa56d3241d9dd13a28ee25c739d6fc1965dd74cb0e"
+    },
+    "oracle-1-asyncify-x86-heap": {
+      "exit": 0,
+      "log_sha256": "4968ec19eb6b886935e353569fc4da8d3fb37e5bd3da7d520d7dfb1b070b3886"
+    },
+    "oracle-1-asyncify-x86-threads": {
+      "exit": 0,
+      "log_sha256": "01b40aff91f41f1f44f8dc4200025262df47e1b7201f0a5e1c95c9cf17520abc"
+    },
+    "oracle-1-jspi-win32-conformance": {
+      "exit": 0,
+      "log_sha256": "ccfbb5494d97d72e9d04911c4580e9f748237ce757fcd7b401198b99c0c7b93e"
+    },
+    "oracle-1-jspi-win32-hello": {
+      "exit": 0,
+      "log_sha256": "01b00aead2a9c785643e51df217d51d925424250215c3884d35f9828c1ee6edf"
+    },
+    "oracle-1-jspi-x64-audio": {
+      "exit": 0,
+      "log_sha256": "6fc038a0b76cf68b8f70896244402c937bb754a484f8c8d0667d649f1e004c7f"
+    },
+    "oracle-1-jspi-x64-audio-init": {
+      "exit": 0,
+      "log_sha256": "1d95e1b11ef0f2066b8d55aae088b57ce6dce159e9578600d21cc24b41cd390a"
+    },
+    "oracle-1-jspi-x64-basics": {
+      "exit": 0,
+      "log_sha256": "a05020e42325b6a5107bee8e871444ef32feb9c959a0e3146a611ae10566e733"
+    },
+    "oracle-1-jspi-x64-contracts": {
+      "exit": 0,
+      "log_sha256": "62a96224ce1028fff9723ad7ac350f1e0c9c29c9310d1efddb2c9c4e3a6f1396"
+    },
+    "oracle-1-jspi-x64-cpp": {
+      "exit": 0,
+      "log_sha256": "6ca126519a62e7d343831bb5bd30a1ab0bed9a7bb8d747cb78a73343c3a47b44"
+    },
+    "oracle-1-jspi-x64-cpprt": {
+      "exit": 0,
+      "log_sha256": "be2e90444113707f6529685c349e6e195b0e3eb4abe8b0fd902f70bc5da822cf"
+    },
+    "oracle-1-jspi-x64-crt": {
+      "exit": 0,
+      "log_sha256": "32fcfeead2b314910a280bc6eb5a83a3f27a8f7077775e5b3320ab28908e0cee"
+    },
+    "oracle-1-jspi-x64-gl": {
+      "exit": 0,
+      "log_sha256": "167f8d97827a20597cf435fdcbd59d2f4381ca41cb2b9fb1afe713bc4af51b5f"
+    },
+    "oracle-1-jspi-x64-gl-blit": {
+      "exit": 0,
+      "log_sha256": "19e9565da1fdb028fcc0b4568219e872b1d8c6dd3b81b43e41337a8f77d4901a"
+    },
+    "oracle-1-jspi-x64-gl-capacity": {
+      "exit": 0,
+      "log_sha256": "bee20acf7864a80ea06cbf5c989b1ed89d4a0863105070b4ca1c10d53e738e64"
+    },
+    "oracle-1-jspi-x64-gl-current": {
+      "exit": 0,
+      "log_sha256": "2f9a4cf2ecc0764403a8b285a5c8bb33c9012a822f4d60a82578cf4f31f04812"
+    },
+    "oracle-1-jspi-x64-gl-default-vao": {
+      "exit": 0,
+      "log_sha256": "f574a73f802bac832468d6712e4110637822e431c4e5b79e652893e126e47d14"
+    },
+    "oracle-1-jspi-x64-gl-fbo": {
+      "exit": 0,
+      "log_sha256": "f4b1e599e86fd11d23c6bd30fcc3653a7d3e7c289bb11ee52aa3d7cae8ca35a9"
+    },
+    "oracle-1-jspi-x64-gl-feedback": {
+      "exit": 0,
+      "log_sha256": "8fe0fb58934a34aff6443640e959f9188dd1fc500c5442d2cb0f3c130037b551"
+    },
+    "oracle-1-jspi-x64-gl-integer": {
+      "exit": 0,
+      "log_sha256": "5268fc8582d3023a21cce4f9f8ee07a40c934ae81d9246c32c80881f7f53fa4a"
+    },
+    "oracle-1-jspi-x64-gl-ranges": {
+      "exit": 0,
+      "log_sha256": "446d3c56e17405c70125265cea4f6a1b90482e85c1c3f36e90cb90fb89f3c438"
+    },
+    "oracle-1-jspi-x64-gl-scale": {
+      "exit": 0,
+      "log_sha256": "784a60a71ee5166b868e0fa2b0858e7d2ca981e17acb9d83b67385003393a000"
+    },
+    "oracle-1-jspi-x64-glsl": {
+      "exit": 0,
+      "log_sha256": "f4ce7cb586734c211d0b98e0c489d2158c0f56fe2057a47007bfa7579943f004"
+    },
+    "oracle-1-jspi-x64-gui": {
+      "exit": 0,
+      "log_sha256": "62495b7da00ae33a5e34b5af332750fa479eaff631c0eb15de6d13d9329f1fd4"
+    },
+    "oracle-1-jspi-x64-handles": {
+      "exit": 0,
+      "log_sha256": "1f6cb82e4d7b17f67187ecb1e1605e6972e6ec4c4e364069ef28874c87b4f390"
+    },
+    "oracle-1-jspi-x64-heap": {
+      "exit": 0,
+      "log_sha256": "b9fcc76ee5c0631b1b5e65a8c03b70c4659eb6398ece51e49b3a5b1547e9d2d2"
+    },
+    "oracle-1-jspi-x64-imports": {
+      "exit": 0,
+      "log_sha256": "7ee135c627ebd43d11212110fcac48f01baebf3c74526da66b5ccd3af2e122ae"
+    },
+    "oracle-1-jspi-x64-input": {
+      "exit": 0,
+      "log_sha256": "6b764ea026c4d659fe179dee915be520452f4d5eed68e8f63cce7f0499d1f741"
+    },
+    "oracle-1-jspi-x64-memory": {
+      "exit": 0,
+      "log_sha256": "0b8d269e7012b115d6b985882f2607faccb53ac4d924ae79f2f8d5e680a448a6"
+    },
+    "oracle-1-jspi-x64-scale": {
+      "exit": 0,
+      "log_sha256": "abcedeef3e4d441a3eb66b1360bf5bcf881624109a7e837ed228efa95ef54dc5"
+    },
+    "oracle-1-jspi-x64-smoke": {
+      "exit": 0,
+      "log_sha256": "60e574d69c6331241726a245ab90d8d70d23ced7ff378b80369d92c51b56c373"
+    },
+    "oracle-1-jspi-x64-sysdlls": {
+      "exit": 0,
+      "log_sha256": "a4740b170b5dfac4c47cae79912c9e402f83bafb0ce814affe10fc6846087500"
+    },
+    "oracle-1-jspi-x64-threads": {
+      "exit": 0,
+      "log_sha256": "c6beb3308771b0f098c035f712bf852b8214093c26af3057457430f753989282"
+    },
+    "oracle-1-jspi-x64-tls": {
+      "exit": 0,
+      "log_sha256": "f34b491c325979d8033490561038d1174e09028df1b426a5ade15a05b52ddc4a"
+    },
+    "oracle-1-jspi-x86-handles": {
+      "exit": 0,
+      "log_sha256": "52f3dd6999f6e4cc4c9c428e87392f72ab5c96c392817f48497f8b2e8a91fd9f"
+    },
+    "oracle-1-jspi-x86-heap": {
+      "exit": 0,
+      "log_sha256": "45094c22c7fa29963b8e981ef1a312165bf6d1bc6485dd49dbb45255cf389a3d"
+    },
+    "oracle-1-jspi-x86-threads": {
+      "exit": 0,
+      "log_sha256": "fd2743c12711e042078863b6f7c8d08b84eda5f658aca4ea58f6997d2951fce0"
+    }
+  },
+  "browser": {
+    "asyncify": {
+      "stats": {
+        "startTime": "2026-11-06T07:42:06.570Z",
+        "duration": 443365.2,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "inventory_equals_K34": true,
+      "exact_skip_inventory_equals_K34": true,
+      "sha256": "257b2eec75ba10a9a46ab1fb3b2c6feb09fa241d78df81045ecd0dfbdc3e5c52"
+    },
+    "jspi": {
+      "stats": {
+        "startTime": "2026-11-06T07:51:04.372Z",
+        "duration": 350161.956,
+        "expected": 300,
+        "skipped": 51,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "projects": {
+        "chromium-webgl2": {
+          "expected": 135,
+          "skipped": 24
+        },
+        "chromium-webgpu": {
+          "expected": 157,
+          "skipped": 26
+        },
+        "chromium-auto": {
+          "expected": 8,
+          "skipped": 1
+        }
+      },
+      "inventory_equals_K34": true,
+      "exact_skip_inventory_equals_K34": true,
+      "sha256": "de100a4afe56084bc4b2c0ec07fe2bd37e12db2f61ae180310d741c1af1a85a4"
+    }
+  },
+  "oracles": [
+    {
+      "fixture": "win32-conformance",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "retired": [],
+      "sha256": "be6fa218eca86f0b50ccdf30dec078869db805edd7a0f021a4c144b47110f7d8"
+    },
+    {
+      "fixture": "win32-hello",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "retired": [],
+      "sha256": "e5adf7f7917ccb988f1b2e0bcc6ce6d50ae5ac4209d19ffb1146eb2f1cf45244"
+    },
+    {
+      "fixture": "x64-audio",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "retired": [],
+      "sha256": "ee1663dfd3836bf105a9f9b63d3a2343b03d3cb3f3fc737f1d5275d4f59d0183"
+    },
+    {
+      "fixture": "x64-audio-init",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "retired": [],
+      "sha256": "048873731a88e7d19d5748d3864ffbe0acc2f46bbff0067f3184e573b92eed68"
+    },
+    {
+      "fixture": "x64-basics",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "retired": [],
+      "sha256": "41af54cc4682e699687c7baf340d0e0152c54e0699747a451cefaa8bb65ab796"
+    },
+    {
+      "fixture": "x64-contracts",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "retired": [],
+      "sha256": "23ca3b991cf62eb664db97aed41b7750e7a212272243bc8b5643e97c3ad60853"
+    },
+    {
+      "fixture": "x64-cpp",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "retired": [],
+      "sha256": "bbc39661922cef689e4d2d50688567e219f088adf875aa4c6e3303f455868f53"
+    },
+    {
+      "fixture": "x64-cpprt",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "retired": [],
+      "sha256": "cd310d9df010cd95f8216eca4e99e71aad0eff87caa2ec0e366ef276bf0495d7"
+    },
+    {
+      "fixture": "x64-crt",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "retired": [],
+      "sha256": "eccf8114e4674e02f36ceaddc3103ff8278ff2ba51abc3a71ba6d2ec4c3f8ae5"
+    },
+    {
+      "fixture": "x64-gl",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "retired": [],
+      "sha256": "6bbbe5cd9d243ee31cb49b724e2aae07b740844185c70c70850b46132ed0c1a8"
+    },
+    {
+      "fixture": "x64-gl-blit",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "retired": [],
+      "sha256": "7b04923929f11763f38d412b565bc971db77b2a9dc89b88662fbe1861776e0cd"
+    },
+    {
+      "fixture": "x64-gl-capacity",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "retired": [],
+      "sha256": "cea2f9aad415c48ccd89de5dca526b479d320a5458502f92667195b6f2cc9882"
+    },
+    {
+      "fixture": "x64-gl-current",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "retired": [],
+      "sha256": "69b87daa126dae15634819b303ceb5505a1e811469622b9935fd2656be73b724"
+    },
+    {
+      "fixture": "x64-gl-default-vao",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "retired": [],
+      "sha256": "734a946614b4bd6d5b0e2669bbdfe4b4c6493c4562977cdf53e8169a7519c734"
+    },
+    {
+      "fixture": "x64-gl-fbo",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "retired": [],
+      "sha256": "3e09b64e5ec76be7780efe6fa550c78100f860a1bbbe4837454788baed811bb3"
+    },
+    {
+      "fixture": "x64-gl-feedback",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "retired": [],
+      "sha256": "79ce4339bafeebb6837d88fb2e95a83bc0378bf553a435400995322313136de3"
+    },
+    {
+      "fixture": "x64-gl-integer",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "retired": [],
+      "sha256": "32eadce1f7c52c01c2baa929da34a888f53a1440f7684d36110ccad3b68778be"
+    },
+    {
+      "fixture": "x64-gl-ranges",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "retired": [],
+      "sha256": "249862fe2306adf1a86042d35e6d95fff9450b0c329a0c428f25431674a668dc"
+    },
+    {
+      "fixture": "x64-gl-scale",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "retired": [],
+      "sha256": "1710bc042a06fd50ed4de7ab8ac3c122a3365a3769219b075d3f52c42708d06c"
+    },
+    {
+      "fixture": "x64-glsl",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "retired": [],
+      "sha256": "791fd6f37505c929319e0f67708bc0ed7589aba4eac7c1587944c1d6a61c70e1"
+    },
+    {
+      "fixture": "x64-gui",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "retired": [],
+      "sha256": "d567088de8b4a0a3830e793f34251a9dd5705dee197d940e0574438b0e97e54e"
+    },
+    {
+      "fixture": "x64-handles",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "retired": [],
+      "sha256": "1e59e60becb1d5a9f1b0f75a3b209803a68bfa6a3725133d9815739f1d53d76f"
+    },
+    {
+      "fixture": "x64-heap",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "retired": [],
+      "sha256": "e46cd63d2d03323e03b1567e95c8757be6681a53f3cc00944ebdcfd67cda14ce"
+    },
+    {
+      "fixture": "x64-imports",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "retired": [],
+      "sha256": "8d9cac2c880518b111d5dfb50c9fc1b3679df7f0ac84855e749c3477f66e4ebc"
+    },
+    {
+      "fixture": "x64-input",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "retired": [],
+      "sha256": "d846d2be00e964d963f81001310dd6d18a8c8a1fb44887bd51b55f8d8bd65762"
+    },
+    {
+      "fixture": "x64-memory",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "retired": [],
+      "sha256": "d6dab64df6926123614a120ed974fbf036c956214b329fba77167f9b86458e7f"
+    },
+    {
+      "fixture": "x64-scale",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "retired": [],
+      "sha256": "d2d5dee88eb7a6ba048882eac60bcae54541d50f9c80713a726c5980ad500139"
+    },
+    {
+      "fixture": "x64-smoke",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "retired": [],
+      "sha256": "4ac260caee8ca08bc73a6f4352abf56670a6cfd3106beadb44d0c11db07cb9ee"
+    },
+    {
+      "fixture": "x64-sysdlls",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "retired": [],
+      "sha256": "e4478fce497c68c32ac1e8278eced56cfbe371d57dbb268a99d42d92b54b0181"
+    },
+    {
+      "fixture": "x64-threads",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "retired": [],
+      "sha256": "6ba65c7afa38ac1a4a987ac65ea05b9242854e15a0eebfa558ce64d713f076a5"
+    },
+    {
+      "fixture": "x64-tls",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "retired": [],
+      "sha256": "a118e7f91cea9cf7cfa6fb9f9dada95fa44e306bdd84b584e5797a5b6618283f"
+    },
+    {
+      "fixture": "x86-handles",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "retired": [],
+      "sha256": "3b6b72f8ad8e030467d9471a845e9500868b708ee6348d7589b8ed0c6fad0e72"
+    },
+    {
+      "fixture": "x86-heap",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "retired": [],
+      "sha256": "f55f9815fa1ee1137eccb27e2ff79f0a2e8db766ae2de08fb302b9daa7a3684f"
+    },
+    {
+      "fixture": "x86-threads",
+      "accounting": 0,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "retired": [],
+      "sha256": "9090f7960aa668d330caa9f5c3a74d8d8430a797aa67a61ba4da780927331232"
+    },
+    {
+      "fixture": "win32-conformance",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "retired": [],
+      "sha256": "b220224c1e99ac7e8940527fc5e357354867b4d16df219814b2f24d36a51d4ba"
+    },
+    {
+      "fixture": "win32-hello",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "retired": [],
+      "sha256": "653933870b0b956192b91d4adc367ccc80de6899806aa64c0a46d78d2e94b79b"
+    },
+    {
+      "fixture": "x64-audio",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "retired": [],
+      "sha256": "d79669793e219c73f64028805a431bc34a0b48aeb8240efedfa3eb671935a6ed"
+    },
+    {
+      "fixture": "x64-audio-init",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "retired": [],
+      "sha256": "45a20ab8643d60f15fe6d2ef1eb5efd018ea3093b0539304f5f12cd6d9bf300e"
+    },
+    {
+      "fixture": "x64-basics",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "retired": [],
+      "sha256": "7bad022e64a9e30e07250e39bc1f0f754edf5eb152d4f3479f28fac03b659bba"
+    },
+    {
+      "fixture": "x64-contracts",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "retired": [],
+      "sha256": "762c1189f59082c6ef8362a311c900bf30be7565412e52671d3f33484334c24e"
+    },
+    {
+      "fixture": "x64-cpp",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "retired": [],
+      "sha256": "368274a6381e8c8811b27e844202c63d4610acc305a954bc803002574c90ebe2"
+    },
+    {
+      "fixture": "x64-cpprt",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "retired": [],
+      "sha256": "c2d4a5552180324eb5a7f5b369104c930cb7614e3bfa43fa397ef52d4a2bf786"
+    },
+    {
+      "fixture": "x64-crt",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "retired": [],
+      "sha256": "18039419257609d6ebda62f4ee27f5b178f1860cf14414289d9a695520de61f7"
+    },
+    {
+      "fixture": "x64-gl",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "retired": [],
+      "sha256": "8956f896172f526b9b3a7df22bc6711ba691c1b979223a24dde341b3a8f374e6"
+    },
+    {
+      "fixture": "x64-gl-blit",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "retired": [],
+      "sha256": "410717052cae902bcc2f4145fedcf561284c2ebe847b5c1de0ebe4753ef0bbf6"
+    },
+    {
+      "fixture": "x64-gl-capacity",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "retired": [],
+      "sha256": "4cb8fb23f979fe71b2edeed96303aef37c261334efa3ee6ffcbebea6a89f77bc"
+    },
+    {
+      "fixture": "x64-gl-current",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "retired": [],
+      "sha256": "cce29b261555016fc6e9475fe8ae7c90c26163f93106b70d1a2bbd65ce518e1f"
+    },
+    {
+      "fixture": "x64-gl-default-vao",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "retired": [],
+      "sha256": "72ad7d8d7e28e596b9b305836627531358b22cd631c5c8dd162977a671b6a6f2"
+    },
+    {
+      "fixture": "x64-gl-fbo",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "retired": [],
+      "sha256": "1a185a28ff26f4d0190dc079e08ff89e9d76ef0cab83e8c5b85a384b320c9e31"
+    },
+    {
+      "fixture": "x64-gl-feedback",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "retired": [],
+      "sha256": "e05c5615a271e9feae8c7f0a1ace72f6634a13971cbd0250be577e56ddbf7077"
+    },
+    {
+      "fixture": "x64-gl-integer",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "retired": [],
+      "sha256": "697352a8c64f91fc9dbdc51e93f2da941c4727ca77ed7c870f9e9ef2dec07efc"
+    },
+    {
+      "fixture": "x64-gl-ranges",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "retired": [],
+      "sha256": "a58b08ece2dcc5153164cb3c3a29bbdcc7bcc97bf036ffe8e8671313f82bda3d"
+    },
+    {
+      "fixture": "x64-gl-scale",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "retired": [],
+      "sha256": "c09122350e8a2b43281d9c243491623cec916c2edce57e3ece31e37d69a821e6"
+    },
+    {
+      "fixture": "x64-glsl",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "retired": [],
+      "sha256": "600f71d989c3be13a674c23ef08954a961d4e98406283ee850210332078df607"
+    },
+    {
+      "fixture": "x64-gui",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "retired": [],
+      "sha256": "8df34d1f2d4c6d34bf2dcddba8ffc5ece001652fd5b5fcdfb5541d51208a58fa"
+    },
+    {
+      "fixture": "x64-handles",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "retired": [],
+      "sha256": "3a2b17c51e0f430779b086058b4bd3bf5bb85de01baa1e8b34f0b932c5ecc673"
+    },
+    {
+      "fixture": "x64-heap",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "retired": [],
+      "sha256": "9e83c8506f022dd534e1f6d9a864cae4b56feb357d3496b5a1b9acf3e0ae214a"
+    },
+    {
+      "fixture": "x64-imports",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "retired": [],
+      "sha256": "e39abb65c2d3717d3cdec0e62c091464e611a56e27e4bb5bfb37c92bd7331a03"
+    },
+    {
+      "fixture": "x64-input",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "retired": [],
+      "sha256": "6e7c6982b886081a7914a6985225f34532878eb62e056b6b377984acc66287aa"
+    },
+    {
+      "fixture": "x64-memory",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "retired": [],
+      "sha256": "8b9e3e4b6932e291719ea01e1c6db8044394c3f1c71021975db107fa99026eea"
+    },
+    {
+      "fixture": "x64-scale",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "retired": [],
+      "sha256": "4c4a40136297f7348e7310ac517a263ccd4c5d404f892bf01bc8ee3aac584919"
+    },
+    {
+      "fixture": "x64-smoke",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "retired": [],
+      "sha256": "745432a2b024fcf8ef4e32c75197674961f394415a0053b514772a4be4231d53"
+    },
+    {
+      "fixture": "x64-sysdlls",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "retired": [],
+      "sha256": "f29942fa7252e8269194d58d3a0eda933da545be048ba5faacce7bdb6cec7653"
+    },
+    {
+      "fixture": "x64-threads",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "retired": [],
+      "sha256": "887ed59b91c12171bf8576b9125838642a8e5fb688e5bc036d3e93381ef3689a"
+    },
+    {
+      "fixture": "x64-tls",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "retired": [],
+      "sha256": "fbea9045ef801d5c60eb95fb8ce661978d2dc5bc60cf2bc9bafb2c034cdc98bc"
+    },
+    {
+      "fixture": "x86-handles",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "retired": [],
+      "sha256": "242784bbe4ada068f2ab156fa2219ea340e2e9b5b56a029f021020a4daa4171b"
+    },
+    {
+      "fixture": "x86-heap",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "retired": [],
+      "sha256": "87a8f46403b1a3a976ec6ce356da9526a67dad4173c26ed17f232583d876937a"
+    },
+    {
+      "fixture": "x86-threads",
+      "accounting": 0,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "retired": [],
+      "sha256": "4d52f9ae1526f353e1165d5c0f1d791ab636ca16c634c6f8a802f54ba3be30ec"
+    },
+    {
+      "fixture": "win32-conformance",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "retired": [
+        {
+          "total": "501224",
+          "threads": [
+            [
+              1,
+              4205952,
+              "501224"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 1,
+          "snapshotRetirementSha256": "35ba8db34b2b954881e15876038b4ba9b0c0fe24f7d31cc2e62f38a82ee06710"
+        },
+        {
+          "total": "501224",
+          "threads": [
+            [
+              1,
+              4205952,
+              "501224"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 1,
+          "snapshotRetirementSha256": "35ba8db34b2b954881e15876038b4ba9b0c0fe24f7d31cc2e62f38a82ee06710"
+        }
+      ],
+      "sha256": "df44247bbce11b67fb9e1e3078bae3129b5af30a9839aa14c485fe5e29c9f03d"
+    },
+    {
+      "fixture": "win32-hello",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "retired": [
+        {
+          "total": "98289",
+          "threads": [
+            [
+              1,
+              4200352,
+              "98289"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 54,
+          "snapshotRetirementSha256": "90644d03e82ea4854ba01f62db8f0cd2a00b1f5400a4deaaee06a854f4295be1"
+        },
+        {
+          "total": "98289",
+          "threads": [
+            [
+              1,
+              4200352,
+              "98289"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 54,
+          "snapshotRetirementSha256": "90644d03e82ea4854ba01f62db8f0cd2a00b1f5400a4deaaee06a854f4295be1"
+        }
+      ],
+      "sha256": "1bb01eecd42efbe931bddd7bd1597807772a1661232f6cb8c4ac5820b88ee2fc"
+    },
+    {
+      "fixture": "x64-audio",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "retired": [
+        {
+          "total": "793151",
+          "threads": [
+            [
+              1,
+              16787360,
+              "1227"
+            ],
+            [
+              2,
+              16781312,
+              "791622"
+            ],
+            [
+              3,
+              16785808,
+              "151"
+            ],
+            [
+              4,
+              16785808,
+              "151"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "793151",
+          "threads": [
+            [
+              1,
+              16787360,
+              "1227"
+            ],
+            [
+              2,
+              16781312,
+              "791622"
+            ],
+            [
+              3,
+              16785808,
+              "151"
+            ],
+            [
+              4,
+              16785808,
+              "151"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "f301ecea11d3c119ea916379dcf99310b24abe3b2205b50c5f4784d7d75d99d1"
+    },
+    {
+      "fixture": "x64-audio-init",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "retired": [
+        {
+          "total": "260906",
+          "threads": [
+            [
+              1,
+              16804784,
+              "482"
+            ],
+            [
+              2,
+              16781504,
+              "260424"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "260906",
+          "threads": [
+            [
+              1,
+              16804784,
+              "482"
+            ],
+            [
+              2,
+              16781504,
+              "260424"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "7d62ec4b09232c11107a41385fe49353408077bf8b288f9bfc77b3872fe395db"
+    },
+    {
+      "fixture": "x64-basics",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "retired": [
+        {
+          "total": "3156",
+          "threads": [
+            [
+              1,
+              16781312,
+              "3156"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "3156",
+          "threads": [
+            [
+              1,
+              16781312,
+              "3156"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "aa355d39b735ee8b54ba824bdfda1ba0c184f16ef54c1180bcd2122df2e925ef"
+    },
+    {
+      "fixture": "x64-contracts",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "retired": [
+        {
+          "total": "14523",
+          "threads": [
+            [
+              1,
+              16815424,
+              "14237"
+            ],
+            [
+              2,
+              16814144,
+              "114"
+            ],
+            [
+              3,
+              16814352,
+              "91"
+            ],
+            [
+              4,
+              16814432,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "14523",
+          "threads": [
+            [
+              1,
+              16815424,
+              "14237"
+            ],
+            [
+              2,
+              16814144,
+              "114"
+            ],
+            [
+              3,
+              16814352,
+              "91"
+            ],
+            [
+              4,
+              16814432,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "976158b900cdcf22aff20118fb53e87459c9459344d7ff9bd6b2f7eb3490306f"
+    },
+    {
+      "fixture": "x64-cpp",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "retired": [
+        {
+          "total": "28173",
+          "threads": [
+            [
+              1,
+              16782768,
+              "28173"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "28173",
+          "threads": [
+            [
+              1,
+              16782768,
+              "28173"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "d1f7669da34fa4cd0db6b6ad323deab54eb0c92959e5696ff2bf4e9bfaff009f"
+    },
+    {
+      "fixture": "x64-cpprt",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "retired": [
+        {
+          "total": "139205",
+          "threads": [
+            [
+              1,
+              16792352,
+              "139205"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "139205",
+          "threads": [
+            [
+              1,
+              16792352,
+              "139205"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "79e916edaf713e2512655fc399bcf82efc756277a58823d5aa69fb1c163cab9d"
+    },
+    {
+      "fixture": "x64-crt",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "retired": [
+        {
+          "total": "9945",
+          "threads": [
+            [
+              1,
+              16800064,
+              "9945"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "9945",
+          "threads": [
+            [
+              1,
+              16800064,
+              "9945"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "021f0e36183c2fb1fc19def1abccf5512f233f95224346aa8a92625f21b30ea4"
+    },
+    {
+      "fixture": "x64-gl",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "retired": [
+        {
+          "total": "62845",
+          "threads": [
+            [
+              1,
+              16787120,
+              "62845"
+            ]
+          ],
+          "dropped": "230",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "0b1b01e4c0a45dbcf24e2fe0a27b0092841943d74688cf26a92f47a31680b4e5"
+        },
+        {
+          "total": "62845",
+          "threads": [
+            [
+              1,
+              16787120,
+              "62845"
+            ]
+          ],
+          "dropped": "230",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "0b1b01e4c0a45dbcf24e2fe0a27b0092841943d74688cf26a92f47a31680b4e5"
+        }
+      ],
+      "sha256": "8a6d73be9f081daf2c7d6d6c54421546cb121d83f0a6daa46b2168b0b739c22d"
+    },
+    {
+      "fixture": "x64-gl-blit",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "retired": [
+        {
+          "total": "9651",
+          "threads": [
+            [
+              1,
+              16790176,
+              "9651"
+            ]
+          ],
+          "dropped": "209",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "373e7a38c47106688edc616564b1f2035644d1e8b1f783762d6547563478a8ac"
+        },
+        {
+          "total": "9651",
+          "threads": [
+            [
+              1,
+              16790176,
+              "9651"
+            ]
+          ],
+          "dropped": "209",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "373e7a38c47106688edc616564b1f2035644d1e8b1f783762d6547563478a8ac"
+        }
+      ],
+      "sha256": "4b8268758c03c107044a24eaab0ecbd747d14a7d602f44a2d17ac51718574567"
+    },
+    {
+      "fixture": "x64-gl-capacity",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "retired": [
+        {
+          "total": "4922781",
+          "threads": [
+            [
+              1,
+              16789104,
+              "4922781"
+            ]
+          ],
+          "dropped": "225",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "e17748a19779fd0c9e5ddf8c257f564d136d2c73ee387311763cc8996ea082c1"
+        },
+        {
+          "total": "4922781",
+          "threads": [
+            [
+              1,
+              16789104,
+              "4922781"
+            ]
+          ],
+          "dropped": "225",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "e17748a19779fd0c9e5ddf8c257f564d136d2c73ee387311763cc8996ea082c1"
+        }
+      ],
+      "sha256": "c3513de2866cdde5f76cc79bc1f49007ee9486f7d8e4e42ef8a9fc4ebcc22886"
+    },
+    {
+      "fixture": "x64-gl-current",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "retired": [
+        {
+          "total": "187294",
+          "threads": [
+            [
+              1,
+              16788032,
+              "187294"
+            ]
+          ],
+          "dropped": "208",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "70d8df61615030d32a178aaf8d2585bcfa58a54030892cd63b208358180a23d5"
+        },
+        {
+          "total": "187294",
+          "threads": [
+            [
+              1,
+              16788032,
+              "187294"
+            ]
+          ],
+          "dropped": "208",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "70d8df61615030d32a178aaf8d2585bcfa58a54030892cd63b208358180a23d5"
+        }
+      ],
+      "sha256": "23b38beaaf16ac0cbf52befccb456cf76dfbba55ff659b9df5e1fbccbe648eba"
+    },
+    {
+      "fixture": "x64-gl-default-vao",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "retired": [
+        {
+          "total": "61670",
+          "threads": [
+            [
+              1,
+              16789648,
+              "61670"
+            ]
+          ],
+          "dropped": "217",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "8df6cd88385ac05313f9df522d0d2c254d47c1c7611953569f4719138e8b226f"
+        },
+        {
+          "total": "61670",
+          "threads": [
+            [
+              1,
+              16789648,
+              "61670"
+            ]
+          ],
+          "dropped": "217",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "8df6cd88385ac05313f9df522d0d2c254d47c1c7611953569f4719138e8b226f"
+        }
+      ],
+      "sha256": "f1daf6b99c33907a267090e0f5a645a794446a45c5c8246b57ea2abd2fa6e97d"
+    },
+    {
+      "fixture": "x64-gl-fbo",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "retired": [
+        {
+          "total": "218207",
+          "threads": [
+            [
+              1,
+              16806848,
+              "218207"
+            ]
+          ],
+          "dropped": "198",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "32cbf1fc4ce912f200cad1c140e8e681ea6478b17fdf8ffe9acdda806a9a8ebc"
+        },
+        {
+          "total": "218207",
+          "threads": [
+            [
+              1,
+              16806848,
+              "218207"
+            ]
+          ],
+          "dropped": "198",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "32cbf1fc4ce912f200cad1c140e8e681ea6478b17fdf8ffe9acdda806a9a8ebc"
+        }
+      ],
+      "sha256": "e1e30b614033d76af602559cd15fe5f551a64c62e1212ef549dafa3423ff4085"
+    },
+    {
+      "fixture": "x64-gl-feedback",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "retired": [
+        {
+          "total": "13225",
+          "threads": [
+            [
+              1,
+              16792112,
+              "13225"
+            ]
+          ],
+          "dropped": "186",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "45cb4908215328c0b88f1f09eb1876ab2276795eff69580d3f206d269df37071"
+        },
+        {
+          "total": "13225",
+          "threads": [
+            [
+              1,
+              16792112,
+              "13225"
+            ]
+          ],
+          "dropped": "186",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "45cb4908215328c0b88f1f09eb1876ab2276795eff69580d3f206d269df37071"
+        }
+      ],
+      "sha256": "92d9e65fe829d7731b8de1988923ba52d598cd9846cc5e9cff8112c53dc3da3c"
+    },
+    {
+      "fixture": "x64-gl-integer",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "retired": [
+        {
+          "total": "28845",
+          "threads": [
+            [
+              1,
+              16794336,
+              "28845"
+            ]
+          ],
+          "dropped": "87",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "f11834bacf1f423d83e4ca16a62c23dc6299a326e268667b1e5321a79205dfb5"
+        },
+        {
+          "total": "28845",
+          "threads": [
+            [
+              1,
+              16794336,
+              "28845"
+            ]
+          ],
+          "dropped": "87",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "f11834bacf1f423d83e4ca16a62c23dc6299a326e268667b1e5321a79205dfb5"
+        }
+      ],
+      "sha256": "bc807084881f8a08f30830b29422bdc3eec3806bc15bb8281859399aed5ff541"
+    },
+    {
+      "fixture": "x64-gl-ranges",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "retired": [
+        {
+          "total": "225474",
+          "threads": [
+            [
+              1,
+              16792496,
+              "225474"
+            ]
+          ],
+          "dropped": "177",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "354ab5b34182cd09ca3abb6b0bab9bdb305f8eea46d563803c747a0dd826af42"
+        },
+        {
+          "total": "225474",
+          "threads": [
+            [
+              1,
+              16792496,
+              "225474"
+            ]
+          ],
+          "dropped": "177",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "354ab5b34182cd09ca3abb6b0bab9bdb305f8eea46d563803c747a0dd826af42"
+        }
+      ],
+      "sha256": "e2c3b13870617a929cfd3373c8b433c463f3f3b1d49f5c202ba9324b8292e4ca"
+    },
+    {
+      "fixture": "x64-gl-scale",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "retired": [
+        {
+          "total": "1168079",
+          "threads": [
+            [
+              1,
+              16789280,
+              "1168079"
+            ]
+          ],
+          "dropped": "218",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c99b8aef7ca3fbe7b339b1d5bc9191367e210e8332064537a370566f91362966"
+        },
+        {
+          "total": "1168079",
+          "threads": [
+            [
+              1,
+              16789280,
+              "1168079"
+            ]
+          ],
+          "dropped": "218",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c99b8aef7ca3fbe7b339b1d5bc9191367e210e8332064537a370566f91362966"
+        }
+      ],
+      "sha256": "2a0dfa0841be7229648a45d2702cd104a106d52af1367e962167f5f39eab090e"
+    },
+    {
+      "fixture": "x64-glsl",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "retired": [
+        {
+          "total": "588048",
+          "threads": [
+            [
+              1,
+              16796320,
+              "588048"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "588048",
+          "threads": [
+            [
+              1,
+              16796320,
+              "588048"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "47934217e2e399075107bb5a8d79776fd1e3d6a123258733a281f957057a9e1d"
+    },
+    {
+      "fixture": "x64-gui",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "retired": [
+        {
+          "total": "15029",
+          "threads": [
+            [
+              1,
+              16782640,
+              "15029"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 56,
+          "snapshotRetirementSha256": "da0c366dee208a894c63ec1188726aa8f9cd9111f0dfbb8b04601ea098a2c797"
+        },
+        {
+          "total": "15029",
+          "threads": [
+            [
+              1,
+              16782640,
+              "15029"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 56,
+          "snapshotRetirementSha256": "da0c366dee208a894c63ec1188726aa8f9cd9111f0dfbb8b04601ea098a2c797"
+        }
+      ],
+      "sha256": "e99d8cd549c4c853674a047ed75e0a28a7b32bdd823d96f0b564a861ebd7f12a"
+    },
+    {
+      "fixture": "x64-handles",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "retired": [
+        {
+          "total": "200224",
+          "threads": [
+            [
+              1,
+              16794432,
+              "199967"
+            ],
+            [
+              2,
+              16793776,
+              "176"
+            ],
+            [
+              3,
+              16794096,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "200224",
+          "threads": [
+            [
+              1,
+              16794432,
+              "199967"
+            ],
+            [
+              2,
+              16793776,
+              "176"
+            ],
+            [
+              3,
+              16794096,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "2c6a814828446f3038cfd7c100872fa9b7ec5bde7ca75544beb0b1af935e9679"
+    },
+    {
+      "fixture": "x64-heap",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "retired": [
+        {
+          "total": "24996227",
+          "threads": [
+            [
+              1,
+              16781648,
+              "24996227"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "24996227",
+          "threads": [
+            [
+              1,
+              16781648,
+              "24996227"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "94dfee4f450faffe62cec4bd47afadfc364d0ff9e152e5f832e0c58b5d59d504"
+    },
+    {
+      "fixture": "x64-imports",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "retired": [
+        {
+          "total": "171",
+          "threads": [
+            [
+              1,
+              16781312,
+              "171"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "171",
+          "threads": [
+            [
+              1,
+              16781312,
+              "171"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "c3f6a9551cf607ca2b18db14877b30723f941755b70c9f8ba922f43320a57dab"
+    },
+    {
+      "fixture": "x64-input",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "retired": [
+        {
+          "total": "3235371",
+          "threads": [
+            [
+              1,
+              16783488,
+              "3235371"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c9590fab0879bce688be4fdb48b9a953f0771875fa006b8e924def71c32ec108"
+        },
+        {
+          "total": "3235371",
+          "threads": [
+            [
+              1,
+              16783488,
+              "3235371"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c9590fab0879bce688be4fdb48b9a953f0771875fa006b8e924def71c32ec108"
+        }
+      ],
+      "sha256": "de80fea871cfeca2f2c58fbf1686d3eb131448bbcc7899a2cbb08684f50e952c"
+    },
+    {
+      "fixture": "x64-memory",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "retired": [
+        {
+          "total": "101030968",
+          "threads": [
+            [
+              1,
+              16782096,
+              "101030968"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "101030968",
+          "threads": [
+            [
+              1,
+              16782096,
+              "101030968"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "41811a26d27bf72d78875d6fa5950a60fd7d7047630afd6c818baf288e174398"
+    },
+    {
+      "fixture": "x64-scale",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "retired": [
+        {
+          "total": "1776530",
+          "threads": [
+            [
+              1,
+              22733968,
+              "1776530"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "1776530",
+          "threads": [
+            [
+              1,
+              22733968,
+              "1776530"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "47113a458a813b272d3f28f08f8d367836349ebbe9eca2a1bba30383b1ccaacc"
+    },
+    {
+      "fixture": "x64-smoke",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "retired": [
+        {
+          "total": "5818751",
+          "threads": [
+            [
+              1,
+              16793952,
+              "74063"
+            ],
+            [
+              2,
+              16792928,
+              "6451"
+            ],
+            [
+              3,
+              16781312,
+              "5737935"
+            ],
+            [
+              4,
+              16785776,
+              "151"
+            ],
+            [
+              5,
+              16785776,
+              "151"
+            ]
+          ],
+          "dropped": "246",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "67723c7ad87924c1cd340aa0a1f16d454a1ddab35d174189fbea37a5c1272a90"
+        },
+        {
+          "total": "5818751",
+          "threads": [
+            [
+              1,
+              16793952,
+              "74063"
+            ],
+            [
+              2,
+              16792928,
+              "6451"
+            ],
+            [
+              3,
+              16781312,
+              "5737935"
+            ],
+            [
+              4,
+              16785776,
+              "151"
+            ],
+            [
+              5,
+              16785776,
+              "151"
+            ]
+          ],
+          "dropped": "246",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "67723c7ad87924c1cd340aa0a1f16d454a1ddab35d174189fbea37a5c1272a90"
+        }
+      ],
+      "sha256": "10b6ed89caa90c2b368cd7165407f2a334d426bfc13c7c499cd78e2a5dd81261"
+    },
+    {
+      "fixture": "x64-sysdlls",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "retired": [
+        {
+          "total": "48282",
+          "threads": [
+            [
+              1,
+              16797120,
+              "47491"
+            ],
+            [
+              2,
+              16796352,
+              "94"
+            ],
+            [
+              3,
+              16796576,
+              "697"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "2e5a0c0c7ca943eeab573f32b821f5f4faa95bf5d327cbfa2146923467120d46"
+        },
+        {
+          "total": "48282",
+          "threads": [
+            [
+              1,
+              16797120,
+              "47491"
+            ],
+            [
+              2,
+              16796352,
+              "94"
+            ],
+            [
+              3,
+              16796576,
+              "697"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "2e5a0c0c7ca943eeab573f32b821f5f4faa95bf5d327cbfa2146923467120d46"
+        }
+      ],
+      "sha256": "3636829d3dc0b4615278b72b916a8516ff44d75da893d687920ae15b2b3e8ebc"
+    },
+    {
+      "fixture": "x64-threads",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "retired": [
+        {
+          "total": "2024813",
+          "threads": [
+            [
+              1,
+              16786144,
+              "12135"
+            ],
+            [
+              2,
+              16784576,
+              "3744"
+            ],
+            [
+              3,
+              16784576,
+              "3755"
+            ],
+            [
+              4,
+              16784576,
+              "3744"
+            ],
+            [
+              5,
+              16784560,
+              "1237"
+            ],
+            [
+              6,
+              16785584,
+              "132"
+            ],
+            [
+              7,
+              16785728,
+              "2000066"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "2024813",
+          "threads": [
+            [
+              1,
+              16786144,
+              "12135"
+            ],
+            [
+              2,
+              16784576,
+              "3744"
+            ],
+            [
+              3,
+              16784576,
+              "3755"
+            ],
+            [
+              4,
+              16784576,
+              "3744"
+            ],
+            [
+              5,
+              16784560,
+              "1237"
+            ],
+            [
+              6,
+              16785584,
+              "132"
+            ],
+            [
+              7,
+              16785728,
+              "2000066"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "6d5d4bd257608cf2917500d5899a711582ebe907512e5c1eae226c9d1e9deb42"
+    },
+    {
+      "fixture": "x64-tls",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "retired": [
+        {
+          "total": "5065",
+          "threads": [
+            [
+              1,
+              16784176,
+              "5065"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "5065",
+          "threads": [
+            [
+              1,
+              16784176,
+              "5065"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "6da7992f65e810af0758de80f34bea9c4e04ab8af458209538b57a5688259cf3"
+    },
+    {
+      "fixture": "x86-handles",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "retired": [
+        {
+          "total": "193258",
+          "threads": [
+            [
+              1,
+              4310464,
+              "193161"
+            ],
+            [
+              2,
+              4198400,
+              "93"
+            ],
+            [
+              3,
+              4299312,
+              "4"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "193258",
+          "threads": [
+            [
+              1,
+              4310464,
+              "193161"
+            ],
+            [
+              2,
+              4198400,
+              "93"
+            ],
+            [
+              3,
+              4299312,
+              "4"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "b71c6e99d4cfcd4ea100d4b49a758fa7c84109de490dd8d814a3741f461bb69e"
+    },
+    {
+      "fixture": "x86-heap",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "retired": [
+        {
+          "total": "28595502",
+          "threads": [
+            [
+              1,
+              4309776,
+              "28595502"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "28595502",
+          "threads": [
+            [
+              1,
+              4309776,
+              "28595502"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "0f45a11ca6db2c7fae9af6665cead81f5272bbb89ed0a47ab965de4066fdef41"
+    },
+    {
+      "fixture": "x86-threads",
+      "accounting": 1,
+      "mode": "asyncify",
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "retired": [
+        {
+          "total": "8202",
+          "threads": [
+            [
+              1,
+              4198416,
+              "8028"
+            ],
+            [
+              2,
+              4198400,
+              "87"
+            ],
+            [
+              3,
+              4198400,
+              "87"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "8202",
+          "threads": [
+            [
+              1,
+              4198416,
+              "8028"
+            ],
+            [
+              2,
+              4198400,
+              "87"
+            ],
+            [
+              3,
+              4198400,
+              "87"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "f91b1daab259cfe3a559a447a5bd4312d75464e199c4bb25fe502c7b758c5c2e"
+    },
+    {
+      "fixture": "win32-conformance",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      },
+      "retired": [
+        {
+          "total": "501224",
+          "threads": [
+            [
+              1,
+              4205952,
+              "501224"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 1,
+          "snapshotRetirementSha256": "35ba8db34b2b954881e15876038b4ba9b0c0fe24f7d31cc2e62f38a82ee06710"
+        },
+        {
+          "total": "501224",
+          "threads": [
+            [
+              1,
+              4205952,
+              "501224"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 1,
+          "snapshotRetirementSha256": "35ba8db34b2b954881e15876038b4ba9b0c0fe24f7d31cc2e62f38a82ee06710"
+        }
+      ],
+      "sha256": "b7438bf23d25fbc93741e6b4451ea21173aba0ede392a93f0916d7c0dbfc32d0"
+    },
+    {
+      "fixture": "win32-hello",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      },
+      "retired": [
+        {
+          "total": "98289",
+          "threads": [
+            [
+              1,
+              4200352,
+              "98289"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 54,
+          "snapshotRetirementSha256": "90644d03e82ea4854ba01f62db8f0cd2a00b1f5400a4deaaee06a854f4295be1"
+        },
+        {
+          "total": "98289",
+          "threads": [
+            [
+              1,
+              4200352,
+              "98289"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 54,
+          "snapshotRetirementSha256": "90644d03e82ea4854ba01f62db8f0cd2a00b1f5400a4deaaee06a854f4295be1"
+        }
+      ],
+      "sha256": "5326d2e664defc587e1b491c998e9462a8ba7e9df691c3110c962a4a374c5e2d"
+    },
+    {
+      "fixture": "x64-audio",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "74d37eff",
+        "interpreted": "74d37eff",
+        "liftedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36",
+        "interpretedTrace": "c8950b7dd467434136cca9f6ba74ceae28742afbd4190ddbea86886f8ea07f36"
+      },
+      "retired": [
+        {
+          "total": "793151",
+          "threads": [
+            [
+              1,
+              16787360,
+              "1227"
+            ],
+            [
+              2,
+              16781312,
+              "791622"
+            ],
+            [
+              3,
+              16785808,
+              "151"
+            ],
+            [
+              4,
+              16785808,
+              "151"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "793151",
+          "threads": [
+            [
+              1,
+              16787360,
+              "1227"
+            ],
+            [
+              2,
+              16781312,
+              "791622"
+            ],
+            [
+              3,
+              16785808,
+              "151"
+            ],
+            [
+              4,
+              16785808,
+              "151"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "00cef75ee4e5d360b4e568d09e7d1326006e63181b1a707a4ebfe1f0d00ba17a"
+    },
+    {
+      "fixture": "x64-audio-init",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "d02de26a",
+        "interpreted": "d02de26a",
+        "liftedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4",
+        "interpretedTrace": "8e0aa606ed331f806b443dbf285e9021dff4f9ea2f4b3d2bc90088631c993ff4"
+      },
+      "retired": [
+        {
+          "total": "260906",
+          "threads": [
+            [
+              1,
+              16804784,
+              "482"
+            ],
+            [
+              2,
+              16781504,
+              "260424"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "260906",
+          "threads": [
+            [
+              1,
+              16804784,
+              "482"
+            ],
+            [
+              2,
+              16781504,
+              "260424"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "e03e23dbca0ef8dbcb03534eef611eb3fa041b5ab4550d2979cfc875c86cde21"
+    },
+    {
+      "fixture": "x64-basics",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "fa722538",
+        "interpreted": "fa722538",
+        "liftedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe",
+        "interpretedTrace": "cffcc8bcbe78b5385de8f71c3c30f917a88b39a167e55a302deeed3ec33be9fe"
+      },
+      "retired": [
+        {
+          "total": "3156",
+          "threads": [
+            [
+              1,
+              16781312,
+              "3156"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "3156",
+          "threads": [
+            [
+              1,
+              16781312,
+              "3156"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "0bdbf25838dee05aa24d163330abf2b864287cfdfadbfa87aa1e5d2e4acb7b2a"
+    },
+    {
+      "fixture": "x64-contracts",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "0514c1ba",
+        "interpreted": "0514c1ba",
+        "liftedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774",
+        "interpretedTrace": "cff72e64ac71414d310baaf0d8bf1dc71795ca7a7b452d8fe1c4a6698ffd6774"
+      },
+      "retired": [
+        {
+          "total": "14523",
+          "threads": [
+            [
+              1,
+              16815424,
+              "14237"
+            ],
+            [
+              2,
+              16814144,
+              "114"
+            ],
+            [
+              3,
+              16814352,
+              "91"
+            ],
+            [
+              4,
+              16814432,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "14523",
+          "threads": [
+            [
+              1,
+              16815424,
+              "14237"
+            ],
+            [
+              2,
+              16814144,
+              "114"
+            ],
+            [
+              3,
+              16814352,
+              "91"
+            ],
+            [
+              4,
+              16814432,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "65c366930e45eec4ca6de1147d1e0910ea1781a5793b88e6554c1cad9403f672"
+    },
+    {
+      "fixture": "x64-cpp",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "eadc23f1",
+        "interpreted": "eadc23f1",
+        "liftedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1",
+        "interpretedTrace": "c6d3dec7d1b8c4d71df92503ddd0fecfdb6998ef23ff018fbab422266f8b93a1"
+      },
+      "retired": [
+        {
+          "total": "28173",
+          "threads": [
+            [
+              1,
+              16782768,
+              "28173"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "28173",
+          "threads": [
+            [
+              1,
+              16782768,
+              "28173"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "de48a9e04c6996abee67281b7e3e65a15462eb3459e69a4ddb863dbb37024583"
+    },
+    {
+      "fixture": "x64-cpprt",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      },
+      "retired": [
+        {
+          "total": "139205",
+          "threads": [
+            [
+              1,
+              16792352,
+              "139205"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "139205",
+          "threads": [
+            [
+              1,
+              16792352,
+              "139205"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "43f3990ac15b3c66bfea881a3e8e147a61caa46bb08e2abadad31c58d6575ff2"
+    },
+    {
+      "fixture": "x64-crt",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "bae2920f",
+        "interpreted": "bae2920f",
+        "liftedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f",
+        "interpretedTrace": "e944a11a251f2fdaa385ed77ffa9b11b1beac5c9e3805f744eba73a1416ee22f"
+      },
+      "retired": [
+        {
+          "total": "9945",
+          "threads": [
+            [
+              1,
+              16800064,
+              "9945"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "9945",
+          "threads": [
+            [
+              1,
+              16800064,
+              "9945"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "41604d15088a21acf392a1832fca1c7d12ae47c7cc005505d27ee20115108769"
+    },
+    {
+      "fixture": "x64-gl",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      },
+      "retired": [
+        {
+          "total": "62845",
+          "threads": [
+            [
+              1,
+              16787120,
+              "62845"
+            ]
+          ],
+          "dropped": "230",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "0b1b01e4c0a45dbcf24e2fe0a27b0092841943d74688cf26a92f47a31680b4e5"
+        },
+        {
+          "total": "62845",
+          "threads": [
+            [
+              1,
+              16787120,
+              "62845"
+            ]
+          ],
+          "dropped": "230",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "0b1b01e4c0a45dbcf24e2fe0a27b0092841943d74688cf26a92f47a31680b4e5"
+        }
+      ],
+      "sha256": "30f227328fa34bfc89693e93f225f04c19044a8a04b52599fd8906e700b28a01"
+    },
+    {
+      "fixture": "x64-gl-blit",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      },
+      "retired": [
+        {
+          "total": "9651",
+          "threads": [
+            [
+              1,
+              16790176,
+              "9651"
+            ]
+          ],
+          "dropped": "209",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "373e7a38c47106688edc616564b1f2035644d1e8b1f783762d6547563478a8ac"
+        },
+        {
+          "total": "9651",
+          "threads": [
+            [
+              1,
+              16790176,
+              "9651"
+            ]
+          ],
+          "dropped": "209",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "373e7a38c47106688edc616564b1f2035644d1e8b1f783762d6547563478a8ac"
+        }
+      ],
+      "sha256": "ed1333df504c3514a19721ee80f303f51be34abd74efe14b40afdbba73d89a9d"
+    },
+    {
+      "fixture": "x64-gl-capacity",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "d402933e:811c9dc5",
+        "interpreted": "d402933e:811c9dc5",
+        "liftedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24",
+        "interpretedTrace": "4101d710d7f2e8dc35c2c86a5fdd9e8516f9812362404903ad65235da9166c24"
+      },
+      "retired": [
+        {
+          "total": "4922781",
+          "threads": [
+            [
+              1,
+              16789104,
+              "4922781"
+            ]
+          ],
+          "dropped": "225",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "e17748a19779fd0c9e5ddf8c257f564d136d2c73ee387311763cc8996ea082c1"
+        },
+        {
+          "total": "4922781",
+          "threads": [
+            [
+              1,
+              16789104,
+              "4922781"
+            ]
+          ],
+          "dropped": "225",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "e17748a19779fd0c9e5ddf8c257f564d136d2c73ee387311763cc8996ea082c1"
+        }
+      ],
+      "sha256": "086eb99b1c3c0354599fb98297f8b455a53e5df379fc5d84a584b220f287098c"
+    },
+    {
+      "fixture": "x64-gl-current",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      },
+      "retired": [
+        {
+          "total": "187294",
+          "threads": [
+            [
+              1,
+              16788032,
+              "187294"
+            ]
+          ],
+          "dropped": "208",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "70d8df61615030d32a178aaf8d2585bcfa58a54030892cd63b208358180a23d5"
+        },
+        {
+          "total": "187294",
+          "threads": [
+            [
+              1,
+              16788032,
+              "187294"
+            ]
+          ],
+          "dropped": "208",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "70d8df61615030d32a178aaf8d2585bcfa58a54030892cd63b208358180a23d5"
+        }
+      ],
+      "sha256": "0192ed1baa758477da928e6af204444c96bf8ab2b07ca26c3e456f8532837e38"
+    },
+    {
+      "fixture": "x64-gl-default-vao",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      },
+      "retired": [
+        {
+          "total": "61670",
+          "threads": [
+            [
+              1,
+              16789648,
+              "61670"
+            ]
+          ],
+          "dropped": "217",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "8df6cd88385ac05313f9df522d0d2c254d47c1c7611953569f4719138e8b226f"
+        },
+        {
+          "total": "61670",
+          "threads": [
+            [
+              1,
+              16789648,
+              "61670"
+            ]
+          ],
+          "dropped": "217",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "8df6cd88385ac05313f9df522d0d2c254d47c1c7611953569f4719138e8b226f"
+        }
+      ],
+      "sha256": "89a1b669faf066901057f158d37e7fd0e7fd4febdf29a70e89b50b456d35bbc8"
+    },
+    {
+      "fixture": "x64-gl-fbo",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      },
+      "retired": [
+        {
+          "total": "218207",
+          "threads": [
+            [
+              1,
+              16806848,
+              "218207"
+            ]
+          ],
+          "dropped": "198",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "32cbf1fc4ce912f200cad1c140e8e681ea6478b17fdf8ffe9acdda806a9a8ebc"
+        },
+        {
+          "total": "218207",
+          "threads": [
+            [
+              1,
+              16806848,
+              "218207"
+            ]
+          ],
+          "dropped": "198",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "32cbf1fc4ce912f200cad1c140e8e681ea6478b17fdf8ffe9acdda806a9a8ebc"
+        }
+      ],
+      "sha256": "8f3949fd38f9aea66add678937ed4b3759bdedce831c514b84400356afada894"
+    },
+    {
+      "fixture": "x64-gl-feedback",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      },
+      "retired": [
+        {
+          "total": "13225",
+          "threads": [
+            [
+              1,
+              16792112,
+              "13225"
+            ]
+          ],
+          "dropped": "186",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "45cb4908215328c0b88f1f09eb1876ab2276795eff69580d3f206d269df37071"
+        },
+        {
+          "total": "13225",
+          "threads": [
+            [
+              1,
+              16792112,
+              "13225"
+            ]
+          ],
+          "dropped": "186",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "45cb4908215328c0b88f1f09eb1876ab2276795eff69580d3f206d269df37071"
+        }
+      ],
+      "sha256": "c877c072fed603b395853510c4fa0f53a698585310709abf3e890cd93dcfb414"
+    },
+    {
+      "fixture": "x64-gl-integer",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      },
+      "retired": [
+        {
+          "total": "28845",
+          "threads": [
+            [
+              1,
+              16794336,
+              "28845"
+            ]
+          ],
+          "dropped": "87",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "f11834bacf1f423d83e4ca16a62c23dc6299a326e268667b1e5321a79205dfb5"
+        },
+        {
+          "total": "28845",
+          "threads": [
+            [
+              1,
+              16794336,
+              "28845"
+            ]
+          ],
+          "dropped": "87",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "f11834bacf1f423d83e4ca16a62c23dc6299a326e268667b1e5321a79205dfb5"
+        }
+      ],
+      "sha256": "474b09968aaf187f59c91f8e95766f33e21cc1c85bd5dc1b08dfd4bb2a81b6d4"
+    },
+    {
+      "fixture": "x64-gl-ranges",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941",
+        "interpretedTrace": "b4903f6fe1e6b8677e2ad4e9f02cec3c4e986ff6114621155ae27cf36dc14941"
+      },
+      "retired": [
+        {
+          "total": "225474",
+          "threads": [
+            [
+              1,
+              16792496,
+              "225474"
+            ]
+          ],
+          "dropped": "177",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "354ab5b34182cd09ca3abb6b0bab9bdb305f8eea46d563803c747a0dd826af42"
+        },
+        {
+          "total": "225474",
+          "threads": [
+            [
+              1,
+              16792496,
+              "225474"
+            ]
+          ],
+          "dropped": "177",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "354ab5b34182cd09ca3abb6b0bab9bdb305f8eea46d563803c747a0dd826af42"
+        }
+      ],
+      "sha256": "a30978da2c7774b6a2cb1b3cb97bc98fbdee30ed3a53f6cf25e4e16f5abc5704"
+    },
+    {
+      "fixture": "x64-gl-scale",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8",
+        "interpretedTrace": "bb63b245ce2c9e1509952454c4ba1a36990b70f58101a82765debff195b1daa8"
+      },
+      "retired": [
+        {
+          "total": "1168079",
+          "threads": [
+            [
+              1,
+              16789280,
+              "1168079"
+            ]
+          ],
+          "dropped": "218",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c99b8aef7ca3fbe7b339b1d5bc9191367e210e8332064537a370566f91362966"
+        },
+        {
+          "total": "1168079",
+          "threads": [
+            [
+              1,
+              16789280,
+              "1168079"
+            ]
+          ],
+          "dropped": "218",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c99b8aef7ca3fbe7b339b1d5bc9191367e210e8332064537a370566f91362966"
+        }
+      ],
+      "sha256": "1d70a0bde01b96aba8ec2e7171896d1b584eb58d93beb7830178ef11ea0f810b"
+    },
+    {
+      "fixture": "x64-glsl",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      },
+      "retired": [
+        {
+          "total": "588048",
+          "threads": [
+            [
+              1,
+              16796320,
+              "588048"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "588048",
+          "threads": [
+            [
+              1,
+              16796320,
+              "588048"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "1c0b6c6c8d9fbf5214d784e4bb48f0ea37ac20bd80471befc84fb474987edd72"
+    },
+    {
+      "fixture": "x64-gui",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      },
+      "retired": [
+        {
+          "total": "15029",
+          "threads": [
+            [
+              1,
+              16782640,
+              "15029"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 56,
+          "snapshotRetirementSha256": "da0c366dee208a894c63ec1188726aa8f9cd9111f0dfbb8b04601ea098a2c797"
+        },
+        {
+          "total": "15029",
+          "threads": [
+            [
+              1,
+              16782640,
+              "15029"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 56,
+          "snapshotRetirementSha256": "da0c366dee208a894c63ec1188726aa8f9cd9111f0dfbb8b04601ea098a2c797"
+        }
+      ],
+      "sha256": "973c0bdf3d95c82f6aa9c1d3b8040deaf30c26b8784a7b942e926356c5cb75d3"
+    },
+    {
+      "fixture": "x64-handles",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      },
+      "retired": [
+        {
+          "total": "200224",
+          "threads": [
+            [
+              1,
+              16794432,
+              "199967"
+            ],
+            [
+              2,
+              16793776,
+              "176"
+            ],
+            [
+              3,
+              16794096,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "200224",
+          "threads": [
+            [
+              1,
+              16794432,
+              "199967"
+            ],
+            [
+              2,
+              16793776,
+              "176"
+            ],
+            [
+              3,
+              16794096,
+              "81"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "9c343292081df6ea90a3b0a1003eef3a9b4d80335a91c06e4f94af33716ffa9c"
+    },
+    {
+      "fixture": "x64-heap",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8",
+        "interpretedTrace": "2a4d5266fcc9ea66602fae387ff45a4a31fdef005e2b87429d461a38d4aa1aa8"
+      },
+      "retired": [
+        {
+          "total": "24996227",
+          "threads": [
+            [
+              1,
+              16781648,
+              "24996227"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "24996227",
+          "threads": [
+            [
+              1,
+              16781648,
+              "24996227"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "3ec2d237d0c8695d4ec8490c75cc5cce9c9f1ba5991433552b2fc01479d165fe"
+    },
+    {
+      "fixture": "x64-imports",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      },
+      "retired": [
+        {
+          "total": "171",
+          "threads": [
+            [
+              1,
+              16781312,
+              "171"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "171",
+          "threads": [
+            [
+              1,
+              16781312,
+              "171"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "851839117a14e41343695b2bc8bc76a17c1b19ee9911145653912b7804b5802d"
+    },
+    {
+      "fixture": "x64-input",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "bd47b0f2",
+        "interpreted": "bd47b0f2",
+        "liftedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b",
+        "interpretedTrace": "d81de894502dfdee24e53de27ad08159aff605f9663bffeddf75d4152f70756b"
+      },
+      "retired": [
+        {
+          "total": "3235371",
+          "threads": [
+            [
+              1,
+              16783488,
+              "3235371"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c9590fab0879bce688be4fdb48b9a953f0771875fa006b8e924def71c32ec108"
+        },
+        {
+          "total": "3235371",
+          "threads": [
+            [
+              1,
+              16783488,
+              "3235371"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "c9590fab0879bce688be4fdb48b9a953f0771875fa006b8e924def71c32ec108"
+        }
+      ],
+      "sha256": "9d81ad89750fbbccf568345beffa16d7f5db4c461848f34f97d9fdf454c750b1"
+    },
+    {
+      "fixture": "x64-memory",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36",
+        "interpretedTrace": "ddce9f28794a74b32c46c244e17d82435a6ea6198b30663d7e0bde728830fb36"
+      },
+      "retired": [
+        {
+          "total": "101030968",
+          "threads": [
+            [
+              1,
+              16782096,
+              "101030968"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "101030968",
+          "threads": [
+            [
+              1,
+              16782096,
+              "101030968"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "0e03200e4b092fbaf95b7d55355b4e1b825871c158c263cf73df7c292ad9622e"
+    },
+    {
+      "fixture": "x64-scale",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "f674cbe2",
+        "interpreted": "f674cbe2",
+        "liftedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e",
+        "interpretedTrace": "def8df89821a6c29ba25daadd3b0c98bf81324fc96f4968470d284bc39f2970e"
+      },
+      "retired": [
+        {
+          "total": "1776530",
+          "threads": [
+            [
+              1,
+              22733968,
+              "1776530"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "1776530",
+          "threads": [
+            [
+              1,
+              22733968,
+              "1776530"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "889a614b3e96e7475d4e02360cab9baa2406042f3b47d408907b7fa491320f65"
+    },
+    {
+      "fixture": "x64-smoke",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "31054bb2:01c4aa76",
+        "interpreted": "31054bb2:01c4aa76",
+        "liftedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d",
+        "interpretedTrace": "9ea672bd0aedb1f3dd87617eabfeebed98f3bd37020a3d39b8d56102c664f37d"
+      },
+      "retired": [
+        {
+          "total": "5818751",
+          "threads": [
+            [
+              1,
+              16793952,
+              "74063"
+            ],
+            [
+              2,
+              16792928,
+              "6451"
+            ],
+            [
+              3,
+              16781312,
+              "5737935"
+            ],
+            [
+              4,
+              16785776,
+              "151"
+            ],
+            [
+              5,
+              16785776,
+              "151"
+            ]
+          ],
+          "dropped": "246",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "67723c7ad87924c1cd340aa0a1f16d454a1ddab35d174189fbea37a5c1272a90"
+        },
+        {
+          "total": "5818751",
+          "threads": [
+            [
+              1,
+              16793952,
+              "74063"
+            ],
+            [
+              2,
+              16792928,
+              "6451"
+            ],
+            [
+              3,
+              16781312,
+              "5737935"
+            ],
+            [
+              4,
+              16785776,
+              "151"
+            ],
+            [
+              5,
+              16785776,
+              "151"
+            ]
+          ],
+          "dropped": "246",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "67723c7ad87924c1cd340aa0a1f16d454a1ddab35d174189fbea37a5c1272a90"
+        }
+      ],
+      "sha256": "40f87738259670e26f1574e2a3e585c832344638cf652250fe1702b14a07df80"
+    },
+    {
+      "fixture": "x64-sysdlls",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05",
+        "interpretedTrace": "e18fa30011260d8ee1b74441376a23c15559ef48422f2477de23851fb56dfb05"
+      },
+      "retired": [
+        {
+          "total": "48282",
+          "threads": [
+            [
+              1,
+              16797120,
+              "47491"
+            ],
+            [
+              2,
+              16796352,
+              "94"
+            ],
+            [
+              3,
+              16796576,
+              "697"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "2e5a0c0c7ca943eeab573f32b821f5f4faa95bf5d327cbfa2146923467120d46"
+        },
+        {
+          "total": "48282",
+          "threads": [
+            [
+              1,
+              16797120,
+              "47491"
+            ],
+            [
+              2,
+              16796352,
+              "94"
+            ],
+            [
+              3,
+              16796576,
+              "697"
+            ]
+          ],
+          "dropped": "236",
+          "snapshotsChecked": 64,
+          "snapshotRetirementSha256": "2e5a0c0c7ca943eeab573f32b821f5f4faa95bf5d327cbfa2146923467120d46"
+        }
+      ],
+      "sha256": "1fa1ae12394d18c9f1d1737dccd1636eb3a3fa7b7630131c692c49651de650b5"
+    },
+    {
+      "fixture": "x64-threads",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4",
+        "interpretedTrace": "23c43b329adc2537e0f9ee98c74f61cefd19a1c2798da96939417b13376295f4"
+      },
+      "retired": [
+        {
+          "total": "2024813",
+          "threads": [
+            [
+              1,
+              16786144,
+              "12135"
+            ],
+            [
+              2,
+              16784576,
+              "3744"
+            ],
+            [
+              3,
+              16784576,
+              "3755"
+            ],
+            [
+              4,
+              16784576,
+              "3744"
+            ],
+            [
+              5,
+              16784560,
+              "1237"
+            ],
+            [
+              6,
+              16785584,
+              "132"
+            ],
+            [
+              7,
+              16785728,
+              "2000066"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "2024813",
+          "threads": [
+            [
+              1,
+              16786144,
+              "12135"
+            ],
+            [
+              2,
+              16784576,
+              "3744"
+            ],
+            [
+              3,
+              16784576,
+              "3755"
+            ],
+            [
+              4,
+              16784576,
+              "3744"
+            ],
+            [
+              5,
+              16784560,
+              "1237"
+            ],
+            [
+              6,
+              16785584,
+              "132"
+            ],
+            [
+              7,
+              16785728,
+              "2000066"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "453205b666bb4f2f7c617a0c7187b206186899d8fcb5608e9847fa23aeace554"
+    },
+    {
+      "fixture": "x64-tls",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ff6d2761",
+        "interpreted": "ff6d2761",
+        "liftedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678",
+        "interpretedTrace": "72cfaec72f42ed49212202a6db71d0935cf5ab649c70f3689b5130c647724678"
+      },
+      "retired": [
+        {
+          "total": "5065",
+          "threads": [
+            [
+              1,
+              16784176,
+              "5065"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "5065",
+          "threads": [
+            [
+              1,
+              16784176,
+              "5065"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "216548c449a372c51d5153026af6e60c815c1ee217fd6ee53dcc5d8b06b397fb"
+    },
+    {
+      "fixture": "x86-handles",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      },
+      "retired": [
+        {
+          "total": "193258",
+          "threads": [
+            [
+              1,
+              4310464,
+              "193161"
+            ],
+            [
+              2,
+              4198400,
+              "93"
+            ],
+            [
+              3,
+              4299312,
+              "4"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "193258",
+          "threads": [
+            [
+              1,
+              4310464,
+              "193161"
+            ],
+            [
+              2,
+              4198400,
+              "93"
+            ],
+            [
+              3,
+              4299312,
+              "4"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "de7a2db82533e52c789fccf1e16861491d0200ec87aa833e80c155ee1fbaa362"
+    },
+    {
+      "fixture": "x86-heap",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f",
+        "interpretedTrace": "fa8c8898deb3f56c6d489db757a78e41e9cc5f95d360ec236cea4a49be826c5f"
+      },
+      "retired": [
+        {
+          "total": "28595502",
+          "threads": [
+            [
+              1,
+              4309776,
+              "28595502"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "28595502",
+          "threads": [
+            [
+              1,
+              4309776,
+              "28595502"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "ff28bb027abca20a754a90f53ff79db3f386e0a9f7829ea4cb2bb3b839180d65"
+    },
+    {
+      "fixture": "x86-threads",
+      "accounting": 1,
+      "mode": "jspi",
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      },
+      "retired": [
+        {
+          "total": "8202",
+          "threads": [
+            [
+              1,
+              4198416,
+              "8028"
+            ],
+            [
+              2,
+              4198400,
+              "87"
+            ],
+            [
+              3,
+              4198400,
+              "87"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "total": "8202",
+          "threads": [
+            [
+              1,
+              4198416,
+              "8028"
+            ],
+            [
+              2,
+              4198400,
+              "87"
+            ],
+            [
+              3,
+              4198400,
+              "87"
+            ]
+          ],
+          "dropped": "0",
+          "snapshotsChecked": 0,
+          "snapshotRetirementSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "sha256": "5b63cbe79b63254243beb67f524de3e164c2183820ca1eae0d7348121415d8c5"
+    }
+  ],
+  "unitRecovery": {
+    "boundary": "Reviewer accepted combined recovery; NOT uninterrupted full-green. Next full sweep at integration.",
+    "original": {
+      "exit": 1,
+      "passed": 2401,
+      "failed": 1,
+      "log_sha256": "bda8c2fbb46e26ae9481f38f612a0b44acf3008a35520a9079fc18c9f1c0e152",
+      "tail": "overridden, 0 data seeds rejected), 28 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted heap_exe: 1 functions (0 overridden, 0 data seeds rejected), 27 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\n \u276f tests/unit/heap.test.ts (12 tests | 1 failed) 682953ms\n   \u00d7 x64-heap GENERATE_EXCEPTIONS OOM realloc cannot silently return 439186ms\nlifted probe_exe: 96 functions (0 overridden, 0 data seeds rejected), 9942 specialized + 23 generic instructions, 0 jump-table switches, 4 unresolved indirect jumps\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/unit/heap.test.ts > x64-heap GENERATE_EXCEPTIONS OOM realloc cannot silently return\nError: Test timed out in 120000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f tests/unit/heap.test.ts:57:34\n     55|     expect(diff.identical,JSON.stringify(diff)).toBe(true);\n     56|   },120_000);\n     57|   for(const operation of [1,2,3])it(`${id} GENERATE_EXCEPTIONS OOM ${[\u2026\n       |                                  ^\n     58|     const base=join(ROOT,'node_modules/.cache/bgt/heap-probe');mkdirSy\u2026\n     59|     const dir=mkdtempSync(join(base,'case-'));\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 140 passed (141)\n      Tests  1 failed | 2401 passed (2402)\n   Start at  12:54:06\n   Duration  1972.36s (transform 2.75s, setup 0ms, import 8.90s, tests 7189.52s, environment 11ms)\n\n"
+    },
+    "rerun": {
+      "exit": 1,
+      "passed": 2401,
+      "failed": 1,
+      "log_sha256": "c27f7d05f867cade1d5458fed9e1cc2f31fd692d6ccb356a9e3f92983d6d0de8",
+      "tail": "resolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\n \u276f tests/unit/native-forms.test.ts (94 tests | 1 failed) 814381ms\n     \u00d7 all 256 shuffle immediates: register, self-alias and aligned memory, with independent lane answers 189932ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  tests/unit/native-forms.test.ts > native residual forms size > all 256 shuffle immediates: register, self-alias and aligned memory, with independent lane answers\nError: Test timed out in 180000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f tests/unit/native-forms.test.ts:22:3\n     20|\n     21| describe.each(['size', 'fast'])('native residual forms %s', preset => {\n     22|   it('all 256 shuffle immediates: register, self-alias and aligned mem\u2026\n       |   ^\n     23|     for (const prefix of ['', '66', 'f2', 'f3']) for (const source of \u2026\n     24|       // SHUFPS/PD and PSHUFD/LW/HW. SHUF has two-source lanes, PSHUF \u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 140 passed (141)\n      Tests  1 failed | 2401 passed (2402)\n   Start at  13:39:56\n   Duration  1599.05s (transform 3.24s, setup 0ms, import 10.36s, tests 4573.87s, environment 12ms)\n\n"
+    },
+    "heap": {
+      "exit": 0,
+      "passed": 12,
+      "tail": "ted heap_exe: 1 functions (0 overridden, 0 data seeds rejected), 27 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted heap_exe: 1 functions (0 overridden, 0 data seeds rejected), 28 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted heap_exe: 1 functions (0 overridden, 0 data seeds rejected), 27 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\n\n Test Files  1 passed (1)\n      Tests  12 passed (12)\n   Start at  13:36:56\n   Duration  179.43s (transform 100ms, setup 0ms, import 128ms, tests 50.69s, environment 0ms)\n\n"
+    },
+    "nativeForms": {
+      "exit": 0,
+      "passed": 94,
+      "tail": "ct jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\n\n Test Files  1 passed (1)\n      Tests  94 passed (94)\n   Start at  14:08:09\n   Duration  567.37s (transform 91ms, setup 0ms, import 104ms, tests 567.18s, environment 0ms)\n\n"
+    }
+  },
+  "oracleRecovery": {
+    "fixture": "x64-scale",
+    "mode": "asyncify",
+    "accounting": 1,
+    "initialExit": 1,
+    "initialComparedFrames": 0,
+    "reason": "Cold lifted build619104ms + interpreted10341ms exceeded unchanged600000ms test deadline; unchanged warm invocation recovered. No timeout/test change.",
+    "initialReportSha256": "5f17a94fc721b8aa3bf9e151e7bbd3caed074369e5d42b1005a8369132e61bdd",
+    "initialLogSha256": "aedeca1b3f5e82cdf00a7a0d98cbb485e858db5a37cd53efca04ca949b5ca488"
+  },
+  "lint-clang": {
+    "checked": 37,
+    "host_checks": "lockf: /private/tmp/bgt-heavy-slot-1.lock: already locked\n\n> game-cask@0.3.0-dev.1 lint\n> eslint . && node tools/build/check-host-gcc.mjs && node tools/build/build.mjs --examples --check\n\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nld: warning: duplicate -rpath '/opt/homebrew/lib' ignored\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nld: warning: duplicate -rpath '/opt/homebrew/lib"
+  },
+  "lint-gcc": {
+    "checked": 37,
+    "host_checks": "\n> game-cask@0.3.0-dev.1 lint\n> eslint . && node tools/build/check-host-gcc.mjs && node tools/build/build.mjs --examples --check\n\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nld: warning: duplicate -rpath '/opt/homebrew/lib' ignored\nclang: warning: overriding deployment version from '16.0' to '26.0' [-Woverriding-deployment-version]\nld: warning: duplicate -rpath '/opt/homebrew/lib' ignored\nclang: warning: overriding deployment version fr"
+  },
+  "accounting_tail": "ected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 2 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\nlifted probe: 1 functions (0 overridden, 0 data seeds rejected), 16 specialized + 0 generic instructions, 0 jump-table switches, 0 unresolved indirect jumps\n\n Test Files  7 passed (7)\n      Tests  220 passed (220)\n   Start at  14:18:19\n   Duration  439.25s (transform 594ms, setup 0ms, import 897ms, tests 725.75s, environment 0ms)\n\n",
+  "oracleInvariants": {
+    "reports": 136,
+    "comparedFramePairs": 40800,
+    "snapshotsChecked": 3772,
+    "crossModeAccountingStateSemanticHashes": true,
+    "scaleExpectedErrors": "Unchanged oracle assertGlErrors on every step + assertScaleRecording after run; exactly one BUFFER_CREATE E_LIMIT and ten recorder-only pixel failures; no other GL errors allowed",
+    "oracleSourceSha256": "d8562968ee729ce290d323ab7d82066111c1391f2395d8137a406e3cc380131a",
+    "scaleContractSha256": "0f66e9963e95a5e4f96ed85fdcd08125081c165fe92943e97bcbbdb62ec0cf09"
+  },
+  "postDocumentation": {
+    "types": {
+      "exit": 0,
+      "log_sha256": "17e30d8684d305a587ecd90a7f6575ec87e5efeb45828809d40a717ad6470398"
+    },
+    "leak": {
+      "exit": 0,
+      "log_sha256": "97134f7e557ccad1a45611fbf74e74e4c31f4d0fd99964a6788532e07b871bf3"
+    },
+    "diff": {
+      "exit": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "publicVMRestore": {
+    "names": [
+      {
+        "file": "game.wasm",
+        "sha256": "d5703993067527d4122fb320e680a8dab961f5ce846dac0cbbeff98d31cf5f86",
+        "hasPrivateCounter": false
+      },
+      {
+        "file": "game.jspi.wasm",
+        "sha256": "5ef55eb1da5338047ac36a830bbb065a140d79fd2ec24882975976426f0c5f2b",
+        "hasPrivateCounter": false
+      }
+    ],
+    "profile": 0,
+    "accounting": 0,
+    "oracleModes": [
+      "asyncify",
+      "jspi"
+    ]
+  },
+  "auditScriptSha256": "efbf4c14d41aa3a738cf4c3800190aab0d605c4343366debefda2e699f7c968e",
+  "cleanup": {
+    "ownedRunnerPidsExited": [
+      96750,
+      96752,
+      81755,
+      25073,
+      73729
+    ],
+    "removed": "owned scratch-K35/zig-cache 2.8GiB after suite exit",
+    "rawEvidence": "retained; no shared cache/lock removal"
+  }
+}

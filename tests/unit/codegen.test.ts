@@ -160,6 +160,26 @@ BGT_EXPORT(check) unsigned check(void) {
   expect((instance.exports.check as () => number)()).toBe(0);
 });
 
+it('boolean block spans preserve full-width bounds and every endpoint mapping', async () => {
+  const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-span'); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'probe.c'), `
+static const unsigned char test_code[]={0xc3};
+#include "${ROOT}/tests/fixtures/c/codegen_harness.h"
+BGT_EXPORT(check) unsigned check(void) {
+ uint64_t addresses[]={0,1,4095,4096,8190,8192,65520,65535,65536,0xffffffffull,
+                       0x100002000ull,UINT64_MAX-7,UINT64_MAX};
+ unsigned widths[]={0,1,2,4,8,16,4095,4096};
+ for(unsigned hole=0;hole<16;hole++) {
+  reset(0,0);x86_pages[hole]=0;
+  for(unsigned i=0;i<13;i++)for(unsigned n=0;n<8;n++)
+   if(!!xl_span(addresses[i],widths[n])!=!!xl_pointer_full(addresses[i],widths[n],3))return 1;
+ }
+ return 0;
+}`);
+  const { instance } = await WebAssembly.instantiate(await compileC(relative(ROOT, join(dir, 'probe.c'))));
+  expect((instance.exports.check as () => number)()).toBe(0);
+});
+
 it('native locals, byte aliases, branches, memory and generic barriers preserve every CPU byte', async () => {
   // Includes a carry reader after INC, dead flag writes, a join, a backwards loop, and CPUID as a generic barrier.
   const h = await harness('48b88877665544332211b4aa40b4554883c00148ffc04883d000'
@@ -374,7 +394,7 @@ it('cold inverse-ALU recipes recover exact fault flags without saved hot operand
 it('global protection flag disables lifted span fast paths and protected writes fault with identical state', async () => {
   // Straight-line guarded block writes across two mapped pages: first RW, second read-only.
   const h = await harness('48c7c3fc2f0000eb0048b88877665544332211488903c3');
-  expect(h.text).toContain(`if(x86_protection_active||!${fast ? 'xl_pointer_fast' : 'xl_pointer'}(`);
+  expect(h.text).toContain('if(x86_protection_active||!xl_span(');
   const execute = (interp: number) => {
     h.ex.reset(base, 0); h.ex.protect(3, 2); // PAGE_READONLY
     expect(() => h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);
