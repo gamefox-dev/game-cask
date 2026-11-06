@@ -4,7 +4,7 @@
 // job runs that file together with its native/browser/oracle checks.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { declaredExamples } from './test-examples.mjs';
 
@@ -24,8 +24,20 @@ function list(ciLight) {
   const env = { ...process.env };
   if (ciLight) env.BGT_CI_LIGHT = '1';
   else delete env.BGT_CI_LIGHT;
-  const out = execFileSync(process.execPath, [vitest, 'list', '--config', config, '--filesOnly'], { cwd: root, env, encoding: 'utf8' });
-  return [...new Set(out.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^tests\/(unit|oracle)\//.test(line) && line.endsWith('.test.ts')))].sort();
+  const out = execFileSync(process.execPath, [vitest, 'list', '--config', config, '--filesOnly', '--json'], { cwd: root, env, encoding: 'utf8' });
+  // Consume the complete configured inventory, not a directory/extension subset.
+  // Filtering both full and light lists could hide the very same omitted file
+  // from the union check. Opt-in benchmark configs remain outside this config.
+  const rows = JSON.parse(out);
+  if (!Array.isArray(rows)) throw new Error('Invalid Vitest file inventory');
+  return [...new Set(rows.map((row) => {
+    if (typeof row?.file !== 'string' || !row.file) throw new Error('Invalid Vitest file inventory entry');
+    const file = relative(root, resolve(root, row.file));
+    if (!file || file === '..' || file.startsWith('..' + sep) || isAbsolute(file) || /[\r\n]/.test(file)) {
+      throw new Error('Vitest inventory file outside repository or not line-safe: ' + row.file);
+    }
+    return file.split(sep).join('/');
+  }))].sort();
 }
 
 const all = list(false);
