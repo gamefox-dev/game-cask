@@ -54,6 +54,29 @@ it.each(['--lift-inline-memory', '--lift-inline-alu', '--lift-affine-counting', 
   },
 );
 
+it('keeps tiny optimized regions inlineable but outlines larger regions without minsize', () => {
+  const root = join(ROOT, 'node_modules/.cache/bgt/codegen-tests'); mkdirSync(root, { recursive: true });
+  const dir = mkdtempSync(join(root, 'attributes-'));
+  try {
+    const input = join(dir, 'input.exe'), output = join(dir, 'lifted.c');
+    const tool = codegenTool();
+    const emit = (hex: string) => {
+      writeFileSync(input, pe(Buffer.from(hex, 'hex')));
+      const result = spawnSync(tool, ['lift', input, '--name', 'probe', '--out', output, '--lift-optimize-small', 'on'], { encoding: 'utf8' });
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      return readFileSync(output, 'utf8');
+    };
+    const tiny = emit('4883c001c3');
+    expect(tiny).toContain('static void R_01001000_01001000(uint32_t pc)');
+    expect(tiny).not.toContain('static __attribute__((noinline)) void R_');
+    expect(tiny).not.toContain('minsize');
+    const large = emit('4883c0014883c0014883c0014883c0014883c001c3');
+    expect(large).toContain('static __attribute__((noinline)) void R_01001000_01001000(uint32_t pc)');
+    expect(large).not.toContain('minsize');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 describe.each(['size', 'fast'])('lift preset %s', (preset) => {
 const fast = preset === 'fast';
 async function harness(hex: string, defines: string[] = []) {
@@ -62,6 +85,7 @@ async function harness(hex: string, defines: string[] = []) {
   writeFileSync(join(dir, 'input.exe'), pe(code));
   execFileSync(codegenTool(), ['lift', join(dir, 'input.exe'), '--name', 'probe', '--out', join(dir, 'lifted.c'), '--lift-preset', fast ? 'fast' : 'size']);
   const text = readFileSync(join(dir, 'lifted.c'), 'utf8');
+  expect(text).not.toContain('minsize');
   const source = `static const unsigned char test_code[]={${[...code].join(',')}};\n`
     + `#include "${ROOT}/tests/fixtures/c/codegen_harness.h"\n`
     + text.replace('#include "x86_lift64.h"', `#include "${ROOT}/platforms/x86/x86_lift64.h"`) + `
@@ -213,6 +237,30 @@ it('affine counting preserves RDTSC, forward diamonds, loop yields and every int
     h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(0); const lifted = snapshot();
     h.ex.reset(base + offset, 0); h.ex.set_reg(1, 3n); h.ex.run(1);
     expect(lifted, `interior=${offset}`).toEqual(snapshot());
+  }
+});
+
+it('CMP/TEST adjacent Jcc cannot fuse across observable successor reservations', async () => {
+  // Both successors immediately kill flags (XOR EDX,EDX), but the pre-instruction
+  // quantum/guard boundary observes the CMP/TEST flags first. No lazy descriptor.
+  for (const op of ['4839c8', '4885c8']) {
+    const h = await harness(op + '740431d2eb0231d2c3');
+    const producer = h.text.slice(h.text.indexOf('L_01001000:'), h.text.indexOf('if(xl_cond'));
+    expect(producer).toContain('xl_alu');
+    if (fast) expect(producer).toContain('&flags,0x8d5u)');
+    else expect(producer).toContain('xl_alu_full(');
+    expect(h.text).toContain('L_01001005:');
+    expect(h.text).toContain('L_01001009:');
+    const snapshot = () => ({ cpu: h.memory().slice(h.ex.cpu(), h.ex.cpu()+h.ex.cpu_size()),
+      ram: h.memory().slice(h.ex.ram(), h.ex.ram()+65536), yields: h.ex.yields() });
+    for (const a of [0n, 1n, 0x8000000000000000n]) for (const b of [0n, 1n])
+    for (const budget of [0, 1999998, 1999999, 2000000]) {
+      const run = (reference: number) => {
+        h.ex.reset(base,budget); h.ex.set_flags(0x8d5); h.ex.set_reg(0,a);h.ex.set_reg(1,b);
+        h.ex.stop_at_quantum(1);h.ex.run(reference);return snapshot();
+      };
+      expect(run(0), op+' '+a+' '+b+' '+budget).toEqual(run(1));
+    }
   }
 });
 
