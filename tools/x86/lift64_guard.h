@@ -85,8 +85,7 @@ static void l64_emit_guard(FILE *o, const l64_guard_t *g, uint32_t va, uint32_t 
         /* Build the affine expression with a full-width displacement, not truncated to disp32. */
         p.disp = 0; p.imm = 0;
         char ea[300]; l64_ea(ea, sizeof ea, &p, 1);
-        fprintf(o, "%s!%s(%s+0x%llxull,%uu)", i ? "||" : "",
-                lift_inline_memory ? "xl_pointer_fast" : "xl_pointer", ea,
+        fprintf(o, "%s!xl_span(%s+0x%llxull,%uu)", i ? "||" : "", ea,
                 (unsigned long long)s->low, (unsigned)(s->high - s->low));
     }
     fprintf(o, "){"); l64_flush(o, position);

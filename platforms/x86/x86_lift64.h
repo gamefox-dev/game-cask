@@ -55,6 +55,17 @@ static inline __attribute__((always_inline)) uint8_t *xl_pointer_checked(uint64_
 }
 static inline uint8_t *xl_pointer(uint64_t a,unsigned n) { return xl_pointer_checked(a,n,3); }
 static inline uint8_t *xl_pointer_fast(uint64_t a,unsigned n) { return xl_pointer_access(a,n,3); }
+/* Only whole-block guards, behind !x86_protection_active. Spans are at most
+ * one page long: endpoint mappings prove every covered page. The operands form
+ * their own host addresses; no unused host pointer is returned. */
+static inline __attribute__((always_inline)) int xl_span(uint64_t a, unsigned n) {
+#ifdef X86_FLAT_GUEST
+    return n && n <= X86_PAGE && a < X86_FLAT_BYTES && n <= X86_FLAT_BYTES - a &&
+        x86_pages[a >> 12] && x86_pages[(a + n - 1) >> 12];
+#else
+    (void)a; (void)n; return 0;
+#endif
+}
 static inline __attribute__((always_inline)) uint64_t xl_load(const uint8_t *p, int n) {
     uint64_t v = 0;
     if (n == 8) __builtin_memcpy(&v, p, 8);
@@ -68,6 +79,10 @@ static inline __attribute__((always_inline)) void xl_store(uint8_t *p, uint64_t 
     else if (n == 4) { uint32_t x = (uint32_t)v; __builtin_memcpy(p, &x, 4); }
     else if (n == 2) { uint16_t x = (uint16_t)v; __builtin_memcpy(p, &x, 2); }
     else *p = (uint8_t)v;
+}
+/* Keep lifted parity inline; only AL contributes. The reference stays independent. */
+static inline __attribute__((always_inline)) int xl_parity(uint32_t v) {
+    return !__builtin_parity(v & 255u);
 }
 /* Constant op/size/live arguments let clang remove both dispatch and unobserved flag work. */
 static inline __attribute__((always_inline)) uint64_t xl_alu(int op, uint64_t a, uint64_t b, int n,
@@ -89,7 +104,7 @@ static inline __attribute__((always_inline)) uint64_t xl_alu(int op, uint64_t a,
     if ((live & F_AF) && ((a ^ b ^ r) & 16)) f |= F_AF;
     if ((live & F_ZF) && !r) f |= F_ZF;
     if ((live & F_SF) && (r & s)) f |= F_SF;
-    if ((live & F_PF) && xs_parity((uint32_t)r)) f |= F_PF;
+    if ((live & F_PF) && xl_parity((uint32_t)r)) f |= F_PF;
     *flags = (*flags & ~live) | f;
     return r;
 }
@@ -124,7 +139,7 @@ static inline __attribute__((always_inline)) uint64_t xl_shift(int op, uint64_t 
     }
     *flags = (*flags & ~(F_CF | F_OF | F_ZF | F_SF | F_PF)) |
         (cf ? F_CF : 0) | (of ? F_OF : 0) | (!r ? F_ZF : 0) |
-        ((r & sign) ? F_SF : 0) | (xs_parity((uint32_t)r) ? F_PF : 0);
+        ((r & sign) ? F_SF : 0) | (xl_parity((uint32_t)r) ? F_PF : 0);
     return r;
 }
 /* Keep wide overflow arithmetic out of every call site; wasm has no native i128 multiply. */
