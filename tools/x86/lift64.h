@@ -522,10 +522,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         for(uint32_t k=begin;k<end;k++)if(import_hints[k]){l64_used=l64_written=0xffffu;break;}
         /* A distinct signature keeps Asyncify's conservative void(void) scheduler-call target
          * set from including native regions, which cannot suspend. Registry wrappers stay tiny. */
-        /* Small regions benefit from ordinary -O2 and wrapper devirtualization/inlining.
-         * Keep large regions size-biased until a coverage hot list can justify their expansion. */
+        /* Small regions stay attribute-free so clang can inline them through registry
+         * wrappers; larger regions remain outlined. Decision #361 removes minsize only. */
         fprintf(o, "\nstatic %svoid R_%08x_%08x(uint32_t pc){\n",
-                lift_optimize_small && f->insns.n <= 4 ? "" : "__attribute__((minsize,noinline)) ", original->addr, f->addr);
+                lift_optimize_small && f->insns.n <= 4 ? "" : "__attribute__((noinline)) ", original->addr, f->addr);
         fprintf(o, "uint64_t r[16],clock,retire_clock,t=0,u=0,v=0,address=0,value=0,fault=0;"
                    "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER,entry_index=0;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"

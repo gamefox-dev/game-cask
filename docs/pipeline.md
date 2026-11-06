@@ -478,9 +478,7 @@ four opt-in AMD64 lifted-code policies, all defaulting to the size-oriented beha
 are part of the lift cache key. K34 additionally makes the default AMD64 scalar full-flag ALU wrapper and common operand checked-pointer fast path inline;
 constant opcode/width/access arguments fold at the call site, while cold full checks retain exact page/permission/fault
 ordering. `liftInlineMemory` still selects inline span guards, and `liftInlineAlu` still enables the optional cold
-inverse-flag recipes; neither policy caches a guest pointer across a boundary. `liftAffineCounting`
-settles the instruction debt at control/observation boundaries; `liftOptimizeSmall` drops `minsize` only for tiny
-regions. On one shared macOS arm64 machine, sequential cumulative A/B measurements were:
+inverse-flag recipes; neither policy caches a guest pointer across a boundary. `liftAffineCounting` settles the instruction debt at control/observation boundaries. Lifted regions are always `noinline`; K36 removed the former `minsize` attribute after a size/build gate. `liftOptimizeSmall` remains an emitter policy for tiny-region lowering and does not alter function attributes. On one shared macOS arm64 machine, sequential cumulative A/B measurements were:
 
 | Stage (cumulative) | x64-crt wasm B / ms | x64-cpp wasm B / ms | CC0 33k-insn CPU wasm B / ms |
 |---|---:|---:|---:|
