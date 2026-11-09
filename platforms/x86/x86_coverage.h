@@ -51,6 +51,17 @@ void x86_coverage_flush(void) {
     coverage_pending_n=0;
 #endif
 }
+#if X86_COVERAGE_MODE == 1
+/* Keep queue/host work out of the overwhelmingly common exact cache hit.
+ * Preserve the pre-flush old kind, exactly as the original queue path did:
+ * no second cache, changed hash, batching or evidence policy. */
+static __attribute__((noinline)) void coverage_miss(uint32_t address,uint32_t kind,uint32_t h,uint8_t old) {
+    uint8_t add=(uint8_t)kind & (uint8_t)~old;
+    if(coverage_pending_n==XC_PENDING)x86_coverage_flush();
+    coverage_keys[h]=address;coverage_kinds[h]=(uint8_t)(old|kind);
+    coverage_pending[coverage_pending_n]=address;coverage_pending_kind[coverage_pending_n++]=add;
+}
+#endif
 void x86_coverage_entry(uint32_t address,uint32_t kind) {
 #if X86_COVERAGE_MODE == 2
     /* Same half-open membership contract as the host, checked before guest execution. */
@@ -71,11 +82,8 @@ void x86_coverage_entry(uint32_t address,uint32_t kind) {
      * No bounded set can silently replace the host's independent overflow policy. */
     uint32_t h=((address^(address>>16))*2654435761u)>>(32-16);
     uint8_t old=coverage_keys[h]==address?coverage_kinds[h]:0;
-    uint8_t add=(uint8_t)kind & (uint8_t)~old;
-    if(!add){x86_coverage_cache_hits++;return;}
-    if(coverage_pending_n==XC_PENDING)x86_coverage_flush();
-    coverage_keys[h]=address;coverage_kinds[h]=(uint8_t)(old|kind);
-    coverage_pending[coverage_pending_n]=address;coverage_pending_kind[coverage_pending_n++]=add;
+    if((old&kind)==kind){x86_coverage_cache_hits++;return;}
+    coverage_miss(address,kind,h,old);
 #endif
 }
 #endif

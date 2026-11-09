@@ -1,0 +1,290 @@
+[
+  {
+    "revision": "base",
+    "kind": "calls",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "12c8630727f610ee451cf8b39d2f36abaef2f0614f81acf6b300e429057c46a3",
+      "game.jspi.wasm": "9de51f62598b88b1456bc1946efa6a74bbb5d1d2336ca36d109ee3471d2832f2"
+    }
+  },
+  {
+    "revision": "base",
+    "kind": "vm",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "d5f6396aa33ffd12369cf15da3ae4309a702f0123759e735f217d7ec98cd9d81",
+      "game.jspi.wasm": "e1845fdcd159fea5c0a4441f4c2af1f706f9e6af3e6ffa3ed05011b6776011e4"
+    }
+  },
+  {
+    "revision": "base",
+    "kind": "memory",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "55963e0b6d8a6bd3b66bd20246fdb6646165336c15708ba764e52ea6664f3a6a",
+      "game.jspi.wasm": "a3df1d30d001cced1973236a0788e64d183ac774419b2a1cd34599266f0db39e"
+    }
+  },
+  {
+    "revision": "lookup",
+    "kind": "calls",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "d3a5b8c498da97f777c8cf83a901cd6e96450eb3c95f58f475813e4fdf5cd661",
+      "game.jspi.wasm": "2683ee01c62b3a60e85b3b8df9e85e8f2e95908cbfa275b79c4f468883a10751"
+    }
+  },
+  {
+    "revision": "lookup",
+    "kind": "vm",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "a4a0b390767a4e20e1a36f14b4f012e9388a75650b31cd3cc00007f917dc4979",
+      "game.jspi.wasm": "39a5fe0054105f7cb722ee31c608651114387f8fea910f235b26f91d5968343e"
+    }
+  },
+  {
+    "revision": "lookup",
+    "kind": "memory",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "cc20ad0d194b1c12c6ff28d35d73a30e25d1baac6ea6ee4b34e9716da615739a",
+      "game.jspi.wasm": "39fcf5f18855922a9d96652cacca79afecc22d9190bae2e0102a0690b0f83513"
+    }
+  },
+  {
+    "revision": "cover",
+    "kind": "calls",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "db9902302f4f57aac6221e42fe51c67dc2eff52a2bf330a4a0d53771bab6f0c8",
+      "game.jspi.wasm": "0629d57915ba98fe1564d1067143fccee8fda37bbf02d677b13a6bb7bdc5e545"
+    }
+  },
+  {
+    "revision": "cover",
+    "kind": "vm",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "98cb3b215d226a5fee394923cc2c81b26f4179ab33d7309c7662e81f72e1623b",
+      "game.jspi.wasm": "ed875fabb91996af65a3081d01b179ec061f3066548a2fabcce0f110f437ffbf"
+    }
+  },
+  {
+    "revision": "cover",
+    "kind": "memory",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "6aa2601b030cc234d4f019e4b34ede084305fcc345511d0335ee72889a7fe400",
+      "game.jspi.wasm": "eeb88adcef07399136ab889d6a5488c2d76cd7253b22b73762f5f07859b737bc"
+    }
+  },
+  {
+    "revision": "ways",
+    "kind": "calls",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "e5e339cce104435465670a3b4de333f001e1dd49a70f649d29b1d843bbe3508c",
+      "game.jspi.wasm": "b78705b96e42b7d2702175364ea6e383b4df6fe457e47f9791f2da44b2339f00"
+    }
+  },
+  {
+    "revision": "ways",
+    "kind": "vm",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "8d3ff101cbe956cb017b383fcc386aee5a19e6c570b9ace2d70b54a71f2f6e91",
+      "game.jspi.wasm": "ea992717b50ede8e2fb9adc369150cdb971bb08e9534bca404a19bbb4401be4b"
+    }
+  },
+  {
+    "revision": "ways",
+    "kind": "memory",
+    "checks": [
+      {
+        "mode": "asyncify",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      },
+      {
+        "mode": "jspi",
+        "oracle": true,
+        "baseline": true,
+        "coverage": true,
+        "retiredTotal": true
+      }
+    ],
+    "hashes": {
+      "game.wasm": "bb6701ec3305d5b8398da5e8adebddb32eb957248b821589578e7f8f3c65e90c",
+      "game.jspi.wasm": "960d9f7a0e26103762cf71217bf865ccf8acd49b575255f7d65978bc6c49c9a3"
+    }
+  }
+]

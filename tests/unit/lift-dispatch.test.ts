@@ -19,6 +19,12 @@ it.each([0,1])('native fast paths invalidate site caches and reject replaced, nu
   expect(()=> (exports.nx_fast as ()=>void)()).toThrow(GameAbort);
 });
 
+it('registry growth and an override installed mid-frame invalidate direct, indirect and resume admissions',async()=>{
+  const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_registry_growth.c'));
+  expect((exports.growth as ()=>number)()).toBe(0);
+  expect(()=>(exports.nx_resume as ()=>void)()).toThrow(GameAbort);
+});
+
 it.each([0,1,2,3])('warm fast path rechecks tightened strict policy before execution (kind=%s)',async(kind)=>{
   const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_fast_strict.c'));
   expect(()=>(exports.strict_fast as (n:number)=>void)(kind)).toThrow(new OutsideSlice(1,0x2000));
