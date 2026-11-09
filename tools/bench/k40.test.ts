@@ -1,5 +1,7 @@
 // Original CC0-1.0. Serial preparation; immutable artifacts; separate uninstrumented pairs.
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
+import {Session} from 'node:inspector';
+import {BGTRuntime} from '../../bgt/runtime/runtime';
 import {cpSync,mkdirSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadavg,freemem} from 'node:os';
@@ -14,8 +16,47 @@ const median=(a:number[])=>[...a].sort((a,b)=>a-b)[Math.floor(a.length/2)];
 it('measures exact admission on mixed calls, VM and memory with both actual suspension modes',async()=>{
  const kind=process.env.BGT_K40_FIXTURE??'calls';
  const f=kind==='calls'?k40Fixture(join(ROOT,'node_modules/.cache/bgt/k40-calls')):k35Fixture(kind as K35Fixture);
+ if(process.env.BGT_K40_PROFILE==='1'){
+  for(const mode of ['asyncify','jspi'] as const){
+   const h=await loadHeadless(f.id,{dir:join(out,'base',kind,'game'),suspension:mode});await h.stepAsync(30);
+   const session=new Session();session.connect();
+   const post=(method:string,params:Record<string,unknown>={})=>new Promise<Record<string,unknown>>((resolve,reject)=>session.post(method,params,(e,r)=>e?reject(e):resolve(r as Record<string,unknown>)));
+   await post('Profiler.enable');await post('Profiler.setSamplingInterval',{interval:100});await post('Profiler.start');
+   const before=h.host.metrics();await h.stepAsync(300);const {profile}=await post('Profiler.stop');session.disconnect();
+   writeFileSync(join(out,'profile-'+kind+'-'+mode+'.json'),JSON.stringify({before,after:h.host.metrics(),profile}));
+   expect(h.logs).toContain(f.expected);
+  }return;
+ }
+ if(process.env.BGT_K40_RECORD_PREPARE){
+  const revision=process.env.BGT_K40_RECORD_PREPARE;const input=join(out,'record-input',kind);mkdirSync(input,{recursive:true});
+  const base=join(out,'base',kind,'game');const manifest=JSON.parse(readFileSync(join(base,'manifest.json'),'utf8'));
+  const config=JSON.parse(readFileSync(join(f.dir,'game.json'),'utf8'));delete config.pipeline.fixture;
+  config.pipeline.modules=manifest.pipeline.modules.map((m:{name:string},i:number)=>{const file=join(input,m.name);cpSync(join(base,'assets','loader',m.name),file);return {...config.pipeline.modules[i],from:'./'+m.name};});
+  writeFileSync(join(input,'game.json'),JSON.stringify(config));
+  const dest=join(out,'record-build',revision,kind);mkdirSync(dest,{recursive:true});
+  buildGame(input,{quiet:true});cpSync(join(ROOT,'web/public/games',f.id),join(dest,'game'),{recursive:true});
+  for(const root of ['web/public/games','node_modules/.cache/bgt/pipeline'])rmSync(join(ROOT,root,f.id),{recursive:true,force:true});
+  return;
+ }
+ if(process.env.BGT_K40_RECORD==='1'){
+  const clock=vi.spyOn(performance,'now').mockReturnValue(1);
+  try{for(const mode of ['asyncify','jspi'] as const){
+   let baseline:string|undefined;let retired:unknown;
+   for(const revision of ['base','final']){
+    const dir=join(out,'record-build',revision,kind,'game');const h=await loadHeadless(f.id,{dir,suspension:mode});const totals=[];
+    for(let i=0;i<330;i++){await h.stepAsync(1);const m=h.host.metrics() as {execution_accounting:unknown};totals.push(m.execution_accounting);}
+    const common=JSON.parse(readFileSync(join(out,'record-build','base',kind,'game','manifest.json'),'utf8'));
+    const rt={host:h.host,manifest:common,vfs:h.host['services'].vfs,rangeFiles:null,
+     gpuWallMs:0,gpuSubmitTotalMs:0,errors:[],sliceEvents:0,firstFrameMs:0,frameTimes:[],diagnostics:()=>({timing:{frameIntervalMs:{last:0,avg:0,p95:0},updateMs:0,renderMs:0,decodeMs:0,gpuSubmitMs:0,wasmDownloadCompileVerifyMs:0,wasmInstantiateMs:0,wasmStreaming:false}})};
+    const bytes=JSON.stringify(BGTRuntime.prototype.coverageSnapshot.call(rt as unknown as BGTRuntime))+'\n';
+    writeFileSync(join(out,'record-'+kind+'-'+mode+'-'+revision+'.json'),bytes);
+    if(baseline!==undefined){expect(bytes).toBe(baseline);expect(totals).toEqual(retired);}else{baseline=bytes;retired=totals;}
+   }
+  }}finally{clock.mockRestore();}return;
+ }
  if(process.env.BGT_K40_COUNT==='1'){
-  const h=await loadHeadless(f.id,{dir:join(out,'count',kind,'game'),suspension:'jspi'});
+  for(const [m,mode]of (['asyncify','jspi'] as const).entries()){
+  const h=await loadHeadless(f.id,{dir:join(out,'count-both',kind,mode,'game'),suspension:mode});
   const ex=(h.host as unknown as {exports:WebAssembly.Exports}).exports;
   const counters=Object.entries(ex).filter(([n,v])=>n.startsWith('k39_')&&v instanceof WebAssembly.Global) as [string,WebAssembly.Global][];
   const hashes=[];let before:unknown;
@@ -24,11 +65,12 @@ it('measures exact admission on mixed calls, VM and memory with both actual susp
    await h.stepAsync(1);hashes.push(h.host.stateHash());
   }
   const counts=Object.fromEntries(counters.map(([n,v])=>[n.slice(4),String(v.value)]));
-  const metrics=h.host.metrics();const base=JSON.parse(readFileSync(join(out,'base',kind,'evidence.json'),'utf8')).evidence[1].rows[0];
+  const metrics=h.host.metrics();const base=JSON.parse(readFileSync(join(out,'base',kind,'evidence.json'),'utf8')).evidence[m].rows[0];
   expect(hashes).toEqual(base.hashes);
   for(const key of ['execution_accounting','guest_instruction_clock','lifted_calls','coverage_events','coverage_crossings','coverage_cache_hits','interp_insns','generic_insn_execs','stubs'])expect((metrics as Record<string,unknown>)[key]).toEqual(base.metrics[key]);
   expect({code:[...h.host.codeCoverage].sort((a,b)=>a[0]-b[0]),dropped:h.host.codeCoverageDropped}).toEqual(base.coverage);
-  writeFileSync(join(out,'count',kind,'counts.json'),JSON.stringify({counts,before,metrics}));return;
+  writeFileSync(join(out,'count-both',kind,mode,'counts.json'),JSON.stringify({counts,before,metrics}));
+  }return;
  }
  const revision=process.env.BGT_K40_PREPARE;
  if(revision){
@@ -44,6 +86,9 @@ it('measures exact admission on mixed calls, VM and memory with both actual susp
     expect(h.logs).toContain(f.expected);rows.push({hashes,metrics:h.host.metrics(),coverage:{code:[...h.host.codeCoverage].sort((a,b)=>a[0]-b[0]),dropped:h.host.codeCoverageDropped}});
    }
    expect(rows[0].hashes).toEqual(rows[1].hashes);
+   const retirement=(metrics:unknown)=>{const m=metrics as {execution_accounting:{retired:{total:string};threads:{id:number;retired:{total:string}}[]}};return {total:m.execution_accounting.retired.total,threads:m.execution_accounting.threads.map(t=>({id:t.id,total:t.retired.total}))};};
+   expect(rows[0].metrics).toMatchObject({execution_accounting:{enabled:1}});
+   expect(retirement(rows[0].metrics)).toEqual(retirement(rows[1].metrics));
    expect(rows[0].metrics).toMatchObject({interp_insns:0,stubs:[]});
    evidence.push({mode,rows});
   }

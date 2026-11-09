@@ -271,37 +271,30 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 static const x86_lifted_entry_t *lifted;
 static uint32_t nlifted, lifted_generation = 1;
 unsigned x86_native_chain;
-/* Exact-PC two-way lookup (WIP experiment): cache only immutable registry results, not guest pointers.
+/* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
  * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
-typedef struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid; } lifted_cache_entry_t;
-static lifted_cache_entry_t lifted_cache[1024][2];
-static uint8_t lifted_cache_next[1024];
+static struct { uint32_t addr; x86_lifted_fn fn; x86_native_fn native; int valid; } lifted_cache[1024];
 
 void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
     if (!++lifted_generation) x86_fault("lifted generation exhausted",0);
     __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
-    __builtin_memset(lifted_cache_next, 0, sizeof lifted_cache_next);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
     for (uint32_t i = 0; i < n; i++)
         if (table[i].end) x86_metrics.lifted_functions++;
 }
 
-/* Share one exact-PC result between wrapper and native callers. This is not an
- * admission cache: permissions, force-interpreter and strict coverage remain live. */
-static const lifted_cache_entry_t *find_lifted_entry(uint32_t addr) {
+x86_lifted_fn x86_find_lifted(uint32_t addr) {
     if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
     if (x86_force_interp) return 0;
     unsigned slot = (addr ^ (addr >> 10)) & 1023u;
-    for (unsigned way = 0; way < 2; way++) {
-        const lifted_cache_entry_t *e = &lifted_cache[slot][way];
-        if (!e->valid || e->addr != addr) continue;
+    if (lifted_cache[slot].valid && lifted_cache[slot].addr == addr) {
 #if X86_COVERAGE_MODE == 2
-        if (e->fn) x86_coverage_entry(addr,1);
+        if (lifted_cache[slot].fn) x86_coverage_entry(addr,1);
 #endif
-        return e;
+        return lifted_cache[slot].fn;
     }
     x86_lifted_fn found = 0; x86_native_fn native = 0;
     /* LANE-C: i386 exact continuation entries and AMD64 instruction ranges. */
@@ -314,21 +307,17 @@ static const lifted_cache_entry_t *find_lifted_entry(uint32_t addr) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
         if (addr == e->addr || addr < e->end) { found = e->fn; native = e->native; }
     }
-    lifted_cache_entry_t *e = &lifted_cache[slot][lifted_cache_next[slot]++ & 1u];
-    e->addr = addr; e->fn = found; e->native = native; e->valid = 1;
+    lifted_cache[slot].addr = addr; lifted_cache[slot].fn = found;
+    lifted_cache[slot].native = native; lifted_cache[slot].valid = 1;
 #if X86_COVERAGE_MODE == 2
     if (found) x86_coverage_entry(addr,1);
 #endif
-    return e;
+    return found;
 }
 
-x86_lifted_fn x86_find_lifted(uint32_t addr) {
-    const lifted_cache_entry_t *e = find_lifted_entry(addr);
-    return e ? e->fn : 0;
-}
 static x86_native_fn find_native(uint32_t addr) {
-    const lifted_cache_entry_t *e = find_lifted_entry(addr);
-    return e && e->fn ? e->native : 0;
+    if (!x86_find_lifted(addr)) return 0;
+    return lifted_cache[(addr ^ (addr >> 10)) & 1023u].native;
 }
 /* Each nested invocation installs its own stop boundary. Native chaining must not consume
  * a caller continuation past the return requested by callbacks or cold generic CALLs. */

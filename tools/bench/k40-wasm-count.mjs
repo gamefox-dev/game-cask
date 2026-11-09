@@ -83,9 +83,14 @@ export function instrumentWat(source,{native=false}={}){
   if(!native)f.push(['local','$k39_addr','i32']);
   if(ret)f.push(['local','$k39_result',ret]);
   f.push(...count('entries'),counter('function.'+f[1].slice(1)+'.entries'));
+  if(f[1]==='$x86_find_lifted'){
+   f.push(['if',['i32.and',['global.get','$k40_seen'],['i32.eq',['global.get','$k40_previous'],['local.get','$0']]],['then',counter('reuse.same_previous_pc')]],['global.set','$k40_previous',['local.get','$0']],['global.set','$k40_seen',['i32.const','1']]);
+  }
+  if(f[1]==='$x86_register_lifted')f.push(['global.set','$k40_seen',['i32.const','0']]);
   if(ret)f.push(['local.set','$k39_result',['block',['result',ret],...body]],...count('exits'),['local.get','$k39_result']);
   else f.push(...body,...count('exits'));
  }
+ mod.push(['global','$k40_previous',['mut','i32'],['i32.const','0']],['global','$k40_seen',['mut','i32'],['i32.const','0']]);
  for(const [label,name]of counters)mod.push(['global',name,['mut','i64'],['i64.const','0']],['export',JSON.stringify('k39_'+label),['global',name]]);
  if(flatExpr)mod.push(['func','$k39_flat',['result','i32'],structuredClone(flatExpr)],['export','"k39_flat"',['func','$k39_flat']]);
  const print=a=>Array.isArray(a)?'('+a.map(print).join(' ')+')':a;
