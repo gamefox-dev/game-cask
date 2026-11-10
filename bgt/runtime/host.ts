@@ -303,7 +303,7 @@ export class GameHost {
     const instantiateStart = performance.now();
     const instance = await WebAssembly.instantiate(module, imports);
     host.instantiateMs = performance.now()-instantiateStart;
-    if (import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') host.rawExports = instance.exports;
+    if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) host.rawExports = instance.exports;
     // Every synchronous export boundary can abandon a C span (including init,
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
@@ -597,7 +597,7 @@ export class GameHost {
           if (!s.storage) return -6;
           return s.storage.write(key, this.mem().slice(src >>> 0, (src >>> 0) + (len >>> 0)));
         },
-        time_us: () => ((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && s.guestNow ? s.guestNow() : s.now()) * 1000,
+        time_us: () => ((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && s.guestNow ? s.guestNow() : s.now()) * 1000,
         yield: () => {
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;

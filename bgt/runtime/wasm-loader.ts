@@ -58,6 +58,6 @@ export async function compileVerifiedWasm(response: Response, expected: { size: 
   if (got && got !== expected.sha256) throw new Error('integrity check failed for game.wasm');
   const result = await compileResult;
   if (result && 'error' in result) throw result.error;
-  const module = (import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && checkpoint ? await WebAssembly.compile((await import('./savestate-wasm')).instrumentCheckpointWasm(bytes)) : result?.module ?? await WebAssembly.compile(bytes);
+  const module = (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && checkpoint ? await WebAssembly.compile((await import('./savestate-wasm')).instrumentCheckpointWasm(bytes)) : result?.module ?? await WebAssembly.compile(bytes);
   return {module,streaming,downloadCompileVerifyMs:performance.now()-start};
 }

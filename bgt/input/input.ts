@@ -127,7 +127,7 @@ export class InputManager {
     for (const d of this.canvasDisposers) d();
     this.canvasDisposers = [];
     this.canvas = canvas;
-    if (!((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && this.scriptedOnly)) this.bindCanvas();
+    if (!((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && this.scriptedOnly)) this.bindCanvas();
   }
 
   private bindCanvas(): void {
@@ -238,7 +238,7 @@ export class InputManager {
   private pollGamepads(): void {
     this.sources.pad = 0;
     this.axes = [0, 0, 0, 0];
-    const pads = !((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && this.scriptedOnly) && typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    const pads = !((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && this.scriptedOnly) && typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     this.gamepads = Array.from({ length: 4 }, (_, index) => {
       const p = pads[index];
       return this.testPads.get(index) ?? {
