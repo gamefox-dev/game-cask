@@ -3,9 +3,10 @@ import {createHash} from 'node:crypto';
 import {test,expect,openGame,step,assertBackend} from './fixtures';
 import {compileC} from '../support/compile';
 import type {BGTTestAPI} from '../../bgt/runtime/testapi';
-for(const suspension of ['asyncify','jspi'])for(const noClear of [false,true])test('savestate bounded GPU provenance '+suspension+' missing-clear='+noClear,async({page,backendParam,collector},info)=>{
+const variants=['', 'NO_CLEAR', 'INITIAL_STENCIL', 'CONSTANT_STENCIL', 'CONSTANT_DEPTH', ...[1,2,3,4,5,6].map(n=>'PROVENANCE_MUTATION='+n)];
+for(const suspension of ['asyncify','jspi'])for(const variant of variants)test('savestate bounded GPU provenance '+suspension+' variant='+variant,async({page,backendParam,collector},info)=>{
   void collector;
-  const bytes=Buffer.from(await compileC('tests/fixtures/c/savestate-gpu.c',noClear?['NO_CLEAR']:[]));
+  const bytes=Buffer.from(await compileC('tests/fixtures/c/savestate-gpu.c',variant?[variant]:[]));
   await page.route('**/games/sample2d/manifest.json',async route=>{
     const response=await route.fetch(),m=await response.json();delete m.variants;m.suspension=suspension;
     m.wasm={url:'compact.wasm',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};m.assets=[];
@@ -14,9 +15,9 @@ for(const suspension of ['asyncify','jspi'])for(const noClear of [false,true])te
   await page.route('**/games/sample2d/compact.wasm',r=>r.fulfill({contentType:'application/wasm',body:bytes}));
   expect(await openGame(page,backendParam,{deterministic:'1',suspension})).toBe('ready');await assertBackend(page,backendParam,info);
   await step(page,6);
-  if(noClear) {
-    const result=await page.evaluate(async()=>{const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;let error='';try{await t.snapshot();}catch(e){error=String(e);}await t.step(2);return {error,errors:t.diagnostics().errors};});
-    expect(result.error).toMatch(/provenance/);expect(result.errors).toEqual([]);return;
+  if(variant==='NO_CLEAR'||variant.startsWith('PROVENANCE_MUTATION')) {
+    const result=await page.evaluate(async()=>{const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;let error='';try{await t.snapshot();}catch(e){error=String(e);}await t.step(2);return {error,errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};});
+    expect(result.error).toMatch(/provenance/);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);return;
   }
   const result=await page.evaluate(async()=>{
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;

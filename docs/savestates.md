@@ -73,9 +73,15 @@ entropy or audio admission may behave differently in ordinary play; do not claim
   the checkpoint, never from replay into the original request table.
 
 Restore work is bounded by **live resources plus at most two updates / 100,000 residual commands**,
-not route length. Packed depth-stencil has no portable exact WebGPU readback. Every unavailable
-pre-cut aspect must be fully cleared or overwritten before any residual read/draw and before the
-snapshot end (or deleted without being consumed). Complete PASS_BEGIN load-clears and full-extent,
+not route length. Packed depth-stencil has no portable exact WebGPU readback. Exact per-mip,
+per-aspect constants from native initialization (depth 1 / stencil 0) and full clears are tracked
+and emitted as native aspect clears in the compact base. Potentially writing draws invalidate
+the affected aspects according to immutable depth-write / stencil-enable, masks and operations;
+partial clears, uploads and destination blits invalidate conservatively. Constants are never
+inferred from shader output, likely coverage, depth-test results or stale upload shadows. Explicit
+unknown-aspect metadata survives file transfer and repeated compaction, so fresh native allocation
+cannot invent a proof. Every **unknown** pre-cut aspect must be fully cleared or overwritten before
+any residual read/draw and before the snapshot end (or deleted without being consumed). Complete PASS_BEGIN load-clears and full-extent,
 unmasked CLEAR_BUFFER operations prove resets; scissored/masked/partial clears do not. If no safe
 common frame-boundary cut exists in that window, snapshot throws an explicit provenance error,
 rather than omitting stencil or keeping unbounded replay work. Resources deleted/reused during the

@@ -9,10 +9,14 @@ import { FrameReplay } from '../renderers/frame-replay';
 import type { Renderer, GpuItem } from '../renderers/types';
 import type { CheckpointRenderer, CheckpointSurfaces } from '../renderers/checkpoint-surfaces';
 
-export interface GPUCheckpoint { frame: RecordedFrame; surfaces: CheckpointSurfaces }
+// Null means unavailable, NOT the native texture's freshly initialized value.
+// Persist this proof alongside the base so repeated compaction cannot invent constants.
+type PackedConstants = [number | null, number | null][];
+type CheckpointFrame = RecordedFrame & { packedConstants?: [number, PackedConstants][] };
+export interface GPUCheckpoint { frame: CheckpointFrame; surfaces: CheckpointSurfaces }
 export const RESIDUAL_UPDATES = 2;
 export const RESIDUAL_COMMANDS = 100000;
-interface Texture { item: GpuItem; allocated: number }
+interface Texture { item: GpuItem; allocated: number; constants: PackedConstants }
 interface Resources {
   buffers: Map<number,GpuItem>; textures: Map<number,Texture>; samplers: Map<number,GpuItem>;
   shaders: Map<number,GpuItem>; pipelines: Map<number,GpuItem>; feedback: Map<number,GpuItem>;
@@ -20,7 +24,18 @@ interface Resources {
 }
 function resources(records: RecordedFrame[]): Resources {
   const r: Resources = {buffers:new Map(),textures:new Map(),samplers:new Map(),shaders:new Map(),pipelines:new Map(),feedback:new Map(),legacy:new Map()};
-  for (const record of records) for (const item of restoreFrame(record).items) {
+  let pass: {handle:number;mip:number;fullScissor:boolean;width:number;height:number} | undefined;
+  let pipeline: GpuItem | undefined;
+  const allocate=(t:Texture,n:number)=>{
+    while(t.constants.length<n)t.constants.push([0x3f800000,0]);
+    t.allocated=n;
+  };
+  const invalidate=(h:number,mip:number,mask:number)=>{
+    const t=r.textures.get(h),c=t?.constants[mip];
+    if(t?.item.words[6]===5 && c) {if(mask&1)c[0]=null;if(mask&2)c[1]=null;}
+  };
+  for (const record of records) {
+   for (const item of restoreFrame(record).items) {
     // Failed creations reserve failed shader/pipeline objects; failed mutations have no effect.
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
@@ -36,9 +51,15 @@ function resources(records: RecordedFrame[]): Resources {
     switch(op) {
       case O.BUFFER_CREATE:r.buffers.set(h,it);break;
       case O.BUFFER_DELETE:r.buffers.delete(h);break;
-      case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:it,allocated:item.op===O.TEXTURE_CREATE?w[5]:1});break;
-      case O.TEXTURE_ALLOCATE_MIPS:r.textures.get(h)!.allocated=Math.max(r.textures.get(h)!.allocated,w[1]);break;
-      case O.TEXTURE_GENERATE_MIPS:r.textures.get(h)!.allocated=r.textures.get(h)!.item.words[5];break;
+      case O.TEXTURE_CREATE_EX: {
+        const t:Texture={item:it,allocated:0,constants:[]};
+        allocate(t,item.op===O.TEXTURE_CREATE?w[5]:1);r.textures.set(h,t);break;
+      }
+      case O.TEXTURE_ALLOCATE_MIPS: {const t=r.textures.get(h)!;allocate(t,Math.max(t.allocated,w[1]));break;}
+      case O.TEXTURE_GENERATE_MIPS: {
+        const t=r.textures.get(h)!;allocate(t,t.item.words[5]);
+        for(let mip=w[1]+1;mip<t.allocated;mip++)invalidate(h,mip,3);break;
+      }
       case O.TEXTURE_DELETE:r.textures.delete(h);break;
       case O.SAMPLER_CREATE_EX:r.samplers.set(h,it);break;
       case O.SAMPLER_DELETE:r.samplers.delete(h);break;
@@ -47,16 +68,48 @@ function resources(records: RecordedFrame[]): Resources {
       case O.PIPELINE_CREATE:r.pipelines.set(h,it);break;
       case O.PIPELINE_DELETE:r.pipelines.delete(h);r.feedback.delete(h);break;
       case O.FEEDBACK_VARYINGS:r.feedback.set(h,it);break;
+      case O.PASS_BEGIN: {
+        const t=r.textures.get(w[1]),e=t?mipExtent(toCanonicalTexture(t.item.words),w[2]):null;
+        pass={handle:w[1],mip:w[2],fullScissor:true,width:e?.width??0,height:e?.height??0};pipeline=undefined;
+        const c=t?.constants[w[2]];
+        if(c) {if(w[3]===1)c[0]=w[5];if(w[4]===1)c[1]=w[6];}break;
+      }
+      case O.PIPELINE:pipeline=r.pipelines.get(h);break;
+      case O.SCISSOR:if(pass)pass.fullScissor=!w[0]&&!w[1]&&w[2]===pass.width&&w[3]===pass.height;break;
+      case O.CLEAR_BUFFER:if(pass) {
+        const kind=h&3,depth=(kind===1||kind===3)&&!!(h&16),stencil=kind>=2?(h>>>8)&255:0;
+        const c=r.textures.get(pass.handle)?.constants[pass.mip];
+        if(c) {
+          if(depth)c[0]=pass.fullScissor?w[2]:null;
+          if(stencil)c[1]=pass.fullScissor&&stencil===255?w[kind===3?3:2]:null;
+        }
+      }break;
+      case O.DRAW:case O.DRAW_INDEXED:if(pass) {
+        // No coverage, depth-test outcome, face or shader-output assumptions.
+        const p=pipeline?.words;
+        const stencil=!p || !!p[10]&&!!p[12]&&[14,15,16,18,19,20].some(i=>p[i]!==0);
+        invalidate(pass.handle,pass.mip,(!p||p[8]?1:0)|(stencil?2:0));
+      }break;
+      case O.PASS_END:pass=undefined;pipeline=undefined;break;
+      case O.TEXTURE_UPDATE_EX:invalidate(h,w[1],3);break;
+      case O.BLIT:invalidate(w[2],w[3],(w[12]>>>1)&3);break;
     }
+   }
+   // Synthetic base creation initializes the native allocation, but does not prove
+   // unknown pre-cut aspects. These exact constants/unknowns override that initialization.
+   for(const [h,constants] of (record as CheckpointFrame).packedConstants??[]) {
+     const t=r.textures.get(h);if(!t||t.item.words[6]!==5||constants.length!==t.allocated)throw new Error('Invalid packed checkpoint provenance');
+     t.constants=structuredClone(constants);
+   }
   }
   return r;
 }
-/** Prove every unavailable pre-cut subresource dies or resets before any consumption.
- * PASS_BEGIN CLEAR resets all pixels independently of dynamic masks/scissor. CLEAR_BUFFER,
- * partial uploads, blits and sampling are deliberately not accepted as reset proofs. */
+/** Prove every UNKNOWN pre-cut aspect dies or resets before any consumption.
+ * Known constants are materialized exactly at the cut, not read back or inferred
+ * from end-of-suffix data. Partial uploads, blits and sampling are not reset proofs. */
 export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]): void {
   const r=resources(prefix), pending=new Map<number,Map<number,number>>();
-  for(const [h,t] of r.textures) if(t.item.words[6]===5) pending.set(h,new Map(Array.from({length:t.allocated},(_,i)=>[i,3])));
+  for(const [h,t] of r.textures) if(t.item.words[6]===5) pending.set(h,new Map(t.constants.map((c,i)=>[i,(c[0]===null?1:0)|(c[1]===null?2:0)])));
   let pass:{handle:number;mip:number;fullScissor:boolean;width:number;height:number}|undefined;
   const reset=(h:number,mip:number,aspects:number)=>{const p=pending.get(h);if(p)p.set(mip,(p.get(mip)??0)&~aspects);};
   const touch=(h:number,mip?:number) => {
@@ -70,7 +123,7 @@ export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]
       throw new Error('Unsupported savestate GPU failed mutation: '+item.op+' ('+code+')');
     const {op,words:w}=canonicalize(item.op,item.words),h=w[0];
     switch(op) {
-      case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:{...item,op,words:w},allocated:1});break;
+      case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:{...item,op,words:w},allocated:1,constants:[]});break;
       case O.TEXTURE_DELETE:pending.delete(h);r.textures.delete(h);break;
       case O.PASS_BEGIN: {
         const t=r.textures.get(w[1]),e=t?mipExtent(toCanonicalTexture(t.item.words),w[2]):null;
@@ -142,7 +195,15 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
     frame.items.push(t.item);
     if(t.allocated>1)frame.items.push({kind:'gpu',op:O.TEXTURE_ALLOCATE_MIPS,words:[h,t.allocated]});
     const desc=toCanonicalTexture(t.item.words);
-    if(desc.format===5) continue; // Proven reset in the original residual, not guessed content.
+    if(desc.format===5) {
+      for(let mip=0;mip<t.allocated;mip++) {
+        const [depth,stencil]=t.constants[mip];
+        if(depth===null&&stencil===null)continue;
+        frame.items.push({kind:'gpu',op:O.PASS_BEGIN,words:[0,h,mip,depth===null?0:1,stencil===null?0:1,depth??0,stencil??0]},
+          {kind:'gpu',op:O.PASS_END,words:[]});
+      }
+      continue; // Unknown aspects must reset in the bounded original residual.
+    }
     for(let mip=0;mip<t.allocated;mip++) {
       const e=mipExtent(desc,mip),update:GpuItem={kind:'gpu',op:O.TEXTURE_UPDATE_EX,words:[h,mip,0,0,0,e.width,e.height,e.depth,0,0]};
       frame.items.push(update);
@@ -168,7 +229,8 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
   await renderer.drawFrame(reads,at.letterbox,false);await renderer.finish();
   const error=await done;if(error)throw error;
-  const compact:GPUCheckpoint={frame:recordFrame(frame,at.letterbox,at.update,at.width,at.height),surfaces};
+  const compact:GPUCheckpoint={frame:{...recordFrame(frame,at.letterbox,at.update,at.width,at.height),
+    packedConstants:[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants])},surfaces};
   return {base:compact,journal:residual,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
     residualUpdates:new Set(residual.map(f=>f.update)).size}};
 }

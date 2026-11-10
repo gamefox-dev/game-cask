@@ -15,8 +15,11 @@ const module = `(module (memory (export "memory") 1 5) (global (mut i32) (i32.co
 describe('complete engine-state checkpoints',()=>{
   it('rejects missing or partial packed-stencil provenance, including dependencies used before their later clear',()=>{
     const rec=(items:Frame['items'],update:number)=>{const f=new Frame();f.reset(4,4);f.items=items;return recordFrame(f,{x:0,y:0,w:4,h:4,scale:1},update,4,4);};
-    const create=rec([{kind:'gpu',op:O.TEXTURE_CREATE_EX,words:[1,0,4,4,1,1,5,3]}],0);
     const begin=(depth:number,stencil:number)=>({kind:'gpu' as const,op:O.PASS_BEGIN,words:[0,1,0,depth,stencil,0,0]});
+    // Initialization is now a proven constant. A potentially writing prefix draw
+    // makes both aspects unavailable; all missing/partial-reset assertions stay strict.
+    const create=rec([{kind:'gpu',op:O.TEXTURE_CREATE_EX,words:[1,0,4,4,1,1,5,3]},
+      begin(0,0),{kind:'gpu',op:O.DRAW,words:[3,1,0,0]},{kind:'gpu',op:O.PASS_END,words:[]}],0);
     expect(()=>proveResidual([create],[])).toThrow(/no full/);
     expect(()=>proveResidual([create],[rec([begin(1,0)],1)])).toThrow(/no full/);
     const clear={kind:'gpu' as const,op:O.CLEAR_BUFFER,words:[3|12|16|(255<<8),0,0,0,0,0]};

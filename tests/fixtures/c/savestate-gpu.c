@@ -16,6 +16,9 @@ static void upload(void) {bgt_gpu_texture_update_t u={3,0,0,0,1,1,(uint32_t)(uin
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     (void)p;io.logical_width=64;io.logical_height=64;bgt_cmd_init(&cb,commands,sizeof commands);
     texture(1,64,64,0);texture(2,64,64,5);texture(3,1,1,0);upload();
+#if PROVENANCE_MUTATION == 5
+    texture(4,64,64,5);
+#endif
     bgt_gpu_sampler_create_t s={1,0,0,0,0,0,0,7};bgt_cmd_gpu_sampler_create(&cb,&s);
     bgt_gpu_shader_create_t v={1,1,2,(uint32_t)(uintptr_t)vs,sizeof(vs)-1,81},f={2,2,2,(uint32_t)(uintptr_t)fs,sizeof(fs)-1,82};
     bgt_cmd_gpu_shader_create(&cb,&v);bgt_cmd_gpu_shader_create(&cb,&f);return bgt_cmd_submit(&cb);
@@ -29,6 +32,20 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
         bgt_gpu_pipeline_create_t p={0};p.handle=1;p.vertex_shader=1;p.fragment_shader=2;p.topology=3;p.depth_format=5;
         p.depth_test=1;p.depth_write=1;p.depth_compare=7;p.stencil_enable=1;p.stencil_read_mask=255;p.stencil_write_mask=255;
         p.front_compare=7;p.back_compare=7;p.front_pass=2;p.back_pass=2;p.texture_mask=1;p.color_count=1;
+#if defined(INITIAL_STENCIL) || defined(CONSTANT_STENCIL)
+        p.stencil_write_mask=0;p.front_compare=2;p.back_compare=2;p.front_pass=0;p.back_pass=0;
+#endif
+#ifdef CONSTANT_DEPTH
+        p.depth_write=0;p.depth_compare=4;
+#endif
+#ifdef PROVENANCE_MUTATION
+        p.depth_write=0;p.stencil_write_mask=0;
+#if PROVENANCE_MUTATION == 1
+        p.stencil_write_mask=255;
+#elif PROVENANCE_MUTATION == 2
+        p.depth_write=1;
+#endif
+#endif
         bgt_gpu_color_target_t color={0};color.write_mask=15;bgt_cmd_gpu_pipeline_create(&cb,&p,0,0,&color);ready=1;
     }
     bgt_gpu_color_attachment_t color={1,0,1,0,0,0,1};
@@ -37,11 +54,51 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     /* After a short lead-in, retaining old stencil must reject bounded snapshots. */
     if(tick>3) {pass.depth_load=0;pass.stencil_load=0;}
 #endif
+#ifdef INITIAL_STENCIL
+    pass.stencil_load=0;
+#endif
+#ifdef CONSTANT_STENCIL
+    pass.clear_stencil=37;if(tick>3)pass.stencil_load=0;
+#endif
+#ifdef CONSTANT_DEPTH
+    pass.clear_depth=0.25f;if(tick>3)pass.depth_load=0;
+#endif
+#ifdef PROVENANCE_MUTATION
+    if(tick>3) {pass.depth_load=0;pass.stencil_load=0;}
+#endif
     bgt_cmd_gpu_pass_begin(&cb,&pass,&color);
+#if PROVENANCE_MUTATION == 3
+    if(tick==4) {
+        bgt_gpu_scissor_t sc={0,0,32,64};bgt_cmd_gpu_scissor(&cb,&sc);
+        bgt_gpu_clear_buffer_t clear={0};clear.kind_class_masks=1|16;clear.value[0]=0x3f000000u;bgt_cmd_gpu_clear_buffer(&cb,&clear);
+    }
+#elif PROVENANCE_MUTATION == 4
+    if(tick==4) {
+        bgt_gpu_clear_buffer_t clear={0};clear.kind_class_masks=2|4|(127u<<8);clear.value[0]=37;bgt_cmd_gpu_clear_buffer(&cb,&clear);
+    }
+#endif
     bgt_gpu_pipeline_t pipeline={1};bgt_cmd_gpu_pipeline(&cb,&pipeline);
     bgt_gpu_texture_t binding={0,3,1};bgt_cmd_gpu_texture(&cb,&binding);
-    bgt_gpu_stencil_ref_t ref={tick&255};bgt_cmd_gpu_stencil_ref(&cb,&ref);
+    bgt_gpu_stencil_ref_t ref={tick&255};
+#ifdef INITIAL_STENCIL
+    ref.value=0;
+#endif
+#ifdef CONSTANT_STENCIL
+    ref.value=37;
+#endif
+    bgt_cmd_gpu_stencil_ref(&cb,&ref);
     bgt_gpu_draw_t draw={3,1,0,0};bgt_cmd_gpu_draw(&cb,&draw);bgt_cmd_gpu_pass_end(&cb);
+#if PROVENANCE_MUTATION == 5
+    if(tick==4) {
+        bgt_gpu_blit_t copy={0};copy.source=4;copy.destination=2;
+        copy.source_rect[2]=64;copy.source_rect[3]=64;copy.destination_rect[2]=64;copy.destination_rect[3]=64;
+        copy.mask=6;copy.scissor[2]=64;copy.scissor[3]=64;bgt_cmd_gpu_blit(&cb,&copy);
+    }
+#elif PROVENANCE_MUTATION == 6
+    if(tick==4) {
+        bgt_gpu_texture_update_t u={2,0,0,0,1,1,(uint32_t)(uintptr_t)&pixel,4};bgt_cmd_gpu_texture_update(&cb,&u);
+    }
+#endif
     /* Replay of residual draws needs the START sample, not these later bytes. */
     pixel=0xff000000u|((tick*17u)&255u)|(((tick*31u)&255u)<<8)|(((tick*7u)&255u)<<16);
     if(tick%3==0){bgt_gpu_texture_delete_t del={3};bgt_cmd_gpu_texture_delete(&cb,&del);texture(3,1,1,0);}
