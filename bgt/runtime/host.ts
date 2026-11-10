@@ -49,6 +49,7 @@ import { GpuState } from './commands-gpu';
 import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
+import type { captureHost } from './savestate-host';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -73,6 +74,8 @@ export interface HostServices {
   now(): number;
   /** LANE-K1: explicit test replay hook. Omit for real Web Crypto entropy. Throw on failure. */
   entropy?(bytes: Uint8Array): void;
+  /** Explicit deterministic test clock; profiling still uses now(). */
+  guestNow?(): number;
   rangeRead?(path: string, offset: number, length: number, ahead?: boolean): Promise<Uint8Array<ArrayBuffer>>;
 }
 
@@ -203,6 +206,10 @@ export const CODE_COVERAGE_LIMIT = 1_048_576;
 const utf8 = new TextDecoder('utf-8', { fatal: false });
 
 export class GameHost {
+  declare private rawExports: WebAssembly.Exports;
+  declare assertCheckpointBoundary: () => void;
+  declare checkpoint: () => ReturnType<typeof captureHost>;
+  declare restoreCheckpoint: (state: ReturnType<typeof captureHost>) => void;
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
@@ -296,6 +303,7 @@ export class GameHost {
     const instantiateStart = performance.now();
     const instance = await WebAssembly.instantiate(module, imports);
     host.instantiateMs = performance.now()-instantiateStart;
+    if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) host.rawExports = instance.exports;
     // Every synchronous export boundary can abandon a C span (including init,
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
@@ -589,7 +597,7 @@ export class GameHost {
           if (!s.storage) return -6;
           return s.storage.write(key, this.mem().slice(src >>> 0, (src >>> 0) + (len >>> 0)));
         },
-        time_us: () => s.now() * 1000,
+        time_us: () => ((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && s.guestNow ? s.guestNow() : s.now()) * 1000,
         yield: () => {
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;

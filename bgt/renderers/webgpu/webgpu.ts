@@ -61,6 +61,8 @@ function blendState(mode: number): GPUBlendState | undefined {
   return undefined;
 }
 
+import type { CheckpointSurfaces } from '../checkpoint-surfaces';
+
 export interface WebGPUOptions {
   debug?: boolean;
 }
@@ -514,6 +516,9 @@ export class WebGPURenderer implements Renderer {
     buf.destroy();
     return { width: w, height: h, data };
   }
+
+  declare captureTestSurfaces: (letterbox: Letterbox) => Promise<CheckpointSurfaces>;
+  declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {
     if (!this.lost) await this.o.device.queue.onSubmittedWorkDone();

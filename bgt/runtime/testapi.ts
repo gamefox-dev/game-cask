@@ -6,6 +6,7 @@ import type { BGTDiagnostics, BGTRuntime } from './runtime';
 import type { DecodeResult } from './commands';
 import type { TestInputEvent } from '../input/input';
 import { recordFrame, type RecordedFrame } from '../renderers/recording';
+import type { Savestate } from './savestates';
 
 export type BGTTestInputEvent = TestInputEvent;
 
@@ -17,6 +18,10 @@ export interface BGTPixels {
 }
 
 export interface BGTTestAPI {
+  snapshot(): Promise<Savestate>;
+  exportSnapshot(snapshot: Savestate): string;
+  importSnapshot(file: string): Savestate;
+  restore(snapshot: Savestate): Promise<void>;
   ready(): boolean;
   pause(): void;
   step(frames: number): Promise<void>;
@@ -56,12 +61,21 @@ function unb64(s: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-export function installTestAPI(rt: BGTRuntime): BGTTestAPI {
+export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
   // The probe exposes this binding BEFORE navigation/startup. No late resource checkpoint,
   // no native readback replaced by CPU shadows, and no recorder in ordinary production builds.
   const sink = (window as unknown as { __BGT_RECORD_FRAME__?: (frame: RecordedFrame) => Promise<boolean> }).__BGT_RECORD_FRAME__;
   if (sink) rt.frameObserver = async (...args) => { if (!await sink(recordFrame(...args))) rt.frameObserver = undefined; };
+  const q = new URLSearchParams(location.search);
+  const feature = q.get('deterministic') === '1' || q.get('savestates') === '1' ? await import('./savestates') : null;
+  const codec = feature ? await import('./savestate-file') : null;
+  const states = feature ? new feature.Savestates(rt,Number(q.get('seed') ?? 1)) : null;
+  const required = () => { if (!states) throw new Error('Savestates require test-only ?deterministic=1 before boot'); return states; };
   const api: BGTTestAPI = {
+    snapshot: () => required().snapshot(),
+    exportSnapshot: snapshot => { required(); return codec!.exportSavestate(snapshot); },
+    importSnapshot: file => { required(); return codec!.importSavestate(file); },
+    restore: snapshot => required().restore(snapshot),
     ready: () => rt.ready && !rt.failed,
     pause: () => rt.pause(),
     resume: () => rt.resume(),
