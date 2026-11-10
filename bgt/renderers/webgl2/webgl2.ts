@@ -6,6 +6,7 @@ import {
 } from '../../runtime/abi';
 import type { Frame, TextureTable } from '../../runtime/commands';
 import { WebGL2Gpu } from './gpu';
+import type { CheckpointSurfaces } from '../checkpoint-surfaces';
 import { GpuStats, Letterbox, Pixels, Renderer, WHITE_PIXEL, clipToDevice, readbackRect } from '../types';
 
 const VS = `#version 300 es
@@ -383,6 +384,9 @@ export class WebGL2Renderer implements Renderer {
     this.stats.submitMs = performance.now() - t0;
     return out;
   }
+
+  declare captureTestSurfaces: (letterbox: Letterbox) => Promise<CheckpointSurfaces>;
+  declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {
     this.gl.finish();

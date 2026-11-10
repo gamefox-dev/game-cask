@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {searchSavestate} from './savestate-search.mjs';
 // Probe mode: run an exploration script against a game's test API in headless Chromium, without writing a spec.
 //
 //   npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out reports/probe] [--params k=v,k=v] [--port N]
@@ -7,7 +8,7 @@
 // web/public/games/ (run `npm run build:port` first). The script default-exports `async function (p)`; see
 // .claude/skills/browser-validation/SKILL.md for the API. Artifacts (PNGs, probe.json with the log, console and
 // errors) go to --out (default reports/probe/, private). Never touches kit or port test results.
-import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
@@ -97,6 +98,16 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     },
     debugState: () => api('debugState'),
     stateHash: () => api('stateHash'),
+    /** Browser-local JSHandle: snapshots never cross Playwright's lossy JSON boundary. Dispose when finished. */
+    snapshot: () => page.evaluateHandle(() => window.__BGT_TEST__.snapshot()),
+    restore: snapshot => page.evaluate(s => window.__BGT_TEST__.restore(s), snapshot),
+    async exportSnapshot(snapshot, file) {
+      const data = await snapshot.evaluate(s => window.__BGT_TEST__.exportSnapshot(s));
+      const path = resolve(out,file); writeFileSync(path,data); log.artifacts.push(path); return path;
+    },
+    importSnapshot: file => page.evaluateHandle(data => window.__BGT_TEST__.importSnapshot(data), readFileSync(resolve(out,file),'utf8')),
+    /** Try a timing/input variant per branch. Always restore, even when scoring/capture throws. */
+    search: (snapshot,options) => searchSavestate(p,snapshot,options),
     readPixels: () => api('readPixels'),
     /** read-only guest memory as a Buffer (null if unmapped) */
     async peek(addr, len) {
@@ -167,7 +178,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     mkdirSync(out, { recursive: true });
     const script = await import(pathToFileURL(resolve(a.script)).href);
     if (typeof script.default !== 'function') throw new Error(`${a.script} must default-export async function (p)`);
-    const port = a.port ?? (await freePort(Number(process.env.BGT_PROBE_PORT ?? 5189)));
+    const port = a.port ?? (await freePort(Number(process.env.BGT_E2E_PORT ?? process.env.BGT_PROBE_PORT ?? 5189)));
     validatePort(port);
     server = await startServer(port, a.game);
     const { chromium } = await import('@playwright/test');
