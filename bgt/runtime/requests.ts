@@ -6,6 +6,11 @@ export class Requests {
   private epoch = 0;
   private bytes = 0;
   private next = 1;
+  checkpoint() {
+    if ([...this.entries.values()].some(t => !t.done)) throw new Error('Checkpoint has pending requests');
+    return structuredClone({entries: this.entries, epoch: this.epoch, bytes: this.bytes, next: this.next});
+  }
+  restoreCheckpoint(s: ReturnType<Requests['checkpoint']>): void { Object.assign(this, structuredClone(s)); }
   advance(): void { this.epoch++; }
   reserve(id?: number): RequestToken | number {
     if (this.entries.size >= 32) return E_LIMIT;

@@ -25,7 +25,7 @@ import {
   OP,
 } from './abi';
 import type { CommandError, DecodeResult, Frame } from './commands';
-import { GameHost, InputSnapshot, emptyInput, OutsideSlice } from './host';
+import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices } from './host';
 import { Vfs } from './vfs';
 import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
 import { WebAudioSink } from '../audio/audio';
@@ -153,6 +153,17 @@ async function sha256Hex(data: ArrayBuffer): Promise<string | null> {
 }
 
 export class BGTRuntime {
+  /** Installed only by the opt-in test API, before start(). */
+  testHarness?: {
+    services(s: HostServices): HostServices;
+    updated(): void;
+    frame(frame: Frame, letterbox: Letterbox, update: number, width: number, height: number): void;
+  };
+  testHostFactory?: (renderer: Renderer) => Promise<GameHost>;
+  /** A checkpoint is never allowed to overlap an update, render or explicit step. */
+  testQuiescent(): boolean { return this.ready && this.paused && !this.failed && !this.outsideSlice && !this.updateBusy && !this.renderBusy && !this.renderQueued && !this.stepping && !this.host?.ioPending && !this.renderer?.lost; }
+  private stepping = false;
+  testCheckpointBusy = false;
   manifest: Manifest | null = null;
   host: GameHost | null = null;
   renderer: Renderer | null = null;
@@ -184,6 +195,7 @@ export class BGTRuntime {
   private sliceEvents = 0;
   private renderTail: Promise<void> = Promise.resolve();
   private renderBusy = false;
+  private renderQueued = 0;
   // A recorder sink can yield to ResizeObserver. Keep the backing store and
   // scale fixed until that recorded frame has actually finished drawing.
   private recordingFrame = false;
@@ -364,7 +376,7 @@ export class BGTRuntime {
       const got = await sha256Hex(buf);
       if (got && got !== expect) throw new RuntimeFailure('asset', `integrity check failed for ${label}`);
     };
-    const wasmP = fetch(base + variant.artifact.url).then((res) => compileVerifiedWasm(res,variant.artifact,tick)).then((result) => {
+    const wasmP = fetch(base + variant.artifact.url).then((res) => compileVerifiedWasm(res,variant.artifact,tick,!!this.testHarness)).then((result) => {
       this.wasmLoadMs = result.downloadCompileVerifyMs;
       this.wasmStreaming = result.streaming;
       return result.module;
@@ -383,17 +395,18 @@ export class BGTRuntime {
     this.status('Starting graphics…');
     this.renderer = await this.pickRenderer(this.opts.backend ?? 'auto');
     this.input = new InputManager(this.canvas, manifest.input);
-    this.input.attach();
+    if (!this.testHarness) this.input.attach();
+    this.input.scriptedOnly = !!this.testHarness;
     this.wireRenderer(this.renderer);
 
-    this.storage = new BrowserStorage(manifest.id, { ephemeral: this.opts.ephemeralStorage });
-    this.audio.armUnlock();
+    this.storage = new BrowserStorage(manifest.id, { ephemeral: !!this.testHarness || this.opts.ephemeralStorage });
+    if (!this.testHarness) this.audio.armUnlock();
     this.audio.onUnlock(() => this.input.markEvent('audioUnlocked'));
 
     const touch = this.opts.touch ?? 'auto';
     const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (touch === 'on' || (touch === 'auto' && coarse)) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
+    if (!this.testHarness && (touch === 'on' || (touch === 'auto' && coarse))) this.input.createOverlay(this.opts.container, manifest.touch ?? {});
 
     let caps = CAP_AUDIO | CAP_SCISSOR | CAP_TRIANGLES | CAP_LINEAR_FILTER | CAP_GAMEPAD | CAP_RENDER_TARGETS | CAP_READBACK | CAP_STREAM_FILES;
     /* LANE-WG/W2 */ if (this.renderer.gpu?.languages) caps |= CAP_GPU;
@@ -403,9 +416,7 @@ export class BGTRuntime {
 
     this.measure();
     try {
-      this.host = await GameHost.create(
-        wasm,
-        {
+      const services: HostServices = {
           log: (level, message) => this.gameLog(level, message),
           vfs: this.vfs,
           audio: this.audio,
@@ -418,8 +429,9 @@ export class BGTRuntime {
               throw e;
             }
           },
-        },
-        {
+        };
+      const actualServices = this.testHarness?.services(services) ?? services;
+      const config = {
           backend: this.renderer.kind === 'webgpu' ? BACKEND_WEBGPU : BACKEND_WEBGL2,
           caps,
           /* LANE-WG/W2 */ gpuBackend: this.renderer.gpu,
@@ -433,8 +445,10 @@ export class BGTRuntime {
           sliceCode: manifest.slice?.code,
           sliceCodeRanges: manifest.slice?.codeRanges,
           suspensionMode: variant.mode,
-        },
-      );
+        };
+      this.testHostFactory = this.testHarness ? (renderer) => GameHost.create(wasm,actualServices,
+        {...config,gpuBackend:renderer.gpu}) : undefined;
+      this.host = await GameHost.create(wasm,actualServices,config);
       this.host.init();
     } catch (e) {
       throw new RuntimeFailure(e instanceof Error && e.name === 'GameAbort' ? 'abort' : 'init', e instanceof Error ? e.message : String(e));
@@ -567,6 +581,7 @@ export class BGTRuntime {
   }
 
   private applySize(): void {
+    if (this.testCheckpointBusy) return;
     if (this.recordingFrame) {
       this.recordingResizePending = true;
       return;
@@ -626,6 +641,7 @@ export class BGTRuntime {
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
     await host.update();
+    this.testHarness?.updated();
     if (host.sizeChanged) {
       host.sizeChanged = false;
       this.applySize();
@@ -634,7 +650,9 @@ export class BGTRuntime {
 
   /** Render serially: async readbacks must not race the next frame's command buffers. */
   renderFrame(readback:boolean):Promise<Pixels|null> {
-    const work=this.renderTail.then(async()=>{this.renderBusy=true;try{return await this.renderNow(readback);}finally{this.renderBusy=false;}});
+    if (this.testCheckpointBusy) return Promise.reject(new Error('Savestate operation in progress'));
+    this.renderQueued++;
+    const work=this.renderTail.then(async()=>{this.renderBusy=true;try{return await this.renderNow(readback);}finally{this.renderBusy=false;this.renderQueued--;}});
     this.renderTail=work.then(()=>{},()=>{});return work;
   }
 
@@ -656,6 +674,7 @@ export class BGTRuntime {
         letterbox = { ...letterbox };
         await this.frameObserver(frame, letterbox, host.frameIndex, this.canvas.width, this.canvas.height);
       }
+      this.testHarness?.frame(frame,letterbox,host.frameIndex,this.canvas.width,this.canvas.height);
       out = await r.drawFrame(frame, letterbox, readback);
     } catch (e) {
       for(const it of frame.items)if(it.kind==='readback')it.complete();
@@ -702,7 +721,7 @@ export class BGTRuntime {
       }
       this.last = t;
       this.checkLossWatchdog();
-      if (this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) return;
+      if (this.testCheckpointBusy || this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) return;
       this.updateBusy = true;
       try {
       let n = 0;
@@ -727,6 +746,7 @@ export class BGTRuntime {
   }
 
   resume(): void {
+    if (this.testCheckpointBusy) throw new Error('Savestate operation in progress');
     if(this.outsideSlice)return; // select a broader package and reload; never resume an aborted guest stack
     this.paused = false;
     this.acc = 0;
@@ -734,7 +754,10 @@ export class BGTRuntime {
 
   async step(frames: number): Promise<void> {
     if (!this.ready || this.failed) throw new Error('runtime not ready');
+    if (this.testCheckpointBusy || this.stepping) throw new Error('Overlapping test operations');
+    this.stepping = true;
     this.pause();
+    try {
     for (let i = 0; i < frames; i++) {
       if (this.failed || this.outsideSlice) break;
       await this.renderTail;
@@ -751,24 +774,38 @@ export class BGTRuntime {
       await this.renderFrame(false);
     }
     await this.renderer?.finish();
+    } finally { this.stepping = false; }
+  }
+
+  /** Commit a fully rebuilt checkpoint only after replay has succeeded. No resize or guest calls. */
+  testReplace(host: GameHost, renderer: Renderer, letterbox: Letterbox): void {
+    const old = this.renderer;
+    this.renderer = renderer; this.host = host; this.canvas = renderer.canvas; this.letterbox = {...letterbox};
+    this.canvas.className = 'bgt-canvas'; this.stage.replaceChildren(this.canvas);
+    this.input.retarget(this.canvas); this.wireRenderer(renderer);
+    this.acc = 0; this.last = 0; old?.destroy();
   }
 
   injectInput(events: TestInputEvent[]): void {
+    if (this.testCheckpointBusy) throw new Error('Savestate operation in progress');
     this.input.injectTest(events);
   }
 
   async readPixels(): Promise<Pixels | null> {
+    if (this.testCheckpointBusy) throw new Error('Savestate operation in progress');
     const px = await this.renderFrame(true);
     await this.renderer?.finish();
     return px;
   }
 
   injectCommands(bytes: Uint8Array): DecodeResult | null {
+    if (this.testCheckpointBusy) throw new Error('Savestate operation in progress');
     if (!this.host) return null;
     return this.host.submitExternal(bytes);
   }
 
   async simulateDeviceLoss(opts: { unrecoverable?: boolean } = {}): Promise<void> {
+    if (this.testCheckpointBusy) throw new Error('Savestate operation in progress');
     await this.renderer?.simulateLoss(opts);
   }
 

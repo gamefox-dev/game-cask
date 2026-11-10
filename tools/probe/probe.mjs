@@ -7,7 +7,7 @@
 // web/public/games/ (run `npm run build:port` first). The script default-exports `async function (p)`; see
 // .claude/skills/browser-validation/SKILL.md for the API. Artifacts (PNGs, probe.json with the log, console and
 // errors) go to --out (default reports/probe/, private). Never touches kit or port test results.
-import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
@@ -97,6 +97,33 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     },
     debugState: () => api('debugState'),
     stateHash: () => api('stateHash'),
+    /** Browser-local JSHandle: snapshots never cross Playwright's lossy JSON boundary. Dispose when finished. */
+    snapshot: () => page.evaluateHandle(() => window.__BGT_TEST__.snapshot()),
+    restore: snapshot => page.evaluate(s => window.__BGT_TEST__.restore(s), snapshot),
+    async exportSnapshot(snapshot, file) {
+      const data = await snapshot.evaluate(s => window.__BGT_TEST__.exportSnapshot(s));
+      const path = resolve(out,file); writeFileSync(path,data); log.artifacts.push(path); return path;
+    },
+    importSnapshot: file => page.evaluateHandle(data => window.__BGT_TEST__.importSnapshot(data), readFileSync(resolve(out,file),'utf8')),
+    /** Try a timing/input variant per branch. Always restore, even when scoring/capture throws. */
+    async search(snapshot, {variants, updates, input, score, prefix = 'variant'}) {
+      if (!Number.isSafeInteger(updates) || updates < 1) throw new Error('search updates must be positive');
+      const results = [];
+      try {
+        for (let index=0; index<variants.length; index++) {
+          const variant = variants[index]; await p.restore(snapshot);
+          for(let update=0;update<updates;update++) {
+            const events = await input(variant,update,p); if(events?.length) await p.input(events);
+            await p.step(1);
+            const d = await p.diagnostics(); if(d.failed || d.outsideSlice || d.errors.length) throw new Error('search branch failed at update '+update);
+          }
+          const value = await score(p,variant);
+          if(typeof value !== 'number' || !Number.isFinite(value)) throw new Error('search score must be a finite scalar');
+          results.push({variant,score:value,screenshot:await p.screenshot(prefix+'-'+index)});
+        }
+      } finally { await p.restore(snapshot); }
+      return results;
+    },
     readPixels: () => api('readPixels'),
     /** read-only guest memory as a Buffer (null if unmapped) */
     async peek(addr, len) {
@@ -167,7 +194,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     mkdirSync(out, { recursive: true });
     const script = await import(pathToFileURL(resolve(a.script)).href);
     if (typeof script.default !== 'function') throw new Error(`${a.script} must default-export async function (p)`);
-    const port = a.port ?? (await freePort(Number(process.env.BGT_PROBE_PORT ?? 5189)));
+    const port = a.port ?? (await freePort(Number(process.env.BGT_E2E_PORT ?? process.env.BGT_PROBE_PORT ?? 5189)));
     validatePort(port);
     server = await startServer(port, a.game);
     const { chromium } = await import('@playwright/test');

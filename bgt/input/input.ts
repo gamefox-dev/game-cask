@@ -64,6 +64,15 @@ const setBit = (arr: Uint32Array, k: number, on: boolean) => {
 };
 
 export class InputManager {
+  checkpoint() {
+    return structuredClone({keysHeld:this.keysHeld, keysLatched:this.keysLatched, keyButtons:this.keyButtons,
+      sources:this.sources, latchedPress:this.latchedPress, prevButtons:this.prevButtons, pointer:this.pointer,
+      touches:this.touches, events:this.events, axes:this.axes, testPads:this.testPads, gamepads:this.gamepads,
+      prevPad:this.prevPad, letterbox:this.letterbox, logicalW:this.logicalW, logicalH:this.logicalH, dpr:this.dpr});
+  }
+  restoreCheckpoint(s: ReturnType<InputManager['checkpoint']>): void { Object.assign(this, structuredClone(s)); }
+  /** Opt-in deterministic harness input; never poll physical devices. */
+  scriptedOnly = false;
   private keymap: Record<string, ButtonName>;
   private keysHeld = new Uint32Array(8);
   private keysLatched = new Uint32Array(8);
@@ -122,7 +131,7 @@ export class InputManager {
     for (const d of this.canvasDisposers) d();
     this.canvasDisposers = [];
     this.canvas = canvas;
-    this.bindCanvas();
+    if (!this.scriptedOnly) this.bindCanvas();
   }
 
   private bindCanvas(): void {
@@ -233,7 +242,7 @@ export class InputManager {
   private pollGamepads(): void {
     this.sources.pad = 0;
     this.axes = [0, 0, 0, 0];
-    const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    const pads = !this.scriptedOnly && typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     this.gamepads = Array.from({ length: 4 }, (_, index) => {
       const p = pads[index];
       return this.testPads.get(index) ?? {
