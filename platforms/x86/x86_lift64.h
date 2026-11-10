@@ -143,10 +143,20 @@ static inline __attribute__((always_inline)) uint64_t xl_shift(int op, uint64_t 
     return r;
 }
 /* Keep wide overflow arithmetic out of every call site; wasm has no native i128 multiply. */
-static __attribute__((noinline)) uint64_t xl_imul(uint64_t a, uint64_t b, int n, uint32_t *flags) {
+static __attribute__((noinline)) uint64_t xl_imul_wide(uint64_t a, uint64_t b, int n, uint32_t *flags) {
     __int128 full = (__int128)(int64_t)x64_sext(a, n) * (int64_t)x64_sext(b, n);
     uint64_t r = (uint64_t)full & x64_mask(n);
     int ov = full != (__int128)(int64_t)x64_sext(r, n);
+    *flags = (*flags & ~(F_CF | F_OF)) | (ov ? F_CF | F_OF : 0);
+    return r;
+}
+/* A signed 32x32 (or narrower) product fits in int64_t. Keep its result and overflow
+ * test at the constant-width call site; only the true 64x64 case needs i128/cold code. */
+static inline __attribute__((always_inline)) uint64_t xl_imul(uint64_t a, uint64_t b, int n, uint32_t *flags) {
+    if (n == 8) return xl_imul_wide(a, b, n, flags);
+    int64_t full = (int64_t)x64_sext(a, n) * (int64_t)x64_sext(b, n);
+    uint64_t r = (uint64_t)full & x64_mask(n);
+    int ov = full != (int64_t)x64_sext(r, n);
     *flags = (*flags & ~(F_CF | F_OF)) | (ov ? F_CF | F_OF : 0);
     return r;
 }

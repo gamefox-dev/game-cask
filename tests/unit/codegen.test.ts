@@ -139,6 +139,118 @@ BGT_EXPORT(check) unsigned check(void) {
   expect((instance.exports.check as () => number)()).toBe(0);
 });
 
+
+it('narrow eager ALU random and edge operands preserve every arithmetic and non-arithmetic flag bit', async () => {
+  const dir = join(ROOT, 'node_modules/.cache/bgt/k41-alu'); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'probe.c'), `
+#define X86_WIDE_CPU 1
+#include "${ROOT}/platforms/x86/x86_lift64.h"
+#include "bgt.h"
+x86_cpu_t X;
+BGT_EXPORT(check) unsigned check(void) {
+ unsigned ops[]={XO_ADD,XO_ADC,XO_SUB,XO_SBB,XO_CMP,XO_AND,XO_OR,XO_XOR,XO_TEST};
+ unsigned bits[]={F_CF,F_PF,F_AF,F_ZF,F_SF,F_OF};
+ uint64_t edges[]={0,1,15,16,127,128,255,256,32767,32768,65535,65536,
+   0x7fffffff,0x80000000,0xffffffff,0x100000000ull,0x7fffffffffffffffull,
+   0x8000000000000000ull,UINT64_MAX};
+ uint64_t seed=0x941c7835aafedc01ull;
+ for(unsigned n=1;n<=8;n*=2)for(unsigned op=0;op<9;op++)for(unsigned i=0;i<2409;i++) {
+   seed^=seed<<13;seed^=seed>>7;seed^=seed<<17;uint64_t a=seed;
+   seed^=seed<<13;seed^=seed>>7;seed^=seed<<17;uint64_t b=seed;
+   if(i<361){a=edges[i/19];b=edges[i%19];}
+   for(unsigned carry=0;carry<2;carry++) {
+     unsigned initial=(unsigned)(seed&~1u)|carry;
+     X.flags=initial;uint64_t want=x64_alu(ops[op],a,b,n);unsigned wf=X.flags;
+     for(unsigned k=0;k<64;k++) {
+       unsigned mask=0;for(unsigned j=0;j<6;j++)if(k&(1u<<j))mask|=bits[j];
+       unsigned f=initial;uint64_t got=xl_alu(ops[op],a,b,n,&f,mask);
+       if(got!=want||((f^wf)&mask)||((f^initial)&~mask))return n*100+op+1;
+     }
+   }
+ }
+ return 0;
+}`);
+  const { instance } = await WebAssembly.instantiate(await compileC(relative(ROOT, join(dir, 'probe.c'))));
+  expect((instance.exports.check as () => number)()).toBe(0);
+});
+
+it('eager ALU form widths and high-byte destinations keep complete fault and normal state', async () => {
+  // All binary scalar ALU encodings; AH/BH operands deliberately prohibit REX.
+  const opcodes = ['00d8','08d8','10d8','18d8','20d8','28d8','30d8','38d8','84d8'];
+  let seed=0x941c7835aafedc01n;
+  const random=()=>{seed=BigInt.asUintN(64,seed^(seed<<13n));seed^=seed>>7n;seed=BigInt.asUintN(64,seed^(seed<<17n));return seed;};
+  for(const [width,prefix] of [[1,''],[2,'66'],[4,''],[8,'48'],[1,'high']] as const) {
+    for(const [op,encoding] of opcodes.entries()) {
+      const encoded=prefix==='high'?encoding.slice(0,2)+'fc':prefix+(width===1?encoding:(parseInt(encoding.slice(0,2),16)+1).toString(16).padStart(2,'0')+encoding.slice(2));
+      // Force a checked fault after the result. Later writer must not kill observed flags.
+      const h=await harness(encoded+'488b114831c0c3');
+      for(let sample=0;sample<40;sample++) {
+        const a=sample<8?[0n,1n,15n,16n,127n,128n,0x80000000n,0xffffffffffffffffn][sample]:random();
+        const b=random(),flags=Number(random()&0xffffffffn);
+        for(const fault of [false,true]) {
+          const execute=(interp:number)=>{
+            h.ex.reset(base,0);h.ex.set_reg(0,a);h.ex.set_reg(3,b);h.ex.set_reg(1,0x3000n);h.ex.set_flags(flags);
+            if(fault)h.ex.unmap(3);
+            if(fault)expect(()=>h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);else h.ex.run(interp);
+            return {cpu:h.memory().slice(h.ex.cpu(),h.ex.cpu()+h.ex.cpu_size()),ram:h.memory().slice(h.ex.ram(),h.ex.ram()+65536),address:h.ex.fault_address(),diagnostic:h.ex.fault_hash()};
+          };
+          const actual=execute(0),reference=execute(1),label=`width ${width} ${prefix} op ${op} sample ${sample} fault ${fault}`;
+          expect(Buffer.from(actual.cpu).equals(Buffer.from(reference.cpu)),label+" CPU").toBe(true);
+          expect(Buffer.from(actual.ram).equals(Buffer.from(reference.ram)),label+" complete RAM").toBe(true);
+          expect(actual.address,label).toBe(reference.address);expect(actual.diagnostic,label).toBe(reference.diagnostic);
+        }
+      }
+    }
+  }
+},180000);
+
+it('constant-width IMUL matches signed full-product edges and random operands at all widths', async () => {
+  const dir=join(ROOT,'node_modules/.cache/bgt/k41-imul');mkdirSync(dir,{recursive:true});
+  writeFileSync(join(dir,'probe.c'),`
+#define X86_WIDE_CPU 1
+#include "${ROOT}/platforms/x86/x86_lift64.h"
+#include "bgt.h"
+x86_cpu_t X;
+BGT_EXPORT(check) unsigned check(void) {
+ uint64_t edges[]={0,1,127,128,255,32767,32768,65535,0x7fffffff,0x80000000,
+  0xffffffff,0x7fffffffffffffffull,0x8000000000000000ull,UINT64_MAX};
+ uint64_t seed=0x971174bac080abcdull;
+ for(unsigned n=1;n<=8;n*=2)for(unsigned i=0;i<4292;i++) {
+  seed^=seed<<13;seed^=seed>>7;seed^=seed<<17;uint64_t a=seed;
+  seed^=seed<<13;seed^=seed>>7;seed^=seed<<17;uint64_t b=seed;
+  if(i<196){a=edges[i/14];b=edges[i%14];}
+  __int128 full=(__int128)(int64_t)x64_sext(a,n)*(int64_t)x64_sext(b,n);
+  uint64_t want=(uint64_t)full&x64_mask(n);unsigned initial=(unsigned)seed,f=initial;
+  unsigned wf=(initial&~(F_CF|F_OF))|((full!=(__int128)(int64_t)x64_sext(want,n))?(F_CF|F_OF):0);
+  uint64_t got=xl_imul(a,b,n,&f);if(got!=want||f!=wf)return n;
+ }
+ return 0;
+}`);
+  const {instance}=await WebAssembly.instantiate(await compileC(relative(ROOT,join(dir,'probe.c'))));
+  expect((instance.exports.check as ()=>number)()).toBe(0);
+});
+
+it('IMUL register, immediate and memory forms keep partial writes and fault state exact', async () => {
+  let seed=0xbac09417fedc7821n;
+  const random=()=>{seed=BigInt.asUintN(64,seed^(seed<<13n));seed^=seed>>7n;seed=BigInt.asUintN(64,seed^(seed<<17n));return seed;};
+  for(const [prefix,imm] of [['66','ff7f'],['','ffffff7f'],['48','ffffff7f']]) {
+    for(const code of ['0fafc3','6bc380','69c3'+imm,'0faf03']) {
+      const h=await harness(prefix+code+'488b114831c0c3');
+      for(let sample=0;sample<40;sample++) {
+        const a=sample<8?[0n,1n,127n,128n,32768n,0x80000000n,0x8000000000000000n,0xffffffffffffffffn][sample]:random();
+        const b=random(),flags=Number(random()&0xffffffffn);
+        for(const fault of [false,true]) {
+          const execute=(interp:number)=>{h.ex.reset(base,0);h.ex.set_reg(0,a);h.ex.set_reg(3,code==='0faf03'?0x3000n:b);h.ex.set_reg(1,0x3000n);h.ex.set_flags(flags);
+            h.view().setBigUint64(h.ex.ram()+0x3000,b,true);if(fault)h.ex.unmap(3);
+            if(fault)expect(()=>h.ex.run(interp)).toThrow(WebAssembly.RuntimeError);else h.ex.run(interp);
+            return {cpu:Buffer.from(h.memory().slice(h.ex.cpu(),h.ex.cpu()+h.ex.cpu_size())),ram:Buffer.from(h.memory().slice(h.ex.ram(),h.ex.ram()+65536)),address:h.ex.fault_address(),diagnostic:h.ex.fault_hash()};};
+          const x=execute(0),y=execute(1);expect(x.cpu.equals(y.cpu)).toBe(true);expect(x.ram.equals(y.ram)).toBe(true);expect([x.address,x.diagnostic]).toEqual([y.address,y.diagnostic]);
+        }
+      }
+    }
+  }
+});
+
 it('local shift lowering preserves every reference flag for all counts and widths', async () => {
   const dir = join(ROOT, 'node_modules/.cache/bgt/codegen-shift'); mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'probe.c'), `
@@ -155,6 +267,7 @@ BGT_EXPORT(check) unsigned check(void) {
    X.flags=initial?0xffffffffu:0;uint64_t want=x64_shift(ops[op],values[i],c,n);unsigned wf=X.flags;
    unsigned f=initial?0xffffffffu:0;uint64_t got=xl_shift(ops[op],values[i],c,n,&f);
    if(got!=want||f!=wf)return 1;
+
  }
  return 0;
 }`);
