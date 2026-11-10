@@ -249,7 +249,9 @@ Discovery generated hooks now de-duplicate `(address,kind)` in a **wasm-local 65
 with a bounded 4096-record queue. Only newly observed kind bits cross into JS at pressure, frame waits, normal update
 return, metrics reads and explicit profile faults. Collisions may re-report records but cannot discard evidence.
 `coverage_events`, `coverage_cache_hits`, `coverage_crossings` expose the reduction; the host still owns the independent
-1,048,576-entry/drop limit. A snapshot flushes **before** copying code and drop counts. Abrupt external wasm traps
+1,048,576-entry/drop limit. The cold miss/queue/flush path is outlined from the exact-hit path (K40);
+every event, hit, crossing, kind union, collision and queue-order rule is unchanged. This is not once-per-callee
+coverage or a new admission cache: native permission/registry/force/strict/stop and return checks remain live. A snapshot flushes **before** copying code and drop counts. Abrupt external wasm traps
 can leave an unflushed tail: errored recordings are not packaging evidence. `BGT_COVERAGE_DIRECT=1` restores direct
 crossings for A/B tests without changing instruction/API semantics.
 
