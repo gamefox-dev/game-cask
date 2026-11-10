@@ -40,8 +40,9 @@ const rt = new BGTRuntime({
 window.addEventListener('error', (e) => rt.recordExternalError('js', e.message));
 window.addEventListener('unhandledrejection', (e) => rt.recordExternalError('js', String((e as PromiseRejectionEvent).reason)));
 
-if (testEnabled) installTestAPI(rt);
-void rt.start().then(() => {
+void (async () => {
+if (testEnabled) await installTestAPI(rt);
+await rt.start();
   if (debug) startOverlay(rt);
   if (bench) void runBench(rt, q);
-});
+})();

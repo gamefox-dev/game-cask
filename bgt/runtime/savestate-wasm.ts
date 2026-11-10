@@ -36,10 +36,50 @@ export function instrumentCheckpointWasm(bytes: Uint8Array): Uint8Array<ArrayBuf
       if(q>section.data.length) throw new Error('Invalid checkpoint segment length');
     }
   }
+  // JS Global.value can canonicalize NaN payloads. Export bitwise float readers/writers;
+  // append helper functions/types only (all existing code/index identities stay unchanged).
+  const floatGlobals: {index:number;type:number;mutable:boolean}[]=[];
+  const gs=sections.find(s=>s.id===6);
+  if(gs) {
+    let q=0;
+    const u=()=>{let n=0,shift=0,b;do{b=gs.data[q++];n+=(b&127)*2**shift;shift+=7;}while(b&128);return n;};
+    const n=u();
+    for(let index=0;index<n;index++) {
+      const type=gs.data[q++],mutable=!!gs.data[q++];
+      if(type===0x7d||type===0x7c)floatGlobals.push({index,type,mutable});
+      else if(type!==0x7f&&type!==0x7e)throw new Error('Unsupported checkpoint global type');
+      for(;;) {
+        const op=gs.data[q++];if(op===11)break;
+        if(op===65||op===66||op===35) {while(gs.data[q++]&128){/*LEB*/}}
+        else if(op===67)q+=4;else if(op===68)q+=8;else throw new Error('Unsupported checkpoint global initializer');
+        if(q>=gs.data.length)throw new Error('Invalid checkpoint global initializer');
+      }
+    }
+  }
+  const originalFunctions=imports+count(3), types=count(1), extraTypes:number[][]=[], extraFunctions:number[][]=[], extraBodies:number[][]=[], extraExports:Uint8Array[]=[];
+  const helper=(name:string,type:number[],body:number[])=>{
+    const n=new TextEncoder().encode(name),idx=originalFunctions+extraFunctions.length;
+    extraExports.push(new Uint8Array([...uint(n.length),...n,0,...uint(idx)]));
+    extraFunctions.push(uint(types+extraTypes.length));extraTypes.push(type);
+    extraBodies.push([...uint(body.length+2),0,...body,11]);
+  };
+  for(const g of floatGlobals) {
+    const bitType=g.type===0x7d?0x7f:0x7e;
+    helper(checkpointName('bits',g.index),[0x60,0,1,bitType],[0x23,...uint(g.index),g.type===0x7d?0xbc:0xbd]);
+    if(g.mutable)helper(checkpointName('setbits',g.index),[0x60,1,bitType,0],[0x20,0,g.type===0x7d?0xbe:0xbf,0x24,...uint(g.index)]);
+  }
+  const appendVector=(id:number,entries:number[][])=>{
+    if(!entries.length)return;
+    let s=sections.find(s=>s.id===id);
+    if(s){let q=0;while(s.data[q++]&128){/*count*/}s.data=join([new Uint8Array(uint(count(id)+entries.length)),s.data.slice(q),...entries.map(e=>new Uint8Array(e))]);}
+    else {s={id,data:join([new Uint8Array(uint(entries.length)),...entries.map(e=>new Uint8Array(e))])};const at=sections.findIndex(x=>x.id>id);sections.splice(at<0?sections.length:at,0,s);}
+  };
   const memoryName = new TextEncoder().encode(prefix + 'memory');
   const additions: Uint8Array[] = [new Uint8Array([...uint(memoryName.length),...memoryName,2,0])];
-  for (const [kind, tag, n] of [['f', 0, imports + count(3)], ['g', 3, count(6)], ['t', 1, count(4)]] as const)
+  for (const [kind, tag, n] of [['f', 0, originalFunctions], ['g', 3, count(6)], ['t', 1, count(4)]] as const)
     for (let i = 0; i < n; i++) { const name = new TextEncoder().encode(checkpointName(kind, i)); additions.push(new Uint8Array([...uint(name.length), ...name, tag, ...uint(i)])); }
+  additions.push(...extraExports);
+  appendVector(1,extraTypes);appendVector(3,extraFunctions);appendVector(10,extraBodies);
   const exp = sections.find(s => s.id === 7);
   if (!exp) throw new Error('Checkpoint module requires exports');
   let q = 0; while (exp.data[q++] & 128) { /* skip old count */ }
@@ -52,13 +92,25 @@ function join(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
   for (const c of chunks) { out.set(c, p); p += c.length; } return out;
 }
 
-export interface WasmCheckpoint { memory: Uint8Array; globals: (number | bigint)[]; tables: (number | null)[][] }
+function captureMemory(memory: WebAssembly.Memory): SparseMemory {
+  const words=new Uint32Array(memory.buffer),bytes=new Uint8Array(memory.buffer),pages=new Map<number,Uint8Array<ArrayBuffer>>();
+  for(let at=0;at<words.length;at+=16384) {
+    let nonzero=false;for(let i=at;i<at+16384;i++)if(words[i]){nonzero=true;break;}
+    if(nonzero)pages.set(at*4,bytes.slice(at*4,(at+16384)*4));
+  }
+  return {byteLength:bytes.length,pages};
+}
+export interface FloatBits { bits:number|bigint }
+export interface SparseMemory { byteLength:number; pages:Map<number,Uint8Array<ArrayBuffer>> }
+export interface WasmCheckpoint { memory: SparseMemory; globals: (number | bigint | FloatBits)[]; tables: (number | null)[][] }
 export function captureWasm(exports: WebAssembly.Exports): WasmCheckpoint {
   if (exports[prefix+'memory'] !== exports.memory) throw new Error('Wasm was not instrumented for checkpoints before boot');
-  const globals: (number | bigint)[] = [], tables: (number | null)[][] = [];
+  const globals: WasmCheckpoint['globals'] = [], tables: (number | null)[][] = [];
   for (let i = 0; ; i++) { const g = exports[checkpointName('g', i)] as WebAssembly.Global | undefined; if (!g) break;
+    const bits=exports[checkpointName('bits',i)] as (()=>number|bigint)|undefined;
+    if(bits){globals.push({bits:bits()});continue;}
     const v: unknown = g.value; if (typeof v !== 'number' && typeof v !== 'bigint') throw new Error('Unsupported checkpoint reference global');
-    if (typeof v === 'number' && Number.isNaN(v)) throw new Error('Unsupported checkpoint NaN global payload'); globals.push(v);
+    globals.push(v);
   }
   const functions = new Map<unknown, number>();
   for (let i = 0; ; i++) { const f = exports[checkpointName('f', i)]; if (!f) break; functions.set(f, i); }
@@ -66,15 +118,26 @@ export function captureWasm(exports: WebAssembly.Exports): WasmCheckpoint {
     tables.push(Array.from({length: t.length}, (_, j) => { const f: unknown = t.get(j); if (f === null) return null;
       const index = functions.get(f); if (index === undefined) throw new Error('Unsupported checkpoint table reference'); return index; }));
   }
-  return { memory: new Uint8Array((exports.memory as WebAssembly.Memory).buffer).slice(), globals, tables };
+  return { memory: captureMemory(exports.memory as WebAssembly.Memory), globals, tables };
 }
 export function restoreWasm(exports: WebAssembly.Exports, state: WasmCheckpoint): void {
   const memory = exports.memory as WebAssembly.Memory;
-  if (memory.buffer.byteLength > state.memory.length || state.memory.length % 65536) throw new Error('Invalid checkpoint memory size');
-  memory.grow((state.memory.length - memory.buffer.byteLength) / 65536);
-  new Uint8Array(memory.buffer).set(state.memory);
+  if (memory.buffer.byteLength > state.memory.byteLength || state.memory.byteLength % 65536) throw new Error('Invalid checkpoint memory size');
+  // Called only on a fresh instance. Clear its initialized data pages, not the entire
+  // reserved (often 1 GiB) zero memory: touching every zero page commits physical RAM.
+  const initial=captureMemory(memory);
+  memory.grow((state.memory.byteLength - memory.buffer.byteLength) / 65536);
+  const bytes=new Uint8Array(memory.buffer);
+  for(const at of initial.pages.keys())bytes.fill(0,at,at+65536);
+  for(const [at,data] of state.memory.pages) {
+    if(at%65536 || at<0 || at+65536>bytes.length || data.length!==65536)throw new Error('Invalid checkpoint memory page');
+    bytes.set(data,at);
+  }
   state.globals.forEach((v, i) => { const g = exports[checkpointName('g', i)] as WebAssembly.Global;
-    try { g.value = v; } catch { if (!Object.is(g.value, v)) throw new Error('Immutable checkpoint global mismatch'); }
+    if(typeof v==='object') {
+      const set=exports[checkpointName('setbits',i)] as ((v:number|bigint)=>void)|undefined;
+      if(set)set(v.bits);else if((exports[checkpointName('bits',i)] as ()=>number|bigint)()!==v.bits)throw new Error('Immutable checkpoint float mismatch');
+    } else try { g.value = v; } catch { if (!Object.is(g.value, v)) throw new Error('Immutable checkpoint global mismatch'); }
   });
   state.tables.forEach((values, i) => { const t = exports[checkpointName('t', i)] as WebAssembly.Table;
     if (t.length > values.length) throw new Error('Invalid checkpoint table size');

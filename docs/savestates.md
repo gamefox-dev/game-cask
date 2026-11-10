@@ -53,28 +53,47 @@ entropy or audio admission may behave differently in ordinary play; do not claim
 
 - Entire wasm linear memory (including grown pages), all numeric globals (including hidden compiler
   globals), function tables with null slots/function-index identities. Test-only load instrumentation
-  adds exports after artifact integrity verification, changing no code or index spaces. A **fresh wasm
+  adds exports and bitwise float-global accessor helpers after artifact integrity verification;
+  existing code/function/global/table indices remain unchanged. Sparse zero-page memory encoding
+  avoids copying reserved zero GiB heaps; explicit saved length still restores growth exactly. A **fresh wasm
   instance** makes memory/table growth reversible without trying to shrink an existing wasm memory.
 - Host lifecycle/suspension/frame/input state, texture and GPU validator object tables, completed request
   data/error/visibility epochs/next IDs, file handles/cursors/next IDs and coverage, input held/latched/
   released/gamepad/pointer/touch/event state, deterministic clock/entropy/audio/storage.
 - An opt-in ordered **renderer-input journal from startup**, including uploads, shaders, buffers,
   texture/VAO/pipeline/FBO equivalents, copies, draws, render-to-texture/depth/stencil and deletion.
-  Restore replays it into a fresh same-backend renderer, then atomically swaps the rebuilt host/renderer.
-  It does not read GPU attachments back into CPU upload shadows or replay guest updates from boot.
+  Snapshots materialize a compact live-resource base in a temporary same-backend renderer,
+  reading actual safe GPU contents at the residual START, not stale upload shadows or the
+  suffix end. Restore rebuilds that base and bounded residual in a fresh renderer, then swaps
+  the host/renderer. Guest updates/initialization are not replayed. Native buffer data and its
+  separate CPU validation/repacking shadow are both preserved. Physical retained screen and
+  (WebGPU) logical screen are transferred separately, along with legacy render targets.
   Completion callbacks are replaced with replay-local plumbing; original request results come from
   the checkpoint, never from replay into the original request table.
 
-This trades memory and GPU replay cost for exactness: restore is proportional to the accumulated GPU
-journal, **not O(1)**. A conservative 256 MiB journal serialization estimate limit fails closed (no
-silent history eviction); an earlier valid checkpoint can still be restored. Snapshot memory and file
-size also scale with guest RAM. Long, upload-heavy routes may require journal compaction/checkpointing
-before practical use; fixture latency is not a nine-minute game performance certification.
+Restore work is bounded by **live resources plus at most two updates / 100,000 residual commands**,
+not route length. Packed depth-stencil has no portable exact WebGPU readback. Every unavailable
+pre-cut aspect must be fully cleared or overwritten before any residual read/draw and before the
+snapshot end (or deleted without being consumed). Complete PASS_BEGIN load-clears and full-extent,
+unmasked CLEAR_BUFFER operations prove resets; scissored/masked/partial clears do not. If no safe
+common frame-boundary cut exists in that window, snapshot throws an explicit provenance error,
+rather than omitting stencil or keeping unbounded replay work. Resources deleted/reused during the
+residual remain in exact order. Handled failed shader compiles are replayed as failed objects;
+deleted objects are removed from the base.
+
+The recorder attempts the same materialization every 120 updates or 32 MiB, keeping long clear-per-frame
+routes bounded before the first explicit snapshot. Snapshot work can replay the uncompacted prefix;
+failed materialization preserves the recorder. A 256 MiB estimated journal limit fails closed if
+repeated compaction is unsupported. An earlier valid checkpoint can still be restored. Saved
+stats report native content bytes, residual command/update counts and snapshot ms. File size scales
+with nonzero guest pages and live GPU state. No nine-minute real-game latency certification is implied.
 
 Unsupported module features fail closed: passive/declarative data/element segment lifetime state,
 start functions, imported non-functions/multiple memories/exception tags, nonnumeric globals or
-reference-table entries without a module function identity; NaN global payloads cannot be preserved
-by the JS numeric API. Current C kit fixtures use numeric globals/active segments/function tables.
+reference-table entries without a module function identity. Float globals use wasm bit reinterpret
+helpers (including exact NaN payloads and infinities), not JS Global.value conversion. Non-finite
+GPU float/half-float texture contents currently fail closed because native GL readback can
+canonicalize NaN payloads. Current C kit fixtures use numeric globals/active segments/function tables.
 
 ## Probe searches and files
 
@@ -85,6 +104,9 @@ Probe snapshots are browser-local Playwright `JSHandle`s: do not pass them throu
 BGT_E2E_PORT=5294 npm run probe -- --game sample2d --backend webgl2 \
   --params deterministic=1,suspension=asyncify --script ./search.mjs --out reports/probe/search
 ```
+
+A checked-in integration script is `tools/probe/examples/savestate-search.mjs` (also exercises
+file import and restore-on-score-failure). Run it with the same command, substituting that path.
 
 ```js
 // search.mjs: an original CC0 fixture demonstration; replace the lead-in with your route.
@@ -112,7 +134,7 @@ export default async function (p) {
 Files resolve relative to the probe output directory. Import into a newly booted deterministic-mode
 instance with matching configuration, after consuming its initial frame. Browser equivalents are
 `exportSnapshot(snap): string` and `importSnapshot(text): Savestate`. The file codec retains exact
-u64 bigint values, Maps/Sets, byte/key arrays and negative zero; it is not a public network protocol.
+u64 bigint values, float-global bit patterns, infinities, Maps/Sets, byte/key arrays and negative zero; it is not a public network protocol.
 
 Search always restores before each variant and in `finally`, including score/screenshot failures.
 Record the lead-in and winning input variant as an ordinary deterministic-mode full-route test too.

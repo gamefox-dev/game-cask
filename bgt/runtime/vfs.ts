@@ -1,6 +1,7 @@
 // In-memory read-only virtual file system. Assets are preloaded
 // asynchronously before bgt_init; the game then reads synchronously.
 
+import type { captureVfs } from './savestate-host';
 import { E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, LIMITS } from './abi';
 
 interface OpenFile {
@@ -19,12 +20,8 @@ export function normalizeAssetPath(path: string): string | null {
 }
 
 export class Vfs {
-  checkpoint() {
-    return structuredClone({open: this.open, nextHandle: this.nextHandle, missing: this.missing,
-      ranges: this.ranges, consumedBytes: this.consumedBytes, observedBytes: this.observedBytes,
-      readAheadBytes: this.readAheadBytes, readAheadRequests: this.readAheadRequests, aheadRanges: this.aheadRanges});
-  }
-  restoreCheckpoint(s: ReturnType<Vfs['checkpoint']>): void { Object.assign(this, structuredClone(s)); }
+  declare checkpoint: () => ReturnType<typeof captureVfs>;
+  declare restoreCheckpoint: (s: ReturnType<typeof captureVfs>) => void;
   private files = new Map<string, Uint8Array>();
   private streamed = new Map<string, number>();
   private streamChunks = new Map<string,readonly {offset:number;size:number}[]>();

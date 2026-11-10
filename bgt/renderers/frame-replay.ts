@@ -9,15 +9,23 @@ export interface ReplaySnapshot { label: string; format: number; width: number; 
 export class FrameReplay {
   readonly errors: string[] = [];
   private textures = new Map<number, CanonicalTexture>();
-  constructor(readonly renderer: Renderer) {
-    renderer.onError(message => this.errors.push(message));
+  private expectedExecution?: number;
+  constructor(readonly renderer: Renderer, private readonly handledShaderFailures = false) {
+    renderer.onError(message => {if(!(this.handledShaderFailures && this.expectedExecution))this.errors.push(message);});
     renderer.onLost(message => this.errors.push('Device/context loss: ' + message));
     // Do not let an executor's synchronous failure disappear into drawFrame's void path.
     if (renderer.gpu) {
       const execute = renderer.gpu.execute.bind(renderer.gpu);
       renderer.gpu.execute = item => {
-        const code = execute(item); if (code) this.errors.push('GPU opcode ' + item.op + ': ' + code);
-        return code;
+        const expected=(item as unknown as {executeCode?:number}).executeCode;
+        this.expectedExecution=expected;
+        try {
+          const code = execute(item);
+          if(this.handledShaderFailures && typeof expected==='number') {
+            if(code!==expected)this.errors.push('GPU opcode '+item.op+' changed outcome: '+expected+' -> '+code);
+          } else if (code && !(this.handledShaderFailures && item.op === O.SHADER_CREATE)) this.errors.push('GPU opcode ' + item.op + ': ' + code);
+          return code;
+        } finally {this.expectedExecution=undefined;}
       };
     }
   }
@@ -52,7 +60,12 @@ export class FrameReplay {
       if (op === O.TEXTURE_CREATE_EX) this.textures.set(w[0], toCanonicalTexture(w));
       if (op === O.TEXTURE_DELETE) this.textures.delete(w[0]);
       if (op === O.SHADER_CREATE) pending.push(new Promise<void>((resolve, reject) => {
-        item.complete = (code, log) => code ? reject(new Error(log || 'shader failed')) : resolve();
+        item.complete = (code, log) => {
+          const expected=record.items[index].completeCode;
+          if (this.handledShaderFailures && typeof expected==='number') {
+            if(code===expected)resolve();else reject(new Error('Shader replay outcome changed: '+expected+' -> '+code));
+          } else if(code)reject(new Error(log || 'shader failed'));else resolve();
+        };
       }));
       if (op === O.TEXTURE_READBACK || op === O.BUFFER_READBACK) pending.push(new Promise<void>((resolve, reject) => {
         item.readback = (data, error) => !data || error ? reject(new Error('Recorded readback failed: ' + error)) : resolve();

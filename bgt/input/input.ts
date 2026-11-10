@@ -3,6 +3,7 @@
 // simulation step. Presses are latched so a tap shorter than one step is
 // never lost.
 
+import type { captureInputManager } from '../runtime/savestate-host';
 import { BUTTONS, ButtonName, EVENT_AUDIO_UNLOCKED, EVENT_FOCUS_LOST, EVENT_RESIZED, EVENT_DEVICE_RESET, EVENT_TARGETS_LOST } from '../runtime/abi';
 import type { GamepadSnapshot, InputSnapshot } from '../runtime/host';
 import type { Letterbox } from '../renderers/types';
@@ -64,15 +65,10 @@ const setBit = (arr: Uint32Array, k: number, on: boolean) => {
 };
 
 export class InputManager {
-  checkpoint() {
-    return structuredClone({keysHeld:this.keysHeld, keysLatched:this.keysLatched, keyButtons:this.keyButtons,
-      sources:this.sources, latchedPress:this.latchedPress, prevButtons:this.prevButtons, pointer:this.pointer,
-      touches:this.touches, events:this.events, axes:this.axes, testPads:this.testPads, gamepads:this.gamepads,
-      prevPad:this.prevPad, letterbox:this.letterbox, logicalW:this.logicalW, logicalH:this.logicalH, dpr:this.dpr});
-  }
-  restoreCheckpoint(s: ReturnType<InputManager['checkpoint']>): void { Object.assign(this, structuredClone(s)); }
+  declare checkpoint: () => ReturnType<typeof captureInputManager>;
+  declare restoreCheckpoint: (s: ReturnType<typeof captureInputManager>) => void;
   /** Opt-in deterministic harness input; never poll physical devices. */
-  scriptedOnly = false;
+  declare scriptedOnly: boolean;
   private keymap: Record<string, ButtonName>;
   private keysHeld = new Uint32Array(8);
   private keysLatched = new Uint32Array(8);
@@ -131,7 +127,7 @@ export class InputManager {
     for (const d of this.canvasDisposers) d();
     this.canvasDisposers = [];
     this.canvas = canvas;
-    if (!this.scriptedOnly) this.bindCanvas();
+    if (!((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && this.scriptedOnly)) this.bindCanvas();
   }
 
   private bindCanvas(): void {
@@ -242,7 +238,7 @@ export class InputManager {
   private pollGamepads(): void {
     this.sources.pad = 0;
     this.axes = [0, 0, 0, 0];
-    const pads = !this.scriptedOnly && typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    const pads = !((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && this.scriptedOnly) && typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     this.gamepads = Array.from({ length: 4 }, (_, index) => {
       const p = pads[index];
       return this.testPads.get(index) ?? {

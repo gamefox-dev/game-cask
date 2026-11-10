@@ -4,7 +4,10 @@ import { encodeBytes, decodeBytes } from '../renderers/recording';
 export function exportSavestate(state: Savestate): string {
   return JSON.stringify(state, (_key, v: unknown) => {
     if (typeof v === 'bigint') return {$bgt:'bigint',data:v.toString()};
-    if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('Non-finite savestate value');
+    if (typeof v === 'number' && !Number.isFinite(v)) {
+      const bytes=new Uint8Array(8);new DataView(bytes.buffer).setFloat64(0,v,true);
+      return {$bgt:'f64',data:encodeBytes(bytes)};
+    }
     if (typeof v === 'number' && Object.is(v,-0)) return {$bgt:'negative-zero'};
     if (v instanceof Map) return {$bgt:'map',data:[...v]};
     if (v instanceof Set) return {$bgt:'set',data:[...v]};
@@ -18,6 +21,7 @@ export function importSavestate(file: string): Savestate {
     if (!v || typeof v !== 'object' || !('$bgt' in v)) return v;
     const tagged = v as {$bgt:string;data:never};
     switch (tagged.$bgt) {
+      case 'f64': {const b=decodeBytes(tagged.data);if(b.length!==8)throw new Error('Invalid float bits');return new DataView(b.buffer).getFloat64(0,true);}
       case 'bigint':return BigInt(tagged.data);
       case 'negative-zero':return -0;
       case 'map':return new Map(tagged.data);

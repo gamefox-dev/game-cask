@@ -49,7 +49,7 @@ import { GpuState } from './commands-gpu';
 import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
-import { captureWasm, restoreWasm } from './savestate-wasm';
+import type { captureHost } from './savestate-host';
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -206,31 +206,10 @@ export const CODE_COVERAGE_LIMIT = 1_048_576;
 const utf8 = new TextDecoder('utf-8', { fatal: false });
 
 export class GameHost {
-  private rawExports!: WebAssembly.Exports;
-  assertCheckpointBoundary(): void {
-    if (this.inUpdate || this.ioPending || this.frame.items.length) throw new HostError('Checkpoint requires a consumed quiescent update boundary');
-    if (this.jspiTask || this.jspiResume) throw new HostError('Unsupported checkpoint state: suspended JSPI continuation; use Asyncify');
-  }
-  checkpoint() {
-    this.assertCheckpointBoundary();
-    const {backend: _backend, ...gpu} = this.gpu ?? {backend:undefined};
-    void _backend;
-    return {wasm: captureWasm(this.rawExports), data: structuredClone({
-      abiVersion:this.abiVersion, ioPtr:this.ioPtr, initialized:this.initialized, asyncState:this.asyncState,
-      asyncBuf:this.asyncBuf, gamepads:this.gamepads, state:this.state, logicalWidth:this.logicalWidth,
-      logicalHeight:this.logicalHeight, flags:this.flags, frameIndex:this.frameIndex, yields:this.yields,
-      sizeChanged:this.sizeChanged, textures:{entries:this.textures.entries,totalBytes:this.textures.totalBytes},
-      gpu:this.gpu ? gpu : null, codeCoverage:this.codeCoverage, codeCoverageDropped:this.codeCoverageDropped,
-      opCounts:this.opCounts, importCounts:this.importCounts, commandErrors:this.commandErrors, commandErrorCount:this.commandErrorCount,
-    }), requests:this.requests.checkpoint()};
-  }
-  restoreCheckpoint(s: ReturnType<GameHost['checkpoint']>): void {
-    restoreWasm(this.rawExports, s.wasm);
-    const {textures, gpu, ...data} = structuredClone(s.data);
-    Object.assign(this, data); Object.assign(this.textures, textures);
-    if (gpu) { if (!this.gpu) throw new HostError('Checkpoint GPU mismatch'); Object.assign(this.gpu, gpu); }
-    this.requests.restoreCheckpoint(s.requests); this.frame.reset(this.logicalWidth,this.logicalHeight);
-  }
+  declare private rawExports: WebAssembly.Exports;
+  declare assertCheckpointBoundary: () => void;
+  declare checkpoint: () => ReturnType<typeof captureHost>;
+  declare restoreCheckpoint: (state: ReturnType<typeof captureHost>) => void;
   readonly frame = new Frame();
   readonly textures = new TextureTable();
   readonly requests = new Requests();
@@ -324,7 +303,7 @@ export class GameHost {
     const instantiateStart = performance.now();
     const instance = await WebAssembly.instantiate(module, imports);
     host.instantiateMs = performance.now()-instantiateStart;
-    host.rawExports = instance.exports;
+    if (import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') host.rawExports = instance.exports;
     // Every synchronous export boundary can abandon a C span (including init,
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
@@ -618,7 +597,7 @@ export class GameHost {
           if (!s.storage) return -6;
           return s.storage.write(key, this.mem().slice(src >>> 0, (src >>> 0) + (len >>> 0)));
         },
-        time_us: () => (s.guestNow ? s.guestNow() : s.now()) * 1000,
+        time_us: () => ((import.meta.env?.DEV || import.meta.env?.VITE_BGT_TEST === '1') && s.guestNow ? s.guestNow() : s.now()) * 1000,
         yield: () => {
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {searchSavestate} from './savestate-search.mjs';
 // Probe mode: run an exploration script against a game's test API in headless Chromium, without writing a spec.
 //
 //   npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out reports/probe] [--params k=v,k=v] [--port N]
@@ -106,24 +107,7 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     },
     importSnapshot: file => page.evaluateHandle(data => window.__BGT_TEST__.importSnapshot(data), readFileSync(resolve(out,file),'utf8')),
     /** Try a timing/input variant per branch. Always restore, even when scoring/capture throws. */
-    async search(snapshot, {variants, updates, input, score, prefix = 'variant'}) {
-      if (!Number.isSafeInteger(updates) || updates < 1) throw new Error('search updates must be positive');
-      const results = [];
-      try {
-        for (let index=0; index<variants.length; index++) {
-          const variant = variants[index]; await p.restore(snapshot);
-          for(let update=0;update<updates;update++) {
-            const events = await input(variant,update,p); if(events?.length) await p.input(events);
-            await p.step(1);
-            const d = await p.diagnostics(); if(d.failed || d.outsideSlice || d.errors.length) throw new Error('search branch failed at update '+update);
-          }
-          const value = await score(p,variant);
-          if(typeof value !== 'number' || !Number.isFinite(value)) throw new Error('search score must be a finite scalar');
-          results.push({variant,score:value,screenshot:await p.screenshot(prefix+'-'+index)});
-        }
-      } finally { await p.restore(snapshot); }
-      return results;
-    },
+    search: (snapshot,options) => searchSavestate(p,snapshot,options),
     readPixels: () => api('readPixels'),
     /** read-only guest memory as a Buffer (null if unmapped) */
     async peek(addr, len) {

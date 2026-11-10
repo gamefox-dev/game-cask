@@ -19,9 +19,10 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
         try { await t.snapshot(); return {unsupported:false}; } catch(e) { return {unsupported:String(e).includes('suspended JSPI')}; }
       }
       const snap = await t.snapshot();
+      const savedBytes=t.exportSnapshot(snap).length,restoreMs:number[]=[];
       const traces: {hash:string|null;pixels:string}[][] = [];
       for(let run=0;run<3;run++) {
-        if(run) await t.restore(run === 2 ? t.importSnapshot(t.exportSnapshot(snap)) : snap);
+        if(run) {const start=performance.now();await t.restore(run === 2 ? t.importSnapshot(t.exportSnapshot(snap)) : snap);restoreMs.push(performance.now()-start);}
         const trace = [];
         for(let i=0;i<(game==='x64-threads'?24:8);i++) {
           t.input([{type:'key',code:'ArrowRight',down:i<4},{type:'button',button:'A',down:i===2}]);
@@ -32,10 +33,11 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
         }
         traces.push(trace);
       }
-      return {unsupported:null, hashes:traces[0].map(x=>x.hash),
+      return {unsupported:null, measurement:{game,bytes:savedBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
         equal:traces.slice(1).map(trace=>trace.map((x,i)=>x.hash===traces[0][i].hash && x.pixels===traces[0][i].pixels)),
         errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
     },game);
+    if(result.measurement) await info.attach('savestate-measurement.json',{body:JSON.stringify(result.measurement),contentType:'application/json'});
     if (suspension==='jspi' && wasSuspended) expect(result.unsupported).toBe(true);
     else {
       expect(result.unsupported).toBeNull();

@@ -1,4 +1,5 @@
 // Bounded asynchronous request results. Visibility advances only at simulation-update boundaries.
+import type { captureRequests } from './savestate-host';
 import { E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_IO } from './abi';
 export interface RequestToken { id: number; issued: number; done: boolean; data?: Uint8Array<ArrayBuffer>; error?: number }
 export class Requests {
@@ -6,11 +7,8 @@ export class Requests {
   private epoch = 0;
   private bytes = 0;
   private next = 1;
-  checkpoint() {
-    if ([...this.entries.values()].some(t => !t.done)) throw new Error('Checkpoint has pending requests');
-    return structuredClone({entries: this.entries, epoch: this.epoch, bytes: this.bytes, next: this.next});
-  }
-  restoreCheckpoint(s: ReturnType<Requests['checkpoint']>): void { Object.assign(this, structuredClone(s)); }
+  declare checkpoint: () => ReturnType<typeof captureRequests>;
+  declare restoreCheckpoint: (s: ReturnType<typeof captureRequests>) => void;
   advance(): void { this.epoch++; }
   reserve(id?: number): RequestToken | number {
     if (this.entries.size >= 32) return E_LIMIT;
