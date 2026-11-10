@@ -23,7 +23,8 @@ function resources(records: RecordedFrame[]): Resources {
   for (const record of records) for (const item of restoreFrame(record).items) {
     // Failed creations reserve failed shader/pipeline objects; failed mutations have no effect.
     const code=(item as unknown as {executeCode?:number}).executeCode;
-    if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)continue;
+    if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
+      throw new Error('Unsupported savestate GPU failed mutation: '+item.op+' ('+code+')');
     if (item.kind === 'texCreate') r.legacy.set(item.handle,{item,data:new Uint8Array(item.width*item.height*4)});
     if (item.kind === 'texDelete') r.legacy.delete(item.handle);
     if (item.kind === 'texUpdate') {
@@ -64,6 +65,9 @@ export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]
   };
   for(const record of residual) for(const item of restoreFrame(record).items) {
     if(item.kind!=='gpu') continue;
+    const code=(item as unknown as {executeCode?:number}).executeCode;
+    if(code && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
+      throw new Error('Unsupported savestate GPU failed mutation: '+item.op+' ('+code+')');
     const {op,words:w}=canonicalize(item.op,item.words),h=w[0];
     switch(op) {
       case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:{...item,op,words:w},allocated:1});break;

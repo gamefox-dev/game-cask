@@ -28,12 +28,14 @@ for(const suspension of ['asyncify','jspi'])for(const noClear of [false,true])te
       for(let i=0;i<8;i++){await t.step(1);trace.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
       traces.push(trace);
     }
-    return {stats:snap.stats,bytes:file.length,smallBytes:t.exportSnapshot(small).length,restoreMs,
+    const after=await t.snapshot();
+    const shadow=(s:typeof snap)=>s.gpuBase!.surfaces.textures.find(x=>x.handle===1);
+    return {metadataStable:JSON.stringify(shadow(after))===JSON.stringify(shadow(snap)),stats:snap.stats,bytes:file.length,smallBytes:t.exportSnapshot(small).length,restoreMs,
       equal:traces.slice(1).map(trace=>trace.every((x,i)=>x.hash===traces[0][i].hash&&x.pixels===traces[0][i].pixels)),
       changing:new Set(traces[0].map(x=>x.pixels)).size,errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
   });
   await info.attach('savestate-measurement.json',{body:JSON.stringify(result),contentType:'application/json'});
-  expect(result.equal).toEqual([true,true]);expect(result.changing).toBeGreaterThan(1);
+  expect(result.equal).toEqual([true,true]);expect(result.changing).toBeGreaterThan(1);expect(result.metadataStable).toBe(true);
   expect(result.stats.residualUpdates).toBeLessThanOrEqual(2);expect(result.stats.residualCommands).toBeLessThanOrEqual(100000);
   expect(result.bytes).toBeLessThan(result.smallBytes*2);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);
 });

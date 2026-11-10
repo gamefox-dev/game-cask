@@ -1,12 +1,24 @@
 // @bgt-examples: sample2d
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import {test,expect,openGame,step,diagnostics,assertBackend} from './fixtures';
 import {compileC} from '../support/compile';
 import type {BGTTestAPI} from '../../bgt/runtime/testapi';
 
-for(const suspension of ['asyncify','jspi']) test('savestate services: '+suspension+' returned boundaries preserve entropy, clock, audio, storage, file positions and memory growth',async({page,backendParam,collector},info)=>{
+for(const suspension of ['asyncify','jspi']) for(const suspended of [false,true]) test('savestate services: '+suspension+' suspended='+suspended+' preserves entropy, clock, audio, storage, file positions and memory growth',async({page,backendParam,collector},info)=>{
   void collector;
-  const bytes=Buffer.from(await compileC('tests/fixtures/c/savestate-game.c'));
+  let bytes=Buffer.from(await compileC('tests/fixtures/c/savestate-game.c',suspended?['SUSPENDING']:[]));
+  if(suspended && suspension==='asyncify') {
+    const dir=mkdtempSync(join(tmpdir(),'bgt-savestate-yield-'));
+    try {
+      writeFileSync(join(dir,'in.wasm'),bytes);
+      execFileSync(process.execPath,['node_modules/binaryen/bin/wasm-opt',join(dir,'in.wasm'),'--enable-bulk-memory','--enable-bulk-memory-opt','--enable-nontrapping-float-to-int','--enable-sign-ext','--enable-mutable-globals','-O2','--asyncify','--pass-arg=asyncify-imports@bgt.yield','-o',join(dir,'out.wasm')]);
+      bytes=readFileSync(join(dir,'out.wasm'));
+    } finally {rmSync(dir,{recursive:true,force:true});}
+  }
   const asset=Buffer.from(Array.from({length:64},(_,i)=>(i*13)&255));
   await page.route('**/games/sample2d/manifest.json',async route=>{
     const response=await route.fetch(),m=await response.json();delete m.variants;
@@ -20,6 +32,11 @@ for(const suspension of ['asyncify','jspi']) test('savestate services: '+suspens
   expect(await openGame(page,backendParam,{deterministic:'1',suspension})).toBe('ready');
   await assertBackend(page,backendParam,info);expect((await diagnostics(page)).suspension).toBe(suspension);
   await step(page,3);
+  expect((await diagnostics(page)).suspended).toBe(suspended);
+  if(suspended && suspension==='jspi') {
+    expect(await page.evaluate(async()=>{try{await (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__.snapshot();return '';}catch(e){return String(e);}})).toContain('suspended JSPI');
+    await step(page,12);expect((await diagnostics(page)).errors).toEqual([]);return;
+  }
   const result=await page.evaluate(async()=>{
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
     t.input([{type:'key',code:'KeyZ',down:true},{type:'pointer',x:2,y:3,buttons:2}]);

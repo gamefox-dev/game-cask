@@ -15,6 +15,7 @@ it('flag-off production bytes are independent of the entire savestate implementa
     return outputs.filter((o):o is Rollup.OutputChunk=>o.type==='chunk').map(o=>o.code).sort();
   };
   const present=await bundle(false),removed=await bundle(true);
+  console.log('K42 production JavaScript bytes:',present.reduce((n,c)=>n+Buffer.byteLength(c),0));
   expect(present).toEqual(removed);
   expect(present.join('')).not.toMatch(/bgt_checkpoint_|bgt-savestate|Savestate|scriptedOnly|guestNow|testHarness|captureTestSurfaces|restoreTestSurfaces|testCheckpointBusy/);
 });

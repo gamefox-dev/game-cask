@@ -66,7 +66,8 @@ entropy or audio admission may behave differently in ordinary play; do not claim
   reading actual safe GPU contents at the residual START, not stale upload shadows or the
   suffix end. Restore rebuilds that base and bounded residual in a fresh renderer, then swaps
   the host/renderer. Guest updates/initialization are not replayed. Native buffer data and its
-  separate CPU validation/repacking shadow are both preserved. Physical retained screen and
+  separate CPU validation/repacking shadow are both preserved, as are texture upload/mipmap
+  recovery metadata (never replaced by rendered native contents). Physical retained screen and
   (WebGPU) logical screen are transferred separately, along with legacy render targets.
   Completion callbacks are replaced with replay-local plumbing; original request results come from
   the checkpoint, never from replay into the original request table.
@@ -79,7 +80,8 @@ unmasked CLEAR_BUFFER operations prove resets; scissored/masked/partial clears d
 common frame-boundary cut exists in that window, snapshot throws an explicit provenance error,
 rather than omitting stencil or keeping unbounded replay work. Resources deleted/reused during the
 residual remain in exact order. Handled failed shader compiles are replayed as failed objects;
-deleted objects are removed from the base.
+deleted objects are removed from the base. Other native failed mutations currently fail the
+checkpoint explicitly: a backend may have partially changed state before reporting its error.
 
 The recorder attempts the same materialization every 120 updates or 32 MiB, keeping long clear-per-frame
 routes bounded before the first explicit snapshot. Snapshot work can replay the uncompacted prefix;

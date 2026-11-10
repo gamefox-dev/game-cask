@@ -18,8 +18,11 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
       if (t.diagnostics().suspension === 'jspi' && t.diagnostics().suspended) {
         try { await t.snapshot(); return {unsupported:false}; } catch(e) { return {unsupported:String(e).includes('suspended JSPI')}; }
       }
+      const early=game==='x64-gl-fbo'?await t.snapshot():null;
+      if(early)await t.step(300);
       const snap = await t.snapshot();
-      const savedBytes=t.exportSnapshot(snap).length,restoreMs:number[]=[];
+      const earlyBytes=early?t.exportSnapshot(early).length:null;
+      const savedHash=t.stateHash(),savedBytes=t.exportSnapshot(snap).length,restoreMs:number[]=[];
       const traces: {hash:string|null;pixels:string}[][] = [];
       for(let run=0;run<3;run++) {
         if(run) {const start=performance.now();await t.restore(run === 2 ? t.importSnapshot(t.exportSnapshot(snap)) : snap);restoreMs.push(performance.now()-start);}
@@ -33,7 +36,7 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
         }
         traces.push(trace);
       }
-      return {unsupported:null, measurement:{game,bytes:savedBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
+      return {unsupported:null,savedHash,exited:(t.diagnostics().metrics as {exited?:number})?.exited, measurement:{game,bytes:savedBytes,earlyBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
         equal:traces.slice(1).map(trace=>trace.map((x,i)=>x.hash===traces[0][i].hash && x.pixels===traces[0][i].pixels)),
         errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
     },game);
@@ -41,10 +44,15 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
     if (suspension==='jspi' && wasSuspended) expect(result.unsupported).toBe(true);
     else {
       expect(result.unsupported).toBeNull();
+      if(game==='x64-gl-fbo')expect(result.measurement!.bytes).toBeLessThan(result.measurement!.earlyBytes!*2);
       expect(result.hashes!.every(x=>x!==null)).toBe(true);
       const updates=game==='x64-threads'?24:8;
       expect(result.equal).toEqual([Array(updates).fill(true),Array(updates).fill(true)]);
-      if(game==='x64-threads') expect(new Set(result.hashes).size).toBeGreaterThan(1);
+      if(game==='x64-threads') {
+        // This fixture completes in update2: prove the LIVE update1 checkpoint
+        // progressed to its exit, not that already-exited suffix frames keep changing.
+        expect(result.hashes![0]).not.toBe(result.savedHash);expect(result.exited).toBe(1);
+      }
       expect(result.errors).toEqual([]); expect(result.commandErrors).toBe(0);
     }
   });

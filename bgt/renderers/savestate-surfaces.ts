@@ -12,10 +12,12 @@ export async function captureWebGL2Renderer(this: WebGL2Renderer,letterbox: Lett
     for (let y = 0; y < height; y++) data.set(raw.subarray((height-1-y)*width*4,(height-y)*width*4),y*width*4);
     g.bindFramebuffer(g.FRAMEBUFFER,null);
     const buffers=[...this.gpu['buffers']].map(([handle,b])=>({handle,shadow:b.data.slice(),generated:!!b.generated}));
-    return {physical:{width,height,data},buffers,retained:!!this['snapshot'],letterbox:{...letterbox}};
+    const textures=[...this.gpu['textures']].map(([handle,t])=>structuredClone({handle,levels:t.levels,generated:t.generated}));
+    return {physical:{width,height,data},buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};
   }
 export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces): void {
     for(const b of s.buffers) {const native=this.gpu['buffers'].get(b.handle)!;native.data=b.shadow.slice();native.generated=b.generated;}
+    for(const t of s.textures) {const native=this.gpu['textures'].get(t.handle)!;native.levels=structuredClone(t.levels!);native.generated=t.generated?{base:t.generated.base,data:t.generated.data!.slice(),overridden:new Set(t.generated.overridden)}:undefined;}
     const g = this['gl'], {width,height,data} = s.physical, raw = new Uint8Array(data.length);
     for (let y = 0; y < height; y++) raw.set(data.subarray(y*width*4,(y+1)*width*4),(height-1-y)*width*4);
     const texture = this['makeTexture'](width,height), fbo = g.createFramebuffer()!;
@@ -36,10 +38,12 @@ export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Lett
     const physical = await this['readback'](this['snapshot'] ?? this['ctx'].getCurrentTexture(),this['format'] === 'bgra8unorm');
     const logical = this['screen'] ? await this['readback'](this['screen']) : undefined;
     const buffers=[...this.gpu.buffers].map(([handle,b])=>({handle,shadow:b.shadow.slice(),generated:!!b.generated}));
-    return {physical,logical,buffers,retained:!!this['snapshot'],letterbox:{...letterbox}};
+    const textures=[...this.gpu['textures']].map(([handle,t])=>structuredClone({handle,uploads:t.uploads,generated:t.generated}));
+    return {physical,logical,buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};
   }
 export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces): void {
     for(const b of s.buffers) {const native=this.gpu.buffers.get(b.handle)!;native.shadow=b.shadow.slice();native.generated=b.generated;}
+    for(const t of s.textures) {const native=this.gpu['textures'].get(t.handle)!;native.uploads=structuredClone(t.uploads!);native.generated=t.generated?{base:t.generated.base,source:structuredClone(t.generated.source!),overridden:new Set(t.generated.overridden)}:undefined;}
     const {device} = this['o'];
     const upload = (p: Pixels, format: GPUTextureFormat, usage: number) => {
       const t = device.createTexture({size:[p.width,p.height],format,usage:usage|GPUTextureUsage.COPY_DST});
