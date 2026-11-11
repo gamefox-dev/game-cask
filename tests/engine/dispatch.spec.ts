@@ -27,7 +27,7 @@ test('engine public port and probe dispatch stay separate from the lifting toolc
   const run = (args: string[]) => execFileSync('npm', ['run', ...args], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 90000 });
   // No runtime: skip cleanly, not a false passing boot. A malformed provision is NOT skipped.
   const absent = run(['test:engine', '--', 'godot3.spec.ts']);
-  expect(absent).toContain('1 skipped');
+  expect(absent).toContain('2 skipped');
   const target = join(root, '.engine-private/runtimes', runtime!.runtime.id); mkdirSync(target, { recursive: true });
   expect(() => run(['test:engine', '--', 'godot3.spec.ts'])).toThrow();
   cpSync(runtime!.target, target, { recursive: true });

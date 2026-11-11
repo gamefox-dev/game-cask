@@ -135,7 +135,12 @@ capture observes the original reader without replacing responses or disabling
 streaming compilation or changing official runtime bytes. A cancellation is classified as
 **canceled-after-complete** only for HTTP 200, EOF already observed at cancellation, positive
 Content-Length equal to all received bytes, and SHA-256 matching the pinned runtime member.
-The cancellation and its full evidence remain in the report. Partial, early, HTTP-error and
+The cancellation and its full evidence remain in the report. Each captured same-origin
+runtime fetch gets a unique diagnostic request-header token, allocated before response headers
+and bound to its Playwright Request; evidence is never selected by URL. A repeated URL cannot
+borrow another request's EOF/hash. This instrumentation exists only in test/probe capture:
+production shells are unchanged, cross-origin requests get no token/preflight, and the token is
+not exposed to the engine/game. Partial, early, HTTP-error and
 wrong-hash responses still fail; unrelated request failures are never ignored. All observed
 runtime bodies are hash/length checked even without a cancellation. This narrowly classifies
 a loader/browser cancellation, not a generally tolerated asset error. The shell exposes

@@ -7,12 +7,22 @@ export async function captureEngineErrors(page, files) {
     const records = []; window.__ENGINE_REQUEST_EVIDENCE__ = records;
     const originalFetch = window.fetch;
     window.fetch = async function (...args) {
-      const response = await originalFetch.apply(this, args);
-      const url = new URL(args[0] instanceof Request ? args[0].url : String(args[0]), location.href);
+      const inputRequest = args[0] instanceof window.Request;
+      const url = new URL(inputRequest ? args[0].url : String(args[0]), location.href);
       const name = url.pathname.slice(1);
-      if (url.origin !== location.origin || !Object.hasOwn(expected, name) || !response.body) return response;
-      const record = { url: url.href, status: response.status, length: Number(response.headers.get('Content-Length')), received: 0, done: false, sha256: null };
+      // Capture-only identity: never touch cross-origin requests or production shells.
+      // Allocate BEFORE fetch so an abort before response headers cannot borrow a
+      // previous response's EOF/hash. Bind this token to Playwright's Request.
+      if (url.origin !== location.origin || !Object.hasOwn(expected, name)) return originalFetch.apply(this, args);
+      const token = crypto.randomUUID();
+      const headers = new window.Headers(args[1]?.headers ?? (inputRequest ? args[0].headers : undefined));
+      headers.set('X-Game-Cask-Capture-Id', token);
+      args[1] = { ...args[1], headers };
+      const record = { token, url: url.href, status: null, length: 0, received: 0, done: false, sha256: null };
       records.push(record);
+      const response = await originalFetch.apply(this, args);
+      record.status = response.status; record.length = Number(response.headers.get('Content-Length'));
+      if (!response.body) return response;
       const stream = response.body, originalReader = stream.getReader;
       stream.getReader = function (...readerArgs) {
         const reader = originalReader.apply(this, readerArgs), read = reader.read, chunks = [];
@@ -44,11 +54,12 @@ export async function captureEngineErrors(page, files) {
     requests.push(failure);
     // Snapshot received bytes at cancellation, not merely at end-of-test. Partial
     // cancellations can NEVER be reclassified by a later successful retry.
-    const snapshot = page.evaluate(url => {
+    const token = request.headers()['x-game-cask-capture-id'];
+    const snapshot = page.evaluate(token => {
       const records = window.__ENGINE_REQUEST_EVIDENCE__ ?? [];
-      const r = records.filter(r => r.url === url).at(-1);
-      return r ? { received: r.received, done: r.done, length: r.length, index: records.indexOf(r) } : null;
-    }, request.url()).catch(() => null);
+      const r = token && records.find(r => r.token === token);
+      return r ? { token: r.token, received: r.received, done: r.done, length: r.length, index: records.indexOf(r) } : null;
+    }, token).catch(() => null);
     pending.push({ failure, snapshot });
   });
   return { errors, requests, async finish() {
@@ -58,7 +69,7 @@ export async function captureEngineErrors(page, files) {
         const r = window.__ENGINE_REQUEST_EVIDENCE__?.[index];
         if (!r) return null;
         await r.hashing;
-        return { url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256 };
+        return { token: r.token, url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256 };
       }, first.index).catch(() => null);
       failure.evidence = { atCancellation: first, completed: final };
       const name = new URL(failure.url).pathname.slice(1);
@@ -70,7 +81,7 @@ export async function captureEngineErrors(page, files) {
     const bodies = await page.evaluate(async () => {
       const records = window.__ENGINE_REQUEST_EVIDENCE__ ?? [];
       await Promise.all(records.map(r => r.hashing));
-      return records.map(r => ({ url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256 }));
+      return records.map(r => ({ token: r.token, url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256 }));
     }).catch(e => { errors.push('runtime evidence unavailable: ' + e.message); return []; });
     for (const name of Object.keys(expected)) if (!bodies.some(r => new URL(r.url).pathname === '/' + name)) errors.push('missing runtime body evidence: ' + name);
     for (const r of bodies) {
