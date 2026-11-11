@@ -89,12 +89,13 @@ residual remain in exact order. Handled failed shader compiles are replayed as f
 deleted objects are removed from the base. Other native failed mutations currently fail the
 checkpoint explicitly: a backend may have partially changed state before reporting its error.
 
-The recorder attempts the same materialization every 120 updates or 32 MiB, keeping long clear-per-frame
-routes bounded before the first explicit snapshot. Snapshot work can replay the uncompacted prefix;
-failed materialization preserves the recorder. A 256 MiB estimated journal limit fails closed if
-repeated compaction is unsupported. An earlier valid checkpoint can still be restored. Saved
-stats report native content bytes, residual command/update counts and snapshot ms. File size scales
-with nonzero guest pages and live GPU state. No nine-minute real-game latency certification is implied.
+Compaction runs only at snapshot time or at an explicit `compactJournal()` call, never periodically during
+updates. Readback-safe end cuts capture directly from the live renderer; packed depth/stencil or legacy
+render-target cuts can replay the uncompacted prefix in a temporary renderer. Failed materialization preserves
+the recorder. A 2 GiB estimated raw-journal limit fails closed; use explicit compaction points on long routes.
+An earlier valid checkpoint can still be restored. Saved stats report native content bytes, residual
+command/update counts and snapshot ms. File size scales with nonzero guest pages and live GPU state.
+No nine-minute real-game latency certification is implied.
 
 Unsupported module features fail closed: passive/declarative data/element segment lifetime state,
 start functions, imported non-functions/multiple memories/exception tags, nonnumeric globals or
@@ -105,6 +106,9 @@ canonicalize NaN payloads. Current C kit fixtures use numeric globals/active seg
 
 ## Probe searches and files
 
+Probe scripts already run as long-lived sessions: the page stays booted until the script returns.
+Capture once with `p.snapshot()` (or import once), then call `p.restore(handle)` / `p.search(handle, ...)`
+as many times as needed; these operations never reload the page or run guest initialization.
 Probe snapshots are browser-local Playwright `JSHandle`s: do not pass them through JSON or
 `page.evaluate` return serialization (which loses Maps, typed arrays and bigint). Dispose handles.
 
@@ -123,7 +127,7 @@ export default async function (p) {
   await p.step(20);
   const checkpoint = await p.snapshot();
   try {
-    await p.exportSnapshot(checkpoint, 'route.bgtstate.json');
+    await p.exportSnapshot(checkpoint, 'route.bgtstate');
     const results = await p.search(checkpoint, {
       variants: [0, 1, 2, 3], updates: 12,
       // Called once per branch update; events use existing __BGT_TEST__.input semantics.
@@ -138,11 +142,17 @@ export default async function (p) {
 }
 ```
 
-`p.importSnapshot('route.bgtstate.json')` returns another handle; use `await p.restore(handle)`.
+`p.importSnapshot('route.bgtstate')` returns another handle; use `await p.restore(handle)`.
 Files resolve relative to the probe output directory. Import into a newly booted deterministic-mode
 instance with matching configuration, after consuming its initial frame. Browser equivalents are
-`exportSnapshot(snap): string` and `importSnapshot(text): Savestate`. The file codec retains exact
-u64 bigint values, float-global bit patterns, infinities, Maps/Sets, byte/key arrays and negative zero; it is not a public network protocol.
+`exportSnapshot(snap)` returns a ReadableStream and `importSnapshot(stream)` consumes it asynchronously. The versioned private BGTSTATE binary format has bounded length-prefixed metadata and raw blob records (at most 1 MiB each), with optional per-chunk DEFLATE via `exportSnapshot(snap, {compression: 'deflate'})`. It rejects unknown versions, malformed lengths, duplicate sections, truncation and trailing bytes. Wasm pages, GPU blobs and byte arrays never become one giant JSON string or file buffer.
+Aggregate in-memory clones also copy byte backing buffers individually (preserving aliases/views),
+not through Chromium's approximately 2 GiB structured-clone serialization envelope. Restore captures
+the caller's checkpoint synchronously before its first await, so subsequent caller mutation cannot race replay.
+
+The tagged JSON representation is debug-only: use `exportSnapshotDebugJson`/`importSnapshotDebugJson` for small diagnostics; it is capped at 8 MiB and retains exact u64 bigint values, float-global bit patterns, infinities, Maps/Sets, byte/key arrays and negative zero. It is not a public network protocol. Probe transfer reads and writes 1 MiB chunks and atomically renames a completed partial file.
+
+The recorder stores only resource mutations and required provenance, not readback observations or completion functions. It does no JSON/base64 accounting or periodic compaction during updates. `compactJournal()` is a test-only quiescent-boundary operation for long lead-ins; `journalStats()` reports growth and the 2 GiB fail-closed limit. Snapshot-time compaction remains exact and bounded by live resources plus two updates/100,000 residual commands. The GL-heavy CC0 profile in `tests/e2e/savestate-performance.spec.ts` reports deterministic/non-deterministic wall time, overhead and journal growth; these are local engineering measurements, not hardware or real-game certification.
 
 Search always restores before each variant and in `finally`, including score/screenshot failures.
 Record the lead-in and winning input variant as an ordinary deterministic-mode full-route test too.

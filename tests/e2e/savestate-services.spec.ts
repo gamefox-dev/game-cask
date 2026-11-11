@@ -43,7 +43,7 @@ for(const suspension of ['asyncify','jspi']) for(const suspended of [false,true]
     const snap=await t.snapshot(),before=t.diagnostics().wasmMemoryBytes;
     const traces: {hash:string|null;pixels:string}[][]=[];
     for(let run=0;run<3;run++) {
-      if(run) await t.restore(run===2?t.importSnapshot(t.exportSnapshot(snap)):snap);
+      if(run) await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(snap)):snap);
       if(t.diagnostics().wasmMemoryBytes!==before) throw new Error('Restored memory did not shrink');
       const trace=[];
       for(let i=0;i<12;i++) {
@@ -52,8 +52,12 @@ for(const suspension of ['asyncify','jspi']) for(const suspended of [false,true]
       }
       traces.push(trace);
     }
+    const grew=t.diagnostics().wasmMemoryBytes>before;
+    const restoring=t.restore(snap);snap.host.wasm.memory.pages.clear();snap.services.rng=0;
+    await restoring;await t.step(1);
+    const mutationIsolated=t.stateHash()===traces[0][0].hash&&(await t.readPixels())!.base64===traces[0][0].pixels;
     return {equal:traces.slice(1).map(xs=>xs.every((x,i)=>x.hash===traces[0][i].hash && x.pixels===traces[0][i].pixels)),
-      changing:new Set(traces[0].map(x=>x.hash)).size,grew:t.diagnostics().wasmMemoryBytes>before,errors:t.diagnostics().errors};
+      changing:new Set(traces[0].map(x=>x.hash)).size,grew,mutationIsolated,errors:t.diagnostics().errors};
   });
-  expect(result.equal).toEqual([true,true]);expect(result.changing).toBe(12);expect(result.grew).toBe(true);expect(result.errors).toEqual([]);
+  expect(result.mutationIsolated).toBe(true);expect(result.equal).toEqual([true,true]);expect(result.changing).toBe(12);expect(result.grew).toBe(true);expect(result.errors).toEqual([]);
 });

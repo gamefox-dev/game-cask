@@ -44,7 +44,7 @@ describe('complete engine-state checkpoints',()=>{
     expect(state.memory.pages.get(65536)![120000-65536]).toBe(183);
     expect(state.memory.byteLength).toBe(3*65536);
     expect(state.memory.pages.size).toBe(1);
-    const imported=importSavestate(exportSavestate({schema:'bgt-savestate/1',host:{wasm:state}} as Savestate));
+    const imported=await importSavestate(exportSavestate({schema:'bgt-savestate/1',host:{wasm:state}} as Savestate));
     expect(imported.host.wasm).toEqual(state);
   });
   it('roundtrips Infinity and exact f32/f64 NaN global payloads through file export, including mutable setters',async()=>{
@@ -55,11 +55,11 @@ describe('complete engine-state checkpoints',()=>{
     expect(state.globals[0]).toEqual({bits:0x7fc12345});
     expect(state.globals[1]).toEqual({bits:0x7ff8123456789abcn});
     const file=exportSavestate({schema:'bgt-savestate/1',host:{wasm:state}} as Savestate);
-    const decoded=importSavestate(file),b=(await WebAssembly.instantiate(bytes)).instance.exports;
+    const decoded=await importSavestate(file),b=(await WebAssembly.instantiate(bytes)).instance.exports;
     (b[checkpointName('setbits',0)] as (v:number)=>void)(0);
     restoreWasm(b,decoded.host.wasm);expect(captureWasm(b)).toEqual(state);
     const arbitrary={schema:'bgt-savestate/1',values:[Infinity,-Infinity,NaN]} as unknown as Savestate;
-    expect(importSavestate(exportSavestate(arbitrary))).toEqual(arbitrary);
+    expect(await importSavestate(exportSavestate(arbitrary))).toEqual(arbitrary);
   });
   it('refuses uninstrumented modules rather than silently missing their hidden globals',async()=>{
     const a=(await WebAssembly.instantiate(wasm(module))).instance.exports;
@@ -69,10 +69,10 @@ describe('complete engine-state checkpoints',()=>{
     expect(()=>instrumentCheckpointWasm(wasm('(module (memory (export "memory") 1) (data "hello"))'))).toThrow(/passive/);
     expect(()=>instrumentCheckpointWasm(wasm('(module (memory (export "memory") 1) (func $start) (start $start))'))).toThrow(/start/);
   });
-  it('roundtrips input/VFS/requests maps, sets, unsigned keys, bytes, bigint and negative zero',()=>{
+  it('roundtrips input/VFS/requests maps, sets, unsigned keys, bytes, bigint and negative zero',async()=>{
     const state={schema:'bgt-savestate/1',host:{wasm:{globals:[-0,9007199254740993n]}},
       map:new Map([[23,new Uint8Array([0,255,1])]]),set:new Set([7,9]),keys:new Uint32Array([0xffffffff])} as unknown as Savestate;
-    expect(importSavestate(exportSavestate(state))).toEqual(state);
-    expect(()=>importSavestate('{"schema":"no"}')).toThrow(/Unsupported/);
+    expect(await importSavestate(exportSavestate(state))).toEqual(state);
+    await expect(importSavestate(new ReadableStream({start(c){c.enqueue(new Uint8Array(16));c.close();}}))).rejects.toThrow(/Unsupported/);
   });
 });

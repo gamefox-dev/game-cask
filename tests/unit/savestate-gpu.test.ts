@@ -80,7 +80,7 @@ it('new mip allocation initializes only NEW levels and handles generation replac
   expect(()=>proveResidual([...prefix,f([{op:O.TEXTURE_DELETE,words:[7]},create,allocate])],[])).not.toThrow();
 });
 it('recompaction never re-infers initialized constants for unavailable base aspects',()=>{
-  const base={...f([create,pass(1,0),end]),packedConstants:[[7,[[0x3f000000,null]]]]};
+  const base={...f([create,pass(1,0),end]),packedConstants:[[7,[[0x3f000000,null]]]] as [number,[number|null,number|null][]][]};
   expect(()=>proveResidual([base],[])).toThrow(/provenance/);
   expect(()=>proveResidual([base],[f([pass(0,1),draw])])).not.toThrow();
 });
