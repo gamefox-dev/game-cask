@@ -15,9 +15,9 @@ BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p){
  return 0;
 }
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt){
- (void)dt;tick++;
+ (void)dt;tick++;uint32_t word=tick*0x1234567u;
  if(allocated<100){bgt_gpu_buffer_create_t b={allocated+1,1,sizeof upload,(uint32_t)(uintptr_t)upload,sizeof upload};bgt_cmd_gpu_buffer_create(&cb,&b);allocated++;}
- else {uint32_t word=tick*0x1234567u;bgt_gpu_buffer_update_t u={tick%100+1,(tick*4096u)%(sizeof upload-4),(uint32_t)(uintptr_t)&word,4};bgt_cmd_gpu_buffer_update(&cb,&u);}
+ else {bgt_gpu_buffer_update_t u={tick%100+1,(tick*4096u)%(sizeof upload-4),(uint32_t)(uintptr_t)&word,4};bgt_cmd_gpu_buffer_update(&cb,&u);}
  bgt_cmd_clear(&cb,0xff000000u|(tick*193u));
  int32_t code=bgt_cmd_submit(&cb);if(code<0)bgt_abort(code,"scale submit",12);
  *((volatile unsigned char *)(uintptr_t)(base+(tick%16384)*65536u))^=(unsigned char)tick;

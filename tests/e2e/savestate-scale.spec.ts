@@ -30,16 +30,24 @@ test('savestate real 400 MiB GPU and 1 GiB memory scale',async({page,backendPara
   let fileBytes=0;const start=performance.now(),reader=t.exportSnapshot(snap).getReader();
   for(;;){const p=await reader.read();if(p.done)break;if(p.value.length>1024*1024)throw new Error('Oversized export chunk');fileBytes+=p.value.length;}
   const exportMs=performance.now()-start;
+  // A separate owned-chunk transport exercises browser import above its structured-clone envelope.
+  const importing=performance.now();
+  const imported=await t.importSnapshot(t.exportSnapshot(snap).pipeThrough(new TransformStream({transform(chunk,c){c.enqueue(chunk.slice());}})));
+  const importMs=performance.now()-importing;
+  const importNativeEqual=JSON.stringify(await digest(imported))===JSON.stringify(await digest(snap));
+  let importMemoryEqual=imported.host.wasm.memory.byteLength===memory.byteLength&&imported.host.wasm.memory.pages.size===memory.pages.size;
+  for(const [at,b] of memory.pages){const a=imported.host.wasm.memory.pages.get(at);if(!a||a.length!==b.length||a.some((v,i)=>v!==b[i])){importMemoryEqual=false;break;}}
   const trace=[];for(let i=0;i<3;i++){await t.step(1);trace.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
-  const restoring=performance.now();await t.restore(snap);const restoreMs=performance.now()-restoring;
+  const restoring=performance.now();await t.restore(imported);const restoreMs=performance.now()-restoring;
   const replay=[];for(let i=0;i<3;i++){await t.step(1);replay.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
   const again=await t.snapshot();
-  return {snapshotMs,restoreMs,exportMs,fileBytes,stats:snap.stats,memoryBytes:memory.byteLength,pages:memory.pages.size,
+  return {snapshotMs,restoreMs,exportMs,importMs,importNativeEqual,importMemoryEqual,fileBytes,stats:snap.stats,memoryBytes:memory.byteLength,pages:memory.pages.size,
    equal:JSON.stringify(trace)===JSON.stringify(replay),nativeEqual:JSON.stringify(hashes)===JSON.stringify(await digest(again)),
+   nativeDiff:again.gpuBase!.frame.items.filter(x=>x.kind==='gpu'&&x.data instanceof Uint8Array).flatMap((x,i)=>{const a=x.data as Uint8Array,b=expected[i].data as Uint8Array;const at=a.findIndex((v,j)=>v!==b[j]);return at<0?[]:[{handle:(x.words as number[])[0],at,actual:[...a.subarray(at,at+8)],expected:[...b.subarray(at,at+8)]}];}),
    errors:t.diagnostics().errors,commands:t.diagnostics().commandErrors.count};
  });
  await info.attach('scale-measurement.json',{body:JSON.stringify(result),contentType:'application/json'});
  expect(result.stats.nativeBytes).toBeGreaterThanOrEqual(400*1024*1024);expect(result.memoryBytes).toBeGreaterThan(1024**3);
  expect(result.pages).toBeGreaterThanOrEqual(16384);expect(result.fileBytes).toBeGreaterThan(1024**3);
- expect(result.equal).toBe(true);expect(result.nativeEqual).toBe(true);expect(result.errors).toEqual([]);expect(result.commands).toBe(0);
+ expect(result.importNativeEqual).toBe(true);expect(result.importMemoryEqual).toBe(true);expect(result.equal).toBe(true);expect(result.nativeEqual).toBe(true);expect(result.errors).toEqual([]);expect(result.commands).toBe(0);
 });

@@ -1,5 +1,6 @@
 // Test-only deterministic checkpoint controller. Installed before boot, never in normal play.
 import { DT_US } from './abi';
+import {cloneCheckpoint} from './savestate-clone';
 import type { GameHost, HostServices } from './host';
 import type { BGTRuntime } from './runtime';
 import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type CheckpointFrame} from './savestate-recording';
@@ -104,9 +105,9 @@ export class Savestates {
       const compact = await this.materialize();
       return {schema:'bgt-savestate/1',identity:this.identity(),backend:rt.renderer!.kind,
         width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,
-        gpuBase:structuredClone(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
-        services:structuredClone({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,storage:this.storage}),
-        journal:structuredClone(this.journal)};
+        gpuBase:cloneCheckpoint(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
+        services:cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,storage:this.storage}),
+        journal:cloneCheckpoint(this.journal)};
     });
   }
   compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
@@ -127,7 +128,7 @@ export class Savestates {
   restore(snapshot: Savestate): Promise<void> {
     return this.exclusive(async () => {
       // Clone before any await: caller mutation must not race validation or replay.
-      const s = structuredClone(snapshot), rt = this.rt;
+      const s = cloneCheckpoint(snapshot), rt = this.rt;
       if (s.schema !== 'bgt-savestate/1' || s.identity !== this.identity() || s.backend !== rt.renderer!.kind ||
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
       // Reject live JSPI continuation before allocating a replacement; never silently abandon a suspended task.

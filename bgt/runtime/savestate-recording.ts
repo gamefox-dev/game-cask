@@ -12,7 +12,11 @@ export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:num
     vertices:copy?frame.vertexBytes().slice():frame.vertexBytes(),items:frame.items.flatMap<Record<string,unknown>>(item=>{
       // Observation results already live in the host request checkpoint. Replay must not issue them.
       if(!recordsMutation(item))return [];
-      if(item.kind==='gpu')return [{kind:'gpu',op:item.op,words:item.words,...(item.data?{data:item.data}:{}),...(item.source!==undefined?{source:item.source}:{})}];
+      if(item.kind==='gpu'){
+        const outcome=item as typeof item & {executeCode?:number;completeCode?:number};
+        return [{kind:'gpu',op:item.op,words:item.words,...(item.data?{data:item.data}:{}),...(item.source!==undefined?{source:item.source}:{}),
+          ...(outcome.executeCode!==undefined?{executeCode:outcome.executeCode}:{}),...(outcome.completeCode!==undefined?{completeCode:outcome.completeCode}:{})}];
+      }
       if(item.kind==='draw')return [{...item,clip:{...item.clip}}];
       if(item.kind==='texUpdate')return [{...item}];
       return [{...item}];
