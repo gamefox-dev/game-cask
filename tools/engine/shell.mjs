@@ -1,5 +1,5 @@
 export function generateShell({ id, name, runtime, packSize, wasmSize, width = 640, height = 360, packSha256 }) {
-  const json = value => JSON.stringify(value).replaceAll('<', '\u003c');
+  const json = value => JSON.stringify(value).replaceAll('<', '\\u003c');
   const title = String(name).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>' + title + '</title></head>' +
     '<body style="margin:0;background:#000"><canvas id="canvas" tabindex="0" width="' + width + '" height="' + height + '"></canvas><pre id="status" role="status"></pre>' +

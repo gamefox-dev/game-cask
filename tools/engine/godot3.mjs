@@ -80,6 +80,8 @@ export function parsePack(input) {
 
 export function unsupportedFeatures(parsed, inventory = []) {
   const blockers = new Set();
+  if (inventory.some(f => f.format === 'pe-dotnet')) blockers.add('Mono/C#');
+  if (parsed.entries.some(e => /\.pck$/i.test(e.name))) blockers.add('additional-packs');
   const names = [...parsed.entries.map(e => e.name), ...inventory.map(f => f.path)].map(n => n.toLowerCase());
   for (const name of names) {
     if (/\.(dll|so|dylib|gdnlib|gdns)$/.test(name)) blockers.add('native-extension/GDNative');
@@ -88,15 +90,26 @@ export function unsupportedFeatures(parsed, inventory = []) {
     if (/\.worker\.js$/.test(name)) blockers.add('threads-build');
   }
   for (const e of parsed.entries) {
-    const data = parsed.pack.subarray(e.offset, e.offset + Math.min(e.size, 1048576));
+    const data = parsed.pack.subarray(e.offset, e.offset + e.size);
     if (data.subarray(0, 4).toString('ascii') === 'GDEC') blockers.add('encrypted-script');
-    if (/\.(gd|tscn|tres|godot|gdnlib)$/.test(e.name)) {
-      const text = data.toString('utf8');
-      if (/\b(Thread\.new|Thread\s*\(|JavaScript\.eval|OS\.execute)/.test(text)) blockers.add('threads/platform-code');
-      if (/\.pck["']|load_resource_pack\s*\(/i.test(text)) blockers.add('additional-packs');
+    if (/\.(gd|tscn|tres|godot|gdnlib)$/i.test(e.name)) {
+      // Bounded decoding, but cover the ENTIRE resource, including chunk boundaries.
+      // Static text heuristics are supplementary, never a complete feature inventory.
+      const chunk = 1048576, overlap = 512;
+      for (let at = 0; at < data.length; at += chunk) {
+        const text = data.subarray(Math.max(0, at - overlap), Math.min(data.length, at + chunk)).toString('utf8');
+        if (/\b(Thread\s*\.\s*new|Thread\s*\(|JavaScript\s*\.\s*eval|OS\s*\.\s*execute)/.test(text)) blockers.add('threads/platform-code');
+        if (/\.pck["']|load_resource_pack\s*\(/i.test(text)) blockers.add('additional-packs');
+      }
     }
   }
   return [...blockers].sort();
+}
+
+export function featureWarnings(parsed) {
+  const warnings = ['feature-scan-incomplete: static detection is not a complete platform feature inventory; require browser boot, input and no runtime errors before any level claim'];
+  if (parsed.entries.some(e => /\.gdc$/i.test(e.name))) warnings.push('compiled-GDScript: bytecode feature use is not scanned; structural native/Mono/encryption/thread detectors still apply');
+  return warnings;
 }
 
 /** runner signatures are corroboration, not proof that arbitrary forks are official. */

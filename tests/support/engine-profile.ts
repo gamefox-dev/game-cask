@@ -19,11 +19,7 @@ export async function engineKey(page: Page, code: string, frames = 3): Promise<v
 /** Wait for browser RAFs, NOT deterministic game updates. */
 export const observeEngineFrames = (page: Page, n: number): Promise<void> => page.evaluate(k => (window as any).__BGT_TEST__.waitFrames(k), n);
 export const engineTiming = (page: Page): Promise<{ source: string; samples: number; avgMs: number | null; p95Ms: number | null }> => page.evaluate(() => (window as any).__BGT_TEST__.timing());
-export function collectEngineErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('pageerror', e => errors.push('page: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-  page.on('response', r => { if (r.status() >= 400) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
-  page.on('requestfailed', r => errors.push('request: ' + r.url() + ' ' + r.failure()?.errorText));
-  return errors;
-}
+// Install BEFORE navigation, then await capture.finish() before asserting errors.
+// Pass the pinned runtime fileHashes (not a porter-authored expected digest).
+// @ts-expect-error shared ESM collector
+export { captureEngineErrors as collectEngineErrors } from '../../tools/engine/capture.mjs';

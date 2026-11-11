@@ -111,13 +111,34 @@ offsets are accepted; only absolute offsets need rebasing. Inputs are bounded to
 
 Explicit blockers include native/GDNative libraries, Mono/C#, encrypted formats/scripts, threads,
 additional packs, unknown runner signatures and version/runtime mismatch. Known script-level
-platform/thread usage is conservative. Static detection is not a complete feature inventory;
-compiled/dynamic scripts can still use unsupported functionality. Browser evidence is mandatory.
+platform/thread usage is conservative. Text resources are scanned in bounded, overlapping chunks across the **entire** resource,
+not only its prefix. Text heuristics supplement structural detectors; they are not a complete
+feature inventory. Compiled .gdc scripts remain allowed because normal exports use them, but
+the detection/build report emits **feature-scan-incomplete** and a compiled-GDScript warning:
+bytecode/dynamic scripts can use unsupported functionality. Structural GDNative, native library,
+Mono/assembly, encrypted pack/script and known thread-build detectors remain fail-closed.
+Browser boot, input-induced visible change and no runtime errors are mandatory before **any**
+level claim; static detection/build success is not L1.
 
 ## Browser tests/probes and unsupported BGT capabilities
 
 The tests/support/engine-profile.ts adapter opens a served build, injects trusted Playwright DOM
-keys, observes RAF intervals, and collects console/page/HTTP/request failures. The shell exposes
+keys, observes RAF intervals, and collects console/page/HTTP/request failures. Install
+`await collectEngineErrors(page, runtimeById(id).fileHashes)` before navigation, then
+`await capture.finish()` before asserting errors; attach its requests and body evidence.
+Use the checked-in allowlist hashes, not mutable build/port-provided expected hashes.
+
+Godot 3.5.3 wraps the original fetch reader in a progress stream, then tees/clones that
+response for instantiation. Chromium can report `net::ERR_ABORTED` at this stream handoff/EOF
+after receiving the entire wasm, before engine startup (not page/server shutdown). Test/probe
+capture observes the original reader without replacing responses or disabling
+streaming compilation or changing official runtime bytes. A cancellation is classified as
+**canceled-after-complete** only for HTTP 200, EOF already observed at cancellation, positive
+Content-Length equal to all received bytes, and SHA-256 matching the pinned runtime member.
+The cancellation and its full evidence remain in the report. Partial, early, HTTP-error and
+wrong-hash responses still fail; unrelated request failures are never ignored. All observed
+runtime bodies are hash/length checked even without a cancellation. This narrowly classifies
+a loader/browser cancellation, not a generally tolerated asset error. The shell exposes
 a compatible **observation subset** of __BGT_TEST__ so existing screenshot, readPixels,
 captureRegion/expectChange, input, diagnostics and probe helpers can be reused.
 The engine:probe command uses the existing makeProbe facade and normal script style.

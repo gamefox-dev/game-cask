@@ -1,12 +1,12 @@
 // Generic profile orchestration. Engine-specific pack/shell semantics stay in adapters.
-import { readFileSync, writeFileSync, lstatSync, realpathSync, mkdirSync, cpSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, lstatSync, realpathSync, mkdirSync, cpSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { inventory } from '../inspect/inspect.mjs';
-import { parsePack, identifyRunner, unsupportedFeatures, sha256 } from './godot3.mjs';
+import { parsePack, identifyRunner, unsupportedFeatures, featureWarnings, sha256 } from './godot3.mjs';
 import { PRIVATE, ENGINE_ROOT, runtimeById, verifyRuntime } from './runtime.mjs';
 import { generateShell } from './shell.mjs';
 
-export const adapters = Object.freeze({ godot3: { engine: 'godot', parsePack, identifyRunner, unsupportedFeatures, generateShell } });
+export const adapters = Object.freeze({ godot3: { engine: 'godot', parsePack, identifyRunner, unsupportedFeatures, featureWarnings, generateShell } });
 export function validateConfig(cfg) {
   if (cfg.pipeline && cfg.engineProfile) throw new Error('pipeline and engineProfile are mutually exclusive');
   if (!cfg.engineProfile) throw new Error('engineProfile missing');
@@ -35,6 +35,20 @@ function safeInput(root, name) {
 export function detectProfile(inspectOutput, { root, runner, pack = runner, runtimeId = 'godot-3.5.3' }) {
   if (inspectOutput?.schema !== 'game-cask/inventory/1') throw new Error('engine detection requires inspect inventory/1');
   const runtime = runtimeById(runtimeId), adapter = adapters[runtime.adapter];
+  // inspect has bounded depth/count. Do not treat silently omitted paths as a complete
+  // native/Mono inventory, without changing the lifting pipeline's inspect behavior.
+  const known = new Set(inspectOutput.files.map(f => f.path));
+  const audit = (dir, prefix = '', depth = 0) => {
+    if (depth > 12) throw new Error('engine input inventory incomplete: directory depth limit');
+    for (const name of readdirSync(dir)) {
+      if (name === '.gitkeep' || name === '.DS_Store') continue;
+      const file = join(dir, name), path = prefix + name, st = lstatSync(file);
+      if (st.isSymbolicLink() || !st.isFile() && !st.isDirectory()) throw new Error('engine input has uninspected file/symlink: ' + path);
+      if (st.isDirectory()) audit(file, path + '/', depth + 1);
+      else if (!known.has(path)) throw new Error('engine input inventory incomplete: ' + path);
+    }
+  };
+  audit(root);
   const load = name => {
     const record = inspectOutput.files.find(f => f.path === name);
     if (!record) throw new Error('input missing from inspect inventory: ' + name);
@@ -51,6 +65,7 @@ export function detectProfile(inspectOutput, { root, runner, pack = runner, runt
   if (inspectOutput.files.filter(f => /\.pck$/i.test(f.path) && f.path !== pack).length) blockers.push('additional-packs');
   return { schema: 'game-cask/engine-detection/1', adapter: runtime.adapter, engine: runtime.engine,
     version: parsed.version, build: identity.build, runtimeId, identity, blockers: [...new Set(blockers)].sort(),
+    warnings: adapter.featureWarnings(parsed),
     runnerSha256: sha256(r.bytes), sourceSha256: parsed.sourceSha256, packSha256: parsed.packSha256,
     location: parsed.location, rebasedOffsets: parsed.rebasedOffsets, files: parsed.entries.length,
     _parsed: parsed };

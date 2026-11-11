@@ -22,7 +22,7 @@ export async function serveEngine(dir, { port = Number(process.env.BGT_E2E_PORT 
   files.set('/manifest.json', Buffer.from(JSON.stringify(manifest)));
   const server = createServer((req, res) => {
     const headers = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store',
-      // Game logic stays sandboxed in the browser. External networking, embeds, popups blocked.
+      // Restrict subresources/connects/embeds. CSP is not an OS sandbox or navigation policy.
       'Content-Security-Policy': "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'",
       ...(manifest.engineProfile.requirements.isolation ? { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } : {}) };
     let path;
