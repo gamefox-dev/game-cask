@@ -1,0 +1,20 @@
+// CC0-1.0. Copied only into an isolated engine port by the dispatcher regression.
+import { test, expect } from '@playwright/test';
+import { openEngineProfile, engineKey, observeEngineFrames, engineTiming } from '../../tests/support/engine-profile';
+import { captureEngineErrors } from '../../tools/engine/capture.mjs';
+import { runtimeById } from '../../tools/engine/runtime.mjs';
+test('standard port dispatcher boots the engine and preserves input/pixels/timing', async ({ page, baseURL }, info) => {
+  info.annotations.push({ type: 'catches', description: 'Engine ports must not invoke BGT slice/lift setup; the served engine build must draw and receive DOM input.' });
+  const capture = await captureEngineErrors(page, runtimeById('godot-3.5.3').fileHashes);
+  await openEngineProfile(page, baseURL!); await observeEngineFrames(page, 20);
+  const before = await page.screenshot();
+  await engineKey(page, 'Enter');
+  const after = await page.screenshot();
+  expect(after.equals(before)).toBe(false);
+  await info.attach('before.png', { body: before, contentType: 'image/png' });
+  await info.attach('after.png', { body: after, contentType: 'image/png' });
+  expect((await engineTiming(page)).samples).toBeGreaterThan(0);
+  const network = await capture.finish();
+  await info.attach('network.json', { body: JSON.stringify(network), contentType: 'application/json' });
+  expect(network.errors).toEqual([]);
+});

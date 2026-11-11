@@ -52,7 +52,7 @@ async function freePort(start) {
 }
 
 /** The object handed to the script. Coordinates are logical pixels. */
-export function makeProbe(page, { game, backend, out, params, log, profiler = null }) {
+export function makeProbe(page, { game, backend, out, params, log, profiler = null, engineUrl = null }) {
   let activeRead=null,readBinding;
   const rawApi = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
   const api = (fn, ...args) => fn === 'step' && profiler ? profiler.step(args[0],rawApi) : rawApi(fn,...args);
@@ -69,7 +69,7 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     params,
     async start(extra = {}) {
       const q = new URLSearchParams({ game, backend, paused: '1', ephemeral: '1', ...params, ...extra });
-      await page.goto(`/?${q}`);
+      await page.goto(engineUrl ?? `/?${q}`);
       await page.waitForFunction(() => { const t = window.__BGT_TEST__; return !!t && (t.ready() || t.failed()); }, null, { timeout: 30_000 });
       const d = await api('diagnostics');
       if (d.backend !== backend) log.notes.push(`requested ${backend}, got ${d.backend}: ${d.backendNotes.join('; ')}`);

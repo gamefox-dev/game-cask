@@ -15,7 +15,7 @@ const gameDir = resolve(ROOT, dirArg);
 const cfg = JSON.parse(readFileSync(join(gameDir, 'game.json'), 'utf8'));
 const git = (...a) => { try { return execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } };
 const readJ = (p) => (existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null);
-const manifest = readJ(join(ROOT, 'web/public/games', cfg.id, 'manifest.json'));
+const manifest = readJ(join(ROOT, cfg.engineProfile ? '.engine-private/builds' : 'web/public/games', cfg.id, 'manifest.json'));
 const oracle = readJ(join(ROOT, 'reports', `oracle-${cfg.id}.json`));
 const e2e = readJ(join(ROOT, 'reports', 'e2e-port-results.json'));
 const progress = readJ(join(ROOT, 'reports', 'progress.json'));
@@ -36,6 +36,8 @@ const trial = {
   kit: { repo: 'gamefox-dev/game-cask', commit: git('rev-parse', '--short', 'HEAD'), dirty: !!git('status', '--porcelain', '--', 'bgt', 'platforms', 'tools', 'tests', 'web', 'CLAUDE.md', '.claude') },
   inputs: (manifest?.pipeline?.modules ?? []).map((m) => ({ module: m.name, provenance: m.provenance, sha256: m.sha256 })),
   brief: brief ? { sha256: createHash('sha256').update(brief).digest('hex'), text: brief } : null,
+  executionPath: cfg.engineProfile ? 'engineProfile' : cfg.pipeline ? 'pipeline' : 'bgt',
+  engineProfile: manifest?.engineProfile ?? null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
     metrics: manifest.pipeline.metrics ?? null,
@@ -58,7 +60,7 @@ const notes = join(ROOT, 'reports', 'NOTES.md');
 if (!existsSync(notes)) {
   writeFileSync(notes, `# Port note: ${cfg.id} / ${slug}
 
-**Kit:** \`${trial.kit.commit}\`${trial.kit.dirty ? ' (dirty!)' : ''}. **Level:** ${trial.levels.claimed ?? '?'} (claimed). **Approach:** pipeline (${manifest?.pipeline?.platform ?? '?'}).
+**Kit:** \`${trial.kit.commit}\`${trial.kit.dirty ? ' (dirty!)' : ''}. **Level:** ${trial.levels.claimed ?? '?'} (claimed). **Approach:** ${trial.executionPath} (${manifest?.engineProfile?.runtime?.id ?? manifest?.pipeline?.platform ?? '?'}).
 
 ## Kit metrics
 - generated LOC ${trial.pipeline?.loc?.generated ?? '?'}, hand-written LOC ${trial.pipeline?.loc?.handwritten ?? '?'}, overrides ${trial.pipeline?.exceptions?.overrides?.length ?? '?'}

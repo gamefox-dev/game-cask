@@ -20,8 +20,11 @@ import { ROOT as KIT_ROOT } from '../build/toolchain.mjs';
 import { SECRET_PATTERNS } from './redact.mjs';
 import { hasSecret } from './scan.mjs';
 
-const BINARY_EXT = /\.(exe|com|dll|ovl|drv|bin|img|iso|cue|mdf|nrg|ccd|chd|rom|gba|gb|gbc|nes|sfc|smc|fig|n64|z64|v64|gen|smd|sms|gg|pce|nds|3ds|xci|nsp|wad|grp|pak|dat|arc|lib|sav|state)$/i;
+const BINARY_EXT = /\.(exe|com|dll|ovl|drv|bin|img|iso|cue|mdf|nrg|ccd|chd|rom|gba|gb|gbc|nes|sfc|smc|fig|n64|z64|v64|gen|smd|sms|gg|pce|nds|3ds|xci|nsp|wad|grp|pak|pck|dat|arc|lib|sav|state)$/i;
 const MAX_BINARY = 1024 * 1024;
+// Reviewed official runtime archive/member fingerprints also catch renamed copies.
+const ENGINE_RUNTIMES = JSON.parse(readFileSync(new URL('../engine/runtimes.json', import.meta.url))).runtimes;
+const RUNTIME_HASHES = new Set(ENGINE_RUNTIMES.flatMap(r => [r.sha256, ...Object.values(r.fileHashes)]));
 
 function walk(dir, base = dir) {
   const out = [];
@@ -102,6 +105,8 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
 
   for (const p of files) {
     const add = (why) => problems.push({ path: p, why });
+    if (p.startsWith('.engine-private/')) add('offline runtimes, extracted packs and engine builds are never committed');
+    if (/(^|\/)(godot(?:\.audio\.worklet|\.service\.worker)?\.js|godot\.wasm|webassembly_release\.zip)$/.test(p)) add('official runtime artifact is local-only, never committed');
     if (p.startsWith('original/') && p !== 'original/.gitkeep') add('file under original/ (user-supplied game files are never committed)');
     if (p.startsWith('port/') && !['port/README.md', 'port/.gitkeep'].includes(p) && !portPublic) {
       add('generated port code is private by default (set "private": false in port/game.json only if you have the rights to publish)');
@@ -114,7 +119,7 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
     const st = lstatSync(full);
     if (st.isSymbolicLink()) {
       const target = readlinkSync(full), rel = relative(root, resolve(full, '..', target)).split(sep).join('/');
-      if (isAbsolute(target) || rel.startsWith('../') || /^(original|port|reports)(\/|$)/.test(rel)) add('symlink to private or external path');
+      if (isAbsolute(target) || rel.startsWith('../') || /^(original|port|reports|\.engine-private)(\/|$)/.test(rel)) add('symlink to private or external path');
       continue; // linked kit files are checked through their own tracked paths; never traverse symlink directories
     }
     if (!st.isFile()) continue;
@@ -124,6 +129,8 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
     }
     const buf = readFileSync(full);
     const h = createHash('sha256').update(buf).digest('hex');
+    if (RUNTIME_HASHES.has(h)) add('allowlisted official runtime/archive bytes (local-only, including renamed copies)');
+    if (buf.subarray(0, 4).toString('ascii') === 'GDPC' || buf.subarray(-4).toString('ascii') === 'GDPC') add('engine pack bytes (private, including renamed copies)');
     if (origHashes.has(h) && !p.startsWith('original/')) add(`identical to reference file ${origHashes.get(h)}`);
     if (!p.startsWith('original/')) {
       for (const { p: op, w } of origWindows) {
