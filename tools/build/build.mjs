@@ -22,6 +22,7 @@ import { buildLock } from './lock.mjs';
 import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
 import { functionNames, stripDwarf, encodeFunctionNames } from './wasm-names.mjs';
+import { buildEngine, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -71,7 +72,8 @@ export function loadGameConfig(gameDir) {
   const file = join(gameDir, 'game.json');
   if (!existsSync(file)) throw new Error(`${relative(ROOT, gameDir)}: missing game.json`);
   const cfg = JSON.parse(readFileSync(file, 'utf8'));
-  for (const key of cfg.pipeline ? ['id', 'name'] : ['id', 'name', 'sources']) {
+  if (cfg.engineProfile) validateEngineConfig(cfg);
+  for (const key of cfg.pipeline || cfg.engineProfile ? ['id', 'name'] : ['id', 'name', 'sources']) {
     if (!cfg[key]) throw new Error(`${relative(ROOT, file)}: missing "${key}"`);
   }
   if (cfg.originals && !Array.isArray(cfg.originals)) throw new Error(`${relative(ROOT, file)}: "originals" must be an array`);
@@ -91,6 +93,10 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
+  if (cfg.engineProfile) {
+    if (interpretOnly || sliceCoverage || selection || onLinkedWasm || asyncifyPartitionBytes !== null) throw new Error('BGT-only build options are unsupported for engineProfile');
+    return buildEngine(gameDir, cfg, { ...(outRoot === OUT_ROOT ? {} : { outRoot }), check, quiet });
+  }
   cfg.coverageGameId=cfg.id;
   if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])

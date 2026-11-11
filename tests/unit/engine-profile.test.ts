@@ -1,0 +1,224 @@
+import { describe, expect, it } from 'vitest';
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+// @ts-expect-error original CC0 fixture writer
+import { embeddedFixture, makePack, makeRunner, fixtureFiles } from '../fixtures/engine/godot3-fixture.mjs';
+// @ts-expect-error plain ESM engine adapter
+import { parsePack, unsupportedFeatures, featureWarnings, identifyRunner, sha256 } from '../../tools/engine/godot3.mjs';
+// @ts-expect-error plain ESM orchestration
+import { detectProfile, validateConfig, buildEngine, requireOperatorAuthorization } from '../../tools/engine/framework.mjs';
+// @ts-expect-error offline runtime provisioning
+import { provision, verifyRuntime, runtimeById, ENGINE_ROOT } from '../../tools/engine/runtime.mjs';
+// @ts-expect-error serving
+import { serveEngine } from '../../tools/engine/server.mjs';
+// @ts-expect-error static inspect inventory
+import { inventory } from '../../tools/inspect/inspect.mjs';
+// @ts-expect-error leak tooling
+import { leakcheck } from '../../tools/report/leakcheck.mjs';
+const temp = () => mkdtempSync(join(tmpdir(), 'k45-engine-'));
+const authorization = (cfg: any) => {
+  const outside = temp(), policyFile = join(outside, 'operator.json');
+  writeFileSync(policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, runnerSha256: cfg.engineProfile.runnerSha256, allowEngineProfile: true }));
+  return { policyFile, briefFile: join(outside, 'no-brief') };
+};
+function config() {
+  const runtime = runtimeById('godot-3.5.3');
+  return { id: 'cc0-engine', name: 'CC0 engine', private: true, engineProfile: {
+    schema: 'game-cask/engine-profile/1', allowed: true, adapter: 'godot3', runtime: runtime.id, version: runtime.version, build: runtime.build,
+    renderer: 'webgl2', threads: false, inputRoot: '.', runner: 'runner.exe', runnerSha256: sha256(embeddedFixture()),
+    pack: { location: 'embedded-trailer', sha256: sha256(makePack()) } } };
+}
+
+describe('Godot 3 static pack adapter', () => {
+  it('standalone pack is unchanged; embedded normalization changes only offsets', () => {
+    const standalone = makePack(), embedded = embeddedFixture(), p = parsePack(embedded);
+    expect(parsePack(standalone).pack.equals(standalone)).toBe(true);
+    expect(p.location).toBe('embedded-trailer'); expect(p.version).toBe('3.5.3'); expect(p.rebasedOffsets).toBe(true);
+    expect(p.pack.equals(standalone)).toBe(true);
+    expect(p.entries.map((e: any) => e.name)).toEqual(['project.binary', 'main.tscn', 'main.gd']);
+    const changed = new Set<number>(p.entries.flatMap((e: any) => Array.from({ length: 8 }, (_, i) => e.offsetWord + i)));
+    for (let i = 0; i < p.pack.length; i++) if (!changed.has(i)) expect(p.pack[i]).toBe(embedded[p.start + i]);
+    for (const e of p.entries) expect(p.pack.subarray(e.offset, e.offset + e.size)).toEqual(fixtureFiles()[e.name]);
+  });
+  it('accepts a relative-offset embedded pack without rewriting its bytes', () => {
+    const pack = makePack(), trailer = Buffer.alloc(12); trailer.writeBigUInt64LE(BigInt(pack.length)); trailer.write('GDPC', 8);
+    const p = parsePack(Buffer.concat([makeRunner(), pack, trailer]));
+    expect(p.rebasedOffsets).toBe(false); expect(p.pack).toEqual(pack);
+  });
+  it.each(['trailer', 'payload', 'directory', 'offset', 'size', 'reserved', 'format', 'count', 'unsafe64'])('rejects %s corruption', kind => {
+    const b = Buffer.from(embeddedFixture()), start = 512, parsed = parsePack(b);
+    if (kind === 'trailer') b.writeBigUInt64LE(0xffffffffffffffffn, b.length - 12);
+    if (kind === 'payload') b[b.length - 13] ^= 1;
+    if (kind === 'directory') b.writeUInt32LE(0xffffffff, start + 88);
+    if (kind === 'offset') b.writeBigUInt64LE(1n, start + parsed.entries[0].offsetWord);
+    if (kind === 'size') b.writeBigUInt64LE(BigInt(b.length), start + parsed.entries[0].offsetWord + 8);
+    if (kind === 'reserved') b[start + 20] = 1;
+    if (kind === 'format') b.writeUInt32LE(2, start + 4);
+    if (kind === 'count') b.writeUInt32LE(0xffffffff, start + 84);
+    if (kind === 'unsafe64') b.writeBigUInt64LE(0xffffffffffffffffn, start + parsed.entries[0].offsetWord);
+    expect(() => parsePack(b)).toThrow();
+  });
+  it('rejects traversal, duplicates, malformed UTF-8 and overlapping payloads', () => {
+    for (const files of [{ '../bad': Buffer.from('x') }, { 'x': Buffer.from('a'), 'X': Buffer.from('b') }]) expect(() => parsePack(makePack({ files }))).toThrow();
+    const b = makePack(), p = parsePack(b); b[92] = 0xff; expect(() => parsePack(b)).toThrow();
+    const overlap = makePack(); overlap.writeBigUInt64LE(BigInt(p.entries[0].offset), p.entries[1].offsetWord); expect(() => parsePack(overlap)).toThrow();
+  });
+  it('does not scan incidental GDPC signatures', () => {
+    expect(() => parsePack(Buffer.from('MZsomeGDPCbytes-not-a-pack'))).toThrow();
+    for (let n = 0; n < 88; n++) expect(() => parsePack(makePack().subarray(0, n))).toThrow();
+  });
+  it('flags native, Mono, encrypted and thread features explicitly', () => {
+    const files = { ...fixtureFiles(), 'secret.gde': Buffer.from('GDEC'), 'nested.pck': Buffer.from('GDPC'), 'x.gd': Buffer.from('var t = Thread.new()') };
+    const flags = unsupportedFeatures(parsePack(makePack({ files })), [{ path: 'native.dll' }, { path: 'scripts/a.cs' }, { path: 'x.worker.js' }]);
+    expect(flags).toEqual(expect.arrayContaining(['native-extension/GDNative', 'Mono/C#', 'encrypted-content', 'encrypted-script', 'threads-build', 'threads/platform-code', 'additional-packs']));
+  });
+  it('scans beyond 1 MiB and across chunk boundaries; compiled scripts explicitly require browser evidence', () => {
+    for (const at of [1048576 - 4, 1048576 + 100]) {
+      const script = Buffer.concat([Buffer.alloc(at, 32), Buffer.from('Thread.new(); OS.execute(); load_resource_pack("extra.pck")')]);
+      const p = parsePack(makePack({ files: { ...fixtureFiles(), 'large.GD': script, 'compiled.gdc': Buffer.from('GDSC') } }));
+      expect(unsupportedFeatures(p)).toEqual(expect.arrayContaining(['threads/platform-code', 'additional-packs']));
+      expect(featureWarnings(p).join(' ')).toMatch(/feature-scan-incomplete.*browser boot, input/);
+      expect(featureWarnings(p).join(' ')).toContain('compiled-GDScript');
+      expect(unsupportedFeatures(p, [{ path: 'game.bin', format: 'pe-dotnet' }])).toContain('Mono/C#');
+      expect(unsupportedFeatures(p, [{ path: 'data_game/Mono/assembly.bin' }])).toContain('Mono/C#');
+    }
+  });
+  it('requires exact runner version/build signatures and flags Mono/threads', () => {
+    const r = runtimeById('godot-3.5.3');
+    expect(identifyRunner(makeRunner(), r).blockers).toEqual([]);
+    expect(identifyRunner(Buffer.from('Godot 3.5.2'), r).blockers).toContain('runner-exact-version/build-unverified');
+    expect(identifyRunner(makeRunner('GodotSharp PThread'), r).blockers).toEqual(['Mono/C#-runner', 'threads-runner']);
+  });
+});
+
+describe('engine framework policy and integrity', () => {
+  it('requires explicit opt-in, exclusive selection, exact runtime and features', () => {
+    const cfg = config(); expect(() => validateConfig(cfg)).not.toThrow();
+    for (const patch of [{ allowed: false }, { version: '3.5.2' }, { runtime: 'unknown' }, { threads: true }, { renderer: 'webgpu' }, { runnerSha256: '' }]) expect(() => validateConfig({ ...cfg, engineProfile: { ...cfg.engineProfile, ...patch } })).toThrow();
+    expect(() => validateConfig({ ...cfg, pipeline: {} })).toThrow(/mutually exclusive/);
+  });
+  it('binds detection to inspect hashes; accepts side packs and reports version mismatch', () => {
+    const root = temp(); writeFileSync(join(root, 'runner.exe'), makeRunner()); writeFileSync(join(root, 'game.pck'), makePack());
+    const inv = inventory(root), d = detectProfile(inv, { root, runner: 'runner.exe', pack: 'game.pck' });
+    expect(d.blockers).toEqual([]); expect(d.location).toBe('standalone');
+    writeFileSync(join(root, 'game.pck'), makePack({ version: [3, 5, 2] }));
+    expect(() => detectProfile(inv, { root, runner: 'runner.exe', pack: 'game.pck' })).toThrow(/stale/);
+    expect(detectProfile(inventory(root), { root, runner: 'runner.exe', pack: 'game.pck' }).blockers).toContain('runtime-version-mismatch');
+  });
+  it('rejects symlinks, escaping paths and unavailable runtime before producing output', () => {
+    const root = temp(); writeFileSync(join(root, 'runner.exe'), embeddedFixture());
+    symlinkSync(join(root, 'runner.exe'), join(root, 'link.exe'));
+    const inv = inventory(root);
+    expect(() => detectProfile(inv, { root, runner: '../runner.exe' })).toThrow();
+    expect(() => detectProfile(inv, { root, runner: 'link.exe' })).toThrow();
+    const cfg = config();
+    expect(() => buildEngine(root, cfg, { store: join(root, 'missing'), outRoot: join(root, 'out'), quiet: true, authorization: authorization(cfg) })).toThrow(/uninspected/);
+  });
+  it('refuses inspect depth/count omissions instead of accepting an incomplete native inventory', () => {
+    const root = temp(); writeFileSync(join(root, 'runner.exe'), embeddedFixture());
+    const inv = inventory(root);
+    writeFileSync(join(root, 'hidden.dll'), 'native');
+    expect(() => detectProfile(inv, { root, runner: 'runner.exe' })).toThrow(/inventory incomplete/);
+    const dir = join(root, ...Array(14).fill('deep')); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'hidden.dll'), 'native');
+    expect(() => detectProfile(inventory(root), { root, runner: 'runner.exe' })).toThrow(/directory depth limit/);
+  });
+  it('rejects source hash mismatch before provisioning or writing a build', () => {
+    const root = temp(); writeFileSync(join(root, 'runner.exe'), embeddedFixture()); const cfg = config(); cfg.engineProfile.runnerSha256 = '0'.repeat(64);
+    expect(() => buildEngine(root, cfg, { outRoot: join(root, 'out'), quiet: true, authorization: authorization(cfg) })).toThrow(/SHA-256/);
+  });
+  it('game.json cannot grant its own authorization; operator brief or outside policy is required', () => {
+    const root = temp(), cfg = config(), inside = join(root, 'policy.json');
+    writeFileSync(inside, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
+    const noBrief = join(root, 'absent');
+    expect(() => requireOperatorAuthorization(root, cfg, { policyFile: inside, briefFile: noBrief })).toThrow(/operator authorization/);
+    const approved = authorization(cfg);
+    expect(requireOperatorAuthorization(root, cfg, approved).kind).toBe('operator-policy');
+    writeFileSync(approved.policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: 'wrong', allowEngineProfile: true }));
+    expect(() => requireOperatorAuthorization(root, cfg, approved)).toThrow(/operator authorization/);
+    const briefFile = join(temp(), 'brief.md');
+    const marker = `<!-- engine-profile: allowed game=${cfg.id} runnerSha256=${cfg.engineProfile.runnerSha256} -->\n`;
+    writeFileSync(briefFile, marker);
+    expect(requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile }).kind).toBe('trial-brief');
+    for (const stale of [marker.replace(cfg.id, 'other-game'), marker.replace(cfg.engineProfile.runnerSha256, '0'.repeat(64)), '<!-- engine-profile: allowed -->\n']) {
+      writeFileSync(briefFile, stale);
+      expect(() => requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile })).toThrow(/stale\/cross-game/);
+    }
+    const policy = { schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true };
+    for (const runnerSha256 of [undefined, '0'.repeat(64)]) {
+      writeFileSync(approved.policyFile, JSON.stringify({ ...policy, runnerSha256 }));
+      expect(() => requireOperatorAuthorization(root, cfg, approved)).toThrow(/stale\/cross-game/);
+    }
+    writeFileSync(briefFile, 'No engine authorization');
+    expect(() => requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile })).toThrow(/operator authorization/);
+  });
+  it('reviewer repro: changing CC0 runner bytes/config cannot transfer an old operator grant', () => {
+    const root = temp(), cfg = config(), oldHash = cfg.engineProfile.runnerSha256;
+    const approved = authorization(cfg), bytes = embeddedFixture(); bytes[510] = 7;
+    writeFileSync(join(root, 'runner.exe'), bytes); cfg.engineProfile.runnerSha256 = sha256(bytes);
+    expect(() => buildEngine(root, cfg, { quiet: true, authorization: approved })).toThrow(/stale\/cross-game/);
+    const briefFile = join(temp(), 'brief.md');
+    for (const marker of [
+      `<!-- engine-profile: allowed game=other-game runnerSha256=${oldHash} -->`,
+      `<!-- engine-profile: allowed game=${cfg.id} runnerSha256=${oldHash} -->`,
+      '<!-- engine-profile: allowed -->',
+    ]) {
+      writeFileSync(briefFile, marker + '\n');
+      expect(() => buildEngine(root, cfg, { quiet: true, authorization: { briefFile, policyFile: join(root, 'absent') } })).toThrow(/operator authorization/);
+    }
+    cfg.engineProfile.runnerSha256 = oldHash;
+    expect(() => buildEngine(root, cfg, { quiet: true, authorization: approved })).toThrow(/pack\/runner SHA-256 mismatch/);
+  });
+  it('rejects unknown runtime, incorrect archive and missing provision cleanly', () => {
+    const root = temp(), zip = join(root, 'untrusted.zip'); writeFileSync(zip, 'not an archive');
+    expect(() => provision('unknown', zip)).toThrow(/allowlisted/);
+    expect(() => provision('godot-3.5.3', zip, { store: root })).toThrow(/SHA-256/);
+    expect(() => verifyRuntime('godot-3.5.3', { store: root })).toThrow(/not provisioned/);
+    const r = runtimeById('godot-3.5.3'), target = join(root, r.id); mkdirSync(target);
+    expect(() => verifyRuntime(r.id, { store: root })).toThrow(/corrupted provisioned runtime/);
+    writeFileSync(join(target, 'provision.json'), JSON.stringify({ runtime: r.id, archiveSha256: r.sha256, files: r.fileHashes }));
+    writeFileSync(join(target, r.files[0]), 'tampered runtime');
+    expect(() => verifyRuntime(r.id, { store: root })).toThrow(/runtime hash mismatch/);
+  });
+  it('ZIP helper validates directories, drive paths and all link/special types before skipping entries', () => {
+    const root = temp(), helper = join(ENGINE_ROOT, 'tools/engine/offline-zip.py');
+    const python = `import json, os, stat, subprocess, sys, zipfile
+root, helper = sys.argv[1:]
+cases = [('plain/', stat.S_IFDIR, True), ('plain', stat.S_IFREG, True), ('../', 0, False), ('/escape/', 0, False), ('C:/escape', 0, False), ('C:/escape/', 0, False), ('a//b/', 0, False), ('a/./', 0, False), ('link/', stat.S_IFLNK, False), ('link', stat.S_IFLNK, False), ('fifo', stat.S_IFIFO, False), ('a\\\\b', 0, False)]
+for n, (name, mode, valid) in enumerate(cases):
+  archive, out = os.path.join(root, str(n)+'.zip'), os.path.join(root, 'out'+str(n))
+  with zipfile.ZipFile(archive, 'w') as z:
+    z.writestr('godot.js', b'CC0')
+    i = zipfile.ZipInfo(name); i.create_system = 3; i.external_attr = (mode | 0o777) << 16; z.writestr(i, b'')
+  p = subprocess.run([sys.executable, '-I', helper, archive, out, json.dumps(['godot.js'])], capture_output=True)
+  assert (p.returncode == 0) == valid, (name, p.stderr)
+  if not valid: assert not os.path.exists(out), name
+print(len(cases))
+`;
+    const result = spawnSync('python3', ['-I', '-c', python, root, helper], { encoding: 'utf8' });
+    expect(result.stderr).toBe(''); expect(result.status).toBe(0); expect(result.stdout.trim()).toBe('12');
+  });
+  it('leakcheck blocks local runtimes and packs even if staged/renamed into normal trees', () => {
+    const root = temp(); mkdirSync(join(root, '.engine-private')); writeFileSync(join(root, '.engine-private', 'tiny.js'), 'runtime');
+    writeFileSync(join(root, 'game.pck'), 'private pack'); writeFileSync(join(root, 'godot.js'), 'runtime');
+    const problems = leakcheck({ root }).problems;
+    expect(problems.some((p: any) => p.path === '.engine-private/tiny.js')).toBe(true);
+    expect(problems.some((p: any) => p.path === 'game.pck')).toBe(true);
+    expect(problems.some((p: any) => p.path === 'godot.js')).toBe(true);
+  });
+  it('serves only integrity-checked allowlisted bytes, MIME and optional isolation headers', async () => {
+    const root = temp(); const html = '<html>CC0</html>'; writeFileSync(join(root, 'index.html'), html); writeFileSync(join(root, 'secret'), 'private');
+    const m = { schema: 'game-cask/engine-build/1', path: 'engineProfile', engineProfile: { requirements: { isolation: true } }, files: { 'index.html': sha256(Buffer.from(html)) } };
+    writeFileSync(join(root, 'manifest.json'), JSON.stringify(m));
+    const s = await serveEngine(root, { port: Number(process.env.BGT_E2E_PORT ?? 5189) });
+    try {
+      const response = await fetch(s.url); expect(response.headers.get('content-type')).toContain('text/html');
+      expect(response.headers.get('cross-origin-embedder-policy')).toBe('require-corp'); expect(await response.text()).toBe(html);
+      for (const path of ['secret', '%2e%2e%2fsecret', '%zz']) expect((await fetch(s.url + path)).status).toBeGreaterThanOrEqual(400);
+    } finally { await s.close(); }
+    writeFileSync(join(root, 'index.html'), html + 'tamper');
+    await expect(serveEngine(root, { port: Number(process.env.BGT_E2E_PORT ?? 5189) })).rejects.toThrow(/integrity/);
+    expect(readFileSync(join(root, 'secret'), 'utf8')).toBe('private');
+  });
+});

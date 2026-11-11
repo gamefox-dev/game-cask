@@ -16,7 +16,10 @@ it('custom reporters still rebuild only the selected declaration, never stale or
     // Orchestration imports are lazy about platform contents; this is native C,
     // not a profile/lifter mock and never a Windows program.
     cpSync(join(ROOT, 'tools/build'), join(dir, 'tools/build'), { recursive: true });
-    cpSync(join(ROOT, 'tools/inspect/pe.mjs'), join(dir, 'tools/inspect/pe.mjs'));
+    // build's built-in engine selector imports its static registry even for a native
+    // game; copy source dependencies only (no provisioned runtime or game inputs).
+    cpSync(join(ROOT, 'tools/engine'), join(dir, 'tools/engine'), { recursive: true });
+    cpSync(join(ROOT, 'tools/inspect'), join(dir, 'tools/inspect'), { recursive: true });
     cpSync(join(ROOT, 'tools/x86/mkres.mjs'), join(dir, 'tools/x86/mkres.mjs'));
     cpSync(join(ROOT, 'bgt/sdk/bgt_libc.c'), join(dir, 'bgt/sdk/bgt_libc.c'));
     cpSync(join(ROOT, 'bgt/include'), join(dir, 'bgt/include'), { recursive: true });

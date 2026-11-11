@@ -1,0 +1,57 @@
+{
+  "schema": "game-cask/engine-runtimes/1",
+  "runtimes": [
+    {
+      "id": "godot-3.5.3",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.3",
+      "status": "stable.official",
+      "build": "6c814135b69d4e703956bacc2073b4b179ff5a00",
+      "sha256": "d9248e058d7edbdfb8b6df2401484fd8b5995c0fa69c8ae3ba93da1678f954a7",
+      "officialSource": "https://github.com/godotengine/godot/releases/tag/3.5.3-stable",
+      "provenance": "Operator-provided official release template; pinned by K45 brief. No automatic download.",
+      "files": [
+        "godot.js",
+        "godot.wasm",
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.service.worker.js",
+        "godot.offline.html"
+      ],
+      "entry": "godot.js",
+      "license": "MIT (engine); bundled third-party licenses apply",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "unsupported": [
+        "native-extension/GDNative",
+        "Mono/C#",
+        "encrypted-content",
+        "threads-build",
+        "runtime-version-mismatch",
+        "additional-packs"
+      ],
+      "fileHashes": {
+        "godot.js": "8e515babe04058fca9668d31fcb4e59048ce659cecf9331b4e93fcfd4a36c975",
+        "godot.wasm": "af1e6208f15da2d5a49a6064d541ec8701351f321fff5f922a0e013d24a66bad",
+        "godot.audio.worklet.js": "8b3e52c1f0806bc623f174cfa2989ba1d6f63e44022d7923580579a1b88cab37",
+        "godot.html": "35a6e286ea09319eaaef37b0941352595afc6074595032026b1555ab5f3d3652",
+        "godot.service.worker.js": "df5424471ad313b5af96ab48e7ec662c3981f662eff5789669645ec091bbb706",
+        "godot.offline.html": "af9d2a5ad331fcfec0e0a28743901179e336649520eff443180595994deb5222"
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04"
+        }
+      ]
+    }
+  ]
+}

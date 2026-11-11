@@ -34,7 +34,12 @@ extract (installer/archive)  ->  analyze (imports, call graph)  ->  lift machine
 ->  platform profile maps the OS/hardware API onto BGT by meaning  ->  oracle + browser tests
 ```
 
-- The pipeline is the default for everything.
+- The pipeline is the default. A trial/user may explicitly authorize the separate **engine-profile** path;
+  the operator authorizes it with `trial:brief --allow-engine-profile` or an operator policy outside `port/`.
+  The porter must not create/edit that authorization. Only then select `engineProfile.allowed: true`
+  (mutually exclusive with `pipeline`). It pairs an unmodified
+  pack with an allowlisted, exact-build official web runtime, not the BGT ABI. See [engine profiles](docs/engine-profiles.md).
+  Never choose it silently or substitute it as a workaround in a pipeline-only trial.
 - **Exceptions** are the "minimal" part. They're hand-written C overrides of individual lifted functions
   (`overrides/`), each justified and counted. Example: a function the lifter provably cannot handle.
 - Never rewrite game logic from genre knowledge. Never replace the pipeline with a hand-written emulator or
@@ -93,7 +98,7 @@ The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` be
 Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet. **Win64 baseline execution is implemented**
 for the four Task 1 fixtures (docs/pipeline.md → AMD64 execution); do not mistake that for universal Win64 compatibility.
 OpenGL, threads and broader APIs remain gaps. Unsupported instructions/APIs become iteration requests; never substitute
-a per-game interpreter or engine runtime.
+a per-game interpreter or engine runtime in a pipeline trial. The explicit engine-profile opt-in above is a separate path.
 
 ## Hard rules
 - `original/` is read-only, private and never committed. `npm run leakcheck` must pass.
