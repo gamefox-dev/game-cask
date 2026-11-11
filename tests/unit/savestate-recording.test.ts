@@ -15,7 +15,9 @@ it.each([1,2,3,4,5,6,7])('normalizes upload offset %i before every replay typed 
  const backing=new Uint8Array(64);const data=new Uint8Array(backing.buffer,offset,16);data.forEach((_,i)=>data[i]=i+1);
  const f=new Frame();f.reset(4,4);f.items=[{kind:'gpu',op:O.TEXTURE_UPDATE_EX,words:[7,0,0,0,0,1,1,1,0,16],data}];
  const record=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
- const restored=restoreCheckpointFrame(record),upload=restored.items[0].data as Uint8Array;
+ const restored=restoreCheckpointFrame(record),item=restored.items[0];
+ if(item.kind!=='gpu'||!item.data)throw new Error('Missing restored upload');
+ const upload=item.data;
  expect(upload.byteOffset&7).toBe(0);expect([...upload]).toEqual([...data]);expect(upload.buffer).not.toBe(data.buffer);
  for(const View of [Uint16Array,Int16Array,Float32Array,Int32Array,Uint32Array,Float64Array]){
    const view=new View(upload.buffer,upload.byteOffset,upload.byteLength/View.BYTES_PER_ELEMENT);

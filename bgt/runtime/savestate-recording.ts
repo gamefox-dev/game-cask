@@ -35,12 +35,12 @@ export function restoreCheckpointFrame(record:CheckpointFrame):Frame {
   // Keep aligned upload data as read-only views; copy only misaligned views.
   f.items=restoreCheckpointItems(record);return f;
 }
-function alignedUpload(data:Uint8Array<ArrayBuffer>):Uint8Array<ArrayBuffer>{
+function alignedUpload(data:Uint8Array):Uint8Array<ArrayBuffer>{
   // Imported BGTSTATE blob views can begin at any byte in their transport chunk.
   // WebGL typed upload views require the backing offset to satisfy their element
   // alignment. An 8-byte boundary covers all JS numeric typed arrays. Normalize
   // at the test-only replay boundary, not in the production renderer/file layout.
-  if((data.byteOffset&7)===0)return data;
+  if(data.buffer instanceof ArrayBuffer&&(data.byteOffset&7)===0)return data as Uint8Array<ArrayBuffer>;
   const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
 }
 export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{

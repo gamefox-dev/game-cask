@@ -21,7 +21,7 @@ it.each([1,2,3,4,5,6,7])('aligns raw blob offset %i without changing wire layout
  expect(at).toBeGreaterThan(0);const header=source[at],body=source[at+1];
  const joined=new Uint8Array(offset+body.length);joined.set(header.subarray(24-offset),0);joined.set(body,offset);
  async function* split(){for(const x of source.slice(0,at))yield x;yield header.subarray(0,24-offset);yield joined;for(const x of source.slice(at+2))yield x;}
- const imported=await importSavestate(split());const data=(imported as typeof imported & {odd:Uint8Array}).odd;
+ const imported=await importSavestate(split());const data=(imported as typeof imported & {odd:Uint8Array<ArrayBuffer>}).odd;
  expect(data.byteOffset&7).toBe(0);expect([...data]).toEqual([1,2,3,4,5,6,7,8]);
  for(const View of [Uint16Array,Int16Array,Float32Array,Int32Array,Uint32Array,Float64Array])
    expect(()=>new View(data.buffer,data.byteOffset,data.byteLength/View.BYTES_PER_ELEMENT)).not.toThrow();
