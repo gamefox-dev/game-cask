@@ -35,7 +35,9 @@ extract (installer/archive)  ->  analyze (imports, call graph)  ->  lift machine
 ```
 
 - The pipeline is the default. A trial/user may explicitly authorize the separate **engine-profile** path;
-  only then set `engineProfile.allowed: true` (mutually exclusive with `pipeline`). It pairs an unmodified
+  the operator authorizes it with `trial:brief --allow-engine-profile` or an operator policy outside `port/`.
+  The porter must not create/edit that authorization. Only then select `engineProfile.allowed: true`
+  (mutually exclusive with `pipeline`). It pairs an unmodified
   pack with an allowlisted, exact-build official web runtime, not the BGT ABI. See [engine profiles](docs/engine-profiles.md).
   Never choose it silently or substitute it as a workaround in a pipeline-only trial.
 - **Exceptions** are the "minimal" part. They're hand-written C overrides of individual lifted functions

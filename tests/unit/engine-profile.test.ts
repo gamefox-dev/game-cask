@@ -7,7 +7,7 @@ import { embeddedFixture, makePack, makeRunner, fixtureFiles } from '../fixtures
 // @ts-expect-error plain ESM engine adapter
 import { parsePack, unsupportedFeatures, identifyRunner, sha256 } from '../../tools/engine/godot3.mjs';
 // @ts-expect-error plain ESM orchestration
-import { detectProfile, validateConfig, buildEngine } from '../../tools/engine/framework.mjs';
+import { detectProfile, validateConfig, buildEngine, requireOperatorAuthorization } from '../../tools/engine/framework.mjs';
 // @ts-expect-error offline runtime provisioning
 import { provision, verifyRuntime, runtimeById } from '../../tools/engine/runtime.mjs';
 // @ts-expect-error serving
@@ -17,6 +17,11 @@ import { inventory } from '../../tools/inspect/inspect.mjs';
 // @ts-expect-error leak tooling
 import { leakcheck } from '../../tools/report/leakcheck.mjs';
 const temp = () => mkdtempSync(join(tmpdir(), 'k45-engine-'));
+const authorization = (cfg: any) => {
+  const outside = temp(), policyFile = join(outside, 'operator.json');
+  writeFileSync(policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
+  return { policyFile, briefFile: join(outside, 'no-brief') };
+};
 function config() {
   const runtime = runtimeById('godot-3.5.3');
   return { id: 'cc0-engine', name: 'CC0 engine', private: true, engineProfile: {
@@ -97,11 +102,25 @@ describe('engine framework policy and integrity', () => {
     expect(() => detectProfile(inv, { root, runner: '../runner.exe' })).toThrow();
     expect(() => detectProfile(inv, { root, runner: 'link.exe' })).toThrow();
     const cfg = config();
-    expect(() => buildEngine(root, cfg, { store: join(root, 'missing'), outRoot: join(root, 'out'), quiet: true })).toThrow(/uninspected/);
+    expect(() => buildEngine(root, cfg, { store: join(root, 'missing'), outRoot: join(root, 'out'), quiet: true, authorization: authorization(cfg) })).toThrow(/uninspected/);
   });
   it('rejects source hash mismatch before provisioning or writing a build', () => {
     const root = temp(); writeFileSync(join(root, 'runner.exe'), embeddedFixture()); const cfg = config(); cfg.engineProfile.runnerSha256 = '0'.repeat(64);
-    expect(() => buildEngine(root, cfg, { outRoot: join(root, 'out'), quiet: true })).toThrow(/SHA-256/);
+    expect(() => buildEngine(root, cfg, { outRoot: join(root, 'out'), quiet: true, authorization: authorization(cfg) })).toThrow(/SHA-256/);
+  });
+  it('game.json cannot grant its own authorization; operator brief or outside policy is required', () => {
+    const root = temp(), cfg = config(), inside = join(root, 'policy.json');
+    writeFileSync(inside, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
+    const noBrief = join(root, 'absent');
+    expect(() => requireOperatorAuthorization(root, cfg, { policyFile: inside, briefFile: noBrief })).toThrow(/operator authorization/);
+    const approved = authorization(cfg);
+    expect(requireOperatorAuthorization(root, cfg, approved).kind).toBe('operator-policy');
+    writeFileSync(approved.policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: 'wrong', allowEngineProfile: true }));
+    expect(() => requireOperatorAuthorization(root, cfg, approved)).toThrow(/operator authorization/);
+    const briefFile = join(temp(), 'brief.md'); writeFileSync(briefFile, '<!-- engine-profile: allowed -->\n');
+    expect(requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile }).kind).toBe('trial-brief');
+    writeFileSync(briefFile, 'No engine authorization');
+    expect(() => requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile })).toThrow(/operator authorization/);
   });
   it('rejects unknown runtime, incorrect archive and missing provision cleanly', () => {
     const root = temp(), zip = join(root, 'untrusted.zip'); writeFileSync(zip, 'not an archive');

@@ -7,10 +7,12 @@ hash-verified official web runtime. It is not a port of that engine to the BGT A
 
 ## Policy, authenticity and boundaries
 
-* A trial must explicitly permit engine profiles. Selection requires engineProfile.allowed=true
-  in game.json; the porter must only set it when the user/trial permits this path. It is
-  default-off. Builds refuse absent/false opt-in, mixed pipeline and engineProfile, or unknown
-  versions/features. Existing lifting behavior is unchanged.
+* Engine profiles require **operator-side authorization outside port/**. The operator runs
+  trial:brief with --allow-engine-profile (which records a checked marker in reports/brief.md),
+  or writes .engine-private/authorizations/<game-id>.json. The build refuses otherwise, even if
+  the porter sets engineProfile.allowed=true. The porter may select but must not grant/edit
+  authorization. Mixed pipeline/engineProfile and unknown versions/features are refused.
+  Existing lifting behavior is unchanged.
 * Game logic and assets are not rewritten. Embedded extraction may change **only directory
   offset words** to rebase them to a standalone pack; every per-file MD5 is checked before use.
   Source, standalone-pack, runner, runtime archive/member and notice SHA-256 values are retained.
@@ -46,6 +48,14 @@ The non-threaded 3.5.3 runtime requires WebGL 2, not WebGPU. Its audio worklet i
 service-worker/offline-template files are retained but no service worker is registered by the shell.
 
 ## Port config and workflow
+
+Operator-written authorization outside port/ (alternative to the trial:brief flag):
+
+    { "schema": "game-cask/engine-authorization/1", "game": "mygame", "allowEngineProfile": true }
+
+Place it at .engine-private/authorizations/mygame.json, never in port/. This is an operator
+workflow boundary, not a cryptographic defense against a malicious agent with write access.
+Do not allow a porting agent to create/edit the policy or its trial brief.
 
 Runner/pack.from paths are relative to inputRoot, which is relative to the config directory
 (default ../original). Input traversal and symlinks are refused. Use a dedicated input directory:
@@ -123,7 +133,8 @@ an isolated browser/host sandbox with no credentials; localhost/CSP is not an OS
 
 The original CC0 writer in tests/fixtures/engine/godot3-fixture.mjs creates ECFG project.binary,
 text scene/GDScript, standalone PCK, and a non-executable stub runner with an appended pack.
-No native editor or game files are required. E2E checks red→cyan pixels from Enter, screenshots,
+No native editor or game files are required. The built-in fixture authorizes only its fixed CC0
+fixture id, outside its generated config directory. E2E checks red→cyan pixels from Enter, screenshots,
 and unfiltered RAF timing. It skips **only** when no runtime is provisioned; corrupted provisioned
 artifacts fail. npm test parser/policy/server tests never require the runtime.
 

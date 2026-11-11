@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, lstatSync, realpathSync, mkdirSync, cpSync
 import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { inventory } from '../inspect/inspect.mjs';
 import { parsePack, identifyRunner, unsupportedFeatures, sha256 } from './godot3.mjs';
-import { PRIVATE, runtimeById, verifyRuntime } from './runtime.mjs';
+import { PRIVATE, ENGINE_ROOT, runtimeById, verifyRuntime } from './runtime.mjs';
 import { generateShell } from './shell.mjs';
 
 export const adapters = Object.freeze({ godot3: { engine: 'godot', parsePack, identifyRunner, unsupportedFeatures, generateShell } });
@@ -56,8 +56,23 @@ export function detectProfile(inspectOutput, { root, runner, pack = runner, runt
     _parsed: parsed };
 }
 export function publicDetection(d) { const { _parsed, ...report } = d; return report; }
-export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), store, check = false, quiet = false } = {}) {
+export function requireOperatorAuthorization(gameDir, cfg, { briefFile = join(ENGINE_ROOT, 'reports', 'brief.md'), policyFile = join(PRIVATE, 'authorizations', cfg.id + '.json') } = {}) {
+  const outsidePort = file => {
+    const real = realpathSync(file), dir = realpathSync(gameDir);
+    return !real.startsWith(dir + sep) && real !== dir && !lstatSync(file).isSymbolicLink();
+  };
+  if (existsSync(briefFile) && outsidePort(briefFile) && /^<!-- engine-profile: allowed -->$/m.test(readFileSync(briefFile, 'utf8')))
+    return { kind: 'trial-brief', sha256: sha256(readFileSync(briefFile)) };
+  if (existsSync(policyFile) && outsidePort(policyFile)) {
+    const policy = JSON.parse(readFileSync(policyFile, 'utf8'));
+    if (policy.schema === 'game-cask/engine-authorization/1' && policy.allowEngineProfile === true && policy.game === cfg.id)
+      return { kind: 'operator-policy', sha256: sha256(readFileSync(policyFile)) };
+  }
+  throw new Error('engineProfile requires operator authorization outside port/: trial:brief --allow-engine-profile or .engine-private/authorizations/<id>.json');
+}
+export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), store, check = false, quiet = false, authorization = {} } = {}) {
   const { profile: p, runtime, adapter } = validateConfig(cfg);
+  const approved = requireOperatorAuthorization(gameDir, cfg, authorization);
   const root = resolve(gameDir, p.inputRoot ?? '../original');
   // Inspect fresh every build: directory/extension inventory is part of refusal policy.
   const inv = inventory(root), detection = detectProfile(inv, { root, runner: p.runner, pack: p.pack.from ?? p.runner, runtimeId: runtime.id });
@@ -70,7 +85,7 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   const parent = resolve(outRoot); mkdirSync(parent, { recursive: true });
   const out = join(parent, cfg.id), staging = mkdtempSync(join(parent, '.engine-build-'));
   const result = { schema: 'game-cask/engine-build/1', id: cfg.id, name: cfg.name, private: true, path: 'engineProfile',
-    engineProfile: { ...publicDetection(detection), runtime: { id: runtime.id, sha256: runtime.sha256, files: provisioned.receipt.files },
+    engineProfile: { ...publicDetection(detection), authorization: approved, runtime: { id: runtime.id, sha256: runtime.sha256, files: provisioned.receipt.files },
       requirements: runtime.requirements, notices: runtime.notices, scan: 'Known unsupported patterns only; not a complete platform feature proof.' },
     files: {} };
   try {

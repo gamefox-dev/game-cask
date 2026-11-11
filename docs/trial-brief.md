@@ -3,6 +3,8 @@
 `npm run trial:brief -- --game <file-in-original> --slug <slug> [--resume] [--scratch DIR]` fills the placeholders
 below, writes the result to `reports/brief.md` and prints it. Hand the printed text to the porting agent as its task.
 `npm run trial:record` stores the brief in `reports/trial.json`, so every trial is reproducible from the kit alone.
+The operator may add `--allow-engine-profile` to authorize the separate engine-runtime path; default is
+pipeline-only. The porter must never grant itself this authorization or edit its brief.
 Everything between the `BRIEF` markers is the template; keep it short and point to the docs instead of repeating them.
 
 <!-- BRIEF:BEGIN -->

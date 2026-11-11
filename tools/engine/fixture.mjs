@@ -14,6 +14,9 @@ export function buildFixture() {
     version: runtime.version, build: runtime.build, inputRoot: 'inputs', runner: 'runner.exe', runnerSha256: sha256(source),
     pack: { location: 'embedded-trailer', sha256: parsePack(source).packSha256 }, renderer: 'webgl2', threads: false, width: 320, height: 180 } };
   writeFileSync(join(gameDir, 'game.json'), JSON.stringify(cfg, null, 2) + '\n');
+  // Built-in operator authorization is restricted to this original CC0 fixture id.
+  const policies = join(PRIVATE, 'authorizations'); mkdirSync(policies, { recursive: true });
+  writeFileSync(join(policies, cfg.id + '.json'), JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
   buildEngine(gameDir, cfg, { quiet: true });
   return join(PRIVATE, 'builds', cfg.id);
 }
