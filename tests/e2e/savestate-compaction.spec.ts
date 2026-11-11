@@ -23,34 +23,48 @@ for(const suspension of ['asyncify','jspi'])for(const variant of variants)test('
     const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
     const small=await t.snapshot();await t.step(300);
-    const snap=await t.snapshot(),traces:{hash:string|null;pixels:string}[][]=[],restoreMs=[];
-    const unaligned=(stream:ReadableStream<Uint8Array>)=>{
+    const snap=await t.snapshot(),traces:{hash:string|null;pixels:string}[][]=[],restoreMs=[],native:string[]=[];
+    let unalignedViews=0,transportBodies=0,importedAligned=true;
+    const unalignedFrame=(frame:typeof snap.journal[number],offset:number)=>({...frame,items:frame.items.map(item=>{
+      if(!(item.data instanceof Uint8Array)||!item.data.length)return item;
+      const data=new Uint8Array(new ArrayBuffer(offset+item.data.length),offset,item.data.length);data.set(item.data);unalignedViews++;return {...item,data};
+    })});
+    const unaligned=(stream:ReadableStream<Uint8Array>,offset:number)=>{
       let pending:Uint8Array|undefined;
       return stream.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({
         transform(chunk,controller){
           if(pending){
-            controller.enqueue(pending.subarray(0,1));
-            const joined=new Uint8Array(pending.length-1+chunk.length);joined.set(pending.subarray(1));joined.set(chunk,pending.length-1);controller.enqueue(joined);pending=undefined;return;
+            controller.enqueue(pending.subarray(0,24-offset));
+            const joined=new Uint8Array(offset+chunk.length);joined.set(pending.subarray(24-offset));joined.set(chunk,offset);controller.enqueue(joined);pending=undefined;transportBodies++;return;
           }
           if(chunk.length===24&&new DataView(chunk.buffer,chunk.byteOffset,24).getUint32(0,true)===3){pending=chunk;return;}
           controller.enqueue(chunk);
         },flush(controller){if(pending)controller.enqueue(pending);}
       }));
     };
-    for(let run=0;run<3;run++){
-      if(run){const start=performance.now();await t.restore(run===2?await t.importSnapshot(unaligned(t.exportSnapshot(snap))):snap);restoreMs.push(performance.now()-start);}
+    for(let run=0;run<12;run++){
+      if(run){
+        const offset=[1,2,3,4,7][run%5],start=performance.now();
+        const imported=run%2===0?await t.importSnapshot(unaligned(t.exportSnapshot(snap),offset)):null;
+        if(imported)importedAligned&&=[...imported.journal,...(imported.gpuBase?[imported.gpuBase.frame]:[])].every(f=>f.items.every(i=>!(i.data instanceof Uint8Array)||i.data.byteOffset%8===0));
+        await t.restore(imported??{...snap,
+          gpuBase:snap.gpuBase?{...snap.gpuBase,frame:unalignedFrame(snap.gpuBase.frame,offset)}:null,journal:snap.journal.map(f=>unalignedFrame(f,offset))});
+        if(run%3===0)await t.compactJournal();
+        restoreMs.push(performance.now()-start);
+      }
       const trace=[];
       for(let i=0;i<8;i++){await t.step(1);trace.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
       traces.push(trace);
+      const end=await t.snapshot();native.push(JSON.stringify(end.gpuBase!.frame.items.filter(i=>i.data instanceof Uint8Array).map(i=>[i.op,i.words,[...(i.data as Uint8Array)]])));
     }
     const after=await t.snapshot();
     const shadow=(s:typeof snap)=>s.gpuBase!.surfaces.textures.find(x=>x.handle===1);
-    return {metadataStable:JSON.stringify(shadow(after))===JSON.stringify(shadow(snap)),stats:snap.stats,bytes:await fileBytes(t.exportSnapshot(snap)),smallBytes:await fileBytes(t.exportSnapshot(small)),restoreMs,
+    return {unalignedViews,transportBodies,importedAligned,nativeEqual:native.every(x=>x===native[0]),metadataStable:JSON.stringify(shadow(after))===JSON.stringify(shadow(snap)),stats:snap.stats,bytes:await fileBytes(t.exportSnapshot(snap)),smallBytes:await fileBytes(t.exportSnapshot(small)),restoreMs,
       equal:traces.slice(1).map(trace=>trace.every((x,i)=>x.hash===traces[0][i].hash&&x.pixels===traces[0][i].pixels)),
       changing:new Set(traces[0].map(x=>x.pixels)).size,errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
   });
   await info.attach('savestate-measurement.json',{body:JSON.stringify(result),contentType:'application/json'});
-  expect(result.equal).toEqual([true,true]);expect(result.changing).toBeGreaterThan(1);expect(result.metadataStable).toBe(true);
+  expect(result.equal).toEqual(Array(11).fill(true));expect(result.unalignedViews).toBeGreaterThan(0);expect(result.transportBodies).toBeGreaterThan(0);expect(result.importedAligned).toBe(true);expect(result.nativeEqual).toBe(true);expect(result.changing).toBeGreaterThan(1);expect(result.metadataStable).toBe(true);
   expect(result.stats.residualUpdates).toBeLessThanOrEqual(2);expect(result.stats.residualCommands).toBeLessThanOrEqual(100000);
   expect(result.bytes).toBeLessThan(result.smallBytes*2);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);
 });

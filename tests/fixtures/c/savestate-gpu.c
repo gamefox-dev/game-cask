@@ -12,6 +12,8 @@ static uint32_t pixel=0xff112244u;
 /* Deliberately odd payload lengths exercise replay ownership before later float data. */
 static uint8_t odd_vertex[19],odd_index[3],odd_uniform[15];
 static float depth_value=0.25f;
+static uint16_t half_pixel[4]={0x3400,0x3800,0x3a00,0x3c00};
+static uint32_t integer_pixel=0xff123456u;
 static const char vs[]="#version 300 es\nprecision highp float;void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[bgt_vertex_index],0.5,1);}";
 static const char fs[]="#version 300 es\nprecision highp float;uniform sampler2D bgt_t0;layout(location=0) out vec4 c;void main(){c=texture(bgt_t0,vec2(0.5));}";
 static void check(int32_t code) {if(code<0)bgt_abort(code,"savestate GPU fixture",21);}
@@ -20,15 +22,23 @@ static void texture(uint32_t handle,uint32_t width,uint32_t height,uint32_t form
 }
 static void upload(void) {bgt_gpu_texture_update_t u={3,0,0,0,1,1,(uint32_t)(uintptr_t)&pixel,4};bgt_cmd_gpu_texture_update(&cb,&u);}
 static void upload_depth(void) {bgt_gpu_texture_update_t u={5,0,0,0,1,1,(uint32_t)(uintptr_t)&depth_value,4};bgt_cmd_gpu_texture_update(&cb,&u);}
+static void upload_half(void) {bgt_gpu_texture_update_t u={6,0,0,0,1,1,(uint32_t)(uintptr_t)half_pixel,8};bgt_cmd_gpu_texture_update(&cb,&u);}
+static void integer_textures(uint32_t create) {
+    const uint32_t formats[4]={15,16,17,18}; /* R16UI/I and R32UI/I typed uploads. */
+    for(uint32_t n=0;n<4;n++) {
+        if(create){bgt_gpu_texture_create_ex_t t={7+n,0,1,1,1,1,formats[n],3};bgt_cmd_gpu_texture_create_ex(&cb,&t);}
+        bgt_gpu_texture_update_ex_t u={7+n,0,0,0,0,1,1,1,(uint32_t)(uintptr_t)&integer_pixel,n<2?2:4};bgt_cmd_gpu_texture_update_ex(&cb,&u);
+    }
+}
 static void odd_buffers(void) {
-    bgt_gpu_buffer_create_t v={10,BGT_GPU_BUFFER_VERTEX,20,(uint32_t)(uintptr_t)odd_vertex,19};
-    bgt_gpu_buffer_create_t i={11,BGT_GPU_BUFFER_INDEX,4,(uint32_t)(uintptr_t)odd_index,3};
-    bgt_gpu_buffer_create_t u={12,BGT_GPU_BUFFER_UNIFORM,16,(uint32_t)(uintptr_t)odd_uniform,15};
+    bgt_gpu_buffer_create_t v={10,BGT_GPU_BUFFER_VERTEX,19,(uint32_t)(uintptr_t)odd_vertex,19};
+    bgt_gpu_buffer_create_t i={11,BGT_GPU_BUFFER_INDEX,3,(uint32_t)(uintptr_t)odd_index,3};
+    bgt_gpu_buffer_create_t u={12,BGT_GPU_BUFFER_UNIFORM,15,(uint32_t)(uintptr_t)odd_uniform,15};
     bgt_cmd_gpu_buffer_create(&cb,&v);bgt_cmd_gpu_buffer_create(&cb,&i);bgt_cmd_gpu_buffer_create(&cb,&u);
 }
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     (void)p;io.logical_width=64;io.logical_height=64;bgt_cmd_init(&cb,commands,sizeof commands);
-    texture(1,64,64,0);texture(2,64,64,5);texture(3,1,1,0);texture(5,1,1,6);odd_buffers();upload();upload_depth();
+    texture(1,64,64,0);texture(2,64,64,5);texture(3,1,1,0);texture(5,1,1,6);texture(6,1,1,4);odd_buffers();upload_half();upload();integer_textures(1);upload_depth();
 #if PROVENANCE_MUTATION == 5
     texture(4,64,64,5);
 #endif
@@ -114,7 +124,7 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
 #endif
     /* Replay of residual draws needs the START sample, not these later bytes. */
     pixel=0xff000000u|((tick*17u)&255u)|(((tick*31u)&255u)<<8)|(((tick*7u)&255u)<<16);
-    depth_value=0.25f+(float)(tick&7)*0.01f;upload_depth();
+    depth_value=0.25f+(float)(tick&7)*0.01f;upload_depth();upload_half();integer_textures(0);
     if(tick%3==0){bgt_gpu_texture_delete_t del={3};bgt_cmd_gpu_texture_delete(&cb,&del);texture(3,1,1,0);}
     upload();
     bgt_gpu_blit_t blit={0};blit.source=1;blit.destination=0;

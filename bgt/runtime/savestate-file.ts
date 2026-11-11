@@ -127,7 +127,7 @@ export async function importSavestate(source:SnapshotSource):Promise<Savestate> 
         if(t.$bgt==='blob8'){
           // A blob may be a view into an arbitrarily split transport chunk.
           // Keep raw bytes cheap when aligned, but make all future typed views safe.
-          if((data.byteOffset&3)===0)return data;
+          if((data.byteOffset&7)===0)return data;
           const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
         }
         // blob32 was alignment-checked while the chunks were assembled.

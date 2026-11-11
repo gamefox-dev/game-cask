@@ -11,12 +11,17 @@ it('retains failure outcomes when materializing a new compact base',()=>{
  expect(compact.items[0].executeCode).toBe(-8);expect(compact.items[0].completeCode).toBe(-8);
  expect(compact.items).toEqual(first.items);
 });
-it('normalizes unaligned imported upload views before replay typed views',()=>{
- const backing=new Uint8Array(64);const data=new Uint8Array(backing.buffer,1,16);data.forEach((_,i)=>data[i]=i+1);
+it.each([1,2,3,4,5,6,7])('normalizes upload offset %i before every replay typed view',offset=>{
+ const backing=new Uint8Array(64);const data=new Uint8Array(backing.buffer,offset,16);data.forEach((_,i)=>data[i]=i+1);
  const f=new Frame();f.reset(4,4);f.items=[{kind:'gpu',op:O.TEXTURE_UPDATE_EX,words:[7,0,0,0,0,1,1,1,0,16],data}];
  const record=recordCheckpointFrame(f,{x:0,y:0,w:4,h:4,scale:1},1,4,4);
  const restored=restoreCheckpointFrame(record),upload=restored.items[0].data as Uint8Array;
- expect(upload.byteOffset&3).toBe(0);expect([...upload]).toEqual([...data]);expect(upload.buffer).not.toBe(data.buffer);
+ expect(upload.byteOffset&7).toBe(0);expect([...upload]).toEqual([...data]);expect(upload.buffer).not.toBe(data.buffer);
+ for(const View of [Uint16Array,Int16Array,Float32Array,Int32Array,Uint32Array,Float64Array]){
+   const view=new View(upload.buffer,upload.byteOffset,upload.byteLength/View.BYTES_PER_ELEMENT);
+   expect(new Uint8Array(view.buffer,view.byteOffset,view.byteLength)).toEqual(data);
+ }
+ expect(record.items[0].data).toBe(data);
 });
 it('retains owned decoder uploads without copies, copies reusable vertices, drops only readbacks',()=>{
  const f=new Frame();f.reset(4,4);f.vertexCount=1;f.vertexBytes().fill(173);

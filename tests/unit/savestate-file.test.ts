@@ -15,20 +15,22 @@ it('binary transfer preserves nested tagged values, empty blobs and arbitrary tr
   expect(importSavestateDebugJson(exportSavestateDebugJson(s))).toEqual(s);
   expect(()=>exportSavestateDebugJson(state({data:new Uint8Array(2*CHUNK_BYTES)}))).toThrow(/debug JSON.*streamed/);
 });
-it('aligns blob views when transport splits a record header at one byte',async()=>{
- const source=await snapshotChunks(exportSavestate(state({odd:new Uint8Array([1,2,3,4])})));
+it.each([1,2,3,4,5,6,7])('aligns raw blob offset %i without changing wire layout or bytes',async offset=>{
+ const source=await snapshotChunks(exportSavestate(state({odd:new Uint8Array([1,2,3,4,5,6,7,8])})));
  const at=source.findIndex(x=>x.length===24&&new DataView(x.buffer,x.byteOffset,24).getUint32(0,true)===3);
  expect(at).toBeGreaterThan(0);const header=source[at],body=source[at+1];
- const joined=new Uint8Array(23+body.length);joined.set(header.subarray(1),0);joined.set(body,23);
- async function* split(){for(const x of source.slice(0,at))yield x;yield header.subarray(0,1);yield joined;for(const x of source.slice(at+2))yield x;}
+ const joined=new Uint8Array(offset+body.length);joined.set(header.subarray(24-offset),0);joined.set(body,offset);
+ async function* split(){for(const x of source.slice(0,at))yield x;yield header.subarray(0,24-offset);yield joined;for(const x of source.slice(at+2))yield x;}
  const imported=await importSavestate(split());const data=(imported as typeof imported & {odd:Uint8Array}).odd;
- expect(data.byteOffset&3).toBe(0);expect([...data]).toEqual([1,2,3,4]);
+ expect(data.byteOffset&7).toBe(0);expect([...data]).toEqual([1,2,3,4,5,6,7,8]);
+ for(const View of [Uint16Array,Int16Array,Float32Array,Int32Array,Uint32Array,Float64Array])
+   expect(()=>new View(data.buffer,data.byteOffset,data.byteLength/View.BYTES_PER_ELEMENT)).not.toThrow();
 });
 it('binary transfer fails closed on versions, lengths, truncation, trailing data and missing blobs',async()=>{
   const chunks=await snapshotChunks(exportSavestate(state({data:new Uint8Array([1,2,3])})));
   const copy=()=>chunks.map(b=>b.slice());
-  const version=copy();new DataView(version[0].buffer).setUint32(8,99,true);
-  await expect(importSavestate(fileChunks(version))).rejects.toThrow(/version/);
+  for(const value of [0,1,3,99]){const version=copy();new DataView(version[0].buffer).setUint32(8,value,true);
+    await expect(importSavestate(fileChunks(version))).rejects.toThrow(/version/);}
   const length=copy();new DataView(length[1].buffer).setUint32(16,0xffffffff,true);
   await expect(importSavestate(fileChunks(length))).rejects.toThrow(/chunk/);
   await expect(importSavestate(fileChunks(chunks.slice(0,-1)))).rejects.toThrow(/Truncated/);
