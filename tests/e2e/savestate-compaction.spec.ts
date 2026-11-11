@@ -24,8 +24,21 @@ for(const suspension of ['asyncify','jspi'])for(const variant of variants)test('
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
     const small=await t.snapshot();await t.step(300);
     const snap=await t.snapshot(),traces:{hash:string|null;pixels:string}[][]=[],restoreMs=[];
+    const unaligned=(stream:ReadableStream<Uint8Array>)=>{
+      let pending:Uint8Array|undefined;
+      return stream.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({
+        transform(chunk,controller){
+          if(pending){
+            controller.enqueue(pending.subarray(0,1));
+            const joined=new Uint8Array(pending.length-1+chunk.length);joined.set(pending.subarray(1));joined.set(chunk,pending.length-1);controller.enqueue(joined);pending=undefined;return;
+          }
+          if(chunk.length===24&&new DataView(chunk.buffer,chunk.byteOffset,24).getUint32(0,true)===3){pending=chunk;return;}
+          controller.enqueue(chunk);
+        },flush(controller){if(pending)controller.enqueue(pending);}
+      }));
+    };
     for(let run=0;run<3;run++){
-      if(run){const start=performance.now();await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(snap)):snap);restoreMs.push(performance.now()-start);}
+      if(run){const start=performance.now();await t.restore(run===2?await t.importSnapshot(unaligned(t.exportSnapshot(snap))):snap);restoreMs.push(performance.now()-start);}
       const trace=[];
       for(let i=0;i<8;i++){await t.step(1);trace.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
       traces.push(trace);

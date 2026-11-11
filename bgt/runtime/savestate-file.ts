@@ -123,7 +123,15 @@ export async function importSavestate(source:SnapshotSource):Promise<Savestate> 
     if(v&&typeof v==='object'){
       if('$bgt' in v){const t=v as Tag;if(t.$bgt==='blob8'||t.$bgt==='blob32'){
         const b=blobs.get(t.id!)!;if(b.at!==t.bytes)throw new Error('Missing savestate blob bytes');
-        const data=b.data??new Uint8Array();return t.$bgt==='blob8'?data:new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4);
+        const data=b.data??new Uint8Array();
+        if(t.$bgt==='blob8'){
+          // A blob may be a view into an arbitrarily split transport chunk.
+          // Keep raw bytes cheap when aligned, but make all future typed views safe.
+          if((data.byteOffset&3)===0)return data;
+          const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
+        }
+        // blob32 was alignment-checked while the chunks were assembled.
+        return new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4);
       }}
       if(v instanceof Map)return new Map([...v].map(([k,x])=>[resolve(k),resolve(x)]));
       if(v instanceof Set)return new Set([...v].map(resolve));

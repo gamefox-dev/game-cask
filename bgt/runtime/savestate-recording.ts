@@ -35,9 +35,19 @@ export function restoreCheckpointFrame(record:CheckpointFrame):Frame {
   // Upload data is a read-only view, not an extra allocation per object.
   f.items=restoreCheckpointItems(record);return f;
 }
+function alignedUpload(data:Uint8Array<ArrayBuffer>):Uint8Array<ArrayBuffer>{
+  // Imported BGTSTATE blob views can begin at any byte in their transport chunk.
+  // WebGL typed upload views require the backing offset to satisfy their element
+  // alignment (including 16-bit and 32-bit formats); normalize at the test-only
+  // replay boundary rather than changing the production renderer or file layout.
+  if((data.byteOffset&3)===0)return data;
+  const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
+}
 export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
-  return record.items.map(i=>({...i,...(typeof i.data==='string'?{data:decodeBytes(i.data)}:{}),
-    ...(i.kind==='readback'?{complete:()=>{}}:{})})) as FrameItem[];
+  return record.items.map(i=>{
+    const data=typeof i.data==='string'?decodeBytes(i.data):i.data instanceof Uint8Array?alignedUpload(i.data):undefined;
+    return {...i,...(data===undefined?{}:{data}),...(i.kind==='readback'?{complete:()=>{}}:{})};
+  }) as FrameItem[];
 }
 /** Checkpoint replay deliberately excludes FrameReplay's inspection/base64 machinery. */
 export class CheckpointReplay {
