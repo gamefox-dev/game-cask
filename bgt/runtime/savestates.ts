@@ -1,8 +1,10 @@
 // Test-only deterministic checkpoint controller. Installed before boot, never in normal play.
 import { DT_US } from './abi';
+import {cloneCheckpoint} from './savestate-clone';
+import {validateSavestate} from './savestate-validation';
 import type { GameHost, HostServices } from './host';
 import type { BGTRuntime } from './runtime';
-import { recordFrame, type RecordedFrame } from '../renderers/recording';
+import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type CheckpointFrame} from './savestate-recording';
 import './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
@@ -18,7 +20,7 @@ export interface Savestate {
   vfs: ReturnType<BGTRuntime['vfs']['checkpoint']>;
   input: ReturnType<BGTRuntime['input']['checkpoint']>;
   services: {ticks: number; rng: number; audioQueued: number; storage: Map<string, Uint8Array>};
-  journal: RecordedFrame[]; gpuBase: GPUCheckpoint | null;
+  journal: CheckpointFrame[]; gpuBase: GPUCheckpoint | null;
   stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number};
 }
 
@@ -27,47 +29,43 @@ export class Savestates {
   private rng: number;
   private audioQueued = 0;
   private storage = new Map<string, Uint8Array>();
-  private journal: RecordedFrame[] = [];
+  private journal: CheckpointFrame[] = [];
   private gpuBase: GPUCheckpoint | null = null;
   private busy = false;
   private journalBytes = 0;
   private journalError: string | null = null;
-  private readonly journalLimit = 256 * 1024 * 1024;
+  private readonly journalLimit = 2 * 1024 * 1024 * 1024;
   private executions = new WeakMap<object,Record<string,unknown>>();
   private wrappedRenderer: Renderer | null = null;
-  private lastCompact = 0;
+
   constructor(private readonly rt: BGTRuntime, seed: number) {
     if (rt.ready || rt.host) throw new Error('Deterministic mode must be enabled before boot');
     this.rng = (seed >>> 0) || 1;
     rt.testHarness = {
       services: s => this.services(s),
       updated: () => { this.ticks++; this.audioQueued = Math.max(0,this.audioQueued - DT_US * 48000 / 1000000); },
-      afterFrame: async () => {
-        if(this.journalError || (this.ticks-this.lastCompact<120 && this.journalBytes<32*1024*1024))return;
-        this.lastCompact=this.ticks;
-        // Bound recording during long routes, not just the eventual restore. A failed
-        // materialization keeps the original journal; the explicit snapshot reports why.
-        try {await this.materialize();} catch { /* no approximation or guest-visible failure */ }
-      },
+
       frame: (...args) => {
         if (this.journalError) return;
-        const frame = recordFrame(...args), bytes = JSON.stringify(frame).length * 2;
+        const frame = recordCheckpointFrame(...args), bytes = checkpointFrameBytes(frame);
         if (this.journalBytes + bytes > this.journalLimit) {
-          this.journalError = 'Savestate GPU journal exceeded 256 MiB; reload or restore an earlier checkpoint';
+          this.journalError = 'Savestate GPU journal exceeded 2 GiB; reload or restore an earlier checkpoint (call compactJournal before overflow)';
           this.journal = []; this.journalBytes = 0; return;
         }
         const renderer=rt.renderer!;
         if(renderer!==this.wrappedRenderer && renderer.gpu) {
           const execute=renderer.gpu.execute.bind(renderer.gpu);
-          renderer.gpu.execute=item=>{const code=execute(item);const recorded=this.executions.get(item);if(recorded)recorded.executeCode=code;return code;};
+          renderer.gpu.execute=item=>{const code=execute(item);if(code){const recorded=this.executions.get(item);if(recorded)recorded.executeCode=code;}return code;};
           this.wrappedRenderer=renderer;
         }
-        args[0].items.forEach((item,i)=>{
-          this.executions.set(item,frame.items[i]);
+        let i=0;
+        for(const item of args[0].items){
+          if(!recordsMutation(item))continue;
+          const recorded=frame.items[i++];this.executions.set(item,recorded);
           if(item.kind==='gpu' && item.complete) {
-            const complete=item.complete;item.complete=(code,log)=>{frame.items[i].completeCode=code;complete(code,log);};
+            const complete=item.complete;item.complete=(code,log)=>{recorded.completeCode=code;complete(code,log);};
           }
-        });
+        }
         this.journal.push(frame); this.journalBytes += bytes;
       },
     };
@@ -93,10 +91,10 @@ export class Savestates {
     return JSON.stringify({manifest:this.rt.manifest, suspension:this.rt.host?.config.suspensionMode,
       seed:this.rt.host?.config.seed,arg0:this.rt.host?.config.arg0,arg1:this.rt.host?.config.arg1});
   }
-  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  private async exclusive<T>(fn: () => Promise<T>, prepare?: () => void): Promise<T> {
     if (this.busy || !this.rt.testQuiescent()) throw new Error('Savestate requires a paused quiescent update boundary');
     this.busy = true; this.rt.testCheckpointBusy = true;
-    try { await this.rt.renderer!.finish(); return await fn(); }
+    try { prepare?.(); await this.rt.renderer!.finish(); return await fn(); }
     finally { this.busy = false; this.rt.testCheckpointBusy = false; }
   }
   snapshot(): Promise<Savestate> {
@@ -108,17 +106,19 @@ export class Savestates {
       const compact = await this.materialize();
       return {schema:'bgt-savestate/1',identity:this.identity(),backend:rt.renderer!.kind,
         width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,
-        gpuBase:structuredClone(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
-        services:structuredClone({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,storage:this.storage}),
-        journal:structuredClone(this.journal)};
+        gpuBase:cloneCheckpoint(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
+        services:cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,storage:this.storage}),
+        journal:cloneCheckpoint(this.journal)};
     });
   }
+  compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
+  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:this.journalLimit,error:this.journalError};}
   private async materialize() {
     const temporary = await this.createRenderer();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
-    try {compact=await compactGPU(temporary,this.gpuBase,this.journal);}finally{temporary.destroy();}
+    try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{temporary.destroy();}
     this.gpuBase=compact.base;this.journal=compact.journal;
-    this.journalBytes=this.journal.reduce((n,f)=>n+JSON.stringify(f).length*2,0);
+    this.journalBytes=this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
     return compact;
   }
   private async createRenderer(): Promise<Renderer & CheckpointRenderer> {
@@ -127,25 +127,33 @@ export class Savestates {
     if(!renderer)throw new Error('Savestate renderer unavailable');return renderer;
   }
   restore(snapshot: Savestate): Promise<void> {
+    let s:Savestate;
     return this.exclusive(async () => {
-      // Clone before any await: caller mutation must not race validation or replay.
-      const s = structuredClone(snapshot), rt = this.rt;
+      const rt = this.rt;
       if (s.schema !== 'bgt-savestate/1' || s.identity !== this.identity() || s.backend !== rt.renderer!.kind ||
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
       // Reject live JSPI continuation before allocating a replacement; never silently abandon a suspended task.
       rt.host!.assertCheckpointBoundary();
+      validateSavestate(s);
+      // All fallible preparation precedes the commit. These detached plain records are
+      // assigned synchronously after testReplace; no clone, validation or guest work follows it.
+      const vfs=cloneCheckpoint(s.vfs),input=cloneCheckpoint(s.input),services=s.services;
+      const journalBytes=s.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
       let renderer: (Renderer & CheckpointRenderer) | null = null;
       try {
         renderer = await this.createRenderer();
         await replayGPU(renderer,s.gpuBase,s.journal);
         const host = await rt.testHostFactory!(renderer);
         host.restoreCheckpoint(s.host);
-        rt.testReplace(host,renderer,s.input.letterbox); renderer = null;
-        rt.vfs.restoreCheckpoint(s.vfs); rt.input.restoreCheckpoint(s.input);
-        this.ticks = s.services.ticks; this.rng = s.services.rng; this.audioQueued = s.services.audioQueued;
-        this.storage = s.services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
-        this.journalBytes = this.journal.reduce((n,f)=>n+JSON.stringify(f).length*2,0); this.journalError = null;
+        rt.testReplace(host,renderer,input.letterbox); renderer = null;
+        Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
+        this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued;
+        this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
+        this.journalBytes = journalBytes; this.journalError = null;
       } finally { renderer?.destroy(); }
+    }, () => {
+      // Capture synchronously, before even finish() can yield to caller mutation.
+      s = cloneCheckpoint(snapshot);
     });
   }
 }

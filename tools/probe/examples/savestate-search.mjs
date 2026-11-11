@@ -3,8 +3,8 @@ export default async function(p) {
   await p.key('Enter');await p.step(20);
   const snap=await p.snapshot();let imported;
   try {
-    const before=await p.stateHash();await p.exportSnapshot(snap,'route.bgtstate.json');
-    imported=await p.importSnapshot('route.bgtstate.json');await p.restore(imported);
+    const before=await p.stateHash();await p.exportSnapshot(snap,'route.bgtstate');
+    imported=await p.importSnapshot('route.bgtstate');await p.restore(imported);
     const results=await p.search(imported,{variants:[0,2,4],updates:12,
       input:(delay,frame)=>[{type:'key',code:'ArrowRight',down:frame>=delay}],
       score:async p=>(await p.debugState()).player.x,prefix:'timing'});

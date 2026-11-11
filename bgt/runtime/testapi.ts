@@ -7,6 +7,7 @@ import type { DecodeResult } from './commands';
 import type { TestInputEvent } from '../input/input';
 import { recordFrame, type RecordedFrame } from '../renderers/recording';
 import type { Savestate } from './savestates';
+import type {ExportOptions,SnapshotSource} from './savestate-file';
 
 export type BGTTestInputEvent = TestInputEvent;
 
@@ -19,8 +20,12 @@ export interface BGTPixels {
 
 export interface BGTTestAPI {
   snapshot(): Promise<Savestate>;
-  exportSnapshot(snapshot: Savestate): string;
-  importSnapshot(file: string): Savestate;
+  exportSnapshot(snapshot: Savestate,options?:ExportOptions): ReadableStream<Uint8Array>;
+  importSnapshot(file: SnapshotSource): Promise<Savestate>;
+  exportSnapshotDebugJson(snapshot:Savestate):string;
+  importSnapshotDebugJson(file:string):Savestate;
+  compactJournal():Promise<void>;
+  journalStats():{bytes:number;frames:number;limit:number;error:string|null};
   restore(snapshot: Savestate): Promise<void>;
   ready(): boolean;
   pause(): void;
@@ -73,7 +78,11 @@ export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
   const required = () => { if (!states) throw new Error('Savestates require test-only ?deterministic=1 before boot'); return states; };
   const api: BGTTestAPI = {
     snapshot: () => required().snapshot(),
-    exportSnapshot: snapshot => { required(); return codec!.exportSavestate(snapshot); },
+    exportSnapshot: (snapshot,options) => { required(); return codec!.exportSavestate(snapshot,options); },
+    exportSnapshotDebugJson: snapshot => {required();return codec!.exportSavestateDebugJson(snapshot);},
+    importSnapshotDebugJson: file => {required();return codec!.importSavestateDebugJson(file);},
+    compactJournal:()=>required().compactJournal(),
+    journalStats:()=>required().journalStats(),
     importSnapshot: file => { required(); return codec!.importSavestate(file); },
     restore: snapshot => required().restore(snapshot),
     ready: () => rt.ready && !rt.failed,
