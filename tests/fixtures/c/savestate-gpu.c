@@ -3,7 +3,10 @@
 #include "bgt.h"
 #include "bgt_cmd.h"
 BGT_DEFINE_IO(io)
-static uint32_t commands[2048],tick,hash=1,ready;
+#ifndef STRESS_DRAWS
+#define STRESS_DRAWS 1
+#endif
+static uint32_t commands[2048+STRESS_DRAWS*8],tick,hash=1,ready;
 static bgt_cmdbuf_t cb;
 static uint32_t pixel=0xff112244u;
 static const char vs[]="#version 300 es\nprecision highp float;void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[bgt_vertex_index],0.5,1);}";
@@ -87,7 +90,7 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     ref.value=37;
 #endif
     bgt_cmd_gpu_stencil_ref(&cb,&ref);
-    bgt_gpu_draw_t draw={3,1,0,0};bgt_cmd_gpu_draw(&cb,&draw);bgt_cmd_gpu_pass_end(&cb);
+    bgt_gpu_draw_t draw={3,1,0,0};for(int i=0;i<STRESS_DRAWS;i++)bgt_cmd_gpu_draw(&cb,&draw);bgt_cmd_gpu_pass_end(&cb);
 #if PROVENANCE_MUTATION == 5
     if(tick==4) {
         bgt_gpu_blit_t copy={0};copy.source=4;copy.destination=2;

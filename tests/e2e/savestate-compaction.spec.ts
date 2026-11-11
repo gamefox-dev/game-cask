@@ -20,18 +20,19 @@ for(const suspension of ['asyncify','jspi'])for(const variant of variants)test('
     expect(result.error).toMatch(/provenance/);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);return;
   }
   const result=await page.evaluate(async()=>{
+    const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
     const small=await t.snapshot();await t.step(300);
-    const snap=await t.snapshot(),file=t.exportSnapshot(snap),traces:{hash:string|null;pixels:string}[][]=[],restoreMs=[];
+    const snap=await t.snapshot(),traces:{hash:string|null;pixels:string}[][]=[],restoreMs=[];
     for(let run=0;run<3;run++){
-      if(run){const start=performance.now();await t.restore(run===2?t.importSnapshot(file):snap);restoreMs.push(performance.now()-start);}
+      if(run){const start=performance.now();await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(snap)):snap);restoreMs.push(performance.now()-start);}
       const trace=[];
       for(let i=0;i<8;i++){await t.step(1);trace.push({hash:t.stateHash(),pixels:(await t.readPixels())!.base64});}
       traces.push(trace);
     }
     const after=await t.snapshot();
     const shadow=(s:typeof snap)=>s.gpuBase!.surfaces.textures.find(x=>x.handle===1);
-    return {metadataStable:JSON.stringify(shadow(after))===JSON.stringify(shadow(snap)),stats:snap.stats,bytes:file.length,smallBytes:t.exportSnapshot(small).length,restoreMs,
+    return {metadataStable:JSON.stringify(shadow(after))===JSON.stringify(shadow(snap)),stats:snap.stats,bytes:await fileBytes(t.exportSnapshot(snap)),smallBytes:await fileBytes(t.exportSnapshot(small)),restoreMs,
       equal:traces.slice(1).map(trace=>trace.every((x,i)=>x.hash===traces[0][i].hash&&x.pixels===traces[0][i].pixels)),
       changing:new Set(traces[0].map(x=>x.pixels)).size,errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
   });

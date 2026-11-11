@@ -14,18 +14,19 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
     if(game==='x64-threads') expect(((await diagnostics(page)).metrics as {exited:number}).exited).toBe(0);
     const wasSuspended = (await diagnostics(page)).suspended;
     const result = await page.evaluate(async (game) => {
-      const t = (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+      const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};
+    const t = (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
       if (t.diagnostics().suspension === 'jspi' && t.diagnostics().suspended) {
         try { await t.snapshot(); return {unsupported:false}; } catch(e) { return {unsupported:String(e).includes('suspended JSPI')}; }
       }
       const early=game==='x64-gl-fbo'?await t.snapshot():null;
       if(early)await t.step(300);
       const snap = await t.snapshot();
-      const earlyBytes=early?t.exportSnapshot(early).length:null;
-      const savedHash=t.stateHash(),savedBytes=t.exportSnapshot(snap).length,restoreMs:number[]=[];
+      const earlyBytes=early?await fileBytes(t.exportSnapshot(early)):null;
+      const savedHash=t.stateHash(),savedBytes=await fileBytes(t.exportSnapshot(snap)),restoreMs:number[]=[];
       const traces: {hash:string|null;pixels:string}[][] = [];
       for(let run=0;run<3;run++) {
-        if(run) {const start=performance.now();await t.restore(run === 2 ? t.importSnapshot(t.exportSnapshot(snap)) : snap);restoreMs.push(performance.now()-start);}
+        if(run) {const start=performance.now();await t.restore(run === 2 ? await t.importSnapshot(t.exportSnapshot(snap)) : snap);restoreMs.push(performance.now()-start);}
         const trace = [];
         for(let i=0;i<(game==='x64-threads'?24:8);i++) {
           t.input([{type:'key',code:'ArrowRight',down:i<4},{type:'button',button:'A',down:i===2}]);

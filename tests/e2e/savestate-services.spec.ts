@@ -43,7 +43,7 @@ for(const suspension of ['asyncify','jspi']) for(const suspended of [false,true]
     const snap=await t.snapshot(),before=t.diagnostics().wasmMemoryBytes;
     const traces: {hash:string|null;pixels:string}[][]=[];
     for(let run=0;run<3;run++) {
-      if(run) await t.restore(run===2?t.importSnapshot(t.exportSnapshot(snap)):snap);
+      if(run) await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(snap)):snap);
       if(t.diagnostics().wasmMemoryBytes!==before) throw new Error('Restored memory did not shrink');
       const trace=[];
       for(let i=0;i<12;i++) {

@@ -2,7 +2,7 @@
 import { DT_US } from './abi';
 import type { GameHost, HostServices } from './host';
 import type { BGTRuntime } from './runtime';
-import { recordFrame, type RecordedFrame } from '../renderers/recording';
+import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type CheckpointFrame} from './savestate-recording';
 import './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
@@ -18,7 +18,7 @@ export interface Savestate {
   vfs: ReturnType<BGTRuntime['vfs']['checkpoint']>;
   input: ReturnType<BGTRuntime['input']['checkpoint']>;
   services: {ticks: number; rng: number; audioQueued: number; storage: Map<string, Uint8Array>};
-  journal: RecordedFrame[]; gpuBase: GPUCheckpoint | null;
+  journal: CheckpointFrame[]; gpuBase: GPUCheckpoint | null;
   stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number};
 }
 
@@ -27,47 +27,43 @@ export class Savestates {
   private rng: number;
   private audioQueued = 0;
   private storage = new Map<string, Uint8Array>();
-  private journal: RecordedFrame[] = [];
+  private journal: CheckpointFrame[] = [];
   private gpuBase: GPUCheckpoint | null = null;
   private busy = false;
   private journalBytes = 0;
   private journalError: string | null = null;
-  private readonly journalLimit = 256 * 1024 * 1024;
+  private readonly journalLimit = 2 * 1024 * 1024 * 1024;
   private executions = new WeakMap<object,Record<string,unknown>>();
   private wrappedRenderer: Renderer | null = null;
-  private lastCompact = 0;
+
   constructor(private readonly rt: BGTRuntime, seed: number) {
     if (rt.ready || rt.host) throw new Error('Deterministic mode must be enabled before boot');
     this.rng = (seed >>> 0) || 1;
     rt.testHarness = {
       services: s => this.services(s),
       updated: () => { this.ticks++; this.audioQueued = Math.max(0,this.audioQueued - DT_US * 48000 / 1000000); },
-      afterFrame: async () => {
-        if(this.journalError || (this.ticks-this.lastCompact<120 && this.journalBytes<32*1024*1024))return;
-        this.lastCompact=this.ticks;
-        // Bound recording during long routes, not just the eventual restore. A failed
-        // materialization keeps the original journal; the explicit snapshot reports why.
-        try {await this.materialize();} catch { /* no approximation or guest-visible failure */ }
-      },
+
       frame: (...args) => {
         if (this.journalError) return;
-        const frame = recordFrame(...args), bytes = JSON.stringify(frame).length * 2;
+        const frame = recordCheckpointFrame(...args), bytes = checkpointFrameBytes(frame);
         if (this.journalBytes + bytes > this.journalLimit) {
-          this.journalError = 'Savestate GPU journal exceeded 256 MiB; reload or restore an earlier checkpoint';
+          this.journalError = 'Savestate GPU journal exceeded 2 GiB; reload or restore an earlier checkpoint (call compactJournal before overflow)';
           this.journal = []; this.journalBytes = 0; return;
         }
         const renderer=rt.renderer!;
         if(renderer!==this.wrappedRenderer && renderer.gpu) {
           const execute=renderer.gpu.execute.bind(renderer.gpu);
-          renderer.gpu.execute=item=>{const code=execute(item);const recorded=this.executions.get(item);if(recorded)recorded.executeCode=code;return code;};
+          renderer.gpu.execute=item=>{const code=execute(item);if(code){const recorded=this.executions.get(item);if(recorded)recorded.executeCode=code;}return code;};
           this.wrappedRenderer=renderer;
         }
-        args[0].items.forEach((item,i)=>{
-          this.executions.set(item,frame.items[i]);
+        let i=0;
+        for(const item of args[0].items){
+          if(!recordsMutation(item))continue;
+          const recorded=frame.items[i++];this.executions.set(item,recorded);
           if(item.kind==='gpu' && item.complete) {
-            const complete=item.complete;item.complete=(code,log)=>{frame.items[i].completeCode=code;complete(code,log);};
+            const complete=item.complete;item.complete=(code,log)=>{recorded.completeCode=code;complete(code,log);};
           }
-        });
+        }
         this.journal.push(frame); this.journalBytes += bytes;
       },
     };
@@ -113,12 +109,14 @@ export class Savestates {
         journal:structuredClone(this.journal)};
     });
   }
+  compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
+  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:this.journalLimit,error:this.journalError};}
   private async materialize() {
     const temporary = await this.createRenderer();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
-    try {compact=await compactGPU(temporary,this.gpuBase,this.journal);}finally{temporary.destroy();}
+    try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{temporary.destroy();}
     this.gpuBase=compact.base;this.journal=compact.journal;
-    this.journalBytes=this.journal.reduce((n,f)=>n+JSON.stringify(f).length*2,0);
+    this.journalBytes=this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
     return compact;
   }
   private async createRenderer(): Promise<Renderer & CheckpointRenderer> {
@@ -144,7 +142,7 @@ export class Savestates {
         rt.vfs.restoreCheckpoint(s.vfs); rt.input.restoreCheckpoint(s.input);
         this.ticks = s.services.ticks; this.rng = s.services.rng; this.audioQueued = s.services.audioQueued;
         this.storage = s.services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
-        this.journalBytes = this.journal.reduce((n,f)=>n+JSON.stringify(f).length*2,0); this.journalError = null;
+        this.journalBytes = this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0); this.journalError = null;
       } finally { renderer?.destroy(); }
     });
   }

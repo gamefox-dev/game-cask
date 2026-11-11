@@ -4,15 +4,14 @@
 import { GPU_OP as O } from './abi';
 import { Frame, type FrameItem } from './commands';
 import { canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
-import { recordFrame, restoreFrame, type RecordedFrame } from '../renderers/recording';
-import { FrameReplay } from '../renderers/frame-replay';
+import {recordCheckpointFrame,restoreCheckpointItems,CheckpointReplay,type CheckpointFrame} from './savestate-recording';
 import type { Renderer, GpuItem } from '../renderers/types';
 import type { CheckpointRenderer, CheckpointSurfaces } from '../renderers/checkpoint-surfaces';
 
 // Null means unavailable, NOT the native texture's freshly initialized value.
 // Persist this proof alongside the base so repeated compaction cannot invent constants.
 type PackedConstants = [number | null, number | null][];
-type CheckpointFrame = RecordedFrame & { packedConstants?: [number, PackedConstants][] };
+
 export interface GPUCheckpoint { frame: CheckpointFrame; surfaces: CheckpointSurfaces }
 export const RESIDUAL_UPDATES = 2;
 export const RESIDUAL_COMMANDS = 100000;
@@ -22,7 +21,7 @@ interface Resources {
   shaders: Map<number,GpuItem>; pipelines: Map<number,GpuItem>; feedback: Map<number,GpuItem>;
   legacy: Map<number,{item: Extract<FrameItem,{kind:'texCreate'}>; data: Uint8Array<ArrayBuffer>}>;
 }
-function resources(records: RecordedFrame[]): Resources {
+function resources(records: CheckpointFrame[]): Resources {
   const r: Resources = {buffers:new Map(),textures:new Map(),samplers:new Map(),shaders:new Map(),pipelines:new Map(),feedback:new Map(),legacy:new Map()};
   let pass: {handle:number;mip:number;fullScissor:boolean;width:number;height:number} | undefined;
   let pipeline: GpuItem | undefined;
@@ -35,7 +34,7 @@ function resources(records: RecordedFrame[]): Resources {
     if(t?.item.words[6]===5 && c) {if(mask&1)c[0]=null;if(mask&2)c[1]=null;}
   };
   for (const record of records) {
-   for (const item of restoreFrame(record).items) {
+   for (const item of restoreCheckpointItems(record)) {
     // Failed creations reserve failed shader/pipeline objects; failed mutations have no effect.
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
@@ -107,7 +106,7 @@ function resources(records: RecordedFrame[]): Resources {
 /** Prove every UNKNOWN pre-cut aspect dies or resets before any consumption.
  * Known constants are materialized exactly at the cut, not read back or inferred
  * from end-of-suffix data. Partial uploads, blits and sampling are not reset proofs. */
-export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]): void {
+export function proveResidual(prefix: CheckpointFrame[], residual: CheckpointFrame[]): void {
   const r=resources(prefix), pending=new Map<number,Map<number,number>>();
   for(const [h,t] of r.textures) if(t.item.words[6]===5) pending.set(h,new Map(t.constants.map((c,i)=>[i,(c[0]===null?1:0)|(c[1]===null?2:0)])));
   let pass:{handle:number;mip:number;fullScissor:boolean;width:number;height:number}|undefined;
@@ -116,7 +115,7 @@ export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]
     const p=pending.get(h);
     if(p && (mip===undefined ? [...p.values()].some(Boolean) : p.get(mip))) throw new Error('Unsupported savestate GPU provenance: packed depth/stencil '+h+' consumed before full clear');
   };
-  for(const record of residual) for(const item of restoreFrame(record).items) {
+  for(const record of residual) for(const item of restoreCheckpointItems(record)) {
     if(item.kind!=='gpu') continue;
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
@@ -152,12 +151,12 @@ export function proveResidual(prefix: RecordedFrame[], residual: RecordedFrame[]
   }
   if([...pending.values()].some(p=>[...p.values()].some(Boolean))) throw new Error('Unsupported savestate GPU provenance: no full packed depth/stencil clear within two updates');
 }
-export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: RecordedFrame[]): Promise<void> {
-  const replay=new FrameReplay(renderer,true);
+export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
+  const replay=new CheckpointReplay(renderer);
   if(base) { await replay.draw(base.frame); renderer.restoreTestSurfaces(base.surfaces); }
   for(const f of journal) await replay.draw(f);
 }
-export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: RecordedFrame[]) {
+export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[], live?:Renderer & CheckpointRenderer) {
   const last=journal.at(-1) ?? base?.frame;
   if(!last) return {base,journal,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0}};
   const earliest=last.update-RESIDUAL_UPDATES+1;
@@ -172,9 +171,10 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   }
   if(cut<0) throw failure ?? new Error('Unsupported savestate GPU residual exceeds command/update bound');
   const prefix=journal.slice(0,cut), residual=journal.slice(cut), at=prefix.at(-1) ?? base?.frame ?? journal[0];
-  await replayGPU(renderer,base,prefix);
   const r=resources([...(base?[base.frame]:[]),...prefix]);
-  const surfaces=await renderer.captureTestSurfaces(at.letterbox);
+  const source=cut===journal.length&&live&&![...r.legacy.values()].some(t=>t.item.renderTarget)?live:renderer;
+  if(source===renderer)await replayGPU(renderer,base,prefix);
+  const surfaces=await source.captureTestSurfaces(at.letterbox);
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
   const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
   const pending: Promise<void>[]=[];
@@ -227,9 +227,11 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   }
   frame.items.push(...r.samplers.values(),...r.shaders.values(),...r.pipelines.values(),...r.feedback.values());
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-  await renderer.drawFrame(reads,at.letterbox,false);await renderer.finish();
+  if(source===renderer)await source.drawFrame(reads,at.letterbox,false);
+  else for(const item of reads.items){if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');source.gpu!.execute(item);}
+  await source.finish();
   const error=await done;if(error)throw error;
-  const compact:GPUCheckpoint={frame:{...recordFrame(frame,at.letterbox,at.update,at.width,at.height),
+  const compact:GPUCheckpoint={frame:{...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),
     packedConstants:[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants])},surfaces};
   return {base:compact,journal:residual,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
     residualUpdates:new Set(residual.map(f=>f.update)).size}};

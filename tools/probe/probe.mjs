@@ -8,7 +8,7 @@ import {searchSavestate} from './savestate-search.mjs';
 // web/public/games/ (run `npm run build:port` first). The script default-exports `async function (p)`; see
 // .claude/skills/browser-validation/SKILL.md for the API. Artifacts (PNGs, probe.json with the log, console and
 // errors) go to --out (default reports/probe/, private). Never touches kit or port test results.
-import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, appendFileSync,openSync,readSync,writeSync,closeSync,renameSync,unlinkSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
@@ -53,6 +53,7 @@ async function freePort(start) {
 
 /** The object handed to the script. Coordinates are logical pixels. */
 export function makeProbe(page, { game, backend, out, params, log, profiler = null }) {
+  let activeRead=null,readBinding;
   const rawApi = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
   const api = (fn, ...args) => fn === 'step' && profiler ? profiler.step(args[0],rawApi) : rawApi(fn,...args);
   const save = (name, b64) => {
@@ -101,11 +102,44 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     /** Browser-local JSHandle: snapshots never cross Playwright's lossy JSON boundary. Dispose when finished. */
     snapshot: () => page.evaluateHandle(() => window.__BGT_TEST__.snapshot()),
     restore: snapshot => page.evaluate(s => window.__BGT_TEST__.restore(s), snapshot),
-    async exportSnapshot(snapshot, file) {
-      const data = await snapshot.evaluate(s => window.__BGT_TEST__.exportSnapshot(s));
-      const path = resolve(out,file); writeFileSync(path,data); log.artifacts.push(path); return path;
+    async exportSnapshot(snapshot, file, options = {}) {
+      const path=resolve(out,file),partial=path+'.partial';let fd,reader;
+      try {
+        fd=openSync(partial,'w');
+        reader=await snapshot.evaluateHandle((s,options)=>({reader:window.__BGT_TEST__.exportSnapshot(s,options).getReader(),pending:null,at:0}),options);
+        for(;;){
+          // Playwright's JSON transport has no binary channel. Base64 is bounded to 1 MiB,
+          // coalescing tiny sparse-page records without ever serializing the snapshot itself.
+          const encoded=await reader.evaluate(async s=>{
+            const out=new Uint8Array(1024*1024);let n=0;
+            while(n<out.length){if(!s.pending){const p=await s.reader.read();if(p.done)break;s.pending=p.value;s.at=0;}
+              const count=Math.min(out.length-n,s.pending.length-s.at);out.set(s.pending.subarray(s.at,s.at+count),n);n+=count;s.at+=count;
+              if(s.at===s.pending.length)s.pending=null;
+            }
+            if(!n)return null;let text='';for(let i=0;i<n;i+=32768)text+=String.fromCharCode(...out.subarray(i,Math.min(i+32768,n)));return btoa(text);
+          });
+          if(encoded===null)break;const bytes=Buffer.from(encoded,'base64');let at=0;
+          while(at<bytes.length)at+=writeSync(fd,bytes,at,bytes.length-at);
+        }
+        closeSync(fd);fd=undefined;renameSync(partial,path);log.artifacts.push(path);return path;
+      }catch(e){if(fd!==undefined)closeSync(fd);try{unlinkSync(partial);}catch{}throw e;}
+      finally{if(reader){await reader.evaluate(s=>s.reader.cancel()).catch(()=>{});await reader.dispose();}}
     },
-    importSnapshot: file => page.evaluateHandle(data => window.__BGT_TEST__.importSnapshot(data), readFileSync(resolve(out,file),'utf8')),
+    async importSnapshot(file) {
+      if(activeRead!==null)throw new Error('Concurrent probe snapshot imports are unsupported');
+      activeRead=openSync(resolve(out,file),'r');
+      try {
+        readBinding??=page.exposeFunction('__BGT_PROBE_READ_STATE__',()=>{
+          if(activeRead===null)throw new Error('Snapshot file is closed');const bytes=Buffer.allocUnsafe(1024*1024),n=readSync(activeRead,bytes);
+          return n?bytes.subarray(0,n).toString('base64'):null;
+        });await readBinding;
+        return await page.evaluateHandle(()=>window.__BGT_TEST__.importSnapshot(new globalThis.ReadableStream({async pull(c){
+          const s=await window.__BGT_PROBE_READ_STATE__();if(s===null){c.close();return;}const raw=atob(s);c.enqueue(Uint8Array.from(raw,ch=>ch.charCodeAt(0)));
+        }})));
+      }finally{closeSync(activeRead);activeRead=null;}
+    },
+    compactJournal:()=>api('compactJournal'),
+    journalStats:()=>api('journalStats'),
     /** Try a timing/input variant per branch. Always restore, even when scoring/capture throws. */
     search: (snapshot,options) => searchSavestate(p,snapshot,options),
     readPixels: () => api('readPixels'),

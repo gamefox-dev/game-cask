@@ -19,7 +19,7 @@ for(const suspension of ['asyncify','jspi'])test('savestate preserves live and d
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
     const live=await t.snapshot(),traces: (string|null)[][][]=[];
     for(let run=0;run<3;run++){
-      if(run)await t.restore(run===2?t.importSnapshot(t.exportSnapshot(live)):live);
+      if(run)await t.restore(run===2?await t.importSnapshot(t.exportSnapshot(live)):live);
       const trace=[];
       for(let i=0;i<7;i++){await t.step(1);trace.push([t.stateHash(),(await t.readPixels())!.base64]);}
       traces.push(trace);
