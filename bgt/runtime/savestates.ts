@@ -90,10 +90,10 @@ export class Savestates {
     return JSON.stringify({manifest:this.rt.manifest, suspension:this.rt.host?.config.suspensionMode,
       seed:this.rt.host?.config.seed,arg0:this.rt.host?.config.arg0,arg1:this.rt.host?.config.arg1});
   }
-  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  private async exclusive<T>(fn: () => Promise<T>, prepare?: () => void): Promise<T> {
     if (this.busy || !this.rt.testQuiescent()) throw new Error('Savestate requires a paused quiescent update boundary');
     this.busy = true; this.rt.testCheckpointBusy = true;
-    try { await this.rt.renderer!.finish(); return await fn(); }
+    try { prepare?.(); await this.rt.renderer!.finish(); return await fn(); }
     finally { this.busy = false; this.rt.testCheckpointBusy = false; }
   }
   snapshot(): Promise<Savestate> {
@@ -126,9 +126,9 @@ export class Savestates {
     if(!renderer)throw new Error('Savestate renderer unavailable');return renderer;
   }
   restore(snapshot: Savestate): Promise<void> {
+    let s:Savestate;
     return this.exclusive(async () => {
-      // Clone before any await: caller mutation must not race validation or replay.
-      const s = cloneCheckpoint(snapshot), rt = this.rt;
+      const rt = this.rt;
       if (s.schema !== 'bgt-savestate/1' || s.identity !== this.identity() || s.backend !== rt.renderer!.kind ||
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
       // Reject live JSPI continuation before allocating a replacement; never silently abandon a suspended task.
@@ -145,6 +145,9 @@ export class Savestates {
         this.storage = s.services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
         this.journalBytes = this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0); this.journalError = null;
       } finally { renderer?.destroy(); }
+    }, () => {
+      // Capture synchronously, before even finish() can yield to caller mutation.
+      s = cloneCheckpoint(snapshot);
     });
   }
 }
