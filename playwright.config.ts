@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { noWebGPU, webgpuArgs, webglArgs } from './tests/e2e/browser-options';
 
 // Projects:
@@ -17,6 +17,8 @@ import { noWebGPU, webgpuArgs, webglArgs } from './tests/e2e/browser-options';
 //                    NOT iPhone Safari verification)
 const PORT = Number(process.env.BGT_E2E_PORT ?? 5179);
 const PREFIX = process.env.BGT_RESULTS_PREFIX ?? 'e2e-adhoc';
+const portConfig = process.env.BGT_PORT_TESTS === '1' && existsSync('port/game.json') ? JSON.parse(readFileSync('port/game.json', 'utf8')) : null;
+const enginePort = portConfig?.engineProfile ? portConfig : null;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -41,10 +43,10 @@ export default defineConfig({
     viewport: { width: 960, height: 540 },
   },
   webServer: {
-    command: `npx vite --port ${PORT} --strictPort --host 127.0.0.1`,
+    command: enginePort ? `node tools/engine/cli.mjs serve .engine-private/builds/${enginePort.id}` : `npx vite --port ${PORT} --strictPort --host 127.0.0.1`,
     // Always own the test server: unrelated SPA servers may return index.html with HTTP 200 even
     // for this kit-specific URL. Fail to bind an occupied port rather than testing the wrong app.
-    url: `http://127.0.0.1:${PORT}/games/index.json`,
+    url: `http://127.0.0.1:${PORT}/${enginePort ? 'manifest.json' : 'games/index.json'}`,
     reuseExistingServer: false,
     timeout: 60_000,
   },
@@ -79,7 +81,9 @@ export default defineConfig({
     },
     // Private, game-specific tests written by the porter (port/ is git-ignored).
     ...(process.env.BGT_PORT_TESTS === '1' && existsSync('port/tests')
-      ? [
+      ? enginePort ? [
+          { name: 'port-engine', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], launchOptions: { args: webglArgs }, backendParam: 'webgl2' } as never },
+        ] : [
           { name: 'port-webgl2', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, backendParam: 'webgl2' } as never },
           {
             name: 'port-webgpu',

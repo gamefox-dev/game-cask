@@ -1,0 +1,142 @@
+# Engine profiles (K45)
+
+Game Cask has **two separate paths**. Systematic lifting remains the default and main path:
+extract → analyze → lift → platform profile → BGT → oracle. An **engine profile** is an explicit
+opt-in: inspect a known engine's exact version/build, extract its data pack, and pair it with a
+hash-verified official web runtime. It is not a port of that engine to the BGT ABI.
+
+## Policy, authenticity and boundaries
+
+* A trial must explicitly permit engine profiles. Selection requires engineProfile.allowed=true
+  in game.json; the porter must only set it when the user/trial permits this path. It is
+  default-off. Builds refuse absent/false opt-in, mixed pipeline and engineProfile, or unknown
+  versions/features. Existing lifting behavior is unchanged.
+* Game logic and assets are not rewritten. Embedded extraction may change **only directory
+  offset words** to rebase them to a standalone pack; every per-file MD5 is checked before use.
+  Source, standalone-pack, runner, runtime archive/member and notice SHA-256 values are retained.
+* Runner version/build signatures corroborate identity but can be forged. A custom engine fork,
+  missing export modules or platform-dependent scripts can still differ. Detection is not a
+  compatibility proof or a claim that signatures authenticate an arbitrary binary.
+* No DRM/activation/encryption bypass. Unknown/encrypted pack formats and encrypted scripts are
+  refused. Possession is not permission to redistribute a game. Operator authorization and the
+  game's own rights remain necessary. This kit makes **no redistribution clearance claim**.
+* Runtime archives, extracted runtimes, packs and engine builds are private/local-only and never
+  committed. Default storage is .engine-private/; leakcheck rejects it even if force-staged,
+  PCK extensions/signatures, known runtime filenames, and renamed allowlisted runtime hashes.
+  Do not publish a generated pack or screenshots without reviewing the game's rights.
+* Godot is MIT-licensed but bundles third-party components. The operator-provided official
+  3.5.3-stable LICENSE.txt and COPYRIGHT.txt are separately hash-pinned and copied into every
+  local build. A runtime cannot be provisioned without pinned notices. Redistribution requires
+  a separate review of these notices, runtime dependencies, and game rights.
+
+## Offline provisioning
+
+No command downloads a runtime. A reviewer approves provenance, exact build and full archive
+SHA-256 in tools/engine/runtimes.json. A hash calculated from an untrusted download alone does
+not establish official provenance. Runtime and notice changes need review.
+
+    npm run engine:provision -- godot-3.5.3 /offline/webassembly_release.zip /offline/notices
+    npm run engine -- doctor godot-3.5.3
+
+The last argument defaults to the archive's directory; it must contain the pinned notice files.
+Provisioning checks the archive before safe ZIP extraction, checks every runtime member, retains a
+receipt, and atomically publishes the runtime. Subsequent builds reverify member hashes against
+**the checked-in allowlist**, not merely a mutable receipt. There is no nearby-version fallback.
+The non-threaded 3.5.3 runtime requires WebGL 2, not WebGPU. Its audio worklet is retained; its
+service-worker/offline-template files are retained but no service worker is registered by the shell.
+
+## Port config and workflow
+
+Runner/pack.from paths are relative to inputRoot, which is relative to the config directory
+(default ../original). Input traversal and symlinks are refused. Use a dedicated input directory:
+native side libraries and extra packs anywhere in the inspect inventory block the build.
+Pack sha256 means the **normalized standalone** pack hash; runnerSha256 means the whole runner
+file hash (including an embedded pack). Detection prints both source and normalized hashes.
+
+Example port/game.json (hash placeholders are not valid hashes):
+
+    {
+      "id": "mygame", "name": "My Game", "private": true,
+      "engineProfile": {
+        "schema": "game-cask/engine-profile/1", "allowed": true,
+        "adapter": "godot3", "runtime": "godot-3.5.3",
+        "version": "3.5.3", "build": "6c814135b69d4e703956bacc2073b4b179ff5a00",
+        "inputRoot": "../original", "runner": "game.exe", "runnerSha256": "<64 hex>",
+        "pack": { "location": "embedded-trailer", "sha256": "<64 hex>" },
+        "renderer": "webgl2", "threads": false, "width": 640, "height": 360
+      }
+    }
+
+For an adjacent/explicit standalone pack, use pack.location="adjacent" or "explicit" and
+pack.from="game.pck". Adjacent packs must be beside the runner. Multiple packs are not supported
+yet. The runner still needs exact version/build evidence; a PCK header alone identifies an
+exporter, not an official runner.
+
+    npm run engine -- detect original game.exe
+    npm run engine -- detect original game.exe game.pck
+    npm run engine -- extract original game.exe game.exe .engine-private/extracted/mygame
+    npm run build:port
+    npm run engine -- serve .engine-private/builds/mygame
+    npm run engine:probe -- .engine-private/builds/mygame ./explore.mjs
+    npm run test:engine
+
+Extract refuses to overwrite. Keep outputs private, outside original/ and input directories.
+Build produces a separate engine manifest and launch shell; it never invokes the lifter or changes
+BGT code. Trial records and probes identify executionPath/path=engineProfile, runtime id, and
+hashes. No pipeline instruction/LOC/oracle metrics are fabricated for an engine build.
+
+## Godot 3 adapter support
+
+The initial adapter supports Godot 3 **PCK format 1**, exact 3.5.3 stable official build only.
+It locates a header at zero or derives an embedded header from the final 12-byte GDPC trailer;
+it never trusts an incidental GDPC string in runner code. It validates header/reserved fields,
+counts, safe UTF-8 paths, duplicate/case-colliding names, directory bounds, safe 64-bit offsets,
+file ranges/non-overlap, and every stored MD5. Hash-verified absolute or pack-relative embedded
+offsets are accepted; only absolute offsets need rebasing. Inputs are bounded to 2 GiB and
+100,000 pack entries; these are implementation limits, not format claims.
+
+Explicit blockers include native/GDNative libraries, Mono/C#, encrypted formats/scripts, threads,
+additional packs, unknown runner signatures and version/runtime mismatch. Known script-level
+platform/thread usage is conservative. Static detection is not a complete feature inventory;
+compiled/dynamic scripts can still use unsupported functionality. Browser evidence is mandatory.
+
+## Browser tests/probes and unsupported BGT capabilities
+
+The tests/support/engine-profile.ts adapter opens a served build, injects trusted Playwright DOM
+keys, observes RAF intervals, and collects console/page/HTTP/request failures. The shell exposes
+a compatible **observation subset** of __BGT_TEST__ so existing screenshot, readPixels,
+captureRegion/expectChange, input, diagnostics and probe helpers can be reused.
+The engine:probe command uses the existing makeProbe facade and normal script style.
+
+**Not supported:** pause, deterministic stepping/seed replay, peek, savestates, command injection,
+BGT resource tours, trace oracles, guest coverage, retirement and BGT CPU profiling. These throw
+explicit errors or report null capability data. On this adapter step(n) means **observe n RAFs**,
+not execute n game updates; the game remains free-running. stateHash() returns null.
+Timing is browser **display cadence**, not engine FPS, simulation ticks, GPU duration or CPU cost.
+No Safari/iPhone/audio/persistence/network compatibility is claimed by the CC0 smoke test.
+
+Serving binds only 127.0.0.1 on BGT_E2E_PORT (never 5173), snapshots and hash-checks only
+manifest-allowlisted files, rejects traversal/symlinks, sets wasm/JS/PCK MIME types, and blocks
+external connects/frames with CSP. Threads profiles require COOP same-origin/COEP require-corp;
+this allowlisted runtime has no thread worker and requires neither. Run untrusted games only in
+an isolated browser/host sandbox with no credentials; localhost/CSP is not an OS security boundary.
+
+The original CC0 writer in tests/fixtures/engine/godot3-fixture.mjs creates ECFG project.binary,
+text scene/GDScript, standalone PCK, and a non-executable stub runner with an appended pack.
+No native editor or game files are required. E2E checks red→cyan pixels from Enter, screenshots,
+and unfiltered RAF timing. It skips **only** when no runtime is provisioned; corrupted provisioned
+artifacts fail. npm test parser/policy/server tests never require the runtime.
+
+## Adding another engine adapter
+
+1. Register an adapter in tools/engine/framework.mjs: pack discovery/parse/hash validation,
+   runner identification, unsupported-feature detectors and shell generation. Consume
+   game-cask/inventory/1 inspect output plus hash-bound read-only inputs. Do not execute runners.
+2. Specify exact engine/build, supported pack locations/normalization and hard bounds. Add CC0
+   fixtures and negative tests for malformed/untrusted inputs. Avoid game-dependent branches.
+3. Obtain reviewed official runtime provenance and archive/member/notice hashes. Add a reviewed
+   offline allowlist entry; never distribute the archive in Git. Define MIME, renderer, worker
+   and cross-origin-isolation requirements explicitly. Do not silently substitute engine releases.
+4. Add a browser observation adapter/shell, boot+input visual test and timing/error evidence.
+   State unsupported BGT capabilities and unresolved platform features honestly.
+5. Document authenticity/licensing boundaries and obtain policy review before enabling the adapter.

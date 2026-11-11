@@ -1,0 +1,421 @@
+{
+  "config": {
+    "argv": [
+      "/Users/dev/.nvm/versions/node/v24.19.0/bin/node",
+      "/Users/dev/projects/pi-work/lane-K45/node_modules/.bin/playwright",
+      "test",
+      "--config",
+      "tools/engine/playwright.config.ts",
+      "--repeat-each=5"
+    ],
+    "configFile": "/Users/dev/projects/pi-work/lane-K45/tools/engine/playwright.config.ts",
+    "rootDir": "/Users/dev/projects/pi-work/lane-K45/tests/engine",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/dev/projects/pi-work/lane-K45/reports/engine-artifacts",
+        "repeatEach": 5,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/dev/projects/pi-work/lane-K45/tests/engine",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/Users/dev/projects/pi-work/lane-K45/reports/engine-artifacts",
+        "repeatEach": 5,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "/Users/dev/projects/pi-work/lane-K45/tests/engine",
+        "snapshotDir": "/Users/dev/projects/pi-work/lane-K45/tests/engine",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 120000,
+        "use": {
+          "viewport": {
+            "width": 640,
+            "height": 360
+          },
+          "launchOptions": {
+            "args": [
+              "--use-angle=swiftshader",
+              "--enable-unsafe-swiftshader"
+            ]
+          }
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "reports/engine-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "godot3.spec.ts",
+      "file": "godot3.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Godot 3 CC0 pack boots, draws and changes screen on a DOM key; reports RAF timing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "catches",
+                  "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2615,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-11T13:23:02.591Z",
+                  "annotations": [
+                    {
+                      "type": "catches",
+                      "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "engine-before.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-after.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-profile.json",
+                      "contentType": "application/json",
+                      "body": "eyJkaWFnbm9zdGljcyI6eyJwYXRoIjoiZW5naW5lUHJvZmlsZSIsImdhbWUiOiJjYzAtZW5naW5lIiwicnVudGltZUlkIjoiZ29kb3QtMy41LjMiLCJhcmNoaXZlU2hhMjU2IjoiZDkyNDhlMDU4ZDdlZGJkZmI4YjZkZjI0MDE0ODRmZDhiNTk5NWMwZmE2OWM4YWUzYmE5M2RhMTY3OGY5NTRhNyIsInBhY2tTaGEyNTYiOiI3ZDY3MGRkYjBlYzc4ZjQ5ZWNmZjlkMWEwYzVlYjZlN2QzYzIwNjk2YmQwNmZhMGVhYjgyNjcyZjc2NmQxNzU5IiwicmVuZGVyZXIiOiJ3ZWJnbDIiLCJmcmFtZSI6OTksImVycm9ycyI6W10sImxvZ3MiOlsiR29kb3QgRW5naW5lIHYzLjUuMy5zdGFibGUub2ZmaWNpYWwuNmM4MTQxMzViIC0gaHR0cHM6Ly9nb2RvdGVuZ2luZS5vcmciLCJPcGVuR0wgRVMgMy4wIFJlbmRlcmVyOiBXZWJLaXQgV2ViR0wiLCJBc3luYy4gc2hhZGVyIGNvbXBpbGF0aW9uOiBPRkYiLCIgIl0sImJhY2tlbmQiOiJ3ZWJnbDIiLCJiYWNrZW5kTm90ZXMiOlsiT2ZmaWNpYWwgZW5naW5lIHJ1bnRpbWU7IEJHVCBiYWNrZW5kL3N1c3BlbnNpb24gc2VsZWN0aW9uIGRvZXMgbm90IGFwcGx5Il0sImxvZ2ljYWwiOnsid2lkdGgiOjMyMCwiaGVpZ2h0IjoxODB9LCJsZXR0ZXJib3giOnsieCI6MCwieSI6MCwidyI6MzIwLCJoIjoxODB9LCJjYXBhYmlsaXRpZXMiOnsiZGV0ZXJtaW5pc3RpYyI6ZmFsc2UsInBhdXNlIjpmYWxzZSwicGVlayI6ZmFsc2UsInNhdmVzdGF0ZXMiOmZhbHNlLCJjcHVQcm9maWxlIjpmYWxzZSwiY292ZXJhZ2UiOmZhbHNlfSwibWV0cmljcyI6eyJlbmdpbmVQcm9maWxlIjp7InBhdGgiOiJlbmdpbmVQcm9maWxlIiwiZ2FtZSI6ImNjMC1lbmdpbmUiLCJydW50aW1lSWQiOiJnb2RvdC0zLjUuMyIsImFyY2hpdmVTaGEyNTYiOiJkOTI0OGUwNThkN2VkYmRmYjhiNmRmMjQwMTQ4NGZkOGI1OTk1YzBmYTY5YzhhZTNiYTkzZGExNjc4Zjk1NGE3IiwicGFja1NoYTI1NiI6IjdkNjcwZGRiMGVjNzhmNDllY2ZmOWQxYTBjNWViNmU3ZDNjMjA2OTZiZDA2ZmEwZWFiODI2NzJmNzY2ZDE3NTkiLCJyZW5kZXJlciI6IndlYmdsMiJ9LCJyYWYiOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTgsImF2Z01zIjoyMy44MDgxNjMyNjUzMDYxMTcsInA5NU1zIjoxNi44MDAwMDAwMDAwMDAxODJ9fX0sInRpbWluZyI6eyJzb3VyY2UiOiJyZXF1ZXN0QW5pbWF0aW9uRnJhbWUgZGlzcGxheSBjYWRlbmNlLCBOT1QgZW5naW5lIGZyYW1lcy9DUFUvR1BVIHRpbWUiLCJzYW1wbGVzIjo5OCwiYXZnTXMiOjIzLjgwODE2MzI2NTMwNjExNywicDk1TXMiOjE2LjgwMDAwMDAwMDAwMDE4Mn19"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "520daf6abbc7777bd2fa-b36fd414484dd855cb77",
+          "file": "godot3.spec.ts",
+          "line": 12,
+          "column": 1
+        },
+        {
+          "title": "Godot 3 CC0 pack boots, draws and changes screen on a DOM key; reports RAF timing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "catches",
+                  "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2462,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-11T13:23:05.564Z",
+                  "annotations": [
+                    {
+                      "type": "catches",
+                      "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "engine-before.png",
+                      "contentType": "image/png",
+                      "body": "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAYAAADl5PURAAAHUUlEQVR4AezYi2ojSRJAUeH//2e3wTQYSUhVqnzE4yy7szNuKTPyhLks+/V9u337DwO/A34HOv4OfN38iwABAk0FBLDp4j2bAIHbrXUA/QIQINBbQAB779/rCbQWEMDW6/d4Ar0FBLDr/r2bAAH/H6DfAQIE+gr4X4B9d+/lBNoLCGD7X4GOAN5M4FdAAH8d/JUAgYYCAthw6Z5MgMCvgAD+OvgrgS4C3vlHQAD/YPhbAgR6CQhgr317LQECfwQE8A+GvyVAoLbA/esE8F7EPxMg0EZAANus2kMJELgXEMB7Ef9MgEAbgVYBbLNVDyVA4JCAAB5i8iECBCoKCGDFrXoTAQKHBATwEFOBD3kCAQIPAgL4QOIHBAh0ERDALpv2TgIEHgQE8IHED+oJeBGB5wIC+NzFTwkQaCAggA2W7IkECDwXEMDnLn5KoIqAd7wQEMAXOP6IAIHaAgJYe79eR4DACwEBfIHjjwgQyC3wbnoBfCfkzwkQKCsggGVX62EECLwTEMB3Qv6cAIGyAqUDWHZrHkaAwBABARzC6BACBDIKCGDGrZmZAIEhAgI4hDHgIUYiQOCtgAC+JfIBAgSqCghg1c16FwECbwUE8C2RD+QTMDGBYwICeMzJpwgQKCgggAWX6kkECBwTEMBjTj5FIIuAOU8ICOAJLB8lQKCWgADW2qfXECBwQkAAT2D5KAECsQXOTieAZ8V8ngCBMgICWGaVHkKAwFkBATwr5vMECJQRKBXAMlvxEAIElggI4BJmlxAgEFFAACNuxUwECCwREMAlzAsucQUBAqcFBPA0mS8QIFBFQACrbNI7CBA4LSCAp8l8IZ6AiQh8JiCAn7n5FgECBQQEsMASPYEAgc8EBPAzN98iEEXAHBcEBPACnq8SIJBbQABz78/0BAhcEBDAC3i+SoDAXoGrtwvgVUHfJ0AgrYAApl2dwQkQuCoggFcFfZ8AgbQCqQOYVt3gBAiEEBDAEGswBAECOwQEcIe6OwkQCCEggCHW8MEQvkKAwGUBAbxM6AACBLIKCGDWzZmbAIHLAgJ4mdAB6wXcSGCMgACOcXQKAQIJBQQw4dKMTIDAGAEBHOPoFAKrBNwzUEAAB2I6igCBXAICmGtfpiVAYKCAAA7EdBQBAnMFRp8ugKNFnUeAQBoBAUyzKoMSIDBaQABHizqPAIE0AqkCmEbVoAQIpBAQwBRrMiQBAjMEBHCGqjMJEEghIIAp1nS73cxJgMBwAQEcTupAAgSyCAhglk2ZkwCB4QICOJzUgeMFnEhgjoAAznF1KgECCQQEMMGSjEiAwBwBAZzj6lQCowScM1FAACfiOpoAgdgCAhh7P6YjQGCigABOxHU0AQLXBGZ/WwBnCzufAIGwAgIYdjUGI0BgtoAAzhZ2PgECYQVCBzCsmsEIECghIIAl1ugRBAh8IiCAn6j5DgECJQQEMOoazUWAwHQBAZxO7AICBKIKCGDUzZiLAIHpAgI4ndgF5wV8g8AaAQFc4+wWAgQCCghgwKUYiQCBNQICuMbZLQSOCvjcQgEBXIjtKgIEYgkIYKx9mIYAgYUCArgQ21UECLwWWP2nArha3H0ECIQREMAwqzAIAQKrBQRwtbj7CBAIIxAqgGFUDEKAQAsBAWyxZo8kQOCZgAA+U/EzAgRaCAhglDWbgwCB5QICuJzchQQIRBEQwCibMAcBAssFBHA5uQsfBfyEwB4BAdzj7lYCBAIICGCAJRiBAIE9AgK4x92tBP4L+O+NAgK4Ed/VBAjsFRDAvf5uJ0Bgo4AAbsR3NYHuArvfL4C7N+B+AgS2CQjgNnoXEyCwW0AAd2/A/QQIbBPYGsBtr3YxAQIEfgQE8AfBvwkQ6CkggD337tUECPwICOAPwpZ/u5QAge0CArh9BQYgQGCXgADukncvAQLbBQRw+wo6DuDNBGIICGCMPZiCAIENAgK4Ad2VBAjEEBDAGHswRR8BLw0kIICBlmEUAgTWCgjgWm+3ESAQSEAAAy3DKASqC0R7nwBG24h5CBBYJiCAy6hdRIBANAEBjLYR8xAgsExgaQCXvcpFBAgQOCAggAeQfIQAgZoCAlhzr15FgMABAQE8gDTkIw4hQCCcgACGW4mBCBBYJSCAq6TdQ4BAOAEBDLeSigN5E4GYAgIYcy+mIkBggYAALkB2BQECMQUEMOZeTFVHwEsCCwhg4OUYjQCBuQICONfX6QQIBBYQwMDLMRqB7ALR5xfA6BsyHwEC0wQEcBqtgwkQiC4ggNE3ZD4CBKYJTA3gtKkdTIAAgQECAjgA0REECOQUEMCcezM1AQIDBARwAOLTI/yQAIHwAgIYfkUGJEBgloAAzpJ1LgEC4QUEMPyKMg5oZgI5BAQwx55MSYDABAEBnIDqSAIEcggIYI49mTKPgEkTCQhgomUZlQCBsQICONbTaQQIJBIQwETLMiqB6ALZ5hPAbBszLwECwwQEcBilgwgQyCYggNk2Zl4CBIYJDA3gsKkcRIAAgQUC/wAAAP//JM+LXQAAAAZJREFUAwDTWn8H1Wsm5QAAAABJRU5ErkJggg=="
+                    },
+                    {
+                      "name": "engine-after.png",
+                      "contentType": "image/png",
+                      "body": "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAYAAADl5PURAAAHUUlEQVR4AezYi2ojSRJAUeH//2e3wTQYSUhVqnzE4yy7szNuKTPyhLks+3X7/v72HwZ+B/wOdPwd+Lr5FwECBJoKCGDTxXs2AQK3W+sA+gUgQKC3gAD23r/XE2gtIICt1+/xBHoLCGDX/Xs3AQL+P0C/AwQI9BXwvwD77t7LCbQXEMD2vwIdAbyZwK+AAP46+CsBAg0FBLDh0j2ZAIFfAQH8dfBXAl0EvPOPgAD+wfC3BAj0EhDAXvv2WgIE/ggI4B8Mf0uAQG2B+9cJ4L2IfyZAoI2AALZZtYcSIHAvIID3Iv6ZAIE2Aq0C2GarHkqAwCEBATzE5EMECFQUEMCKW/UmAgQOCQjgIaYCH/IEAgQeBATwgcQPCBDoIiCAXTbtnQQIPAgI4AOJH9QT8CICzwUE8LmLnxIg0EBAABss2RMJEHguIIDPXfyUQBUB73ghIIAvcPwRAQK1BQSw9n69jgCBFwIC+ALHHxEgkFvg3fQC+E7InxMgUFZAAMuu1sMIEHgnIIDvhPw5AQJlBUoHsOzWPIwAgSECAjiE0SEECGQUEMCMWzMzAQJDBARwCGPAQ4xEgMBbAQF8S+QDBAhUFRDAqpv1LgIE3goI4FsiH8gnYGICxwQE8JiTTxEgUFBAAAsu1ZMIEDgmIIDHnHyKQBYBc54QEMATWD5KgEAtAQGstU+vIUDghIAAnsDyUQIEYgucnU4Az4r5PAECZQQEsMwqPYQAgbMCAnhWzOcJECgjUCqAZbbiIQQILBEQwCXMLiFAIKKAAEbcipkIEFgiIIBLmBdc4goCBE4LCOBpMl8gQKCKgABW2aR3ECBwWkAAT5P5QjwBExH4TEAAP3PzLQIECggIYIElegIBAp8JCOBnbr5FIIqAOS4ICOAFPF8lQCC3gADm3p/pCRC4ICCAF/B8lQCBvQJXbxfAq4K+T4BAWgEBTLs6gxMgcFVAAK8K+j4BAmkFUgcwrbrBCRAIISCAIdZgCAIEdggI4A51dxIgEEJAAEOs4YMhfIUAgcsCAniZ0AEECGQVEMCsmzM3AQKXBQTwMqED1gu4kcAYAQEc4+gUAgQSCghgwqUZmQCBMQICOMbRKQRWCbhnoIAADsR0FAECuQQEMNe+TEuAwEABARyI6SgCBOYKjD5dAEeLOo8AgTQCAphmVQYlQGC0gACOFnUeAQJpBFIFMI2qQQkQSCEggCnWZEgCBGYICOAMVWcSIJBCQABTrOl2u5mTAIHhAgI4nNSBBAhkERDALJsyJwECwwUEcDipA8cLOJHAHAEBnOPqVAIEEggIYIIlGZEAgTkCAjjH1akERgk4Z6KAAE7EdTQBArEFBDD2fkxHgMBEAQGciOtoAgSuCcz+tgDOFnY+AQJhBQQw7GoMRoDAbAEBnC3sfAIEwgqEDmBYNYMRIFBCQABLrNEjCBD4REAAP1HzHQIESggIYNQ1mosAgekCAjid2AUECEQVEMComzEXAQLTBQRwOrELzgv4BoE1AgK4xtktBAgEFBDAgEsxEgECawQEcI2zWwgcFfC5hQICuBDbVQQIxBIQwFj7MA0BAgsFBHAhtqsIEHgtsPpPBXC1uPsIEAgjIIBhVmEQAgRWCwjganH3ESAQRiBUAMOoGIQAgRYCAthizR5JgMAzAQF8puJnBAi0EBDAKGs2BwECywUEcDm5CwkQiCIggFE2YQ4CBJYLCOBychc+CvgJgT0CArjH3a0ECAQQEMAASzACAQJ7BARwj7tbCfwX8N8bBQRwI76rCRDYKyCAe/3dToDARgEB3IjvagLdBXa/XwB3b8D9BAhsExDAbfQuJkBgt4AA7t6A+wkQ2CawNYDbXu1iAgQI/AgI4A+CfxMg0FNAAHvu3asJEPgREMAfhC3/dikBAtsFBHD7CgxAgMAuAQHcJe9eAgS2Cwjg9hV0HMCbCcQQEMAYezAFAQIbBARwA7orCRCIISCAMfZgij4CXhpIQAADLcMoBAisFRDAtd5uI0AgkIAABlqGUQhUF4j2PgGMthHzECCwTEAAl1G7iACBaAICGG0j5iFAYJnA0gAue5WLCBAgcEBAAA8g+QgBAjUFBLDmXr2KAIEDAgJ4AGnIRxxCgEA4AQEMtxIDESCwSkAAV0m7hwCBcAICGG4lFQfyJgIxBQQw5l5MRYDAAgEBXIDsCgIEYgoIYMy9mKqOgJcEFhDAwMsxGgECcwUEcK6v0wkQCCwggIGXYzQC2QWizy+A0TdkPgIEpgkI4DRaBxMgEF1AAKNvyHwECEwTmBrAaVM7mAABAgMEBHAAoiMIEMgpIIA592ZqAgQGCAjgAMSnR/ghAQLhBQQw/IoMSIDALAEBnCXrXAIEwgsIYPgVZRzQzARyCAhgjj2ZkgCBCQICOAHVkQQI5BAQwBx7MmUeAZMmEhDARMsyKgECYwUEcKyn0wgQSCQggImWZVQC0QWyzSeA2TZmXgIEhgkI4DBKBxEgkE1AALNtzLwECAwTGBrAYVM5iAABAgsE/gEAAP//9MnOhQAAAAZJREFUAwAgHL3WPbc5UAAAAABJRU5ErkJggg=="
+                    },
+                    {
+                      "name": "engine-profile.json",
+                      "contentType": "application/json",
+                      "body": "eyJkaWFnbm9zdGljcyI6eyJwYXRoIjoiZW5naW5lUHJvZmlsZSIsImdhbWUiOiJjYzAtZW5naW5lIiwicnVudGltZUlkIjoiZ29kb3QtMy41LjMiLCJhcmNoaXZlU2hhMjU2IjoiZDkyNDhlMDU4ZDdlZGJkZmI4YjZkZjI0MDE0ODRmZDhiNTk5NWMwZmE2OWM4YWUzYmE5M2RhMTY3OGY5NTRhNyIsInBhY2tTaGEyNTYiOiI3ZDY3MGRkYjBlYzc4ZjQ5ZWNmZjlkMWEwYzVlYjZlN2QzYzIwNjk2YmQwNmZhMGVhYjgyNjcyZjc2NmQxNzU5IiwicmVuZGVyZXIiOiJ3ZWJnbDIiLCJmcmFtZSI6OTgsImVycm9ycyI6W10sImxvZ3MiOlsiR29kb3QgRW5naW5lIHYzLjUuMy5zdGFibGUub2ZmaWNpYWwuNmM4MTQxMzViIC0gaHR0cHM6Ly9nb2RvdGVuZ2luZS5vcmciLCJPcGVuR0wgRVMgMy4wIFJlbmRlcmVyOiBXZWJLaXQgV2ViR0wiLCJBc3luYy4gc2hhZGVyIGNvbXBpbGF0aW9uOiBPRkYiLCIgIl0sImJhY2tlbmQiOiJ3ZWJnbDIiLCJiYWNrZW5kTm90ZXMiOlsiT2ZmaWNpYWwgZW5naW5lIHJ1bnRpbWU7IEJHVCBiYWNrZW5kL3N1c3BlbnNpb24gc2VsZWN0aW9uIGRvZXMgbm90IGFwcGx5Il0sImxvZ2ljYWwiOnsid2lkdGgiOjMyMCwiaGVpZ2h0IjoxODB9LCJsZXR0ZXJib3giOnsieCI6MCwieSI6MCwidyI6MzIwLCJoIjoxODB9LCJjYXBhYmlsaXRpZXMiOnsiZGV0ZXJtaW5pc3RpYyI6ZmFsc2UsInBhdXNlIjpmYWxzZSwicGVlayI6ZmFsc2UsInNhdmVzdGF0ZXMiOmZhbHNlLCJjcHVQcm9maWxlIjpmYWxzZSwiY292ZXJhZ2UiOmZhbHNlfSwibWV0cmljcyI6eyJlbmdpbmVQcm9maWxlIjp7InBhdGgiOiJlbmdpbmVQcm9maWxlIiwiZ2FtZSI6ImNjMC1lbmdpbmUiLCJydW50aW1lSWQiOiJnb2RvdC0zLjUuMyIsImFyY2hpdmVTaGEyNTYiOiJkOTI0OGUwNThkN2VkYmRmYjhiNmRmMjQwMTQ4NGZkOGI1OTk1YzBmYTY5YzhhZTNiYTkzZGExNjc4Zjk1NGE3IiwicGFja1NoYTI1NiI6IjdkNjcwZGRiMGVjNzhmNDllY2ZmOWQxYTBjNWViNmU3ZDNjMjA2OTZiZDA2ZmEwZWFiODI2NzJmNzY2ZDE3NTkiLCJyZW5kZXJlciI6IndlYmdsMiJ9LCJyYWYiOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTcsImF2Z01zIjoyMy4zNjU5NzkzODE0NDMzLCJwOTVNcyI6MTYuODAwMDAwMDAwMDAwMTgyfX19LCJ0aW1pbmciOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTcsImF2Z01zIjoyMy4zNjU5NzkzODE0NDMzLCJwOTVNcyI6MTYuODAwMDAwMDAwMDAwMTgyfX0="
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "520daf6abbc7777bd2fa-0b6f8d24f47a70982249",
+          "file": "godot3.spec.ts",
+          "line": 12,
+          "column": 1
+        },
+        {
+          "title": "Godot 3 CC0 pack boots, draws and changes screen on a DOM key; reports RAF timing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "catches",
+                  "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2461,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-11T13:23:08.345Z",
+                  "annotations": [
+                    {
+                      "type": "catches",
+                      "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "engine-before.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-after.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-profile.json",
+                      "contentType": "application/json",
+                      "body": "eyJkaWFnbm9zdGljcyI6eyJwYXRoIjoiZW5naW5lUHJvZmlsZSIsImdhbWUiOiJjYzAtZW5naW5lIiwicnVudGltZUlkIjoiZ29kb3QtMy41LjMiLCJhcmNoaXZlU2hhMjU2IjoiZDkyNDhlMDU4ZDdlZGJkZmI4YjZkZjI0MDE0ODRmZDhiNTk5NWMwZmE2OWM4YWUzYmE5M2RhMTY3OGY5NTRhNyIsInBhY2tTaGEyNTYiOiI3ZDY3MGRkYjBlYzc4ZjQ5ZWNmZjlkMWEwYzVlYjZlN2QzYzIwNjk2YmQwNmZhMGVhYjgyNjcyZjc2NmQxNzU5IiwicmVuZGVyZXIiOiJ3ZWJnbDIiLCJmcmFtZSI6OTgsImVycm9ycyI6W10sImxvZ3MiOlsiR29kb3QgRW5naW5lIHYzLjUuMy5zdGFibGUub2ZmaWNpYWwuNmM4MTQxMzViIC0gaHR0cHM6Ly9nb2RvdGVuZ2luZS5vcmciLCJPcGVuR0wgRVMgMy4wIFJlbmRlcmVyOiBXZWJLaXQgV2ViR0wiLCJBc3luYy4gc2hhZGVyIGNvbXBpbGF0aW9uOiBPRkYiLCIgIl0sImJhY2tlbmQiOiJ3ZWJnbDIiLCJiYWNrZW5kTm90ZXMiOlsiT2ZmaWNpYWwgZW5naW5lIHJ1bnRpbWU7IEJHVCBiYWNrZW5kL3N1c3BlbnNpb24gc2VsZWN0aW9uIGRvZXMgbm90IGFwcGx5Il0sImxvZ2ljYWwiOnsid2lkdGgiOjMyMCwiaGVpZ2h0IjoxODB9LCJsZXR0ZXJib3giOnsieCI6MCwieSI6MCwidyI6MzIwLCJoIjoxODB9LCJjYXBhYmlsaXRpZXMiOnsiZGV0ZXJtaW5pc3RpYyI6ZmFsc2UsInBhdXNlIjpmYWxzZSwicGVlayI6ZmFsc2UsInNhdmVzdGF0ZXMiOmZhbHNlLCJjcHVQcm9maWxlIjpmYWxzZSwiY292ZXJhZ2UiOmZhbHNlfSwibWV0cmljcyI6eyJlbmdpbmVQcm9maWxlIjp7InBhdGgiOiJlbmdpbmVQcm9maWxlIiwiZ2FtZSI6ImNjMC1lbmdpbmUiLCJydW50aW1lSWQiOiJnb2RvdC0zLjUuMyIsImFyY2hpdmVTaGEyNTYiOiJkOTI0OGUwNThkN2VkYmRmYjhiNmRmMjQwMTQ4NGZkOGI1OTk1YzBmYTY5YzhhZTNiYTkzZGExNjc4Zjk1NGE3IiwicGFja1NoYTI1NiI6IjdkNjcwZGRiMGVjNzhmNDllY2ZmOWQxYTBjNWViNmU3ZDNjMjA2OTZiZDA2ZmEwZWFiODI2NzJmNzY2ZDE3NTkiLCJyZW5kZXJlciI6IndlYmdsMiJ9LCJyYWYiOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTcsImF2Z01zIjoyMy4zNjcwMTAzMDkyNzgzNSwicDk1TXMiOjE2LjgwMDAwMDAwMDAwMDE4Mn19fSwidGltaW5nIjp7InNvdXJjZSI6InJlcXVlc3RBbmltYXRpb25GcmFtZSBkaXNwbGF5IGNhZGVuY2UsIE5PVCBlbmdpbmUgZnJhbWVzL0NQVS9HUFUgdGltZSIsInNhbXBsZXMiOjk3LCJhdmdNcyI6MjMuMzY3MDEwMzA5Mjc4MzUsInA5NU1zIjoxNi44MDAwMDAwMDAwMDAxODJ9fQ=="
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "520daf6abbc7777bd2fa-dc15b6ac8516f4e1d5fe",
+          "file": "godot3.spec.ts",
+          "line": 12,
+          "column": 1
+        },
+        {
+          "title": "Godot 3 CC0 pack boots, draws and changes screen on a DOM key; reports RAF timing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "catches",
+                  "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2491,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-11T13:23:11.119Z",
+                  "annotations": [
+                    {
+                      "type": "catches",
+                      "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "engine-before.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-after.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-profile.json",
+                      "contentType": "application/json",
+                      "body": "eyJkaWFnbm9zdGljcyI6eyJwYXRoIjoiZW5naW5lUHJvZmlsZSIsImdhbWUiOiJjYzAtZW5naW5lIiwicnVudGltZUlkIjoiZ29kb3QtMy41LjMiLCJhcmNoaXZlU2hhMjU2IjoiZDkyNDhlMDU4ZDdlZGJkZmI4YjZkZjI0MDE0ODRmZDhiNTk5NWMwZmE2OWM4YWUzYmE5M2RhMTY3OGY5NTRhNyIsInBhY2tTaGEyNTYiOiI3ZDY3MGRkYjBlYzc4ZjQ5ZWNmZjlkMWEwYzVlYjZlN2QzYzIwNjk2YmQwNmZhMGVhYjgyNjcyZjc2NmQxNzU5IiwicmVuZGVyZXIiOiJ3ZWJnbDIiLCJmcmFtZSI6OTksImVycm9ycyI6W10sImxvZ3MiOlsiR29kb3QgRW5naW5lIHYzLjUuMy5zdGFibGUub2ZmaWNpYWwuNmM4MTQxMzViIC0gaHR0cHM6Ly9nb2RvdGVuZ2luZS5vcmciLCJPcGVuR0wgRVMgMy4wIFJlbmRlcmVyOiBXZWJLaXQgV2ViR0wiLCJBc3luYy4gc2hhZGVyIGNvbXBpbGF0aW9uOiBPRkYiLCIgIl0sImJhY2tlbmQiOiJ3ZWJnbDIiLCJiYWNrZW5kTm90ZXMiOlsiT2ZmaWNpYWwgZW5naW5lIHJ1bnRpbWU7IEJHVCBiYWNrZW5kL3N1c3BlbnNpb24gc2VsZWN0aW9uIGRvZXMgbm90IGFwcGx5Il0sImxvZ2ljYWwiOnsid2lkdGgiOjMyMCwiaGVpZ2h0IjoxODB9LCJsZXR0ZXJib3giOnsieCI6MCwieSI6MCwidyI6MzIwLCJoIjoxODB9LCJjYXBhYmlsaXRpZXMiOnsiZGV0ZXJtaW5pc3RpYyI6ZmFsc2UsInBhdXNlIjpmYWxzZSwicGVlayI6ZmFsc2UsInNhdmVzdGF0ZXMiOmZhbHNlLCJjcHVQcm9maWxlIjpmYWxzZSwiY292ZXJhZ2UiOmZhbHNlfSwibWV0cmljcyI6eyJlbmdpbmVQcm9maWxlIjp7InBhdGgiOiJlbmdpbmVQcm9maWxlIiwiZ2FtZSI6ImNjMC1lbmdpbmUiLCJydW50aW1lSWQiOiJnb2RvdC0zLjUuMyIsImFyY2hpdmVTaGEyNTYiOiJkOTI0OGUwNThkN2VkYmRmYjhiNmRmMjQwMTQ4NGZkOGI1OTk1YzBmYTY5YzhhZTNiYTkzZGExNjc4Zjk1NGE3IiwicGFja1NoYTI1NiI6IjdkNjcwZGRiMGVjNzhmNDllY2ZmOWQxYTBjNWViNmU3ZDNjMjA2OTZiZDA2ZmEwZWFiODI2NzJmNzY2ZDE3NTkiLCJyZW5kZXJlciI6IndlYmdsMiJ9LCJyYWYiOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTgsImF2Z01zIjoyMy4yOTg5Nzk1OTE4MzY3MzQsInA5NU1zIjoxNi44MDAwMDAwMDAwMDAxODJ9fX0sInRpbWluZyI6eyJzb3VyY2UiOiJyZXF1ZXN0QW5pbWF0aW9uRnJhbWUgZGlzcGxheSBjYWRlbmNlLCBOT1QgZW5naW5lIGZyYW1lcy9DUFUvR1BVIHRpbWUiLCJzYW1wbGVzIjo5OCwiYXZnTXMiOjIzLjI5ODk3OTU5MTgzNjczNCwicDk1TXMiOjE2LjgwMDAwMDAwMDAwMDE4Mn19"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "520daf6abbc7777bd2fa-c909635dafd336dbbc9a",
+          "file": "godot3.spec.ts",
+          "line": 12,
+          "column": 1
+        },
+        {
+          "title": "Godot 3 CC0 pack boots, draws and changes screen on a DOM key; reports RAF timing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "catches",
+                  "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2470,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-11T13:23:13.935Z",
+                  "annotations": [
+                    {
+                      "type": "catches",
+                      "description": "Rejects invalid fixture/runtime pairing, missing assets, nonfunctional DOM input, unchanged rendered pixels or unavailable timing."
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "engine-before.png",
+                      "contentType": "image/png",
+                      "body": "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"
+                    },
+                    {
+                      "name": "engine-after.png",
+                      "contentType": "image/png",
+                      "body": "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAYAAADl5PURAAAHUUlEQVR4AezYi2ojSRJAUeH//2e3wTQYSUhVqnzE4yy7szNuKTPyhLks+3X7/v72HwZ+B/wOdPwd+Lr5FwECBJoKCGDTxXs2AQK3W+sA+gUgQKC3gAD23r/XE2gtIICt1+/xBHoLCGDX/Xs3AQL+P0C/AwQI9BXwvwD77t7LCbQXEMD2vwIdAbyZwK+AAP46+CsBAg0FBLDh0j2ZAIFfAQH8dfBXAl0EvPOPgAD+wfC3BAj0EhDAXvv2WgIE/ggI4B8Mf0uAQG2B+9cJ4L2IfyZAoI2AALZZtYcSIHAvIID3Iv6ZAIE2Aq0C2GarHkqAwCEBATzE5EMECFQUEMCKW/UmAgQOCQjgIaYCH/IEAgQeBATwgcQPCBDoIiCAXTbtnQQIPAgI4AOJH9QT8CICzwUE8LmLnxIg0EBAABss2RMJEHguIIDPXfyUQBUB73ghIIAvcPwRAQK1BQSw9n69jgCBFwIC+ALHHxEgkFvg3fQC+E7InxMgUFZAAMuu1sMIEHgnIIDvhPw5AQJlBUoHsOzWPIwAgSECAjiE0SEECGQUEMCMWzMzAQJDBARwCGPAQ4xEgMBbAQF8S+QDBAhUFRDAqpv1LgIE3goI4FsiH8gnYGICxwQE8JiTTxEgUFBAAAsu1ZMIEDgmIIDHnHyKQBYBc54QEMATWD5KgEAtAQGstU+vIUDghIAAnsDyUQIEYgucnU4Az4r5PAECZQQEsMwqPYQAgbMCAnhWzOcJECgjUCqAZbbiIQQILBEQwCXMLiFAIKKAAEbcipkIEFgiIIBLmBdc4goCBE4LCOBpMl8gQKCKgABW2aR3ECBwWkAAT5P5QjwBExH4TEAAP3PzLQIECggIYIElegIBAp8JCOBnbr5FIIqAOS4ICOAFPF8lQCC3gADm3p/pCRC4ICCAF/B8lQCBvQJXbxfAq4K+T4BAWgEBTLs6gxMgcFVAAK8K+j4BAmkFUgcwrbrBCRAIISCAIdZgCAIEdggI4A51dxIgEEJAAEOs4YMhfIUAgcsCAniZ0AEECGQVEMCsmzM3AQKXBQTwMqED1gu4kcAYAQEc4+gUAgQSCghgwqUZmQCBMQICOMbRKQRWCbhnoIAADsR0FAECuQQEMNe+TEuAwEABARyI6SgCBOYKjD5dAEeLOo8AgTQCAphmVQYlQGC0gACOFnUeAQJpBFIFMI2qQQkQSCEggCnWZEgCBGYICOAMVWcSIJBCQABTrOl2u5mTAIHhAgI4nNSBBAhkERDALJsyJwECwwUEcDipA8cLOJHAHAEBnOPqVAIEEggIYIIlGZEAgTkCAjjH1akERgk4Z6KAAE7EdTQBArEFBDD2fkxHgMBEAQGciOtoAgSuCcz+tgDOFnY+AQJhBQQw7GoMRoDAbAEBnC3sfAIEwgqEDmBYNYMRIFBCQABLrNEjCBD4REAAP1HzHQIESggIYNQ1mosAgekCAjid2AUECEQVEMComzEXAQLTBQRwOrELzgv4BoE1AgK4xtktBAgEFBDAgEsxEgECawQEcI2zWwgcFfC5hQICuBDbVQQIxBIQwFj7MA0BAgsFBHAhtqsIEHgtsPpPBXC1uPsIEAgjIIBhVmEQAgRWCwjganH3ESAQRiBUAMOoGIQAgRYCAthizR5JgMAzAQF8puJnBAi0EBDAKGs2BwECywUEcDm5CwkQiCIggFE2YQ4CBJYLCOBychc+CvgJgT0CArjH3a0ECAQQEMAASzACAQJ7BARwj7tbCfwX8N8bBQRwI76rCRDYKyCAe/3dToDARgEB3IjvagLdBXa/XwB3b8D9BAhsExDAbfQuJkBgt4AA7t6A+wkQ2CawNYDbXu1iAgQI/AgI4A+CfxMg0FNAAHvu3asJEPgREMAfhC3/dikBAtsFBHD7CgxAgMAuAQHcJe9eAgS2Cwjg9hV0HMCbCcQQEMAYezAFAQIbBARwA7orCRCIISCAMfZgij4CXhpIQAADLcMoBAisFRDAtd5uI0AgkIAABlqGUQhUF4j2PgGMthHzECCwTEAAl1G7iACBaAICGG0j5iFAYJnA0gAue5WLCBAgcEBAAA8g+QgBAjUFBLDmXr2KAIEDAgJ4AGnIRxxCgEA4AQEMtxIDESCwSkAAV0m7hwCBcAICGG4lFQfyJgIxBQQw5l5MRYDAAgEBXIDsCgIEYgoIYMy9mKqOgJcEFhDAwMsxGgECcwUEcK6v0wkQCCwggIGXYzQC2QWizy+A0TdkPgIEpgkI4DRaBxMgEF1AAKNvyHwECEwTmBrAaVM7mAABAgMEBHAAoiMIEMgpIIA592ZqAgQGCAjgAMSnR/ghAQLhBQQw/IoMSIDALAEBnCXrXAIEwgsIYPgVZRzQzARyCAhgjj2ZkgCBCQICOAHVkQQI5BAQwBx7MmUeAZMmEhDARMsyKgECYwUEcKyn0wgQSCQggImWZVQC0QWyzSeA2TZmXgIEhgkI4DBKBxEgkE1AALNtzLwECAwTGBrAYVM5iAABAgsE/gEAAP//9MnOhQAAAAZJREFUAwAgHL3WPbc5UAAAAABJRU5ErkJggg=="
+                    },
+                    {
+                      "name": "engine-profile.json",
+                      "contentType": "application/json",
+                      "body": "eyJkaWFnbm9zdGljcyI6eyJwYXRoIjoiZW5naW5lUHJvZmlsZSIsImdhbWUiOiJjYzAtZW5naW5lIiwicnVudGltZUlkIjoiZ29kb3QtMy41LjMiLCJhcmNoaXZlU2hhMjU2IjoiZDkyNDhlMDU4ZDdlZGJkZmI4YjZkZjI0MDE0ODRmZDhiNTk5NWMwZmE2OWM4YWUzYmE5M2RhMTY3OGY5NTRhNyIsInBhY2tTaGEyNTYiOiI3ZDY3MGRkYjBlYzc4ZjQ5ZWNmZjlkMWEwYzVlYjZlN2QzYzIwNjk2YmQwNmZhMGVhYjgyNjcyZjc2NmQxNzU5IiwicmVuZGVyZXIiOiJ3ZWJnbDIiLCJmcmFtZSI6OTgsImVycm9ycyI6W10sImxvZ3MiOlsiR29kb3QgRW5naW5lIHYzLjUuMy5zdGFibGUub2ZmaWNpYWwuNmM4MTQxMzViIC0gaHR0cHM6Ly9nb2RvdGVuZ2luZS5vcmciLCJPcGVuR0wgRVMgMy4wIFJlbmRlcmVyOiBXZWJLaXQgV2ViR0wiLCJBc3luYy4gc2hhZGVyIGNvbXBpbGF0aW9uOiBPRkYiLCIgIl0sImJhY2tlbmQiOiJ3ZWJnbDIiLCJiYWNrZW5kTm90ZXMiOlsiT2ZmaWNpYWwgZW5naW5lIHJ1bnRpbWU7IEJHVCBiYWNrZW5kL3N1c3BlbnNpb24gc2VsZWN0aW9uIGRvZXMgbm90IGFwcGx5Il0sImxvZ2ljYWwiOnsid2lkdGgiOjMyMCwiaGVpZ2h0IjoxODB9LCJsZXR0ZXJib3giOnsieCI6MCwieSI6MCwidyI6MzIwLCJoIjoxODB9LCJjYXBhYmlsaXRpZXMiOnsiZGV0ZXJtaW5pc3RpYyI6ZmFsc2UsInBhdXNlIjpmYWxzZSwicGVlayI6ZmFsc2UsInNhdmVzdGF0ZXMiOmZhbHNlLCJjcHVQcm9maWxlIjpmYWxzZSwiY292ZXJhZ2UiOmZhbHNlfSwibWV0cmljcyI6eyJlbmdpbmVQcm9maWxlIjp7InBhdGgiOiJlbmdpbmVQcm9maWxlIiwiZ2FtZSI6ImNjMC1lbmdpbmUiLCJydW50aW1lSWQiOiJnb2RvdC0zLjUuMyIsImFyY2hpdmVTaGEyNTYiOiJkOTI0OGUwNThkN2VkYmRmYjhiNmRmMjQwMTQ4NGZkOGI1OTk1YzBmYTY5YzhhZTNiYTkzZGExNjc4Zjk1NGE3IiwicGFja1NoYTI1NiI6IjdkNjcwZGRiMGVjNzhmNDllY2ZmOWQxYTBjNWViNmU3ZDNjMjA2OTZiZDA2ZmEwZWFiODI2NzJmNzY2ZDE3NTkiLCJyZW5kZXJlciI6IndlYmdsMiJ9LCJyYWYiOnsic291cmNlIjoicmVxdWVzdEFuaW1hdGlvbkZyYW1lIGRpc3BsYXkgY2FkZW5jZSwgTk9UIGVuZ2luZSBmcmFtZXMvQ1BVL0dQVSB0aW1lIiwic2FtcGxlcyI6OTcsImF2Z01zIjoyMy4zNjcwMTAzMDkyNzgzNTMsInA5NU1zIjoxNi44MDAwMDAwMDAwMDAxODJ9fX0sInRpbWluZyI6eyJzb3VyY2UiOiJyZXF1ZXN0QW5pbWF0aW9uRnJhbWUgZGlzcGxheSBjYWRlbmNlLCBOT1QgZW5naW5lIGZyYW1lcy9DUFUvR1BVIHRpbWUiLCJzYW1wbGVzIjo5NywiYXZnTXMiOjIzLjM2NzAxMDMwOTI3ODM1MywicDk1TXMiOjE2LjgwMDAwMDAwMDAwMDE4Mn19"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "520daf6abbc7777bd2fa-7fea0cabdae05e11d369",
+          "file": "godot3.spec.ts",
+          "line": 12,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-11T13:23:02.338Z",
+    "duration": 14187.498,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

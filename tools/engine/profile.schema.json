@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Game Cask engine profile selection v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "allowed",
+    "adapter",
+    "runtime",
+    "version",
+    "build",
+    "runner",
+    "runnerSha256",
+    "pack",
+    "renderer",
+    "threads"
+  ],
+  "properties": {
+    "schema": {
+      "const": "game-cask/engine-profile/1"
+    },
+    "allowed": {
+      "const": true
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "godot3"
+      ]
+    },
+    "runtime": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^3\\.[0-9]+\\.[0-9]+$"
+    },
+    "build": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "inputRoot": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runnerSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "pack": {
+      "type": "object",
+      "required": [
+        "location",
+        "sha256"
+      ],
+      "properties": {
+        "location": {
+          "enum": [
+            "embedded-trailer",
+            "adjacent",
+            "explicit"
+          ]
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "renderer": {
+      "enum": [
+        "webgl2"
+      ]
+    },
+    "threads": {
+      "const": false
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    }
+  },
+  "$comment": "Runtime manifest supplies renderer/thread/header requirements, unsupported detector ids and pinned official archive/member/notice hashes. Build validates exact allowlist pairing."
+}

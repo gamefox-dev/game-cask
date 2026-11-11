@@ -12,6 +12,10 @@
 !/reports/.gitkeep
 !/reports/.publish
 
+# Offline official runtimes, extracted packs, and engine builds: NEVER commit
+/.engine-private/
+*.pck
+
 # build outputs
 /node_modules/
 /dist/
