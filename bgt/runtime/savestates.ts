@@ -1,6 +1,7 @@
 // Test-only deterministic checkpoint controller. Installed before boot, never in normal play.
 import { DT_US } from './abi';
 import {cloneCheckpoint} from './savestate-clone';
+import {validateSavestate} from './savestate-validation';
 import type { GameHost, HostServices } from './host';
 import type { BGTRuntime } from './runtime';
 import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type CheckpointFrame} from './savestate-recording';
@@ -133,17 +134,22 @@ export class Savestates {
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
       // Reject live JSPI continuation before allocating a replacement; never silently abandon a suspended task.
       rt.host!.assertCheckpointBoundary();
+      validateSavestate(s);
+      // All fallible preparation precedes the commit. These detached plain records are
+      // assigned synchronously after testReplace; no clone, validation or guest work follows it.
+      const vfs=cloneCheckpoint(s.vfs),input=cloneCheckpoint(s.input),services=s.services;
+      const journalBytes=s.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
       let renderer: (Renderer & CheckpointRenderer) | null = null;
       try {
         renderer = await this.createRenderer();
         await replayGPU(renderer,s.gpuBase,s.journal);
         const host = await rt.testHostFactory!(renderer);
         host.restoreCheckpoint(s.host);
-        rt.testReplace(host,renderer,s.input.letterbox); renderer = null;
-        rt.vfs.restoreCheckpoint(s.vfs); rt.input.restoreCheckpoint(s.input);
-        this.ticks = s.services.ticks; this.rng = s.services.rng; this.audioQueued = s.services.audioQueued;
-        this.storage = s.services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
-        this.journalBytes = this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0); this.journalError = null;
+        rt.testReplace(host,renderer,input.letterbox); renderer = null;
+        Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
+        this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued;
+        this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
+        this.journalBytes = journalBytes; this.journalError = null;
       } finally { renderer?.destroy(); }
     }, () => {
       // Capture synchronously, before even finish() can yield to caller mutation.

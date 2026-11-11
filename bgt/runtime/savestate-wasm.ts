@@ -122,6 +122,10 @@ export function captureWasm(exports: WebAssembly.Exports): WasmCheckpoint {
 }
 export function restoreWasm(exports: WebAssembly.Exports, state: WasmCheckpoint): void {
   const memory = exports.memory as WebAssembly.Memory;
+  let globals=0,tables=0;
+  while(exports[checkpointName('g',globals)])globals++;
+  while(exports[checkpointName('t',tables)])tables++;
+  if(state.globals.length!==globals||state.tables.length!==tables)throw new Error('Invalid checkpoint globals/tables length');
   if (memory.buffer.byteLength > state.memory.byteLength || state.memory.byteLength % 65536) throw new Error('Invalid checkpoint memory size');
   // Called only on a fresh instance. Clear its initialized data pages, not the entire
   // reserved (often 1 GiB) zero memory: touching every zero page commits physical RAM.

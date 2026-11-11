@@ -106,6 +106,9 @@ canonicalize NaN payloads. Current C kit fixtures use numeric globals/active seg
 
 ## Probe searches and files
 
+Probe scripts already run as long-lived sessions: the page stays booted until the script returns.
+Capture once with `p.snapshot()` (or import once), then call `p.restore(handle)` / `p.search(handle, ...)`
+as many times as needed; these operations never reload the page or run guest initialization.
 Probe snapshots are browser-local Playwright `JSHandle`s: do not pass them through JSON or
 `page.evaluate` return serialization (which loses Maps, typed arrays and bigint). Dispose handles.
 
@@ -143,6 +146,9 @@ export default async function (p) {
 Files resolve relative to the probe output directory. Import into a newly booted deterministic-mode
 instance with matching configuration, after consuming its initial frame. Browser equivalents are
 `exportSnapshot(snap)` returns a ReadableStream and `importSnapshot(stream)` consumes it asynchronously. The versioned private BGTSTATE binary format has bounded length-prefixed metadata and raw blob records (at most 1 MiB each), with optional per-chunk DEFLATE via `exportSnapshot(snap, {compression: 'deflate'})`. It rejects unknown versions, malformed lengths, duplicate sections, truncation and trailing bytes. Wasm pages, GPU blobs and byte arrays never become one giant JSON string or file buffer.
+Aggregate in-memory clones also copy byte backing buffers individually (preserving aliases/views),
+not through Chromium's approximately 2 GiB structured-clone serialization envelope. Restore captures
+the caller's checkpoint synchronously before its first await, so subsequent caller mutation cannot race replay.
 
 The tagged JSON representation is debug-only: use `exportSnapshotDebugJson`/`importSnapshotDebugJson` for small diagnostics; it is capped at 8 MiB and retains exact u64 bigint values, float-global bit patterns, infinities, Maps/Sets, byte/key arrays and negative zero. It is not a public network protocol. Probe transfer reads and writes 1 MiB chunks and atomically renames a completed partial file.
 
