@@ -41,8 +41,9 @@ export function provision(id, archive, { store = STORE, notices = dirname(resolv
 }
 export function verifyRuntime(id, { store = STORE } = {}) {
   const runtime = runtimeById(id), target = join(resolve(store), id);
-  if (!existsSync(join(target, 'provision.json'))) throw new Error('runtime not provisioned: ' + id + ' (use npm run engine:provision -- ' + id + ' <local.zip>)');
-  if (lstatSync(target).isSymbolicLink()) throw new Error('symlink runtime directory');
+  if (!existsSync(target)) throw new Error('runtime not provisioned: ' + id + ' (use npm run engine:provision -- ' + id + ' <local.zip>)');
+  if (lstatSync(target).isSymbolicLink() || !lstatSync(target).isDirectory()) throw new Error('invalid/symlink runtime directory');
+  if (!existsSync(join(target, 'provision.json')) || lstatSync(join(target, 'provision.json')).isSymbolicLink()) throw new Error('corrupted provisioned runtime: missing/invalid receipt');
   const receipt = JSON.parse(readFileSync(join(target, 'provision.json')));
   if (receipt.runtime !== id || receipt.archiveSha256 !== runtime.sha256) throw new Error('runtime provision receipt mismatch');
   for (const [name, expected] of Object.entries({ ...runtime.fileHashes, ...Object.fromEntries(runtime.notices.map(n => [n.file, n.sha256])) })) {

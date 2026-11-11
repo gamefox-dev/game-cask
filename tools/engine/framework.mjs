@@ -61,14 +61,17 @@ export function requireOperatorAuthorization(gameDir, cfg, { briefFile = join(EN
     const real = realpathSync(file), dir = realpathSync(gameDir);
     return !real.startsWith(dir + sep) && real !== dir && !lstatSync(file).isSymbolicLink();
   };
-  if (existsSync(briefFile) && outsidePort(briefFile) && /^<!-- engine-profile: allowed -->$/m.test(readFileSync(briefFile, 'utf8')))
-    return { kind: 'trial-brief', sha256: sha256(readFileSync(briefFile)) };
+  const runnerSha256 = cfg.engineProfile?.runnerSha256;
+  if (!/^[a-f0-9]{64}$/.test(runnerSha256)) throw new Error('operator authorization requires a runner SHA-256');
+  const marker = `<!-- engine-profile: allowed game=${cfg.id} runnerSha256=${runnerSha256} -->`;
+  if (existsSync(briefFile) && outsidePort(briefFile) && readFileSync(briefFile, 'utf8').split(/\r?\n/).includes(marker))
+    return { kind: 'trial-brief', game: cfg.id, runnerSha256, sha256: sha256(readFileSync(briefFile)) };
   if (existsSync(policyFile) && outsidePort(policyFile)) {
     const policy = JSON.parse(readFileSync(policyFile, 'utf8'));
-    if (policy.schema === 'game-cask/engine-authorization/1' && policy.allowEngineProfile === true && policy.game === cfg.id)
-      return { kind: 'operator-policy', sha256: sha256(readFileSync(policyFile)) };
+    if (policy.schema === 'game-cask/engine-authorization/1' && policy.allowEngineProfile === true && policy.game === cfg.id && policy.runnerSha256 === runnerSha256)
+      return { kind: 'operator-policy', game: cfg.id, runnerSha256, sha256: sha256(readFileSync(policyFile)) };
   }
-  throw new Error('engineProfile requires operator authorization outside port/: trial:brief --allow-engine-profile or .engine-private/authorizations/<id>.json');
+  throw new Error('engineProfile requires operator authorization outside port/ matching game id and runner SHA-256 (stale/cross-game authorization refused): trial:brief --allow-engine-profile or .engine-private/authorizations/<id>.json');
 }
 export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), store, check = false, quiet = false, authorization = {} } = {}) {
   const { profile: p, runtime, adapter } = validateConfig(cfg);

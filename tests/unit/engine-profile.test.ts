@@ -19,7 +19,7 @@ import { leakcheck } from '../../tools/report/leakcheck.mjs';
 const temp = () => mkdtempSync(join(tmpdir(), 'k45-engine-'));
 const authorization = (cfg: any) => {
   const outside = temp(), policyFile = join(outside, 'operator.json');
-  writeFileSync(policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
+  writeFileSync(policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, runnerSha256: cfg.engineProfile.runnerSha256, allowEngineProfile: true }));
   return { policyFile, briefFile: join(outside, 'no-brief') };
 };
 function config() {
@@ -117,8 +117,19 @@ describe('engine framework policy and integrity', () => {
     expect(requireOperatorAuthorization(root, cfg, approved).kind).toBe('operator-policy');
     writeFileSync(approved.policyFile, JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: 'wrong', allowEngineProfile: true }));
     expect(() => requireOperatorAuthorization(root, cfg, approved)).toThrow(/operator authorization/);
-    const briefFile = join(temp(), 'brief.md'); writeFileSync(briefFile, '<!-- engine-profile: allowed -->\n');
+    const briefFile = join(temp(), 'brief.md');
+    const marker = `<!-- engine-profile: allowed game=${cfg.id} runnerSha256=${cfg.engineProfile.runnerSha256} -->\n`;
+    writeFileSync(briefFile, marker);
     expect(requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile }).kind).toBe('trial-brief');
+    for (const stale of [marker.replace(cfg.id, 'other-game'), marker.replace(cfg.engineProfile.runnerSha256, '0'.repeat(64)), '<!-- engine-profile: allowed -->\n']) {
+      writeFileSync(briefFile, stale);
+      expect(() => requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile })).toThrow(/stale\/cross-game/);
+    }
+    const policy = { schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true };
+    for (const runnerSha256 of [undefined, '0'.repeat(64)]) {
+      writeFileSync(approved.policyFile, JSON.stringify({ ...policy, runnerSha256 }));
+      expect(() => requireOperatorAuthorization(root, cfg, approved)).toThrow(/stale\/cross-game/);
+    }
     writeFileSync(briefFile, 'No engine authorization');
     expect(() => requireOperatorAuthorization(root, cfg, { policyFile: noBrief, briefFile })).toThrow(/operator authorization/);
   });
@@ -127,6 +138,11 @@ describe('engine framework policy and integrity', () => {
     expect(() => provision('unknown', zip)).toThrow(/allowlisted/);
     expect(() => provision('godot-3.5.3', zip, { store: root })).toThrow(/SHA-256/);
     expect(() => verifyRuntime('godot-3.5.3', { store: root })).toThrow(/not provisioned/);
+    const r = runtimeById('godot-3.5.3'), target = join(root, r.id); mkdirSync(target);
+    expect(() => verifyRuntime(r.id, { store: root })).toThrow(/corrupted provisioned runtime/);
+    writeFileSync(join(target, 'provision.json'), JSON.stringify({ runtime: r.id, archiveSha256: r.sha256, files: r.fileHashes }));
+    writeFileSync(join(target, r.files[0]), 'tampered runtime');
+    expect(() => verifyRuntime(r.id, { store: root })).toThrow(/runtime hash mismatch/);
   });
   it('leakcheck blocks local runtimes and packs even if staged/renamed into normal trees', () => {
     const root = temp(); mkdirSync(join(root, '.engine-private')); writeFileSync(join(root, '.engine-private', 'tiny.js'), 'runtime');

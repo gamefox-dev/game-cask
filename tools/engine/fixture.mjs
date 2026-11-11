@@ -16,7 +16,7 @@ export function buildFixture() {
   writeFileSync(join(gameDir, 'game.json'), JSON.stringify(cfg, null, 2) + '\n');
   // Built-in operator authorization is restricted to this original CC0 fixture id.
   const policies = join(PRIVATE, 'authorizations'); mkdirSync(policies, { recursive: true });
-  writeFileSync(join(policies, cfg.id + '.json'), JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, allowEngineProfile: true }));
+  writeFileSync(join(policies, cfg.id + '.json'), JSON.stringify({ schema: 'game-cask/engine-authorization/1', game: cfg.id, runnerSha256: cfg.engineProfile.runnerSha256, allowEngineProfile: true }));
   buildEngine(gameDir, cfg, { quiet: true });
   return join(PRIVATE, 'builds', cfg.id);
 }

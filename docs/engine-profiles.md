@@ -8,7 +8,8 @@ hash-verified official web runtime. It is not a port of that engine to the BGT A
 ## Policy, authenticity and boundaries
 
 * Engine profiles require **operator-side authorization outside port/**. The operator runs
-  trial:brief with --allow-engine-profile (which records a checked marker in reports/brief.md),
+  trial:brief with --allow-engine-profile (which records a checked marker in reports/brief.md
+  bound to the trial slug and input runner SHA-256),
   or writes .engine-private/authorizations/<game-id>.json. The build refuses otherwise, even if
   the porter sets engineProfile.allowed=true. The porter may select but must not grant/edit
   authorization. Mixed pipeline/engineProfile and unknown versions/features are refused.
@@ -51,11 +52,14 @@ service-worker/offline-template files are retained but no service worker is regi
 
 Operator-written authorization outside port/ (alternative to the trial:brief flag):
 
-    { "schema": "game-cask/engine-authorization/1", "game": "mygame", "allowEngineProfile": true }
+    { "schema": "game-cask/engine-authorization/1", "game": "mygame", "runnerSha256": "<64 hex>", "allowEngineProfile": true }
 
 Place it at .engine-private/authorizations/mygame.json, never in port/. This is an operator
 workflow boundary, not a cryptographic defense against a malicious agent with write access.
-Do not allow a porting agent to create/edit the policy or its trial brief.
+Do not allow a porting agent to create/edit the policy or its trial brief. Both authorization
+forms must match the game id and whole runner SHA-256; stale/cross-game grants are refused.
+If trial:brief names an installer, the operator must separately authorize the extracted runner
+hash using the outside policy. The porter cannot transfer an installer grant to another binary.
 
 Runner/pack.from paths are relative to inputRoot, which is relative to the config directory
 (default ../original). Input traversal and symlinks are refused. Use a dedicated input directory:
