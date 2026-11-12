@@ -1,5 +1,7 @@
 # K46 checkpoint — reviewer #441 requests fresh gate-verification session
 
+Historical checkpoint, superseded by [final K46 handoff](K46.md): K46c completed the remaining gates and structured audits, with explicitly reviewer-accepted composite unit coverage. The pending state below is preserved as the original continuation record.
+
 Branch lane/K46, base dev.30 **74bb2f7**. **Final source 4b1153d, coordinator-accepted.**
 Implementation lineage: 1aa7dbb (hot-path repair), 2480dc6 (counters), 4b1153d (P1 repair/regressions).
 **NOT COMPLETE / no Tier1 PASS claim.** No pushes, installs, network, game files or compaction.
