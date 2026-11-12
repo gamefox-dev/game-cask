@@ -32,12 +32,22 @@ export function restoreCheckpointFrame(record:CheckpointFrame):Frame {
   const vertices=typeof record.vertices==='string'?decodeBytes(record.vertices):record.vertices;
   if(vertices.length%20||!f.reserve(vertices.length/20))throw new Error('Invalid recorded vertex bytes');
   f.vertexCount=vertices.length/20;f.vertexBytes().set(vertices);
-  // Upload data is a read-only view, not an extra allocation per object.
+  // Keep aligned upload data as read-only views; copy only misaligned views.
   f.items=restoreCheckpointItems(record);return f;
 }
+function alignedUpload(data:Uint8Array):Uint8Array<ArrayBuffer>{
+  // Imported BGTSTATE blob views can begin at any byte in their transport chunk.
+  // WebGL typed upload views require the backing offset to satisfy their element
+  // alignment. An 8-byte boundary covers all JS numeric typed arrays. Normalize
+  // at the test-only replay boundary, not in the production renderer/file layout.
+  if(data.buffer instanceof ArrayBuffer&&(data.byteOffset&7)===0)return data as Uint8Array<ArrayBuffer>;
+  const copy=new Uint8Array(data.byteLength);copy.set(data);return copy;
+}
 export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
-  return record.items.map(i=>({...i,...(typeof i.data==='string'?{data:decodeBytes(i.data)}:{}),
-    ...(i.kind==='readback'?{complete:()=>{}}:{})})) as FrameItem[];
+  return record.items.map(i=>{
+    const data=typeof i.data==='string'?decodeBytes(i.data):i.data instanceof Uint8Array?alignedUpload(i.data):undefined;
+    return {...i,...(data===undefined?{}:{data}),...(i.kind==='readback'?{complete:()=>{}}:{})};
+  }) as FrameItem[];
 }
 /** Checkpoint replay deliberately excludes FrameReplay's inspection/base64 machinery. */
 export class CheckpointReplay {
