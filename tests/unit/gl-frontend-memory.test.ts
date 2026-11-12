@@ -16,6 +16,7 @@ beforeAll(() => {
 }, 30_000);
 afterAll(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 for (const [mode, marker] of [
+  ['error-order', 'guest first-error ordering and immediate framebuffer completeness OK'],
   ['hotpaths', 'hot paths: cached namespaces, direct/hash lookup, collision churn, dormant retirement and final detach OK'],
   ['object-identity', 'object identity namespaces=9 reserved/instantiated/unbind/delete/regen OK'],
   ['sampler-churn', 'sampler churn sampler+texture states draws=2176 bounded/reclaimed OK'],
