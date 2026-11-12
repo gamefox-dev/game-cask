@@ -1,6 +1,7 @@
 // GL 3.3 §4.3.2 stencil transfer fallback; never uses upload shadows. SPDX-License-Identifier: MIT
 export function blitStencil(g: WebGL2RenderingContext, source: WebGLTexture, sw: number, sh: number,
-  destination: WebGLTexture, dw: number, dh: number, w: readonly number[]): void {
+  destination: WebGLTexture, dw: number, dh: number, w: readonly number[],
+  framebufferStatus = (target: number) => g.checkFramebufferStatus(target)): void {
   const sf=g.createFramebuffer()!,df=g.createFramebuffer()!,plane=g.createTexture()!,vao=g.createVertexArray()!;
   const programs:WebGLProgram[]=[],shaders:WebGLShader[]=[];
   const program=(body:string)=>{
@@ -19,9 +20,9 @@ void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec
     g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.NEAREST);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.NEAREST);
     g.bindFramebuffer(g.FRAMEBUFFER,sf);g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_2D,plane,0);
     g.framebufferTexture2D(g.FRAMEBUFFER,g.DEPTH_STENCIL_ATTACHMENT,g.TEXTURE_2D,source,w[1]);g.drawBuffers([g.COLOR_ATTACHMENT0]);g.readBuffer(g.COLOR_ATTACHMENT0);
-    if(g.checkFramebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Stencil source incomplete');
+    if(framebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Stencil source incomplete');
     g.bindFramebuffer(g.FRAMEBUFFER,df);g.framebufferTexture2D(g.FRAMEBUFFER,g.DEPTH_STENCIL_ATTACHMENT,g.TEXTURE_2D,destination,w[3]);g.drawBuffers([g.NONE]);g.readBuffer(g.NONE);
-    if(g.checkFramebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Stencil destination incomplete');
+    if(framebufferStatus(g.FRAMEBUFFER)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Stencil destination incomplete');
     const extract=program('layout(location=0)out vec4 c;void main(){c=vec4(1,0,0,1);}');
     const insert=program(`uniform sampler2D plane;uniform vec4 srcRect;uniform vec4 dstRect;uniform int value;
 void main(){vec2 p=gl_FragCoord.xy,q=srcRect.xy+(p-dstRect.xy)/(dstRect.zw-dstRect.xy)*(srcRect.zw-srcRect.xy);

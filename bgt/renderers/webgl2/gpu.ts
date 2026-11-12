@@ -53,6 +53,7 @@ function halfBits(value: number): number {
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
   readonly bufferHandles = true;
+  readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
   private indexed: IndexedBlend | null;
   private buffers = new Map<number, BufferObject>();
   private textures = new Map<number, TextureObject>();
@@ -116,7 +117,15 @@ export class WebGL2Gpu implements GpuBackend {
     this.gl.getExtension('EXT_float_blend');
   }
 
-  beginFrame(width: number, height: number, lb: Letterbox): void { this.frame = { width, height, lb }; }
+  beginFrame(width: number, height: number, lb: Letterbox): void {
+    this.frame = { width, height, lb };
+    this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
+  }
+
+  private nativeError(): number { this.nativeSyncQueries.getError++; return this.gl.getError(); }
+  private nativeFramebufferStatus(target: number): number {
+    this.nativeSyncQueries.checkFramebufferStatus++; return this.gl.checkFramebufferStatus(target);
+  }
 
   private format(format: number): [number, number, number, number] {
     const g = this.gl;
@@ -187,7 +196,7 @@ export class WebGL2Gpu implements GpuBackend {
       // Decoder/profile own parameter validation. Poll only at native allocation/request boundaries;
       // ordinary draws/binds/uploads are checked once at presentation (or exhaustively in debug).
       if (this.opts.debug || nativeCheckOps.has(item.op)) {
-        const code = this.gl.getError();
+        const code = this.nativeError();
         if (code !== this.gl.NO_ERROR) throw new Error(`GL error 0x${code.toString(16)}`);
       }
       if (compilation) item.complete?.(...compilation);
@@ -196,7 +205,7 @@ export class WebGL2Gpu implements GpuBackend {
     } catch (e) {
       // Dispatch may throw before the normal post-command error check. Never leak this command's native
       // error into a later otherwise-valid operation (notably a failed feedback candidate link).
-      for(let i=0;i<32 && this.gl.getError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
+      for(let i=0;i<32 && this.nativeError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.PIPELINE_CREATE) {
         const handle = item.words[0], pipeline = this.pipelines.get(handle);
@@ -212,7 +221,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   /** Unexpected native failures remain renderer diagnostics, never a second guest GL error queue. */
   checkNativeError(): void {
-    const code = this.gl.getError();
+    const code = this.nativeError();
     if (code !== this.gl.NO_ERROR && !this.gl.isContextLost()) this.error(`WebGL error 0x${code.toString(16)}`);
   }
 
@@ -227,7 +236,7 @@ export class WebGL2Gpu implements GpuBackend {
    * Only successful checks are retained; bounded keys hold no native object references. */
   private checkFramebuffer(target: number, key: string, message: string): void {
     if (!this.opts.debug && this.completeFramebuffers.has(key)) return;
-    if (this.gl.checkFramebufferStatus(target) !== this.gl.FRAMEBUFFER_COMPLETE) throw new Error(message);
+    if (this.nativeFramebufferStatus(target) !== this.gl.FRAMEBUFFER_COMPLETE) throw new Error(message);
     if (this.completeFramebuffers.size >= 256) this.completeFramebuffers.clear();
     this.completeFramebuffers.add(key);
   }
@@ -458,7 +467,7 @@ export class WebGL2Gpu implements GpuBackend {
       const fallback=!!(w[12]&4) && (r[2]-r[0]!==r[6]-r[4] || r[3]-r[1]!==r[7]-r[5]);
       const mask=(w[12]&1?g.COLOR_BUFFER_BIT:0)|(w[12]&2?g.DEPTH_BUFFER_BIT:0)|((w[12]&4)&&!fallback?g.STENCIL_BUFFER_BIT:0);
       if(mask)g.blitFramebuffer(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],mask,w[13]?g.LINEAR:g.NEAREST);
-      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)]);
+      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)],target=>this.nativeFramebufferStatus(target));
       if(!w[2]){
         const b=this.frame.lb,H=g.drawingBufferHeight;
         g.disable(g.SCISSOR_TEST);g.bindFramebuffer(g.READ_FRAMEBUFFER,draw);g.bindFramebuffer(g.DRAW_FRAMEBUFFER,null);
@@ -553,7 +562,7 @@ export class WebGL2Gpu implements GpuBackend {
       vao = g.createVertexArray();
       if (!vao) throw new Error('Pipeline vertex array allocation failed');
       // Native errors belong to this candidate. Accept it before replacing any live executable.
-      const code = g.getError();
+      const code = this.nativeError();
       if (code !== g.NO_ERROR) throw new Error(`Pipeline setup GL error 0x${code.toString(16)}`);
       this.pipelines.set(w[0], { object, words: w, vao, kinds, outputs, uniformBlockSizes, locations });
       this.failedPipelines.delete(w[0]);
@@ -588,8 +597,8 @@ export class WebGL2Gpu implements GpuBackend {
         g.readBuffer(g.COLOR_ATTACHMENT0); g.drawBuffers([g.COLOR_ATTACHMENT0]);
       }
       const e = mipExtent(t.desc, mip);
-      if (g.checkFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
-        g.checkFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
+      if (this.nativeFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
+        this.nativeFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
       g.blitFramebuffer(0, 0, e.width, e.height, 0, 0, e.width, e.height, mask, g.NEAREST);
     }
     for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
@@ -628,7 +637,7 @@ export class WebGL2Gpu implements GpuBackend {
       g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, tw, th);
       g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, target, 0);
       g.drawBuffers([g.COLOR_ATTACHMENT0]); g.readBuffer(g.COLOR_ATTACHMENT0);
-      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
+      if (this.nativeFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
       g.bindVertexArray(vao); g.viewport(0, 0, tw, th);
       g.disable(g.SCISSOR_TEST); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.CULL_FACE); g.disable(g.BLEND);
       this.indexed!.disableiOES(g.BLEND, 0); this.indexed!.colorMaskiOES(0, true, true, true, true);
@@ -681,7 +690,7 @@ export class WebGL2Gpu implements GpuBackend {
         if (t.desc.dimension === 0) g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, t.object, mip);
         else g.framebufferTextureLayer(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, t.object, mip, z + d);
         g.readBuffer(g.COLOR_ATTACHMENT0);
-        if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
+        if (this.nativeFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
         g.readPixels(x, y, width, height, integer ? g.RGBA_INTEGER : g.RGBA,
           integer ? (format & 1 ? g.UNSIGNED_INT : g.INT) : packed ? this.format(format)[2] : bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
         const base = d * width * height * bytes, view = new DataView(out.buffer);
@@ -886,7 +895,8 @@ export class WebGL2Gpu implements GpuBackend {
         // WebGL caps vertexAttribPointer stride at 255; §13 allows 2048. Pack each active
         // attribute from owned upload shadows. No guest reads or geometry reinterpretation.
         let source=buffer.data;
-        if(buffer.generated){source=new Uint8Array(buffer.data.length);g.bindBuffer(g.COPY_READ_BUFFER,buffer.object);g.getBufferSubData(g.COPY_READ_BUFFER,0,source);}
+        if(buffer.generated){source=new Uint8Array(buffer.data.length);g.bindBuffer(g.COPY_READ_BUFFER,buffer.object);
+          this.nativeSyncQueries.generatedBufferReadbacks++;g.getBufferSubData(g.COPY_READ_BUFFER,0,source);}
         const bytes = format === 4 ? 4 : components*4, elements = step ? w[1] : count;
         const packed = new Uint8Array(elements*bytes);
         for (let j = 0; j < elements; j++) {
@@ -959,9 +969,9 @@ export class WebGL2Gpu implements GpuBackend {
       const layout=this.feedback.get(pw[0])!;
       layout.strides.forEach((_,i)=>g.bindBufferRange(g.TRANSFORM_FEEDBACK_BUFFER,i,this.buffers.get(capture[1+i*3])!.object,capture[2+i*3],capture[3+i*3]));
       if(capture[0])g.enable(g.RASTERIZER_DISCARD);
-      const before=g.getError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
+      const before=this.nativeError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
       g.beginTransformFeedback(pw[3]===0?g.POINTS:pw[3]<=2?g.LINES:g.TRIANGLES);
-      const after=g.getError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
+      const after=this.nativeError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
     }
       if (!indexed || capture) g.drawArraysInstanced(topology, 0, drawCount, w[1]);
       else {
@@ -970,7 +980,7 @@ export class WebGL2Gpu implements GpuBackend {
         g.drawElementsInstanced(topology, w[0], g.UNSIGNED_INT, 0, w[1]);
       }
       if (capture || this.opts.debug) {
-        const drawError=g.getError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);
+        const drawError=this.nativeError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);
       }
       succeeded=true;
     } finally {if(capture){if(began)g.endTransformFeedback();g.disable(g.RASTERIZER_DISCARD);g.bindTransformFeedback(g.TRANSFORM_FEEDBACK,null);g.deleteTransformFeedback(tf);

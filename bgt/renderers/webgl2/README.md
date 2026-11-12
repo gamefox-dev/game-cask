@@ -56,6 +56,34 @@ they are not recompiled during restoration. Deleting such a handle cannot poison
 failure is terminal, never a
 silent handle invalidation. Cross-backend migration of advertised GPU resources/languages is not attempted.
 
+## Native synchronization policy (K46)
+
+Guest glGetError reads/clears the Win32 C profile's first-error latch; guest glCheckFramebufferStatus
+resolves CPU attachment state. K46 adds no query/flush ABI and changes neither return values nor ordering.
+The shared validator and renderer retain parameter, binding, type and reflected uniform-range checks.
+
+Production performs one native getError poll after each frame's final work, feeding existing renderer
+diagnostics, not a second guest GL-error queue. Allocation/request boundaries, feedback replacement/setup/
+capture and exceptional drains retain immediate checks. Debug additionally polls every command.
+Ordinary validated binds/uploads/draws/pass boundaries no longer poll errors. Locations/block sizes are
+reflected once per linked native program; native index/output limits are initialization/restoration state.
+
+Successful framebuffer completeness is cached by immutable native texture generation, mip and ordered
+attachment configuration, not recyclable guest names. The bounded256-key cache resets on restore; failures
+are not cached. Debug bypasses caching. Blits cache single-attachment configurations. Mip-storage growth,
+temporary stencil/depth-conversion targets and explicit requested readbacks retain correctness checks.
+
+**Correctness exception, reviewer #434:** GPU-generated transform-feedback vertex buffers with wide-stride/
+sparse-index layouts still require getBufferSubData to pack their real bytes. Upload-owned buffers use CPU
+shadows. Eliminating this rare sync requires a separate GPU-repacking design; using stale upload bytes or
+rejecting a currently supported draw would change semantics. Requested pixel/buffer readbacks, savestate
+captures and explicit finish also remain synchronization boundaries. Compile/link/reflection queries occur
+on resource creation, not every draw. WebGPU keeps existing asynchronous validation/copy/map behavior.
+
+Diagnostics expose lastFrame.nativeSyncQueries: per-frame getError, checkFramebufferStatus, and separately
+**generatedBufferReadbacks**, allowing a porter to see whether the retained adaptation becomes hot.
+Counts include renderer-owned exceptional checks/drains, not external probe queries; WebGPU reports null.
+
 ## Reproduction
 
 - `npm run build:examples`

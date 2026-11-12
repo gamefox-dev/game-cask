@@ -22,6 +22,14 @@ export interface Pixels {
   data: Uint8Array<ArrayBuffer>;
 }
 
+/** Per-rendered-frame WebGL synchronization census; WebGPU does not make these queries. */
+export interface NativeSyncQueries {
+  getError: number;
+  checkFramebufferStatus: number;
+  /** Correctness readback for GPU-generated vertices requiring CPU wide-stride/sparse-ID repacking. */
+  generatedBufferReadbacks: number;
+}
+
 export interface GpuStats {
   drawCalls: number;
   passes: number;
@@ -48,6 +56,7 @@ export interface GpuBackend {
   readonly bufferHandles?: boolean;
   /** Bit language: WGSL=1, GLSL330=2, GLSLES300=4. Zero means unsupported (no CAP_GPU). */
   readonly languages: number;
+  readonly nativeSyncQueries?: NativeSyncQueries;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */
   execute(item: GpuItem): number;
 }
