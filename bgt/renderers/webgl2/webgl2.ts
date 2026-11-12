@@ -61,10 +61,10 @@ export class WebGL2Renderer implements Renderer {
   private constructor(
     readonly canvas: HTMLCanvasElement,
     gl: WebGL2RenderingContext,
-    private readonly opts: WebGL2Options,
+    opts: WebGL2Options,
   ) {
     this.gl = gl;
-    this.gpu = new WebGL2Gpu(gl, (m) => { for (const cb of this.errorCbs) cb(m); });
+    this.gpu = new WebGL2Gpu(gl, (m) => { for (const cb of this.errorCbs) cb(m); }, opts);
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       this.lost = true;
@@ -346,13 +346,6 @@ export class WebGL2Renderer implements Renderer {
       }
     }
 
-    if (this.opts.debug) {
-      const err = gl.getError();
-      if (err !== gl.NO_ERROR && !gl.isContextLost()) {
-        for (const cb of this.errorCbs) cb(`WebGL error 0x${err.toString(16)}`);
-      }
-    }
-
     gl.useProgram(this.program);
     bindTarget(0);
     // Retain the final physical image, including any legacy draws after a GPU pass.
@@ -381,6 +374,8 @@ export class WebGL2Renderer implements Renderer {
       for (let y = 0; y < H; y++) data.set(raw.subarray((H - 1 - y) * row, (H - y) * row), y * row);
       out = { width: w, height: H, data };
     }
+    // After presentation/snapshot and requested readback: one production native-error round trip.
+    this.gpu.checkNativeError();
     this.stats.submitMs = performance.now() - t0;
     return out;
   }

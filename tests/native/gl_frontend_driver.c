@@ -349,10 +349,12 @@ static void buffer_mapping(void) {
 #include "gl_demand_cases.h"
 #include "gl_scale_cases.h"
 #include "gl_hotpath_cases.h"
+#include "gl_error_order_cases.h"
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
-    if(!strcmp(argv[1],"hotpaths"))hotpath_cases();
+    if(!strcmp(argv[1],"error-order"))error_order_cases();
+    else if(!strcmp(argv[1],"hotpaths"))hotpath_cases();
     else if(!strcmp(argv[1],"hotpath-bench"))hotpath_bench();
     else if(!strcmp(argv[1],"demand"))demand_probe();
     else if(!strcmp(argv[1],"scale-churn"))scale_churn();
