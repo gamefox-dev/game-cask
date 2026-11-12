@@ -146,6 +146,9 @@ export default async function (p) {
 Files resolve relative to the probe output directory. Import into a newly booted deterministic-mode
 instance with matching configuration, after consuming its initial frame. Browser equivalents are
 `exportSnapshot(snap)` returns a ReadableStream and `importSnapshot(stream)` consumes it asynchronously. The versioned private BGTSTATE binary format has bounded length-prefixed metadata and raw blob records (at most 1 MiB each), with optional per-chunk DEFLATE via `exportSnapshot(snap, {compression: 'deflate'})`. It rejects unknown versions, malformed lengths, duplicate sections, truncation and trailing bytes. Wasm pages, GPU blobs and byte arrays never become one giant JSON string or file buffer.
+Raw transport chunks may begin at arbitrary byte offsets; import and GPU replay copy misaligned
+byte uploads to an 8-byte-aligned allocation before any typed view is constructed. Aligned
+owned uploads remain zero-copy at replay. This does not change the BGTSTATE v2 wire layout.
 Aggregate in-memory clones also copy byte backing buffers individually (preserving aliases/views),
 not through Chromium's approximately 2 GiB structured-clone serialization envelope. Restore captures
 the caller's checkpoint synchronously before its first await, so subsequent caller mutation cannot race replay.
