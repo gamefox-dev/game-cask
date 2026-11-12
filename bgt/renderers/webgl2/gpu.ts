@@ -186,6 +186,20 @@ export class WebGL2Gpu implements GpuBackend {
       return -6;
     }
     try {
+      // Native errors from unchecked work must never reject a later allocation/readback/feedback
+      // transaction. Drain before dispatch (not after): only the transaction's own errors may
+      // affect its synchronous result. Ordinary validated work retains zero pre/post polls.
+      if (this.opts.debug || nativeCheckOps.has(item.op) ||
+        ((item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) && this.capture)) {
+        let clean = false;
+        for (let i = 0; i < 32; i++) {
+          const code = this.nativeError();
+          if (code === this.gl.NO_ERROR) { clean = true; break; }
+          if (this.gl.isContextLost()) throw new Error('WebGL context lost before transaction');
+          this.error(`Earlier unpolled work: WebGL error 0x${code.toString(16)}`);
+        }
+        if (!clean) throw new Error('Native error queue did not drain before transaction');
+      }
       // Defer compilation completion until native error checking is done: exactly one callback.
       let compilation: [number, string?] | undefined;
       let pixels: [Uint8Array<ArrayBuffer> | undefined, number?] | undefined;

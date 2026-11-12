@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
 import { rendererHotpathFixture } from '../fixtures/renderer-hotpath';
 // Standalone: no game files, wasm build, guest readbacks or diagnostic work inside timed frames.
-test('2D engine renderer CPU and synchronous-query census', async ({page}, info) => {
+test('2D engine renderer submission wall time and synchronous-query census', async ({page}, info) => {
   test.setTimeout(180000);
   await page.goto('/');
   const fixture=rendererHotpathFixture();
@@ -34,18 +34,20 @@ test('2D engine renderer CPU and synchronous-query census', async ({page}, info)
       for(const name of names)counts[name]=0;
       for(let i=0;i<60;i++){
         const t=performance.now();const pending=renderer.drawFrame(steady,lb,false);samples.push(performance.now()-t);await pending;
-        // Outside measured CPU span; keep GPU work bounded and avoid queue-backpressure drift.
+        // Outside measured submission span; keep GPU work bounded and avoid queue-backpressure drift.
         await renderer.finish();
       }
       const timedCounts={...counts};
+      const nativeSyncQueries=renderer.gpu.nativeSyncQueries?{...renderer.gpu.nativeSyncQueries}:null;
       const pixels=await renderer.drawFrame(steady,lb,true);
       return {kind,frames:60,drawsPerFrame:128,passesPerFrame:16,samples,counts:timedCounts,errors,
-        pixel:pixels?[...pixels.data.slice(0,4)]:null};
+        pixel:pixels?[...pixels.data.slice(0,4)]:null,nativeSyncQueries};
     }finally{for(const [name,original] of originals)proto[name]=original;renderer.destroy();}
   },{setup:fixture.setup,frame:fixture.frame,kind:info.project.name.includes('webgpu')?'webgpu':'webgl2',root:'/@fs'+resolve('bgt')});
   console.log('HOTPATH '+JSON.stringify(result));
   await info.attach('hotpath.json',{body:JSON.stringify(result),contentType:'application/json'});
   expect(result.errors).toEqual([]);expect(result.pixel).toEqual([255,0,0,255]);
   expect(result.counts.getError).toBe(result.kind==='webgl2'?result.frames:0);
+  expect(result.nativeSyncQueries).toEqual(result.kind==='webgl2'?{getError:1,checkFramebufferStatus:0,generatedBufferReadbacks:0}:null);
   for(const name of ['checkFramebufferStatus','getParameter','getUniformLocation','getUniformBlockIndex','getActiveUniformBlockParameter','readPixels','getBufferSubData'])expect(result.counts[name],name).toBe(0);
 });

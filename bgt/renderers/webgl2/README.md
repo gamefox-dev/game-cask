@@ -64,7 +64,9 @@ The shared validator and renderer retain parameter, binding, type and reflected 
 
 Production performs one native getError poll after each frame's final work, feeding existing renderer
 diagnostics, not a second guest GL-error queue. Allocation/request boundaries, feedback replacement/setup/
-capture and exceptional drains retain immediate checks. Debug additionally polls every command.
+capture and exceptional drains retain immediate checks. Before synchronous transactions, pending errors
+from earlier unpolled work are drained into frame diagnostics, never charged to the new transaction's
+return/callback. Feedback draws also isolate setup/capture checks this way. Debug additionally polls every command.
 Ordinary validated binds/uploads/draws/pass boundaries no longer poll errors. Locations/block sizes are
 reflected once per linked native program; native index/output limits are initialization/restoration state.
 
