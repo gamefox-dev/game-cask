@@ -25,7 +25,13 @@ interface ShaderObject { object: WebGLShader; words: number[]; source: string }
 interface PipelineObject {
   object: WebGLProgram; words: number[]; vao: WebGLVertexArrayObject; kinds: Map<number, { dimension: number; shadow: boolean }>;
   outputs: Set<number>;
+  uniformBlockSizes: Map<number, number>;
+  locations: Map<string, WebGLUniformLocation | null>;
 }
+// Operations that can allocate native storage or complete a guest request retain immediate checks.
+const nativeCheckOps = new Set<number>([OP.BUFFER_CREATE, OP.TEXTURE_CREATE, OP.TEXTURE_CREATE_EX,
+  OP.TEXTURE_ALLOCATE_MIPS, OP.SAMPLER_CREATE, OP.SAMPLER_CREATE_EX, OP.SHADER_CREATE,
+  OP.PIPELINE_CREATE, OP.FEEDBACK_VARYINGS, OP.TEXTURE_READBACK, OP.BUFFER_READBACK, OP.BLIT]);
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
 /** IEEE binary32 -> binary16 (round to nearest even); exact for values that originated as halves. */
 const halfScratch = new DataView(new ArrayBuffer(4));
@@ -47,6 +53,7 @@ function halfBits(value: number): number {
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
   readonly bufferHandles = true;
+  readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
   private indexed: IndexedBlend | null;
   private buffers = new Map<number, BufferObject>();
   private textures = new Map<number, TextureObject>();
@@ -77,10 +84,18 @@ export class WebGL2Gpu implements GpuBackend {
   private scratchAttributes = new Map<number, WebGLBuffer>();
   private deferred: GpuItem[] = [];
   private floatLinear = false;
+  private maxElementIndex: number;
+  private maxDrawBuffers: number;
+  private readonly completeFramebuffers = new Set<string>();
+  private objectIds = new WeakMap<object, number>();
+  private nextObjectId = 1;
   private feedback = new Map<number, FeedbackLayout>();
   private capture?: readonly number[];
 
-  constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void) {
+  constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void,
+    private readonly opts: { debug?: boolean } = {}) {
+    this.maxElementIndex = gl.getParameter(gl.MAX_ELEMENT_INDEX) as number;
+    this.maxDrawBuffers = gl.getParameter(gl.MAX_DRAW_BUFFERS) as number;
     this.indexed = gl.getExtension('OES_draw_buffers_indexed') as IndexedBlend | null;
     const formats = gl.getExtension('EXT_color_buffer_float');
     this.languages = this.indexed && formats && gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4096 &&
@@ -102,7 +117,15 @@ export class WebGL2Gpu implements GpuBackend {
     this.gl.getExtension('EXT_float_blend');
   }
 
-  beginFrame(width: number, height: number, lb: Letterbox): void { this.frame = { width, height, lb }; }
+  beginFrame(width: number, height: number, lb: Letterbox): void {
+    this.frame = { width, height, lb };
+    this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
+  }
+
+  private nativeError(): number { this.nativeSyncQueries.getError++; return this.gl.getError(); }
+  private nativeFramebufferStatus(target: number): number {
+    this.nativeSyncQueries.checkFramebufferStatus++; return this.gl.checkFramebufferStatus(target);
+  }
 
   private format(format: number): [number, number, number, number] {
     const g = this.gl;
@@ -163,6 +186,20 @@ export class WebGL2Gpu implements GpuBackend {
       return -6;
     }
     try {
+      // Native errors from unchecked work must never reject a later allocation/readback/feedback
+      // transaction. Drain before dispatch (not after): only the transaction's own errors may
+      // affect its synchronous result. Ordinary validated work retains zero pre/post polls.
+      if (this.opts.debug || nativeCheckOps.has(item.op) ||
+        ((item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) && this.capture)) {
+        let clean = false;
+        for (let i = 0; i < 32; i++) {
+          const code = this.nativeError();
+          if (code === this.gl.NO_ERROR) { clean = true; break; }
+          if (this.gl.isContextLost()) throw new Error('WebGL context lost before transaction');
+          this.error(`Earlier unpolled work: WebGL error 0x${code.toString(16)}`);
+        }
+        if (!clean) throw new Error('Native error queue did not drain before transaction');
+      }
       // Defer compilation completion until native error checking is done: exactly one callback.
       let compilation: [number, string?] | undefined;
       let pixels: [Uint8Array<ArrayBuffer> | undefined, number?] | undefined;
@@ -170,15 +207,19 @@ export class WebGL2Gpu implements GpuBackend {
         complete: item.complete ? (code, log) => { compilation = [code, log]; } : undefined,
         readback: item.readback ? (data, code) => { pixels = [data, code]; } : undefined,
       });
-      const code = this.gl.getError();
-      if (code !== this.gl.NO_ERROR) throw new Error(`GL error 0x${code.toString(16)}`);
+      // Decoder/profile own parameter validation. Poll only at native allocation/request boundaries;
+      // ordinary draws/binds/uploads are checked once at presentation (or exhaustively in debug).
+      if (this.opts.debug || nativeCheckOps.has(item.op)) {
+        const code = this.nativeError();
+        if (code !== this.gl.NO_ERROR) throw new Error(`GL error 0x${code.toString(16)}`);
+      }
       if (compilation) item.complete?.(...compilation);
       if (pixels) item.readback?.(...pixels);
       return 0;
     } catch (e) {
       // Dispatch may throw before the normal post-command error check. Never leak this command's native
       // error into a later otherwise-valid operation (notably a failed feedback candidate link).
-      for(let i=0;i<32 && this.gl.getError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
+      for(let i=0;i<32 && this.nativeError()!==this.gl.NO_ERROR;i++) { /* drain owned native errors */ }
       const message = `GPU op 0x${item.op.toString(16)}: ${(e as Error).message}`;
       if (item.op === OP.PIPELINE_CREATE) {
         const handle = item.words[0], pipeline = this.pipelines.get(handle);
@@ -190,6 +231,28 @@ export class WebGL2Gpu implements GpuBackend {
       else { item.readback?.(undefined, -6); this.error(message); }
       return -6;
     }
+  }
+
+  /** Unexpected native failures remain renderer diagnostics, never a second guest GL error queue. */
+  checkNativeError(): void {
+    const code = this.nativeError();
+    if (code !== this.gl.NO_ERROR && !this.gl.isContextLost()) this.error(`WebGL error 0x${code.toString(16)}`);
+  }
+
+  private imageKey(texture: WebGLTexture | null, mip: number): string {
+    if (!texture) return "0";
+    let id = this.objectIds.get(texture);
+    if (id === undefined) { id = this.nextObjectId++; this.objectIds.set(texture, id); }
+    return `${id}/${mip}`;
+  }
+
+  /** Immutable native image identity includes storage generation, not recyclable guest handles.
+   * Only successful checks are retained; bounded keys hold no native object references. */
+  private checkFramebuffer(target: number, key: string, message: string): void {
+    if (!this.opts.debug && this.completeFramebuffers.has(key)) return;
+    if (this.nativeFramebufferStatus(target) !== this.gl.FRAMEBUFFER_COMPLETE) throw new Error(message);
+    if (this.completeFramebuffers.size >= 256) this.completeFramebuffers.clear();
+    this.completeFramebuffers.add(key);
   }
 
   private dispatch(item: GpuItem): void {
@@ -391,7 +454,7 @@ export class WebGL2Gpu implements GpuBackend {
       g.framebufferTexture2D(fb,format===5?g.DEPTH_STENCIL_ATTACHMENT:format===6?g.DEPTH_ATTACHMENT:g.COLOR_ATTACHMENT0,g.TEXTURE_2D,texture,mip);
       if(fb===g.READ_FRAMEBUFFER)g.readBuffer(format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0);
       else g.drawBuffers([format===5||format===6?g.NONE:g.COLOR_ATTACHMENT0]);
-      if(g.checkFramebufferStatus(fb)!==g.FRAMEBUFFER_COMPLETE)throw new Error('Incomplete blit framebuffer');
+      this.checkFramebuffer(fb, `blit:${fb}:${format}:${this.imageKey(texture,mip)}`, 'Incomplete blit framebuffer');
     };
     try {
       g.disable(g.SCISSOR_TEST);g.depthMask(true);g.stencilMask(255);g.colorMask(true,true,true,true);
@@ -418,7 +481,7 @@ export class WebGL2Gpu implements GpuBackend {
       const fallback=!!(w[12]&4) && (r[2]-r[0]!==r[6]-r[4] || r[3]-r[1]!==r[7]-r[5]);
       const mask=(w[12]&1?g.COLOR_BUFFER_BIT:0)|(w[12]&2?g.DEPTH_BUFFER_BIT:0)|((w[12]&4)&&!fallback?g.STENCIL_BUFFER_BIT:0);
       if(mask)g.blitFramebuffer(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],mask,w[13]?g.LINEAR:g.NEAREST);
-      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)]);
+      if(fallback)blitStencil(g,source,sw,sh,target,Math.max(1,dst!.desc.width>>w[3]),Math.max(1,dst!.desc.height>>w[3]),[...w.slice(0,1),sm,...w.slice(2)],target=>this.nativeFramebufferStatus(target));
       if(!w[2]){
         const b=this.frame.lb,H=g.drawingBufferHeight;
         g.disable(g.SCISSOR_TEST);g.bindFramebuffer(g.READ_FRAMEBUFFER,draw);g.bindFramebuffer(g.DRAW_FRAMEBUFFER,null);
@@ -458,11 +521,16 @@ export class WebGL2Gpu implements GpuBackend {
       }
       g.useProgram(object);
       const kinds = new Map<number, { dimension: number; shadow: boolean }>();
+      const uniformBlockSizes = new Map<number, number>();
+      const locations = new Map<string, WebGLUniformLocation | null>();
+      for (const name of ["bgt_internal_view_transform", "bgt_internal_remap", "bgt_internal_id_width",
+        "bgt_internal_vertex", "bgt_internal_instance"]) locations.set(name, g.getUniformLocation(object, name));
       g.uniform1i(g.getUniformLocation(object, 'bgt_internal_ids'), 8);
       for (let i = 0; i < g.getProgramParameter(object, g.ACTIVE_UNIFORM_BLOCKS); i++) {
         const name = g.getActiveUniformBlockName(object, i)!, match = /^bgt_u([0-7])$/.exec(name);
         if (!match || !(w[21] & (1 << +match[1]))) throw new Error(`Undeclared uniform block ${name}`);
         g.uniformBlockBinding(object, i, +match[1]);
+        uniformBlockSizes.set(+match[1], g.getActiveUniformBlockParameter(object, i, g.UNIFORM_BLOCK_DATA_SIZE) as number);
       }
       for (let i = 0; i < g.getProgramParameter(object, g.ACTIVE_UNIFORMS); i++) {
         const u = g.getActiveUniform(object, i)!;
@@ -494,7 +562,7 @@ export class WebGL2Gpu implements GpuBackend {
       // Outputs must have explicit locations, and cannot address absent color attachments.
       const outputs = new Set<number>();
       for (const output of fragmentOutputs(this.shaders.get(w[2])!.source)) {
-        const names = output.array ? Array.from({ length: g.getParameter(g.MAX_DRAW_BUFFERS) },
+        const names = output.array ? Array.from({ length: this.maxDrawBuffers },
           (_, i) => `${output.name}[${i}]`) : [output.name];
         for (const name of names) {
           const location = g.getFragDataLocation(object, name);
@@ -508,9 +576,9 @@ export class WebGL2Gpu implements GpuBackend {
       vao = g.createVertexArray();
       if (!vao) throw new Error('Pipeline vertex array allocation failed');
       // Native errors belong to this candidate. Accept it before replacing any live executable.
-      const code = g.getError();
+      const code = this.nativeError();
       if (code !== g.NO_ERROR) throw new Error(`Pipeline setup GL error 0x${code.toString(16)}`);
-      this.pipelines.set(w[0], { object, words: w, vao, kinds, outputs });
+      this.pipelines.set(w[0], { object, words: w, vao, kinds, outputs, uniformBlockSizes, locations });
       this.failedPipelines.delete(w[0]);
     } catch (e) { g.deleteVertexArray(vao); g.deleteProgram(object); throw e; }
   }
@@ -543,8 +611,8 @@ export class WebGL2Gpu implements GpuBackend {
         g.readBuffer(g.COLOR_ATTACHMENT0); g.drawBuffers([g.COLOR_ATTACHMENT0]);
       }
       const e = mipExtent(t.desc, mip);
-      if (g.checkFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
-        g.checkFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
+      if (this.nativeFramebufferStatus(g.READ_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE ||
+        this.nativeFramebufferStatus(g.DRAW_FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture growth copy framebuffer incomplete');
       g.blitFramebuffer(0, 0, e.width, e.height, 0, 0, e.width, e.height, mask, g.NEAREST);
     }
     for (let mip = t.allocatedMips; mip < allocatedMips; mip++) {
@@ -583,7 +651,7 @@ export class WebGL2Gpu implements GpuBackend {
       g.texStorage2D(g.TEXTURE_2D, 1, g.RGBA32F, tw, th);
       g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, target, 0);
       g.drawBuffers([g.COLOR_ATTACHMENT0]); g.readBuffer(g.COLOR_ATTACHMENT0);
-      if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
+      if (this.nativeFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Depth conversion framebuffer incomplete');
       g.bindVertexArray(vao); g.viewport(0, 0, tw, th);
       g.disable(g.SCISSOR_TEST); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.CULL_FACE); g.disable(g.BLEND);
       this.indexed!.disableiOES(g.BLEND, 0); this.indexed!.colorMaskiOES(0, true, true, true, true);
@@ -636,7 +704,7 @@ export class WebGL2Gpu implements GpuBackend {
         if (t.desc.dimension === 0) g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, target, t.object, mip);
         else g.framebufferTextureLayer(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, t.object, mip, z + d);
         g.readBuffer(g.COLOR_ATTACHMENT0);
-        if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
+        if (this.nativeFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Texture not readable');
         g.readPixels(x, y, width, height, integer ? g.RGBA_INTEGER : g.RGBA,
           integer ? (format & 1 ? g.UNSIGNED_INT : g.INT) : packed ? this.format(format)[2] : bytesNormalized ? g.UNSIGNED_BYTE : g.FLOAT, wide);
         const base = d * width * height * bytes, view = new DataView(out.buffer);
@@ -691,7 +759,10 @@ export class WebGL2Gpu implements GpuBackend {
     this.passDrawBuffers = w[0] ? Array.from({ length: w[0] }, (_, i) => g.COLOR_ATTACHMENT0+i) : [g.NONE];
     g.drawBuffers(this.passDrawBuffers);
     g.readBuffer(w[0] ? g.COLOR_ATTACHMENT0 : g.NONE);
-    if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE) throw new Error('Incomplete GPU pass');
+    const colors = Array.from({length:w[0]}, (_, i) => this.imageKey(
+      this.screenPass ? this.screen : this.textures.get(w[7+i*7])!.object, w[8+i*7])).join(",");
+    const depthKey = w[1] ? this.imageKey(this.textures.get(w[1])!.object,w[2]) : "0";
+    this.checkFramebuffer(g.FRAMEBUFFER, `pass:${colors}:${depthKey}`, 'Incomplete GPU pass');
     g.disable(g.SCISSOR_TEST); g.depthMask(true); g.stencilMask(255);
     for (let i = 0; i < 4; i++) this.indexed!.colorMaskiOES(i, true, true, true, true);
     if (this.screenPass && w[9] === 0) {
@@ -773,7 +844,7 @@ export class WebGL2Gpu implements GpuBackend {
     if (!this.pipeline) throw new Error('No usable current pipeline for draw');
     const g = this.gl, p = this.pipeline, pw = p.words, instance = w[indexed ? 4 : 3];
     const [vx, vy, vw, vh] = this.viewport;
-    g.uniform4f(g.getUniformLocation(p.object, 'bgt_internal_view_transform'),
+    g.uniform4f(p.locations.get('bgt_internal_view_transform') ?? null,
       vw/this.width, vh/this.height, (2*vx+vw-this.width)/this.width, (2*vy+vh-this.height)/this.height);
     let first = w[2], count = w[0];
     let indices: Uint32Array<ArrayBuffer> | undefined, ids: Uint32Array<ArrayBuffer> | undefined;
@@ -791,7 +862,7 @@ export class WebGL2Gpu implements GpuBackend {
         indices[i] = vertex; first = Math.min(first, vertex); last = Math.max(last, vertex);
       }
       count = last-first+1;
-      if (count-1 > g.getParameter(g.MAX_ELEMENT_INDEX) || count === 0x100000000) {
+      if (count-1 > this.maxElementIndex || count === 0x100000000) {
         // Sparse full-width IDs can exceed GL_MAX_ELEMENT_INDEX or hit the restart token.
         // Dense native indices plus a private integer lookup preserve IDs and primitive order.
         ids = indices; indices = Uint32Array.from(ids, (_, i) => i); first = 0; count = w[0];
@@ -807,7 +878,7 @@ export class WebGL2Gpu implements GpuBackend {
       first=0;count=drawCount=ids.length;
     }
     if(!drawCount){this.capture=undefined;return;}
-    g.uniform1i(g.getUniformLocation(p.object, 'bgt_internal_remap'), ids ? 1 : 0);
+    g.uniform1i(p.locations.get('bgt_internal_remap') ?? null, ids ? 1 : 0);
     g.activeTexture(g.TEXTURE8); g.bindSampler(8, null);
     if (!this.scratchIds) {
       this.scratchIds = g.createTexture()!; g.bindTexture(g.TEXTURE_2D, this.scratchIds);
@@ -823,10 +894,10 @@ export class WebGL2Gpu implements GpuBackend {
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAX_LEVEL, 0);
-      g.uniform1i(g.getUniformLocation(p.object, 'bgt_internal_id_width'), width);
+      g.uniform1i(p.locations.get('bgt_internal_id_width') ?? null, width);
     }
-    g.uniform1ui(g.getUniformLocation(p.object, 'bgt_internal_vertex'), first);
-    g.uniform1ui(g.getUniformLocation(p.object, 'bgt_internal_instance'), instance);
+    g.uniform1ui(p.locations.get('bgt_internal_vertex') ?? null, first);
+    g.uniform1ui(p.locations.get('bgt_internal_instance') ?? null, instance);
     for (let i = 0; i < pw[24]; i++) {
       const a = 26+pw[23]*2+i*4, slot = pw[a+1], binding = this.vertices.get(slot)!;
       const stride = pw[26+slot*2], step = pw[27+slot*2], format = pw[a+3];
@@ -838,7 +909,8 @@ export class WebGL2Gpu implements GpuBackend {
         // WebGL caps vertexAttribPointer stride at 255; §13 allows 2048. Pack each active
         // attribute from owned upload shadows. No guest reads or geometry reinterpretation.
         let source=buffer.data;
-        if(buffer.generated){source=new Uint8Array(buffer.data.length);g.bindBuffer(g.COPY_READ_BUFFER,buffer.object);g.getBufferSubData(g.COPY_READ_BUFFER,0,source);}
+        if(buffer.generated){source=new Uint8Array(buffer.data.length);g.bindBuffer(g.COPY_READ_BUFFER,buffer.object);
+          this.nativeSyncQueries.generatedBufferReadbacks++;g.getBufferSubData(g.COPY_READ_BUFFER,0,source);}
         const bytes = format === 4 ? 4 : components*4, elements = step ? w[1] : count;
         const packed = new Uint8Array(elements*bytes);
         for (let j = 0; j < elements; j++) {
@@ -858,9 +930,7 @@ export class WebGL2Gpu implements GpuBackend {
     }
     for (const [slot, b] of this.uniforms) {
       g.bindBufferRange(g.UNIFORM_BUFFER, slot, this.buffers.get(b[1])!.object, b[2], b[3]);
-      const block = g.getUniformBlockIndex(p.object, `bgt_u${slot}`);
-      if (block !== g.INVALID_INDEX &&
-        g.getActiveUniformBlockParameter(p.object, block, g.UNIFORM_BLOCK_DATA_SIZE) > b[3]) {
+      if ((p.uniformBlockSizes.get(slot) ?? 0) > b[3]) {
         throw new Error('Uniform range smaller than reflected block');
       }
     }
@@ -913,9 +983,9 @@ export class WebGL2Gpu implements GpuBackend {
       const layout=this.feedback.get(pw[0])!;
       layout.strides.forEach((_,i)=>g.bindBufferRange(g.TRANSFORM_FEEDBACK_BUFFER,i,this.buffers.get(capture[1+i*3])!.object,capture[2+i*3],capture[3+i*3]));
       if(capture[0])g.enable(g.RASTERIZER_DISCARD);
-      const before=g.getError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
+      const before=this.nativeError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
       g.beginTransformFeedback(pw[3]===0?g.POINTS:pw[3]<=2?g.LINES:g.TRIANGLES);
-      const after=g.getError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
+      const after=this.nativeError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
     }
       if (!indexed || capture) g.drawArraysInstanced(topology, 0, drawCount, w[1]);
       else {
@@ -923,7 +993,10 @@ export class WebGL2Gpu implements GpuBackend {
         g.bufferData(g.ELEMENT_ARRAY_BUFFER, indices!, g.STREAM_DRAW);
         g.drawElementsInstanced(topology, w[0], g.UNSIGNED_INT, 0, w[1]);
       }
-      const drawError=g.getError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);succeeded=true;
+      if (capture || this.opts.debug) {
+        const drawError=this.nativeError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);
+      }
+      succeeded=true;
     } finally {if(capture){if(began)g.endTransformFeedback();g.disable(g.RASTERIZER_DISCARD);g.bindTransformFeedback(g.TRANSFORM_FEEDBACK,null);g.deleteTransformFeedback(tf);
       this.feedback.get(pw[0])!.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!;
         if(succeeded){b.generated=true;b.data.fill(0,capture[2+i*3],capture[2+i*3]+feedbackVertexCount(pw[3],w[0])*w[1]*stride);}
@@ -942,6 +1015,9 @@ export class WebGL2Gpu implements GpuBackend {
     }
     this.framebuffer = this.gl.createFramebuffer()!; this.scratchIndex = this.gl.createBuffer()!;
     this.scratchAttributes.clear(); this.scratchIds = null;
+    this.completeFramebuffers.clear(); this.objectIds = new WeakMap(); this.nextObjectId = 1;
+    this.maxElementIndex = this.gl.getParameter(this.gl.MAX_ELEMENT_INDEX) as number;
+    this.maxDrawBuffers = this.gl.getParameter(this.gl.MAX_DRAW_BUFFERS) as number;
     this.screen = null; this.screenSize = [0, 0]; this.enableFloatExtensions();
     const replay = (item: GpuItem) => { if (this.execute(item)) throw new Error('GPU resource restoration failed'); };
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });

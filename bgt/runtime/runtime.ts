@@ -113,7 +113,8 @@ export interface BGTDiagnostics {
     wasmStreaming: boolean;
   };
   lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number;
-    commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number };
+    commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number;
+    nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null };
   commandErrors: { count: number; recent: CommandError[] };
   audio: { state: string; unlocked: boolean; sampleRate: number; droppedFrames: number; playedFrames: number; queued: number };
   storage: { persistent: boolean };
@@ -856,7 +857,8 @@ export class BGTRuntime {
         wasmInstantiateMs: host?.instantiateMs ?? 0,
         wasmStreaming: this.wasmStreaming,
       },
-      lastFrame: { ...this.lastFrameStats },
+      lastFrame: { ...this.lastFrameStats,
+        nativeSyncQueries: this.renderer?.gpu?.nativeSyncQueries ? { ...this.renderer.gpu.nativeSyncQueries } : null },
       commandErrors: { count: host?.commandErrorCount ?? 0, recent: [...(host?.commandErrors ?? [])] },
       audio: {
         state: this.audio.state,
