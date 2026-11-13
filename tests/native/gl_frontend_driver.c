@@ -188,6 +188,57 @@ static void exhaustion(void) {
     call(api_DeleteShader,s,0,0,0);drop(p);CHECK(w32_gl_frontend_bytes==0);
     printf("exhaustion truthful compile/link logs, GL_OUT_OF_MEMORY, recovery OK\n");
 }
+static void buffer_respec(void) {
+    call(api_BindBuffer,ARRAY_BUFFER,1,0,0);
+    for (uint32_t i=0;i<8;i++) memory[8192+i]=(uint8_t)(i+1);
+    call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4); CHECK(!error&&buffers[1].gpu);
+    uint32_t gpu=buffers[1].gpu, before=submissions;
+    for (uint32_t i=0;i<8;i++) memory[8192+i]=(uint8_t)(i+17);
+    call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);
+    CHECK(!error&&submissions==before+1&&buffers[1].gpu==gpu&&buffers[1].size==8);
+    for (uint32_t i=0;i<8;i++) CHECK(buffers[1].data[i]==(uint8_t)(i+17)&&device_buffers[gpu][i]==(uint8_t)(i+17));
+    CHECK(w32_gl_buffer_respec_reused==1&&w32_gl_buffer_respec_resized==0);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==8);
+    call(api_GetBufferSubData,ARRAY_BUFFER,0,8,12288);
+    for (uint32_t i=0;i<8;i++) CHECK(memory[12288+i]==(uint8_t)(i+17));
+    /* Accepted replacement invalidates a guest map and generated provenance. */
+    uint32_t p=call(api_MapBuffer,ARRAY_BUFFER,0x88ba,0,0); CHECK(p&&!error&&heap_live==8);
+    buffers[1].generated=1; memset(device_buffers[gpu],77,8); for (uint32_t i=0;i<8;i++) memory[8192+i]=(uint8_t)(i+33);
+    call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);
+    CHECK(!error&&!buffers[1].map&&!heap_live&&!buffers[1].generated&&buffers[1].gpu==gpu);
+    for (uint32_t i=0;i<8;i++) CHECK(device_buffers[gpu][i]==(uint8_t)(i+33));
+    /* Rejected in-place upload leaves the old native/shadow/map state untouched. */
+    uint8_t old=buffers[1].data[0]; reject_update=1; memory[8192]=99;
+    call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);
+    CHECK(error==OOM&&buffers[1].gpu==gpu&&buffers[1].data[0]==old&&device_buffers[gpu][0]==old);
+    CHECK(call(api_GetError,0,0,0,0)==OOM&&call(api_GetError,0,0,0,0)==0); reject_update=0;
+    p=call(api_MapBufferRange,ARRAY_BUFFER,1,4,0x12); CHECK(p&&!error);
+    uint8_t *shadow=buffers[1].data; buffers[1].generated=1; reject_update=1;
+    call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);
+    CHECK(error==OOM&&buffers[1].data==shadow&&buffers[1].map==p&&heap_live==4&&buffers[1].generated);
+    CHECK(buffers[1].map_offset==1&&buffers[1].map_size==4&&buffers[1].map_flags==0x12);
+    CHECK(call(api_GetError,0,0,0,0)==OOM); reject_update=0;
+    /* Earlier guest error remains first even when a later re-specification fails. */
+    fail(BAD_ENUM); reject_update=1; call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);
+    CHECK(call(api_GetError,0,0,0,0)==BAD_ENUM&&call(api_GetError,0,0,0,0)==0); reject_update=0;
+    /* NULL data is the specified deterministic zero fill. */
+    call(api_BufferData,ARRAY_BUFFER,8,0,0x88e4); CHECK(!error&&buffers[1].gpu==gpu);
+    for (uint32_t i=0;i<8;i++) CHECK(!buffers[1].data[i]&&!device_buffers[gpu][i]);
+    CHECK(!buffers[1].map&&!heap_live&&!buffers[1].generated&&buffers[1].map_access==0x88ba);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x88bc,4096,0); CHECK(x86_rd32(4096)==0);
+    call(api_GetBufferPointerv,ARRAY_BUFFER,0x88bd,4096,0); CHECK(x86_rd32(4096)==0);
+    /* Size changes retain the old delete/create path and split growth/shrink counters. */
+    call(api_BufferData,ARRAY_BUFFER,12,8192,0x88e4); CHECK(!error&&buffers[1].size==12&&w32_gl_buffer_respec_grew==1);
+    uint32_t grown=buffers[1].gpu; CHECK(grown==gpu);
+    call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4); CHECK(!error&&buffers[1].size==4&&w32_gl_buffer_respec_shrank==1);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==4);
+    CHECK(w32_gl_buffer_respec_reused==3&&w32_gl_buffer_respec_resized==2);
+    /* Transform-feedback binding is rejected before any reuse submission. */
+    tf_active=1; tf_bound[0]=1; before=submissions; call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4);
+    CHECK(error==BAD_OP&&submissions==before); error=0; tf_bound[0]=0; tf_active=0;
+    x86_wr32(4096,1); call(api_DeleteBuffers,1,4096,0,0); CHECK(!error&&w32_gl_frontend_bytes==0);
+    puts("buffer re-specification contents/size/map/TF/errors counters OK");
+}
 static void buffer_memory(void) {
     call(api_BindBuffer,ARRAY_BUFFER,1,0,0);
     for(uint32_t i=0;i<600;i++) {
@@ -338,7 +389,7 @@ static void buffer_mapping(void) {
     CHECK(!call(api_UnmapBuffer,ELEMENT_BUFFER,0,0,0)&&error==OOM&&!heap_live&&device_buffers[1][0]==77);error=reject_update=0;
     p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,0x26);CHECK(p&&!error);
     reject_delete=1;x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(error==OOM&&buffers[1].map==p&&heap_live);error=0;
-    call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(error==OOM&&buffers[1].map==p&&heap_live);error=reject_delete=0;
+    call(api_BufferData,ELEMENT_BUFFER,68,8192,0x88e4);CHECK(error==OOM&&buffers[1].map==p&&heap_live);error=reject_delete=0;
     call(api_BufferData,ELEMENT_BUFFER,64,8192,0x88e4);CHECK(!buffers[1].map&&!heap_live&&!error);
     p=call(api_MapBufferRange,ELEMENT_BUFFER,0,8,2);CHECK(p&&!error);
     x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(!heap_live&&!buffers[1].map&&!error&&w32_gl_frontend_bytes==0);
@@ -361,7 +412,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"object-identity"))object_identity();
     else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
     else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
-    else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();
+    else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();else if(!strcmp(argv[1],"respec"))buffer_respec();
     else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
