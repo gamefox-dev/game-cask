@@ -1,5 +1,8 @@
 # K47b checkpoint — reuse repaired/reviewed; full gates live
 
+**Superseded by [K47.md](K47.md): K47c completed final gates, measurements and structured audit.**
+This file preserves the historical continuation state; its live-PID/pending instructions are no longer current.
+
 Date: 2026-11-14 00:40 +07. Branch lane/K47, base dev.31 4951c3b.
 Scratch root **/Users/dev/projects/pi-work/scratch-K47/** — preserve it, never delete the root.
 Stop requested by coordinator bridge #456 at ~150k context. Do not redo completed implementation.
