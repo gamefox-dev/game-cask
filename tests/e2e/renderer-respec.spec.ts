@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 import {resolve} from 'node:path';
 import {rendererHotpathFixture,rendererOrphanFixture} from '../fixtures/renderer-hotpath';
 test('full buffer replacement preserves earlier draws in command order',async({page},info)=>{
-  await page.goto('/');
+  await page.goto('/?paused=1&backend=none');
   const result=await page.evaluate(async({root,setup,kind})=>{
     const {Frame}=await import(root+'/runtime/commands.ts');
     const {WebGL2Renderer}=await import(root+'/renderers/webgl2/webgl2.ts');
@@ -33,7 +33,7 @@ test('full buffer replacement preserves earlier draws in command order',async({p
 });
 // Catches reintroduced per-allocation polling or completeness invalidation from unrelated buffer churn.
 test('engine-shaped equal-size reuse has one poll and cached FBO completeness',async({page},info)=>{
-  await page.goto('/');
+  await page.goto('/?paused=1&backend=none');
   const result=await page.evaluate(async({root,setup,frame,kind})=>{
     const {Frame}=await import(root+'/runtime/commands.ts');
     const {WebGL2Renderer}=await import(root+'/renderers/webgl2/webgl2.ts');
