@@ -2,12 +2,19 @@
 // Original CC0 deep shadow-stack regression, plus actual runtime loader selection/fallback.
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { test, expect, openGame, diagnostics, step, stateHash } from './fixtures';
+import { test, expect, openGame as openStrictGame, diagnostics, step, stateHash } from './fixtures';
+// These cases deliberately assert loader fallback/failure, not JSPI-mode coverage.
+const openGame: typeof openStrictGame = (page, backend, params) =>
+  openStrictGame(page, backend, params, {allowSuspensionFallback:true});
 import { compileC } from '../support/compile';
+import { jspiUnavailableReason } from '../support/suspension-modes';
 
 test('JSPI parks a deep C shadow stack for 300 render/update boundaries', async ({page,backendParam,collector}) => {
   void collector;
   expect(await openGame(page,backendParam,{game:'win32-hello'})).toBe('ready');
+  const supported=await page.evaluate(()=>{const w=WebAssembly as any;return typeof w.Suspending==='function'&&typeof w.promising==='function';});
+  const reason=jspiUnavailableReason({supported,variantPresent:true}); // compiled below, independent of the example artifact
+  if(reason)test.info().skip(true,reason);
   const wasm = Array.from(await compileC('tests/fixtures/c/yield_game.c'));
   const result = await page.evaluate(async ({root,wasm}) => {
     const { GameHost } = await import(root+'/runtime/host.ts');
@@ -33,9 +40,12 @@ test('dual loader defaults/fallback/opt-in have identical 300-frame runtime trac
     expect(await openGame(page,backendParam,{game:'win32-hello',suspension})).toBe('ready');
     const available=await page.evaluate(async()=>{
       const m=await(await fetch('/games/win32-hello/manifest.json')).json();
-      return !!m.variants?.jspi;
+      const w=WebAssembly as any;
+      return typeof w.Suspending==='function'&&typeof w.promising==='function'&&!!m.variants?.jspi;
     });
     const d=await diagnostics(page);
+    expect(d.suspensionSelection?.requested).toBe(suspension);
+    expect(d.suspensionSelection?.supported && d.suspensionSelection?.variantPresent).toBe(available);
     expect(d.suspension).toBe(suspension==='jspi'&&available?'jspi':'asyncify');
     const hashes=[];
     for(let f=0;f<300;f++){await step(page,1);hashes.push((await stateHash(page))!);}
@@ -46,6 +56,7 @@ test('dual loader defaults/fallback/opt-in have identical 300-frame runtime trac
   await page.addInitScript(() => { Object.defineProperty(WebAssembly, 'Suspending', { value: undefined, configurable: true }); });
   expect(await openGame(page,backendParam,{game:'win32-hello',suspension:'jspi'})).toBe('ready');
   expect((await diagnostics(page)).suspension).toBe('asyncify');
+  expect((await diagnostics(page)).suspensionSelection).toMatchObject({requested:'jspi',supported:false});
   const fallback=[];
   for(let f=0;f<300;f++){await step(page,1);fallback.push((await stateHash(page))!);}
   expect(fallback).toEqual(traces[0]);
@@ -63,7 +74,7 @@ test('JSPI-only loader runs its oracle and diagnoses missing API/fallback', asyn
     await route.fulfill({response,json:manifest});
   });
   await page.route('**/games/win32-hello/k22-only.wasm',route=>route.fulfill({contentType:'application/wasm',body:bytes}));
-  expect(await openGame(page,backendParam,{game:'win32-hello',suspension:'jspi'})).toBe('ready');
+  expect(await openStrictGame(page,backendParam,{game:'win32-hello',suspension:'jspi'})).toBe('ready');
   expect((await diagnostics(page)).suspension).toBe('jspi');
   await step(page,300);
   expect(await stateHash(page)).toBe((300000+187).toString(16).padStart(8,'0'));
@@ -85,7 +96,7 @@ test('per-game JSPI preference selects real JSPI and reports it, with unsupporte
   // Override only the suite-wide URL opt-in; this case must select from the manifest.
   await page.addInitScript(()=>{const u=new URL(location.href);u.searchParams.delete('suspension');history.replaceState(null,'',u);});
   expect(await openGame(page,backendParam,{game:'win32-hello'})).toBe('ready');
-  const available=await page.evaluate(async()=>!!(await(await fetch('/games/win32-hello/manifest.json')).json()).variants?.jspi);
+  const available=await page.evaluate(async()=>{const w=WebAssembly as any;return typeof w.Suspending==='function'&&typeof w.promising==='function'&&!!(await(await fetch('/games/win32-hello/manifest.json')).json()).variants?.jspi;});
   const d=await diagnostics(page);expect(d.suspension).toBe(available?'jspi':'asyncify');
   expect((d.metrics as any).runtime_profile.suspension).toBe(d.suspension);
   // I12: convergence recordings and the probe summary must identify the active artifact too.

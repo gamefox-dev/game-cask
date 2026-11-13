@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { test as base, expect, Page, TestInfo } from '@playwright/test';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 import { assertWebGPUAvailable, webGPUWasAvailable } from './webgpu-availability';
+import { suspensionCapabilities } from '../../bgt/runtime/jspi';
+import { jspiUnavailableReason } from '../support/suspension-modes';
 
 export interface Collector {
   consoleErrors: string[];
@@ -92,16 +94,34 @@ export async function openGame(
   page: Page,
   backend: string,
   params: Record<string, string> = {},
+  options: { allowSuspensionFallback?: boolean } = {},
 ): Promise<'ready' | 'failed'> {
   if (backend === 'webgpu') await assertWebGPUAvailable(page, test.info());
   const q = new URLSearchParams({ game: 'sample2d', backend, ephemeral: '1', paused: '1',
     ...(process.env.BGT_E2E_SUSPENSION === 'jspi' ? {suspension:'jspi'} : {}), ...params });
+  if (q.get('suspension') === 'jspi' && !options.allowSuspensionFallback) {
+    // Use the browser's routed manifest (including synthetic JSPI-only fixtures),
+    // not disk or APIRequestContext, which would bypass Playwright routes.
+    // A JSON document runs init scripts but never boots the runtime/fallback.
+    const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json');
+    if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
+    const manifest = await response.json();
+    const supported = await page.evaluate(() => {
+      const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown; promising?: unknown };
+      return typeof wasm.Suspending === 'function' && typeof wasm.promising === 'function';
+    });
+    const reason = jspiUnavailableReason(suspensionCapabilities(manifest, 'jspi', supported));
+    if (reason) test.info().skip(true, q.get('game')+': '+reason);
+  }
   await page.goto(`/?${q}`);
   await page.waitForFunction(() => {
     const t = (window as unknown as { __BGT_TEST__?: { ready(): boolean; failed(): boolean } }).__BGT_TEST__;
     return !!t && (t.ready() || t.failed());
   }, null, { timeout: 30_000 });
-  return page.evaluate(() => ((window as any).__BGT_TEST__.ready() ? 'ready' : 'failed'));
+  const status = await page.evaluate(() => ((window as any).__BGT_TEST__.ready() ? 'ready' : 'failed')) as 'ready' | 'failed';
+  if (status === 'ready' && q.get('suspension') === 'jspi' && !options.allowSuspensionFallback)
+    expect((await diagnostics(page)).suspension, 'JSPI-mode test must execute the JSPI artifact').toBe('jspi');
+  return status;
 }
 
 /** Skip (or fail, when BGT_REQUIRE_WEBGPU=1) if this project wanted WebGPU and did not get it. */
