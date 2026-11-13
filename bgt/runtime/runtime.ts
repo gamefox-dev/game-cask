@@ -91,6 +91,7 @@ export interface BGTDiagnostics {
   game: { id: string; name: string } | null;
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
+  nativeQueryPolicy: 'production' | 'strict' | null;
   ready: boolean;
   paused: boolean;
   failed: boolean;
@@ -114,7 +115,8 @@ export interface BGTDiagnostics {
   };
   lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number;
     commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number;
-    nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null };
+    nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null;
+    nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }> | null };
   commandErrors: { count: number; recent: CommandError[] };
   audio: { state: string; unlocked: boolean; sampleRate: number; droppedFrames: number; playedFrames: number; queued: number };
   storage: { persistent: boolean };
@@ -832,6 +834,7 @@ export class BGTRuntime {
       game: this.manifest ? { id: this.manifest.id, name: this.manifest.name } : null,
       backend: r ? r.kind : 'unavailable',
       backendNotes: [...this.backendNotes],
+      nativeQueryPolicy: r?.gpu?.nativeQueryPolicy ?? null,
       ready: this.ready,
       paused: this.paused,
       failed: this.failed,
@@ -858,7 +861,8 @@ export class BGTRuntime {
         wasmStreaming: this.wasmStreaming,
       },
       lastFrame: { ...this.lastFrameStats,
-        nativeSyncQueries: this.renderer?.gpu?.nativeSyncQueries ? { ...this.renderer.gpu.nativeSyncQueries } : null },
+        nativeSyncQueries: this.renderer?.gpu?.nativeSyncQueries ? { ...this.renderer.gpu.nativeSyncQueries } : null,
+        nativeSyncQueryOps: r?.gpu?.nativeSyncQueryOps ? Object.fromEntries(Object.entries(r.gpu.nativeSyncQueryOps).map(([k,v])=>[k,{...v}])) : null },
       commandErrors: { count: host?.commandErrorCount ?? 0, recent: [...(host?.commandErrors ?? [])] },
       audio: {
         state: this.audio.state,

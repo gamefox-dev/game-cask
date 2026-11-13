@@ -970,6 +970,11 @@ const char *w32_metrics_json(void) {
     jkv("gl_draws", w32_gl_draws);
     jkv("gl_state_changes", w32_gl_state_changes);
     jkv("gl_pipelines", w32_gl_pipelines);
+    /* Successful live-store re-specifications, cumulative (not initial allocations). */
+    jkv("gl_buffer_respec_reused", w32_gl_buffer_respec_reused);
+    jkv("gl_buffer_respec_resized", w32_gl_buffer_respec_resized);
+    jkv("gl_buffer_respec_grew", w32_gl_buffer_respec_grew);
+    jkv("gl_buffer_respec_shrank", w32_gl_buffer_respec_shrank);
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);

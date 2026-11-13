@@ -11,6 +11,10 @@ function setup(debug=false) {
   const state=gpu as unknown as {imageKey:(t:WebGLTexture|null,m:number)=>string;checkFramebuffer:(t:number,k:string,m:string)=>void;completeFramebuffers:Set<string>};
   return {gpu,state,g,errors};
 }
+it('native query policy is strict only when explicitly requested',()=>{
+  expect(setup().gpu.nativeQueryPolicy).toBe('production');
+  expect(setup(true).gpu.nativeQueryPolicy).toBe('strict');
+});
 it('validated hot bindings do not poll native errors; frame poll retains production diagnostics',()=>{
   const {gpu,g,errors}=setup();
   for(let i=0;i<100;i++)expect(gpu.execute({kind:'gpu',op:O.VERTEX_BUFFER,words:[0,1,0]})).toBe(0);

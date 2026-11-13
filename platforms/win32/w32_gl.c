@@ -35,6 +35,7 @@ static uint32_t gl_test_work;
 #define PTR(p) ((uint32_t)(uintptr_t)(p))
 uint64_t w32_gl_calls, w32_gl_draws, w32_gl_state_changes, w32_gl_pipelines, w32_gl_unimplemented,
     w32_gl_approximations;
+uint64_t w32_gl_buffer_respec_reused, w32_gl_buffer_respec_resized, w32_gl_buffer_respec_grew, w32_gl_buffer_respec_shrank;
 static uint32_t error, context, current, dc, pixel_format, interval = 1;
 static char stub_json[8192] = "[]";
 static uint32_t stub_len = 1;
@@ -325,7 +326,21 @@ static uint32_t api_BufferData(void) {
     if (size <= 0 || size > 67108864) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
-    uint32_t id = b->gpu;
+    uint32_t id = b->gpu, old_size = b->size;
+    if (id && old_size == (uint32_t)size) {
+        /* Transport owns uploads in order: earlier draws still see the old bytes.
+         * A rejected UPDATE has no emitted item/native side effect (decoder validates before
+         * emit). In that exceptional case restore the error latch and run the original
+         * delete/create path: its own acceptance decides both state and guest error. */
+        uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size};
+        if (send(0x41, update, 4)) {
+            unmap_storage(b); b->map_access = 0x88ba; b->generated = 0;
+            glp_free(b->data, b->size); b->data = data;
+            w32_gl_buffer_respec_reused++;
+            default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
+        }
+        error = pending;
+    }
     if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
     /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
     unmap_storage(b); b->map_access = 0x88ba;
@@ -336,6 +351,11 @@ static uint32_t api_BufferData(void) {
     uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
     if (!send(0x40, create, 5)) { if (error == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(data, (uint32_t)size); return 0; }
     b->gpu = id; b->size = (uint32_t)size; b->data = data;
+    if (old_size && old_size != (uint32_t)size) {
+        w32_gl_buffer_respec_resized++;
+        if ((uint32_t)size > old_size) w32_gl_buffer_respec_grew++;
+        else w32_gl_buffer_respec_shrank++;
+    }
     default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
 }
 static uint32_t api_BufferSubData(void) {
