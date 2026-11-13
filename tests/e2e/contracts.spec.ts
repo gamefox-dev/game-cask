@@ -18,8 +18,9 @@ test('normal Win64 startup and DLL/FILE contracts produce known results on the b
   expect(logs.filter((s) => /contract .* FAIL|missing |BAD_/.test(s))).toEqual([]);
   expect(logs.some((s) => /contracts totals checks=\d+ failures=0/.test(s)), logs.join('\n')).toBe(true);
   expect(logs.filter((s) => /contract .* PASS/.test(s)).length).toBeGreaterThanOrEqual(133);
-  expect(logs.some((s) => s.includes('guest CRT fatal runtime error'))).toBe(true);
   const d = await diagnostics(page);
+  // INFO logs remain in diagnostics in production; console.debug is explicit-debug only.
+  expect(d.logs.some((s) => s.message === 'guest CRT fatal runtime error')).toBe(true);
   expect(d.errors).toEqual([]);
   expect(d.commandErrors.count).toBe(0);
   expect((d.metrics as any).interp_insns).toBe(0);
