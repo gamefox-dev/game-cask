@@ -328,15 +328,18 @@ static uint32_t api_BufferData(void) {
     uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
     uint32_t id = b->gpu, old_size = b->size;
     if (id && old_size == (uint32_t)size) {
-        /* Re-specification need not change native identity. Transport owns this full upload
-         * in command order, so earlier draws still consume the old bytes on both backends.
-         * Only accepted work replaces shadow/mapping state; rejected uploads retain it. */
-        uint32_t update[] = {id, 0, PTR(data), (uint32_t)size};
-        if (!send(0x41, update, 4)) { glp_free(data, (uint32_t)size); return 0; }
-        unmap_storage(b); b->map_access = 0x88ba; b->generated = 0;
-        glp_free(b->data, b->size); b->data = data;
-        w32_gl_buffer_respec_reused++;
-        default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
+        /* Transport owns uploads in order: earlier draws still see the old bytes.
+         * A rejected UPDATE has no emitted item/native side effect (decoder validates before
+         * emit). In that exceptional case restore the error latch and run the original
+         * delete/create path: its own acceptance decides both state and guest error. */
+        uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size};
+        if (send(0x41, update, 4)) {
+            unmap_storage(b); b->map_access = 0x88ba; b->generated = 0;
+            glp_free(b->data, b->size); b->data = data;
+            w32_gl_buffer_respec_reused++;
+            default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
+        }
+        error = pending;
     }
     if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
     /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
@@ -348,7 +351,7 @@ static uint32_t api_BufferData(void) {
     uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
     if (!send(0x40, create, 5)) { if (error == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(data, (uint32_t)size); return 0; }
     b->gpu = id; b->size = (uint32_t)size; b->data = data;
-    if (old_size) {
+    if (old_size && old_size != (uint32_t)size) {
         w32_gl_buffer_respec_resized++;
         if ((uint32_t)size > old_size) w32_gl_buffer_respec_grew++;
         else w32_gl_buffer_respec_shrank++;

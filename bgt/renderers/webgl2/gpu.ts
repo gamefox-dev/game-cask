@@ -32,6 +32,8 @@ interface PipelineObject {
 const nativeCheckOps = new Set<number>([OP.BUFFER_CREATE, OP.TEXTURE_CREATE, OP.TEXTURE_CREATE_EX,
   OP.TEXTURE_ALLOCATE_MIPS, OP.SAMPLER_CREATE, OP.SAMPLER_CREATE_EX, OP.SHADER_CREATE,
   OP.PIPELINE_CREATE, OP.FEEDBACK_VARYINGS, OP.TEXTURE_READBACK, OP.BUFFER_READBACK, OP.BLIT]);
+// Allocate attribution labels once, never on unchecked command dispatch.
+const nativeQueryKeys = Array.from({length: 0x65}, (_, op) => '0x'+op.toString(16));
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
 /** IEEE binary32 -> binary16 (round to nearest even); exact for values that originated as halves. */
 const halfScratch = new DataView(new ArrayBuffer(4));
@@ -182,7 +184,7 @@ export class WebGL2Gpu implements GpuBackend {
   }
 
   execute(item: GpuItem): number {
-    this.queryOp = '0x'+item.op.toString(16);
+    this.queryOp = nativeQueryKeys[item.op] ?? 'unknown';
     if (this.gl.isContextLost()) {
       item.complete?.(-6, 'WebGL context lost');
       item.readback?.(undefined, -6);
