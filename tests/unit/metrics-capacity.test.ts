@@ -9,6 +9,7 @@ it('serializes all 4096 maximum-length printable import names without truncation
   expect(n).toBeGreaterThan(524288);return JSON.parse(new TextDecoder().decode(bytes.subarray(0,n)));};
  ex.prepare(0);const m=metrics();expect(m.imports_bound).toBe(4096);expect(m.apis_hit).toHaveLength(4096);
  expect(m.gl_objects).toEqual({});
+ for(const key of ['reused','resized','grew','shrank'])expect(m['gl_buffer_respec_'+key]).toBe(0);
  expect(m.execution_accounting.enabled).toBe(0); // standalone header ships default OFF
  expect(instructionSummary(m).status).toBe('unavailable');
  expect(m.interpreter_exclusive_us).toBe(123);
