@@ -59,6 +59,23 @@ function setup() {
 }
 
 describe('GPU command validation', () => {
+  it('rejected full updates emit no native item and retain shadow/generated state',()=>{
+    const t=setup();expect(t.send(O.BUFFER_CREATE,[1,15,8,0,0]).status).toBe(0);
+    const b=t.ctx.gpu!.buffers.get(1)!;b.shadow.fill(33);b.generated=true;
+    const before=t.frame.items.length,uploaded=t.frame.gpuUploadBytes;
+    const bytes=t.frame.commandBytes,commands=t.frame.commandCount,submits=t.frame.submits;
+    // Upload budget rejection, bad range and bad guest pointer all precede mutation/emit.
+    t.frame.gpuUploadBytes=t.ctx.gpu!.budget;
+    expect(t.send(O.BUFFER_UPDATE,[1,0,16384,8]).status).toBe(A.E_LIMIT);
+    // Existing bounded transport work accounting includes a rejected, well-framed attempt.
+    expect(t.frame.commandBytes-bytes).toBe(40);expect(t.frame.commandCount-commands).toBe(1);
+    expect(t.frame.submits-submits).toBe(1);
+    t.frame.gpuUploadBytes=uploaded;
+    expect(t.send(O.BUFFER_UPDATE,[1,0,32768,8]).status).toBe(A.E_BOUNDS);
+    expect(t.send(O.BUFFER_UPDATE,[1,0,16384,12]).status).toBe(A.E_BOUNDS);
+    expect(t.frame.items.length).toBe(before);expect(t.frame.gpuUploadBytes).toBe(uploaded);
+    expect([...b.shadow]).toEqual(Array(8).fill(33));expect(b.generated).toBe(true);
+  });
   it('keeps logical pipeline shader references until explicit delete and permits handle reuse', () => {
     const t = setup(); t.resources(1);
     // Native failure is deferred; the decoder owns allocation/reference lifetime independently.

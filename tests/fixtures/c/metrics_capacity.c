@@ -22,6 +22,7 @@ double x86_interpreter_exclusive_us(void) { return 123; }
 uint64_t x86_guest_instruction_clock(void){return 123;}
 void x86_coverage_flush(void){}
 uint64_t w32_gl_calls,w32_gl_draws,w32_gl_state_changes,w32_gl_pipelines,w32_gl_unimplemented,w32_gl_approximations;
+uint64_t w32_gl_buffer_respec_reused,w32_gl_buffer_respec_resized,w32_gl_buffer_respec_grew,w32_gl_buffer_respec_shrank;
 const char *w32_gl_stubs_json(void){return "[]";}
 /* Idle GL metric provider only; object behavior is exercised by x64-gl-capacity. */
 const char *w32_gl_objects_json(void){return "{}";}
