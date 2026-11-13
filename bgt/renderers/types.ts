@@ -57,6 +57,9 @@ export interface GpuBackend {
   /** Bit language: WGSL=1, GLSL330=2, GLSLES300=4. Zero means unsupported (no CAP_GPU). */
   readonly languages: number;
   readonly nativeSyncQueries?: NativeSyncQueries;
+  /** WebGL native-query policy; unrelated to test API availability. */
+  readonly nativeQueryPolicy?: 'production' | 'strict';
+  readonly nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }>;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */
   execute(item: GpuItem): number;
 }

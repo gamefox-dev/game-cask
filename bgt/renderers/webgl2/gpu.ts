@@ -54,6 +54,9 @@ export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
+  get nativeQueryPolicy(): 'production' | 'strict' { return this.opts.debug ? 'strict' : 'production'; }
+  readonly nativeSyncQueryOps: Record<string, { getError: number; checkFramebufferStatus: number }> = {};
+  private queryOp = 'external';
   private indexed: IndexedBlend | null;
   private buffers = new Map<number, BufferObject>();
   private textures = new Map<number, TextureObject>();
@@ -119,12 +122,17 @@ export class WebGL2Gpu implements GpuBackend {
 
   beginFrame(width: number, height: number, lb: Letterbox): void {
     this.frame = { width, height, lb };
+    for (const key of Object.keys(this.nativeSyncQueryOps)) delete this.nativeSyncQueryOps[key];
     this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
   }
 
-  private nativeError(): number { this.nativeSyncQueries.getError++; return this.gl.getError(); }
+  private countQuery(name: 'getError' | 'checkFramebufferStatus'): void {
+    (this.nativeSyncQueryOps[this.queryOp] ??= {getError:0,checkFramebufferStatus:0})[name]++;
+    this.nativeSyncQueries[name]++;
+  }
+  private nativeError(): number { this.countQuery('getError'); return this.gl.getError(); }
   private nativeFramebufferStatus(target: number): number {
-    this.nativeSyncQueries.checkFramebufferStatus++; return this.gl.checkFramebufferStatus(target);
+    this.countQuery('checkFramebufferStatus'); return this.gl.checkFramebufferStatus(target);
   }
 
   private format(format: number): [number, number, number, number] {
@@ -174,6 +182,7 @@ export class WebGL2Gpu implements GpuBackend {
   }
 
   execute(item: GpuItem): number {
+    this.queryOp = '0x'+item.op.toString(16);
     if (this.gl.isContextLost()) {
       item.complete?.(-6, 'WebGL context lost');
       item.readback?.(undefined, -6);
@@ -235,6 +244,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   /** Unexpected native failures remain renderer diagnostics, never a second guest GL error queue. */
   checkNativeError(): void {
+    this.queryOp = 'frameEnd';
     const code = this.nativeError();
     if (code !== this.gl.NO_ERROR && !this.gl.isContextLost()) this.error(`WebGL error 0x${code.toString(16)}`);
   }

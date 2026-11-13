@@ -27,7 +27,8 @@ const rt = new BGTRuntime({
   container: document.getElementById('app')!,
   gameUrl: `${import.meta.env.BASE_URL}games/${game}/`,
   backend: (q.get('backend') as BackendPreference) ?? 'auto',
-  debug: debug || testEnabled,
+  // Test/probe API availability must not force strict native GL queries.
+  debug,
   seed: num('seed', 1),
   arg0: num('arg0', 0),
   arg1: num('arg1', 0),
