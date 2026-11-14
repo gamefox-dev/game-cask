@@ -7,6 +7,8 @@ import type { BGTTestAPI } from '../../bgt/runtime/testapi';
 for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspension of ['asyncify','jspi']) {
   test('savestate ' + game + ' ' + suspension + ': continuous and two restored suffixes agree every update',async({page,backendParam,collector},info)=>{
     void collector;
+    // x64-gl-fbo steps 300 extra updates; Asyncify on the CI software rasterizer needs ~70 s (dev.29/dev.33 CI timeouts).
+    if(game==='x64-gl-fbo')test.setTimeout(180_000);
     expect(await openGame(page,backendParam,{game,suspension,deterministic:'1'})).toBe('ready');
     await assertBackend(page,backendParam,info);
     expect((await diagnostics(page)).suspension).toBe(suspension);
