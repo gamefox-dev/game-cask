@@ -199,6 +199,11 @@ void x86_run_native(x86_native_fn step);
  * driver; a false resume propagates the already-spilled state out of all native frames. */
 #define X86_NATIVE_FAST_VERSION 1
 #include "x86_dispatch.h"
+/* Positive exact-PC admission certificate. Only immutable registry equality is
+ * cached; all dynamic safety/observation checks remain at every admission. */
+typedef struct { uint32_t generation, target; x86_native_fn expected; } x86_native_admission_t;
+int x86_native_enter_cached(x86_native_admission_t *site, uint32_t target, x86_native_fn expected);
+int x86_native_resume_cached(x86_native_admission_t *site, uint32_t next, uint64_t floor, x86_native_fn caller);
 int x86_native_enter(uint32_t target, x86_native_fn expected);
 int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller);
 int x86_native_ready(void);

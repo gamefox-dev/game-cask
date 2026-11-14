@@ -9,7 +9,10 @@ function profile(file){
  const categories={},self={};
  for(const p of Array.isArray(captures)?captures:[captures]){
  const nodes=new Map(p.nodes.map(n=>[n.id,n]));
+ let timestamp=p.startTime;
  for(let i=0;i<p.samples.length;i++){
+  timestamp+=p.timeDeltas?.[i]??0;
+  if(p.window && (timestamp<p.window.beginUs || timestamp>p.window.endUs))continue;
   const f=nodes.get(p.samples[i]).callFrame,n=f.functionName||'(anonymous)',us=p.timeDeltas?.[i]??0;
   // Same exhaustive location split as r24b, not inferred guest/helper cycles.
   let c=/^(?:N|R|F)_[0-9a-f]+/.test(n)?'lifted_guest_leaf':
@@ -30,7 +33,8 @@ const rows=pairs.rows.map(row=>{
  const ins=s=>Number(BigInt(s.metrics.execution_accounting.retired.total));
  return {mode:row.mode,pattern:row.pattern,beforeMs:median(a.map(s=>s.ms)),afterMs:median(b.map(s=>s.ms)),
   pairedDeltaMs:median(b.map((s,i)=>s.ms-a[i].ms)),pairedRange:b.map((s,i)=>s.ms-a[i].ms),
-  // Includes startup retirement: explicitly retain denominator rather than hide it.
+  // Whole update wall / whole update retirement (including startup and host idle).
+  // ms columns above retain marker-delimited guest work for independent comparison.
   beforeNsPerRetired:median(a.map(s=>s.totalMs*1e6/ins(s))),afterNsPerRetired:median(b.map(s=>s.totalMs*1e6/ins(s))),
   countersBefore:a[0].metrics.native_dispatch,countersAfter:b[0].metrics.native_dispatch,
   profiles:row.profiles.map(f=>profile(join(root,f)))};

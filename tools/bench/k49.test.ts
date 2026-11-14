@@ -49,6 +49,7 @@ it('prepares exact counter-OFF/ON controls, both-mode 300-update oracles, immuta
 });
 it('alternates warmed fresh instances; profiles separately, with the porter category split',async()=>{
  if(!process.env.BGT_K49_PAIR)return;
+ mkdirSync(out,{recursive:true});
  const roots=process.env.BGT_K49_PAIR.split(',');const rows=[];
  for(const mode of ['asyncify','jspi'] as const)for(const pattern of patterns){
   const samples=[];
@@ -70,8 +71,13 @@ it('alternates warmed fresh instances; profiles separately, with the porter cate
    await post('Profiler.enable');await post('Profiler.setSamplingInterval',{interval:100});
    const captures=[];
    for(let n=0;n<12;n++){
-    const h=await loadHeadless('k49-'+pattern,{dir:join(root,pattern+'-0','game'),suspension:mode});
-    await post('Profiler.start');await h.stepAsync(300);const {profile}=await post('Profiler.stop');captures.push(profile);
+    let beginUs=0,endUs=0;
+    const h=await loadHeadless('k49-'+pattern,{dir:join(root,pattern+'-0','game'),suspension:mode,onLog:m=>{
+     if(m==='guest: CALLS begin')beginUs=Number(process.hrtime.bigint()/1000n);
+     if(m==='guest: CALLS end')endUs=Number(process.hrtime.bigint()/1000n);
+    }});
+    await post('Profiler.start');await h.stepAsync(300);const {profile}=await post('Profiler.stop');
+    captures.push({...profile as object,window:{beginUs,endUs}});
     expect(h.logs).toContain('guest: CALLS PASS');
    }
    const profile=captures;session.disconnect();

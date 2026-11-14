@@ -698,9 +698,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     l64_sync(o,0);
                     fprintf(o,"X.eip=0x%08xu;X.eip=x86_address(t);",next);
                     if(in->op==XO_CALL)
-                        fprintf(o,"if(x86_native_enter(X.eip,N_%08x)){uint64_t floor=X.r[4];N_%08x(X.eip);",in->target,in->target);
+                        fprintf(o,"static x86_native_admission_t call_%08x;if(x86_native_enter_cached(&call_%08x,X.eip,N_%08x)){uint64_t floor=X.r[4];N_%08x(X.eip);",next,next,in->target,in->target);
                     else fprintf(o,"{static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,X.eip);if(step){uint64_t floor=X.r[4];step(X.eip);");
-                    fprintf(o,"if(!x86_native_resume(0x%08xu,floor,N_%08x)){X86_NATIVE_EXIT(fast_unwind);return;}",next,original->addr);
+                    fprintf(o,"static x86_native_admission_t resume_%08x;if(!x86_native_resume_cached(&resume_%08x,0x%08xu,floor,N_%08x)){X86_NATIVE_EXIT(fast_unwind);return;}",next,next,next,original->addr);
                     l64_sync(o,1);
                     fprintf(o,"dirty=0;pc=X.eip;x86_coverage_lifted(pc,1);");
                     /* A callee may have used the rest of our quantum reservation. */

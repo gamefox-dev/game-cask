@@ -404,6 +404,41 @@ int x86_native_ready(void) {
     return native_limit && !X.transfer && !x86_lift_pending && !x86_lift_count && !pending_import &&
         !(X.eip == native_stop && X.r[ESP] > native_floor);
 }
+static int native_admitted(x86_native_admission_t *site, uint32_t target, x86_native_fn expected) {
+    if(site->generation == lifted_generation && site->target == target && site->expected == expected) {
+        X86_DISPATCH_COUNT(admission_hits);
+        /* Identical to a positive exact-PC registry cache hit. Never cache live
+         * page protections, force policy or strict host membership. */
+        if(x86_pages[target>>12] && x86_protection[target>>12]) x86_check_access(target,1,4);
+        if(x86_force_interp)return 0;
+#if X86_COVERAGE_MODE == 2
+        x86_coverage_entry(target,1);
+#endif
+        return 1;
+    }
+    X86_DISPATCH_COUNT(admission_misses);
+    if(find_native(target) != expected)return 0;
+    *site=(x86_native_admission_t){lifted_generation,target,expected};
+    return 1;
+}
+int x86_native_enter_cached(x86_native_admission_t *site, uint32_t target, x86_native_fn expected) {
+    X86_DISPATCH_COUNT(enter_attempts);
+    if(!expected){X86_DISPATCH_REJECT(enter,null);return 0;}
+    if(native_depth>=32){X86_DISPATCH_REJECT(enter,depth);return 0;}
+    if(!x86_native_ready()){X86_DISPATCH_REJECT(enter,not_ready);return 0;}
+    if(!native_admitted(site,target,expected)){X86_DISPATCH_REJECT(enter,registry);return 0;}
+    native_depth++;NATIVE_PEAK();NATIVE_COUNT(calls);x86_metrics.lifted_calls++;
+    return 1;
+}
+int x86_native_resume_cached(x86_native_admission_t *site, uint32_t next, uint64_t floor, x86_native_fn caller) {
+    X86_DISPATCH_COUNT(resume_attempts);
+    native_depth--;
+    if(X.eip!=next || X.r[ESP]<=floor){X86_DISPATCH_REJECT(resume,return);return 0;}
+    if(!x86_native_ready()){X86_DISPATCH_REJECT(resume,not_ready);return 0;}
+    if(!native_admitted(site,next,caller)){X86_DISPATCH_REJECT(resume,registry);return 0;}
+    NATIVE_COUNT(resumes);x86_metrics.lifted_calls++;
+    return 1;
+}
 int x86_native_enter(uint32_t target, x86_native_fn expected) {
     X86_DISPATCH_COUNT(enter_attempts);
     if (!expected) { X86_DISPATCH_REJECT(enter,null); return 0; }

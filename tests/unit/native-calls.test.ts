@@ -64,7 +64,7 @@ async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],
    raw=new Uint8Array(readFileSync(out));
   }
   const {exports,host}=await instantiateFixture(raw,suspension?{suspensionMode:suspension}:{});
-  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number;retired():bigint;thread_retired():bigint;dispatch_exit(n:number):bigint};
+  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number;retired():bigint;thread_retired():bigint;dispatch_exit(n:number):bigint;native_lookups():bigint;admission_hits():bigint};
   const snap=()=>({retired:ex.retired(),threadRetired:ex.thread_retired(),cpu:new Uint8Array(ex.memory.buffer).slice(ex.cpu(),ex.cpu()+ex.cpu_size()),ram:new Uint8Array(ex.memory.buffer).slice(ex.ram()+0x1000,ex.ram()+0xa000)});
   return {ex,host,text,snap,stats:()=>Array.from(new BigUint64Array(ex.memory.buffer,ex.stats(),6),Number),peak:()=>new DataView(ex.memory.buffer).getUint32(ex.stats()+48,true)};
  } finally {rmSync(dir,{recursive:true,force:true});}
@@ -84,14 +84,16 @@ it('Q85 exact generated return/quantum/fault events and OFF/ON CPU identity ('+s
  const states=[];
  for(const stats of [0,1]){
   const h=await harness(code,[0,0x40],'size',undefined,'split',suspension,1,stats);
-  h.ex.prepare(0,0x2000,0);h.ex.execute();states.push(h.snap());
+  h.ex.prepare(0,0x2000,0);h.ex.execute();const normal=h.snap();
   expect(h.ex.dispatch_exit(5)).toBe(stats?2n:0n); // ret (callee + caller)
   expect(h.stats().slice(0,3)).toEqual(stats?[1,1,1]:[0,0,0]);
   h.ex.prepare(0,0x2000,2000000);h.ex.execute();
   expect(h.ex.dispatch_exit(2)).toBe(stats?1n:0n); // pre-execution quantum
-  h.ex.prepare(0,0x2000,0);h.ex.set_reg(4,0x100009000n);
+  const quantum=h.snap();
+  h.ex.prepare(0,0x2000,0);h.ex.set_reg(4,0xf008n);
   expect(()=>h.ex.execute()).toThrow();
-  expect(h.ex.dispatch_exit(13)).toBe(stats?1n:0n); // checked memory fault
+  expect(h.ex.dispatch_exit(1)).toBe(stats?1n:0n); // failed block guard exits before shared checked CALL faults
+  states.push({normal,quantum,fault:h.snap()});
  }
  expect(states[0]).toEqual(states[1]);
 },60000);
@@ -160,6 +162,7 @@ it('exact warm indirect CALL/tail retirement, separate objects '+accounting+' '+
   const h=await harness(code,tail?[0,0x40,0x80]:[0,0x40],'fast',undefined,'split',suspension,accounting);
   h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();
   expect(h.ex.interpretation()).toBe(0);expect(h.stats()[4]).toBe(3);expect(h.stats()[5]).toBe(1);
+  expect(h.ex.native_lookups()).toBe(tail?3n:2n);expect(h.ex.admission_hits()).toBe(tail?6n:3n);
   expect(h.ex.retired()).toBe(accounting?(tail?27n:23n):0n);
   h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
  }
@@ -267,7 +270,7 @@ it.each(['size','fast'])('generated indirect site reads a patched qword table an
 it.each(['size','fast'])('self-recursive targets retain the flat path without failed speculative fast frames (%s)',async(preset)=>{
  const code=Buffer.alloc(0x50,0x90);Buffer.from('b903000000e836000000c3','hex').copy(code);Buffer.from('85c97407ffc9e8f5ffffffffc0c3','hex').copy(code,0x40);
  const h=await harness(code,[0,0x40],preset);
- expect(h.text).not.toContain('x86_native_enter(X.eip,N_00002040)');
+ expect(h.text).not.toMatch(/x86_native_enter(?:_cached)?\([^;]*N_00002040/);
  h.ex.prepare(0,0x2000,0);h.ex.execute();const got=h.snap();expect(h.stats()[1]).toBe(0);expect(h.ex.interpretation()).toBe(0);expect(h.ex.retired()).toBe(25n);
  h.ex.prepare(1,0x2000,0);h.ex.execute();expect(got).toEqual(h.snap());
 });
