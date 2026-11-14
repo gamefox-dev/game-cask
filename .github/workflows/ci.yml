@@ -148,6 +148,11 @@ jobs:
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      # Collect every shard result even when one fails; gate requires the matrix aggregate.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       BGT_CI_LIGHT: '1'
     steps:
@@ -163,15 +168,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Wasm sample build
         run: npm run build:examples
-      - name: Browser E2E (WebGL 2 fallback, software rendering)
-        run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e npx playwright test --project=chromium-webgl2 --project=chromium-auto
+      - name: Browser E2E (WebGL 2 fallback, software rendering) — shard ${{ matrix.shard }}/3
+        run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/3
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-report
+          name: e2e-report-shard-${{ matrix.shard }}
           path: |
-            reports/e2e-results.json
-            reports/e2e-html/
+            reports/e2e-shard-${{ matrix.shard }}-results.json
+            reports/e2e-shard-${{ matrix.shard }}-html/
+            reports/e2e-shard-${{ matrix.shard }}-artifacts/
           retention-days: 7
 
   scale:
@@ -222,6 +228,7 @@ jobs:
           UNIT3: ${{ needs.unit_3.result }}
           LINT_NATIVE: ${{ needs.lint_native.result }}
           LINT_EXAMPLES: ${{ needs.lint_examples.result }}
+          # A matrix job succeeds only when all shards succeed.
           E2E: ${{ needs.e2e.result }}
           SCALE: ${{ needs.scale.result }}
         run: |

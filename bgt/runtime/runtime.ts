@@ -83,11 +83,12 @@ export interface RuntimeErrorRecord {
 }
 
 import { compileVerifiedWasm } from './wasm-loader';
-import { selectWasmVariant } from './jspi';
+import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
 
 export interface BGTDiagnostics {
   abi: string;
   suspension: 'asyncify' | 'jspi' | null;
+  suspensionSelection: SuspensionCapabilities | null;
   game: { id: string; name: string } | null;
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
@@ -156,6 +157,7 @@ async function sha256Hex(data: ArrayBuffer): Promise<string | null> {
 }
 
 export class BGTRuntime {
+  private suspensionSelection: SuspensionCapabilities | null = null;
   /** Installed only by the opt-in test API, before start(). */
   declare testHarness?: {
     services(s: HostServices): HostServices;
@@ -367,7 +369,8 @@ export class BGTRuntime {
     document.title = `${manifest.name} — Game Cask`;
 
     const requested = this.opts.suspension ?? new URLSearchParams(location.search).get('suspension');
-    const variant = selectWasmVariant(manifest, requested);
+    this.suspensionSelection = suspensionCapabilities(manifest, requested);
+    const variant = selectWasmVariant(manifest, requested, this.suspensionSelection.supported);
     const total = variant.artifact.size + manifest.assets.reduce((n, a) => n + a.size, 0);
     let loaded = 0;
     const tick = (n: number) => {
@@ -831,6 +834,7 @@ export class BGTRuntime {
     return {
       abi: `${ABI_VERSION >> 16}.${(ABI_VERSION >> 8) & 0xff}`,
       suspension: host ? (host.config.suspensionMode ?? 'asyncify') : null,
+      suspensionSelection: this.suspensionSelection ? { ...this.suspensionSelection } : null,
       game: this.manifest ? { id: this.manifest.id, name: this.manifest.name } : null,
       backend: r ? r.kind : 'unavailable',
       backendNotes: [...this.backendNotes],
