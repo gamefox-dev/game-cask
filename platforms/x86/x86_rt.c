@@ -287,10 +287,13 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
 }
 
 x86_lifted_fn x86_find_lifted(uint32_t addr) {
+    X86_DISPATCH_COUNT(registry_lookups);
     if(x86_pages[addr>>12] && x86_protection[addr>>12])x86_check_access(addr,1,4);
-    if (x86_force_interp) return 0;
+    if (x86_force_interp) { X86_DISPATCH_COUNT(registry_forced); return 0; }
     unsigned slot = (addr ^ (addr >> 10)) & 1023u;
     if (lifted_cache[slot].valid && lifted_cache[slot].addr == addr) {
+        if(lifted_cache[slot].fn) X86_DISPATCH_COUNT(registry_cache_positive);
+        else X86_DISPATCH_COUNT(registry_cache_negative);
 #if X86_COVERAGE_MODE == 2
         if (lifted_cache[slot].fn) x86_coverage_entry(addr,1);
 #endif
@@ -305,8 +308,13 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
     }
     if (lo) {
         const x86_lifted_entry_t *e = &lifted[lo - 1];
-        if (addr == e->addr || addr < e->end) { found = e->fn; native = e->native; }
+        if (addr == e->addr || addr < e->end) {
+            found = e->fn; native = e->native;
+            if(addr == e->addr) X86_DISPATCH_COUNT(registry_search_exact);
+            else X86_DISPATCH_COUNT(registry_search_range);
+        } else X86_DISPATCH_COUNT(registry_search_miss);
     }
+    if(!lo) X86_DISPATCH_COUNT(registry_search_miss);
     lifted_cache[slot].addr = addr; lifted_cache[slot].fn = found;
     lifted_cache[slot].native = native; lifted_cache[slot].valid = 1;
 #if X86_COVERAGE_MODE == 2
@@ -316,6 +324,7 @@ x86_lifted_fn x86_find_lifted(uint32_t addr) {
 }
 
 static x86_native_fn find_native(uint32_t addr) {
+    X86_DISPATCH_COUNT(native_lookups);
     if (!x86_find_lifted(addr)) return 0;
     return lifted_cache[(addr ^ (addr >> 10)) & 1023u].native;
 }
@@ -396,7 +405,11 @@ int x86_native_ready(void) {
         !(X.eip == native_stop && X.r[ESP] > native_floor);
 }
 int x86_native_enter(uint32_t target, x86_native_fn expected) {
-    if (!expected || native_depth >= 32 || !x86_native_ready() || find_native(target) != expected) return 0;
+    X86_DISPATCH_COUNT(enter_attempts);
+    if (!expected) { X86_DISPATCH_REJECT(enter,null); return 0; }
+    if (native_depth >= 32) { X86_DISPATCH_REJECT(enter,depth); return 0; }
+    if (!x86_native_ready()) { X86_DISPATCH_REJECT(enter,not_ready); return 0; }
+    if (find_native(target) != expected) { X86_DISPATCH_REJECT(enter,registry); return 0; }
     native_depth++;
     NATIVE_PEAK();
     NATIVE_COUNT(calls); x86_metrics.lifted_calls++;
@@ -404,12 +417,16 @@ int x86_native_enter(uint32_t target, x86_native_fn expected) {
 }
 void x86_native_drop(void) { native_depth--; }
 int x86_native_rechain(x86_native_fn owner) {
-    if (!x86_native_ready() || find_native(X.eip) != owner) return 0;
+    X86_DISPATCH_COUNT(rechain_attempts);
+    if (!x86_native_ready()) { X86_DISPATCH_REJECT(rechain,not_ready); return 0; }
+    if (find_native(X.eip) != owner) { X86_DISPATCH_REJECT(rechain,registry); return 0; }
     x86_metrics.lifted_calls++; NATIVE_COUNT(region_chains);
     return 1;
 }
 x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
-    if (native_depth >= 32 || !x86_native_ready() || x86_force_interp) return 0;
+    X86_DISPATCH_COUNT(indirect_attempts);
+    if (native_depth >= 32) { X86_DISPATCH_REJECT(indirect,depth); return 0; }
+    if (!x86_native_ready() || x86_force_interp) { X86_DISPATCH_REJECT(indirect,not_ready); return 0; }
     /* Exact-PC immutable registry results only; guest tables/vtables are read at
      * every instruction. Page protections and strict membership remain dynamic. */
     if (x86_pages[target>>12] && x86_protection[target>>12]) x86_check_access(target,1,4);
@@ -427,7 +444,7 @@ x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
     } else {
         NATIVE_COUNT(indirect_misses);
         step=find_native(target);
-        if (!step) return 0;
+        if (!step) { X86_DISPATCH_REJECT(indirect,registry); return 0; }
         i=site->next++ & 3u; site->target[i]=target; site->step[i]=step;
     }
     native_depth++;
@@ -436,8 +453,11 @@ x86_native_fn x86_native_indirect(x86_native_site_t *site, uint32_t target) {
     return step;
 }
 int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
+    X86_DISPATCH_COUNT(resume_attempts);
     native_depth--;
-    if (X.eip != next || X.r[ESP] <= floor || !x86_native_ready() || find_native(next) != caller) return 0;
+    if (X.eip != next || X.r[ESP] <= floor) { X86_DISPATCH_REJECT(resume,return); return 0; }
+    if (!x86_native_ready()) { X86_DISPATCH_REJECT(resume,not_ready); return 0; }
+    if (find_native(next) != caller) { X86_DISPATCH_REJECT(resume,registry); return 0; }
     NATIVE_COUNT(resumes); x86_metrics.lifted_calls++;
     return 1;
 }
@@ -447,6 +467,7 @@ int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
  * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
 void x86_run_native(x86_native_fn step) {
 #ifdef X86_FLAT_GUEST
+    X86_DISPATCH_COUNT(driver_entries);
     uint32_t stop = native_stop, floor = native_floor; int limit = native_limit;
     /* A previous aborted wasm export may have abandoned fast frames. Every driver
      * entry is outside them, including nested callbacks after an import boundary. */
@@ -455,18 +476,24 @@ void x86_run_native(x86_native_fn step) {
         NATIVE_COUNT(driver_steps);
         uint32_t old = X.eip; uint64_t clock = X.tsc;
         step(X.eip);
-        if (X.transfer || x86_lift_pending || x86_lift_count) return;
+        if (X.transfer) { X86_DRIVER_STOP(transfer); return; }
+        if (x86_lift_pending) { X86_DRIVER_STOP(pending); return; }
+        if (x86_lift_count) { X86_DRIVER_STOP(block); return; }
         if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
-        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        if (limit && X.eip == stop && X.r[ESP] > floor) { X86_DRIVER_STOP(stop); return; }
         if (pending_import) {
             const x86_import_binding_t *b=pending_import;pending_import=0;
+            X86_DISPATCH_COUNT(driver_imports);
             x86_metrics.direct_import_calls++;
             b->call(b->opaque);
-        } else if (x86_is_thunk(X.eip)) x86_lift_thunk();
-        if (X.transfer || x86_lift_pending || x86_lift_count) return;
-        if (limit && X.eip == stop && X.r[ESP] > floor) return;
+        } else if (x86_is_thunk(X.eip)) { X86_DISPATCH_COUNT(driver_thunks); x86_lift_thunk(); }
+        if (X.transfer) { X86_DRIVER_STOP(transfer); return; }
+        if (x86_lift_pending) { X86_DRIVER_STOP(pending); return; }
+        if (x86_lift_count) { X86_DRIVER_STOP(block); return; }
+        if (limit && X.eip == stop && X.r[ESP] > floor) { X86_DRIVER_STOP(stop); return; }
         /* A naked call outside invoke has no return boundary; execute only its supplied step. */
-        if (!limit || !(step = find_native(X.eip))) return;
+        if (!limit) { X86_DRIVER_STOP(unbounded); return; }
+        if (!(step = find_native(X.eip))) { X86_DRIVER_STOP(no_native); return; }
         x86_metrics.lifted_calls++;
     }
 #else

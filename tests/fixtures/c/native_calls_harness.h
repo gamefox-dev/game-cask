@@ -36,6 +36,7 @@ BGT_EXPORT(cpu) unsigned cpu(void){return (unsigned)(uintptr_t)&X;}
 BGT_EXPORT(cpu_size) unsigned cpu_size(void){return sizeof X;}
 BGT_EXPORT(ram) unsigned ram(void){return (unsigned)(uintptr_t)x86_flat;}
 BGT_EXPORT(stats) unsigned stats(void){return (unsigned)(uintptr_t)&x86_native_stats;}
+BGT_EXPORT(dispatch_exit) uint64_t dispatch_exit(unsigned n){return n<XD_EXITS?x86_native_stats.exits[n]:UINT64_MAX;}
 BGT_EXPORT(retired) uint64_t retired(void){return x86_retired.instructions[0]+x86_retired.instructions[1]+x86_retired.instructions[2];}
 BGT_EXPORT(thread_retired) uint64_t thread_retired(void){return x86_thread_retired->instructions[0]+x86_thread_retired->instructions[1]+x86_thread_retired->instructions[2];}
 BGT_EXPORT(interpretation) unsigned interpretation(void){return x86_metrics.interp_insns;}

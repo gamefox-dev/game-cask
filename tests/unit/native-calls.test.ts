@@ -29,7 +29,7 @@ function pe(code:Buffer, cuts:number[]) {
  for(const [i,name,rva,size,raw] of [[0,'.text',0x1000,code.length,0x400],[1,'.pdata',0x200,cuts.length*12,0x200]] as const){const s=0x188+i*40;b.write(name,s);b.writeUInt32LE(size,s+8);b.writeUInt32LE(rva,s+12);b.writeUInt32LE(size,s+16);b.writeUInt32LE(raw,s+20);b.writeUInt32LE(i?0x40000040:0x60000020,s+36);}
  cuts.forEach((off,i)=>{b.writeUInt32LE(0x1000+off,0x200+i*12);b.writeUInt32LE(0x1000+(cuts[i+1]??code.length),0x204+i*12);});code.copy(b,0x400);return b;
 }
-async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],layout?:'split'|'override',suspension?:'asyncify'|'jspi',accounting=1) {
+async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],layout?:'split'|'override',suspension?:'asyncify'|'jspi',accounting=1,stats=1) {
  const root=join(ROOT,'node_modules/.cache/bgt/native-calls');mkdirSync(root,{recursive:true});const dir=mkdtempSync(join(root,'case-'));
  try{
   writeFileSync(join(dir,'test.exe'),pe(code,cuts));
@@ -48,11 +48,11 @@ async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],
    text='#include "x86_lift64.h"\n'+allRows.flatMap(r=>r.declarations).join('\n')+'\nconst x86_lifted_entry_t x86_lifted_probe[]={\n'+allRows.map(r=>r.row).join('\n')+'\n};\nconst unsigned x86_lifted_probe_count='+allRows.length+';\n';
    if(layout==='override')text+='void F_00002040(void){X.tsc++;X.r[0]=19;X.eip=(uint32_t)x86_pop();}\n';
   }
-  writeFileSync(join(dir,'test.c'),'#define X86_ACCOUNTING_ENABLED '+accounting+'\n#define X86_NATIVE_STATS 1\n#define X86_FLAT_GUEST 1\n#define X86_FLAT_BYTES 65536ull\n#define X86_PROFILE_ENABLED 0\n#define X86_COVERAGE_MODE 0\nstatic const unsigned char test_code[]={'+[...code].join(',')+'};\n'+text.replace('#include "x86_lift64.h"','#include "'+ROOT+'/platforms/x86/x86_lift64.h"')+'\n#include "'+ROOT+'/tests/fixtures/c/native_calls_harness.h"\n');
+  writeFileSync(join(dir,'test.c'),'#define X86_ACCOUNTING_ENABLED '+accounting+'\n#define X86_NATIVE_STATS '+stats+'\n#define X86_FLAT_GUEST 1\n#define X86_FLAT_BYTES 65536ull\n#define X86_PROFILE_ENABLED 0\n#define X86_COVERAGE_MODE 0\nstatic const unsigned char test_code[]={'+[...code].join(',')+'};\n'+text.replace('#include "x86_lift64.h"','#include "'+ROOT+'/platforms/x86/x86_lift64.h"')+'\n#include "'+ROOT+'/tests/fixtures/c/native_calls_harness.h"\n');
   let raw:Uint8Array<ArrayBuffer>;
   if(extra.length||suspension){
    const out=join(dir,'raw.wasm');
-   execFileSync(requireZig({quiet:true}).path,['cc',...CFLAGS,'-DX86_ACCOUNTING_ENABLED='+accounting,'-DX86_NATIVE_STATS=1','-DX86_FLAT_GUEST=1','-DX86_FLAT_BYTES=65536ull','-DX86_PROFILE_ENABLED=0','-DX86_COVERAGE_MODE=0','-I',join(ROOT,'bgt/include'),'-I',join(ROOT,'platforms/x86'),join(dir,'test.c'),...extra,join(ROOT,'bgt/sdk/bgt_libc.c'),...LDFLAGS.filter((f:string)=>f!=='-Wl,--strip-debug'),'-o',out]);
+   execFileSync(requireZig({quiet:true}).path,['cc',...CFLAGS,'-DX86_ACCOUNTING_ENABLED='+accounting,'-DX86_NATIVE_STATS='+stats,'-DX86_FLAT_GUEST=1','-DX86_FLAT_BYTES=65536ull','-DX86_PROFILE_ENABLED=0','-DX86_COVERAGE_MODE=0','-I',join(ROOT,'bgt/include'),'-I',join(ROOT,'platforms/x86'),join(dir,'test.c'),...extra,join(ROOT,'bgt/sdk/bgt_libc.c'),...LDFLAGS.filter((f:string)=>f!=='-Wl,--strip-debug'),'-o',out]);
    raw=new Uint8Array(readFileSync(out));
   }else raw=await compileC(relative(ROOT,join(dir,'test.c')));
   if(suspension==='asyncify'){
@@ -64,7 +64,7 @@ async function harness(code:Buffer,cuts:number[],preset:string,select?:number[],
    raw=new Uint8Array(readFileSync(out));
   }
   const {exports,host}=await instantiateFixture(raw,suspension?{suspensionMode:suspension}:{});
-  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number;retired():bigint;thread_retired():bigint};
+  const ex=exports as unknown as {memory:WebAssembly.Memory;prepare(i:number,pc:number,b:number):void;execute():void;resume():void;cpu():number;cpu_size():number;ram():number;stats():number;interpretation():number;generic():number;set_reg(i:number,v:bigint):void;configure_service(n:number):void;service_count():number;service_frames():number;service_complete():number;retired():bigint;thread_retired():bigint;dispatch_exit(n:number):bigint};
   const snap=()=>({retired:ex.retired(),threadRetired:ex.thread_retired(),cpu:new Uint8Array(ex.memory.buffer).slice(ex.cpu(),ex.cpu()+ex.cpu_size()),ram:new Uint8Array(ex.memory.buffer).slice(ex.ram()+0x1000,ex.ram()+0xa000)});
   return {ex,host,text,snap,stats:()=>Array.from(new BigUint64Array(ex.memory.buffer,ex.stats(),6),Number),peak:()=>new DataView(ex.memory.buffer).getUint32(ex.stats()+48,true)};
  } finally {rmSync(dir,{recursive:true,force:true});}
@@ -78,6 +78,23 @@ function recursive() {
  Buffer.from('4883ec28e8b7ffffff4883c428c3','hex').copy(code,0x80);
  return code;
 }
+for(const suspension of ['asyncify',...(jspiApi()?['jspi']:[])] as ('asyncify'|'jspi')[])
+it('Q85 exact generated return/quantum/fault events and OFF/ON CPU identity ('+suspension+')',async()=>{
+ const code=Buffer.alloc(0x50,0x90);Buffer.from('e83b000000ffc0c3','hex').copy(code);Buffer.from('b807000000c3','hex').copy(code,0x40);
+ const states=[];
+ for(const stats of [0,1]){
+  const h=await harness(code,[0,0x40],'size',undefined,'split',suspension,1,stats);
+  h.ex.prepare(0,0x2000,0);h.ex.execute();states.push(h.snap());
+  expect(h.ex.dispatch_exit(5)).toBe(stats?2n:0n); // ret (callee + caller)
+  expect(h.stats().slice(0,3)).toEqual(stats?[1,1,1]:[0,0,0]);
+  h.ex.prepare(0,0x2000,2000000);h.ex.execute();
+  expect(h.ex.dispatch_exit(2)).toBe(stats?1n:0n); // pre-execution quantum
+  h.ex.prepare(0,0x2000,0);h.ex.set_reg(4,0x100009000n);
+  expect(()=>h.ex.execute()).toThrow();
+  expect(h.ex.dispatch_exit(13)).toBe(stats?1n:0n); // checked memory fault
+ }
+ expect(states[0]).toEqual(states[1]);
+},60000);
 it('resolves full-width constant-base tables but refuses segment and clobbered-base speculation',()=>{
  const root=join(ROOT,'node_modules/.cache/bgt/native-calls');mkdirSync(root,{recursive:true});const dir=mkdtempSync(join(root,'table-'));
  try {

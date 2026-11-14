@@ -243,6 +243,30 @@ Missing timing or a zero denominator yields null. No interval is bridged across 
 first/last frames and work after the last present are excluded. Probe JSON retains the full per-thread and
 per-frame breakdown; the terminal summary labels instructions/active-wall-second and snapshot drops.
 
+### Exact native dispatch observations (Q85)
+
+Set **BGT_DISPATCH_COUNTERS=1** and rebuild to enable "native_dispatch" diagnostics
+(internal X86_NATIVE_STATS). Default **OFF** compiles every increment out, with no runtime
+branch, sampling clock or hot-path reset. OFF reports enabled:0 and counters/frames:null,
+not zero activity. Independent of execution_accounting and sampled CPU profiling; does not
+change guest registers, flags, memory, clock, retirement, API traces or suspension.
+
+The cumulative u64 values are **unsigned decimal strings**, including per-presentation
+snapshots. Only bounded peak_depth/capacity/enabled remain numbers. The 64-entry ring captures
+native guest GDI/SwapBuffers presentations, retains chronological present identities, and
+reports exact overwritten-snapshot drops. It is not an update/frame-timer approximation.
+Counters are never reset by a sampled-profile window reset or context switch.
+
+Driver entries/steps and terminal return reasons, accepted enter/resume/rechain/indirect
+continuations and first failed admission guards, generated native region exits by reason,
+inline leaf continuations, native lookups, registry exact-PC positive/negative cache hits,
+search exact/range/miss and force-interpreter refusals are separate observations. Faulting
+attempts do not invent successful returns/rejections. A generated region return is not a
+retired guest instruction; handwritten overrides are not generated region exits. Nested
+callback dispatch counts independently. Existing sampled census semantics are unchanged.
+Precise event definitions, known-count regressions, OFF/ON trace comparisons and separately
+measured instrumentation overhead: [K49 handoff](handoff/K49.md).
+
 ### Buffered coverage and Asyncify boundaries
 
 Discovery generated hooks now de-duplicate `(address,kind)` in a **wasm-local 65,536-slot direct-mapped cache**,

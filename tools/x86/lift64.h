@@ -667,8 +667,8 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 if(import_hints[begin+k]) {
                     l64_flush(o,k+1);fprintf(o,"if(t<=UINT32_MAX){");l64_sync(o,0);
                     fprintf(o,"X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
-                              "if(x86_try_import(&site,t))return;"
-                              "if(x86_defer_import(&site,t))return;}\n",import_hints[begin+k]);
+                              "if(x86_try_import(&site,t)){X86_NATIVE_EXIT(leaf_import);return;}"
+                              "if(x86_defer_import(&site,t)){X86_NATIVE_EXIT(deferred_import);return;}}\n",import_hints[begin+k]);
                 }
                 l64_flush(o, k + 1);
                 fprintf(o, "if(t>UINT32_MAX){pc=0x%08xu;action=4;goto boundary;}"
@@ -687,11 +687,11 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 if(import_hints[begin+k]) {
                     l64_sync(o,0);
                     fprintf(o,"if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
-                              "if(x86_try_import(&site,t)){",import_hints[begin+k]);
+                              "if(x86_try_import(&site,t)){X86_DISPATCH_COUNT(leaf_continuations);",import_hints[begin+k]);
                     l64_sync(o,1);
                     fprintf(o,"dirty=0;pc=X.eip;x86_coverage_lifted(pc,1);");
                     l64_edge(o,f,next,k);
-                    fprintf(o,"}if(x86_defer_import(&site,t))return;}\n");
+                    fprintf(o,"}if(x86_defer_import(&site,t)){X86_NATIVE_EXIT(deferred_import);return;}}\n");
                 }
                 if ((in->op == XO_CALL && in->target!=original->addr && !vhas(&skip,in->target) && func_index(a,in->target)>=0 &&
                      !vhas(&a->f[func_index(a,in->target)].calls,in->target)) || in->op == XO_CALL_IND) {
@@ -700,7 +700,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     if(in->op==XO_CALL)
                         fprintf(o,"if(x86_native_enter(X.eip,N_%08x)){uint64_t floor=X.r[4];N_%08x(X.eip);",in->target,in->target);
                     else fprintf(o,"{static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,X.eip);if(step){uint64_t floor=X.r[4];step(X.eip);");
-                    fprintf(o,"if(!x86_native_resume(0x%08xu,floor,N_%08x))return;",next,original->addr);
+                    fprintf(o,"if(!x86_native_resume(0x%08xu,floor,N_%08x)){X86_NATIVE_EXIT(fast_unwind);return;}",next,original->addr);
                     l64_sync(o,1);
                     fprintf(o,"dirty=0;pc=X.eip;x86_coverage_lifted(pc,1);");
                     /* A callee may have used the rest of our quantum reservation. */
@@ -708,7 +708,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                     else { l64_flush(o,k+1); fprintf(o,"goto exit;\n"); }
                     fprintf(o,in->op==XO_CALL?"}\n":"}}\n");
                     /* Failed fast entry has already published exact architectural state. */
-                    fprintf(o,"return;\n");
+                    fprintf(o,"X86_NATIVE_EXIT(call);return;\n");
                 } else fprintf(o, "pc=0x%08xu;action=2;goto boundary;\n", next);
                 continue;
             case XO_RET:
@@ -750,13 +750,17 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "boundary:\nif(action>=3 && t>UINT32_MAX)retire_clock++;\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
-                   "else{X.eip=x86_address(t);if(action==3)X.r[4]+=value;}return;\n");
+                   "else{X.eip=x86_address(t);if(action==3)X.r[4]+=value;}"
+                   "if(action==0){X86_NATIVE_EXIT(form);}else if(action==1){"
+                   "if(x86_lift_reason==XE_QUANTUM){X86_NATIVE_EXIT(quantum);}"
+                   "else if(x86_lift_reason==XE_GUARD){X86_NATIVE_EXIT(guard);}else{X86_NATIVE_EXIT(interior);}}"
+                   "else if(action==2){X86_NATIVE_EXIT(call);}else if(action==3){X86_NATIVE_EXIT(ret);}else{X86_NATIVE_EXIT(other);}return;\n");
         fprintf(o, "memory_fault: __attribute__((unused));\n"
                    "pc=(uint32_t)(fault>>32);width=fault&31;writing=(fault>>5)&7;");
         if (lift_affine_counting) fprintf(o, "clock+=(uint32_t)(debt+((fault>>8)&0xffffffu));"
                    "budget+=(uint32_t)(debt+((fault>>8)&0xffffffu));\n");
         else fprintf(o, "clock-=(fault>>8)&0xffffffu;budget-=(fault>>8)&0xffffffu;\n");
-        fprintf(o, "retire_clock++; /* faulting instruction did not retire */");
+        fprintf(o, "X86_NATIVE_EXIT(memory_fault);retire_clock++; /* faulting instruction did not retire */");
         l64_sync(o, 0);
         fprintf(o, "X.eip=pc;{if(writing==4){(void)xa_check(address,(unsigned)width);x86_fault(\"invalid atomic memory\",(uint32_t)address);}uint32_t a=x86_address(address);if(writing==5)xs_alignment_fault(a,(uint32_t)(value>>32),(unsigned)value&255,((unsigned)value>>8)&255);"
                    "if(writing==2){for(int j=0;j<width;j++)x86_wr8(a+(uint32_t)j,av.u8[j]);}"
@@ -766,10 +770,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         fprintf(o, "exit:\n"); l64_sync(o, 0);
         if(vhas(&original->calls,original->addr)) {
             /* Self-recursive owners stay entirely on the proven flat step path. */
-            fprintf(o,"X.eip=pc;x86_profile_exit(pc,exit_reason);return;\n}\n");
-        } else fprintf(o,"X.eip=pc;if(pc>=0x%08xu&&pc<0x%08xu&&(pc<0x%08xu||pc>=0x%08xu)){x86_native_chain=1;return;}"
-                  "if(exit_reason==XE_INDIRECT){static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,pc);if(step){step(pc);x86_native_drop();return;}}"
-                  "x86_profile_exit(pc,exit_reason);return;\n}\n",original->addr,original->end,f->addr,f->end);
+            fprintf(o,"X.eip=pc;x86_profile_exit(pc,exit_reason);if(exit_reason==XE_INDIRECT){X86_NATIVE_EXIT(indirect);}else{X86_NATIVE_EXIT(other);}return;\n}\n");
+        } else fprintf(o,"X.eip=pc;if(pc>=0x%08xu&&pc<0x%08xu&&(pc<0x%08xu||pc>=0x%08xu)){x86_native_chain=1;X86_NATIVE_EXIT(region);return;}"
+                  "if(exit_reason==XE_INDIRECT){static x86_native_site_t site;x86_native_fn step=x86_native_indirect(&site,pc);if(step){step(pc);x86_native_drop();X86_NATIVE_EXIT(fast_tail);return;}}"
+                  "x86_profile_exit(pc,exit_reason);if(exit_reason==XE_INDIRECT){X86_NATIVE_EXIT(indirect);}else{X86_NATIVE_EXIT(other);}return;\n}\n",original->addr,original->end,f->addr,f->end);
         free(replays); free(guarded); free(starts); free(live); free(ins);
         }
         free(import_hints);
