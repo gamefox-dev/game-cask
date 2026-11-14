@@ -17,11 +17,8 @@ test('startup recorder preserves every frame across Asyncify and JSPI loader var
     frames = [];
     expect(await openGame(page, backendParam, { game: 'win32-hello', suspension })).toBe('ready');
     await assertBackend(page, backendParam, info);
-    const available = await page.evaluate(async () => !!(await (await fetch('/games/win32-hello/manifest.json')).json()).variants?.jspi);
-    // Normal single-variant builds retain fallback coverage; the integration matrix
-    // sets BGT_JSPI=1 and must actually execute the second artifact, not fallback.
-    if (process.env.BGT_JSPI === '1') expect(available).toBe(true);
-    expect((await diagnostics(page)).suspension).toBe(suspension === 'jspi' && available ? 'jspi' : 'asyncify');
+    // openGame explicitly gates JSPI capabilities; never compare Asyncify to itself.
+    expect((await diagnostics(page)).suspension).toBe(suspension);
     await step(page, 5);
     const pixels = await readPixels(page);
     const d = await diagnostics(page);

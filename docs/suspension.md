@@ -29,6 +29,23 @@ Asyncify. A selected artifact integrity/compile failure still fails, not a hidde
 packages, missing API or an explicit Asyncify request is a clear load error. Both backends verify the
 selected artifact size/hash before instantiation.
 
+## Test-mode capability policy
+
+Runtime fallback is user-facing policy, not proof of JSPI test coverage. Browser tests using
+`tests/e2e/fixtures.ts`’s `openGame` with `suspension: 'jspi'` (including `BGT_E2E_SUSPENSION=jspi`)
+inspect the browser APIs and the routed manifest before boot. Both must be present: a dual
+`manifest.variants.jspi` or a JSPI-only `manifest.suspension: 'jspi'` counts as an artifact.
+Missing capabilities skip with a reason naming the browser API and/or artifact. With
+`BGT_TEST_JSPI=1`, either missing prerequisite fails instead. Build with
+`BGT_SUSPENSION_BUILD=dual` to require both artifact modes. Once admitted, the test asserts
+that the runtime actually selected JSPI. Only tests deliberately checking loader fallback/errors
+may opt out with `{allowSuspensionFallback:true}`; those tests assert the fallback explicitly.
+
+`diagnostics.suspensionSelection` reports the effective `requested` mode (explicit choice,
+manifest preference or default), browser `supported` flag and `variantPresent` flag even when
+selection fails. Together with `diagnostics.suspension` these distinguish missing browser
+support from missing artifacts without changing the runtime's fallback policy.
+
 ## Why Node heap flags do not fix the scale failure
 
 The pinned npm Binaryen 132 CLI is an Emscripten **wasm32 program**, not native Binaryen. Its linear-memory
