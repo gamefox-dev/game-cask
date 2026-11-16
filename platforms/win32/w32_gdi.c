@@ -264,6 +264,9 @@ void w32_gdi_present_boundary(void) {
     guest_screen_dirty=0;
 }
 void w32_gdi_flush_and_present(void) {
+    /* Rendering cannot suspend. Consume a nearly-full guest list before the
+     * overlay records anything, so its reserve cannot hit the transport path. */
+    flush_records();
     w32_user_present_overlay();
     flush_records();
     /* after a submit the BGT draw state is the frame default; our cache must not assume anything */
