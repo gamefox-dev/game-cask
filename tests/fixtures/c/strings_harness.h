@@ -28,6 +28,8 @@ void x86_native_drop(void){__builtin_trap();}
 void x86_run_native(x86_native_fn step){step(X.eip);}
 int x86_native_enter(uint32_t target,x86_native_fn fn){(void)target;(void)fn;return 0;}
 int x86_native_resume(uint32_t next,uint64_t floor,x86_native_fn fn){(void)next;(void)floor;(void)fn;__builtin_trap();}
+int x86_native_enter_cached(x86_native_admission_t *site,uint32_t target,x86_native_fn fn){(void)site;return x86_native_enter(target,fn);}
+int x86_native_resume_cached(x86_native_admission_t *site,uint32_t next,uint64_t floor,x86_native_fn fn){(void)site;return x86_native_resume(next,floor,fn);}
 static unsigned yields, suspend_quantum, fault_address;
 void x86_fault(const char *message, uint32_t address) {
     (void)message; fault_address = address; __builtin_trap();

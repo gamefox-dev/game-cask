@@ -811,6 +811,12 @@ void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 static double guest_present_times[10000];
 static struct {uint64_t count,swaps,gdi;double *times;uint32_t length,next,reserved;} guest_present={.times=guest_present_times};
 #define ACCOUNT_FRAMES 64u
+#if X86_NATIVE_STATS
+typedef struct { uint64_t present; x86_native_stats_t counters; } dispatch_frame_t;
+static dispatch_frame_t dispatch_frames[ACCOUNT_FRAMES];
+static uint32_t dispatch_length, dispatch_next;
+static uint64_t dispatch_dropped;
+#endif
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
 typedef struct {
     uint64_t present, lifted_calls, generic_insn_execs;
@@ -828,6 +834,11 @@ static uint64_t account_virtual_now(void) {
 #endif
 void w32_guest_present(int swap) {
     guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
+#if X86_NATIVE_STATS
+    dispatch_frames[dispatch_next]=(dispatch_frame_t){guest_present.count,x86_native_stats};
+    dispatch_next=(dispatch_next+1)%ACCOUNT_FRAMES;
+    if(dispatch_length<ACCOUNT_FRAMES)dispatch_length++;else dispatch_dropped++;
+#endif
     double now=bgt_time_us();
     guest_present_times[guest_present.next]=now;
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
@@ -869,11 +880,13 @@ static void jkv(const char *k, uint64_t v) { jput("\""); jput(k); jput("\":"); j
 
 /* Decimal strings preserve all 64 bits; JS summary subtracts with BigInt before
  * converting safe results. Existing legacy execution counters remain untouched. */
-#if X86_ACCOUNTING_ENABLED
+#if X86_ACCOUNTING_ENABLED || X86_NATIVE_STATS
 /* All accounting u64s use decimal strings. Host wall values are measured
  * doubles quantized to integer microseconds, not exact hardware CPU clocks. */
 static void jexact(uint64_t v) { jput("\"");jnum(v);jput("\""); }
 static inline void jexactkv(const char *k, uint64_t v) { jput("\"");jput(k);jput("\":");jexact(v);jput(","); }
+#endif
+#if X86_ACCOUNTING_ENABLED
 static void jretired(const x86_retired_t *r) {
     static const char *const keys[]={"lifted","generic","interpreted"};
     uint64_t total=0;jput("{");
@@ -934,6 +947,49 @@ static void jaccounting(void) {
     jput("},");
 }
 
+#if X86_NATIVE_STATS
+static void jdispatch_values(const x86_native_stats_t *s) {
+    jput("{");
+#define JD_FIELD(n) jexactkv(#n,s->n);
+    X86_DISPATCH_PREFIX(JD_FIELD)
+    X86_DISPATCH_FIELDS(JD_FIELD)
+#undef JD_FIELD
+    jkv("peak_depth",s->peak_depth);
+    jput("\"exits\":{");
+#define JD_EXIT(n) jexactkv(#n,s->exits[XD_##n]);
+    X86_DISPATCH_EXITS(JD_EXIT)
+#undef JD_EXIT
+    jn--;jput("},\"driver_stops\":{");
+#define JD_STOP(n) jexactkv(#n,s->stops[XD_STOP_##n]);
+    X86_DISPATCH_STOPS(JD_STOP)
+#undef JD_STOP
+    jn--;jput("}");
+#define JD_REJECT(n) jexactkv(#n,reject[XD_REJECT_##n]);
+#define JD_REJECT_KIND(kind) do { const uint64_t *reject=s->kind##_reject; jput(",\"" #kind "_reject\":{"); X86_DISPATCH_REJECTS(JD_REJECT) jn--;jput("}"); } while(0)
+    JD_REJECT_KIND(enter);JD_REJECT_KIND(resume);JD_REJECT_KIND(rechain);JD_REJECT_KIND(indirect);
+#undef JD_REJECT_KIND
+#undef JD_REJECT
+    jput("}");
+}
+#endif
+static void jdispatch(void) {
+    jput("\"native_dispatch\":{");jkv("enabled",X86_NATIVE_STATS);
+    jput("\"counters\":");
+#if X86_NATIVE_STATS
+    jdispatch_values(&x86_native_stats);
+    jput(",\"frames\":{");jkv("capacity",ACCOUNT_FRAMES);jexactkv("dropped",dispatch_dropped);
+    jput("\"snapshots\":[");
+    for(unsigned n=0;n<dispatch_length;n++) {
+        const dispatch_frame_t *f=&dispatch_frames[((dispatch_length==ACCOUNT_FRAMES?dispatch_next:0)+n)%ACCOUNT_FRAMES];
+        if(n)jput(",");jput("{");jexactkv("present",f->present);jput("\"counters\":");jdispatch_values(&f->counters);jput("}");
+    }
+    jput("]}");
+#else
+    jput("null,\"frames\":null");
+#endif
+    jput("},");
+}
+
 const char *w32_metrics_json(void) {
     x86_coverage_flush();
     jn = 0;json_overflow=0;
@@ -942,6 +998,7 @@ const char *w32_metrics_json(void) {
     jkv("lifted_calls", x86_metrics.lifted_calls);
     jkv("guest_instruction_clock", x86_guest_instruction_clock());
     jaccounting();
+    jdispatch();
     jkv("coverage_events",x86_coverage_events);
     jkv("coverage_crossings",x86_coverage_crossings);
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
