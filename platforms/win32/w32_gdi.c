@@ -236,10 +236,13 @@ void w32_gdi_screen(int32_t w, int32_t h) {
 int32_t w32_gdi_screen_w(void) { return scr_w; }
 int32_t w32_gdi_screen_h(void) { return scr_h; }
 
-void w32_gdi_flush_and_present(void) {
-    /* Repainting the host canvas/chrome or offscreen-only drawing is not a new guest frame. */
+void w32_gdi_present_boundary(void) {
+    /* GDI has no explicit swap. Only a deterministic guest wait/cap boundary
+     * completes its screen batch; extra host renders are observational. */
     if(screen_ready && guest_screen_dirty)w32_guest_present(0);
     guest_screen_dirty=0;
+}
+void w32_gdi_flush_and_present(void) {
     w32_user_present_overlay();
     for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
     nrec_used = 0;

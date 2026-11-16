@@ -76,21 +76,68 @@ uint32_t w32_misc_alloc(uint32_t n) {
     misc_top = a + n;
     return a;
 }
-static uint64_t virtual_us;
-uint64_t w32_now_ms64(void) {
-    uint64_t frame_us = w32_io ? (uint64_t)w32_io->frame * BGT_DT_US : 0;
-    if (virtual_us < frame_us) virtual_us = frame_us;
-    return virtual_us / 1000u;
+/* K50: dispatch budget units, including REP iterations, model a nominal 4 GIPS
+ * CPU. This is independent of opt-in retirement diagnostics and host wall time.
+ * Only scheduler/quantum boundaries commit debt; clock reads include live debt. */
+#define CLOCK_UNITS_PER_US 4000u
+static uint64_t virtual_units, boundary_us, present_us, frame_units, cap_hits, clock_frames, transport_yields;
+static uint32_t charged[X86_THREADS];
+static uint32_t clock_debt(uint32_t budget) {
+    return budget >= charged[x86_current] ? budget - charged[x86_current] : 0;
 }
+double w32_guest_time_us(void) {
+    return (double)((virtual_units + clock_debt(X.frame_insns)) / CLOCK_UNITS_PER_US);
+}
+void w32_clock_sync(void) {
+    uint32_t units=clock_debt(X.frame_insns);
+    virtual_units+=units;frame_units+=units;charged[x86_current]=X.frame_insns;
+}
+void w32_clock_quantum(uint32_t units) {
+    uint32_t delta=clock_debt(units);
+    virtual_units+=delta;frame_units+=delta;charged[x86_current]=0;
+}
+uint64_t w32_now_ms64(void) { return (uint64_t)w32_guest_time_us()/1000u; }
 uint32_t w32_now_ms(void) { return (uint32_t)w32_now_ms64(); }
+static void clock_boundary(uint32_t interval, int present) {
+    w32_clock_sync();
+    uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
+    if(interval) {
+        uint64_t target=(present?present_us:boundary_us)+(uint64_t)interval*BGT_DT_US;
+        target=((target+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+        if(target<now)target=((now+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+        if(target>now)virtual_units=target*CLOCK_UNITS_PER_US;
+    }
+    boundary_us=virtual_units/CLOCK_UNITS_PER_US;
+    if(present)present_us=boundary_us;
+    frame_units=0;clock_frames++;
+}
+void w32_clock_present(uint32_t interval) { clock_boundary(interval,1); }
+void w32_clock_check_cap(void) {
+    w32_clock_sync();
+    if(frame_units >= (cfg->instruction_cap?cfg->instruction_cap:64000000u)) {
+        cap_hits++;w32_wait_frame();
+    }
+}
+void w32_idle_ms(uint32_t ms) {
+    w32_clock_sync();
+    uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
+    if(virtual_units>=boundary) { w32_wait_frame();return; }
+    uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
+    virtual_units=deadline<boundary?deadline:boundary;
+    w32_audio_pump();w32_user_fire_timers();
+    if(virtual_units==boundary)w32_wait_frame();
+}
 void w32_sleep_ms(uint32_t ms) {
     if (!ms) { w32_wait_frame(); return; }
-    uint64_t deadline = virtual_us + (uint64_t)ms * 1000u;
-    while (virtual_us < deadline) {
-        uint64_t boundary = ((uint64_t)w32_io->frame + 1u) * BGT_DT_US;
-        if (deadline < boundary) { virtual_us = deadline; break; }
-        virtual_us = boundary;
-        w32_wait_frame();
+    w32_clock_sync();
+    uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
+    while(virtual_units<deadline) {
+        uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
+        if(boundary<virtual_units) { w32_wait_frame();continue; }
+        uint64_t target=deadline<boundary?deadline:boundary;
+        virtual_units=target;
+        w32_audio_pump();w32_user_fire_timers();
+        if(target==boundary)w32_wait_frame();
     }
 }
 
@@ -747,7 +794,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     return BGT_OK;
 }
 
-void w32_wait_frame(void) {
+static void wait_host(void) {
 #if X86_ACCOUNTING_ENABLED
     static int accounted_exit;
     if(w32_exited && !accounted_exit) {
@@ -756,8 +803,8 @@ void w32_wait_frame(void) {
     }
 #endif
     w32_m.yields++;
-    X.frame_insns=0;
-    w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
+    w32_clock_sync();
+    X.frame_insns=0;charged[x86_current]=0;
     x86_coverage_flush();
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(1,bgt_time_us());
@@ -772,7 +819,15 @@ void w32_wait_frame(void) {
     w32_input_pump();
     w32_user_pump_input();
     w32_user_fire_timers();
+    /* Resume workers only after the new host input/virtual-time boundary. */
+    w32_thread_yield();
 }
+void w32_wait_frame(void) {
+    clock_boundary(1,0);
+    w32_gdi_present_boundary();
+    wait_host();
+}
+void w32_wait_transport(void) { transport_yields++;wait_host(); }
 
 #define RET_SENTINEL 0xfffffff4u
 void w32_update(void) {
@@ -828,8 +883,7 @@ static account_frame_t account_frames[ACCOUNT_FRAMES];
 static uint32_t account_length,account_next;
 static uint64_t account_dropped;
 static uint64_t account_virtual_now(void) {
-    uint64_t frame_ms=w32_io?(uint64_t)w32_io->frame*BGT_DT_US/1000u:0;
-    return virtual_us/1000u>frame_ms?virtual_us/1000u:frame_ms;
+    return w32_now_ms64();
 }
 #endif
 void w32_guest_present(int swap) {
@@ -880,12 +934,10 @@ static void jkv(const char *k, uint64_t v) { jput("\""); jput(k); jput("\":"); j
 
 /* Decimal strings preserve all 64 bits; JS summary subtracts with BigInt before
  * converting safe results. Existing legacy execution counters remain untouched. */
-#if X86_ACCOUNTING_ENABLED || X86_NATIVE_STATS
 /* All accounting u64s use decimal strings. Host wall values are measured
  * doubles quantized to integer microseconds, not exact hardware CPU clocks. */
 static void jexact(uint64_t v) { jput("\"");jnum(v);jput("\""); }
 static inline void jexactkv(const char *k, uint64_t v) { jput("\"");jput(k);jput("\":");jexact(v);jput(","); }
-#endif
 #if X86_ACCOUNTING_ENABLED
 static void jretired(const x86_retired_t *r) {
     static const char *const keys[]={"lifted","generic","interpreted"};
@@ -1071,6 +1123,10 @@ const char *w32_metrics_json(void) {
     jkv("messages", w32_m.messages);
     jkv("paints", w32_m.paints);
     jkv("timers_fired", w32_m.timers_fired);
+    jput("\"guest_time\":{");jkv("version",1);jkv("units_per_us",CLOCK_UNITS_PER_US);
+    jkv("instruction_cap",cfg->instruction_cap?cfg->instruction_cap:64000000u);
+    jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
+    jexactkv("cap_hits",cap_hits);jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);
     jkv("peek_yields", w32_m.peek_yields);
     jkv("targets_lost", w32_m.targets_lost);

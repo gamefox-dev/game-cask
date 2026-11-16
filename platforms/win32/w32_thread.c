@@ -2,6 +2,7 @@
  * No host workers, wall-clock sleeps, or engine-specific paths. See THREADS.md. */
 #include "w32_int.h"
 #include "w32_thread.h"
+#include "w32_audio.h"
 #include "w32_handles.h"
 #define OBJECTS 1024u
 #define LOCKS 512u
@@ -402,13 +403,28 @@ void w32_thread_return(uint32_t code) {
 }
 void w32_thread_schedule(void) {
     scheduling = 1;
+    w32_clock_check_cap();
+    w32_audio_pump();w32_user_fire_timers();
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_sched_save();
     for (;;) {
         wake_waiters();
         x86_account_observe(bgt_time_us(),w32_now_ms64());
         if (x86_sched_next()) break;
-        w32_sleep_ms(1);
+        /* No runnable context: jump to the next real virtual deadline. The core
+         * clips the jump at a host clock-frame boundary, so deadlock stays responsive. */
+        uint32_t delay=0xffffffffu,now=w32_now_ms();
+        for(uint32_t i=0;i<X86_THREADS;i++) {
+            thread_t *t=&threads[i];
+            if(!x86_tasks[i].live || t->suspended || !t->finite || t->kind==NONE)continue;
+            uint32_t elapsed=now-t->start_ms;
+            uint32_t remaining=elapsed>=t->timeout_ms?0:t->timeout_ms-elapsed;
+            if(remaining<delay)delay=remaining;
+        }
+        uint32_t audio=w32_audio_next_ms(),timer=w32_user_next_timer_ms();
+        if(audio<delay)delay=audio;if(timer<delay)delay=timer;
+        if(!delay) { w32_audio_pump();w32_user_fire_timers(); }
+        else w32_idle_ms(delay);
     }
     scheduling = 0;
     if (self()->fresh) {
@@ -436,8 +452,10 @@ void w32_thread_yield(void) {
     park_native();
 }
 void w32_thread_quantum(void) {
-    /* Instruction budgets yield a browser frame as well as rotating guest tasks. */
-    w32_wait_frame();
+    /* Rotate at 2M units, but end a host update only at the process cap. */
+    w32_clock_quantum(x86_quantum_insns);
+    w32_clock_check_cap();
+    w32_audio_pump();w32_user_fire_timers();
     if (nthreads > 1 && !X.transfer && !X.callback_depth) X.transfer = X86_SCHEDULE;
 }
 static uint32_t create_thread(int begin) {

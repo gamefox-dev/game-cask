@@ -172,6 +172,7 @@ interface GameExports {
   bgt_metrics?(): number;
   bgt_interpreter_coverage?(): number;
   bgt_guest_presentations?(): number;
+  bgt_guest_time_us?(): number;
   bgt_profile_reset?():void;
   bgt_profile_abort?(nowUs:number):void;
   bgt_slice_policy?(entries:number,ranges:number):number;
@@ -892,6 +893,9 @@ export class GameHost {
     const ptr=this.exports.bgt_interpreter_coverage?.() ?? 0;
     return ptr?readInterpreterCoverage(this.exports.memory.buffer,ptr):null;
   }
+
+  /** Optional read-only profile clock. Never used for wall-dependent scheduling. */
+  guestTimeUs(): number | null { return this.exports.bgt_guest_time_us?.() ?? null; }
 
   /** Optional kit metrics JSON exported by the game (bgt_metrics). */
   metrics(): unknown {

@@ -126,6 +126,16 @@ static void pump_one(audio_t *a, uint32_t now, uint32_t out_rate) {
     if (count) bgt_audio_push_stereo(out, count / 2);
     a->queued -= n;
 }
+uint32_t w32_audio_next_ms(void) {
+    uint32_t delay=0xffffffffu,now=w32_now_ms();
+    for(uint32_t i=0;i<NAUDIO;i++) {
+        audio_t *a=&clients[i];
+        if(!a->used || !a->initialized || !a->running)continue;
+        uint32_t elapsed=now-a->event_ms,remaining=elapsed>=10?0:10-elapsed;
+        if(remaining<delay)delay=remaining;
+    }
+    return delay;
+}
 void w32_audio_pump(void) {
     uint32_t now = w32_now_ms(), out_rate = w32_io->audio_sample_rate;
     for (uint32_t i = 0; i < NAUDIO; i++) {

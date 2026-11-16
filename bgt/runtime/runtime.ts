@@ -732,13 +732,16 @@ export class BGTRuntime {
       this.updateBusy = true;
       try {
       let n = 0;
-      while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates && !this.host?.ioPending) {
+      // A pipeline update is already a bounded guest frame; never multiply its
+      // work with fixed-step catch-up. Native BGT games keep their old policy.
+      const limit = this.manifest?.pipeline ? 1 : LIMITS.maxCatchUpUpdates;
+      while (this.acc >= STEP_MS && n < limit && !this.host?.ioPending) {
         await this.stepGuarded();
         if (this.failed || this.outsideSlice) return;
         this.acc -= STEP_MS;
         n++;
       }
-      if (n === LIMITS.maxCatchUpUpdates) this.acc = 0; // drop backlog rather than spiral
+      if (n === limit) this.acc = 0; // drop backlog rather than spiral
       if (n > 0) void this.renderFrame(false);
       } finally { this.updateBusy = false; }
     };

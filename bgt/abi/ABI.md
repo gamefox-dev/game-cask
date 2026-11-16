@@ -63,9 +63,18 @@ loop:        ─► runtime fills io (input) ─► bgt_update(16667)   × N (fi
 | `bgt_debug_state` *(optional)* | `uint32_t (void)` | address of a game-owned NUL-terminated UTF-8 JSON string describing observable state. Debug/test only |
 | `bgt_debug_peek` *(optional, v0.2.1)* | `uint32_t (uint32_t addr, uint32_t len)` | **debug/test only, read-only**: copy `len` (1..65536) bytes of the game's *guest* memory at `addr` (e.g. the emulated address space of a pipeline game) into a game-owned buffer and return its address, or 0 if any byte is unmapped. Must not change game state. Reached only through the test API's `peek` |
 
-Timing: the runtime accumulates real time and runs up to 4 updates per displayed frame
-(`LIMITS.maxCatchUpUpdates`), then drops any backlog. Under the test API, updates run only
-through `step(n)`.
+Timing: for native BGT games the runtime accumulates real time and runs up to 4 updates per displayed
+frame (`LIMITS.maxCatchUpUpdates`), then drops backlog. Pipeline-profile packages run at most one bounded
+update per animation frame and drop backlog instead of multiplying guest-frame work. Under the test API,
+`step(n)` consumes exactly n host updates, not n instruction quanta or a guarantee of n guest presents.
+The Win32 profile defines its deterministic [guest time model](../../platforms/win32/THREADS.md#guest-time-model-k50-version-1)
+independently of `io.frame`; this does not change native BGT fixed-step semantics.
+
+Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
+microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
+host wall time. Deterministic harness time/audio services use it when present; without it they retain
+completed-updates × 16667 µs. It is not an import, a suspension primitive, or an instruction-retirement
+counter. All clock/rate/cap state participates in artifact/configuration/checkpoint identity.
 
 Traps: a wasm trap or `bgt_abort` stops the loop and shows an accessible error panel.
 The error is recorded in diagnostics. The runtime never resumes a trapped instance.

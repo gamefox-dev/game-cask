@@ -712,8 +712,11 @@ memory only on demand, not by allocating/zeroing the full window. Gaps are inacc
 RSS). `x64-memory` writes **all 629145600 bytes**, verifies **153600 pages** and patterns, then maps/writes/reads the
 2 GiB window's upper edge. Host wasm memory can consequently exceed 2 GiB; mobile physical memory limits still apply.
 
-AMD64 execution now cooperatively yields after a deterministic two-million-instruction quantum instead of aborting
-CPU-heavy legitimate programs. Both oracle modes use the same quantum and virtual clock; this is not multithreading.
+AMD64 and i386 rotate cooperative threads after a deterministic two-million-unit quantum without automatically
+ending the host update. K50 uses guest presents, a configured process instruction cap and idle/legacy waits
+for clock-frame boundaries, with nominal 4000-unit/µs CPU progress for busy-waits. Both oracle modes and
+suspension artifacts share the [guest time model](../platforms/win32/THREADS.md#guest-time-model-k50-version-1).
+`step(n)` remains n host updates; presenting guests below the cap normally present once per update.
 Leaf tail-call helpers and callbacks referenced from leaf functions are also discovered without requiring .pdata.
 
 **Decode cache ownership (K30).** The interpreter's 8,192-entry direct-mapped decode cache is shared by every guest

@@ -107,6 +107,7 @@ void x86_wr32_slow(uint32_t a, uint32_t v);
 /* LANE-C: both guest widths share cooperative yield hooks. */
 void x86_cooperate(void);
 void x86_set_scheduler(void (*schedule)(void));
+extern uint32_t x86_quantum_insns; /* completed budget epoch, published before scheduler hook */
 #ifdef X86_FLAT_GUEST
 #ifndef X86_FLAT_BYTES
 #define X86_FLAT_BYTES (1024ull << 20)

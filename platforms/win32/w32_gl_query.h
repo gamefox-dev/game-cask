@@ -118,7 +118,7 @@ static uint32_t api_GetBufferSubData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     if (b->generated) {
         uint32_t req = ++request_id; SEND(0x63, b->gpu, (uint32_t)offset, (uint32_t)size, req);
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_transport();
         uint8_t *data = glp_alloc((uint32_t)size);
         int n = data && status > 0 ? bgt_request_read(req, data, (uint32_t)size) : -1; bgt_request_close(req);
         if (n != (int)size) fail(BAD_OP);
@@ -181,7 +181,7 @@ static uint32_t api_wglDeleteContext(void) {
     if (!context || ARG(0) != context || current == context) return 0;
     invalidate_pipelines(); context = 0; return 1;
 }
-static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_guest_present(1); w32_wait_frame(); return 1; }
+static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_clock_present(interval); w32_guest_present(1); w32_wait_transport(); return 1; }
 static uint32_t api_wglSwapIntervalEXT(void) {
     if (!current || (int32_t)ARG(0) < 0) return 0;
     interval = ARG(0); return 1;

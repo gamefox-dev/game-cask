@@ -135,9 +135,11 @@ uint64_t x86_guest_committed;
 #endif
 /* LANE-C: architecture-independent cooperative hook. */
 static void (*scheduler)(void);
+uint32_t x86_quantum_insns;
 void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
 void x86_cooperate(void) {
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
+    x86_quantum_insns = X.frame_insns > 2000000u ? 2000000u : X.frame_insns;
     X.frame_insns = 0;
     double start=0,*span=exclusive_pause(&start);
     int active=interpreter_span_set(0);

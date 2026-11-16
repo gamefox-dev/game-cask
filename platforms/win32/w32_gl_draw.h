@@ -624,7 +624,7 @@ static uint32_t api_ReadPixels(void) {
     if (!fbo_read) {
         uint32_t req = request_id_next(); begin(); bgt_cmd_readback(&cmd, req, 0, (uint32_t)x0, tg.h - (uint32_t)y1, rw, rh);
         submit();
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_transport();
         uint32_t n = rw * rh * 4; uint8_t *data = scratch(n);
         int got = data && status > 0 ? bgt_request_read(req, data, n) : -1; bgt_request_close(req);
         if (got != (int)n) { fail(BAD_OP); return 0; }

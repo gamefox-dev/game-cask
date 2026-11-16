@@ -1,0 +1,3893 @@
+{
+  "scope": "CC0 normal CRT -O2 x64-time; ten interval-1 presents, nine contained intervals. Before has no spin/interval/cap suffix; first ten work bodies unchanged.",
+  "before": [
+    {
+      "update": 10,
+      "line": "guest: x64-time present=0 qpc=150000 tick=150 wakes=9 sleeps=9",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "18000450",
+            "generic": "145",
+            "interpreted": "0",
+            "total": "18000595"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "1634752",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1634752"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "201",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "201"
+          }
+        }
+      ]
+    },
+    {
+      "update": 21,
+      "line": "guest: x64-time present=1 qpc=333000 tick=333 wakes=19 sleeps=19",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "36000373",
+            "generic": "289",
+            "interpreted": "0",
+            "total": "36000662"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "3446364",
+            "generic": "18",
+            "interpreted": "0",
+            "total": "3446382"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "371",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "371"
+          }
+        }
+      ]
+    },
+    {
+      "update": 32,
+      "line": "guest: x64-time present=2 qpc=516000 tick=516 wakes=29 sleeps=29",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "54000296",
+            "generic": "433",
+            "interpreted": "0",
+            "total": "54000729"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "5257976",
+            "generic": "36",
+            "interpreted": "0",
+            "total": "5258012"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "541",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "541"
+          }
+        }
+      ]
+    },
+    {
+      "update": 43,
+      "line": "guest: x64-time present=3 qpc=700000 tick=700 wakes=40 sleeps=40",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "72000219",
+            "generic": "577",
+            "interpreted": "0",
+            "total": "72000796"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "7249713",
+            "generic": "54",
+            "interpreted": "0",
+            "total": "7249767"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "728",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "728"
+          }
+        }
+      ]
+    },
+    {
+      "update": 54,
+      "line": "guest: x64-time present=4 qpc=883000 tick=883 wakes=50 sleeps=50",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "90000142",
+            "generic": "721",
+            "interpreted": "0",
+            "total": "90000863"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "9061325",
+            "generic": "72",
+            "interpreted": "0",
+            "total": "9061397"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "898",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "898"
+          }
+        }
+      ]
+    },
+    {
+      "update": 65,
+      "line": "guest: x64-time present=5 qpc=1066000 tick=1066 wakes=61 sleeps=61",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "108000065",
+            "generic": "865",
+            "interpreted": "0",
+            "total": "108000930"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "11053002",
+            "generic": "90",
+            "interpreted": "0",
+            "total": "11053092"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "1085",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1085"
+          }
+        }
+      ]
+    },
+    {
+      "update": 76,
+      "line": "guest: x64-time present=6 qpc=1250000 tick=1250 wakes=71 sleeps=71",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "125999988",
+            "generic": "1009",
+            "interpreted": "0",
+            "total": "126000997"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "12864674",
+            "generic": "108",
+            "interpreted": "0",
+            "total": "12864782"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "1255",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1255"
+          }
+        }
+      ]
+    },
+    {
+      "update": 87,
+      "line": "guest: x64-time present=7 qpc=1433000 tick=1433 wakes=82 sleeps=82",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "143999911",
+            "generic": "1153",
+            "interpreted": "0",
+            "total": "144001064"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "14856351",
+            "generic": "126",
+            "interpreted": "0",
+            "total": "14856477"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "1442",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1442"
+          }
+        }
+      ]
+    },
+    {
+      "update": 98,
+      "line": "guest: x64-time present=8 qpc=1616000 tick=1616 wakes=92 sleeps=92",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "161999834",
+            "generic": "1297",
+            "interpreted": "0",
+            "total": "162001131"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "16667963",
+            "generic": "144",
+            "interpreted": "0",
+            "total": "16668107"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "1612",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1612"
+          }
+        }
+      ]
+    },
+    {
+      "update": 109,
+      "line": "guest: x64-time present=9 qpc=1800000 tick=1800 wakes=103 sleeps=103",
+      "threads": [
+        {
+          "id": 1,
+          "retired": {
+            "lifted": "179999757",
+            "generic": "1441",
+            "interpreted": "0",
+            "total": "180001198"
+          }
+        },
+        {
+          "id": 2,
+          "retired": {
+            "lifted": "18659700",
+            "generic": "162",
+            "interpreted": "0",
+            "total": "18659862"
+          }
+        },
+        {
+          "id": 3,
+          "retired": {
+            "lifted": "1799",
+            "generic": "0",
+            "interpreted": "0",
+            "total": "1799"
+          }
+        }
+      ]
+    }
+  ],
+  "after_asyncify": {
+    "presents": [
+      {
+        "update": 1,
+        "line": "guest: x64-time present=0 qpc=5500 tick=5 wakes=0 sleeps=0",
+        "us": 16667,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "18000433",
+              "generic": "163",
+              "interpreted": "0",
+              "total": "18000596"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "699",
+            "wall_us": {
+              "running": "15542",
+              "ready": "16",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "699"
+            },
+            "virtual_ms": {
+              "running": "15",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "127",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "127"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "100",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "1618",
+              "ready": "228",
+              "sleep_timer": "0",
+              "wait_objects": "9070",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "16",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "48",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "48"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "10",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "188",
+              "ready": "1797",
+              "sleep_timer": "8851",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "16",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 2,
+        "line": "guest: x64-time present=1 qpc=21213 tick=21 wakes=1 sleeps=1",
+        "us": 33334,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "36000356",
+              "generic": "307",
+              "interpreted": "0",
+              "total": "36000663"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "3455",
+            "wall_us": {
+              "running": "21939",
+              "ready": "378",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "3455"
+            },
+            "virtual_ms": {
+              "running": "32",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "186192",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "186192"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "1929",
+              "ready": "275",
+              "sleep_timer": "0",
+              "wait_objects": "18229",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "33",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "65",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "65"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "20",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "193",
+              "ready": "2155",
+              "sleep_timer": "18003",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "33",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 3,
+        "line": "guest: x64-time present=2 qpc=37879 tick=37 wakes=2 sleeps=2",
+        "us": 50001,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "54000279",
+              "generic": "451",
+              "interpreted": "0",
+              "total": "54000730"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "4569",
+            "wall_us": {
+              "running": "28114",
+              "ready": "501",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "4569"
+            },
+            "virtual_ms": {
+              "running": "49",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "367277",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "367277"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2024",
+              "ready": "288",
+              "sleep_timer": "0",
+              "wait_objects": "25532",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "50",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "82",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "82"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "30",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "197",
+              "ready": "2266",
+              "sleep_timer": "25300",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "50",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 4,
+        "line": "guest: x64-time present=3 qpc=54546 tick=54 wakes=3 sleeps=3",
+        "us": 66668,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "72000202",
+              "generic": "595",
+              "interpreted": "0",
+              "total": "72000797"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "5269",
+            "wall_us": {
+              "running": "34030",
+              "ready": "626",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "5269"
+            },
+            "virtual_ms": {
+              "running": "65",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "548362",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "548362"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "400",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2124",
+              "ready": "306",
+              "sleep_timer": "0",
+              "wait_objects": "32155",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "66",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "99",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "99"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "40",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "200",
+              "ready": "2387",
+              "sleep_timer": "31917",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "66",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 5,
+        "line": "guest: x64-time present=4 qpc=71213 tick=71 wakes=4 sleeps=4",
+        "us": 83335,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "90000125",
+              "generic": "739",
+              "interpreted": "0",
+              "total": "90000864"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "5880",
+            "wall_us": {
+              "running": "39888",
+              "ready": "749",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "5880"
+            },
+            "virtual_ms": {
+              "running": "82",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "729387",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "729387"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "500",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2222",
+              "ready": "316",
+              "sleep_timer": "0",
+              "wait_objects": "38639",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "83",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "116",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "116"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "50",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "203",
+              "ready": "2497",
+              "sleep_timer": "38396",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "83",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 6,
+        "line": "guest: x64-time present=5 qpc=87880 tick=87 wakes=5 sleeps=5",
+        "us": 100002,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "108000048",
+              "generic": "883",
+              "interpreted": "0",
+              "total": "108000931"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "6451",
+            "wall_us": {
+              "running": "45687",
+              "ready": "870",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "6451"
+            },
+            "virtual_ms": {
+              "running": "99",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "910472",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "910472"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "600",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2316",
+              "ready": "326",
+              "sleep_timer": "0",
+              "wait_objects": "45027",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "100",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "133",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "133"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "60",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "205",
+              "ready": "2603",
+              "sleep_timer": "44779",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "100",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 7,
+        "line": "guest: x64-time present=6 qpc=104547 tick=104 wakes=6 sleeps=6",
+        "us": 116669,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "125999971",
+              "generic": "1027",
+              "interpreted": "0",
+              "total": "126000998"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "7021",
+            "wall_us": {
+              "running": "51623",
+              "ready": "989",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "7021"
+            },
+            "virtual_ms": {
+              "running": "115",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1091557",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1091557"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "700",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2403",
+              "ready": "334",
+              "sleep_timer": "0",
+              "wait_objects": "51556",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "116",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "150",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "150"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "70",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "208",
+              "ready": "2705",
+              "sleep_timer": "51299",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "116",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 8,
+        "line": "guest: x64-time present=7 qpc=121214 tick=121 wakes=7 sleeps=7",
+        "us": 133336,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "143999894",
+              "generic": "1171",
+              "interpreted": "0",
+              "total": "144001065"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "7600",
+            "wall_us": {
+              "running": "57338",
+              "ready": "1099",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "7600"
+            },
+            "virtual_ms": {
+              "running": "132",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1272582",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1272582"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "800",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2491",
+              "ready": "346",
+              "sleep_timer": "0",
+              "wait_objects": "57860",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "133",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "167",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "167"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "80",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "210",
+              "ready": "2805",
+              "sleep_timer": "57602",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "133",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 9,
+        "line": "guest: x64-time present=8 qpc=137881 tick=137 wakes=8 sleeps=8",
+        "us": 150003,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "161999817",
+              "generic": "1315",
+              "interpreted": "0",
+              "total": "162001132"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "8182",
+            "wall_us": {
+              "running": "63380",
+              "ready": "1212",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "8182"
+            },
+            "virtual_ms": {
+              "running": "149",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1453667",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1453667"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "900",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2582",
+              "ready": "354",
+              "sleep_timer": "0",
+              "wait_objects": "64499",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "150",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "184",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "184"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "90",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "212",
+              "ready": "2905",
+              "sleep_timer": "64237",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "150",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 10,
+        "line": "guest: x64-time present=9 qpc=154548 tick=154 wakes=9 sleeps=9",
+        "us": 166670,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "179999740",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "180001199"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "8836",
+            "wall_us": {
+              "running": "69481",
+              "ready": "1313",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "8836"
+            },
+            "virtual_ms": {
+              "running": "165",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1634752",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1634752"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1000",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2661",
+              "ready": "362",
+              "sleep_timer": "0",
+              "wait_objects": "71267",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "166",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "201",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "201"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "100",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "214",
+              "ready": "2994",
+              "sleep_timer": "71001",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "166",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 11,
+        "line": "guest: x64-time interval=2 present=0",
+        "us": 200004,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184043782",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184045241"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "9621",
+            "wall_us": {
+              "running": "162406",
+              "ready": "1416",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "9621"
+            },
+            "virtual_ms": {
+              "running": "199",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1815777",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1815777"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1100",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2742",
+              "ready": "376",
+              "sleep_timer": "0",
+              "wait_objects": "164984",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "200",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "218",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "218"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "110",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "217",
+              "ready": "3098",
+              "sleep_timer": "164708",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "200",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 12,
+        "line": "guest: x64-time interval=2 present=1",
+        "us": 233338,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184088828",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184090287"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "10384",
+            "wall_us": {
+              "running": "162461",
+              "ready": "1511",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "10384"
+            },
+            "virtual_ms": {
+              "running": "232",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1997882",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1997882"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2828",
+              "ready": "384",
+              "sleep_timer": "0",
+              "wait_objects": "165804",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "235",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "235"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "120",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "220",
+              "ready": "3193",
+              "sleep_timer": "165521",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "233",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 13,
+        "line": "guest: x64-time interval=2 present=2",
+        "us": 266672,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133874",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135333"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "11047",
+            "wall_us": {
+              "running": "162530",
+              "ready": "1555",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "11047"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "ready",
+            "retired": {
+              "lifted": "1999989",
+              "generic": "11",
+              "interpreted": "0",
+              "total": "2000000"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2864",
+              "ready": "443",
+              "sleep_timer": "0",
+              "wait_objects": "166485",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "252",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "252"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "130",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "222",
+              "ready": "3252",
+              "sleep_timer": "166238",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 14,
+        "line": "guest: x64-time interval=0 present=0",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133908",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135367"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "11765",
+            "wall_us": {
+              "running": "162580",
+              "ready": "1718",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "11765"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "3019",
+              "ready": "1193",
+              "sleep_timer": "0",
+              "wait_objects": "166511",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "224",
+              "ready": "3415",
+              "sleep_timer": "167003",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 15,
+        "line": "guest: x64-time interval=0 present=1",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133937",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135396"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "12481",
+            "wall_us": {
+              "running": "162595",
+              "ready": "1720",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "12481"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "3019",
+              "ready": "1193",
+              "sleep_timer": "0",
+              "wait_objects": "167244",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "224",
+              "ready": "3415",
+              "sleep_timer": "167736",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 16,
+        "line": "guest: x64-time interval=0 present=2",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133966",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135425"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "13221",
+            "wall_us": {
+              "running": "162918",
+              "ready": "1721",
+              "sleep_timer": "1964",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "13221"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "3019",
+              "ready": "1193",
+              "sleep_timer": "0",
+              "wait_objects": "168308",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "224",
+              "ready": "3415",
+              "sleep_timer": "168801",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      }
+    ],
+    "logs": [
+      "guest: x64-time present=0 qpc=5500 tick=5 wakes=0 sleeps=0",
+      "guest: x64-time present=1 qpc=21213 tick=21 wakes=1 sleeps=1",
+      "guest: x64-time present=2 qpc=37879 tick=37 wakes=2 sleeps=2",
+      "guest: x64-time present=3 qpc=54546 tick=54 wakes=3 sleeps=3",
+      "guest: x64-time present=4 qpc=71213 tick=71 wakes=4 sleeps=4",
+      "guest: x64-time present=5 qpc=87880 tick=87 wakes=5 sleeps=5",
+      "guest: x64-time present=6 qpc=104547 tick=104 wakes=6 sleeps=6",
+      "guest: x64-time present=7 qpc=121214 tick=121 wakes=7 sleeps=7",
+      "guest: x64-time present=8 qpc=137881 tick=137 wakes=8 sleeps=8",
+      "guest: x64-time present=9 qpc=154548 tick=154 wakes=9 sleeps=9",
+      "guest: x64-time spin_us=1000",
+      "guest: x64-time interval=2 present=0",
+      "guest: x64-time interval=2 present=1",
+      "guest: x64-time interval=2 present=2",
+      "guest: x64-time interval=0 present=0",
+      "guest: x64-time interval=0 present=1",
+      "guest: x64-time interval=0 present=2",
+      "guest: x64-time cap PASS",
+      "guest: x64-time PASS",
+      "win32 profile: ExitProcess"
+    ],
+    "clock": {
+      "version": 1,
+      "units_per_us": 4000,
+      "instruction_cap": 64000000,
+      "virtual_us": "316673",
+      "clock_frames": "18",
+      "cap_hits": "1",
+      "transport_yields": "16"
+    }
+  },
+  "after_jspi": {
+    "presents": [
+      {
+        "update": 1,
+        "line": "guest: x64-time present=0 qpc=5500 tick=5 wakes=0 sleeps=0",
+        "us": 16667,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "18000433",
+              "generic": "163",
+              "interpreted": "0",
+              "total": "18000596"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "406",
+            "wall_us": {
+              "running": "12618",
+              "ready": "17",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "406"
+            },
+            "virtual_ms": {
+              "running": "15",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "127",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "127"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "100",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "1539",
+              "ready": "221",
+              "sleep_timer": "0",
+              "wait_objects": "7571",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "16",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "48",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "48"
+            },
+            "switches_in": "1",
+            "sleep_requested_ms": "10",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "207",
+              "ready": "1696",
+              "sleep_timer": "7336",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "16",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 2,
+        "line": "guest: x64-time present=1 qpc=21213 tick=21 wakes=1 sleeps=1",
+        "us": 33334,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "36000356",
+              "generic": "307",
+              "interpreted": "0",
+              "total": "36000663"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "2662",
+            "wall_us": {
+              "running": "18988",
+              "ready": "345",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "2662"
+            },
+            "virtual_ms": {
+              "running": "32",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "186192",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "186192"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "1840",
+              "ready": "339",
+              "sleep_timer": "0",
+              "wait_objects": "16106",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "33",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "65",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "65"
+            },
+            "switches_in": "2",
+            "sleep_requested_ms": "20",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "212",
+              "ready": "2117",
+              "sleep_timer": "15864",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "33",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 3,
+        "line": "guest: x64-time present=2 qpc=37879 tick=37 wakes=2 sleeps=2",
+        "us": 50001,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "54000279",
+              "generic": "451",
+              "interpreted": "0",
+              "total": "54000730"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "3606",
+            "wall_us": {
+              "running": "24916",
+              "ready": "463",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "3606"
+            },
+            "virtual_ms": {
+              "running": "49",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "367277",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "367277"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "1934",
+              "ready": "351",
+              "sleep_timer": "0",
+              "wait_objects": "22988",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "50",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "82",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "82"
+            },
+            "switches_in": "3",
+            "sleep_requested_ms": "30",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "215",
+              "ready": "2225",
+              "sleep_timer": "22741",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "50",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 4,
+        "line": "guest: x64-time present=3 qpc=54546 tick=54 wakes=3 sleeps=3",
+        "us": 66668,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "72000202",
+              "generic": "595",
+              "interpreted": "0",
+              "total": "72000797"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "4132",
+            "wall_us": {
+              "running": "30722",
+              "ready": "579",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "4132"
+            },
+            "virtual_ms": {
+              "running": "65",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "548362",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "548362"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "400",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2027",
+              "ready": "362",
+              "sleep_timer": "0",
+              "wait_objects": "29333",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "66",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "99",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "99"
+            },
+            "switches_in": "4",
+            "sleep_requested_ms": "40",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "218",
+              "ready": "2331",
+              "sleep_timer": "29081",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "66",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 5,
+        "line": "guest: x64-time present=4 qpc=71213 tick=71 wakes=4 sleeps=4",
+        "us": 83335,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "90000125",
+              "generic": "739",
+              "interpreted": "0",
+              "total": "90000864"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "4663",
+            "wall_us": {
+              "running": "36458",
+              "ready": "687",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "4663"
+            },
+            "virtual_ms": {
+              "running": "82",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "729387",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "729387"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "500",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2113",
+              "ready": "371",
+              "sleep_timer": "0",
+              "wait_objects": "35613",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "83",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "116",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "116"
+            },
+            "switches_in": "5",
+            "sleep_requested_ms": "50",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "221",
+              "ready": "2428",
+              "sleep_timer": "35357",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "83",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 6,
+        "line": "guest: x64-time present=5 qpc=87880 tick=87 wakes=5 sleeps=5",
+        "us": 100002,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "108000048",
+              "generic": "883",
+              "interpreted": "0",
+              "total": "108000931"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "5176",
+            "wall_us": {
+              "running": "42399",
+              "ready": "795",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "5176"
+            },
+            "virtual_ms": {
+              "running": "99",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "910472",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "910472"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "600",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2199",
+              "ready": "380",
+              "sleep_timer": "0",
+              "wait_objects": "42081",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "100",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "133",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "133"
+            },
+            "switches_in": "6",
+            "sleep_requested_ms": "60",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "223",
+              "ready": "2524",
+              "sleep_timer": "41820",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "100",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 7,
+        "line": "guest: x64-time present=6 qpc=104547 tick=104 wakes=6 sleeps=6",
+        "us": 116669,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "125999971",
+              "generic": "1027",
+              "interpreted": "0",
+              "total": "126000998"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "5704",
+            "wall_us": {
+              "running": "48269",
+              "ready": "911",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "5704"
+            },
+            "virtual_ms": {
+              "running": "115",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1091557",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1091557"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "700",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2284",
+              "ready": "388",
+              "sleep_timer": "0",
+              "wait_objects": "48501",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "116",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "150",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "150"
+            },
+            "switches_in": "7",
+            "sleep_requested_ms": "70",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "229",
+              "ready": "2619",
+              "sleep_timer": "48232",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "116",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 8,
+        "line": "guest: x64-time present=7 qpc=121214 tick=121 wakes=7 sleeps=7",
+        "us": 133336,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "143999894",
+              "generic": "1171",
+              "interpreted": "0",
+              "total": "144001065"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "6291",
+            "wall_us": {
+              "running": "54127",
+              "ready": "1017",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "6291"
+            },
+            "virtual_ms": {
+              "running": "132",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1272582",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1272582"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "800",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2370",
+              "ready": "396",
+              "sleep_timer": "0",
+              "wait_objects": "54958",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "133",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "167",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "167"
+            },
+            "switches_in": "8",
+            "sleep_requested_ms": "80",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "231",
+              "ready": "2715",
+              "sleep_timer": "54687",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "133",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 9,
+        "line": "guest: x64-time present=8 qpc=137881 tick=137 wakes=8 sleeps=8",
+        "us": 150003,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "161999817",
+              "generic": "1315",
+              "interpreted": "0",
+              "total": "162001132"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "6880",
+            "wall_us": {
+              "running": "59968",
+              "ready": "1131",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "6880"
+            },
+            "virtual_ms": {
+              "running": "149",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1453667",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1453667"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "900",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2463",
+              "ready": "404",
+              "sleep_timer": "0",
+              "wait_objects": "61401",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "150",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "184",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "184"
+            },
+            "switches_in": "9",
+            "sleep_requested_ms": "90",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "233",
+              "ready": "2818",
+              "sleep_timer": "61126",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "150",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 10,
+        "line": "guest: x64-time present=9 qpc=154548 tick=154 wakes=9 sleeps=9",
+        "us": 166670,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "179999740",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "180001199"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "7494",
+            "wall_us": {
+              "running": "65789",
+              "ready": "1224",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "7494"
+            },
+            "virtual_ms": {
+              "running": "165",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1634752",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1634752"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1000",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2535",
+              "ready": "412",
+              "sleep_timer": "0",
+              "wait_objects": "67849",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "166",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "201",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "201"
+            },
+            "switches_in": "10",
+            "sleep_requested_ms": "100",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "234",
+              "ready": "2899",
+              "sleep_timer": "67571",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "166",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 11,
+        "line": "guest: x64-time interval=2 present=0",
+        "us": 200004,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184043782",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184045241"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "8083",
+            "wall_us": {
+              "running": "147206",
+              "ready": "1315",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "8083"
+            },
+            "virtual_ms": {
+              "running": "199",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1815777",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1815777"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1100",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2609",
+              "ready": "425",
+              "sleep_timer": "0",
+              "wait_objects": "149860",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "200",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "218",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "218"
+            },
+            "switches_in": "11",
+            "sleep_requested_ms": "110",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "236",
+              "ready": "2992",
+              "sleep_timer": "149574",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "200",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 12,
+        "line": "guest: x64-time interval=2 present=1",
+        "us": 233338,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184088828",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184090287"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "9338",
+            "wall_us": {
+              "running": "147264",
+              "ready": "1416",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "9338"
+            },
+            "virtual_ms": {
+              "running": "232",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "1997882",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "1997882"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2699",
+              "ready": "433",
+              "sleep_timer": "0",
+              "wait_objects": "151175",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "235",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "235"
+            },
+            "switches_in": "12",
+            "sleep_requested_ms": "120",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "240",
+              "ready": "3091",
+              "sleep_timer": "150884",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "233",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 13,
+        "line": "guest: x64-time interval=2 present=2",
+        "us": 266672,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133874",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135333"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "9994",
+            "wall_us": {
+              "running": "147314",
+              "ready": "1448",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "9994"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "ready",
+            "retired": {
+              "lifted": "1999989",
+              "generic": "11",
+              "interpreted": "0",
+              "total": "2000000"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1200",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2724",
+              "ready": "473",
+              "sleep_timer": "0",
+              "wait_objects": "151848",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "252",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "252"
+            },
+            "switches_in": "13",
+            "sleep_requested_ms": "130",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "242",
+              "ready": "3124",
+              "sleep_timer": "151587",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 14,
+        "line": "guest: x64-time interval=0 present=0",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133908",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135367"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "10652",
+            "wall_us": {
+              "running": "147363",
+              "ready": "1607",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "10652"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2875",
+              "ready": "1167",
+              "sleep_timer": "0",
+              "wait_objects": "151869",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "244",
+              "ready": "3282",
+              "sleep_timer": "152293",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 15,
+        "line": "guest: x64-time interval=0 present=1",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133937",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135396"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "11363",
+            "wall_us": {
+              "running": "147380",
+              "ready": "1609",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "11363"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2875",
+              "ready": "1167",
+              "sleep_timer": "0",
+              "wait_objects": "152599",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "244",
+              "ready": "3282",
+              "sleep_timer": "153023",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      },
+      {
+        "update": 16,
+        "line": "guest: x64-time interval=0 present=2",
+        "us": 266762,
+        "threads": [
+          {
+            "id": 1,
+            "start_address": 16784256,
+            "state": "host_yield",
+            "retired": {
+              "lifted": "184133966",
+              "generic": "1459",
+              "interpreted": "0",
+              "total": "184135425"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "1",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "12058",
+            "wall_us": {
+              "running": "147626",
+              "ready": "1610",
+              "sleep_timer": "1904",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "12058"
+            },
+            "virtual_ms": {
+              "running": "265",
+              "ready": "0",
+              "sleep_timer": "1",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 2,
+            "start_address": 16782784,
+            "state": "wait_objects",
+            "retired": {
+              "lifted": "2361954",
+              "generic": "18",
+              "interpreted": "0",
+              "total": "2361972"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "0",
+            "object_requested_ms": "1300",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "2875",
+              "ready": "1167",
+              "sleep_timer": "0",
+              "wait_objects": "153542",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "33",
+              "sleep_timer": "0",
+              "wait_objects": "233",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          },
+          {
+            "id": 3,
+            "start_address": 16783584,
+            "state": "sleep_timer",
+            "retired": {
+              "lifted": "269",
+              "generic": "0",
+              "interpreted": "0",
+              "total": "269"
+            },
+            "switches_in": "14",
+            "sleep_requested_ms": "140",
+            "object_requested_ms": "0",
+            "infinite_waits": "0",
+            "parked_host_us": "0",
+            "wall_us": {
+              "running": "244",
+              "ready": "3282",
+              "sleep_timer": "153966",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            },
+            "virtual_ms": {
+              "running": "0",
+              "ready": "0",
+              "sleep_timer": "266",
+              "wait_objects": "0",
+              "io": "0",
+              "suspended": "0",
+              "host_yield": "0"
+            }
+          }
+        ]
+      }
+    ],
+    "logs": [
+      "guest: x64-time present=0 qpc=5500 tick=5 wakes=0 sleeps=0",
+      "guest: x64-time present=1 qpc=21213 tick=21 wakes=1 sleeps=1",
+      "guest: x64-time present=2 qpc=37879 tick=37 wakes=2 sleeps=2",
+      "guest: x64-time present=3 qpc=54546 tick=54 wakes=3 sleeps=3",
+      "guest: x64-time present=4 qpc=71213 tick=71 wakes=4 sleeps=4",
+      "guest: x64-time present=5 qpc=87880 tick=87 wakes=5 sleeps=5",
+      "guest: x64-time present=6 qpc=104547 tick=104 wakes=6 sleeps=6",
+      "guest: x64-time present=7 qpc=121214 tick=121 wakes=7 sleeps=7",
+      "guest: x64-time present=8 qpc=137881 tick=137 wakes=8 sleeps=8",
+      "guest: x64-time present=9 qpc=154548 tick=154 wakes=9 sleeps=9",
+      "guest: x64-time spin_us=1000",
+      "guest: x64-time interval=2 present=0",
+      "guest: x64-time interval=2 present=1",
+      "guest: x64-time interval=2 present=2",
+      "guest: x64-time interval=0 present=0",
+      "guest: x64-time interval=0 present=1",
+      "guest: x64-time interval=0 present=2",
+      "guest: x64-time cap PASS",
+      "guest: x64-time PASS",
+      "win32 profile: ExitProcess"
+    ],
+    "clock": {
+      "version": 1,
+      "units_per_us": 4000,
+      "instruction_cap": 64000000,
+      "virtual_us": "316673",
+      "clock_frames": "18",
+      "cap_hits": "1",
+      "transport_yields": "16"
+    }
+  }
+}

@@ -199,8 +199,16 @@ export function hostArenaSize(memory = {}) {
   }
   return n;
 }
+export function guestTimeModel(timeModel = {}) {
+  const instructionCap = timeModel?.instructionCap ?? 64000000;
+  if (!Number.isInteger(instructionCap) || instructionCap < 2000000 || instructionCap > 256000000) {
+    throw new Error('pipeline.timeModel.instructionCap must be an integer in 2000000..256000000');
+  }
+  return { version: 1, instructionCap, unitsPerUs: 4000, frameUs: 16667 };
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const timeModel = guestTimeModel(p.timeModel);
   const policy = liftPolicy(p);
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
@@ -362,7 +370,7 @@ ${codeRanges.map((r)=>`    {${r.addr}u,${r.end}u,${r.owner}u},`).join('\n')}
 ${cfg.slice && plan ? `static const uint32_t slice_entries[]={${[...sliceCode].sort((a,b)=>a-b).map(a=>a+'u').join(',')}};
 static const x86_code_range_t slice_ranges[]={${sliceRanges.map(r=>`{${r.addr}u,${r.end}u,0},`).join('')}};` : ''}
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
-static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
+static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}, ${timeModel.instructionCap}u};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
@@ -375,6 +383,7 @@ BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();}
 BGT_EXPORT(bgt_interpreter_coverage) uint32_t bgt_interpreter_coverage(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}
+BGT_EXPORT(bgt_guest_time_us) double bgt_guest_time_us(void) {return w32_guest_time_us();}
 BGT_EXPORT(bgt_guest_presentations) uint32_t bgt_guest_presentations(void) {return (uint32_t)(uintptr_t)w32_guest_presentations();}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
 BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
@@ -411,6 +420,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     timings: phaseTimings,
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
+    timeModel,
     liftPolicy: policy,
     selection: mode,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB } : null,

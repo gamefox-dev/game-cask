@@ -114,7 +114,7 @@ static int send(uint32_t code, const uint32_t *w, uint32_t n) {
 } while (0)
 static int wait_request(uint32_t id, char *log, uint32_t cap) {
     int status;
-    while ((status = bgt_request_status(id)) == 0) w32_wait_frame();
+    while ((status = bgt_request_status(id)) == 0) w32_wait_transport();
     uint8_t result[4096] = {0};
     int n = status > 0 ? bgt_request_read(id, result, sizeof result) : status;
     bgt_request_close(id);

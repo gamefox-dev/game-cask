@@ -688,6 +688,14 @@ static uint32_t u_KillTimer(void) {
     for (int i = 0; i < NTIMER; i++) if (timers[i].used && timers[i].hwnd == ARG(0) && timers[i].id == ARG(1)) { timers[i].used = 0; return 1; }
     return 0;
 }
+uint32_t w32_user_next_timer_ms(void) {
+    uint32_t delay=0xffffffffu,now=w32_now_ms();
+    for(int i=0;i<NTIMER;i++)if(timers[i].used) {
+        uint32_t remaining=now>=timers[i].due?0:timers[i].due-now;
+        if(remaining<delay)delay=remaining;
+    }
+    return delay;
+}
 void w32_user_fire_timers(void) {
     uint32_t now = w32_now_ms();
     peeks_this_frame = 0;

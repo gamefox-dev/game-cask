@@ -6,7 +6,7 @@ static int buffer_read(Buffer *b, uint32_t off, uint32_t n, uint8_t *data) {
     if (!b->generated) { copy(data, b->data + off, n); return 1; }
     uint32_t req = ++request_id, words[] = {b->gpu, off, n, req};
     if (!send(0x63, words, 4)) return 0;
-    int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+    int status; while ((status = bgt_request_status(req)) == 0) w32_wait_transport();
     int got = status > 0 ? bgt_request_read(req, data, n) : -1; bgt_request_close(req);
     if (got != (int)n) { fail(BAD_OP); return 0; } return 1;
 }

@@ -36,11 +36,18 @@ Deterministic mode instead uses:
 
 | Service | Test semantics |
 | --- | --- |
-| Guest `time_us` | completed updates × 16667 µs; constant during an update/render |
+| Guest `time_us` | Native BGT: completed updates × 16667 µs. Win32 profile: read-only `bgt_guest_time_us()` virtual clock, including nominal instruction-rate progress; render/observation does not advance it |
 | Entropy | xorshift32 seeded by `seed` (zero maps to 1), one low byte per advance; **not cryptographic** |
-| Audio | no physical playback; 48000 Hz simulated queue, capacity 14400 frames, drains 800.016 frames per completed update; push reports admitted frames, queued rounds to an integer |
+| Audio | no physical playback; 48000 Hz simulated queue, capacity 14400 frames. Drains against the same guest clock at update, queue and push observations (native BGT: 800.016 frames/update); push reports admitted frames, queued rounds to an integer |
 | Storage | initially empty isolated memory map; no localStorage writes/reads |
 | Input | scripted events only; no physical keyboard, pointer, touch overlay or gamepad polling |
+
+`step(n)` remains n consumed host updates, not a promise of n guest presents. Win32 quanta rotate threads
+within an update; presentation/cap/idle/legacy waits end clock frames, while external transport yields need
+not advance the clock. The nominal CPU rate, idle deadline jumps, vsync snapping and configured instruction
+cap are deterministic model inputs ([THREADS.md](../platforms/win32/THREADS.md)). Artifact/configuration
+identity prevents silently using pre-K50 checkpoints/recordings with the new model. The simulated sink
+also checkpoints its last-drain guest timestamp, so restore cannot drain against a later branch clock.
 
 Guest scheduler/threads, TLS, file/GL object tables, timers, TSC, guest clock and PRNG already live
 in wasm memory and are restored unchanged. Host profiling uses real time and is **not** a restored
