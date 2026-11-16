@@ -2,7 +2,11 @@
 // clocks, wrong interval 0/2 cadence, cap starvation and nondeterministic boundaries.
 // @bgt-examples: x64-time
 import { it, expect } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, copyFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+// @ts-expect-error plain ESM build tooling
+import { buildGame } from '../../tools/build/build.mjs';
+import { ROOT } from '../support/headless';
 import { loadHeadless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 // @ts-expect-error plain ESM build tooling
@@ -13,6 +17,27 @@ it('validates the deterministic cap before building', () => {
   for(const instructionCap of [2000000,64000001,256000000]) expect(guestTimeModel({instructionCap}).instructionCap).toBe(instructionCap);
   for(const instructionCap of [0,1999999,256000001,1.5,'64000000',NaN]) expect(()=>guestTimeModel({instructionCap})).toThrow(/instructionCap/);
 });
+it('configured low instruction cap reaches runtime and bounds a non-presenting update',async()=>{
+  const root=join(ROOT,'node_modules/.cache/bgt/time-cap');mkdirSync(root,{recursive:true});
+  const dir=mkdtempSync(join(root,'case-'));
+  try {
+    const config=JSON.parse(readFileSync(join(ROOT,'examples/x64-time/game.json'),'utf8'));
+    config.id='time-cap';config.pipeline.timeModel={instructionCap:2000000};
+    copyFileSync(join(ROOT,'examples/x64-time/time.c'),join(dir,'time.c'));
+    writeFileSync(join(dir,'game.json'),JSON.stringify(config));
+    const out=join(dir,'out'),manifest=buildGame(dir,{outRoot:out,quiet:true});
+    expect(manifest.pipeline.timeModel.instructionCap).toBe(2000000);
+    for(const suspension of testSuspensionModes()) {
+      const h=await loadHeadless('time-cap',{...glStream(),suspension,dir:join(out,'time-cap')});
+      await h.stepAsync(1);
+      const m=h.host.metrics() as any;
+      expect(m.guest_time.instruction_cap).toBe(2000000);
+      expect(m.guest_time.cap_hits).toBe('1');
+      expect(m.execution_summary.guest_frames.count).toBe(0);
+      expect(h.host.guestTimeUs()).toBe(16667);
+    }
+  }finally{rmSync(dir,{recursive:true,force:true});}
+},120_000);
 for(const suspension of testSuspensionModes()) it('guest-frame clock, WASAPI/Sleep workers, spin limiter and cap '+suspension, async () => {
   const runs: unknown[][]=[];
   for(let run=0;run<2;run++) {

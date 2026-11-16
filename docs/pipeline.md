@@ -45,6 +45,19 @@ Imports by ordinal keep their number in fault and stub names (`comctl32.dll!#17`
 Images keep their preferred base address unless two overlap; then the later one is relocated (it needs a
 `.reloc` section). Lifting and loading use the same base.
 
+### Win32 guest time (model version 1)
+
+Optional `pipeline.timeModel.instructionCap` (integer 2,000,000..256,000,000; default 64,000,000)
+limits deterministic dispatch work per host update across all threads, including REP budget units.
+The manifest records `pipeline.timeModel = {version:1, instructionCap, unitsPerUs:4000, frameUs:16667}`.
+The fixed nominal instruction-rate clock progresses within updates; positive swap interval N snaps
+forward to at least N vsync periods since the previous present. Presentation normally ends one update;
+CPU quanta only rotate threads. Non-presenting guests hit the cap or an idle/legacy wait boundary.
+Transport-only waits do not charge host latency. `step(n)` still means n consumed host updates.
+See [THREADS.md](../platforms/win32/THREADS.md) for GDI, idle-credit and deadline rules. Pipeline page
+pacing runs at most one update per rAF and drops backlog; deterministic instruction caps are not
+hard wall-time preemption or a phone responsiveness guarantee.
+
 ## Stages and what they guarantee
 | stage | tool | output | guarantees |
 |---|---|---|---|

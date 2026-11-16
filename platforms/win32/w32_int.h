@@ -122,6 +122,7 @@ void w32_clock_check_cap(void);
 void w32_clock_present(uint32_t interval);
 void w32_wait_transport(void);
 void w32_gdi_present_boundary(void);
+int w32_gdi_pending(void);
 uint32_t w32_audio_next_ms(void);
 uint32_t w32_user_next_timer_ms(void);
 uint32_t w32_shell_about(int wide);

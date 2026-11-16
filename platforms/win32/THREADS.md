@@ -55,7 +55,10 @@ rate is a model, not measured hardware speed. QPC has a 1 MHz frequency and micr
 A successful SwapBuffers ends the update. Interval N >= 1 snaps forward to a 16667-us grid point at least
 N periods after the previous present and not earlier than current virtual time. CPU/idle time already
 spent is credited, not added again. Interval 0 does not snap. A dirty GDI screen batch counts once at a
-USER wait/process-cap/idle boundary; individual GDI calls and extra host renders are not frame boundaries.
+USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,
+then rotation). Clean zero sleeps only rotate. Individual GDI calls and extra host renders are not frame
+boundaries. If the bounded GDI command list fills first, records are flushed through a transport-only
+yield without advancing the clock or counting a present; draw state is restored after consumption.
 Graphics consumption/render never advances this clock. Long CPU frames can span multiple clock frames.
 
 The process instruction cap defaults to **64,000,000 units**, with at most a quantum of overshoot, independent

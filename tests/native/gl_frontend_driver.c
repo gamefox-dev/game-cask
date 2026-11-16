@@ -45,6 +45,8 @@ uint32_t w32_slen(const char *s){return (uint32_t)strlen(s);}
 void w32_logf2(const char *a,const char *b){fprintf(stderr,"%s%s\n",a,b);}
 void w32_log(const char *s){fprintf(stderr,"%s\n",s);}
 void w32_wait_frame(void){abort();}
+void w32_wait_transport(void){abort();}
+void w32_clock_present(uint32_t interval){(void)interval;abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {

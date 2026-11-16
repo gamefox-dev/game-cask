@@ -762,7 +762,12 @@ static uint64_t thread_api(const char *name) {
     if (IS("WaitForMultipleObjects") || IS("WaitForMultipleObjectsEx")) return wait_objects(1);
     if (IS("Sleep") || IS("SleepEx") || IS("SwitchToThread")) {
         uint32_t ms = IS("SwitchToThread") ? 0 : p;
-        if (!ms) { yield_requested = 1; return IS("SwitchToThread") ? nthreads > 1 : 0; }
+        if (!ms) {
+            /* GDI has no explicit swap: a dirty batch at this legacy yield is
+             * one frame. Clean Sleep(0) remains a zero-time scheduler rotation. */
+            if (w32_gdi_pending()) w32_wait_frame();
+            yield_requested = 1; return IS("SwitchToThread") ? nthreads > 1 : 0;
+        }
         return block(SLEEPING, ms);
     }
     if (IS("CreateEventA") || IS("CreateEventW") || IS("CreateMutexA") || IS("CreateMutexW") ||

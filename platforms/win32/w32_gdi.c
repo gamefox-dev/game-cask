@@ -67,7 +67,8 @@ static uint32_t newobj(int type) {
 
 /* ------------------------------------------------------------------ deferred recorder */
 #define REC_BYTES (1u << 20)
-#define NREC 16
+/* Flush below BGT's per-frame vertex limit even for sprite-only batches. */
+#define NREC 8
 typedef struct { uint32_t *mem; bgt_cmdbuf_t cb; } rec_t;
 static rec_t rec[NREC];
 static uint32_t nrec_used;
@@ -84,10 +85,28 @@ void w32_gdi_chrome_begin(void) { chrome_depth++; }
 void w32_gdi_chrome_end(void) { if (chrome_depth) chrome_depth--; }
 static void count_op(uint32_t tex) { if (chrome_depth) w32_m.chrome_ops++; else {w32_m.gdi_ops++;if(tex==TEX_SCREEN)guest_screen_dirty=1;} }
 
+static void flush_records(void) {
+    for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
+    nrec_used = 0;
+    stage_used = 0;
+}
 static bgt_cmdbuf_t *rb(uint32_t need) {
     rec_t *r = &rec[nrec_used ? nrec_used - 1 : 0];
     if (!nrec_used || r->cb.len + need + 64 > r->cb.cap) {
-        if (nrec_used >= NREC) x86_fault("GDI command list full (too much drawing in one frame)", 0);
+        if (nrec_used >= NREC) {
+            /* Bounded transport, not a guest frame. The host consumes submitted
+             * records before their storage is reused. Restore the caller's draw
+             * state after render (and any workers) reset the command defaults. */
+            uint32_t target=cur_target,blend=cur_blend,tex=cur_tex;
+            flush_records();
+            w32_wait_transport();
+            bgt_cmdbuf_t *next=rb(64);
+            if(target!=0xffffffffu)bgt_cmd_target(next,target);
+            if(blend!=0xffffffffu)bgt_cmd_blend(next,blend);
+            if(tex!=0xffffffffu)bgt_cmd_texture(next,tex,BGT_FILTER_NEAREST);
+            cur_target=target;cur_blend=blend;cur_tex=tex;
+            return rb(need);
+        }
         r = &rec[nrec_used++];
         if (!r->mem) r->mem = (uint32_t *)x86_alloc(REC_BYTES);
         bgt_cmd_init(&r->cb, r->mem, REC_BYTES);
@@ -115,10 +134,11 @@ static void free_tex(uint32_t t) {
 static void upload(uint32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, const uint32_t *px) {
     uint32_t bytes = (uint32_t)(w * h) * 4u;
     if (stage_used + bytes > STAGE_BYTES) x86_fault("GDI upload staging full", 0);
+    bgt_cmdbuf_t *commands = rb(64); /* any transport flush precedes staging ownership */
     uint8_t *d = stage + stage_used;
     __builtin_memcpy(d, px, bytes);
     stage_used += (bytes + 15u) & ~15u;
-    bgt_cmd_tex_update(rb(64), tex, (uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, d, bytes);
+    bgt_cmd_tex_update(commands, tex, (uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, d, bytes);
     w32_rp_upload(tex, x, y, w, h, px);
 }
 
@@ -236,6 +256,7 @@ void w32_gdi_screen(int32_t w, int32_t h) {
 int32_t w32_gdi_screen_w(void) { return scr_w; }
 int32_t w32_gdi_screen_h(void) { return scr_h; }
 
+int w32_gdi_pending(void) { return screen_ready && guest_screen_dirty; }
 void w32_gdi_present_boundary(void) {
     /* GDI has no explicit swap. Only a deterministic guest wait/cap boundary
      * completes its screen batch; extra host renders are observational. */
@@ -244,9 +265,7 @@ void w32_gdi_present_boundary(void) {
 }
 void w32_gdi_flush_and_present(void) {
     w32_user_present_overlay();
-    for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
-    nrec_used = 0;
-    stage_used = 0;
+    flush_records();
     /* after a submit the BGT draw state is the frame default; our cache must not assume anything */
     cur_target = cur_blend = cur_tex = 0xffffffffu;
     static uint32_t pres_mem[64];
