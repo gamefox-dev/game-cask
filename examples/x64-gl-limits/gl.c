@@ -2,8 +2,10 @@
  * Normal Win64 PE/CRT pipeline; no BGT imports, overrides, captured bytes or engine logic.
  * One std140 block of exactly the reported limit links and draws (first/last/tail elements read);
  * one vec4 more fails with an explicit info log. An oversized glBindBufferRange is legal GL.
- * 1024 default-block vec4s (4096 components, what ANGLE Metal accepts) link and draw: the profile's own
- * meta words must not be charged to the guest's budget. */
+ * 1023 default-block vec4s + one sampler (4096 + 4 components; ANGLE Metal accepts 4096 vec4-packed uniform
+ * components plus the sampler) link and draw: the profile's own meta/swizzle words must not be charged to the
+ * guest's budget. The sampled 1x1 texture is (0,0,0,0) with TEXTURE_SWIZZLE_A = ONE, so alpha 255 proves the
+ * swizzle words reach the shader (on a 16384-byte device, from the profile's separate block). */
 #include <windows.h>
 #include <GL/glcorearb.h>
 #include <stdio.h>
@@ -21,7 +23,9 @@
  X(PFNGLGETACTIVEUNIFORMBLOCKIVPROC, glGetActiveUniformBlockiv) X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
  X(PFNGLREADPIXELSPROC, glReadPixels) X(PFNGLSHADERSOURCEPROC, glShaderSource) X(PFNGLUSEPROGRAMPROC, glUseProgram) \
  X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) X(PFNGLVIEWPORTPROC, glViewport) \
- X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) X(PFNGLUNIFORM4FVPROC, glUniform4fv)
+ X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) X(PFNGLUNIFORM4FVPROC, glUniform4fv) \
+ X(PFNGLGENTEXTURESPROC, glGenTextures) X(PFNGLBINDTEXTUREPROC, glBindTexture) X(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
+ X(PFNGLTEXPARAMETERIPROC, glTexParameteri)
 #define X(t,n) static t n;
 GLFUNCS
 #undef X
@@ -82,11 +86,16 @@ int main(void) {
     glBindBufferRange(GL_UNIFORM_BUFFER, 3, ubo, 0, limit * 2);
     note("oversized glBindBufferRange is legal GL", glGetError() == GL_NO_ERROR);
     if (p) { glUniformBlockBinding(p, block, 3); glUseProgram(p); }
-    /* Default-block uniforms: u[0] + u[1023] == cyan. */
-    snprintf(source, sizeof source, "#version 330 core\nlayout(location=0) out vec4 c;uniform vec4 u[1024];void main(){c=u[0]+u[1023];}");
-    GLuint q = link(); note("1024 default-block vec4 uniforms link", q != 0); if (!q) OutputDebugStringA(logbuf);
-    if (q) { static float u[1024 * 4]; u[1] = 1.0f; u[1023 * 4 + 2] = 1.0f; u[1023 * 4 + 3] = 1.0f;
-        glUseProgram(q); glUniform4fv(glGetUniformLocation(q, "u"), 1024, u); }
+    /* Default-block uniforms + sampler: u[0] + u[1022] + texture == (0,1,0,0) + (0,0,1,0) + (0,0,0,1) == cyan. */
+    snprintf(source, sizeof source, "#version 330 core\nlayout(location=0) out vec4 c;uniform vec4 u[1023];uniform sampler2D t;"
+        "void main(){c=u[0]+u[1022]+texture(t,vec2(0.5));}");
+    GLuint q = link(); note("1023 default-block vec4 uniforms + sampler link", q != 0); if (!q) OutputDebugStringA(logbuf);
+    static const unsigned char texel[4] = {0, 0, 0, 0}; GLuint tex; glGenTextures(1, &tex); glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, texel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_ONE);
+    if (q) { static float u[1023 * 4]; u[1] = 1.0f; u[1022 * 4 + 2] = 1.0f;
+        glUseProgram(q); glUniform4fv(glGetUniformLocation(q, "u"), 1023, u); }
     if (p) glUseProgram(p);
     note("setup has no GL error", glGetError() == GL_NO_ERROR);
     char done[96]; snprintf(done, sizeof done, "x64-gl-limits PASS checks limit=%d failures=%u", limit, failures);
@@ -96,7 +105,7 @@ int main(void) {
         if (p) glUseProgram(p);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         if (q) { glUseProgram(q); glViewport(0, 0, 16, 32); glDrawArrays(GL_TRIANGLES, 0, 3); }
-        if (frame == 1) { /* right: magenta = v[0] + v[n-1] + tail; left: cyan = u[0] + u[1023]; green = no draw */
+        if (frame == 1) { /* right: magenta = v[0] + v[n-1] + tail; left: cyan = u[0] + u[1022] + swizzled texel; green = no draw */
             unsigned char px[4] = {0}, left[4] = {0}; glReadPixels(24, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
             glReadPixels(8, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, left);
             snprintf(text, sizeof text, "x64-gl-limits pixel=%u,%u,%u,%u", px[0], px[1], px[2], px[3]); OutputDebugStringA(text);

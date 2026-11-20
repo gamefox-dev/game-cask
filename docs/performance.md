@@ -19,11 +19,12 @@ above that is reported honestly:
   compile/link with a `GL_MAX_UNIFORM_BLOCK_SIZE` info log. Ordinary (default-block) uniforms get up to
   min(16384, limit) bytes. That is 4096 components, which is what ANGLE Metal accepts. When the profile's own
   meta and sampler-swizzle words would not fit beside them, those words move to a separate internal block in the
-  next free slot, so they are not charged to the guest. A program with 7 user blocks has no free slot left and
-  keeps the single block. An oversized `glBindBufferRange` is legal GL and draws with the linked block size.
+  next free slot, so they are not charged to the guest. A program with 7 user blocks has no free slot left: if its
+  default block does not fit inline, the link fails with a `GL_MAX_UNIFORM_BLOCK_SIZE` info log. An oversized `glBindBufferRange` is legal GL and draws with the linked block size.
 - A WebGPU→WebGL2 fallback is allowed only without live GPU resources. It creates a new GPU namespace with the
-  WebGL2 value, which can be lower. Programs linked after the fallback use the new value; a device restored below
-  the advertised value is unrecoverable.
+  WebGL2 value, which can be lower. Programs linked after the fallback use the new value. Nothing is relinked:
+  a `GL_MAX_UNIFORM_BLOCK_SIZE` the guest queried before the fallback is stale, and a later link of a block above the
+  new value fails with an explicit info log. A device restored below the advertised value is unrecoverable.
 - `diagnostics().gpuDevice` = `{renderer, software, nativeMaxUniformRange, maxUniformRange, languages}`.
   It is captured once at init. `software: true` means SwiftShader, llvmpipe or WARP.
 

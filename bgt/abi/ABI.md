@@ -1036,6 +1036,9 @@ CAP_GPU. UNIFORM_BUFFER sizes above the reported value are E_LIMIT, and a native
 The value is fixed per GPU namespace: a restored device below it is unrecoverable, not silently smaller. A
 WebGPU→WebGL2 fallback (only allowed without live GPU resources) creates a new namespace that reports the new
 backend's value, possibly 16384; the WGL profile re-queries it at every link, so programs linked afterwards use it.
+Nothing is relinked: a program linked before the fallback at the larger value is not re-validated (it has no live
+GPU module, or the fallback is refused), and a value the guest queried earlier is not updated, so a later
+compile/link of a block above the new limit fails with the `GL_MAX_UNIFORM_BLOCK_SIZE` info log.
 The WGL profile reports it as `GL_MAX_UNIFORM_BLOCK_SIZE` and fails compile/link (with an explicit
 `GL_MAX_UNIFORM_BLOCK_SIZE` info log) for a user std140 block above it. Default-block uniforms keep up to
 min(16384, limit) bytes: when the profile's own meta/swizzle words would not fit beside them, they move to a separate

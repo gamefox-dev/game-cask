@@ -9,7 +9,7 @@ static uint32_t link_fragment(const char *fragment, char *log, uint32_t cap) {
     return linked;
 }
 static void uniform_limit_cases(void) {
-    static char block[512], defaults[512], log[4096];
+    static char block[512], defaults[1024], log[4096];
     const uint32_t limits[] = {16384, 65536};
     for (uint32_t k = 0; k < 2; k++) {
         native_uniform_limit = limits[k]; uint32_t vec4s = limits[k] / 16, queries = native_limit_queries;
@@ -38,6 +38,14 @@ static void uniform_limit_cases(void) {
             if (g->split) CHECK(g->meta_slot == 1 && g->meta_off % 256 == 0 && g->meta_off >= g->ubytes && g->usize == g->meta_off + 16 + 16 * g->nslots);
             call(api_DeleteShader, v, 0, 0, 0); call(api_DeleteShader, f, 0, 0, 0); drop(p);
         }
+        /* 7 user blocks leave no binding for a split profile block: where the inline default block does not fit
+         * (16384) the link fails explicitly, never overflowing silently; where it fits (65536) it links inline. */
+        snprintf(defaults, sizeof defaults, "#version 330 core\nout vec4 c; uniform vec4 u[1023]; uniform sampler2D t;"
+            "layout(std140) uniform B0{vec4 b0;}; layout(std140) uniform B1{vec4 b1;}; layout(std140) uniform B2{vec4 b2;};"
+            "layout(std140) uniform B3{vec4 b3;}; layout(std140) uniform B4{vec4 b4;}; layout(std140) uniform B5{vec4 b5;};"
+            "layout(std140) uniform B6{vec4 b6;}; void main(){c=u[1022]+texture(t,vec2(0.5))+b0+b1+b2+b3+b4+b5+b6;}");
+        uint32_t seven = link_fragment(defaults, log, sizeof log);
+        CHECK(k ? seven : !seven && strstr(log, "no free binding") && strstr(log, "GL_MAX_UNIFORM_BLOCK_SIZE")); error = 0;
         /* One vec4 beyond the 16384-byte default-uniform storage still fails, on every device. */
         snprintf(defaults, sizeof defaults, "#version 330 core\nout vec4 c; uniform vec4 u[1025];void main(){c=u[0]+u[1024];}");
         CHECK(!link_fragment(defaults, log, sizeof log) && strstr(log, "GL_MAX_UNIFORM_BLOCK_SIZE")); error = 0;

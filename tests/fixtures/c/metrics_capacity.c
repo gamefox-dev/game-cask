@@ -6,8 +6,6 @@ static void *x86_host_backing(uint32_t n){(void)n;return 0;}
 uint64_t x86_host_limit(void){return X86_HOST_ARENA_BYTES;}
 #include "../../../platforms/x86/x86_host.h"
 x86_metrics_t x86_metrics;
-/* Read-only CPU state provider: the K50 guest clock reads X.frame_insns while serializing metrics. */
-x86_cpu_t X;
 x86_retired_t x86_retired;
 x86_account_t x86_accounts[X86_THREADS];
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
