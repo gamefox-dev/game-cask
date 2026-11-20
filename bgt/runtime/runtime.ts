@@ -84,6 +84,7 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
+import { retainedAccumulator } from './page-pacing';
 
 export interface BGTDiagnostics {
   abi: string;
@@ -741,7 +742,7 @@ export class BGTRuntime {
         this.acc -= STEP_MS;
         n++;
       }
-      if (n === limit) this.acc = 0; // drop backlog rather than spiral
+      this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog, keep the sub-step remainder
       if (n > 0) void this.renderFrame(false);
       } finally { this.updateBusy = false; }
     };
