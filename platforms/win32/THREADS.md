@@ -63,10 +63,15 @@ upload bytes = gpu_budget_bytes, GPU vertices), counted as guest_time.present_bu
 target snaps forward to it, so each host update carries exactly one period of guest time and an uncapped game
 runs at real speed. If an update still ends mid-frame (cap or idle boundary) after a present in it, the GL work
 issued after that present is journaled (with private copies of its upload data) and submitted in order at the
-start of the next update, so the last presented image stays shown (deferred_gl_lists). It is submitted early
-only when a GL request needs its result or the 32-MiB journal is full; an update that then ends without a
-present counts as guest_time.torn_frames. A deferred list the host later rejects sets the GL error then
-(deferred_gl_rejects). A dirty GDI screen batch counts once at a
+start of the next update, so the last presented image stays shown (deferred_gl_lists). Upload copies are
+addressed by journal offset (the journal may move as it grows). The journal is bounded to fit an empty host
+frame and is submitted into the current one only if its measured cost fits there; otherwise the update ends
+first (at the present, or by a transport-only yield, deferred_gl_yields) and it opens the next frame. It is
+submitted early only when a GL request needs its result or the 32-MiB journal is full; an update that then ends
+without a present counts as guest_time.torn_frames. GDI/legacy lists in the same host frame are charged too
+(bytes/4 bounds their vertices). A deferred list the host still rejects (deferred_gl_rejects, not expected)
+sets the GL error when it is submitted, so it is attributed to whatever GL call is current then; GL's
+first-error latch is otherwise unchanged. A dirty GDI screen batch counts once at a
 USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,
 then rotation). Clean zero sleeps only rotate. Individual GDI calls and extra host renders are not frame
 boundaries. If the bounded GDI command list fills first, records are flushed through a transport-only

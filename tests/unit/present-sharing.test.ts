@@ -4,7 +4,9 @@
 //   that a one-present-per-update guest stays within (reviewer: GL_OUT_OF_MEMORY from frame 64);
 // - jittery frame costs make the cap land mid-frame because only the last frame predicts the next;
 // - after a present, an update that ends mid-frame shows the half-drawn next frame instead of
-//   deferring that GPU work to the next update.
+//   deferring that GPU work to the next update;
+// - journal growth leaving deferred upload pointers in the freed block (garbage uploads);
+// - a deferred frame costlier than the recent ones flushed into a full shared host frame.
 import { it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -80,5 +82,45 @@ it('jittery interval-0 frames end at presents; a mid-frame cap after a present d
     const m = h.host.metrics() as any;
     expect(m.guest_time.torn_frames).toBe('0'); expect(m.guest_time.deferred_gl_rejects).toBe('0');
     expect(BigInt(m.guest_time.deferred_gl_lists)).toBeGreaterThan(0n);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}, 300_000);
+it('a deferred span with several upload-bearing lists survives journal growth byte-exact', async () => {
+  const { dir, game } = await build('present-journal-1', 'present-journal.c', '#define MODE 1\n');
+  try {
+    const stream = glStream();
+    const h = await loadHeadless('present-journal-1', { ...stream, dir: game });
+    for (let i = 0; i < 40 && !h.logs.some((s) => /present-journal (done|FAIL)/.test(s)); i++) await h.stepAsync(1);
+    expect(h.logs.find((s) => s.includes('present-journal done'))).toBe('guest: present-journal done errors=0 first=0');
+    const uploads = stream.items.filter((it) => (it.op === GPU_OP.TEXTURE_UPDATE || it.op === GPU_OP.TEXTURE_UPDATE_EX) && it.data?.length);
+    const fills: number[] = [];
+    for (const it of uploads) {
+      const v = it.data![0];
+      expect(it.data!.every((b) => b === v), 'upload bytes are uniform, not reused/freed memory').toBe(true);
+      if (fills.at(-1) !== v) fills.push(v);
+    }
+    expect(fills).toEqual([0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
+    const m = h.host.metrics() as any;
+    expect(BigInt(m.guest_time.deferred_gl_lists)).toBeGreaterThanOrEqual(6n);
+    expect(m.guest_time.deferred_gl_rejects).toBe('0'); expect(m.guest_time.torn_frames).toBe('0');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}, 300_000);
+it('a deferred frame costlier than the recent ones ends the update before it is submitted', async () => {
+  const { dir, game } = await build('present-journal-2', 'present-journal.c', '#define MODE 2\n', 16777216);
+  try {
+    const stream = glStream();
+    const h = await loadHeadless('present-journal-2', { ...stream, dir: game });
+    const perUpdate: number[] = [];
+    let seen = 0;
+    for (let i = 0; i < 200 && !h.logs.some((s) => /present-journal (done|FAIL)/.test(s)); i++) {
+      await h.stepAsync(1);
+      let bytes = 0;
+      for (const it of stream.items.slice(seen)) bytes += it.data?.length ?? 0;
+      seen = stream.items.length; perUpdate.push(bytes);
+    }
+    expect(h.logs.find((s) => s.includes('present-journal done'))).toBe('guest: present-journal done errors=0 first=0');
+    expect(Math.max(...perUpdate)).toBeLessThanOrEqual(16777216);
+    const m = h.host.metrics() as any;
+    expect(m.guest_time.deferred_gl_rejects).toBe('0'); expect(m.guest_time.torn_frames).toBe('0');
+    expect(BigInt(m.guest_time.present_budget_ends)).toBeGreaterThan(0n);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 300_000);

@@ -85,8 +85,13 @@ void w32_gdi_chrome_begin(void) { chrome_depth++; }
 void w32_gdi_chrome_end(void) { if (chrome_depth) chrome_depth--; }
 static void count_op(uint32_t tex) { if (chrome_depth) w32_m.chrome_ops++; else {w32_m.gdi_ops++;if(tex==TEX_SCREEN)guest_screen_dirty=1;} }
 
+/* K50 review: GL interval-0 sharing charges every other list in the host frame. */
+static void gdi_submit(bgt_cmdbuf_t *b) {
+    if (b->count) w32_gl_charge_foreign(b->len, b->count);
+    bgt_cmd_submit(b);
+}
 static void flush_records(void) {
-    for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
+    for (uint32_t i = 0; i < nrec_used; i++) gdi_submit(&rec[i].cb);
     nrec_used = 0;
     stage_used = 0;
 }
@@ -282,7 +287,7 @@ void w32_gdi_flush_and_present(void) {
         bgt_cmd_sprite(&p, 0, 0, (float)w32_io->logical_width, (float)w32_io->logical_height, 0, 0,
                        (float)w32_io->logical_width / (float)scr_w, (float)w32_io->logical_height / (float)scr_h, 0xffffffffu);
     }
-    bgt_cmd_submit(&p);
+    gdi_submit(&p);
 }
 
 void w32_gdi_targets_lost(void) {

@@ -122,6 +122,8 @@ void w32_clock_check_cap(void);
 void w32_clock_present(uint32_t interval);
 int w32_clock_swap0(int budget_full);
 void w32_gl_host_yield(int resume);
+void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands);
+uint64_t w32_gl_deferred_yields(void);
 uint64_t w32_gl_torn_frames(void);
 uint64_t w32_gl_deferred_lists(void);
 uint64_t w32_gl_deferred_rejects(void);

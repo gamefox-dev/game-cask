@@ -185,7 +185,8 @@ static uint32_t api_wglDeleteContext(void) {
 static uint32_t api_SwapBuffers(void) {
     if (!current || ARG(0) != dc) return 0;
     if (!interval) { present_interval0(); return 1; }
-    journal_flush(0); exposed = 0; deferring = 0; guest_frame = (gpu_usage_t){0};
+    if (journal_len && !journal_fits_frame()) w32_wait_transport(); /* resume submits it */
+    journal_submit(); exposed = 0; deferring = 0; guest_frame = (gpu_usage_t){0};
     w32_clock_present(interval); w32_guest_present(1); w32_wait_transport(); return 1;
 }
 static uint32_t api_wglSwapIntervalEXT(void) {

@@ -116,13 +116,34 @@ static gpu_usage_t measure(const uint8_t *buf, uint32_t len, uint32_t count, uin
 /* K50 review ruling: when an update ends without a present after at least one interval-0 present,
  * the GPU work issued after that present must not be shown this update. While `deferring`, finished
  * lists (with private copies of their upload data) are journaled in order, then submitted at the next
- * present or at the start of the next host update. If they cannot be kept (journal full, or a request
- * needs a result), they are submitted now; an update that then ends without a present counts as a
- * torn frame. Journaled lists report success; a later host rejection sets the GL error then. */
+ * present or at the start of the next host update. The journal is bounded so that it always fits an
+ * empty host frame, and it is only submitted into the current host frame when its measured cost fits
+ * there; otherwise the update ends first (at the present, or by a transport-only yield) and it is
+ * submitted at the start of the next one. It is submitted before the next present only when a GL
+ * request needs a result or it is full; an update that then ends without a present counts as a torn
+ * frame. Upload copies are addressed by journal offset, rebased at submission (the journal can move
+ * when it grows). Journaled lists report success. A host rejection of deferred work (not expected:
+ * every per-frame budget is checked first) still sets the GL error, at submission time, so it is
+ * attributed to whichever GL call is current then; GL's first-error latch is otherwise unchanged. */
 #define JOURNAL_MAX (32u << 20)
-static uint8_t *journal; static uint32_t journal_len, journal_cap, deferring, exposed;
-static uint64_t gl_torn_frames, gl_deferred_lists, gl_deferred_rejects;
-static int journal_add(const uint8_t *buf, uint32_t len) {
+static uint8_t *journal; static uint32_t journal_len, journal_cap, deferring, exposed, in_hook;
+static gpu_usage_t journal_use;
+static uint64_t gl_torn_frames, gl_deferred_lists, gl_deferred_rejects, gl_deferred_yields;
+static int fits(const gpu_usage_t *base, const gpu_usage_t *extra) {
+    return base->bytes + extra->bytes <= BGT_GPU_CONTINUATION_BYTES &&
+        base->commands + extra->commands <= BGT_GPU_CONTINUATION_COMMANDS &&
+        base->lists + extra->lists <= 256 && base->uploads + extra->uploads <= upload_budget &&
+        base->vertices + extra->vertices <= 1572864u;
+}
+static int journal_fits_frame(void) { host_frame_sync(); return fits(&frame_use, &journal_use); }
+/* Wire words carry 32-bit wasm addresses (PTR). In wasm this is the identity; the 64-bit native test
+ * adapter keeps all profile memory in one static image, so the upper address bits are shared. */
+static const void *wire_address(uint32_t p) {
+    return (const void *)(((uintptr_t)&frame_use & ~(uintptr_t)UINT32_MAX) | p);
+}
+static int journal_add(const uint8_t *buf, uint32_t len, const gpu_usage_t *u) {
+    gpu_usage_t total = journal_use, empty = {0}; usage_add(&total, u);
+    if (!fits(&empty, &total)) return 0; /* the deferred span must fit a fresh host frame */
     uint32_t need = 8 + ((len + 3) & ~3u);
     for (uint32_t off = 16; off + 8 <= len;) {
         uint32_t code = buf[off] | ((uint32_t)buf[off + 1] << 8), size = word_at(buf + off + 4), p, l;
@@ -142,34 +163,49 @@ static int journal_add(const uint8_t *buf, uint32_t len) {
         if (journal) { copy(grown, journal, journal_len); glp_free(journal, journal_cap); }
         journal = grown; journal_cap = cap;
     }
-    uint8_t *entry = journal + journal_len, *list = entry + 8, *blob = list + ((len + 3) & ~3u);
+    uint8_t *entry = journal + journal_len, *list = entry + 8;
+    uint32_t blob = journal_len + 8 + ((len + 3) & ~3u); /* journal offset, never an address */
     copy(entry, &need, 4); copy(entry + 4, &len, 4); copy(list, buf, len);
     for (uint32_t off = 16; off + 8 <= len;) {
         uint32_t code = list[off] | ((uint32_t)list[off + 1] << 8), size = word_at(list + off + 4), p, l;
         if (data_words(code, &p, &l) && size >= (l + 1) * 4) {
-            uint32_t n = word_at(list + off + 8 + l * 4), src = word_at(list + off + 8 + p * 4), at = PTR(blob);
-            if (n) copy(blob, (const void *)(uintptr_t)src, n);
-            copy(list + off + 8 + p * 4, &at, 4); blob += (n + 3) & ~3u;
+            uint32_t n = word_at(list + off + 8 + l * 4), src = word_at(list + off + 8 + p * 4);
+            if (n) copy(journal + blob, wire_address(src), n);
+            copy(list + off + 8 + p * 4, &blob, 4); blob += (n + 3) & ~3u;
         }
         off += 8 + size;
     }
-    journal_len += need; gl_deferred_lists++;
+    journal_len += need; usage_add(&journal_use, u); gl_deferred_lists++;
     return 1;
 }
-static void journal_flush(int forced) {
+/* Submit the journal into the current host frame, rebasing upload offsets to addresses first. */
+static void journal_submit(void) {
     if (!journal_len) return;
     host_frame_sync();
     for (uint32_t off = 0; off < journal_len;) {
         uint32_t need, len; copy(&need, journal + off, 4); copy(&len, journal + off + 4, 4);
-        const uint8_t *list = journal + off + 8;
+        uint8_t *list = journal + off + 8;
+        for (uint32_t at = 16; at + 8 <= len;) {
+            uint32_t code = list[at] | ((uint32_t)list[at + 1] << 8), size = word_at(list + at + 4), p, l;
+            if (data_words(code, &p, &l) && size >= (l + 1) * 4) {
+                uint32_t address = PTR(journal) + word_at(list + at + 8 + p * 4);
+                copy(list + at + 8 + p * 4, &address, 4);
+            }
+            at += 8 + size;
+        }
         uint32_t version = word_at(list + 4), count = word_at(list + 12);
         int32_t rc = bgt_submit_commands(list, len);
         if (rc != BGT_E_LIMIT) { gpu_usage_t u = measure(list, len, count, (uint16_t)(version >> 16)); usage_add(&frame_use, &u); }
         if (rc < 0) { fail(rc == BGT_E_LIMIT ? OOM : BAD_OP); gl_deferred_rejects++; }
         off += need;
     }
-    journal_len = 0;
-    if (forced) exposed = 1;
+    journal_len = 0; journal_use = (gpu_usage_t){0};
+}
+/* Submit the journal before the next present (request result needed, journal full). */
+static void journal_flush_early(void) {
+    if (!journal_len) return;
+    if (!in_hook && !journal_fits_frame()) { gl_deferred_yields++; w32_wait_transport(); return; } /* resume submits it */
+    journal_submit(); exposed = 1;
 }
 /* Every host submission of the GL profile goes through here (header as bgt_cmd_submit_flags). */
 static int32_t host_submit(bgt_cmdbuf_t *b, uint16_t flags) {
@@ -180,16 +216,30 @@ static int32_t host_submit(bgt_cmdbuf_t *b, uint16_t flags) {
     bgt__put32(b->buf + 8, b->len); bgt__put32(b->buf + 12, b->count);
     gpu_usage_t u = measure(b->buf, b->len, b->count, flags);
     usage_add(&guest_frame, &u);
-    if (deferring && journal_add(b->buf, b->len)) { bgt_cmd_reset(b); return BGT_OK; }
-    journal_flush(deferring);
+    if (deferring && journal_add(b->buf, b->len, &u)) { bgt_cmd_reset(b); return BGT_OK; }
+    const uint8_t *list = b->buf; uint32_t len = b->len; uint8_t *held = 0;
+    if (journal_len && !in_hook && !journal_fits_frame() && (held = glp_alloc(len))) {
+        /* The journal must reach the host first, in a new host frame. Hold a private copy of this
+         * list across the yield (other guest threads may reuse the command buffer meanwhile). */
+        copy(held, list, len); list = held; bgt_cmd_reset(b);
+        gl_deferred_yields++; w32_wait_transport(); /* the resume hook submits the journal */
+    } else if (journal_len) { journal_submit(); exposed = 1; }
     host_frame_sync();
-    int32_t rc = bgt_submit_commands(b->buf, b->len);
+    int32_t rc = bgt_submit_commands(list, len);
     if (rc != BGT_E_LIMIT) usage_add(&frame_use, &u);
-    bgt_cmd_reset(b);
+    if (held) glp_free(held, len); else bgt_cmd_reset(b);
     return rc;
 }
+/* Other submitters in the same host frame (GDI/legacy 2D lists) are charged here too. A legacy list
+ * counts against the list allowance and the aggregate wire budget; every legacy vertex needs at least
+ * four payload bytes, so bytes/4 bounds its vertices. */
+void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands) {
+    host_frame_sync();
+    gpu_usage_t u = {bytes, commands, 1, 0, bytes / 4};
+    usage_add(&frame_use, &u);
+}
 /* A request result is only visible once its list reached the host. */
-static int32_t request_status(uint32_t id) { journal_flush(1); return bgt_request_status(id); }
+static int32_t request_status(uint32_t id) { journal_flush_early(); return bgt_request_status(id); }
 static int next_frame_fits(void) {
     gpu_usage_t m = {0};
     for (uint32_t i = 0; i < 4; i++) {
@@ -199,23 +249,25 @@ static int next_frame_fits(void) {
 #undef KEEP_MAX
     }
     host_frame_sync();
-    return frame_use.bytes + m.bytes <= BGT_GPU_CONTINUATION_BYTES &&
-        frame_use.commands + m.commands <= BGT_GPU_CONTINUATION_COMMANDS &&
-        frame_use.lists + m.lists <= 256 && frame_use.uploads + m.uploads <= upload_budget &&
-        frame_use.vertices + m.vertices <= 1572864u;
+    return fits(&frame_use, &m);
 }
-/* Interval-0 SwapBuffers: the finished frame reaches the host before the update decision. */
+/* Interval-0 SwapBuffers: the finished frame reaches the host before the update decision, unless
+ * its measured cost no longer fits this host frame: then the update ends first and the frame is
+ * submitted at the start of the next one (the previous presented image stays shown). */
 static void present_interval0(void) {
-    journal_flush(0); exposed = 0;
+    int fit = journal_fits_frame();
+    if (fit) journal_submit();
+    exposed = 0;
     for (uint32_t i = 3; i; i--) recent_frames[i] = recent_frames[i - 1];
     recent_frames[0] = guest_frame; guest_frame = (gpu_usage_t){0};
     w32_guest_present(1);
-    deferring = !w32_clock_swap0(!next_frame_fits());
+    deferring = !w32_clock_swap0(!fit || !next_frame_fits());
 }
 void w32_gl_host_yield(int resume) {
     if (!resume) { if (exposed) gl_torn_frames++; exposed = 0; return; }
-    deferring = 0; journal_flush(0);
+    deferring = 0; in_hook = 1; journal_submit(); in_hook = 0;
 }
+uint64_t w32_gl_deferred_yields(void) { return gl_deferred_yields; }
 uint64_t w32_gl_torn_frames(void) { return gl_torn_frames; }
 uint64_t w32_gl_deferred_lists(void) { return gl_deferred_lists; }
 uint64_t w32_gl_deferred_rejects(void) { return gl_deferred_rejects; }

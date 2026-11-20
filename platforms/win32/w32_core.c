@@ -1164,7 +1164,7 @@ const char *w32_metrics_json(void) {
     jput("\"guest_time\":{");jkv("version",1);jkv("units_per_us",CLOCK_UNITS_PER_US);
     jkv("instruction_cap",instruction_cap());
     jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
-    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);jexactkv("torn_frames",w32_gl_torn_frames());jexactkv("deferred_gl_lists",w32_gl_deferred_lists());jexactkv("deferred_gl_rejects",w32_gl_deferred_rejects());
+    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);jexactkv("torn_frames",w32_gl_torn_frames());jexactkv("deferred_gl_lists",w32_gl_deferred_lists());jexactkv("deferred_gl_rejects",w32_gl_deferred_rejects());jexactkv("deferred_gl_yields",w32_gl_deferred_yields());
     jexactkv("idle_guard_hits",w32_thread_idle_guard_hits());jexactkv("audio_events_coalesced",w32_audio_events_coalesced());
     jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);
