@@ -95,7 +95,12 @@ it('per-present frame tables equal exact accounting deltas and are deterministic
     const runs = [];
     for (let run = 0; run < 2; run++) {
       const h = await loadHeadless('x64-gl-limits', { ...glStream(), dir: join(out, manifest.id) });
-      await h.stepAsync(14);
+      // Step to a present count, not an update count: setup costs one update per compile/link/readback wait
+      // (the fixture's later 1023-uniform program and second readback moved the first present from update 6 to
+      // 10). Ten presents fill the 8-frame ring with steady frames after the frame-1 readbacks (present 2).
+      const presents = () => Number((h.host.metrics() as any).execution_summary?.guest_frames?.count ?? 0);
+      for (let i = 0; i < 60 && presents() < 10; i++) await h.stepAsync(1);
+      expect(presents()).toBe(10);
       runs.push(h.host.metrics() as any);
     }
     const [m] = runs, frames = m.owner_census.frames.snapshots, accounting = m.execution_accounting.frames.snapshots;
