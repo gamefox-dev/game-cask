@@ -52,9 +52,15 @@ units (including REP iterations, not opt-in retirement counters) represent a fix
 current uncommitted debt, so QPC/GetTickCount/timeGetTime busy-waits progress without sleeping. The nominal
 rate is a model, not measured hardware speed. QPC has a 1 MHz frequency and microsecond resolution.
 
-A successful SwapBuffers ends the update. Interval N >= 1 snaps forward to a 16667-us grid point at least
-N periods after the previous present and not earlier than current virtual time. CPU/idle time already
-spent is credited, not added again. Interval 0 does not snap. A dirty GDI screen batch counts once at a
+A successful SwapBuffers with interval N >= 1 ends the update and snaps forward to a 16667-us grid point at
+least N periods after the previous present and not earlier than current virtual time. CPU/idle time already
+spent is credited, not added again. **Interval 0** (K50 review ruling) does not end the update: the guest keeps
+running and later presents replace the displayed frame (counted as guest_time.dropped_presents) until the
+next 16667-us frame target. So that the shown frame is complete, the update ends at the present after which
+the next frame (estimated from the last one) would cross that target or the instruction cap, or when the
+host frame's GPU continuation budget is half used (guest_time.present_budget_ends). Ending before the target
+snaps forward to it, so each host update carries exactly one period of guest time and an uncapped game runs at
+real speed. A mid-frame cap hit still ends the update. A dirty GDI screen batch counts once at a
 USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,
 then rotation). Clean zero sleeps only rotate. Individual GDI calls and extra host renders are not frame
 boundaries. If the bounded GDI command list fills first, records are flushed through a transport-only
@@ -67,7 +73,17 @@ the manifest records version, cap, rate and frame period. Cap checks include sho
 not just complete quanta, so Sleep(0) cannot bypass it. Cap/legacy USER wait/idle frames advance to at least
 the next clock boundary. External file/range/GL readback waits yield for transport, without advancing
 Win32 time solely because the host is slow. Audio follows the same virtual clock and event deadlines.
-Diagnostics guest_time exposes exact decimal-string clock-frame/cap-hit/yield counts and virtual_us.
+A WASAPI event client gets one event per elapsed 10-ms engine period, in order, even when a present or
+frame boundary snaps across several periods: the next event is signalled only after the client thread has
+consumed the previous one, so it runs between them. At most 8 per client and host update; older periods
+beyond that coalesce (guest_time.audio_events_coalesced). GetCurrentPadding/GetPosition drain to the current
+virtual time. Diagnostics guest_time exposes exact decimal-string clock-frame/cap-hit/yield counts and virtual_us.
+
+**All-idle scheduler.** With no runnable thread, the scheduler jumps to the earliest finite thread, audio or
+USER deadline. A SleepConditionVariable waiter that has timed out (or was woken) but cannot reacquire its lock
+is not a deadline: it becomes runnable when the holder releases. An undeliverable audio backlog (event still
+set) is not "due now" either. As a guard, a zero delay that makes no progress after two pumps advances virtual
+time by 1 ms (guest_time.idle_guard_hits, expected 0), so the idle loop can never spin with time frozen.
 
 The optional read-only bgt_guest_time_us export exposes the clock for deterministic test audio/time services;
 it does not schedule by wall time. All clock/debt/budget/deadline state is wasm state, shared by both oracle
@@ -80,7 +96,9 @@ sub-period remainder (at most one period) and drops older backlog; native BGT fi
 milliseconds: main-thread wasm cannot offer hard wall-time preemption. No phone responsiveness guarantee.
 
 Original CC0 examples/x64-time verifies a multi-quantum main, real WASAPI event worker, Sleep/QPC/timeGetTime
-worker, busy-wait limiter, intervals 0/1/2 and non-presenting cap phase. See [K50](../../docs/handoff/K50.md)
+worker, busy-wait limiter, intervals 0/1/2, an uncapped interval-0 phase (many presents per update, one period
+per update) and non-presenting cap phase. tests/unit/cv-timeout.test.ts (i386 and AMD64, CS and SRW) and
+tests/unit/audio-periods.test.ts (one-period-per-event writer) cover the K50 review fixes. See [K50](../../docs/handoff/K50.md)
 for measured before/after and validation status.
 
 ## Implemented surface

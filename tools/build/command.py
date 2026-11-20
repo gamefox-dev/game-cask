@@ -155,7 +155,7 @@ _TRANSPORT_FLAGS = frozenset({
     '-Wl,--entry,entry', '-ladvapi32', '-lavrt', '-lbcrypt', '-ldinput8',
     '-ldwmapi', '-ldxguid', '-lgdi32', '-limm32', '-liphlpapi', '-lkernel32',
     '-lole32', '-lopengl32', '-lpropsys', '-lshell32', '-lshlwapi', '-luser32',
-    '-luuid', '-lws2_32', '-lwsock32', '-lxinput1_4',
+    '-luuid', '-lwinmm', '-lws2_32', '-lwsock32', '-lxinput1_4',
     '-mbulk-memory', '-mnontrapping-fptoint', '-msign-ext', '-mexec-model=reactor',
     '--target=wasm32-freestanding', '--target=wasm32-wasi',
     '-Wall', '-Wextra', '-Werror', '-Wsystem-headers', '-Werror=date-time',

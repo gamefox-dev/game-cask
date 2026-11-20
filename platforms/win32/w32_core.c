@@ -81,6 +81,8 @@ uint32_t w32_misc_alloc(uint32_t n) {
  * Only scheduler/quantum boundaries commit debt; clock reads include live debt. */
 #define CLOCK_UNITS_PER_US 4000u
 static uint64_t virtual_units, boundary_us, present_us, frame_units, cap_hits, clock_frames, transport_yields;
+static uint64_t swap_units, swap_us, dropped_presents, budget_ends; /* interval-0 presents in this host frame */
+static int present_pending;
 static uint32_t charged[X86_THREADS];
 static uint32_t clock_debt(uint32_t budget) {
     return budget >= charged[x86_current] ? budget - charged[x86_current] : 0;
@@ -109,14 +111,37 @@ static void clock_boundary(uint32_t interval, int present) {
     }
     boundary_us=virtual_units/CLOCK_UNITS_PER_US;
     if(present)present_us=boundary_us;
-    frame_units=0;clock_frames++;
+    frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
 }
 void w32_clock_present(uint32_t interval) { clock_boundary(interval,1); }
+static uint32_t instruction_cap(void) { return cfg && cfg->instruction_cap ? cfg->instruction_cap : 64000000u; }
 void w32_clock_check_cap(void) {
     w32_clock_sync();
-    if(frame_units >= (cfg->instruction_cap?cfg->instruction_cap:64000000u)) {
+    if(frame_units >= instruction_cap()) {
         cap_hits++;w32_wait_frame();
     }
+}
+/* K50 review ruling: swap interval 0 does not end the host update. The guest keeps running and
+ * later presents replace the displayed frame until the next 16667-us frame target. To show a
+ * complete frame, the update ends at the present after which the next frame (estimated from the
+ * last one) would cross that target or the instruction cap, or when the host frame's GPU command
+ * budget is half used. Ending before the target snaps forward to it, as at a vsync, so one host
+ * update always carries one period of guest time. A present already past the target keeps the
+ * grid phase without skipping a period. Mid-frame cap hits still end the update (w32_wait_frame). */
+void w32_clock_swap0(int budget_full) {
+    w32_clock_sync();
+    uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
+    uint64_t target=((boundary_us+BGT_DT_US+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+    uint64_t du=frame_units-swap_units,dt=now-swap_us;
+    if(present_pending)dropped_presents++;
+    present_pending=1;present_us=now;swap_units=frame_units;swap_us=now;
+    if(now<target && now+dt<target && frame_units+du<instruction_cap() && !budget_full)return;
+    if(budget_full)budget_ends++;
+    if(now<target) { virtual_units=target*CLOCK_UNITS_PER_US;boundary_us=target; }
+    else boundary_us=target+(now-target)/BGT_DT_US*BGT_DT_US;
+    present_us=now>boundary_us?now:boundary_us;
+    frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
+    w32_wait_transport();
 }
 void w32_idle_ms(uint32_t ms) {
     w32_clock_sync();
@@ -802,7 +827,7 @@ static void wait_host(void) {
         accounted_exit=1;
     }
 #endif
-    w32_m.yields++;
+    w32_m.yields++;present_pending=0;
     w32_clock_sync();
     X.frame_insns=0;charged[x86_current]=0;
     x86_coverage_flush();
@@ -1124,9 +1149,11 @@ const char *w32_metrics_json(void) {
     jkv("paints", w32_m.paints);
     jkv("timers_fired", w32_m.timers_fired);
     jput("\"guest_time\":{");jkv("version",1);jkv("units_per_us",CLOCK_UNITS_PER_US);
-    jkv("instruction_cap",cfg->instruction_cap?cfg->instruction_cap:64000000u);
+    jkv("instruction_cap",instruction_cap());
     jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
-    jexactkv("cap_hits",cap_hits);jput("\"transport_yields\":");jexact(transport_yields);jput("},");
+    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);
+    jexactkv("idle_guard_hits",w32_thread_idle_guard_hits());jexactkv("audio_events_coalesced",w32_audio_events_coalesced());
+    jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);
     jkv("peek_yields", w32_m.peek_yields);
     jkv("targets_lost", w32_m.targets_lost);

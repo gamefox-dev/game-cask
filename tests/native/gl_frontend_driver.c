@@ -9,6 +9,7 @@
 x86_cpu_t X;
 static bgt_io_t native_io;
 bgt_io_t *w32_io = &native_io;
+w32_metrics_t w32_m;
 uint8_t *x86_pages[1u<<20];
 uint8_t x86_protection[1u<<20]; int x86_protection_active;
 __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stderr,"fault %s %u\n",s,a);exit(3);}
@@ -47,6 +48,7 @@ void w32_log(const char *s){fprintf(stderr,"%s\n",s);}
 void w32_wait_frame(void){abort();}
 void w32_wait_transport(void){abort();}
 void w32_clock_present(uint32_t interval){(void)interval;abort();}
+void w32_clock_swap0(int budget_full){(void)budget_full;abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {

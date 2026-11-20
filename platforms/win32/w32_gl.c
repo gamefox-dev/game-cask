@@ -76,6 +76,20 @@ static void op(uint32_t code, const uint32_t *w, uint32_t n) {
     bgt__gpu_copy(bgt_cmd_push(&cmd, (uint16_t)code, n * 4), w, n * 4);
 }
 static int flush_padded_cleanup(void);
+/* K50 review: interval-0 presents may share one host frame; keep its §13.12 aggregate budget
+ * (and the legacy list allowance) at most half used before letting the guest continue. */
+static uint32_t frame_epoch, frame_bytes, frame_commands, frame_legacy;
+static void host_frame_sync(void) {
+    if (frame_epoch != w32_m.yields) { frame_epoch = w32_m.yields; frame_bytes = frame_commands = frame_legacy = 0; }
+}
+static void host_frame_usage(uint32_t bytes, uint32_t commands, uint16_t flags) {
+    host_frame_sync(); frame_bytes += bytes; frame_commands += commands; frame_legacy += !flags;
+}
+static int host_frame_half_full(void) {
+    host_frame_sync();
+    return frame_bytes >= BGT_GPU_CONTINUATION_BYTES / 2 || frame_commands >= BGT_GPU_CONTINUATION_COMMANDS / 2 ||
+        frame_legacy >= 128;
+}
 static int submit(void) {
     if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
     /* Keep immediate validation/owned uploads and exact ordering. Only GPU-only lists opt into
@@ -87,8 +101,10 @@ static int submit(void) {
         if (code < 0x40 || code > 0x64) flags = 0;
         off += 8 + size;
     }
+    uint32_t len = cmd.len, count = cmd.count;
     int32_t rc = bgt_cmd_submit_flags(&cmd, flags);
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
+    host_frame_usage(len, count, flags);
     return 1;
 }
 /* Track accepted wire generations, including private resources. Private reservations are kept

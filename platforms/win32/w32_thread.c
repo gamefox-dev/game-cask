@@ -252,6 +252,10 @@ int w32_thread_event_valid(uint32_t h) {
     object_t *o = object(h);
     return o && o->kind == EVENT;
 }
+int w32_thread_event_signaled(uint32_t h) {
+    object_t *o = object(h);
+    return o && o->kind == EVENT && o->value;
+}
 void w32_thread_signal_event(uint32_t h) {
     object_t *o = object(h);
     if (o && o->kind == EVENT) { o->value = 1; wake_waiters(); }
@@ -401,7 +405,10 @@ void w32_thread_return(uint32_t code) {
     }
     X.transfer = X86_SCHEDULE;
 }
+static uint64_t idle_guard_hits;
+uint64_t w32_thread_idle_guard_hits(void) { return idle_guard_hits; }
 void w32_thread_schedule(void) {
+    uint32_t zero_rounds = 0;
     scheduling = 1;
     w32_clock_check_cap();
     w32_audio_pump();w32_user_fire_timers();
@@ -417,14 +424,20 @@ void w32_thread_schedule(void) {
         for(uint32_t i=0;i<X86_THREADS;i++) {
             thread_t *t=&threads[i];
             if(!x86_tasks[i].live || t->suspended || !t->finite || t->kind==NONE)continue;
+            /* A timed-out or notified CV waiter is now only reacquiring its lock: it becomes
+             * runnable when the holder releases, not at a deadline (K50 review: no frozen spin). */
+            if(t->kind==COND_WAIT && (t->notified || expired(t)))continue;
             uint32_t elapsed=now-t->start_ms;
             uint32_t remaining=elapsed>=t->timeout_ms?0:t->timeout_ms-elapsed;
             if(remaining<delay)delay=remaining;
         }
         uint32_t audio=w32_audio_next_ms(),timer=w32_user_next_timer_ms();
         if(audio<delay)delay=audio;if(timer<delay)delay=timer;
-        if(!delay) { w32_audio_pump();w32_user_fire_timers(); }
-        else w32_idle_ms(delay);
+        /* A zero deadline must make progress after one pump; otherwise advance virtual time. */
+        if(!delay && zero_rounds++<2) { w32_audio_pump();w32_user_fire_timers();continue; }
+        if(!delay) { idle_guard_hits++;delay=1; }
+        zero_rounds=0;
+        w32_idle_ms(delay);
     }
     scheduling = 0;
     if (self()->fresh) {

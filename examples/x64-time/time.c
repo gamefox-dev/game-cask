@@ -90,9 +90,18 @@ int main(void) {
         check(set_interval(interval));
         for(unsigned frame=0;frame<3;frame++) {
             work_sink=work(10000,frame);
-            char text[80];snprintf(text,sizeof text,"x64-time interval=%d present=%u",interval,frame);
+            LARGE_INTEGER at;QueryPerformanceCounter(&at);
+            char text[96];snprintf(text,sizeof text,"x64-time interval=%d present=%u qpc=%lld",interval,frame,at.QuadPart);
             OutputDebugStringA(text);check(SwapBuffers(dc));
         }
+    }
+    /* Uncapped (interval 0) frames of about 1.1 ms instruction work each: several presents share
+     * one host update, and guest time must still advance one period per update. */
+    for(unsigned frame=0;frame<48;frame++) {
+        work_sink=work(1000000,frame);
+        LARGE_INTEGER at;QueryPerformanceCounter(&at);
+        char text[96];snprintf(text,sizeof text,"x64-time uncapped=%u qpc=%lld wakes=%ld",frame,at.QuadPart,(long)wakes);
+        OutputDebugStringA(text);check(SwapBuffers(dc));
     }
     /* A non-presenting CPU phase must reach the deterministic process cap. */
     work_sink=work(20000000,work_sink);OutputDebugStringA("x64-time cap PASS");

@@ -51,8 +51,9 @@ Optional `pipeline.timeModel.instructionCap` (integer 2,000,000..256,000,000; de
 limits deterministic dispatch work per host update across all threads, including REP budget units.
 The manifest records `pipeline.timeModel = {version:1, instructionCap, unitsPerUs:4000, frameUs:16667}`.
 The fixed nominal instruction-rate clock progresses within updates; positive swap interval N snaps
-forward to at least N vsync periods since the previous present. Presentation normally ends one update;
-CPU quanta only rotate threads. Non-presenting guests hit the cap or an idle/legacy wait boundary.
+forward to at least N vsync periods since the previous present and ends the update. Interval 0 does not end
+the update per present: later presents replace the displayed frame until the next 16667-us frame target, and
+the update ends at a present with exactly one period of guest time. CPU quanta only rotate threads. Non-presenting guests hit the cap or an idle/legacy wait boundary.
 Transport-only waits do not charge host latency. `step(n)` still means n consumed host updates.
 See [THREADS.md](../platforms/win32/THREADS.md) for GDI, idle-credit and deadline rules. Pipeline page
 pacing runs at most one update per rAF, carries at most one period of remainder and drops older backlog; deterministic instruction caps are not
@@ -729,7 +730,8 @@ AMD64 and i386 rotate cooperative threads after a deterministic two-million-unit
 ending the host update. K50 uses guest presents, a configured process instruction cap and idle/legacy waits
 for clock-frame boundaries, with nominal 4000-unit/µs CPU progress for busy-waits. Both oracle modes and
 suspension artifacts share the [guest time model](../platforms/win32/THREADS.md#guest-time-model-k50-version-1).
-`step(n)` remains n host updates; presenting guests below the cap normally present once per update.
+`step(n)` remains n host updates; presenting guests below the cap normally present once per update
+(interval-0 guests may present several times per update).
 Leaf tail-call helpers and callbacks referenced from leaf functions are also discovered without requiring .pdata.
 
 **Decode cache ownership (K30).** The interpreter's 8,192-entry direct-mapped decode cache is shared by every guest
