@@ -122,7 +122,7 @@ export interface BGTDiagnostics {
     commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number;
     /** K53 native census (see GpuStats): encoded render passes, GPUQueue submits, merged §13 passes,
      * WebGPU buffer renames, opt-in GPU ms (null when off/unavailable/pending) and its source. */
-    nativePasses: number; nativeSubmits: number; mergedPasses: number; bufferRenames: number;
+    nativePasses: number; nativeSubmits: number; mergedPasses: number; bufferRenames: number; skippedBinds: number;
     gpuMs: number | null; gpuTiming: string;
     nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null;
     nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }> | null };
@@ -231,7 +231,7 @@ export class BGTRuntime {
   private cssH = 0;
   private deviceResets = 0;
   private resizeObs: ResizeObserver | null = null;
-  private lastFrameStats = { nativePasses: 0, nativeSubmits: 0, mergedPasses: 0, bufferRenames: 0,
+  private lastFrameStats = { nativePasses: 0, nativeSubmits: 0, mergedPasses: 0, bufferRenames: 0, skippedBinds: 0,
     gpuMs: null as number | null, gpuTiming: 'off', drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
     commandCount: 0, continuationSubmits: 0, continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes as number,
     continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands as number };
@@ -718,7 +718,7 @@ export class BGTRuntime {
       continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes,
       continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands,
       nativePasses: r.stats.nativePasses ?? 0, nativeSubmits: r.stats.nativeSubmits ?? 0,
-      mergedPasses: r.stats.mergedPasses ?? 0, bufferRenames: r.stats.bufferRenames ?? 0,
+      mergedPasses: r.stats.mergedPasses ?? 0, bufferRenames: r.stats.bufferRenames ?? 0, skippedBinds: r.stats.skippedBinds ?? 0,
       gpuMs: r.stats.gpuMs ?? null, gpuTiming: r.stats.gpuTiming ?? 'off',
     };
     host.consume();

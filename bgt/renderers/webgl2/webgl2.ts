@@ -305,7 +305,7 @@ export class WebGL2Renderer implements Renderer {
     let gpuDirty = false;
     for (const it of frame.items) {
       if (it.kind !== 'gpu' && gpuDirty) {
-        this.gpu.flush();
+        this.gpu.flush(); this.gpu.invalidateState(); // the 2D path below writes GL state directly
         gl.useProgram(this.program); gl.bindVertexArray(this.vao);
         gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.CULL_FACE);
         gl.colorMask(true, true, true, true); gl.activeTexture(gl.TEXTURE0);
@@ -386,7 +386,7 @@ export class WebGL2Renderer implements Renderer {
       }
     }
 
-    this.gpu.flush();
+    this.gpu.flush(); this.gpu.invalidateState();
     gl.useProgram(this.program);
     bindTarget(0);
     // Retain the final physical image, including any legacy draws after a GPU pass.
@@ -419,7 +419,7 @@ export class WebGL2Renderer implements Renderer {
     // After presentation/snapshot and requested readback: one production native-error round trip.
     this.gpu.checkNativeError();
     Object.assign(this.stats, { nativePasses: this.gpu.batch.nativePasses, nativeSubmits: 0,
-      mergedPasses: this.gpu.batch.mergedPasses, gpuMs: this.timing ? this.timing.lastMs : null });
+      mergedPasses: this.gpu.batch.mergedPasses, skippedBinds: this.gpu.batch.skippedBinds, gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     return out;
   }

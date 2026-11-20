@@ -85,10 +85,23 @@ static int flush_padded_cleanup(void);
  * feedback), SwapBuffers/any host yield, GDI flush, glGetError/glFinish, a guest error, or the
  * size bounds below. Stream order is unchanged; only the wire-list boundaries move. Upload bytes
  * are copied into a batch-owned arena (the ABI copies at submit, guest/profile memory may change
- * before the flush). A rejected deferred list latches the same GL error as before (OOM for
- * E_LIMIT, otherwise INVALID_OPERATION) at the flush; GL leaves state undefined after OOM. */
-uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits;
+ * before the flush).
+ * Acceptance stays exact: the ABI rejects a whole list with no effects, so a rejected batch is
+ * replayed as its original per-call lists, in order. Each call is then accepted or rejected as
+ * the per-call path would have done (first rejection latches OOM for E_LIMIT, otherwise
+ * INVALID_OPERATION), a draw whose deferred uniform upload was rejected is skipped as the per-call
+ * path never emitted it, and the journal restores profile state the call committed on deferral
+ * (buffer shadow bytes/generation, uniform dirtiness, draw count). */
+uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits, w32_gl_batch_replays;
 static int submit(void);
+enum { PR_NONE, PR_BYTES, PR_UBO, PR_DRAW };
+/* One deferred call: its byte range in the pending list and what it committed on deferral. */
+typedef struct {
+    uint64_t seq, dep_seq; uint32_t start, end, kind, obj, off, n; uint8_t gen_old, gen_new; uint8_t *old, *src;
+} PendRec;
+static PendRec *pend_last;          /* record of the latest deferred call; NULL when it was submitted synchronously */
+static uint64_t pend_dep_seq;       /* set by draw(): the next list depends on this record's acceptance */
+static uint64_t pend_rejected_seq;  /* most recent record rejected by a replay */
 #ifndef W32_GL_SYNC_SUBMIT
 #define W32_GL_SYNC_SUBMIT 0
 #endif
@@ -97,18 +110,48 @@ static int submit(void);
  * as does the BGT_GL_SYNC_SUBMIT=1 A/B build (tools/build/pipeline.mjs). */
 static void flush_pending(void) {}
 void w32_gl_flush(void) {}
-static int submit_deferred(void) { return submit(); }
+static int submit_deferred_x(uint32_t reserve) { (void)reserve; pend_last = 0; return submit(); }
 #else
+static void pend_apply(PendRec *r, int redo); /* journal effects, after the Buffer/Program types */
 #define PEND_BYTES (256u * 1024u)
 #define PEND_DATA (1024u * 1024u)
 static uint32_t pend_mem[PEND_BYTES / 4];
 static uint8_t pend_data[PEND_DATA] __attribute__((aligned(16)));
-static bgt_cmdbuf_t pend; static uint32_t pend_ready, pend_used;
+static bgt_cmdbuf_t pend; static uint32_t pend_ready, pend_used, nrecs;
+static PendRec recs[4096]; static uint64_t pend_seq;
+static uint32_t replay_mem[PEND_BYTES / 16 + 64];
+static uint8_t replay_ok[4096];
+static void replay(void) {
+    w32_gl_batch_replays++;
+    for (uint32_t i = 0; i < nrecs; i++) {
+        PendRec *r = &recs[i]; int dead = 0;
+        if (r->dep_seq) for (uint32_t j = i; j-- > 0;) if (recs[j].seq == r->dep_seq) { dead = !replay_ok[j]; break; }
+        if (dead) { replay_ok[i] = 0; continue; }
+        bgt_cmdbuf_t one; bgt_cmd_init(&one, replay_mem, sizeof replay_mem);
+        for (uint32_t off = r->start; off < r->end;) {
+            uint32_t code = pend.buf[off] | ((uint32_t)pend.buf[off + 1] << 8), size;
+            copy(&size, pend.buf + off + 4, 4);
+            __builtin_memcpy(bgt_cmd_push(&one, (uint16_t)code, size), pend.buf + off + 8, size);
+            off += 8 + size;
+        }
+        int32_t rc = bgt_cmd_submit_flags(&one, BGT_CMD_GPU_CONTINUATION);
+        replay_ok[i] = rc >= 0;
+        if (rc < 0 && !error) error = rc == -3 ? OOM : BAD_OP;
+    }
+    /* Shadow bytes: back to the pre-batch state, then forward through the accepted calls only. */
+    for (uint32_t i = nrecs; i-- > 0;) if (recs[i].kind == PR_BYTES) pend_apply(&recs[i], 0);
+    for (uint32_t i = 0; i < nrecs; i++) {
+        if (replay_ok[i] ? recs[i].kind == PR_BYTES : recs[i].kind != PR_BYTES) pend_apply(&recs[i], 1);
+        if (!replay_ok[i]) pend_rejected_seq = recs[i].seq;
+    }
+}
 static void flush_pending(void) {
-    if (!pend_ready || !pend.count) return;
+    pend_last = 0;
+    if (!pend_ready || !pend.count) { nrecs = 0; return; }
     int32_t rc = bgt_cmd_submit_flags(&pend, BGT_CMD_GPU_CONTINUATION);
-    bgt_cmd_reset(&pend); pend_used = 0; w32_gl_batch_flushes++;
-    if (rc < 0 && !error) error = rc == -3 ? OOM : BAD_OP;
+    w32_gl_batch_flushes++;
+    if (rc < 0) replay();
+    bgt_cmd_reset(&pend); pend_used = 0; nrecs = 0;
 }
 void w32_gl_flush(void) { flush_pending(); }
 /* Data pointer/length word indices of the deferrable upload opcodes. */
@@ -120,7 +163,10 @@ static int data_field(uint32_t code, uint32_t *ptr, uint32_t *len) {
     default: return 0;
     }
 }
-static int submit_deferred(void) {
+/* Defers the list in `cmd` (or submits it synchronously when it cannot be deferred: pend_last is
+ * then NULL). `reserve` arena bytes are kept at pend_last->old for the caller's journal. */
+static int submit_deferred_x(uint32_t reserve) {
+    pend_last = 0;
     if (cmd.error || !cmd.count) return submit();
     uint32_t data = 0;
     for (uint32_t off = 16; off < cmd.len;) {
@@ -130,10 +176,17 @@ static int submit_deferred(void) {
         if (data_field(code, &pi, &li)) { copy(&n, cmd.buf + off + 8 + li * 4, 4); data += (n + 15u) & ~15u; }
         off += 8 + size;
     }
+    data += (reserve + 15u) & ~15u;
     if (data > PEND_DATA / 4 || cmd.len - 16 > PEND_BYTES / 4) return submit();
     if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
     if (!pend_ready) { bgt_cmd_init(&pend, pend_mem, sizeof pend_mem); pend_ready = 1; }
-    if (pend.len + cmd.len - 16 > pend.cap || pend.count + cmd.count > 4096u || pend_used + data > PEND_DATA) flush_pending();
+    if (pend.len + cmd.len - 16 > pend.cap || pend.count + cmd.count > 4096u || pend_used + data > PEND_DATA) {
+        flush_pending();
+        if (pend_dep_seq && pend_rejected_seq == pend_dep_seq) { pend_dep_seq = 0; bgt_cmd_reset(&cmd); return 0; }
+    }
+    PendRec *r = &recs[nrecs++];
+    *r = (PendRec){.seq = ++pend_seq, .dep_seq = pend_dep_seq, .start = pend.len};
+    pend_dep_seq = 0;
     for (uint32_t off = 16; off < cmd.len;) {
         uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size, pi, li;
         copy(&size, cmd.buf + off + 4, 4);
@@ -144,15 +197,24 @@ static int submit_deferred(void) {
             uint8_t *dst = pend_data + pend_used;
             if (n) __builtin_memcpy(dst, (const void *)(uintptr_t)src, n);
             uint32_t at = PTR(dst); copy(payload + pi * 4, &at, 4); pend_used += (n + 15u) & ~15u;
+            r->src = dst;
         }
         off += 8 + size;
     }
-    bgt_cmd_reset(&cmd); w32_gl_batched_lists++;
+    r->end = pend.len;
+    if (reserve) { r->old = pend_data + pend_used; pend_used += (reserve + 15u) & ~15u; }
+    bgt_cmd_reset(&cmd); w32_gl_batched_lists++; pend_last = r;
     return 1;
 }
 #endif
+static int submit_deferred(void) { return submit_deferred_x(0); }
 static int submit(void) {
-    flush_pending(); w32_gl_sync_submits++;
+    flush_pending();
+    if (pend_dep_seq) { /* draw() after a deferred uniform upload that the flush just rejected */
+        int dead = pend_rejected_seq == pend_dep_seq; pend_dep_seq = 0;
+        if (dead) { bgt_cmd_reset(&cmd); return 0; }
+    }
+    w32_gl_sync_submits++;
     if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
     /* Keep immediate validation/owned uploads and exact ordering. Only GPU-only lists opt into
      * §13.12's bounded aggregate budget; legacy screen readback retains its frozen header. */
@@ -190,6 +252,10 @@ static int send(uint32_t code, const uint32_t *w, uint32_t n) {
 } while (0)
 /* Deferred upload: result is acceptance into the ordered batch (see submit_deferred). */
 static int send_deferred(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code, w, n); return submit_deferred(); }
+/* Deferred buffer upload whose shadow write the journal can undo: call before changing b->data. */
+static int send_deferred_bytes(uint32_t code, const uint32_t *w, uint32_t n, uint32_t old_bytes) {
+    begin(); op(code, w, n); return submit_deferred_x(old_bytes);
+}
 #define SEND_DEFERRED(code, ...) do { \
     const uint32_t payload[] = {__VA_ARGS__}; send_deferred(code, payload, sizeof payload / 4); \
 } while (0)
@@ -415,9 +481,15 @@ static uint32_t api_BufferData(void) {
          * emit). In that exceptional case restore the error latch and run the original
          * delete/create path: its own acceptance decides both state and guest error. */
         uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size};
-        if (send_deferred(0x41, update, 4)) {
-            unmap_storage(b); b->map_access = 0x88ba; b->generated = 0;
-            glp_free(b->data, b->size); b->data = data;
+        if (send_deferred_bytes(0x41, update, 4, (uint32_t)size)) {
+            PendRec *r = pend_last;
+            unmap_storage(b); b->map_access = 0x88ba;
+            if (r) { /* deferred: rewrite the store in place so a replayed rejection can restore it */
+                *r = (PendRec){.seq = r->seq, .dep_seq = r->dep_seq, .start = r->start, .end = r->end, .kind = PR_BYTES,
+                    .obj = (uint32_t)(b - buffers), .n = (uint32_t)size, .gen_old = (uint8_t)b->generated, .old = r->old, .src = r->src};
+                copy(r->old, b->data, (uint32_t)size); __builtin_memcpy(b->data, data, (uint32_t)size); glp_free(data, (uint32_t)size);
+            } else { glp_free(b->data, b->size); b->data = data; }
+            b->generated = 0;
             w32_gl_buffer_respec_reused++;
             default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
         }
@@ -450,11 +522,15 @@ static uint32_t api_BufferSubData(void) {
     if (n) {
         uint8_t *data = glp_alloc((uint32_t)n); if (!data) { fail(OOM); return 0; }
         for (uint32_t i = 0; i < n; i++) data[i] = x86_rd8(ARG(3) + i);
-        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send_deferred(0x41, w, 4);
+        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send_deferred_bytes(0x41, w, 4, (uint32_t)n);
+        PendRec *r = accepted ? pend_last : 0;
+        if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = (uint32_t)off; r->n = (uint32_t)n;
+            r->gen_old = (uint8_t)b->generated; copy(r->old, b->data + off, (uint32_t)n); }
         if (accepted) copy(b->data + off, data, (uint32_t)n);
         glp_free(data, (uint32_t)n); if (!accepted) return 0;
+        if (!off && n == b->size) b->generated = 0;
+        if (r) r->gen_new = (uint8_t)b->generated;
     }
-    if (!off && n == b->size) b->generated = 0;
     default_element_compat(ARG(0), "core VAO 0 element-buffer sub-data upload"); return 0;
 }
 static uint32_t api_CopyBufferSubData(void) {
@@ -732,3 +808,20 @@ const w32_api_t w32_api_gl[] = {
 #undef API
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
+#if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
+/* Journal effects for a replayed batch (see replay): PR_BYTES redo=0 restores the pre-call shadow
+ * bytes/generation, redo=1 re-applies the accepted call; other kinds are applied for rejected calls. */
+static void pend_apply(PendRec *r, int redo) {
+    switch (r->kind) {
+    case PR_BYTES: {
+        Buffer *b = &buffers[r->obj];
+        if (b->data && r->off + r->n <= b->size) __builtin_memcpy(b->data + r->off, redo ? r->src : r->old, r->n);
+        b->generated = redo ? r->gen_new : r->gen_old;
+        break;
+    }
+    case PR_UBO: programs[r->obj].dirty = 1; break;
+    case PR_DRAW: if (w32_gl_draws) w32_gl_draws--; break;
+    default: break;
+    }
+}
+#endif

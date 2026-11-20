@@ -89,6 +89,9 @@ interface DeviceObjects {
   texLayout: GPUBindGroupLayout;
   uniform: GPUBuffer;
   uniformGroup: GPUBindGroup;
+  /** Presentation's own uv-rect uniform: lets present share a command buffer with 2D passes (K53). */
+  presentUniform: GPUBuffer;
+  presentGroup: GPUBindGroup;
   samplers: GPUSampler[];
   white: GPUTexture;
   vbuf: GPUBuffer | null;
@@ -200,6 +203,8 @@ export class WebGPURenderer implements Renderer {
     const rtPipelines = mk('rgba8unorm');
     const uniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const uniformGroup = device.createBindGroup({ layout: uLayout, entries: [{ binding: 0, resource: { buffer: uniform } }] });
+    const presentUniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const presentGroup = device.createBindGroup({ layout: uLayout, entries: [{ binding: 0, resource: { buffer: presentUniform } }] });
     const samplers = (['nearest', 'linear'] as const).map((f) =>
       device.createSampler({ magFilter: f, minFilter: f, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }),
     );
@@ -219,7 +224,7 @@ export class WebGPURenderer implements Renderer {
     const present = device.createRenderPipeline({ layout,
       vertex: { module: presentModule, entryPoint: 'vs' },
       fragment: { module: presentModule, entryPoint: 'fs', targets: [{ format: this.format }] } });
-    this.o = { device, pipelines, rtPipelines, screenPipelines, uLayout, texLayout, uniform, uniformGroup, samplers, white,
+    this.o = { device, pipelines, rtPipelines, screenPipelines, uLayout, texLayout, uniform, uniformGroup, presentUniform, presentGroup, samplers, white,
       vbuf: null, vbufSize: 0, present };
     this.screen = undefined;
     this.snapshot = undefined;
@@ -365,7 +370,6 @@ export class WebGPURenderer implements Renderer {
       const old=this.snapshotLB!, saved=this.snapshot!;
       this.presentTexture(output,saved.createView(),lb,
         [old.x/saved.width,old.y/saved.height,old.w/saved.width,old.h/saved.height]);
-      q.writeBuffer(this.o.uniform,0,new Float32Array([frame.logicalW,frame.logicalH,0,0]));
     }
     const retainedScreen = gpuFrame && this.screen?.width === frame.logicalW && this.screen.height === frame.logicalH;
     if (gpuFrame && !retainedScreen) {
@@ -481,25 +485,30 @@ export class WebGPURenderer implements Renderer {
         }
       }
     }
-    gpu.flush();
     if (first) {
+      gpu.flush();
       close();
       open(0); // screen never drawn this frame: still clear it
     }
-    close();
-
-    if (gpuFrame) this.presentTexture(output, view, outputLB, [0,0,1,1]);
-    if (gpuFrame || this.snapshot) {
-      if (this.snapshot?.width !== output.width || this.snapshot.height !== output.height) {
-        this.snapshot?.destroy();
-        this.snapshot = device.createTexture({ size: [output.width, output.height], format: this.format,
-          usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
-      }
-      this.snapshotLB = { ...outputLB };
-      const encoder = device.createCommandEncoder();
-      encoder.copyTextureToTexture({ texture: output }, { texture: this.snapshot }, [output.width, output.height]);
-      q.submit([encoder.finish()]);
+    if ((gpuFrame || this.snapshot) && (this.snapshot?.width !== output.width || this.snapshot.height !== output.height)) {
+      this.snapshot?.destroy();
+      this.snapshot = device.createTexture({ size: [output.width, output.height], format: this.format,
+        usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
     }
+    // K53: presentation and the retained snapshot copy join the frame's last command buffer. At most one
+    // of the §13 frame encoder and an open 2D pass holds work here (2D draws flush §13 work first).
+    const snapshot = gpuFrame || this.snapshot ? this.snapshot! : undefined;
+    if (snapshot) this.snapshotLB = { ...outputLB };
+    const tail = (e: GPUCommandEncoder) => {
+      if (gpuFrame) this.presentTexture(output, view, outputLB, [0,0,1,1], e);
+      if (snapshot) e.copyTextureToTexture({ texture: output }, { texture: snapshot }, [output.width, output.height]);
+    };
+    if (pass && encoder) {
+      gpu.flush(); // no-op by the invariant above; keeps §13-before-2D order if it ever changes
+      (pass as GPURenderPassEncoder).end(); pass = null;
+      const e = encoder as GPUCommandEncoder; encoder = null;
+      tail(e); q.submit([e.finish()]);
+    } else gpu.flush(gpuFrame || snapshot ? tail : undefined);
     let pending: Promise<Pixels> | null = null;
     if (readback) pending = this.readback(output, this.format === 'bgra8unorm');
     this.timing?.endFrame();
@@ -511,18 +520,20 @@ export class WebGPURenderer implements Renderer {
     return pending;
   }
 
-  private presentTexture(output: GPUTexture, view: GPUTextureView, lb: Letterbox, uv: number[]): void {
+  /** Encodes into `into` (submitted by the caller) or into its own submitted encoder. At most one
+   * presentation per command buffer: the uv rect lives in the single present uniform. */
+  private presentTexture(output: GPUTexture, view: GPUTextureView, lb: Letterbox, uv: number[], into?: GPUCommandEncoder): void {
     const { device } = this.o;
-    device.queue.writeBuffer(this.o.uniform, 0, new Float32Array(uv));
-    const encoder = device.createCommandEncoder();
+    device.queue.writeBuffer(this.o.presentUniform, 0, new Float32Array(uv));
+    const encoder = into ?? device.createCommandEncoder();
     const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(),
       loadOp: 'clear', storeOp: 'store', clearValue: [0,0,0,1] }] });
     pass.setViewport(lb.x,lb.y,lb.w,lb.h,0,1); pass.setPipeline(this.o.present);
-    pass.setBindGroup(0,this.o.uniformGroup);
+    pass.setBindGroup(0,this.o.presentGroup);
     pass.setBindGroup(1,device.createBindGroup({layout:this.o.texLayout,entries:[
       {binding:0,resource:view},{binding:1,resource:this.o.samplers[0]},
     ]}));
-    pass.draw(3); pass.end(); device.queue.submit([encoder.finish()]);
+    pass.draw(3); pass.end(); if (!into) device.queue.submit([encoder.finish()]);
   }
 
   private async readback(tex: GPUTexture, bgra = false, x = 0, y = 0, w = tex.width, h = tex.height): Promise<Pixels> {

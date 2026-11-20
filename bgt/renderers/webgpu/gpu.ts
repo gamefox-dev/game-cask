@@ -119,9 +119,12 @@ export class WebGPUCommands implements GpuBackend {
     this.batch.renameBytes = 0;
   }
 
-  /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder. */
-  flush(): void {
+  /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder.
+   * `tail` appends the renderer's frame-end work (presentation, snapshot copy) to the same command
+   * buffer, so a batched frame costs one GPUQueue.submit. */
+  flush(tail?: (encoder: GPUCommandEncoder) => void): void {
     this.endNative();
+    if (tail) { this.encoder ??= this.device.createCommandEncoder(); tail(this.encoder); }
     if (this.encoder) {
       const encoder = this.encoder; this.encoder = undefined;
       this.device.queue.submit([encoder.finish()]); this.batch.encoderSubmits++;

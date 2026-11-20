@@ -515,6 +515,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     }
     uint32_t upload[] = {p->ubuf, 0, PTR(p->values), p->usize};
     if (!send_deferred(0x41, upload, 4)) { retire_generated_ubos(); return 0; }
+    PendRec *ubo = pend_last; /* deferred: a replayed rejection re-marks the values dirty and skips the draw */
+    if (ubo) { ubo->kind = PR_UBO; ubo->obj = (uint32_t)(p - programs); }
     p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
@@ -550,7 +552,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         op(0x58, d, 5);
     } else { if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {(uint32_t)count, (uint32_t)instances, first, 0}; op(0x57, d, 4); }
-    op(0x4d, 0, 0); if (tf_active ? submit() : submit_deferred()) {
+    op(0x4d, 0, 0); pend_dep_seq = ubo ? ubo->seq : 0;
+    if (tf_active ? submit() : submit_deferred()) {
+        if (!tf_active && pend_last) pend_last->kind = PR_DRAW;
         if (tf_active) {
             for (uint32_t i = 0; i < (p->tf_link_separate ? p->tf_link_count : 1); i++) {
                 tf_cursor[i] += tf_vertices * (uint32_t)instances * p->tf_stride[i]; buffers[tf_bound[i]].generated = 1;

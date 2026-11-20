@@ -100,7 +100,13 @@ export class WebGL2Gpu implements GpuBackend {
    * images skips re-attachment/completeness work. Released before any op that may rebind framebuffers. */
   private lingering = false;
   private passKey = '';
-  readonly batch = { nativePasses: 0, mergedPasses: 0 };
+  readonly batch = { nativePasses: 0, mergedPasses: 0, skippedBinds: 0 };
+  /** K53 GL state shadow for the calls §13 pass/pipeline setup repeats across merged passes. Valid only
+   * while the last GL writer was this executor's pass/draw path: any other op (blits, mips, creates,
+   * feedback setup), the renderer's 2D path (invalidateState) and context restore clear it. Unknown
+   * fields always issue the call. */
+  private sc: { program?: WebGLProgram; vao?: WebGLVertexArrayObject; scissorOn?: boolean;
+    viewport?: number[]; scissor?: number[]; depthRange?: number[]; blendColor?: number[] } = {};
 
   constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void,
     private readonly opts: { debug?: boolean; batch?: boolean } = {}) {
@@ -129,7 +135,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   beginFrame(width: number, height: number, lb: Letterbox): void {
     this.frame = { width, height, lb };
-    this.batch.nativePasses = this.batch.mergedPasses = 0;
+    this.batch.nativePasses = this.batch.mergedPasses = this.batch.skippedBinds = 0; this.sc = {};
     for (const key of Object.keys(this.nativeSyncQueryOps)) delete this.nativeSyncQueryOps[key];
     this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
   }
@@ -280,7 +286,47 @@ export class WebGL2Gpu implements GpuBackend {
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
   }
 
+  /** Forget the shadowed GL state (another GL writer ran). */
+  invalidateState(): void { this.sc = {}; }
+  private same(a: number[] | undefined, b: number[]): boolean {
+    if (!a || !this.opts.batch) return false; // gpubatch=0 A/B: issue every call, as before K53
+    for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  private setScissorTest(on: boolean): void {
+    if (this.opts.batch && this.sc.scissorOn === on) { this.batch.skippedBinds++; return; }
+    this.sc.scissorOn = on; if (on) this.gl.enable(this.gl.SCISSOR_TEST); else this.gl.disable(this.gl.SCISSOR_TEST);
+  }
+  private setViewport(v: number[]): void {
+    if (this.same(this.sc.viewport, v)) { this.batch.skippedBinds++; return; }
+    this.sc.viewport = v; this.gl.viewport(v[0], v[1], v[2], v[3]);
+  }
+  private setScissor(v: number[]): void {
+    if (this.same(this.sc.scissor, v)) { this.batch.skippedBinds++; return; }
+    this.sc.scissor = v; this.gl.scissor(v[0], v[1], v[2], v[3]);
+  }
+  private setDepthRange(v: number[]): void {
+    if (this.same(this.sc.depthRange, v)) { this.batch.skippedBinds++; return; }
+    this.sc.depthRange = v; this.gl.depthRange(v[0], v[1]);
+  }
+  private setBlendColor(v: number[]): void {
+    if (this.same(this.sc.blendColor, v)) { this.batch.skippedBinds++; return; }
+    this.sc.blendColor = v; this.gl.blendColor(v[0], v[1], v[2], v[3]);
+  }
+
   private dispatch(item: GpuItem): void {
+    try { this.dispatchOp(item); } catch (e) { this.sc = {}; throw e; }
+    // Ops outside the pass/draw path may write shadowed state with raw GL calls.
+    switch (item.op) {
+      case OP.PASS_BEGIN: case OP.PASS_END: case OP.PIPELINE: case OP.VIEWPORT: case OP.SCISSOR: case OP.STENCIL_REF:
+      case OP.BLEND_CONSTANT: case OP.VERTEX_BUFFER: case OP.INDEX_BUFFER: case OP.UNIFORM_BUFFER: case OP.TEXTURE:
+      case OP.DRAW: case OP.DRAW_INDEXED: case OP.CLEAR_BUFFER: case OP.BUFFER_UPDATE:
+        return;
+      default: this.sc = {};
+    }
+  }
+
+  private dispatchOp(item: GpuItem): void {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
     if (this.lingering && op !== OP.PASS_BEGIN && op !== OP.BUFFER_UPDATE && op !== OP.BUFFER_CREATE &&
       op !== OP.BUFFER_DELETE && op !== OP.SAMPLER_CREATE_EX && op !== OP.SAMPLER_DELETE && op !== OP.SHADER_CREATE &&
@@ -450,10 +496,10 @@ export class WebGL2Gpu implements GpuBackend {
         this.pipeline = this.requirePipeline(h); this.applyPipeline(); break;
       case OP.VIEWPORT:
         this.viewport = w.slice(0, 4).map(float);
-        g.depthRange(float(w[4]), float(w[5])); break;
-      case OP.SCISSOR: g.scissor(w[0], w[1], w[2], w[3]); break;
+        this.setDepthRange([float(w[4]), float(w[5])]); break;
+      case OP.SCISSOR: this.setScissor([w[0], w[1], w[2], w[3]]); break;
       case OP.STENCIL_REF: this.stencil = h; if (this.pipeline) this.applyStencil(); break;
-      case OP.BLEND_CONSTANT: g.blendColor(float(w[0]), float(w[1]), float(w[2]), float(w[3])); break;
+      case OP.BLEND_CONSTANT: this.setBlendColor([float(w[0]), float(w[1]), float(w[2]), float(w[3])]); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER: this.index = w; break;
       case OP.UNIFORM_BUFFER: this.uniforms.set(h, w); break;
@@ -801,7 +847,11 @@ export class WebGL2Gpu implements GpuBackend {
     this.checkFramebuffer(g.FRAMEBUFFER, key, 'Incomplete GPU pass');
     this.passKey = this.screenPass ? '' : key;
     }
-    g.disable(g.SCISSOR_TEST); g.depthMask(true); g.stencilMask(255);
+    // Clears and the screen LOAD blit below must be unscissored; the pass then ends with a full scissor.
+    let unscissored = (this.screenPass && w[9] === 0) || (!!w[1] && !!(w[3] || w[4]));
+    for (let i = 0; i < w[0]; i++) if (w[9+i*7]) unscissored = true;
+    if (unscissored) this.setScissorTest(false);
+    g.depthMask(true); g.stencilMask(255);
     for (let i = 0; i < 4; i++) this.indexed!.colorMaskiOES(i, true, true, true, true);
     if (this.screenPass && w[9] === 0) {
       const b = this.frame.lb, H = g.drawingBufferHeight;
@@ -824,15 +874,15 @@ export class WebGL2Gpu implements GpuBackend {
     if (w[1] && w[3]) g.clearBufferfv(g.DEPTH, 0, [float(w[5])]);
     if (w[1] && w[4]) g.clearBufferiv(g.STENCIL, 0, [w[6]]);
     this.viewport = [0, 0, this.width, this.height];
-    g.viewport(0, 0, this.width, this.height); g.depthRange(0, 1);
-    g.enable(g.SCISSOR_TEST); g.scissor(0, 0, this.width, this.height); g.blendColor(0, 0, 0, 0);
+    this.setViewport([0, 0, this.width, this.height]); this.setDepthRange([0, 1]);
+    this.setScissorTest(true); this.setScissor([0, 0, this.width, this.height]); this.setBlendColor([0, 0, 0, 0]);
   }
 
   private endPass(): void {
     const g = this.gl;
     if (this.screenPass) {
       const b = this.frame.lb, H = g.drawingBufferHeight;
-      g.disable(g.SCISSOR_TEST); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null);
+      this.setScissorTest(false); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null);
       g.bindFramebuffer(g.READ_FRAMEBUFFER, this.framebuffer); g.readBuffer(g.COLOR_ATTACHMENT0);
       g.blitFramebuffer(0, 0, this.width, this.height, b.x, H-b.y, b.x+b.w, H-b.y-b.h,
         g.COLOR_BUFFER_BIT, g.NEAREST);
@@ -852,7 +902,8 @@ export class WebGL2Gpu implements GpuBackend {
   }
   private applyPipeline(): void {
     const g = this.gl, p = this.pipeline!, w = p.words;
-    g.useProgram(p.object); g.bindVertexArray(p.vao);
+    if (this.opts.batch && this.sc.program === p.object) this.batch.skippedBinds++; else { this.sc.program = p.object; g.useProgram(p.object); }
+    if (this.opts.batch && this.sc.vao === p.vao) this.batch.skippedBinds++; else { this.sc.vao = p.vao; g.bindVertexArray(p.vao); }
     // WebGL requires active draw buffers to have a fragment output even with colorMask=0.
     // Disable only absent outputs, preserving attachment contents and restoring this on pipeline changes.
     g.drawBuffers(this.passDrawBuffers.map((buffer, i) => p.outputs.has(i) ? buffer : g.NONE));
@@ -1053,7 +1104,7 @@ export class WebGL2Gpu implements GpuBackend {
     if (this.languages && (!this.indexed || !this.gl.getExtension('EXT_color_buffer_float'))) {
       throw new Error('GPU extensions lost');
     }
-    this.lingering = false; this.passKey = '';
+    this.lingering = false; this.passKey = ''; this.sc = {};
     this.framebuffer = this.gl.createFramebuffer()!; this.scratchIndex = this.gl.createBuffer()!;
     this.scratchAttributes.clear(); this.scratchIds = null;
     this.completeFramebuffers.clear(); this.objectIds = new WeakMap(); this.nextObjectId = 1;

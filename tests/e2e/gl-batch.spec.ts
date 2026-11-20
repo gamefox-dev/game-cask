@@ -34,12 +34,15 @@ test('x64-gl-batch: whole-frame batching and pass merging keep exact pixels', as
   if (backendParam === 'webgpu') {
     expect(m.mergedPasses).toBe(39); expect(s.mergedPasses).toBe(0);
     expect(m.nativePasses).toBeLessThan(s.nativePasses);
-    // Renderer frame encoder + presentation + retained snapshot copy, versus one submit per §13 pass.
-    expect(m.nativeSubmits).toBeLessThanOrEqual(4); expect(s.nativeSubmits).toBeGreaterThanOrEqual(43);
+    // One GPUQueue.submit per frame: §13 passes, presentation and the retained snapshot copy share the
+    // frame command buffer (timing is off here), versus one submit per §13 pass.
+    expect(m.nativeSubmits).toBe(1); expect(s.nativeSubmits).toBeGreaterThanOrEqual(43);
     expect(m.bufferRenames).toBeGreaterThan(0);
   } else {
     expect(m.mergedPasses).toBe(39); expect(s.mergedPasses).toBe(0);
     expect(m.nativePasses).toBe(4); expect(s.nativePasses).toBe(43);
+    // State shadow: merged passes re-issue no identical viewport/scissor/program/VAO calls (off for gpubatch=0).
+    expect(m.skippedBinds).toBeGreaterThan(100); expect(s.skippedBinds).toBe(0);
   }
   // Same guest frame on the same backend: merged and per-pass native execution store identical pixels.
   expect(merged.pixels.width).toBe(split.pixels.width);

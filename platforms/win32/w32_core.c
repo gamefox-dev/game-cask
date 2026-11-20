@@ -1084,6 +1084,7 @@ const char *w32_metrics_json(void) {
     jkv("gl_batched_lists", w32_gl_batched_lists);
     jkv("gl_batch_flushes", w32_gl_batch_flushes);
     jkv("gl_sync_submits", w32_gl_sync_submits);
+    jkv("gl_batch_replays", w32_gl_batch_replays);
     jkv("gl_buffer_respec_reused", w32_gl_buffer_respec_reused);
     jkv("gl_buffer_respec_resized", w32_gl_buffer_respec_resized);
     jkv("gl_buffer_respec_grew", w32_gl_buffer_respec_grew);
