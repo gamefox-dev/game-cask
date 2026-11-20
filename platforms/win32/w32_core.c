@@ -926,6 +926,9 @@ static uint64_t account_virtual_now(void) {
 #endif
 void w32_guest_present(int swap) {
     guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
+#if X86_OWNER_CENSUS
+    x86_census_present(guest_present.count);
+#endif
 #if X86_NATIVE_STATS
     dispatch_frames[dispatch_next]=(dispatch_frame_t){guest_present.count,x86_native_stats};
     dispatch_next=(dispatch_next+1)%ACCOUNT_FRAMES;
@@ -1062,6 +1065,43 @@ static void jdispatch_values(const x86_native_stats_t *s) {
     jput("}");
 }
 #endif
+/* K51 owner census: exact decimal strings; OFF reports enabled:0 with null tables, never zeros. */
+#if X86_OWNER_CENSUS
+static void jcensus_rows(const x86_census_top_t *top, uint32_t count) {
+    jput("[");
+    for (uint32_t i = 0; i < count; i++) {
+        const x86_census_top_t *r = &top[i]; uint64_t sum = 0;
+        for (unsigned k = 0; k < XR_KINDS; k++) sum += r->instructions[k];
+        if (i) jput(","); jput("{"); jkv("owner", r->owner);
+        jexactkv("total", sum); jexactkv("lifted", r->instructions[XR_LIFTED]);
+        jexactkv("generic", r->instructions[XR_GENERIC]); jexactkv("interpreted", r->instructions[XR_INTERPRETED]);
+        jn--; jput("}");
+    }
+    jput("]");
+}
+#endif
+static void jcensus(void) {
+    jput("\"owner_census\":{");jkv("enabled",X86_OWNER_CENSUS);
+#if X86_OWNER_CENSUS
+    static x86_census_top_t top[X86_OWNER_CENSUS_TOP]; uint64_t total;
+    uint32_t count = x86_census_cumulative(top, X86_OWNER_CENSUS_TOP, &total);
+    jkv("capacity",X86_OWNER_CENSUS_CAP);jkv("top_n",X86_OWNER_CENSUS_TOP);jkv("rows",x86_census_rows());
+    jexactkv("unattributed",x86_census_unattributed());
+    jput("\"cumulative\":{");jexactkv("total",total);jput("\"rows\":");jcensus_rows(top,count);
+    jput("},\"frames\":{");jkv("capacity",X86_OWNER_CENSUS_FRAMES);jexactkv("dropped",x86_census_frames_dropped());
+    jput("\"snapshots\":[");
+    for (uint32_t i = 0; i < x86_census_frame_count(); i++) {
+        const x86_census_frame_t *f = x86_census_frame(i);
+        if (i) jput(","); jput("{"); jexactkv("present", f->present); jexactkv("total", f->total);
+        jexactkv("unattributed", f->unattributed); jkv("active_owners", f->active);
+        jput("\"rows\":"); jcensus_rows(f->top, f->count); jput("}");
+    }
+    jput("]}");
+#else
+    jput("\"cumulative\":null,\"frames\":null");
+#endif
+    jput("},");
+}
 static void jdispatch(void) {
     jput("\"native_dispatch\":{");jkv("enabled",X86_NATIVE_STATS);
     jput("\"counters\":");
@@ -1089,9 +1129,16 @@ const char *w32_metrics_json(void) {
     jkv("guest_instruction_clock", x86_guest_instruction_clock());
     jaccounting();
     jdispatch();
+    jcensus();
+#if X86_COVERAGE_MODE == 3
+    /* K51 coverage-off performance build: no hooks exist, so the counters are unavailable, not zero. */
+    jput("\"coverage_events\":null,\"coverage_crossings\":null,\"coverage_cache_hits\":null,");
+#else
     jkv("coverage_events",x86_coverage_events);
     jkv("coverage_crossings",x86_coverage_crossings);
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
+#endif
+    jkv("coverage_mode",X86_COVERAGE_MODE);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interpreter_timing_enabled",X86_PROFILE_ENABLED);
     jkv("interpreter_exclusive_us",(uint64_t)x86_interpreter_exclusive_us());

@@ -408,6 +408,8 @@ export const GPU_LIMITS = {
   uniformAlignment: 256, uniformRange: 65536, stride: 2048, shaderBytes: 1024 * 1024,
   volumeDimension: 256, arrayLayers: 256,
 } as const;
+/** K51: §13.6 offset 52 reports min(uniformRange, native device limit); WebGL2/GL 3.3 guarantee 16384. */
+export const GPU_UNIFORM_RANGE_MIN = 16384;
 /** A reservation/accounting limit, never a claim about measured physical VRAM. */
 export const GPU_BUDGET_MIN = 16 * 1024 * 1024;
 export const GPU_BUDGET_MAX = 0xffffffff;

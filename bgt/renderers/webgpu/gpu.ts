@@ -1,6 +1,6 @@
 // §13 executor. The decoder owns validation; this class owns native resources and recovery shadows.
-import { E_IO, GPU_OP as OP } from '../../runtime/abi';
-import type { GpuBackend, GpuItem } from '../types';
+import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
+import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
 import { fragmentOutputs } from './outputs';
@@ -86,7 +86,15 @@ export class WebGPUCommands implements GpuBackend {
   private scissor = [0,0,1,1];
   private blendConstant = [0,0,0,0];
 
-  constructor(private device: GPUDevice, private error: (message: string) => void) {}
+  /** K51: min(65536, device maxUniformBufferBindingSize). WebGPU's default (and minimum) limit is 65536. */
+  readonly maxUniformRange: number;
+  readonly device: GpuDeviceInfo;
+  constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
+    // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
+    const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
+    this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
+    this.device = { renderer: adapter, software: softwareRenderer(adapter), nativeMaxUniformRange: native };
+  }
 
   get hasResources(): boolean {
     return !!(this.buffers.size || this.textures.size || this.samplers.size || this.shaders.size ||
@@ -113,7 +121,8 @@ export class WebGPUCommands implements GpuBackend {
 
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
-    this.device = device;
+    if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
+    this.gpuDevice = device;
     this.opaqueScreen = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
@@ -166,7 +175,7 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   private run(item: GpuItem): void {
-    const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
+    const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.gpuDevice;
     switch (op) {
       case OP.FEEDBACK_VARYINGS:
         this.requirePipeline(h); this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
@@ -371,6 +380,8 @@ export class WebGPUCommands implements GpuBackend {
         this.index = [...w];
         this.pass!.setIndexBuffer(this.buffers.get(h)!.native, w[1] ? 'uint32' : 'uint16', w[2], w[3]); break;
       case OP.UNIFORM_BUFFER:
+        // The host validator enforces the reported limit; never bind a native range above the device's.
+        if (w[3] > this.maxUniformRange) throw new Error(`Uniform range ${w[3]} exceeds device limit ${this.maxUniformRange}`);
         this.uniforms.set(h, { buffer: this.buffers.get(w[1])!.native, offset: w[2], size: w[3] }); break;
       case OP.TEXTURE: this.sampled.set(h, [...w]); break;
       case OP.DRAW: case OP.DRAW_INDEXED: {
@@ -389,12 +400,12 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   private makeScreenOpaque(encoder: GPUCommandEncoder): void {
-    this.opaqueScreen ??= new WebGPUOpaqueScreen(this.device);
+    this.opaqueScreen ??= new WebGPUOpaqueScreen(this.gpuDevice);
     this.opaqueScreen.encode(encoder, this.screen!);
   }
 
   private bufferReadback(item:GpuItem):void {
-    const w=item.words, d=this.device, buffer=d.createBuffer({size:Math.ceil((w[1]%4+w[2])/4)*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    const w=item.words, d=this.gpuDevice, buffer=d.createBuffer({size:Math.ceil((w[1]%4+w[2])/4)*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     const encoder=d.createCommandEncoder();encoder.copyBufferToBuffer(this.buffers.get(w[0])!.native,w[1]&~3,buffer,0,buffer.size);
     d.queue.submit([encoder.finish()]);this.readbacks.add(item);
     void buffer.mapAsync(GPUMapMode.READ).then(()=>{
@@ -409,7 +420,7 @@ export class WebGPUCommands implements GpuBackend {
     const s=this.shaders.get(pw[1])!;
     if(!s.item.words[2])throw new Error('Feedback currently requires canonical GLSL vertex IO');
     const count=feedbackVertexCount(pw[3],w[0]), total=count*w[1];if(!total)return;
-    const d=this.device, offsets:number[]=[], inputs:FeedbackInput[]=[], copies:{source:GPUBuffer;offset:number;size:number;target:number}[]=[];
+    const d=this.gpuDevice, offsets:number[]=[], inputs:FeedbackInput[]=[], copies:{source:GPUBuffer;offset:number;size:number;target:number}[]=[];
     let bytes=0;
     for(let slot=0;slot<pw[23];slot++) {
       const b=this.vertices.get(slot)!;offsets[slot]=bytes;
@@ -480,11 +491,11 @@ export class WebGPUCommands implements GpuBackend {
       const assignments = this.passFormats.map((fmt, i) => `o.c${i}=${kind === 0 && w[1] === i ?
         cls === 0 ? 'bitcast<vec4f>(v.value)' : cls === 1 ? 'bitcast<vec4i>(v.value)' : 'v.value' : `${colorType(fmt)}(0)`};`);
       if (kind === 1 || kind === 3) assignments.push('o.depth=bitcast<f32>(v.value.x);');
-      const module = this.device.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
+      const module = this.gpuDevice.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
 @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); return vec4f(p[i],0,1); }
 ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O;${assignments.join('')}return o;}` : '@fragment fn fs() {}'}` });
       const stencilFace: GPUStencilFaceState = { compare: 'always', passOp: kind >= 2 ? 'replace' : 'keep' };
-      pipeline = this.device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+      pipeline = this.gpuDevice.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
         fragment: { module, entryPoint: 'fs', targets: this.passFormats.map((fmt, i) => ({ format: formats[fmt],
           writeMask: kind === 0 && i === w[1] ? mask : 0 })) },
         depthStencil: this.passDepth === 0xffffffff ? undefined : { format: formats[this.passDepth],
@@ -497,9 +508,9 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
     this.pass!.setPipeline(pipeline);
     // Stencil-only clears use no uniform binding. All other forms consume exact u32/f32 bit patterns.
     if (kind !== 2) {
-      const uniform = this.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
+      const uniform = this.gpuDevice.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
       new Uint32Array(uniform.getMappedRange()).set(w.slice(2)); uniform.unmap(); this.scratch.push(uniform);
-      this.pass!.setBindGroup(0, this.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+      this.pass!.setBindGroup(0, this.gpuDevice.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: { buffer: uniform } }] }));
     }
     this.pass!.setViewport(0, 0, this.passSize[0], this.passSize[1], 0, 1);
@@ -528,7 +539,7 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
         values[i * 4 + 1] = packed & 255; stencilValues.add(packed & 255);
       } else values[i * 4] = view.getFloat32(i * 4, true);
     }
-    const d = this.device, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
+    const d = this.gpuDevice, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     d.queue.writeTexture({ texture: source }, values, { bytesPerRow: width * 16, rowsPerImage: height }, [width, height, 1]);
     const encoder = d.createCommandEncoder(), target = t.native.createView({ baseMipLevel: mip, mipLevelCount: 1 });
@@ -550,7 +561,7 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
 
   private depthUploadPipeline(format: number, stencilValue: number, x: number, y: number): GPURenderPipeline {
     const key = `${format}:${stencilValue}:${x}:${y}`, existing = this.depthUploadPipelines.get(key); if (existing) return existing;
-    const d = this.device, check = stencilValue >= 0 ? `if (abs(q.y - ${stencilValue}.0) > 0.1) { discard; }` : '';
+    const d = this.gpuDevice, check = stencilValue >= 0 ? `if (abs(q.y - ${stencilValue}.0) > 0.1) { discard; }` : '';
     const module = d.createShaderModule({ code: `
 @group(0) @binding(0) var src: texture_2d<f32>;
 struct VO { @builtin(position) pos: vec4f };
@@ -566,7 +577,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   /** Grow an immutable WebGPU texture without losing already rendered/uploaded levels. */
   private growTexture(handle: number, allocatedMips: number): void {
-    const d = this.device, t = this.textures.get(handle)!;
+    const d = this.gpuDevice, t = this.textures.get(handle)!;
     if (allocatedMips <= t.allocatedMips) return;
     if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
     const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
@@ -593,7 +604,7 @@ struct VO { @builtin(position) pos: vec4f };
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
-    const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
+    const d = this.gpuDevice, t = this.textures.get(handle)!, desc = t.desc;
     this.growTexture(handle, desc.mips);
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
     const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
@@ -650,7 +661,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 
   /** Depth readback is an ordered depth-sampling conversion; stencil is not a sampleable WebGPU aspect. */
   private readDepthback(item: GpuItem, w: number[]): void {
-    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    const d = this.gpuDevice, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     if (t.desc.format === 5) { item.readback?.(undefined, -4); return; }
     if (t.desc.dimension !== 0 || z !== 0 || depth !== 1) throw new Error('Depth readback is 2D only');
     const source = t.native.createView({ aspect: 'depth-only', baseMipLevel: mip, mipLevelCount: 1 });
@@ -681,7 +692,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   /** §13.7 TEXTURE_READBACK: copy in stream order, map later; exact stored texels, rows top-first. */
   private readback(item: GpuItem, w: number[]): void {
-    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    const d = this.gpuDevice, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     const bpp = TEXEL_BYTES[t.desc.format], row = width * bpp, aligned = Math.ceil(row / 256) * 256;
     const buffer = d.createBuffer({ size: aligned * height * depth,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
@@ -704,7 +715,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private writeBuffer(buffer: GPUBuffer, offset: number, data: Uint8Array<ArrayBuffer>): void {
     const aligned = new Uint8Array(Math.ceil(data.length / 4) * 4); aligned.set(data);
-    this.device.queue.writeBuffer(buffer, offset, aligned);
+    this.gpuDevice.queue.writeBuffer(buffer, offset, aligned);
   }
 
   private requirePipeline(handle: number): PipelineResource {
@@ -721,7 +732,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private pipeline(w: readonly number[], depthSlots: ReadonlySet<number> = new Set(),
     sampling: readonly DepthSampling[] = [], integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()): PipelineResource {
-    const d = this.device, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
+    const d = this.gpuDevice, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
     const repack: Repack[] = [];
     let j = 26;
     for (let i = 0; i < w[23]; i++, j += 2)
@@ -820,7 +831,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private bind(): void {
     let p = this.requireCurrentPipeline();
-    const d = this.device;
+    const d = this.gpuDevice;
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
       .map(b => b.binding >> 1).filter(slot => isDepthFormat(this.textures.get(this.sampled.get(slot)![1])!.desc.format)));
@@ -891,7 +902,7 @@ struct VO { @builtin(position) pos: vec4f };
       else result.push(at(i), at(i + 1));
     }
     if (!result.length) return;
-    const native = this.device.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
+    const native = this.gpuDevice.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
       mappedAtCreation: true });
     new Uint32Array(native.getMappedRange()).set(result); native.unmap(); this.scratch.push(native);
     this.pass!.setIndexBuffer(native, 'uint32');

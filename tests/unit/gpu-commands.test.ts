@@ -315,6 +315,20 @@ describe('GPU command validation', () => {
     expect(t.inPass(op, words).status).toBe(error);
   });
 
+  // K51: would catch a validator that keeps the fixed 65536 ceiling on a 16384-byte (ANGLE Metal) device.
+  it.each([[16384, 16384], [16390, 16384], [65536, 65536], [1 << 20, 65536]])(
+    'UNIFORM_BUFFER ranges follow backend limit %i (effective %i)', (native, effective) => {
+      const t = setup(); t.ctx.gpu = new GpuState({ languages: 7, maxUniformRange: native, execute: () => 0 });
+      expect(t.ctx.gpu.uniformRange).toBe(effective);
+      t.resources();
+      expect(t.send(O.BUFFER_CREATE, [2, 4, 131072, 0, 0]).status).toBe(0);
+      expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 0, effective]).status).toBe(0);
+      expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 256, effective + 16]).status).toBe(A.E_LIMIT);
+    });
+  it('rejects a backend below the WebGL2/GL 3.3 uniform block minimum instead of under-reporting', () => {
+    expect(() => new GpuState({ languages: 6, maxUniformRange: 16368, execute: () => 0 })).toThrow(/below the required 16384/);
+  });
+
   it('enforces pipeline layouts, masks, formats, readiness and draw fetch bounds', () => {
     const t = setup();
     t.send(O.SHADER_CREATE, [1, 1, 0, 16384, source.length, 1]);

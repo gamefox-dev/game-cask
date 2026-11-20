@@ -25,7 +25,7 @@ static uint32_t query(uint32_t key, int32_t *v) {
     case 0x821b: v[0] = 3; break; case 0x821c: v[0] = 3; break; case 0x821d: v[0] = 3; break;
     case 0x9126: v[0] = 1; break; case 0xd33: v[0] = 4096; break; case 0x8869: v[0] = 16; break;
     case 0x8b4d: case 0x8872: case 0x8a2f: v[0] = 8; break;
-    case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = 65536; break;
+    case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = (int32_t)gl_uniform_limit(); break;
     case 0x8cdf: case 0x8824: v[0] = 4; break;
     case 0x8073: case 0x88ff: v[0] = 256; break; case 0x84e8: v[0] = 4096; break;
     case 0x84fd: case 0x8d57: case 0x910e: case 0x910f: case 0x9110: v[0] = 0; break;

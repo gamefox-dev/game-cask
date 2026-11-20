@@ -1,4 +1,4 @@
-// Real-page update pacing (K50, equivalent to K51's page-fps.ts retainedAccumulator).
+// Real-page update pacing (K50). The only pacing implementation; K51's identical copy was folded in at I17.
 /**
  * Accumulator left after a rAF tick ran `updates` fixed steps with at most `limit` per tick.
  * Pipeline games run one update per tick (limit 1): keep the sub-step remainder, but at most one

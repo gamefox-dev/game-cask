@@ -402,6 +402,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         smask |= 1 << slot;
     }
     for (uint32_t i = 0; i < p->nb; i++) umask |= 1 << (i + 1);
+    if (p->info->split) umask |= 1u << p->info->meta_slot; /* K51 split default block */
     uint32_t ds = tg.has_depth || tg.has_stencil, depth_format = ds ? tg.ds.bgt : 0xffffffffu;
     uint32_t w[200] = {0, p->vgpu, p->fgpu, topo, cull ? cull_face : 0, front_face,
         depth_format, depth && tg.has_depth, depth && tg.has_depth && depth_write, depth_compare,
@@ -502,8 +503,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * a zero-output capture must not write, advance cursors or change buffer authority. */
     if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices)) return 0;
     if (!uniform_ranges(p, block_handles, block_offsets, 1)) return 0;
-    float h = (float)tg.h; copy(p->values, &h, 4);
-    uint32_t swz_base = p->usize - p->info->nslots * 16;
+    float h = (float)tg.h; copy(p->values + p->info->meta_off, &h, 4);
+    uint32_t swz_base = p->info->split ? p->info->meta_off + 16 : p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
         uint32_t unit = p->slot_unit[slot], id = tex_bind[p->info->slot_dim[slot]][unit];
         /* Incomplete sampling returns the specified black fallback, independent of the object's swizzle. */
@@ -536,7 +537,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
-    uint32_t ub[] = {0, p->ubuf, 0, p->usize}; op(0x55, ub, 4);
+    uint32_t ub[] = {0, p->ubuf, 0, p->info->ubytes}; op(0x55, ub, 4);
+    if (p->info->split) { uint32_t mb[] = {p->info->meta_slot, p->ubuf, p->info->meta_off, 16 + 16 * p->info->nslots}; op(0x55, mb, 4); }
     for (uint32_t i = 0; i < p->nb; i++) {
         uint32_t b[] = {i + 1, block_handles[i], block_offsets[i], p->info->b[i].size}; op(0x55, b, 4);
     }

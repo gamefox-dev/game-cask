@@ -1575,6 +1575,9 @@ static int gs_sampler_capability(const GsVar *v, GsLog *log) {
 #define GP_NAMES 24576
 #define GP_MAX_BINDINGS 16
 #define GP_BUFFER_LIMIT 16384u
+/* K51: the active GPU namespace's real uniform-block/binding limit (bgt_gpu_limits offset 52, 16384..65536).
+ * The GL profile refreshes it before every link; host tools keep the portable 65536 ceiling. */
+static uint32_t gp_uniform_limit = 65536u;
 typedef struct { uint32_t name, gl_type; int32_t size, location, block; uint32_t offset, stride, mstride, slot; uint8_t kind, cols, rows, dim, shadow, stages; } GpUniform;
 typedef struct { uint32_t name, size, nmembers, first; int32_t unit[2]; uint8_t stages; } GpBlock;
 typedef struct { uint32_t name, gl_type; int32_t size, location; } GpAttrib;
@@ -1585,6 +1588,10 @@ typedef struct {
     GpUniform u[GP_MAX_UNIFORMS]; GpBlock b[7]; GpAttrib a[16]; GpAttrib o[8]; GpVar dv[GS_MAX_VARS * 2];
     uint8_t slot_shadow[8], slot_dim[8], slot_kind[8]; char names[GP_NAMES];
     uint32_t attr_max, uniform_max, block_max;
+    /* K51 split default block: when meta + ordinary uniforms + swizzles exceed the device's block limit,
+     * ordinary uniforms keep bgt_u0 alone (ubytes) and meta/swizzles move to bgt_u<meta_slot> at meta_off
+     * (256-aligned) of the same buffer, so the guest's uniform budget is not charged for profile words. */
+    uint32_t ubytes, meta_off; uint8_t split, meta_slot;
 } Gp;
 
 static const char *gp_name(const Gp *g, uint32_t off) { return g->names + off; }
@@ -1656,14 +1663,15 @@ static int gs_types_equal(GsUnit *a, uint32_t ta, uint32_t arra, GsUnit *b, uint
 }
 
 /* Link: the vertex and/or fragment unit (either may be NULL for single-stage provisional compiles). */
-static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32_t nabind, const GpBinding *obind, uint32_t nobind,
-    GsLog *log) {
-    gs_zero(g, sizeof *g);
+static int gp_link_layout(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32_t nabind, const GpBinding *obind, uint32_t nobind,
+    GsLog *log, int split, int *capacity) {
+    gs_zero(g, sizeof *g); g->split = (uint8_t)split;
+    const uint32_t storage = split && gp_uniform_limit < GP_BUFFER_LIMIT ? gp_uniform_limit : GP_BUFFER_LIMIT;
     GsUnit *un[2] = {vs, fs};
     for (int s = 0; s < 2; s++) if (un[s] && !un[s]->has_main) {
         gs_diag(log, 1, 0, 0, 0, s ? "fragment shader does not define main" : "vertex shader does not define main", 0); return 0; }
     /* ---- default-block uniforms */
-    uint32_t cursor = 16; int ok = 1;
+    uint32_t cursor = split ? 0 : 16; int ok = 1;
     for (int s = 0; s < 2 && ok; s++) if (un[s]) for (uint32_t i = 0; i < un[s]->nvars && ok; i++) {
         GsVar *v = &un[s]->vars[i]; if (v->storage != GS_UNIFORM) continue;
         int o = 1 - s; GsVar *w = 0; if (un[o]) for (uint32_t j = 0; j < un[o]->nvars; j++)
@@ -1679,14 +1687,21 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
             d->offset = 0;
         } else {
             cursor = gs_roundup(cursor, a); d->offset = cursor; cursor += sz;
-            if (cursor > GP_BUFFER_LIMIT) { gs_diag(log, 1, 0, v->decl_line, 1, "active uniforms exceed the BGT uniform storage limit", v->name); ok = 0; break; }
+            if (cursor > storage) { *capacity = 1; gs_diag(log, 1, 0, v->decl_line, 1, "active uniforms exceed the BGT uniform storage limit (GL_MAX_UNIFORM_BLOCK_SIZE)", v->name); ok = 0; break; }
         }
         int stages = (v->used ? 1 << s : 0) | (w && w->used ? 1 << o : 0);
         d->slot = g->nslots;
         if (!gp_flatten(g, log, un[s], v->name, v->type, v->arr, d->offset, -1, (uint32_t)stages)) { ok = 0; break; }
     }
     if (!ok) return 0;
-    g->usize = gs_roundup(cursor, 16) + 16 * g->nslots; /* per-slot swizzles follow ordinary uniforms */
+    if (!split) {
+        g->usize = g->ubytes = gs_roundup(cursor, 16) + 16 * g->nslots; /* per-slot swizzles follow ordinary uniforms */
+        /* The inline default block (meta, ordinary uniforms, swizzles) is itself one native uniform block. */
+        if (g->usize > gp_uniform_limit) { *capacity = 1; gs_diag(log, 1, 0, 0, 0, "active uniforms exceed GL_MAX_UNIFORM_BLOCK_SIZE", 0); return 0; }
+    } else {
+        g->ubytes = gs_roundup(cursor, 16); g->meta_off = gs_roundup(g->ubytes, 256);
+        g->usize = g->meta_off + 16 + 16 * g->nslots;
+    }
     /* ---- uniform blocks */
     for (int s = 0; s < 2 && ok; s++) if (un[s]) for (uint32_t i = 0; i < un[s]->nblocks && ok; i++) {
         GsBlock *b = &un[s]->blocks[i]; int o = 1 - s; GsBlock *w = 0;
@@ -1719,9 +1734,13 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
             off += sz;
         }
         gb->nmembers = g->nu - u0; gb->size = gs_roundup(off, 16);
-        if (gb->size > 65536) { gs_diag(log, 1, 0, b->decl_line, 1, "uniform block exceeds the BGT size limit", b->name); ok = 0; }
+        if (gb->size > gp_uniform_limit) { gs_diag(log, 1, 0, b->decl_line, 1, "uniform block exceeds GL_MAX_UNIFORM_BLOCK_SIZE", b->name); ok = 0; }
     }
     if (!ok) return 0;
+    if (split) {
+        if (g->nb == 7) { gs_diag(log, 1, 0, 0, 0, "active uniforms exceed GL_MAX_UNIFORM_BLOCK_SIZE (no free binding for profile words with 7 blocks)", 0); return 0; }
+        g->meta_slot = (uint8_t)(g->nb + 1);
+    }
     for (uint32_t i = 0; i < g->nu; i++) { if (g->u[i].block >= 0) g->u[i].stages = g->b[g->u[i].block].stages; }
     /* ---- vertex attributes */
     if (vs) {
@@ -1787,6 +1806,17 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
     uint32_t mx = 0; for (uint32_t i = 0; i < g->nu; i++) { uint32_t n = gs_len(gp_name(g, g->u[i].name)) + 1; if (n > mx) mx = n; }
     g->name_max = mx;
     return 1;
+}
+/* Link with the inline default block; only when the profile's own words push it past the device's block
+ * limit, relink with the split layout so the guest keeps the full GL_MAX_UNIFORM_BLOCK_SIZE budget. */
+static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32_t nabind, const GpBinding *obind, uint32_t nobind,
+    GsLog *log) {
+    int capacity = 0; uint32_t len = log->len; int errors = log->errors;
+    if (gp_link_layout(g, vs, fs, abind, nabind, obind, nobind, log, 0, &capacity)) return 1;
+    if (!capacity) return 0;
+    log->len = len; log->errors = errors; if (log->buf && log->cap) log->buf[len < log->cap ? len : log->cap - 1] = 0;
+    capacity = 0;
+    return gp_link_layout(g, vs, fs, abind, nabind, obind, nobind, log, 1, &capacity);
 }
 
 /* Language-subset limits of the BGT interface (reported as GL compile errors, never silently translated). */
@@ -2192,12 +2222,13 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
             for (uint32_t m = 0; m < st->count; m++) { GsMember *mm = &hu->members[st->first + m]; em_decl(em, hu, mm->type, mm->name, mm->arr); eb_str(o, " "); }
             eb_str(o, "}; ");
         }
-        eb_str(o, "layout(std140) uniform bgt_u0 { vec4 bgt_gl_meta; ");
+        eb_str(o, g->split ? "layout(std140) uniform bgt_u0 { " : "layout(std140) uniform bgt_u0 { vec4 bgt_gl_meta; ");
         for (uint32_t k = 0; k < g->ndv; k++) {
             GsUnit *pu = em->un[g->dv[k].stage]; GsVar *v = &pu->vars[g->dv[k].var];
             if (v->type < GS_STRUCT_BASE && gs_types[v->type].dim) continue;
             em_decl(em, pu, v->type, v->name, v->arr); eb_str(o, " ");
         }
+        if (g->split) { eb_str(o, "}; layout(std140) uniform bgt_u"); eb_num(o, g->meta_slot); eb_str(o, " { vec4 bgt_gl_meta; "); }
         for (uint32_t k = 0; k < g->nslots; k++) { eb_str(o, "ivec4 bgt_gl_swz"); eb_num(o, k); eb_str(o, "; "); }
         eb_str(o, "}; ");
         for (uint32_t k = 0; k < g->nslots; k++) {

@@ -1,6 +1,6 @@
 // §13 execution. GPU attachments use GL row zero as BGT's top row, just like legacy targets.
-import type { GpuBackend, GpuItem, Letterbox } from '../types';
-import { GPU_OP as OP } from '../../runtime/abi';
+import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem, type Letterbox } from '../types';
+import { GPU_LIMITS, GPU_OP as OP, GPU_UNIFORM_RANGE_MIN } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
 import { vertexFormatScalar } from '../vertex-input';
 import { blitStencil } from './blit-stencil';
@@ -54,6 +54,9 @@ function halfBits(value: number): number {
 
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
+  /** K51: min(65536, native MAX_UNIFORM_BLOCK_SIZE rounded down to 16); fixed for this backend instance. */
+  readonly maxUniformRange: number;
+  readonly device: GpuDeviceInfo;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
   get nativeQueryPolicy(): 'production' | 'strict' { return this.opts.debug ? 'strict' : 'production'; }
@@ -103,8 +106,15 @@ export class WebGL2Gpu implements GpuBackend {
     this.maxDrawBuffers = gl.getParameter(gl.MAX_DRAW_BUFFERS) as number;
     this.indexed = gl.getExtension('OES_draw_buffers_indexed') as IndexedBlend | null;
     const formats = gl.getExtension('EXT_color_buffer_float');
+    // K51: GL ES 3.0/WebGL2 and desktop GL 3.3 guarantee only 16384-byte uniform blocks (ANGLE Metal reports
+    // exactly that). Accept the real minimum and report the native limit instead of refusing real GPUs.
+    const uniformBlock = gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) as number;
+    this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, uniformBlock - uniformBlock % 16);
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = (gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) as string | null) ?? null;
+    this.device = { renderer, software: softwareRenderer(renderer), nativeMaxUniformRange: uniformBlock };
     this.languages = this.indexed && formats && gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4096 &&
-      gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) >= 65536 &&
+      this.maxUniformRange >= GPU_UNIFORM_RANGE_MIN &&
       gl.getParameter(gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT) <= 256 &&
       gl.getParameter(gl.MAX_COLOR_ATTACHMENTS) >= 4 && gl.getParameter(gl.MAX_DRAW_BUFFERS) >= 4 &&
       gl.getParameter(gl.MAX_VERTEX_ATTRIBS) >= 16 && gl.getParameter(gl.MAX_UNIFORM_BUFFER_BINDINGS) >= 8 &&
@@ -439,7 +449,10 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.BLEND_CONSTANT: g.blendColor(float(w[0]), float(w[1]), float(w[2]), float(w[3])); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER: this.index = w; break;
-      case OP.UNIFORM_BUFFER: this.uniforms.set(h, w); break;
+      case OP.UNIFORM_BUFFER:
+        // The host validator enforces the reported limit; never bind a native range above the device's.
+        if (w[3] > this.maxUniformRange) throw new Error(`Uniform range ${w[3]} exceeds device limit ${this.maxUniformRange}`);
+        this.uniforms.set(h, w); break;
       case OP.TEXTURE: this.textureBindings.set(h, w); break;
       case OP.DRAW: this.draw(w, false); break;
       case OP.DRAW_INDEXED: this.draw(w, true); break;
@@ -1030,6 +1043,10 @@ export class WebGL2Gpu implements GpuBackend {
     this.completeFramebuffers.clear(); this.objectIds = new WeakMap(); this.nextObjectId = 1;
     this.maxElementIndex = this.gl.getParameter(this.gl.MAX_ELEMENT_INDEX) as number;
     this.maxDrawBuffers = this.gl.getParameter(this.gl.MAX_DRAW_BUFFERS) as number;
+    // The guest already observed maxUniformRange; a restored context must still honour it.
+    if (this.languages && (this.gl.getParameter(this.gl.MAX_UNIFORM_BLOCK_SIZE) as number) < this.maxUniformRange) {
+      throw new Error('GPU uniform block limit decreased');
+    }
     this.screen = null; this.screenSize = [0, 0]; this.enableFloatExtensions();
     const replay = (item: GpuItem) => { if (this.execute(item)) throw new Error('GPU resource restoration failed'); };
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });

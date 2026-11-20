@@ -30,13 +30,15 @@ function parseArgs(argv) {
     else if (k === '--out') { a.out = v; i++; }
     else if (k === '--port') { a.port = Number(v); i++; }
     else if (k === '--params') { for (const kv of v.split(',')) { const [x, y] = kv.split('='); if (x) a.params[x] = y ?? ''; } i++; }
+    else if (k === '--software') a.software = true;
     else if (k === '--record-frame') { a.recordFrame = Number(v); i++; }
     else if (k === '--cpu-profile') { a.cpuProfile = profileRange(v); i++; }
     else throw new Error(`unknown argument ${k}`);
   }
-  if (!a.game || !a.script) throw new Error('usage: npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out DIR] [--params k=v,...] [--cpu-profile START:END] [--port N]');
+  if (!a.game || !a.script) throw new Error('usage: npm run probe -- --game <id> [--backend webgl2|webgpu] [--software] --script <file.mjs> [--out DIR] [--params k=v,...] [--cpu-profile START:END] [--port N]');
   if (a.recordFrame !== undefined && (!Number.isSafeInteger(a.recordFrame) || a.recordFrame < 0)) throw new Error('--record-frame must be a nonnegative update index');
   if (!['webgl2', 'webgpu'].includes(a.backend)) throw new Error('--backend must be webgl2 or webgpu');
+  if (a.software && a.backend !== 'webgl2') throw new Error('--software applies to WebGL2 only');
   return a;
 }
 
@@ -52,7 +54,7 @@ async function freePort(start) {
 }
 
 /** The object handed to the script. Coordinates are logical pixels. */
-export function makeProbe(page, { game, backend, out, params, log, profiler = null, engineUrl = null }) {
+export function makeProbe(page, { game, backend, out, params, log, profiler = null, engineUrl = null, software = false }) {
   let activeRead=null,readBinding;
   const rawApi = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
   const api = (fn, ...args) => fn === 'step' && profiler ? profiler.step(args[0],rawApi) : rawApi(fn,...args);
@@ -73,6 +75,11 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
       await page.waitForFunction(() => { const t = window.__BGT_TEST__; return !!t && (t.ready() || t.failed()); }, null, { timeout: 30_000 });
       const d = await api('diagnostics');
       if (d.backend !== backend) log.notes.push(`requested ${backend}, got ${d.backend}: ${d.backendNotes.join('; ')}`);
+      // K51: native renderer string; software:true means a CPU rasterizer. A native-GPU probe that silently
+      // lands on SwiftShader would produce invalid performance numbers: fail unless --software asked for it.
+      log.device = d.gpuDevice ?? null; log.software = d.gpuDevice ? d.gpuDevice.software : null;
+      if (d.gpuDevice?.software && !software)
+        throw new Error(`requested ${backend} on the native GPU but got software renderer "${d.gpuDevice.renderer}"; pass --software to accept it`);
       return d;
     },
     step: (n = 1) => api('step', n),
@@ -216,7 +223,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     validatePort(port);
     server = await startServer(port, a.game);
     const { chromium } = await import('@playwright/test');
-    browser = await chromium.launch(a.backend === 'webgpu' ? { channel: 'chromium', args: WEBGPU_ARGS } : {});
+    // K51: WebGL2 probes also use the native GPU (ANGLE Metal on macOS); the headless-shell default is SwiftShader,
+    // which made every earlier WebGL2 game measurement a software-rasterizer number. --software restores it for A/B.
+    browser = await chromium.launch(a.software ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : { channel: 'chromium', args: WEBGPU_ARGS });
     const ctx = await browser.newContext({ baseURL: server.url, viewport: { width: 960, height: 540 } });
     page = await ctx.newPage();
     let recordingEnded = false, recordingSequence = 0;
@@ -240,7 +249,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     page.on('pageerror', (e) => log.errors.push(e.message));
     const api = (fn, ...args) => page.evaluate(([f, x]) => window.__BGT_TEST__[f](...x), [fn, args]);
     profiler = a.cpuProfile ? await createCpuProfiler(page, a.cpuProfile, out, log) : null;
-    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler });
+    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler, software: !!a.software });
     await p.start();
     await script.default(p);
     if (a.recordFrame !== undefined && !recordingEnded) throw new Error('Recording incomplete: script did not render target update');

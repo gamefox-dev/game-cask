@@ -901,7 +901,7 @@ Fragment position is top-left pixel centre with depth [0,1]. No guest-visible ba
 
 VERTEX/INDEX/UNIFORM_BUFFER require corresponding usage bits and positive size fitting the buffer. Vertex offset
 multiple of 4; index format UINT16=0 or UINT32=1, offset and size multiple of 2 or 4 respectively. Uniform offset
-multiple of 256, size multiple of 16 and <=65536. Slots 0..7; uniform and texture slots are independent namespaces.
+multiple of 256, size multiple of 16 and <= the reported `max_uniform_range` (§13.6; 16384..65536). Slots 0..7; uniform and texture slots are independent namespaces.
 TEXTURE requires SAMPLED usage and an existing sampler. Every pipeline layout buffer slot must be bound, even if
 no attributes reference it. Required masks must be covered before a draw; extra bound slots are harmless. Buffer
 and texture bindings need not wait for PIPELINE. No automatic binding of handle 0 or dummy buffers/textures.
@@ -1021,7 +1021,7 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 40 | max_binding_slots | 8 each uniform/texture namespace |
 | 44 | max_color_attachments | 4 |
 | 48 | uniform_offset_alignment | 256 |
-| 52 | max_uniform_range | 65536 |
+| 52 | max_uniform_range | 65536 without CAP_GPU; with CAP_GPU min(65536, native limit) — 16384..65536 (K51) |
 | 56 | max_vertex_stride | 2048 |
 | 60 | max_shader_bytes | 1048576 |
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
@@ -1030,7 +1030,20 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 76 | reserved | 0 |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
-supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
+supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
+portable ceiling and rounded down to 16: WebGL2 `MAX_UNIFORM_BLOCK_SIZE` (ANGLE Metal reports the WebGL2/GL 3.3
+minimum 16384), WebGPU `maxUniformBufferBindingSize` (default 65536). A backend below 16384 does not advertise
+CAP_GPU. UNIFORM_BUFFER sizes above the reported value are E_LIMIT, and a native backend never binds a larger range.
+The value is fixed per GPU namespace: a restored device below it is unrecoverable, not silently smaller. A
+WebGPU→WebGL2 fallback (only allowed without live GPU resources) creates a new namespace that reports the new
+backend's value, possibly 16384; the WGL profile re-queries it at every link, so programs linked afterwards use it.
+Nothing is relinked: a program linked before the fallback at the larger value is not re-validated (it has no live
+GPU module, or the fallback is refused), and a value the guest queried earlier is not updated, so a later
+compile/link of a block above the new limit fails with the `GL_MAX_UNIFORM_BLOCK_SIZE` info log.
+The WGL profile reports it as `GL_MAX_UNIFORM_BLOCK_SIZE` and fails compile/link (with an explicit
+`GL_MAX_UNIFORM_BLOCK_SIZE` info log) for a user std140 block above it. Default-block uniforms keep up to
+min(16384, limit) bytes: when the profile's own meta/swizzle words would not fit beside them, they move to a separate
+internal block in the next free uniform slot (offset 256-aligned in the same buffer), so they are not charged to the guest. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
@@ -1352,7 +1365,7 @@ a bound but undersized user uniform block draws with its actual available prefix
 This is a counted approximation of desktop GL's undefined shader result, not an ES/WebGL draw-error rule, and is
 independent of source language (GLSL330/ES300). Every affected block/draw increments `gl_approximations` under
 `undersized uniform block range zero-filled`. An explicit program/block/name/binding/buffer/offset/size/required
-warning is logged once per linked program/block/binding. Seven reusable private UBOs (at most 7 * 64 KiB) are
+warning is logged once per linked program/block/binding. Seven reusable private UBOs (at most 7 * max_uniform_range) are
 zeroed and populated with native BUFFER_COPY prefixes before drawing, so GPU-generated prefixes remain correct
 and unrelated application bytes beyond the bound range never leak into the tail. Relink resets warning state.
 Missing buffers remain GL_INVALID_OPERATION. Valid ranges use exactly the complete linked std140 size; neither the

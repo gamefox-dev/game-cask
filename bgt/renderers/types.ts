@@ -60,9 +60,23 @@ export interface GpuBackend {
   /** WebGL native-query policy; unrelated to test API availability. */
   readonly nativeQueryPolicy?: 'production' | 'strict';
   readonly nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }>;
+  /** K51: largest UNIFORM_BUFFER range (and std140 block) the native device accepts, bytes. Absent means the
+   * portable 65536 ceiling. Hosts clamp it to [16384, 65536], multiple of 16, and report it at §13.6 offset 52. */
+  readonly maxUniformRange?: number;
+  /** K51 diagnostics only: native renderer/adapter identity captured at init (never a per-frame query). */
+  readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */
   execute(item: GpuItem): number;
 }
+export interface GpuDeviceInfo {
+  /** WebGL2: UNMASKED_RENDERER_WEBGL (else RENDERER); WebGPU: adapter vendor/architecture/description. */
+  renderer: string | null;
+  /** True when the renderer string names a CPU rasterizer (SwiftShader/llvmpipe/WARP). */
+  software: boolean;
+  /** Native maximum before clamping to the portable ceiling. */
+  nativeMaxUniformRange: number;
+}
+export const softwareRenderer = (s: string | null): boolean => !!s && /swiftshader|llvmpipe|softpipe|microsoft basic render|\bwarp\b/i.test(s);
 export const UNSUPPORTED_GPU: GpuBackend = { languages: 0, execute: () => -4 };
 
 export interface Renderer {

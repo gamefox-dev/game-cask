@@ -69,3 +69,14 @@ it('an explicitly enabled GPU host reports its language mask and clears no unrel
   const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
   expect(words[4]).toBe(1); expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | CAP_ENTROPY | 1); // LANE-K1
 });
+// K51: offset 52 must be the backend's real (clamped) limit; a fixed 65536 would lie to a 16384-byte WebGL2 device.
+it.each([[undefined, 65536], [16384, 16384], [32776, 32768], [131072, 65536]])(
+  'max_uniform_range reports backend limit %s as %i', async (native, expected) => {
+    const host = await GameHost.create(wasm, { log: () => {}, vfs: new Vfs(), now: () => 0 }, {
+      backend: 3, caps: CAP_GPU, seed: 1, displayWidth: 64, displayHeight: 64, arg0: 0, arg1: 80,
+      gpuBackend: { languages: 6, maxUniformRange: native, execute: () => 0 },
+    });
+    host.init();
+    const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
+    expect(words[4]).toBe(1); expect(words[13]).toBe(expected);
+  });
