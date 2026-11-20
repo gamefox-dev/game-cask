@@ -256,6 +256,12 @@ Missing timing or a zero denominator yields null. No interval is bridged across 
 first/last frames and work after the last present are excluded. Probe JSON retains the full per-thread and
 per-frame breakdown; the terminal summary labels instructions/active-wall-second and snapshot drops.
 
+### Performance measurement (K51)
+
+Real-GPU WebGL2, the real-page frame-rate tool (`npm run bench:page`), coverage-off performance builds
+(`BGT_COVERAGE=off` / `--no-coverage`) and the opt-in owner census (`BGT_OWNER_CENSUS=1`) are documented in
+[performance.md](performance.md).
+
 ### Exact native dispatch observations (Q85)
 
 Set **BGT_DISPATCH_COUNTERS=1** and rebuild to enable "native_dispatch" diagnostics

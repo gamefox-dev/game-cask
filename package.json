@@ -39,6 +39,7 @@
     "report": "node tools/report/report.mjs",
     "leakcheck": "node tools/report/leakcheck.mjs",
     "bench": "npm run build:examples && node tools/bench/bench.mjs",
+    "bench:page": "node tools/bench/page-fps.mjs",
     "bench:execution": "vitest run --config tools/bench/execution.config.ts",
     "bench:asyncify": "node tools/bench/asyncify.mjs",
     "bench:incremental": "node tools/build/incremental-bench.mjs",
