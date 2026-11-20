@@ -55,7 +55,7 @@ forward to at least N vsync periods since the previous present. Presentation nor
 CPU quanta only rotate threads. Non-presenting guests hit the cap or an idle/legacy wait boundary.
 Transport-only waits do not charge host latency. `step(n)` still means n consumed host updates.
 See [THREADS.md](../platforms/win32/THREADS.md) for GDI, idle-credit and deadline rules. Pipeline page
-pacing runs at most one update per rAF and drops backlog; deterministic instruction caps are not
+pacing runs at most one update per rAF, carries at most one period of remainder and drops older backlog; deterministic instruction caps are not
 hard wall-time preemption or a phone responsiveness guarantee.
 
 ## Stages and what they guarantee

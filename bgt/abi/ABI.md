@@ -65,7 +65,8 @@ loop:        ─► runtime fills io (input) ─► bgt_update(16667)   × N (fi
 
 Timing: for native BGT games the runtime accumulates real time and runs up to 4 updates per displayed
 frame (`LIMITS.maxCatchUpUpdates`), then drops backlog. Pipeline-profile packages run at most one bounded
-update per animation frame and drop backlog instead of multiplying guest-frame work. Under the test API,
+update per animation frame, carry at most one period of remainder (so a 60 Hz display updates every
+frame) and drop older backlog instead of multiplying guest-frame work. Under the test API,
 `step(n)` consumes exactly n host updates, not n instruction quanta or a guarantee of n guest presents.
 The Win32 profile defines its deterministic [guest time model](../../platforms/win32/THREADS.md#guest-time-model-k50-version-1)
 independently of `io.frame`; this does not change native BGT fixed-step semantics.

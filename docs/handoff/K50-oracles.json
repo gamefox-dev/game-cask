@@ -1,0 +1,1301 @@
+{
+  "note": "300-update lifted/interpreted comparisons at 9d8fee8 (code unchanged since). Cells for x64-gl-integer..x64-memory were rerun on Nov 20 at HEAD because their first logs predated the final commit; others ran after it on Nov 17. Cold x64-scale timed out on its first build and passed a warm rerun without changing its timeout. Informational per coordinator policy of Nov 20. x64-threads was rerun after it opted into the 2M cap (examples/x64-threads/game.json).",
+  "cells": [
+    {
+      "id": "win32-conformance",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      }
+    },
+    {
+      "id": "win32-conformance",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "cac197f9",
+        "interpreted": "cac197f9",
+        "liftedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d",
+        "interpretedTrace": "4025c512153126f1a73dc4d85d0159aa5beb336769d1ba9b18d135c888e9d07d"
+      }
+    },
+    {
+      "id": "win32-hello",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      }
+    },
+    {
+      "id": "win32-hello",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "3aee6ab3",
+        "interpreted": "3aee6ab3",
+        "liftedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad",
+        "interpretedTrace": "0bb5f07a240df01ab9dc933f53c1212b6ce4c07ae25cb47f8385adbed51401ad"
+      }
+    },
+    {
+      "id": "x64-audio",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "205450ef",
+        "interpreted": "205450ef",
+        "liftedTrace": "f01ac822e47ffb6362db349c2538657fa1908f1aa54fbb4e5cf2ed022358c031",
+        "interpretedTrace": "f01ac822e47ffb6362db349c2538657fa1908f1aa54fbb4e5cf2ed022358c031"
+      }
+    },
+    {
+      "id": "x64-audio",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "205450ef",
+        "interpreted": "205450ef",
+        "liftedTrace": "f01ac822e47ffb6362db349c2538657fa1908f1aa54fbb4e5cf2ed022358c031",
+        "interpretedTrace": "f01ac822e47ffb6362db349c2538657fa1908f1aa54fbb4e5cf2ed022358c031"
+      }
+    },
+    {
+      "id": "x64-audio-init",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b5cb968c",
+        "interpreted": "b5cb968c",
+        "liftedTrace": "56a52343971fa95527ae5a61e421be9a5a2774c8c2c1f5ed7b70ad653dee6699",
+        "interpretedTrace": "56a52343971fa95527ae5a61e421be9a5a2774c8c2c1f5ed7b70ad653dee6699"
+      }
+    },
+    {
+      "id": "x64-audio-init",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b5cb968c",
+        "interpreted": "b5cb968c",
+        "liftedTrace": "56a52343971fa95527ae5a61e421be9a5a2774c8c2c1f5ed7b70ad653dee6699",
+        "interpretedTrace": "56a52343971fa95527ae5a61e421be9a5a2774c8c2c1f5ed7b70ad653dee6699"
+      }
+    },
+    {
+      "id": "x64-basics",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "191054be",
+        "interpreted": "191054be",
+        "liftedTrace": "78398205dac0328663dae93657427331f1bdac81693da5277311b1fcb4299c7b",
+        "interpretedTrace": "78398205dac0328663dae93657427331f1bdac81693da5277311b1fcb4299c7b"
+      }
+    },
+    {
+      "id": "x64-basics",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "191054be",
+        "interpreted": "191054be",
+        "liftedTrace": "78398205dac0328663dae93657427331f1bdac81693da5277311b1fcb4299c7b",
+        "interpretedTrace": "78398205dac0328663dae93657427331f1bdac81693da5277311b1fcb4299c7b"
+      }
+    },
+    {
+      "id": "x64-contracts",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "49bbb6d6",
+        "interpreted": "49bbb6d6",
+        "liftedTrace": "35f9f9ef643d353aec8edca17912ce5176b74079187bcc0331197731a53ed756",
+        "interpretedTrace": "35f9f9ef643d353aec8edca17912ce5176b74079187bcc0331197731a53ed756"
+      }
+    },
+    {
+      "id": "x64-contracts",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "49bbb6d6",
+        "interpreted": "49bbb6d6",
+        "liftedTrace": "35f9f9ef643d353aec8edca17912ce5176b74079187bcc0331197731a53ed756",
+        "interpretedTrace": "35f9f9ef643d353aec8edca17912ce5176b74079187bcc0331197731a53ed756"
+      }
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "2515b061",
+        "interpreted": "2515b061",
+        "liftedTrace": "0b5ce1e994b05d0d7b3a872b287015812a875bf1b97f5f793ba8bc6703aac57a",
+        "interpretedTrace": "0b5ce1e994b05d0d7b3a872b287015812a875bf1b97f5f793ba8bc6703aac57a"
+      }
+    },
+    {
+      "id": "x64-cpp",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "2515b061",
+        "interpreted": "2515b061",
+        "liftedTrace": "0b5ce1e994b05d0d7b3a872b287015812a875bf1b97f5f793ba8bc6703aac57a",
+        "interpretedTrace": "0b5ce1e994b05d0d7b3a872b287015812a875bf1b97f5f793ba8bc6703aac57a"
+      }
+    },
+    {
+      "id": "x64-cpprt",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      }
+    },
+    {
+      "id": "x64-cpprt",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "8e59b196",
+        "interpreted": "8e59b196",
+        "liftedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510",
+        "interpretedTrace": "59b8c192824f76c9df5e1b3b899e4b4a8e996c0194c2b86b73c41428f20a8510"
+      }
+    },
+    {
+      "id": "x64-crt",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "8bb5bbff",
+        "interpreted": "8bb5bbff",
+        "liftedTrace": "8fc973be4c63383eb3e3d682dd40b8761fe00851e7d2a8c48437384b52279473",
+        "interpretedTrace": "8fc973be4c63383eb3e3d682dd40b8761fe00851e7d2a8c48437384b52279473"
+      }
+    },
+    {
+      "id": "x64-crt",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "8bb5bbff",
+        "interpreted": "8bb5bbff",
+        "liftedTrace": "8fc973be4c63383eb3e3d682dd40b8761fe00851e7d2a8c48437384b52279473",
+        "interpretedTrace": "8fc973be4c63383eb3e3d682dd40b8761fe00851e7d2a8c48437384b52279473"
+      }
+    },
+    {
+      "id": "x64-gl",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      }
+    },
+    {
+      "id": "x64-gl",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "47b028e6:01c4aa76",
+        "interpreted": "47b028e6:01c4aa76",
+        "liftedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3",
+        "interpretedTrace": "a5dae7294013f4834d66da958b1a7aebf7e4fca5a41f1418a0dc9fedf5d034b3"
+      }
+    },
+    {
+      "id": "x64-gl-blit",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      }
+    },
+    {
+      "id": "x64-gl-blit",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "6bc914b7:b46fb07b",
+        "interpreted": "6bc914b7:b46fb07b",
+        "liftedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a",
+        "interpretedTrace": "cca98ffa51370234ef3f5ce7229cf770c3209c66da2678bf344672478029d82a"
+      }
+    },
+    {
+      "id": "x64-gl-capacity",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "5e718cd2:811c9dc5",
+        "interpreted": "5e718cd2:811c9dc5",
+        "liftedTrace": "61e3c8860d6f9dd4f233066b0d281e27e69cf7c981387cb2a8e2d6d24f79b6e3",
+        "interpretedTrace": "61e3c8860d6f9dd4f233066b0d281e27e69cf7c981387cb2a8e2d6d24f79b6e3"
+      }
+    },
+    {
+      "id": "x64-gl-capacity",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "5e718cd2:811c9dc5",
+        "interpreted": "5e718cd2:811c9dc5",
+        "liftedTrace": "61e3c8860d6f9dd4f233066b0d281e27e69cf7c981387cb2a8e2d6d24f79b6e3",
+        "interpretedTrace": "61e3c8860d6f9dd4f233066b0d281e27e69cf7c981387cb2a8e2d6d24f79b6e3"
+      }
+    },
+    {
+      "id": "x64-gl-current",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      }
+    },
+    {
+      "id": "x64-gl-current",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "1130f0ae:5a8d64ad",
+        "interpreted": "1130f0ae:5a8d64ad",
+        "liftedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454",
+        "interpretedTrace": "98ab5327a419e5fa84b6764dc6d6be3f32237b5db4e418702083247c0fb82454"
+      }
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      }
+    },
+    {
+      "id": "x64-gl-default-vao",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "558085bd:61d8bdd0",
+        "interpreted": "558085bd:61d8bdd0",
+        "liftedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437",
+        "interpretedTrace": "73c1bca0ffdcb0dc429e48d62bc61c76659f1c7afa2a85d890c1010c64bdf437"
+      }
+    },
+    {
+      "id": "x64-gl-fbo",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      }
+    },
+    {
+      "id": "x64-gl-fbo",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "884b43af:ec039dc1",
+        "interpreted": "884b43af:ec039dc1",
+        "liftedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92",
+        "interpretedTrace": "28e859a31414be4c66eab68d687f7a90038867f04cac536b86f45663a32f8c92"
+      }
+    },
+    {
+      "id": "x64-gl-feedback",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      }
+    },
+    {
+      "id": "x64-gl-feedback",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b8fb8e26:811c9dc5",
+        "interpreted": "b8fb8e26:811c9dc5",
+        "liftedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a",
+        "interpretedTrace": "2331f6adb6daf0faef0b79c2cfdbdde474d7df3ccc635456b59201411ef7d89a"
+      }
+    },
+    {
+      "id": "x64-gl-integer",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      }
+    },
+    {
+      "id": "x64-gl-integer",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "5ed6b84d:4de7479f",
+        "interpreted": "5ed6b84d:4de7479f",
+        "liftedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01",
+        "interpretedTrace": "8ade141663437eb839adc1232d75cad2781207fb0dbff59c5e8e2087a9d40b01"
+      }
+    },
+    {
+      "id": "x64-gl-orphan",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "36f8c251:3f07e252",
+        "interpreted": "36f8c251:3f07e252",
+        "liftedTrace": "fcca552dc5a08f326a06906847c3a0d683a4769c5b732606a1a2d5da5b6bbb7e",
+        "interpretedTrace": "fcca552dc5a08f326a06906847c3a0d683a4769c5b732606a1a2d5da5b6bbb7e"
+      }
+    },
+    {
+      "id": "x64-gl-orphan",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "36f8c251:3f07e252",
+        "interpreted": "36f8c251:3f07e252",
+        "liftedTrace": "fcca552dc5a08f326a06906847c3a0d683a4769c5b732606a1a2d5da5b6bbb7e",
+        "interpretedTrace": "fcca552dc5a08f326a06906847c3a0d683a4769c5b732606a1a2d5da5b6bbb7e"
+      }
+    },
+    {
+      "id": "x64-gl-ranges",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "0a697d73014f15387b090bd6478464a649d1e779c7bc74bbf8c0baa6ce777551",
+        "interpretedTrace": "0a697d73014f15387b090bd6478464a649d1e779c7bc74bbf8c0baa6ce777551"
+      }
+    },
+    {
+      "id": "x64-gl-ranges",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "acab916b:811c9dc5",
+        "interpreted": "acab916b:811c9dc5",
+        "liftedTrace": "0a697d73014f15387b090bd6478464a649d1e779c7bc74bbf8c0baa6ce777551",
+        "interpretedTrace": "0a697d73014f15387b090bd6478464a649d1e779c7bc74bbf8c0baa6ce777551"
+      }
+    },
+    {
+      "id": "x64-gl-scale",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "fb628d5632612de047d7cafa9b36583266566cf29db60b1f984ec90ec19c2437",
+        "interpretedTrace": "fb628d5632612de047d7cafa9b36583266566cf29db60b1f984ec90ec19c2437"
+      }
+    },
+    {
+      "id": "x64-gl-scale",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "328a3899:811c9dc5",
+        "interpreted": "328a3899:811c9dc5",
+        "liftedTrace": "fb628d5632612de047d7cafa9b36583266566cf29db60b1f984ec90ec19c2437",
+        "interpretedTrace": "fb628d5632612de047d7cafa9b36583266566cf29db60b1f984ec90ec19c2437"
+      }
+    },
+    {
+      "id": "x64-glsl",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      }
+    },
+    {
+      "id": "x64-glsl",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "7531959c:62477e5d",
+        "interpreted": "7531959c:62477e5d",
+        "liftedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7",
+        "interpretedTrace": "b041ea7796a92d4a60f96e46d15854b8fb02bc332d9390b01fe2c7da48d81cb7"
+      }
+    },
+    {
+      "id": "x64-gui",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      }
+    },
+    {
+      "id": "x64-gui",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "cae2906b",
+        "interpreted": "cae2906b",
+        "liftedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2",
+        "interpretedTrace": "f93cc5effa9790ff44c688861759c3c19626bd1e5fe578c52f67a73cd26b08b2"
+      }
+    },
+    {
+      "id": "x64-handles",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      }
+    },
+    {
+      "id": "x64-handles",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9c945881",
+        "interpreted": "9c945881",
+        "liftedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0",
+        "interpretedTrace": "ae31a71ba76dac328c3ecd0d207196c6b31305f21a6ee61f83106946f5f82da0"
+      }
+    },
+    {
+      "id": "x64-heap",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "4069b636314c6baa19f0cc731b41f6c0879ffd6b9329595627ca7e180de52d59",
+        "interpretedTrace": "4069b636314c6baa19f0cc731b41f6c0879ffd6b9329595627ca7e180de52d59"
+      }
+    },
+    {
+      "id": "x64-heap",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "dfa6e55f",
+        "interpreted": "dfa6e55f",
+        "liftedTrace": "4069b636314c6baa19f0cc731b41f6c0879ffd6b9329595627ca7e180de52d59",
+        "interpretedTrace": "4069b636314c6baa19f0cc731b41f6c0879ffd6b9329595627ca7e180de52d59"
+      }
+    },
+    {
+      "id": "x64-imports",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      }
+    },
+    {
+      "id": "x64-imports",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "4a8febdb",
+        "interpreted": "4a8febdb",
+        "liftedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284",
+        "interpretedTrace": "41f1fb66be96953e7db777f21e91ec2ecad1f1e5a98e8ad5a75b922f83432284"
+      }
+    },
+    {
+      "id": "x64-input",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "893bac7f",
+        "interpreted": "893bac7f",
+        "liftedTrace": "6f06df6f34c6ee131fd31a274f1d986fec16f45e70608c4cbff5e00ecd61ba82",
+        "interpretedTrace": "6f06df6f34c6ee131fd31a274f1d986fec16f45e70608c4cbff5e00ecd61ba82"
+      }
+    },
+    {
+      "id": "x64-input",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "893bac7f",
+        "interpreted": "893bac7f",
+        "liftedTrace": "6f06df6f34c6ee131fd31a274f1d986fec16f45e70608c4cbff5e00ecd61ba82",
+        "interpretedTrace": "6f06df6f34c6ee131fd31a274f1d986fec16f45e70608c4cbff5e00ecd61ba82"
+      }
+    },
+    {
+      "id": "x64-memory",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "21a3a01183bc132d188d34bf0e426311af310447d137485c188802925d8430ea",
+        "interpretedTrace": "21a3a01183bc132d188d34bf0e426311af310447d137485c188802925d8430ea"
+      }
+    },
+    {
+      "id": "x64-memory",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "b4565d5d",
+        "interpreted": "b4565d5d",
+        "liftedTrace": "21a3a01183bc132d188d34bf0e426311af310447d137485c188802925d8430ea",
+        "interpretedTrace": "21a3a01183bc132d188d34bf0e426311af310447d137485c188802925d8430ea"
+      }
+    },
+    {
+      "id": "x64-scale",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "56398e75",
+        "interpreted": "56398e75",
+        "liftedTrace": "d9b39e5ca26e327f93570e87deac0874faff47726b3a4d47ef39e28ef5547b8f",
+        "interpretedTrace": "d9b39e5ca26e327f93570e87deac0874faff47726b3a4d47ef39e28ef5547b8f"
+      }
+    },
+    {
+      "id": "x64-scale",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "56398e75",
+        "interpreted": "56398e75",
+        "liftedTrace": "d9b39e5ca26e327f93570e87deac0874faff47726b3a4d47ef39e28ef5547b8f",
+        "interpretedTrace": "d9b39e5ca26e327f93570e87deac0874faff47726b3a4d47ef39e28ef5547b8f"
+      }
+    },
+    {
+      "id": "x64-smoke",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "fce11b15:01c4aa76",
+        "interpreted": "fce11b15:01c4aa76",
+        "liftedTrace": "ef70db13cc536d90fd010b2cfb41a61711c0f30892b3d6a98953b94fbb16bb21",
+        "interpretedTrace": "ef70db13cc536d90fd010b2cfb41a61711c0f30892b3d6a98953b94fbb16bb21"
+      }
+    },
+    {
+      "id": "x64-smoke",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "fce11b15:01c4aa76",
+        "interpreted": "fce11b15:01c4aa76",
+        "liftedTrace": "ef70db13cc536d90fd010b2cfb41a61711c0f30892b3d6a98953b94fbb16bb21",
+        "interpretedTrace": "ef70db13cc536d90fd010b2cfb41a61711c0f30892b3d6a98953b94fbb16bb21"
+      }
+    },
+    {
+      "id": "x64-sysdlls",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "976538d8c86a97074e1e490c8f7cb706acbb9f266d7a26986d97651341f795ab",
+        "interpretedTrace": "976538d8c86a97074e1e490c8f7cb706acbb9f266d7a26986d97651341f795ab"
+      }
+    },
+    {
+      "id": "x64-sysdlls",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9fdbaf40",
+        "interpreted": "9fdbaf40",
+        "liftedTrace": "976538d8c86a97074e1e490c8f7cb706acbb9f266d7a26986d97651341f795ab",
+        "interpretedTrace": "976538d8c86a97074e1e490c8f7cb706acbb9f266d7a26986d97651341f795ab"
+      }
+    },
+    {
+      "id": "x64-threads",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "02a5554a138188e22e66334325d091e00bbadad4a5d465ad50ac1cd8e37372fd",
+        "interpretedTrace": "02a5554a138188e22e66334325d091e00bbadad4a5d465ad50ac1cd8e37372fd"
+      }
+    },
+    {
+      "id": "x64-threads",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "57670827",
+        "interpreted": "57670827",
+        "liftedTrace": "02a5554a138188e22e66334325d091e00bbadad4a5d465ad50ac1cd8e37372fd",
+        "interpretedTrace": "02a5554a138188e22e66334325d091e00bbadad4a5d465ad50ac1cd8e37372fd"
+      }
+    },
+    {
+      "id": "x64-time",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9ea485fa:811c9dc5",
+        "interpreted": "9ea485fa:811c9dc5",
+        "liftedTrace": "06fe103015aa7d75b7b51050cc3cb7f31328db49dffd5dcaa274eea1dddd2055",
+        "interpretedTrace": "06fe103015aa7d75b7b51050cc3cb7f31328db49dffd5dcaa274eea1dddd2055"
+      }
+    },
+    {
+      "id": "x64-time",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "9ea485fa:811c9dc5",
+        "interpreted": "9ea485fa:811c9dc5",
+        "liftedTrace": "06fe103015aa7d75b7b51050cc3cb7f31328db49dffd5dcaa274eea1dddd2055",
+        "interpretedTrace": "06fe103015aa7d75b7b51050cc3cb7f31328db49dffd5dcaa274eea1dddd2055"
+      }
+    },
+    {
+      "id": "x64-tls",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ebf98bd6",
+        "interpreted": "ebf98bd6",
+        "liftedTrace": "374331b25c292c4598cd5bfbf2599305d74c1e0a18941e60efa73271e5645cff",
+        "interpretedTrace": "374331b25c292c4598cd5bfbf2599305d74c1e0a18941e60efa73271e5645cff"
+      }
+    },
+    {
+      "id": "x64-tls",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ebf98bd6",
+        "interpreted": "ebf98bd6",
+        "liftedTrace": "374331b25c292c4598cd5bfbf2599305d74c1e0a18941e60efa73271e5645cff",
+        "interpretedTrace": "374331b25c292c4598cd5bfbf2599305d74c1e0a18941e60efa73271e5645cff"
+      }
+    },
+    {
+      "id": "x86-handles",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      }
+    },
+    {
+      "id": "x86-handles",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ab4cc133",
+        "interpreted": "ab4cc133",
+        "liftedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87",
+        "interpretedTrace": "fe2dfc67a62b4fa8fbe446b12bd31bee21871c530a09f9b627e15d022bd05a87"
+      }
+    },
+    {
+      "id": "x86-heap",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "d839a6b95217ca7b5e8aab2b0dfc83ddfc4f1b06c767c2c1e93f4791ca605f56",
+        "interpretedTrace": "d839a6b95217ca7b5e8aab2b0dfc83ddfc4f1b06c767c2c1e93f4791ca605f56"
+      }
+    },
+    {
+      "id": "x86-heap",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "ae4a7fb3",
+        "interpreted": "ae4a7fb3",
+        "liftedTrace": "d839a6b95217ca7b5e8aab2b0dfc83ddfc4f1b06c767c2c1e93f4791ca605f56",
+        "interpretedTrace": "d839a6b95217ca7b5e8aab2b0dfc83ddfc4f1b06c767c2c1e93f4791ca605f56"
+      }
+    },
+    {
+      "id": "x86-threads",
+      "mode": "asyncify",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      }
+    },
+    {
+      "id": "x86-threads",
+      "mode": "jspi",
+      "requested": 300,
+      "compared": 300,
+      "identical": true,
+      "firstDivergence": null,
+      "errors": {
+        "lifted": null,
+        "interpreted": null
+      },
+      "hashes": {
+        "lifted": "55742fef",
+        "interpreted": "55742fef",
+        "liftedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb",
+        "interpretedTrace": "e8074b855b4d933365c7a0a33aae0ca677443845af3c4aa82c63758463992acb"
+      }
+    }
+  ]
+}

@@ -75,8 +75,8 @@ sides and both suspension modes. See [savestates](../../docs/savestates.md).
 
 **step(n) means n consumed host updates**, not n quanta or n guaranteed presents. For a presenting guest
 below the cap with no I/O waits, this is one present per update. Non-presenting, idle, cap-limited and
-transport-bound guests can differ. Real-page pipeline pacing runs at most one update per rAF and drops
-backlog; native BGT fixed-step games keep their catch-up policy. The deterministic cap bounds work, not
+transport-bound guests can differ. Real-page pipeline pacing runs at most one update per rAF, keeps the
+sub-period remainder (at most one period) and drops older backlog; native BGT fixed-step games keep their catch-up policy. The deterministic cap bounds work, not
 milliseconds: main-thread wasm cannot offer hard wall-time preemption. No phone responsiveness guarantee.
 
 Original CC0 examples/x64-time verifies a multi-quantum main, real WASAPI event worker, Sleep/QPC/timeGetTime
