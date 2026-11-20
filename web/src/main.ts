@@ -29,6 +29,8 @@ const rt = new BGTRuntime({
   backend: (q.get('backend') as BackendPreference) ?? 'auto',
   // Test/probe API availability must not force strict native GL queries.
   debug,
+  gpuTiming: q.get('gputiming') === '1',
+  gpuBatch: q.get('gpubatch') !== '0',
   seed: num('seed', 1),
   arg0: num('arg0', 0),
   arg1: num('arg1', 0),

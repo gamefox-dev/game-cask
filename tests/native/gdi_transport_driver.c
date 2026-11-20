@@ -22,6 +22,7 @@ void w32_user_present_overlay(void) {
 }
 void w32_guest_present(int gl) { (void)gl;presents++; }
 void w32_gl_charge_foreign(uint32_t bytes,uint32_t commands) { (void)bytes;(void)commands; }
+void w32_gl_flush(void) {}
 int32_t bgt_submit_commands(const void *p,uint32_t n) {
     const uint32_t *v=p;assert(n>=16 && v[0]==BGT_CMD_MAGIC && v[2]==n && v[3]<=BGT_LIMIT_COMMANDS);
     for(unsigned off=16;off<n;) {

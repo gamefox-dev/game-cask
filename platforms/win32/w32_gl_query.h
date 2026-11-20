@@ -1,5 +1,5 @@
 /* Queries and WGL. SPDX-License-Identifier: MIT — LANE-GL */
-static uint32_t api_GetError(void) { uint32_t e = error; error = 0; return e; }
+static uint32_t api_GetError(void) { flush_pending(); uint32_t e = error; error = 0; return e; }
 static uint32_t string_guest(const char *s) {
     uint32_t n = w32_slen(s) + 1, p = w32_misc_alloc(n);
     for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]);
@@ -185,6 +185,7 @@ static uint32_t api_wglDeleteContext(void) {
 static uint32_t api_SwapBuffers(void) {
     if (!current || ARG(0) != dc) return 0;
     if (!interval) { present_interval0(); return 1; }
+    flush_pending(); /* I17: K53's batch joins the ordered queue (journal first if deferring) before the present */
     if (journal_len && !journal_fits_frame()) w32_wait_transport(); /* resume submits it */
     journal_submit(); exposed = 0; deferring = 0; guest_frame = (gpu_usage_t){0};
     w32_clock_present(interval); w32_guest_present(1); w32_wait_transport(); return 1;

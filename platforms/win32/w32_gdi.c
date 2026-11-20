@@ -91,7 +91,8 @@ static void gdi_submit(bgt_cmdbuf_t *b) {
     bgt_cmd_submit(b);
 }
 static void flush_records(void) {
-    for (uint32_t i = 0; i < nrec_used; i++) gdi_submit(&rec[i].cb);
+    if (nrec_used) w32_gl_flush(); /* K53: keep GL-before-GDI submission order */
+    for (uint32_t i = 0; i < nrec_used; i++) gdi_submit(&rec[i].cb); /* K50: charged to the GL host frame */
     nrec_used = 0;
     stage_used = 0;
 }

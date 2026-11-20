@@ -1335,6 +1335,33 @@ output locations (zero for absent outputs), retaining the application's per-chan
 Vertex/fragment input locations do not count as outputs, including in combined WGSL modules. Depth-only and feedback
 programs remain valid; an absent color output is not a reason to drop depth/feedback work.
 
+**Frame batching (K53; no wire, opcode, capability or limit change).** The desktop WGL profile appends
+GPU-only lists whose acceptance changes no profile bookkeeping (pass/draw/clear lists without transform
+feedback, BUFFER_UPDATE, TEXTURE_UPDATE[_EX]) to one pending continuation list, with upload bytes copied
+into a batch-owned arena at the GL call. It submits that list, in unchanged stream order, before any
+synchronous submission (creates, deletes, copies, readbacks, requests, feedback draws), at every host
+yield (SwapBuffers, transport waits, update end), before GDI record flushes, and at glGetError, glFlush,
+glFinish or any newly latched guest error. A rejected batch (whole-list, no effects) is replayed as its
+original per-call lists in order, so each call is accepted or rejected as it would have been unbatched
+(first rejection latches GL_OUT_OF_MEMORY for E_LIMIT, otherwise GL_INVALID_OPERATION; a draw whose deferred
+uniform upload was rejected is not emitted), and a journal restores profile shadow bytes, generation and
+uniform dirtiness of rejected calls. One divergence remains under GL_OUT_OF_MEMORY (GL state undefined): a
+rejected equal-size glBufferData keeps its old store instead of the unbatched delete/create fallback. Only
+list boundaries move; Frame.items and upload bytes are identical. Renderers merge passes natively: WebGPU
+records the frame's §13 passes into one command encoder, continues the open native pass for a following
+PASS_BEGIN on identical attachments whose loads are all LOAD (begin state reset per §13.1), keeps screen
+passes separate (opaque store boundary), renames CPU-authoritative buffers (≤256 KiB) updated while the
+pending encoder references them, and submits before blit/copy/readback/mip generation/referenced texture
+uploads/legacy items; presentation and the retained-snapshot copy are encoded into the frame's last command
+buffer, so a batched GL frame costs one GPUQueue.submit. WebGL 2 keeps a pass framebuffer bound for the next
+same-image pass and shadows program/VAO/viewport/scissor/depth-range/blend-color state to skip identical calls
+(cleared by any other GL writer); its one production native-error poll per frame runs at the next frame's start.
+Standalone executors keep per-pass submission unless the renderer enables merging; `?gpubatch=0` and the
+`BGT_GL_SYNC_SUBMIT=1` build restore the old shapes for A/B evidence. Diagnostics `lastFrame.nativePasses`,
+`nativeSubmits`, `mergedPasses`, `bufferRenames`, `skippedBinds`, and opt-in `?gputiming=1` `gpuMs`/`gpuTiming`
+(WebGPU timestamp-query §13 pass time; WebGL EXT_disjoint_timer_query_webgl2 frame time; otherwise
+`unavailable`) report the effect. GL metrics `gl_batched_lists`, `gl_batch_flushes`, `gl_sync_submits`, `gl_batch_replays`.
+
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 
 `BUFFER_COPY` is a 20-byte **outside-pass** operation: `source, source_offset, destination,

@@ -129,6 +129,8 @@ uint64_t w32_gl_deferred_lists(void);
 uint64_t w32_gl_deferred_rejects(void);
 uint64_t w32_audio_events_coalesced(void);
 void w32_wait_transport(void);
+/* K53: submit the GL profile's deferred GPU list (frame boundaries, foreign submissions). */
+void w32_gl_flush(void);
 void w32_gdi_present_boundary(void);
 int w32_gdi_pending(void);
 uint32_t w32_audio_next_ms(void);

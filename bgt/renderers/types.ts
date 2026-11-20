@@ -32,9 +32,22 @@ export interface NativeSyncQueries {
 
 export interface GpuStats {
   drawCalls: number;
+  /** Logical passes: 2D passes plus §13 PASS_BEGIN items. */
   passes: number;
   vertexBytes: number;
   submitMs: number;
+  /** K53 per-frame native census. WebGPU: render passes actually encoded (merged §13 passes count once)
+   * and GPUQueue.submit calls. WebGL 2: framebuffer attachment (re)binds and 0 submits. */
+  nativePasses?: number;
+  nativeSubmits?: number;
+  /** §13 passes continued in the previous native pass / WebGPU copy-on-write buffer renames. */
+  mergedPasses?: number;
+  bufferRenames?: number;
+  /** WebGL 2: redundant program/VAO/viewport/scissor/depth-range/blend-color calls skipped by the state shadow. */
+  skippedBinds?: number;
+  /** Opt-in GPU time (ms) of a recently completed frame's §13 passes; null when unavailable/pending. */
+  gpuMs?: number | null;
+  gpuTiming?: 'off' | 'unavailable' | 'timestamp-query' | 'timer-query';
 }
 
 /** Validated §13 command; words follow GPU_LAYOUT, uploads/source are owned copies.
