@@ -549,6 +549,7 @@ static x86_interpreter_coverage_t interpreter_coverage={.capacity=X86_INTERPRETE
 static uint32_t *interpreter_index;
 static uint32_t interpreter_record,interpreter_rows_allocated;
 void x86_register_code_owner_addresses(const uint32_t *addresses) {code_owner_addresses=addresses;}
+#include "x86_owner_census.h" /* K51 */
 const x86_interpreter_coverage_t *x86_interpreter_coverage(void) {return &interpreter_coverage;}
 static uint32_t interpreter_row(uint32_t address,const x86_code_range_t *range) {
     if(X86_COVERAGE_MODE==2||X86_COVERAGE_MODE==3)return 0; /* strict/off builds record no coverage rows */
@@ -638,7 +639,7 @@ static void execute_counted(const x86_insn_t *in, unsigned kind) {
     if (string) {
         if (X.eip != addr + in->len) return;
     } else if (X.mode64 && budget >= 2000000u && X.transfer && X.eip == addr) return;
-    x86_retire(kind, 1);
+    x86_retire(kind, 1); XOC_AT(addr, kind);
 }
 
 /* ------------------------------------------------------------------ interpreter loop */
@@ -769,7 +770,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
             if (fn) {
                 uint32_t next = in->addr + in->len;
                 x86_push(next);
-                x86_retire(XR_INTERPRETED, 1);
+                x86_retire(XR_INTERPRETED, 1); XOC_AT(in->addr, XR_INTERPRETED);
                 x86_metrics.lifted_calls++;
                 profiled_native(fn);
                 if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}

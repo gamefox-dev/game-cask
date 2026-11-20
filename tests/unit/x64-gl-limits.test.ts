@@ -7,7 +7,7 @@ import { glStream } from '../support/x64-gl-stream';
 import { GPU_OP as O } from '../../bgt/runtime/abi';
 it.each([16384, 32768, 65536])('x64-gl-limits: device uniform range %i is the guest limit and binding size', async (limit) => {
   const stream = glStream();
-  stream.gpuBackend = { ...stream.gpuBackend, maxUniformRange: limit };
+  stream.gpuBackend = { ...stream.gpuBackend!, maxUniformRange: limit };
   const h = await loadHeadless('x64-gl-limits', stream);
   await h.stepAsync(6);
   expect(h.logs.filter(s => /FAIL|command error/.test(s)), h.logs.join('\n')).toEqual([]);
