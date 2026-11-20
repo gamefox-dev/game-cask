@@ -84,7 +84,7 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
-import { newPageLog, pageLogPush, retainedAccumulator, summarizePageWindow, type PageWindowSummary } from './page-fps';
+import { newPageLog, pageLogPush, retainedAccumulator, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 
 export interface BGTDiagnostics {
   abi: string;
@@ -217,8 +217,8 @@ export class BGTRuntime {
   private last = 0;
   private acc = 0;
   private intervals: number[] = [];
-  /** K51: bounded real-page loop log (rAF ticks and completed canvas presents); see page-fps.ts. */
-  private pageLog = newPageLog();
+  /** K51: real-page loop log (rAF ticks and completed canvas presents), allocated only while measurePage runs. */
+  private pageLog: PageLoopLog | null = null;
   private presentsCompleted = 0;
   private errors: RuntimeErrorRecord[] = [];
   private logs: Array<{ level: number; message: string; frame: number }> = [];
@@ -736,10 +736,10 @@ export class BGTRuntime {
       this.last = t;
       this.checkLossWatchdog();
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy || this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) {
-        if (!this.paused && this.ready && !this.failed) pageLogPush(this.pageLog, 1, t);
+        if (this.pageLog && !this.paused && this.ready && !this.failed) pageLogPush(this.pageLog, 1, t);
         return;
       }
-      pageLogPush(this.pageLog, 0, t);
+      if (this.pageLog) pageLogPush(this.pageLog, 0, t);
       this.updateBusy = true;
       try {
       let n = 0;
@@ -754,10 +754,11 @@ export class BGTRuntime {
       }
       this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog rather than spiral (K51: keep the sub-step remainder)
       if (n > 0) {
-        const before = this.presentsCompleted, updates = n;
-        void this.renderFrame(false).then(() => {
-          if (this.presentsCompleted > before) pageLogPush(this.pageLog, 2, performance.now(), updates);
+        const before = this.presentsCompleted, updates = n, log = this.pageLog;
+        if (log) void this.renderFrame(false).then(() => {
+          if (this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
         }, () => {});
+        else void this.renderFrame(false);
       }
       } finally { this.updateBusy = false; }
     };
@@ -791,7 +792,8 @@ export class BGTRuntime {
       return typeof g === 'number' || typeof g === 'bigint' || typeof g === 'string' ? Number(g) : null;
     };
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-    this.pageLog = newPageLog();
+    if (this.pageLog) throw new Error('Overlapping page measurements');
+    const log = this.pageLog = newPageLog();
     this.resume();
     try {
       await sleep(warmupMs);
@@ -800,8 +802,8 @@ export class BGTRuntime {
       const end = performance.now(), g1 = guest();
       // Presents complete asynchronously; let a submitted frame finish before reducing the window.
       await this.renderTail;
-      return summarizePageWindow(this.pageLog, start, end, g0 !== null && g1 !== null ? g1 - g0 : null);
-    } finally { this.pause(); await this.renderTail; }
+      return summarizePageWindow(log, start, end, g0 !== null && g1 !== null ? g1 - g0 : null);
+    } finally { this.pause(); await this.renderTail; this.pageLog = null; }
   }
 
   async step(frames: number): Promise<void> {

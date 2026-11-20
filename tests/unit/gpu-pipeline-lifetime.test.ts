@@ -93,3 +93,12 @@ it('a synchronous native bind rejection clears current instead of drawing the pr
   expect(t.pass.draw).not.toHaveBeenCalled(); expect(t.pass.drawIndexed).not.toHaveBeenCalled();
   expect(t.send(O.PIPELINE,[1])).toBe(0);
 });
+// K51: a WebGPU backend never binds a uniform range above its device limit, even if a caller bypasses the validator.
+it('refuses a UNIFORM_BUFFER range above the device maxUniformBufferBindingSize', () => {
+  const errors: string[] = [], native = {}, gpu = new WebGPUCommands({ limits: { maxUniformBufferBindingSize: 16384 } } as unknown as GPUDevice, e => errors.push(e));
+  expect(gpu.maxUniformRange).toBe(16384);
+  (gpu as unknown as { buffers: Map<number, unknown> }).buffers.set(1, { native });
+  expect(gpu.execute({ kind: 'gpu', op: O.UNIFORM_BUFFER, words: [0, 1, 0, 16384] })).toBe(0);
+  expect(gpu.execute({ kind: 'gpu', op: O.UNIFORM_BUFFER, words: [0, 1, 0, 16400] })).toBe(E_IO);
+  expect(errors.join()).toMatch(/exceeds device limit 16384/);
+});

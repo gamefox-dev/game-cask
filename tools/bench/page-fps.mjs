@@ -57,8 +57,9 @@ async function main() {
         const d0 = await page.evaluate(() => window.__BGT_TEST__.diagnostics());
         const row = { backend, requestedSuspension: mode, actualBackend: d0.backend, suspension: d0.suspension, device: d0.gpuDevice,
           backendNotes: d0.backendNotes, failed: d0.failed, errors };
-        if (d0.failed || d0.backend !== backend || d0.suspension !== mode) {
-          row.skipped = d0.failed ? 'runtime failed' : `got ${d0.backend}/${d0.suspension}`; runs.push(row); await page.close(); continue;
+        if (d0.failed || d0.backend !== backend || d0.suspension !== mode || (d0.gpuDevice?.software && !a.software)) {
+          row.skipped = d0.failed ? 'runtime failed' : d0.gpuDevice?.software && !a.software ? `software renderer ${d0.gpuDevice.renderer} (pass --software)`
+            : `got ${d0.backend}/${d0.suspension}`; runs.push(row); await page.close(); continue;
         }
         row.summary = await page.evaluate(([w, u]) => window.__BGT_TEST__.measurePage(w, u), [a.windowMs, a.warmupMs]);
         const d1 = await page.evaluate(() => window.__BGT_TEST__.diagnostics());

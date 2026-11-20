@@ -23,8 +23,10 @@ test('x64-gl-limits: guest GL_MAX_UNIFORM_BLOCK_SIZE is the device limit; an at-
   expect(logs.some(l => l.endsWith(`x64-gl-limits PASS checks limit=${expected} failures=0`)), logs.join('\n')).toBe(true);
   // v[0] + v[limit/16 - 2] + tail == magenta; the green clear means the at-limit draw did not happen.
   expect(logs.some(l => l.endsWith('x64-gl-limits pixel=255,0,255,255')), logs.join('\n')).toBe(true);
+  // 1024 default-block vec4s (split profile block) compile natively and draw cyan on the left half.
+  expect(logs.some(l => l.endsWith('x64-gl-limits default-pixel=0,255,255,255')), logs.join('\n')).toBe(true);
   const px = await readPixels(page), b = d.letterbox;
-  const at = (Math.floor(b.y + b.h / 2) * px.width + Math.floor(b.x + b.w / 2)) * 4;
+  const at = (Math.floor(b.y + b.h / 2) * px.width + Math.floor(b.x + b.w * 3 / 4)) * 4;
   expect([...px.data.slice(at, at + 4)]).toEqual([255, 0, 255, 255]);
   await info.attach('gpu-device.json', { body: JSON.stringify({ backend: d.backend, device }, null, 2), contentType: 'application/json' });
   // Opt-in hardware gate: BGT_WEBGL2_GPU=1 runs the WebGL2 project on the native GPU; it must not be a CPU rasterizer.

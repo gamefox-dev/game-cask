@@ -380,6 +380,8 @@ export class WebGPUCommands implements GpuBackend {
         this.index = [...w];
         this.pass!.setIndexBuffer(this.buffers.get(h)!.native, w[1] ? 'uint32' : 'uint16', w[2], w[3]); break;
       case OP.UNIFORM_BUFFER:
+        // The host validator enforces the reported limit; never bind a native range above the device's.
+        if (w[3] > this.maxUniformRange) throw new Error(`Uniform range ${w[3]} exceeds device limit ${this.maxUniformRange}`);
         this.uniforms.set(h, { buffer: this.buffers.get(w[1])!.native, offset: w[2], size: w[3] }); break;
       case OP.TEXTURE: this.sampled.set(h, [...w]); break;
       case OP.DRAW: case OP.DRAW_INDEXED: {

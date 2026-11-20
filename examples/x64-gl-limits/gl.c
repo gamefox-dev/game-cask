@@ -1,7 +1,9 @@
 /* Original CC0-1.0 (K51). Guest-visible GL_MAX_UNIFORM_BLOCK_SIZE is the device's real limit.
  * Normal Win64 PE/CRT pipeline; no BGT imports, overrides, captured bytes or engine logic.
  * One std140 block of exactly the reported limit links and draws (first/last/tail elements read);
- * one vec4 more fails with an explicit info log. An oversized glBindBufferRange is legal GL. */
+ * one vec4 more fails with an explicit info log. An oversized glBindBufferRange is legal GL.
+ * 1024 default-block vec4s (4096 components, what ANGLE Metal accepts) link and draw: the profile's own
+ * meta words must not be charged to the guest's budget. */
 #include <windows.h>
 #include <GL/glcorearb.h>
 #include <stdio.h>
@@ -18,7 +20,8 @@
  X(PFNGLGETUNIFORMBLOCKINDEXPROC, glGetUniformBlockIndex) X(PFNGLUNIFORMBLOCKBINDINGPROC, glUniformBlockBinding) \
  X(PFNGLGETACTIVEUNIFORMBLOCKIVPROC, glGetActiveUniformBlockiv) X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
  X(PFNGLREADPIXELSPROC, glReadPixels) X(PFNGLSHADERSOURCEPROC, glShaderSource) X(PFNGLUSEPROGRAMPROC, glUseProgram) \
- X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) X(PFNGLVIEWPORTPROC, glViewport)
+ X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) X(PFNGLVIEWPORTPROC, glViewport) \
+ X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) X(PFNGLUNIFORM4FVPROC, glUniform4fv)
 #define X(t,n) static t n;
 GLFUNCS
 #undef X
@@ -29,9 +32,13 @@ static void note(const char *label, int ok) {
 }
 static char source[512], logbuf[1024];
 /* Returns the linked program or 0; the combined compile/link info log is left in logbuf. */
+static GLuint link(void);
 static GLuint program(unsigned vec4s) {
     snprintf(source, sizeof source, "#version 330 core\nlayout(location=0) out vec4 c;"
         "layout(std140) uniform Big { vec4 v[%u]; vec4 tail; };void main(){c=v[0]+v[%u]+tail;}", vec4s, vec4s - 1);
+    return link();
+}
+static GLuint link(void) {
     const char *vsrc = "#version 330 core\nlayout(location=0) in vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}";
     const char *fsrc = source;
     GLuint vs = glCreateShader(GL_VERTEX_SHADER), fs = glCreateShader(GL_FRAGMENT_SHADER), p = glCreateProgram();
@@ -75,15 +82,25 @@ int main(void) {
     glBindBufferRange(GL_UNIFORM_BUFFER, 3, ubo, 0, limit * 2);
     note("oversized glBindBufferRange is legal GL", glGetError() == GL_NO_ERROR);
     if (p) { glUniformBlockBinding(p, block, 3); glUseProgram(p); }
+    /* Default-block uniforms: u[0] + u[1023] == cyan. */
+    snprintf(source, sizeof source, "#version 330 core\nlayout(location=0) out vec4 c;uniform vec4 u[1024];void main(){c=u[0]+u[1023];}");
+    GLuint q = link(); note("1024 default-block vec4 uniforms link", q != 0); if (!q) OutputDebugStringA(logbuf);
+    if (q) { static float u[1024 * 4]; u[1] = 1.0f; u[1023 * 4 + 2] = 1.0f; u[1023 * 4 + 3] = 1.0f;
+        glUseProgram(q); glUniform4fv(glGetUniformLocation(q, "u"), 1024, u); }
+    if (p) glUseProgram(p);
     note("setup has no GL error", glGetError() == GL_NO_ERROR);
     char done[96]; snprintf(done, sizeof done, "x64-gl-limits PASS checks limit=%d failures=%u", limit, failures);
     if (!failures) OutputDebugStringA(done);
     for (unsigned frame = 0;; frame++) {
         glViewport(0, 0, 32, 32); glClearColor(0, 1, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
+        if (p) glUseProgram(p);
         glDrawArrays(GL_TRIANGLES, 0, 3);
-        if (frame == 1) { /* magenta = v[0] + v[n-1] + tail; green would mean no draw */
-            unsigned char px[4] = {0}; glReadPixels(16, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        if (q) { glUseProgram(q); glViewport(0, 0, 16, 32); glDrawArrays(GL_TRIANGLES, 0, 3); }
+        if (frame == 1) { /* right: magenta = v[0] + v[n-1] + tail; left: cyan = u[0] + u[1023]; green = no draw */
+            unsigned char px[4] = {0}, left[4] = {0}; glReadPixels(24, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+            glReadPixels(8, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, left);
             snprintf(text, sizeof text, "x64-gl-limits pixel=%u,%u,%u,%u", px[0], px[1], px[2], px[3]); OutputDebugStringA(text);
+            snprintf(text, sizeof text, "x64-gl-limits default-pixel=%u,%u,%u,%u", left[0], left[1], left[2], left[3]); OutputDebugStringA(text);
         }
         SwapBuffers(dc);
     }

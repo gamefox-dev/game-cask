@@ -103,6 +103,9 @@ export async function openGame(
     // Use the browser's routed manifest (including synthetic JSPI-only fixtures),
     // not disk or APIRequestContext, which would bypass Playwright routes.
     // A JSON document runs init scripts but never boots the runtime/fallback.
+    // A JSON document has no <link rel=icon>, so full Chromium requests /favicon.ico, which the dev server
+    // 404s; that harness-made console error is not the game's. Answer it without touching real requests.
+    await page.route('**/favicon.ico', route => route.fulfill({ status: 204, body: '' }));
     const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json');
     if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
     const manifest = await response.json();

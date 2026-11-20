@@ -54,7 +54,7 @@ async function freePort(start) {
 }
 
 /** The object handed to the script. Coordinates are logical pixels. */
-export function makeProbe(page, { game, backend, out, params, log, profiler = null, engineUrl = null }) {
+export function makeProbe(page, { game, backend, out, params, log, profiler = null, engineUrl = null, software = false }) {
   let activeRead=null,readBinding;
   const rawApi = (fn, ...args) => page.evaluate(([f, a]) => window.__BGT_TEST__[f](...a), [fn, args]);
   const api = (fn, ...args) => fn === 'step' && profiler ? profiler.step(args[0],rawApi) : rawApi(fn,...args);
@@ -75,7 +75,11 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
       await page.waitForFunction(() => { const t = window.__BGT_TEST__; return !!t && (t.ready() || t.failed()); }, null, { timeout: 30_000 });
       const d = await api('diagnostics');
       if (d.backend !== backend) log.notes.push(`requested ${backend}, got ${d.backend}: ${d.backendNotes.join('; ')}`);
-      log.device = d.gpuDevice ?? null; // K51: native renderer string; software:true means a CPU rasterizer
+      // K51: native renderer string; software:true means a CPU rasterizer. A native-GPU probe that silently
+      // lands on SwiftShader would produce invalid performance numbers: fail unless --software asked for it.
+      log.device = d.gpuDevice ?? null; log.software = d.gpuDevice ? d.gpuDevice.software : null;
+      if (d.gpuDevice?.software && !software)
+        throw new Error(`requested ${backend} on the native GPU but got software renderer "${d.gpuDevice.renderer}"; pass --software to accept it`);
       return d;
     },
     step: (n = 1) => api('step', n),
@@ -245,7 +249,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     page.on('pageerror', (e) => log.errors.push(e.message));
     const api = (fn, ...args) => page.evaluate(([f, x]) => window.__BGT_TEST__[f](...x), [fn, args]);
     profiler = a.cpuProfile ? await createCpuProfiler(page, a.cpuProfile, out, log) : null;
-    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler });
+    const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler, software: !!a.software });
     await p.start();
     await script.default(p);
     if (a.recordFrame !== undefined && !recordingEnded) throw new Error('Recording incomplete: script did not render target update');

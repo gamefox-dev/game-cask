@@ -1033,9 +1033,13 @@ supported/languages zero. **Exception (K51): `max_uniform_range`** is the active
 portable ceiling and rounded down to 16: WebGL2 `MAX_UNIFORM_BLOCK_SIZE` (ANGLE Metal reports the WebGL2/GL 3.3
 minimum 16384), WebGPU `maxUniformBufferBindingSize` (default 65536). A backend below 16384 does not advertise
 CAP_GPU. UNIFORM_BUFFER sizes above the reported value are E_LIMIT, and a native backend never binds a larger range.
-The value is fixed per GPU namespace; a restored/recreated device below it is unrecoverable, not silently smaller.
+The value is fixed per GPU namespace: a restored device below it is unrecoverable, not silently smaller. A
+WebGPU→WebGL2 fallback (only allowed without live GPU resources) creates a new namespace that reports the new
+backend's value, possibly 16384; the WGL profile re-queries it at every link, so programs linked afterwards use it.
 The WGL profile reports it as `GL_MAX_UNIFORM_BLOCK_SIZE` and fails compile/link (with an explicit
-`GL_MAX_UNIFORM_BLOCK_SIZE` info log) for a user std140 block, or its own default-uniform block, above it. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
+`GL_MAX_UNIFORM_BLOCK_SIZE` info log) for a user std140 block above it. Default-block uniforms keep up to
+min(16384, limit) bytes: when the profile's own meta/swizzle words would not fit beside them, they move to a separate
+internal block in the next free uniform slot (offset 256-aligned in the same buffer), so they are not charged to the guest. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
