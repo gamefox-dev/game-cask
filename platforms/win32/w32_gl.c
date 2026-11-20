@@ -76,20 +76,149 @@ static void op(uint32_t code, const uint32_t *w, uint32_t n) {
     bgt__gpu_copy(bgt_cmd_push(&cmd, (uint16_t)code, n * 4), w, n * 4);
 }
 static int flush_padded_cleanup(void);
-/* K50 review: interval-0 presents may share one host frame; keep its §13.12 aggregate budget
- * (and the legacy list allowance) at most half used before letting the guest continue. */
-static uint32_t frame_epoch, frame_bytes, frame_commands, frame_legacy;
+/* K50 review: interval-0 presents share one host update, so every per-host-frame budget the host
+ * enforces is tracked here exactly as the host charges it: §13.12 wire bytes and commands, the legacy
+ * list allowance, queued upload/source bytes (gpu_budget_bytes) and GPU vertices. A present lets the
+ * guest continue only while one more frame of the costliest recent frame still fits every budget, so
+ * sharing never causes a rejection that a one-present-per-update guest would not see. */
+typedef struct { uint64_t bytes, commands, lists, uploads, vertices; } gpu_usage_t;
+static gpu_usage_t frame_use, guest_frame, recent_frames[4];
+static uint32_t frame_epoch, upload_budget = 268435456u;
 static void host_frame_sync(void) {
-    if (frame_epoch != w32_m.yields) { frame_epoch = w32_m.yields; frame_bytes = frame_commands = frame_legacy = 0; }
+    if (frame_epoch != w32_m.yields) { frame_epoch = w32_m.yields; frame_use = (gpu_usage_t){0}; }
 }
-static void host_frame_usage(uint32_t bytes, uint32_t commands, uint16_t flags) {
-    host_frame_sync(); frame_bytes += bytes; frame_commands += commands; frame_legacy += !flags;
+static void usage_add(gpu_usage_t *a, const gpu_usage_t *b) {
+    a->bytes += b->bytes; a->commands += b->commands; a->lists += b->lists; a->uploads += b->uploads; a->vertices += b->vertices;
 }
-static int host_frame_half_full(void) {
+static uint32_t word_at(const uint8_t *p) { uint32_t v; copy(&v, p, 4); return v; }
+/* Host-side data pointer/length words of the six owned-upload opcodes (commands-gpu.ts copy()). */
+static int data_words(uint32_t code, uint32_t *ptr, uint32_t *len) {
+    switch (code) {
+    case 0x40: case 0x48: case 0x61: *ptr = 3; *len = 4; return 1;
+    case 0x41: *ptr = 2; *len = 3; return 1;
+    case 0x44: *ptr = 6; *len = 7; return 1;
+    case 0x5a: *ptr = 8; *len = 9; return 1;
+    default: return 0;
+    }
+}
+static gpu_usage_t measure(const uint8_t *buf, uint32_t len, uint32_t count, uint16_t flags) {
+    gpu_usage_t u = {len, count, !flags, 0, 0};
+    for (uint32_t off = 16; off + 8 <= len;) {
+        uint32_t code = buf[off] | ((uint32_t)buf[off + 1] << 8), size = word_at(buf + off + 4), p, l;
+        const uint8_t *w = buf + off + 8;
+        if (data_words(code, &p, &l) && size >= (l + 1) * 4) u.uploads += word_at(w + l * 4);
+        if (code == 0x64 && size >= 20) u.uploads += 2ull * ((word_at(w + 16) + 3) & ~3u);
+        if ((code == 0x57 || code == 0x58) && size >= 8) u.vertices += (uint64_t)word_at(w) * word_at(w + 4);
+        off += 8 + size;
+    }
+    return u;
+}
+/* K50 review ruling: when an update ends without a present after at least one interval-0 present,
+ * the GPU work issued after that present must not be shown this update. While `deferring`, finished
+ * lists (with private copies of their upload data) are journaled in order, then submitted at the next
+ * present or at the start of the next host update. If they cannot be kept (journal full, or a request
+ * needs a result), they are submitted now; an update that then ends without a present counts as a
+ * torn frame. Journaled lists report success; a later host rejection sets the GL error then. */
+#define JOURNAL_MAX (32u << 20)
+static uint8_t *journal; static uint32_t journal_len, journal_cap, deferring, exposed;
+static uint64_t gl_torn_frames, gl_deferred_lists, gl_deferred_rejects;
+static int journal_add(const uint8_t *buf, uint32_t len) {
+    uint32_t need = 8 + ((len + 3) & ~3u);
+    for (uint32_t off = 16; off + 8 <= len;) {
+        uint32_t code = buf[off] | ((uint32_t)buf[off + 1] << 8), size = word_at(buf + off + 4), p, l;
+        if (data_words(code, &p, &l) && size >= (l + 1) * 4) {
+            uint32_t n = word_at(buf + off + 8 + l * 4);
+            if (n > JOURNAL_MAX) return 0;
+            need += (n + 3) & ~3u;
+        }
+        off += 8 + size;
+    }
+    if (need > JOURNAL_MAX - journal_len) return 0;
+    if (journal_len + need > journal_cap) {
+        uint32_t cap = journal_cap ? journal_cap : 65536;
+        while (cap < journal_len + need) cap = cap > JOURNAL_MAX / 2 ? JOURNAL_MAX : cap * 2;
+        uint8_t *grown = glp_alloc(cap);
+        if (!grown) return 0;
+        if (journal) { copy(grown, journal, journal_len); glp_free(journal, journal_cap); }
+        journal = grown; journal_cap = cap;
+    }
+    uint8_t *entry = journal + journal_len, *list = entry + 8, *blob = list + ((len + 3) & ~3u);
+    copy(entry, &need, 4); copy(entry + 4, &len, 4); copy(list, buf, len);
+    for (uint32_t off = 16; off + 8 <= len;) {
+        uint32_t code = list[off] | ((uint32_t)list[off + 1] << 8), size = word_at(list + off + 4), p, l;
+        if (data_words(code, &p, &l) && size >= (l + 1) * 4) {
+            uint32_t n = word_at(list + off + 8 + l * 4), src = word_at(list + off + 8 + p * 4), at = PTR(blob);
+            if (n) copy(blob, (const void *)(uintptr_t)src, n);
+            copy(list + off + 8 + p * 4, &at, 4); blob += (n + 3) & ~3u;
+        }
+        off += 8 + size;
+    }
+    journal_len += need; gl_deferred_lists++;
+    return 1;
+}
+static void journal_flush(int forced) {
+    if (!journal_len) return;
     host_frame_sync();
-    return frame_bytes >= BGT_GPU_CONTINUATION_BYTES / 2 || frame_commands >= BGT_GPU_CONTINUATION_COMMANDS / 2 ||
-        frame_legacy >= 128;
+    for (uint32_t off = 0; off < journal_len;) {
+        uint32_t need, len; copy(&need, journal + off, 4); copy(&len, journal + off + 4, 4);
+        const uint8_t *list = journal + off + 8;
+        uint32_t version = word_at(list + 4), count = word_at(list + 12);
+        int32_t rc = bgt_submit_commands(list, len);
+        if (rc != BGT_E_LIMIT) { gpu_usage_t u = measure(list, len, count, (uint16_t)(version >> 16)); usage_add(&frame_use, &u); }
+        if (rc < 0) { fail(rc == BGT_E_LIMIT ? OOM : BAD_OP); gl_deferred_rejects++; }
+        off += need;
+    }
+    journal_len = 0;
+    if (forced) exposed = 1;
 }
+/* Every host submission of the GL profile goes through here (header as bgt_cmd_submit_flags). */
+static int32_t host_submit(bgt_cmdbuf_t *b, uint16_t flags) {
+    if (b->error) { int32_t rc = b->error; bgt_cmd_reset(b); return rc; }
+    if (!b->count) return BGT_OK;
+    bgt__put32(b->buf, BGT_CMD_MAGIC);
+    bgt__put32(b->buf + 4, BGT_CMD_VERSION | ((uint32_t)flags << 16));
+    bgt__put32(b->buf + 8, b->len); bgt__put32(b->buf + 12, b->count);
+    gpu_usage_t u = measure(b->buf, b->len, b->count, flags);
+    usage_add(&guest_frame, &u);
+    if (deferring && journal_add(b->buf, b->len)) { bgt_cmd_reset(b); return BGT_OK; }
+    journal_flush(deferring);
+    host_frame_sync();
+    int32_t rc = bgt_submit_commands(b->buf, b->len);
+    if (rc != BGT_E_LIMIT) usage_add(&frame_use, &u);
+    bgt_cmd_reset(b);
+    return rc;
+}
+/* A request result is only visible once its list reached the host. */
+static int32_t request_status(uint32_t id) { journal_flush(1); return bgt_request_status(id); }
+static int next_frame_fits(void) {
+    gpu_usage_t m = {0};
+    for (uint32_t i = 0; i < 4; i++) {
+        const gpu_usage_t *r = &recent_frames[i];
+#define KEEP_MAX(f) m.f = r->f > m.f ? r->f : m.f
+        KEEP_MAX(bytes); KEEP_MAX(commands); KEEP_MAX(lists); KEEP_MAX(uploads); KEEP_MAX(vertices);
+#undef KEEP_MAX
+    }
+    host_frame_sync();
+    return frame_use.bytes + m.bytes <= BGT_GPU_CONTINUATION_BYTES &&
+        frame_use.commands + m.commands <= BGT_GPU_CONTINUATION_COMMANDS &&
+        frame_use.lists + m.lists <= 256 && frame_use.uploads + m.uploads <= upload_budget &&
+        frame_use.vertices + m.vertices <= 1572864u;
+}
+/* Interval-0 SwapBuffers: the finished frame reaches the host before the update decision. */
+static void present_interval0(void) {
+    journal_flush(0); exposed = 0;
+    for (uint32_t i = 3; i; i--) recent_frames[i] = recent_frames[i - 1];
+    recent_frames[0] = guest_frame; guest_frame = (gpu_usage_t){0};
+    w32_guest_present(1);
+    deferring = !w32_clock_swap0(!next_frame_fits());
+}
+void w32_gl_host_yield(int resume) {
+    if (!resume) { if (exposed) gl_torn_frames++; exposed = 0; return; }
+    deferring = 0; journal_flush(0);
+}
+uint64_t w32_gl_torn_frames(void) { return gl_torn_frames; }
+uint64_t w32_gl_deferred_lists(void) { return gl_deferred_lists; }
+uint64_t w32_gl_deferred_rejects(void) { return gl_deferred_rejects; }
 static int submit(void) {
     if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
     /* Keep immediate validation/owned uploads and exact ordering. Only GPU-only lists opt into
@@ -101,10 +230,8 @@ static int submit(void) {
         if (code < 0x40 || code > 0x64) flags = 0;
         off += 8 + size;
     }
-    uint32_t len = cmd.len, count = cmd.count;
-    int32_t rc = bgt_cmd_submit_flags(&cmd, flags);
+    int32_t rc = host_submit(&cmd, flags);
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
-    host_frame_usage(len, count, flags);
     return 1;
 }
 /* Track accepted wire generations, including private resources. Private reservations are kept
@@ -130,7 +257,7 @@ static int send(uint32_t code, const uint32_t *w, uint32_t n) {
 } while (0)
 static int wait_request(uint32_t id, char *log, uint32_t cap) {
     int status;
-    while ((status = bgt_request_status(id)) == 0) w32_wait_transport();
+    while ((status = request_status(id)) == 0) w32_wait_transport();
     uint8_t result[4096] = {0};
     int n = status > 0 ? bgt_request_read(id, result, sizeof result) : status;
     bgt_request_close(id);
@@ -200,7 +327,7 @@ static int flush_padded_cleanup(void) {
         uint8_t *payload = bgt_cmd_push(&cleanup, 0x42, 4); bgt__gpu_copy(payload, &padded_ubo[i], 4);
     }
     if (!cleanup.count) return 1;
-    int32_t rc = bgt_cmd_submit_flags(&cleanup, BGT_CMD_GPU_CONTINUATION);
+    int32_t rc = host_submit(&cleanup, BGT_CMD_GPU_CONTINUATION);
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
     for (uint32_t i = 0; i < 7; i++) if (padded_cleanup[i])
         padded_ubo[i] = padded_ubo_size[i] = padded_generated[i] = padded_cleanup[i] = 0;

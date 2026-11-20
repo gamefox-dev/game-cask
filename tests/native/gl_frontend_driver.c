@@ -48,7 +48,7 @@ void w32_log(const char *s){fprintf(stderr,"%s\n",s);}
 void w32_wait_frame(void){abort();}
 void w32_wait_transport(void){abort();}
 void w32_clock_present(uint32_t interval){(void)interval;abort();}
-void w32_clock_swap0(int budget_full){(void)budget_full;abort();}
+int w32_clock_swap0(int budget_full){(void)budget_full;abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {

@@ -57,10 +57,16 @@ least N periods after the previous present and not earlier than current virtual 
 spent is credited, not added again. **Interval 0** (K50 review ruling) does not end the update: the guest keeps
 running and later presents replace the displayed frame (counted as guest_time.dropped_presents) until the
 next 16667-us frame target. So that the shown frame is complete, the update ends at the present after which
-the next frame (estimated from the last one) would cross that target or the instruction cap, or when the
-host frame's GPU continuation budget is half used (guest_time.present_budget_ends). Ending before the target
-snaps forward to it, so each host update carries exactly one period of guest time and an uncapped game runs at
-real speed. A mid-frame cap hit still ends the update. A dirty GDI screen batch counts once at a
+the next frame (the costliest of the last four, in instruction units and virtual time) would cross that target
+or the instruction cap, or would not fit any per-host-frame GPU budget (wire bytes, commands, legacy lists,
+upload bytes = gpu_budget_bytes, GPU vertices), counted as guest_time.present_budget_ends. Ending before the
+target snaps forward to it, so each host update carries exactly one period of guest time and an uncapped game
+runs at real speed. If an update still ends mid-frame (cap or idle boundary) after a present in it, the GL work
+issued after that present is journaled (with private copies of its upload data) and submitted in order at the
+start of the next update, so the last presented image stays shown (deferred_gl_lists). It is submitted early
+only when a GL request needs its result or the 32-MiB journal is full; an update that then ends without a
+present counts as guest_time.torn_frames. A deferred list the host later rejects sets the GL error then
+(deferred_gl_rejects). A dirty GDI screen batch counts once at a
 USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,
 then rotation). Clean zero sleeps only rotate. Individual GDI calls and extra host renders are not frame
 boundaries. If the bounded GDI command list fills first, records are flushed through a transport-only

@@ -32,6 +32,9 @@ int w32_rp_enabled(void){return 0;}
 x86_cpu_t X;
 uint64_t w32_thread_idle_guard_hits(void){return 0;}
 uint64_t w32_audio_events_coalesced(void){return 0;}
+uint64_t w32_gl_torn_frames(void){return 0;}
+uint64_t w32_gl_deferred_lists(void){return 0;}
+uint64_t w32_gl_deferred_rejects(void){return 0;}
 static slot_t test_slots[W32_THUNK_SLOTS];
 BGT_EXPORT(prepare) void prepare(uint32_t pathological) {
     slots=test_slots;nslots=W32_THUNK_SLOTS;

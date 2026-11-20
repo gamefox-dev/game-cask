@@ -123,25 +123,36 @@ void w32_clock_check_cap(void) {
 }
 /* K50 review ruling: swap interval 0 does not end the host update. The guest keeps running and
  * later presents replace the displayed frame until the next 16667-us frame target. To show a
- * complete frame, the update ends at the present after which the next frame (estimated from the
- * last one) would cross that target or the instruction cap, or when the host frame's GPU command
- * budget is half used. Ending before the target snaps forward to it, as at a vsync, so one host
- * update always carries one period of guest time. A present already past the target keeps the
- * grid phase without skipping a period. Mid-frame cap hits still end the update (w32_wait_frame). */
-void w32_clock_swap0(int budget_full) {
+ * complete frame, the update ends at the present after which the next frame would cross that target
+ * or the instruction cap, or when the GL profile reports that one more frame would not fit a host
+ * frame budget. The next frame is estimated as the costliest of the last four (instruction units and
+ * virtual time), so jittery or alternating frame costs still end at a present. Ending before the
+ * target snaps forward to it, as at a vsync, so one host update carries one period of guest time.
+ * A present already past the target keeps the grid phase without skipping a period. Mid-frame cap or
+ * idle ends remain possible; the GL profile then keeps the post-present work for the next update.
+ * Returns whether the host update ended. */
+static uint64_t recent_units[4], recent_us[4];
+int w32_clock_swap0(int budget_full) {
     w32_clock_sync();
     uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
     uint64_t target=((boundary_us+BGT_DT_US+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
-    uint64_t du=frame_units-swap_units,dt=now-swap_us;
+    for(unsigned i=3;i;i--){recent_units[i]=recent_units[i-1];recent_us[i]=recent_us[i-1];}
+    recent_units[0]=frame_units-swap_units;recent_us[0]=now-swap_us;
+    uint64_t du=0,dt=0;
+    for(unsigned i=0;i<4;i++) {
+        du=recent_units[i]>du?recent_units[i]:du;
+        dt=recent_us[i]>dt?recent_us[i]:dt;
+    }
     if(present_pending)dropped_presents++;
     present_pending=1;present_us=now;swap_units=frame_units;swap_us=now;
-    if(now<target && now+dt<target && frame_units+du<instruction_cap() && !budget_full)return;
+    if(now<target && now+dt<target && frame_units+du<instruction_cap() && !budget_full)return 0;
     if(budget_full)budget_ends++;
     if(now<target) { virtual_units=target*CLOCK_UNITS_PER_US;boundary_us=target; }
     else boundary_us=target+(now-target)/BGT_DT_US*BGT_DT_US;
     present_us=now>boundary_us?now:boundary_us;
     frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
     w32_wait_transport();
+    return 1;
 }
 void w32_idle_ms(uint32_t ms) {
     w32_clock_sync();
@@ -833,9 +844,11 @@ static void wait_host(void) {
     x86_coverage_flush();
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(1,bgt_time_us());
+    w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
     x86_profile_idle_begin();
     bgt_yield();
     x86_profile_idle_end();
+    w32_gl_host_yield(1);
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(0,bgt_time_us());
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
@@ -1151,7 +1164,7 @@ const char *w32_metrics_json(void) {
     jput("\"guest_time\":{");jkv("version",1);jkv("units_per_us",CLOCK_UNITS_PER_US);
     jkv("instruction_cap",instruction_cap());
     jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
-    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);
+    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);jexactkv("torn_frames",w32_gl_torn_frames());jexactkv("deferred_gl_lists",w32_gl_deferred_lists());jexactkv("deferred_gl_rejects",w32_gl_deferred_rejects());
     jexactkv("idle_guard_hits",w32_thread_idle_guard_hits());jexactkv("audio_events_coalesced",w32_audio_events_coalesced());
     jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);

@@ -549,7 +549,7 @@ static int fetch_texels(uint32_t gpu, uint32_t lvl, uint32_t x, uint32_t y, uint
     for (uint32_t yo = 0; yo < h; yo += bh) {
         uint32_t rows = h - yo < bh ? h - yo : bh, req = request_id_next();
         SEND(0x5c, gpu, lvl, x, y + yo, z, w, rows, 1, req);
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_transport();
+        int status; while ((status = request_status(req)) == 0) w32_wait_transport();
         int got = status > 0 ? bgt_request_read(req, buf, w * rows * bpp) : -1; bgt_request_close(req);
         if (got != (int)(w * rows * bpp)) { fail(BAD_OP); return 0; }
         sink(ctx, yo, rows, buf);
