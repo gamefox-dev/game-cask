@@ -90,7 +90,8 @@ export class WebGPUCommands implements GpuBackend {
   readonly maxUniformRange: number;
   readonly device: GpuDeviceInfo;
   constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
-    const native = gpuDevice.limits.maxUniformBufferBindingSize;
+    // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
+    const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
     this.device = { renderer: adapter, software: softwareRenderer(adapter), nativeMaxUniformRange: native };
   }
@@ -120,7 +121,7 @@ export class WebGPUCommands implements GpuBackend {
 
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
-    if (device.limits.maxUniformBufferBindingSize < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
+    if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
     this.gpuDevice = device;
     this.opaqueScreen = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();

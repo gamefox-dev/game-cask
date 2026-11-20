@@ -112,7 +112,8 @@ int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pend
 /* K51: the GL profile queries the active GPU namespace's real uniform-block limit (§13.6 offset 52). */
 static uint32_t native_uniform_limit=65536,native_limit_queries;
 int32_t bgt_gpu_limits(bgt_gpu_limits_t *d,uint32_t cap){
-    if(cap<sizeof(bgt_gpu_limits_v3_t))abort();native_limit_queries++;
+    if(cap<sizeof(bgt_gpu_limits_v3_t))abort();
+    native_limit_queries++;
     bgt_gpu_limits_v3_t *l=(bgt_gpu_limits_v3_t *)d;memset(l,0,sizeof *l);l->base.byte_size=sizeof *l;
     l->gpu_supported=1;l->max_uniform_range=native_uniform_limit;l->shader_languages=6;return 0;}
 uint32_t w32_pstr(uint32_t a,uint32_t n,int wide,const char *s){(void)wide;uint32_t k=0;while(k+1<n&&s[k]){memory[a+k]=s[k];k++;}if(n)memory[a+k]=0;return k;}
