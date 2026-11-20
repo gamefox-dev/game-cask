@@ -209,7 +209,7 @@ export class WebGPURenderer implements Renderer {
     this.screen = undefined;
     this.snapshot = undefined;
     if (this.gpu) await this.gpu.restore(device);
-    else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)));
+    else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)), describeAdapter(this.adapter));
     this.textures.clear();
     this.targets.clear();
     this.bindGroups.clear();
@@ -562,4 +562,11 @@ export class WebGPURenderer implements Renderer {
     this.gpu?.lost();
     this.o?.device.destroy();
   }
+}
+
+/** Diagnostics-only adapter identity (GPUAdapterInfo fields may be empty strings). */
+function describeAdapter(adapter: GPUAdapter): string | null {
+  const info = (adapter as GPUAdapter & { info?: GPUAdapterInfo }).info;
+  const parts = info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean) : [];
+  return parts.length ? parts.join(' / ') : null;
 }

@@ -93,6 +93,8 @@ export interface BGTDiagnostics {
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
   nativeQueryPolicy: 'production' | 'strict' | null;
+  /** K51: native device identity and the uniform range reported to the guest (§13.6 offset 52); null without CAP_GPU. */
+  gpuDevice: { renderer: string | null; software: boolean; nativeMaxUniformRange: number; maxUniformRange: number; languages: number } | null;
   ready: boolean;
   paused: boolean;
   failed: boolean;
@@ -817,7 +819,9 @@ export class BGTRuntime {
   coverageSnapshot() {
     // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
     const execution=this.host?.metrics() ?? null;
-    return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
+    // K51: a coverage-off performance build records nothing; say so rather than publishing empty evidence.
+    const recording=(this.manifest?.pipeline as {instrumentation?:{coverage?:string}}|undefined)?.instrumentation?.coverage ?? 'buffered';
+    return {schema:'game-cask/coverage/1',game:this.manifest?.id,recording,modules:this.manifest?.pipeline?.modules ?? [],
       interpreter:this.host?.interpreterCoverage() ?? undefined,
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
@@ -842,6 +846,8 @@ export class BGTRuntime {
       backend: r ? r.kind : 'unavailable',
       backendNotes: [...this.backendNotes],
       nativeQueryPolicy: r?.gpu?.nativeQueryPolicy ?? null,
+      gpuDevice: r?.gpu?.device && r.gpu.languages ? { ...r.gpu.device, languages: r.gpu.languages,
+        maxUniformRange: host?.gpuUniformRange ?? r.gpu.maxUniformRange ?? 65536 } : null,
       ready: this.ready,
       paused: this.paused,
       failed: this.failed,

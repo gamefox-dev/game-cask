@@ -1051,9 +1051,15 @@ const char *w32_metrics_json(void) {
     jkv("guest_instruction_clock", x86_guest_instruction_clock());
     jaccounting();
     jdispatch();
+#if X86_COVERAGE_MODE == 3
+    /* K51 coverage-off performance build: no hooks exist, so the counters are unavailable, not zero. */
+    jput("\"coverage_events\":null,\"coverage_crossings\":null,\"coverage_cache_hits\":null,");
+#else
     jkv("coverage_events",x86_coverage_events);
     jkv("coverage_crossings",x86_coverage_crossings);
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
+#endif
+    jkv("coverage_mode",X86_COVERAGE_MODE);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interpreter_timing_enabled",X86_PROFILE_ENABLED);
     jkv("interpreter_exclusive_us",(uint64_t)x86_interpreter_exclusive_us());

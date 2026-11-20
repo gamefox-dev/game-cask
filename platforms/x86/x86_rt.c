@@ -551,7 +551,7 @@ static uint32_t interpreter_record,interpreter_rows_allocated;
 void x86_register_code_owner_addresses(const uint32_t *addresses) {code_owner_addresses=addresses;}
 const x86_interpreter_coverage_t *x86_interpreter_coverage(void) {return &interpreter_coverage;}
 static uint32_t interpreter_row(uint32_t address,const x86_code_range_t *range) {
-    if(X86_COVERAGE_MODE==2)return 0;
+    if(X86_COVERAGE_MODE==2||X86_COVERAGE_MODE==3)return 0; /* strict/off builds record no coverage rows */
     if(!interpreter_index)interpreter_index=x86_alloc(X86_INTERPRETER_CAP*sizeof(uint32_t));
     if(!interpreter_index){interpreter_coverage.dropped++;return 0;}
     uint32_t h=(address*2654435761u)&(X86_INTERPRETER_CAP-1);
@@ -593,7 +593,7 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if(entry)x86_coverage_entry(addr,2);
+    if(entry)x86_coverage_runtime(addr,2);
     if(entry || interpreter_generation!=x86_census_generation) {
         interpreter_generation=x86_census_generation;
         interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER);

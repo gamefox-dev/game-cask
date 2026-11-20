@@ -512,7 +512,7 @@ export class GameHost {
           if (size === GPU_LIMITS_SIZE) values.push(
             this.gpu ? 1 : 0, GPU_LIMITS.handles, this.config.gpuBudgetBytes ?? GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
             GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
-            GPU_LIMITS.uniformAlignment, GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
+            GPU_LIMITS.uniformAlignment, this.gpu?.uniformRange ?? GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
             this.gpu?.backend.languages ?? 0, 13, 65535, 0,
           );
           values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
@@ -720,6 +720,9 @@ export class GameHost {
   }
 
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
+  /** K51: the uniform range this host reports at §13.6 offset 52, or null without a GPU namespace. */
+  get gpuUniformRange(): number | null { return this.gpu?.uniformRange ?? null; }
+
   setBackend(backend: number, gpuBackend?: GpuBackend): void {
     if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
     this.config.backend = backend;

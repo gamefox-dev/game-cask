@@ -1575,6 +1575,9 @@ static int gs_sampler_capability(const GsVar *v, GsLog *log) {
 #define GP_NAMES 24576
 #define GP_MAX_BINDINGS 16
 #define GP_BUFFER_LIMIT 16384u
+/* K51: the active GPU namespace's real uniform-block/binding limit (bgt_gpu_limits offset 52, 16384..65536).
+ * The GL profile refreshes it before every link; host tools keep the portable 65536 ceiling. */
+static uint32_t gp_uniform_limit = 65536u;
 typedef struct { uint32_t name, gl_type; int32_t size, location, block; uint32_t offset, stride, mstride, slot; uint8_t kind, cols, rows, dim, shadow, stages; } GpUniform;
 typedef struct { uint32_t name, size, nmembers, first; int32_t unit[2]; uint8_t stages; } GpBlock;
 typedef struct { uint32_t name, gl_type; int32_t size, location; } GpAttrib;
@@ -1687,6 +1690,8 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
     }
     if (!ok) return 0;
     g->usize = gs_roundup(cursor, 16) + 16 * g->nslots; /* per-slot swizzles follow ordinary uniforms */
+    /* The profile's default block (meta, ordinary uniforms, swizzles) is itself a native uniform block. */
+    if (g->usize > gp_uniform_limit) { gs_diag(log, 1, 0, 0, 0, "active uniforms exceed GL_MAX_UNIFORM_BLOCK_SIZE", 0); return 0; }
     /* ---- uniform blocks */
     for (int s = 0; s < 2 && ok; s++) if (un[s]) for (uint32_t i = 0; i < un[s]->nblocks && ok; i++) {
         GsBlock *b = &un[s]->blocks[i]; int o = 1 - s; GsBlock *w = 0;
@@ -1719,7 +1724,7 @@ static int gp_link(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind, uint32
             off += sz;
         }
         gb->nmembers = g->nu - u0; gb->size = gs_roundup(off, 16);
-        if (gb->size > 65536) { gs_diag(log, 1, 0, b->decl_line, 1, "uniform block exceeds the BGT size limit", b->name); ok = 0; }
+        if (gb->size > gp_uniform_limit) { gs_diag(log, 1, 0, b->decl_line, 1, "uniform block exceeds GL_MAX_UNIFORM_BLOCK_SIZE", b->name); ok = 0; }
     }
     if (!ok) return 0;
     for (uint32_t i = 0; i < g->nu; i++) { if (g->u[i].block >= 0) g->u[i].stages = g->b[g->u[i].block].stages; }

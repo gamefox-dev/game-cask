@@ -206,6 +206,15 @@ export function guestTimeModel(timeModel = {}) {
   }
   return { version: 1, instructionCap, unitsPerUs: 4000, frameUs: 16667 };
 }
+/** K51: `BGT_COVERAGE=off` / `build.mjs --no-coverage` compiles coverage recording out (X86_COVERAGE_MODE=3) for
+ * performance measurement. Strict slice builds already record nothing and keep their membership checks. */
+export function coverageInstrumentation(cfg, env = process.env) {
+  const value = cfg.coverageRecording ?? env.BGT_COVERAGE ?? 'on';
+  if (value !== 'on' && value !== 'off') throw new Error('BGT_COVERAGE must be on or off');
+  if (value === 'off' && cfg.slice) throw new Error('coverage off cannot combine with a strict --slice build (strict builds already omit recording)');
+  if (value === 'off' && env.BGT_COVERAGE_DIRECT === '1') throw new Error('BGT_COVERAGE=off conflicts with BGT_COVERAGE_DIRECT=1');
+  return value;
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
   const timeModel = guestTimeModel(p.timeModel);
@@ -215,6 +224,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
   }
   const hostArenaMiB = hostArenaSize(p.memory);
+  const coverage = coverageInstrumentation(cfg);
   const mode=selectionMode(p,!!cfg.slice);
   const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
   const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
@@ -421,6 +431,10 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
     timeModel,
+    /* K51: build-time instrumentation provenance; "off" coverage builds are performance artifacts, not slice evidence. */
+    instrumentation: { coverage: cfg.slice && plan ? 'strict' : coverage === 'off' ? 'off' : process.env.BGT_COVERAGE_DIRECT === '1' ? 'direct' : 'buffered',
+      cpuProfile: process.env.BGT_CPU_PROFILE !== '0', accounting: process.env.BGT_CPU_ACCOUNTING === '1',
+      dispatchCounters: process.env.BGT_DISPATCH_COUNTERS === '1', ownerCensus: process.env.BGT_OWNER_CENSUS === '1' },
     liftPolicy: policy,
     selection: mode,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB } : null,
@@ -444,7 +458,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
       ...(process.env.BGT_DISPATCH_COUNTERS === '1' ? ['-DX86_NATIVE_STATS=1'] : []),
       ...(process.env.BGT_CPU_ACCOUNTING === '1' ? ['-DX86_ACCOUNTING_ENABLED=1'] : process.env.BGT_CPU_ACCOUNTING === '0' ? ['-DX86_ACCOUNTING_ENABLED=0'] : []),
-      `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
+      `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : coverage === 'off' ? 3 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
         `-DX86_HOST_ARENA_BYTES=${hostArenaMiB}u*1048576u`,
         '-D_GNU_SOURCE', '-fno-math-errno'] : []),
