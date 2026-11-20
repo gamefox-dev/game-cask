@@ -45,7 +45,10 @@ static uint32_t cmd_mem[4096];
 static bgt_cmdbuf_t cmd;
 static uint32_t width(void) { return w32_io->logical_width; }
 static uint32_t height(void) { return w32_io->logical_height; }
-static void fail(uint32_t e) { if (!error) error = e; }
+static void flush_pending(void);
+/* K53: a guest-visible error flushes deferred work first, so an earlier deferred failure keeps
+ * first-error order in the latch. Errors are exceptional; the deferred fast path never polls. */
+static void fail(uint32_t e) { flush_pending(); if (!error) error = e; }
 static int eq(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; } return *a == *b;
 }
@@ -76,7 +79,80 @@ static void op(uint32_t code, const uint32_t *w, uint32_t n) {
     bgt__gpu_copy(bgt_cmd_push(&cmd, (uint16_t)code, n * 4), w, n * 4);
 }
 static int flush_padded_cleanup(void);
+/* K53 frame batching. GPU-only lists whose acceptance changes no profile bookkeeping (pass/draw
+ * lists, clears, BUFFER_UPDATE and TEXTURE_UPDATE uploads) are appended to one pending list and
+ * submitted at a sync point: any synchronous submission (creates/deletes/readback/requests/
+ * feedback), SwapBuffers/any host yield, GDI flush, glGetError/glFinish, a guest error, or the
+ * size bounds below. Stream order is unchanged; only the wire-list boundaries move. Upload bytes
+ * are copied into a batch-owned arena (the ABI copies at submit, guest/profile memory may change
+ * before the flush). A rejected deferred list latches the same GL error as before (OOM for
+ * E_LIMIT, otherwise INVALID_OPERATION) at the flush; GL leaves state undefined after OOM. */
+uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits;
+static int submit(void);
+#ifndef W32_GL_SYNC_SUBMIT
+#define W32_GL_SYNC_SUBMIT 0
+#endif
+#if UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT
+/* Native 64-bit test hosts cannot express owned wire pointers; they keep per-call submission,
+ * as does the BGT_GL_SYNC_SUBMIT=1 A/B build (tools/build/pipeline.mjs). */
+static void flush_pending(void) {}
+void w32_gl_flush(void) {}
+static int submit_deferred(void) { return submit(); }
+#else
+#define PEND_BYTES (256u * 1024u)
+#define PEND_DATA (1024u * 1024u)
+static uint32_t pend_mem[PEND_BYTES / 4];
+static uint8_t pend_data[PEND_DATA] __attribute__((aligned(16)));
+static bgt_cmdbuf_t pend; static uint32_t pend_ready, pend_used;
+static void flush_pending(void) {
+    if (!pend_ready || !pend.count) return;
+    int32_t rc = bgt_cmd_submit_flags(&pend, BGT_CMD_GPU_CONTINUATION);
+    bgt_cmd_reset(&pend); pend_used = 0; w32_gl_batch_flushes++;
+    if (rc < 0 && !error) error = rc == -3 ? OOM : BAD_OP;
+}
+void w32_gl_flush(void) { flush_pending(); }
+/* Data pointer/length word indices of the deferrable upload opcodes. */
+static int data_field(uint32_t code, uint32_t *ptr, uint32_t *len) {
+    switch (code) {
+    case 0x41: *ptr = 2; *len = 3; return 1;
+    case 0x44: *ptr = 6; *len = 7; return 1;
+    case 0x5a: *ptr = 8; *len = 9; return 1;
+    default: return 0;
+    }
+}
+static int submit_deferred(void) {
+    if (cmd.error || !cmd.count) return submit();
+    uint32_t data = 0;
+    for (uint32_t off = 16; off < cmd.len;) {
+        uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size, pi, li, n;
+        copy(&size, cmd.buf + off + 4, 4);
+        if (code < 0x40 || code > 0x64 || code == 0x62) return submit();
+        if (data_field(code, &pi, &li)) { copy(&n, cmd.buf + off + 8 + li * 4, 4); data += (n + 15u) & ~15u; }
+        off += 8 + size;
+    }
+    if (data > PEND_DATA / 4 || cmd.len - 16 > PEND_BYTES / 4) return submit();
+    if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
+    if (!pend_ready) { bgt_cmd_init(&pend, pend_mem, sizeof pend_mem); pend_ready = 1; }
+    if (pend.len + cmd.len - 16 > pend.cap || pend.count + cmd.count > 4096u || pend_used + data > PEND_DATA) flush_pending();
+    for (uint32_t off = 16; off < cmd.len;) {
+        uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size, pi, li;
+        copy(&size, cmd.buf + off + 4, 4);
+        uint8_t *payload = bgt_cmd_push(&pend, code, size);
+        __builtin_memcpy(payload, cmd.buf + off + 8, size);
+        if (data_field(code, &pi, &li)) {
+            uint32_t src, n; copy(&src, payload + pi * 4, 4); copy(&n, payload + li * 4, 4);
+            uint8_t *dst = pend_data + pend_used;
+            if (n) __builtin_memcpy(dst, (const void *)(uintptr_t)src, n);
+            uint32_t at = PTR(dst); copy(payload + pi * 4, &at, 4); pend_used += (n + 15u) & ~15u;
+        }
+        off += 8 + size;
+    }
+    bgt_cmd_reset(&cmd); w32_gl_batched_lists++;
+    return 1;
+}
+#endif
 static int submit(void) {
+    flush_pending(); w32_gl_sync_submits++;
     if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
     /* Keep immediate validation/owned uploads and exact ordering. Only GPU-only lists opt into
      * §13.12's bounded aggregate budget; legacy screen readback retains its frozen header. */
@@ -111,6 +187,11 @@ static int send(uint32_t code, const uint32_t *w, uint32_t n) {
 }
 #define SEND(code, ...) do { \
     const uint32_t payload[] = {__VA_ARGS__}; send(code, payload, sizeof payload / 4); \
+} while (0)
+/* Deferred upload: result is acceptance into the ordered batch (see submit_deferred). */
+static int send_deferred(uint32_t code, const uint32_t *w, uint32_t n) { begin(); op(code, w, n); return submit_deferred(); }
+#define SEND_DEFERRED(code, ...) do { \
+    const uint32_t payload[] = {__VA_ARGS__}; send_deferred(code, payload, sizeof payload / 4); \
 } while (0)
 static int wait_request(uint32_t id, char *log, uint32_t cap) {
     int status;
@@ -184,6 +265,7 @@ static int flush_padded_cleanup(void) {
         uint8_t *payload = bgt_cmd_push(&cleanup, 0x42, 4); bgt__gpu_copy(payload, &padded_ubo[i], 4);
     }
     if (!cleanup.count) return 1;
+    flush_pending(); /* deferred draws may still reference the retired temporaries */
     int32_t rc = bgt_cmd_submit_flags(&cleanup, BGT_CMD_GPU_CONTINUATION);
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
     for (uint32_t i = 0; i < 7; i++) if (padded_cleanup[i])
@@ -228,7 +310,7 @@ static uint8_t abandoned_buffer_initial[N], abandoned_shader[N], abandoned_pipel
 static uint8_t *abandoned_buffer = abandoned_buffer_initial;
 static uint32_t abandoned_buffers, abandoned_shaders, abandoned_pipelines;
 static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
-    uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
+    flush_pending(); uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
     if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
     if (pending) error = pending;
     return ok;
@@ -333,7 +415,7 @@ static uint32_t api_BufferData(void) {
          * emit). In that exceptional case restore the error latch and run the original
          * delete/create path: its own acceptance decides both state and guest error. */
         uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size};
-        if (send(0x41, update, 4)) {
+        if (send_deferred(0x41, update, 4)) {
             unmap_storage(b); b->map_access = 0x88ba; b->generated = 0;
             glp_free(b->data, b->size); b->data = data;
             w32_gl_buffer_respec_reused++;
@@ -368,7 +450,7 @@ static uint32_t api_BufferSubData(void) {
     if (n) {
         uint8_t *data = glp_alloc((uint32_t)n); if (!data) { fail(OOM); return 0; }
         for (uint32_t i = 0; i < n; i++) data[i] = x86_rd8(ARG(3) + i);
-        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send(0x41, w, 4);
+        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send_deferred(0x41, w, 4);
         if (accepted) copy(b->data + off, data, (uint32_t)n);
         glp_free(data, (uint32_t)n); if (!accepted) return 0;
     }

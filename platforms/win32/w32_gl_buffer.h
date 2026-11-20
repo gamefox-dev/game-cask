@@ -58,7 +58,7 @@ static int mapped_upload(Buffer *b, uint32_t off, uint32_t n) {
     uint8_t *data = glp_alloc(size); if (!data) { fail(OOM); return 0; }
     if (whole && !buffer_read(b, 0, b->size, data)) { glp_free(data, size); return 0; }
     for (uint32_t i = 0; i < n; i++) data[(whole ? at : 0) + i] = x86_rd8(b->map + off + i);
-    uint32_t words[] = {b->gpu, dest, PTR(data), size}; int ok = send(0x41, words, 4);
+    uint32_t words[] = {b->gpu, dest, PTR(data), size}; int ok = send_deferred(0x41, words, 4);
     if (ok) { copy(b->data + dest, data, size); if (!dest && size == b->size) b->generated = 0; }
     glp_free(data, size); return ok;
 }

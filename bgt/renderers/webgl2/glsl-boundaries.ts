@@ -31,7 +31,8 @@ export function validateNativeLvalues(source: string): void {
     const tokens = text.replace(/[()]/g, '').match(/[A-Za-z_]\w*|\[[^\]]*\]|\./g); if (!tokens?.length) return undefined;
     let type = declarations.filter(d => d.name === tokens[0] && d.start < pos && d.end >= pos).at(-1)?.type;
     for (let i = 1; type && i < tokens.length; i++) {
-      if (tokens[i] === '.') { const member = tokens[++i]; type = fields.get(type)?.get(member) ?? (/^[iub]?vec[234]$/.test(type) ? `vec${member.length}` : undefined); }
+      // A decimal literal's '.' (e.g. `uv*4.0`) has no member token: unknown, not a crash.
+      if (tokens[i] === '.') { const member = tokens[++i]; if (!member) return undefined; type = fields.get(type)?.get(member) ?? (/^[iub]?vec[234]$/.test(type) ? `vec${member.length}` : undefined); }
       else if (tokens[i].startsWith('[')) type = type.endsWith('[]') ? type.slice(0, -2) : /^[iub]?vec[234]$/.test(type) ?
         type.startsWith('i') ? 'int' : type.startsWith('u') ? 'uint' : type.startsWith('b') ? 'bool' : 'float' : undefined;
     }

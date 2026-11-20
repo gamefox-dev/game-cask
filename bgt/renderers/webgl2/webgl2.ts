@@ -35,12 +35,43 @@ void main() {
 
 export interface WebGL2Options {
   debug?: boolean;
+  /** K53: opt-in EXT_disjoint_timer_query_webgl2 frame timing; 'unavailable' without the extension. */
+  gpuTiming?: boolean;
+  /** K53: keep a pass framebuffer bound for the next same-image pass (default on). */
+  batch?: boolean;
+}
+
+/** Whole-drawFrame GPU time via TIME_ELAPSED queries, read without stalling a few frames later. */
+class WebGL2Timing {
+  private pending: WebGLQuery[] = [];
+  private free: WebGLQuery[] = [];
+  private active?: WebGLQuery;
+  lastMs: number | null = null;
+  constructor(private gl: WebGL2RenderingContext, private ext: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number }) {}
+  begin(): void {
+    const gl = this.gl;
+    while (this.pending.length && gl.getQueryParameter(this.pending[0], gl.QUERY_RESULT_AVAILABLE)) {
+      const q = this.pending.shift()!, ns = gl.getQueryParameter(q, gl.QUERY_RESULT) as number;
+      if (!gl.getParameter(this.ext.GPU_DISJOINT_EXT)) this.lastMs = ns / 1e6;
+      this.free.push(q);
+    }
+    if (this.pending.length >= 8) return;
+    this.active = this.free.pop() ?? gl.createQuery()!;
+    gl.beginQuery(this.ext.TIME_ELAPSED_EXT, this.active);
+  }
+  end(): void {
+    if (!this.active) return;
+    this.gl.endQuery(this.ext.TIME_ELAPSED_EXT); this.pending.push(this.active); this.active = undefined;
+  }
+  reset(): void { this.pending = []; this.free = []; this.active = undefined; }
 }
 
 export class WebGL2Renderer implements Renderer {
   readonly gpu: WebGL2Gpu;
   readonly kind = 'webgl2' as const;
-  readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0 };
+  readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0, nativePasses: 0, nativeSubmits: 0,
+    mergedPasses: 0, bufferRenames: 0, gpuMs: null, gpuTiming: 'off' };
+  private timing?: WebGL2Timing;
   lost = false;
   maxTextureSize = 4096;
   private gl: WebGL2RenderingContext;
@@ -64,7 +95,13 @@ export class WebGL2Renderer implements Renderer {
     opts: WebGL2Options,
   ) {
     this.gl = gl;
-    this.gpu = new WebGL2Gpu(gl, (m) => { for (const cb of this.errorCbs) cb(m); }, opts);
+    // K53: the renderer's frame loop releases lingering pass framebuffers (gpu.flush) at legacy items/frame end.
+    this.gpu = new WebGL2Gpu(gl, (m) => { for (const cb of this.errorCbs) cb(m); }, { ...opts, batch: opts.batch !== false });
+    if (opts.gpuTiming) {
+      const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
+      this.timing = ext ? new WebGL2Timing(gl, ext) : undefined;
+      this.stats.gpuTiming = ext ? 'timer-query' : 'unavailable';
+    }
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       this.lost = true;
@@ -75,6 +112,7 @@ export class WebGL2Renderer implements Renderer {
     canvas.addEventListener('webglcontextrestored', () => {
       try {
         this.initResources();
+        this.timing?.reset();
         this.gpu.restore();
       } catch (e) {
         for (const cb of this.unrecoverableCbs) cb(`GPU restore failed: ${(e as Error).message}`);
@@ -217,6 +255,7 @@ export class WebGL2Renderer implements Renderer {
     const H = this.canvas.height;
     this.stats.drawCalls = 0;
     this.stats.passes = 1;
+    this.timing?.begin();
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.disable(gl.SCISSOR_TEST); gl.disable(gl.DEPTH_TEST);
@@ -266,6 +305,7 @@ export class WebGL2Renderer implements Renderer {
     let gpuDirty = false;
     for (const it of frame.items) {
       if (it.kind !== 'gpu' && gpuDirty) {
+        this.gpu.flush();
         gl.useProgram(this.program); gl.bindVertexArray(this.vao);
         gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.CULL_FACE);
         gl.colorMask(true, true, true, true); gl.activeTexture(gl.TEXTURE0);
@@ -346,6 +386,7 @@ export class WebGL2Renderer implements Renderer {
       }
     }
 
+    this.gpu.flush();
     gl.useProgram(this.program);
     bindTarget(0);
     // Retain the final physical image, including any legacy draws after a GPU pass.
@@ -374,8 +415,11 @@ export class WebGL2Renderer implements Renderer {
       for (let y = 0; y < H; y++) data.set(raw.subarray((H - 1 - y) * row, (H - y) * row), y * row);
       out = { width: w, height: H, data };
     }
+    this.timing?.end();
     // After presentation/snapshot and requested readback: one production native-error round trip.
     this.gpu.checkNativeError();
+    Object.assign(this.stats, { nativePasses: this.gpu.batch.nativePasses, nativeSubmits: 0,
+      mergedPasses: this.gpu.batch.mergedPasses, gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     return out;
   }

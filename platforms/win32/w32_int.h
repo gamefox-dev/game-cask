@@ -121,6 +121,8 @@ void w32_clock_quantum(uint32_t units);
 void w32_clock_check_cap(void);
 void w32_clock_present(uint32_t interval);
 void w32_wait_transport(void);
+/* K53: submit the GL profile's deferred GPU list (frame boundaries, foreign submissions). */
+void w32_gl_flush(void);
 void w32_gdi_present_boundary(void);
 int w32_gdi_pending(void);
 uint32_t w32_audio_next_ms(void);

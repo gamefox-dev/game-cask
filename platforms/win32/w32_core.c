@@ -795,6 +795,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 }
 
 static void wait_host(void) {
+    w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
     static int accounted_exit;
     if(w32_exited && !accounted_exit) {
@@ -859,7 +860,7 @@ void w32_update(void) {
 }
 
 /* LANE-GL: GL owns the shared screen while its context is current. */
-void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
+void w32_render(void) { w32_gl_flush(); if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
 /* Guest presentations, not cooperative updates or repeated host redraws. Ring
  * timestamps are real wall microseconds (include waits/pauses), not virtual time. */
@@ -1080,6 +1081,9 @@ const char *w32_metrics_json(void) {
     jkv("gl_state_changes", w32_gl_state_changes);
     jkv("gl_pipelines", w32_gl_pipelines);
     /* Successful live-store re-specifications, cumulative (not initial allocations). */
+    jkv("gl_batched_lists", w32_gl_batched_lists);
+    jkv("gl_batch_flushes", w32_gl_batch_flushes);
+    jkv("gl_sync_submits", w32_gl_sync_submits);
     jkv("gl_buffer_respec_reused", w32_gl_buffer_respec_reused);
     jkv("gl_buffer_respec_resized", w32_gl_buffer_respec_resized);
     jkv("gl_buffer_respec_grew", w32_gl_buffer_respec_grew);

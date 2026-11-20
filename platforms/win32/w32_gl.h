@@ -15,6 +15,7 @@ extern uint64_t w32_gl_buffer_respec_reused, w32_gl_buffer_respec_resized, w32_g
 #define w32_gl_frontend_frees (x86_host_stats[XH_GL].frees)
 #define w32_gl_frontend_oom (x86_host_stats[XH_GL].oom)
 int w32_gl_active(void);
+extern uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits;
 const char *w32_gl_stubs_json(void);
 const char *w32_gl_objects_json(void);
 const char *w32_gl_approximations_json(void);

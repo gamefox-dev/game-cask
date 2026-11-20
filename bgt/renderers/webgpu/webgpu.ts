@@ -62,9 +62,21 @@ function blendState(mode: number): GPUBlendState | undefined {
 }
 
 import type { CheckpointSurfaces } from '../checkpoint-surfaces';
+import { WebGPUTiming } from './timing';
+
+/** Logical §13 passes of a frame (stats.passes counts these plus 2D passes). */
+function frameGpuPasses(frame: Frame): number {
+  let n = 0;
+  for (const it of frame.items) if (it.kind === 'gpu' && it.op === GPU_OP.PASS_BEGIN) n++;
+  return n;
+}
 
 export interface WebGPUOptions {
   debug?: boolean;
+  /** K53: opt-in timestamp-query pass timing (requests the feature when the adapter has it). */
+  gpuTiming?: boolean;
+  /** K53: frame encoder and pass merging (default on). */
+  batch?: boolean;
 }
 
 interface DeviceObjects {
@@ -90,7 +102,10 @@ export class WebGPURenderer implements Renderer {
   private snapshot?: GPUTexture;
   private snapshotLB?: Letterbox;
   readonly kind = 'webgpu' as const;
-  readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0 };
+  readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0, nativePasses: 0, nativeSubmits: 0,
+    mergedPasses: 0, bufferRenames: 0, gpuMs: null, gpuTiming: 'off' };
+  private nativeSubmits = 0;
+  private timing?: WebGPUTiming;
   lost = false;
   maxTextureSize = 4096;
   private o!: DeviceObjects;
@@ -116,7 +131,7 @@ export class WebGPURenderer implements Renderer {
   /** Returns null when WebGPU is unavailable; throws on unexpected init failures. */
   static async create(canvas: HTMLCanvasElement, opts: WebGPUOptions = {}): Promise<WebGPURenderer | null> {
     if (typeof navigator === 'undefined' || !navigator.gpu) return null;
-    const { gpu, adapter, device } = await acquireWebGPU();
+    const { gpu, adapter, device } = await acquireWebGPU(undefined, 3000, opts.gpuTiming ? ['timestamp-query'] : []);
     let r: WebGPURenderer | undefined;
     try {
       const ctx = canvas.getContext('webgpu');
@@ -208,8 +223,14 @@ export class WebGPURenderer implements Renderer {
       vbuf: null, vbufSize: 0, present };
     this.screen = undefined;
     this.snapshot = undefined;
+    const queue = device.queue, rawSubmit = queue.submit.bind(queue);
     if (this.gpu) await this.gpu.restore(device);
     else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)));
+    this.gpu.merge = this.opts.batch !== false;
+    this.timing?.destroy();
+    this.timing = this.opts.gpuTiming && WebGPUTiming.supported(device) ? new WebGPUTiming(device, b => rawSubmit(b)) : undefined;
+    this.gpu.timing = this.timing;
+    this.stats.gpuTiming = !this.opts.gpuTiming ? 'off' : this.timing ? 'timestamp-query' : 'unavailable';
     this.textures.clear();
     this.targets.clear();
     this.bindGroups.clear();
@@ -217,6 +238,9 @@ export class WebGPURenderer implements Renderer {
     await checkWebGPUDevice(device);
     if (initErrors.length) throw new Error(`WebGPU initialization: ${initErrors.join('; ')}`);
     initializing = false;
+    // K53 census: count every later native GPUQueue.submit of this device (renderer, §13 executor, helpers).
+    // Installed only on a healthy device, after the startup probe's own submissions.
+    queue.submit = (buffers: Iterable<GPUCommandBuffer>) => { this.nativeSubmits++; return rawSubmit(buffers); };
     void device.lost.then((info) => this.handleLost(info));
   }
 
@@ -230,7 +254,7 @@ export class WebGPURenderer implements Renderer {
       // A lost adapter cannot hand out new devices; request a fresh one. Some
       // stacks (e.g. headless Linux) never answer, hence the timeout.
       const recover = async () => {
-        const { adapter, device } = await acquireWebGPU(this.api);
+        const { adapter, device } = await acquireWebGPU(this.api, 3000, this.opts.gpuTiming ? ['timestamp-query'] : []);
         if (this.destroyed) { device.destroy(); return; }
         this.adapter = adapter;
         try { await this.initDevice(device); }
@@ -304,6 +328,7 @@ export class WebGPURenderer implements Renderer {
     const q = device.queue;
     this.stats.drawCalls = 0;
     this.stats.passes = 0;
+    this.nativeSubmits = 0;
 
     q.writeBuffer(this.o.uniform, 0, new Float32Array([frame.logicalW, frame.logicalH, 0, 0]));
     const bytes = frame.vertexBytes();
@@ -350,6 +375,7 @@ export class WebGPURenderer implements Renderer {
     }
     const target = gpuFrame ? this.screen! : output;
     this.gpu.frame(target);
+    const gpu = this.gpu;
     if (gpuFrame) lb = { x: 0, y: 0, w: frame.logicalW, h: frame.logicalH, scale: 1 };
     const view = target.createView();
     let encoder: GPUCommandEncoder | null = null;
@@ -398,7 +424,7 @@ export class WebGPURenderer implements Renderer {
           if (it.op === GPU_OP.DRAW || it.op === GPU_OP.DRAW_INDEXED) this.stats.drawCalls++;
           break;
         case 'readback': {
-          close();
+          close(); gpu.flush();
           if (!it.target && first) { open(0); close(); }
           const tex = it.target ? this.textures.get(it.target) : target;
           if (!tex) { it.complete(); break; }
@@ -410,17 +436,17 @@ export class WebGPURenderer implements Renderer {
           break;
         }
         case 'texCreate':
-          close();
+          close(); gpu.flush();
           this.createTex(it.handle, it.width, it.height, it.renderTarget);
           break;
         case 'texUpdate': {
-          close();
+          close(); gpu.flush();
           const t = this.textures.get(it.handle);
           if (t) q.writeTexture({ texture: t, origin: { x: it.x, y: it.y } }, it.data, { bytesPerRow: it.w * 4, rowsPerImage: it.h }, [it.w, it.h]);
           break;
         }
         case 'texDelete':
-          close();
+          close(); gpu.flush();
           this.textures.get(it.handle)?.destroy();
           this.textures.delete(it.handle);
           this.dropBindGroups(it.handle);
@@ -439,6 +465,7 @@ export class WebGPURenderer implements Renderer {
             w = Math.min(W, r.x + r.w) - x; h = Math.min(H, r.y + r.h) - y;
           }
           if (w <= 0 || h <= 0) break;
+          gpu.flush();
           if (!pass || passTarget !== it.target) {
             close();
             open(it.target);
@@ -454,6 +481,7 @@ export class WebGPURenderer implements Renderer {
         }
       }
     }
+    gpu.flush();
     if (first) {
       close();
       open(0); // screen never drawn this frame: still clear it
@@ -474,6 +502,10 @@ export class WebGPURenderer implements Renderer {
     }
     let pending: Promise<Pixels> | null = null;
     if (readback) pending = this.readback(output, this.format === 'bgra8unorm');
+    this.timing?.endFrame();
+    Object.assign(this.stats, { nativePasses: gpu.batch.nativePasses + this.stats.passes - frameGpuPasses(frame),
+      nativeSubmits: this.nativeSubmits, mergedPasses: gpu.batch.mergedPasses, bufferRenames: gpu.batch.bufferRenames,
+      gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     if (readbacks.length) return Promise.all(readbacks).then(() => pending);
     return pending;

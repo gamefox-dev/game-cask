@@ -96,9 +96,14 @@ export class WebGL2Gpu implements GpuBackend {
   private nextObjectId = 1;
   private feedback = new Map<number, FeedbackLayout>();
   private capture?: readonly number[];
+  /** K53: a non-screen pass leaves its framebuffer bound; a following PASS_BEGIN on the same native
+   * images skips re-attachment/completeness work. Released before any op that may rebind framebuffers. */
+  private lingering = false;
+  private passKey = '';
+  readonly batch = { nativePasses: 0, mergedPasses: 0 };
 
   constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void,
-    private readonly opts: { debug?: boolean } = {}) {
+    private readonly opts: { debug?: boolean; batch?: boolean } = {}) {
     this.maxElementIndex = gl.getParameter(gl.MAX_ELEMENT_INDEX) as number;
     this.maxDrawBuffers = gl.getParameter(gl.MAX_DRAW_BUFFERS) as number;
     this.indexed = gl.getExtension('OES_draw_buffers_indexed') as IndexedBlend | null;
@@ -124,6 +129,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   beginFrame(width: number, height: number, lb: Letterbox): void {
     this.frame = { width, height, lb };
+    this.batch.nativePasses = this.batch.mergedPasses = 0;
     for (const key of Object.keys(this.nativeSyncQueryOps)) delete this.nativeSyncQueryOps[key];
     this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
   }
@@ -267,8 +273,19 @@ export class WebGL2Gpu implements GpuBackend {
     this.completeFramebuffers.add(key);
   }
 
+  /** Release a lingering pass framebuffer (frame end, legacy items, framebuffer-using ops). */
+  flush(): void {
+    if (!this.lingering) return;
+    this.lingering = false; this.passKey = '';
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+  }
+
   private dispatch(item: GpuItem): void {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
+    if (this.lingering && op !== OP.PASS_BEGIN && op !== OP.BUFFER_UPDATE && op !== OP.BUFFER_CREATE &&
+      op !== OP.BUFFER_DELETE && op !== OP.SAMPLER_CREATE_EX && op !== OP.SAMPLER_DELETE && op !== OP.SHADER_CREATE &&
+      op !== OP.SHADER_DELETE && op !== OP.PIPELINE_CREATE && op !== OP.PIPELINE_DELETE &&
+      !(op === OP.TEXTURE_UPDATE_EX && !isDepthFormat(this.textures.get(h)?.desc.format ?? 0))) this.flush();
     switch (op) {
       case OP.FEEDBACK_VARYINGS: {
         const old=this.requirePipeline(h),layout=feedbackLayout(item.source!,!!w[1],w[2]),previous=this.feedback.get(h);
@@ -755,6 +772,16 @@ export class WebGL2Gpu implements GpuBackend {
         this.screenSize = [this.width, this.height];
       }
     }
+    const colors = Array.from({length:w[0]}, (_, i) => this.imageKey(
+      this.screenPass ? this.screen : this.textures.get(w[7+i*7])!.object, w[8+i*7])).join(",");
+    const depthKey = w[1] ? this.imageKey(this.textures.get(w[1])!.object,w[2]) : "0";
+    const key = `pass:${colors}:${depthKey}`;
+    if (this.lingering && !this.screenPass && key === this.passKey) {
+      // Same native images: the bound framebuffer, its attachments and completeness are unchanged.
+      this.lingering = false; this.batch.mergedPasses++;
+      g.drawBuffers(this.passDrawBuffers);
+    } else {
+    this.lingering = false; this.batch.nativePasses++;
     g.bindFramebuffer(g.FRAMEBUFFER, this.framebuffer);
     for (let i = 0; i < 4; i++) {
       g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0+i, g.TEXTURE_2D,
@@ -771,10 +798,9 @@ export class WebGL2Gpu implements GpuBackend {
     this.passDrawBuffers = w[0] ? Array.from({ length: w[0] }, (_, i) => g.COLOR_ATTACHMENT0+i) : [g.NONE];
     g.drawBuffers(this.passDrawBuffers);
     g.readBuffer(w[0] ? g.COLOR_ATTACHMENT0 : g.NONE);
-    const colors = Array.from({length:w[0]}, (_, i) => this.imageKey(
-      this.screenPass ? this.screen : this.textures.get(w[7+i*7])!.object, w[8+i*7])).join(",");
-    const depthKey = w[1] ? this.imageKey(this.textures.get(w[1])!.object,w[2]) : "0";
-    this.checkFramebuffer(g.FRAMEBUFFER, `pass:${colors}:${depthKey}`, 'Incomplete GPU pass');
+    this.checkFramebuffer(g.FRAMEBUFFER, key, 'Incomplete GPU pass');
+    this.passKey = this.screenPass ? '' : key;
+    }
     g.disable(g.SCISSOR_TEST); g.depthMask(true); g.stencilMask(255);
     for (let i = 0; i < 4; i++) this.indexed!.colorMaskiOES(i, true, true, true, true);
     if (this.screenPass && w[9] === 0) {
@@ -810,8 +836,10 @@ export class WebGL2Gpu implements GpuBackend {
       g.bindFramebuffer(g.READ_FRAMEBUFFER, this.framebuffer); g.readBuffer(g.COLOR_ATTACHMENT0);
       g.blitFramebuffer(0, 0, this.width, this.height, b.x, H-b.y, b.x+b.w, H-b.y-b.h,
         g.COLOR_BUFFER_BIT, g.NEAREST);
-    }
-    g.bindFramebuffer(g.FRAMEBUFFER, null); this.pipeline = undefined;
+      g.bindFramebuffer(g.FRAMEBUFFER, null);
+    } else if (this.opts.batch) this.lingering = true;
+    else g.bindFramebuffer(g.FRAMEBUFFER, null);
+    this.pipeline = undefined;
   }
 
   private applyStencil(): void {
@@ -1025,6 +1053,7 @@ export class WebGL2Gpu implements GpuBackend {
     if (this.languages && (!this.indexed || !this.gl.getExtension('EXT_color_buffer_float'))) {
       throw new Error('GPU extensions lost');
     }
+    this.lingering = false; this.passKey = '';
     this.framebuffer = this.gl.createFramebuffer()!; this.scratchIndex = this.gl.createBuffer()!;
     this.scratchAttributes.clear(); this.scratchIds = null;
     this.completeFramebuffers.clear(); this.objectIds = new WeakMap(); this.nextObjectId = 1;

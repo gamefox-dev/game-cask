@@ -86,6 +86,7 @@ void w32_gdi_chrome_end(void) { if (chrome_depth) chrome_depth--; }
 static void count_op(uint32_t tex) { if (chrome_depth) w32_m.chrome_ops++; else {w32_m.gdi_ops++;if(tex==TEX_SCREEN)guest_screen_dirty=1;} }
 
 static void flush_records(void) {
+    if (nrec_used) w32_gl_flush(); /* K53: keep GL-before-GDI submission order */
     for (uint32_t i = 0; i < nrec_used; i++) bgt_cmd_submit(&rec[i].cb);
     nrec_used = 0;
     stage_used = 0;

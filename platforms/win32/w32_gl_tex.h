@@ -142,8 +142,8 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
             }
         }
         uint32_t by = mh - (y + yo + rows);
-        if (legacy) SEND(0x44, id, lvl, x, by, w, rows, PTR(buf), w * rows * bpp);
-        else SEND(0x5a, id, lvl, x, by, z + zi, w, rows, 1, PTR(buf), w * rows * bpp);
+        if (legacy) SEND_DEFERRED(0x44, id, lvl, x, by, w, rows, PTR(buf), w * rows * bpp);
+        else SEND_DEFERRED(0x5a, id, lvl, x, by, z + zi, w, rows, 1, PTR(buf), w * rows * bpp);
     }
 }
 static int gpu_create(Texture *t, uint32_t id, uint32_t dim, uint32_t w, uint32_t h, uint32_t d, uint32_t bgt) {

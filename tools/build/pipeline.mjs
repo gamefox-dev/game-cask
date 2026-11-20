@@ -442,6 +442,8 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
+      // K53 A/B evidence only: restore per-call GL profile submission (no deferred frame list).
+      ...(process.env.BGT_GL_SYNC_SUBMIT === '1' ? ['-DW32_GL_SYNC_SUBMIT=1'] : []),
       ...(process.env.BGT_DISPATCH_COUNTERS === '1' ? ['-DX86_NATIVE_STATS=1'] : []),
       ...(process.env.BGT_CPU_ACCOUNTING === '1' ? ['-DX86_ACCOUNTING_ENABLED=1'] : process.env.BGT_CPU_ACCOUNTING === '0' ? ['-DX86_ACCOUNTING_ENABLED=0'] : []),
       `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
