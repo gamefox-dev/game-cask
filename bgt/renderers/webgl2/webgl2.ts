@@ -72,6 +72,7 @@ export class WebGL2Renderer implements Renderer {
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0, nativePasses: 0, nativeSubmits: 0,
     mergedPasses: 0, bufferRenames: 0, gpuMs: null, gpuTiming: 'off' };
   private timing?: WebGL2Timing;
+  private nativeCheckDue = false;
   lost = false;
   maxTextureSize = 4096;
   private gl: WebGL2RenderingContext;
@@ -112,7 +113,7 @@ export class WebGL2Renderer implements Renderer {
     canvas.addEventListener('webglcontextrestored', () => {
       try {
         this.initResources();
-        this.timing?.reset();
+        this.timing?.reset(); this.nativeCheckDue = false;
         this.gpu.restore();
       } catch (e) {
         for (const cb of this.unrecoverableCbs) cb(`GPU restore failed: ${(e as Error).message}`);
@@ -250,6 +251,8 @@ export class WebGL2Renderer implements Renderer {
       return null;
     }
     this.gpu.beginFrame(frame.logicalW, frame.logicalH, lb);
+    // The previous frame's deferred native-error poll, before this frame's commands (attributed 'frameEnd').
+    if (this.nativeCheckDue) { this.nativeCheckDue = false; this.gpu.checkNativeError(); }
     const gl = this.gl;
     const t0 = performance.now();
     const H = this.canvas.height;
@@ -416,8 +419,10 @@ export class WebGL2Renderer implements Renderer {
       out = { width: w, height: H, data };
     }
     this.timing?.end();
-    // After presentation/snapshot and requested readback: one production native-error round trip.
-    this.gpu.checkNativeError();
+    // One production native-error round trip per frame, deferred to the next frame's start (coordinator
+    // decision, K53): it is a renderer diagnostic only (guest GL errors come from the profile's shadow
+    // state), and polling here stalls the main thread until the GPU process has drained this frame.
+    this.nativeCheckDue = true;
     Object.assign(this.stats, { nativePasses: this.gpu.batch.nativePasses, nativeSubmits: 0,
       mergedPasses: this.gpu.batch.mergedPasses, skippedBinds: this.gpu.batch.skippedBinds, gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;

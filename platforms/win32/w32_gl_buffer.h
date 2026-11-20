@@ -63,7 +63,7 @@ static int mapped_upload(Buffer *b, uint32_t off, uint32_t n) {
     if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = dest; r->n = size;
         r->gen_old = (uint8_t)b->generated; copy(r->old, b->data + dest, size); }
     if (ok) { copy(b->data + dest, data, size); if (!dest && size == b->size) b->generated = 0; }
-    if (r) r->gen_new = (uint8_t)b->generated;
+    if (r) r->gen_clear = !dest && size == b->size;
     glp_free(data, size); return ok;
 }
 static uint32_t api_FlushMappedBufferRange(void) {

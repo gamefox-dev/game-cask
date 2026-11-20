@@ -97,11 +97,12 @@ static int submit(void);
 enum { PR_NONE, PR_BYTES, PR_UBO, PR_DRAW };
 /* One deferred call: its byte range in the pending list and what it committed on deferral. */
 typedef struct {
-    uint64_t seq, dep_seq; uint32_t start, end, kind, obj, off, n; uint8_t gen_old, gen_new; uint8_t *old, *src;
+    uint64_t seq, dep_seq; uint32_t start, end, kind, obj, off, n; uint8_t gen_old, gen_clear; uint8_t *old, *src;
 } PendRec;
 static PendRec *pend_last;          /* record of the latest deferred call; NULL when it was submitted synchronously */
 static uint64_t pend_dep_seq;       /* set by draw(): the next list depends on this record's acceptance */
 static uint64_t pend_rejected_seq;  /* most recent record rejected by a replay */
+static uint32_t replay_error;       /* error a replay newly latched (callers that restore the latch reset it first) */
 #ifndef W32_GL_SYNC_SUBMIT
 #define W32_GL_SYNC_SUBMIT 0
 #endif
@@ -122,7 +123,7 @@ static PendRec recs[4096]; static uint64_t pend_seq;
 static uint32_t replay_mem[PEND_BYTES / 16 + 64];
 static uint8_t replay_ok[4096];
 static void replay(void) {
-    w32_gl_batch_replays++;
+    w32_gl_batch_replays++; uint32_t latched = error;
     for (uint32_t i = 0; i < nrecs; i++) {
         PendRec *r = &recs[i]; int dead = 0;
         if (r->dep_seq) for (uint32_t j = i; j-- > 0;) if (recs[j].seq == r->dep_seq) { dead = !replay_ok[j]; break; }
@@ -144,6 +145,7 @@ static void replay(void) {
         if (replay_ok[i] ? recs[i].kind == PR_BYTES : recs[i].kind != PR_BYTES) pend_apply(&recs[i], 1);
         if (!replay_ok[i]) pend_rejected_seq = recs[i].seq;
     }
+    if (!latched && error) replay_error = error;
 }
 static void flush_pending(void) {
     pend_last = 0;
@@ -178,7 +180,8 @@ static int submit_deferred_x(uint32_t reserve) {
     }
     data += (reserve + 15u) & ~15u;
     if (data > PEND_DATA / 4 || cmd.len - 16 > PEND_BYTES / 4) return submit();
-    if (!flush_padded_cleanup()) { bgt_cmd_reset(&cmd); return 0; }
+    /* A dependency marker belongs to this list only: consume it on every early exit too. */
+    if (!flush_padded_cleanup()) { pend_dep_seq = 0; bgt_cmd_reset(&cmd); return 0; }
     if (!pend_ready) { bgt_cmd_init(&pend, pend_mem, sizeof pend_mem); pend_ready = 1; }
     if (pend.len + cmd.len - 16 > pend.cap || pend.count + cmd.count > 4096u || pend_used + data > PEND_DATA) {
         flush_pending();
@@ -479,21 +482,24 @@ static uint32_t api_BufferData(void) {
         /* Transport owns uploads in order: earlier draws still see the old bytes.
          * A rejected UPDATE has no emitted item/native side effect (decoder validates before
          * emit). In that exceptional case restore the error latch and run the original
-         * delete/create path: its own acceptance decides both state and guest error. */
-        uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size};
+         * delete/create path: its own acceptance decides both state and guest error. An error latched by
+         * a replayed rejection of earlier deferred calls (a flush inside the send) is not this call's own
+         * and survives the restore; flushing up front instead would split every frame's batch here. */
+        uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size}; replay_error = 0;
         if (send_deferred_bytes(0x41, update, 4, (uint32_t)size)) {
             PendRec *r = pend_last;
             unmap_storage(b); b->map_access = 0x88ba;
             if (r) { /* deferred: rewrite the store in place so a replayed rejection can restore it */
                 *r = (PendRec){.seq = r->seq, .dep_seq = r->dep_seq, .start = r->start, .end = r->end, .kind = PR_BYTES,
-                    .obj = (uint32_t)(b - buffers), .n = (uint32_t)size, .gen_old = (uint8_t)b->generated, .old = r->old, .src = r->src};
+                    .obj = (uint32_t)(b - buffers), .n = (uint32_t)size, .gen_old = (uint8_t)b->generated, .gen_clear = 1,
+                    .old = r->old, .src = r->src};
                 copy(r->old, b->data, (uint32_t)size); __builtin_memcpy(b->data, data, (uint32_t)size); glp_free(data, (uint32_t)size);
             } else { glp_free(b->data, b->size); b->data = data; }
             b->generated = 0;
             w32_gl_buffer_respec_reused++;
             default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
         }
-        error = pending;
+        error = pending ? pending : replay_error;
     }
     if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
     /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
@@ -529,7 +535,7 @@ static uint32_t api_BufferSubData(void) {
         if (accepted) copy(b->data + off, data, (uint32_t)n);
         glp_free(data, (uint32_t)n); if (!accepted) return 0;
         if (!off && n == b->size) b->generated = 0;
-        if (r) r->gen_new = (uint8_t)b->generated;
+        if (r) r->gen_clear = !off && n == b->size;
     }
     default_element_compat(ARG(0), "core VAO 0 element-buffer sub-data upload"); return 0;
 }
@@ -816,7 +822,9 @@ static void pend_apply(PendRec *r, int redo) {
     case PR_BYTES: {
         Buffer *b = &buffers[r->obj];
         if (b->data && r->off + r->n <= b->size) __builtin_memcpy(b->data + r->off, redo ? r->src : r->old, r->n);
-        b->generated = redo ? r->gen_new : r->gen_old;
+        /* A call's own effect on generation is a transition (whole-store write clears it, a partial write
+         * keeps it), never an absolute value: earlier calls in the batch may have been rejected. */
+        if (!redo) b->generated = r->gen_old; else if (r->gen_clear) b->generated = 0;
         break;
     }
     case PR_UBO: programs[r->obj].dirty = 1; break;

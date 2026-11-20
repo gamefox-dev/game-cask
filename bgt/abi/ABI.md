@@ -1341,7 +1341,7 @@ pending encoder references them, and submits before blit/copy/readback/mip gener
 uploads/legacy items; presentation and the retained-snapshot copy are encoded into the frame's last command
 buffer, so a batched GL frame costs one GPUQueue.submit. WebGL 2 keeps a pass framebuffer bound for the next
 same-image pass and shadows program/VAO/viewport/scissor/depth-range/blend-color state to skip identical calls
-(cleared by any other GL writer).
+(cleared by any other GL writer); its one production native-error poll per frame runs at the next frame's start.
 Standalone executors keep per-pass submission unless the renderer enables merging; `?gpubatch=0` and the
 `BGT_GL_SYNC_SUBMIT=1` build restore the old shapes for A/B evidence. Diagnostics `lastFrame.nativePasses`,
 `nativeSubmits`, `mergedPasses`, `bufferRenames`, `skippedBinds`, and opt-in `?gputiming=1` `gpuMs`/`gpuTiming`

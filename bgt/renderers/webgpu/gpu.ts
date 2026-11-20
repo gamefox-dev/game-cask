@@ -596,7 +596,11 @@ export class WebGPUCommands implements GpuBackend {
     this.used.clear();this.beginNative(desc);
     const v=this.viewport;this.pass!.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
     const sc=this.scissor;this.pass!.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass!.setStencilReference(this.stencilRef);this.pass!.setBlendConstant(this.blendConstant);
-    if(this.index)this.pass!.setIndexBuffer(this.buffers.get(this.index[0])!.native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);
+    // The resumed pass belongs to a fresh encoder: every rebound resource must be marked used again, or a
+    // later same-frame BUFFER_UPDATE skips the copy-on-write rename and the pending draw reads new bytes.
+    // (Vertex/uniform/texture bindings are re-marked by the next draw's bind(); attachments by beginNative.)
+    if(this.index){const native=this.buffers.get(this.index[0])!.native;this.used.add(native);
+      this.pass!.setIndexBuffer(native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);}
   }
 
   /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */

@@ -40,6 +40,13 @@ static void failure_case(void){
  OutputDebugStringA("x64-gl-ranges inject partial materialization limit");glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();error(GL_OUT_OF_MEMORY,"materialization limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");unsigned untouched=99;glBindBuffer(GL_ARRAY_BUFFER,output);glGetBufferSubData(GL_ARRAY_BUFFER,0,4,&untouched);note("materialization failure leaves output untouched",untouched==0);
  OutputDebugStringA("x64-gl-ranges inject rejected full upload");unsigned replacement=99;glBindBuffer(GL_ARRAY_BUFFER,source);glBufferSubData(GL_ARRAY_BUFFER,0,4,&replacement);error(GL_OUT_OF_MEMORY,"full upload limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
  glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();unsigned retained=0;glBindBuffer(GL_ARRAY_BUFFER,output);glGetBufferSubData(GL_ARRAY_BUFFER,0,4,&retained);note("failed full upload retains native prefix",retained==37);glBufferSubData(GL_ARRAY_BUFFER,0,16,clean);error(GL_NO_ERROR,"rejected upload subsequent draw");
+ /* Generated store, then a rejected whole write and an accepted partial write (15 bytes of upload headroom): the
+  * capture stays authoritative, so the read must return the captured word, the partial word and no stale shadow. */
+ glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();unsigned before[4]={0},after[4]={0},whole[4]={7,7,7,7},part=5;
+ glBindBuffer(GL_ARRAY_BUFFER,output);glGetBufferSubData(GL_ARRAY_BUFFER,0,16,before);OutputDebugStringA("x64-gl-ranges inject upload headroom");
+ glBufferSubData(GL_ARRAY_BUFFER,0,16,whole);glBufferSubData(GL_ARRAY_BUFFER,4,4,&part);error(GL_OUT_OF_MEMORY,"headroom whole upload rejected");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ glGetBufferSubData(GL_ARRAY_BUFFER,0,16,after);note("rejected whole write keeps generated contents",before[0]==37&&after[0]==37&&after[1]==5&&after[2]==before[2]&&after[3]==before[3]);
+ glBufferSubData(GL_ARRAY_BUFFER,0,16,clean);error(GL_NO_ERROR,"headroom recovery");
  glDeleteBuffers(1,&source);error(GL_NO_ERROR,"generated app source deleted");OutputDebugStringA("x64-gl-ranges failure case done");for(;;)Sleep(16);
 }
 int main(void){
