@@ -69,7 +69,7 @@ frame and is submitted into the current one only if its measured cost fits there
 first (at the present, or by a transport-only yield, deferred_gl_yields) and it opens the next frame. It is
 submitted early only when a GL request needs its result or the 32-MiB journal is full; an update that then ends
 without a present counts as guest_time.torn_frames. GDI/legacy lists in the same host frame are charged too
-(bytes/4 bounds their vertices). A deferred list the host still rejects (deferred_gl_rejects, not expected)
+(bytes/2 bounds their vertices: CLEAR is 12 bytes for 6). A deferred list the host still rejects (deferred_gl_rejects, not expected)
 sets the GL error when it is submitted, so it is attributed to whatever GL call is current then; GL's
 first-error latch is otherwise unchanged. A dirty GDI screen batch counts once at a
 USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,

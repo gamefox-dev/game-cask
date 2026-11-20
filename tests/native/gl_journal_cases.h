@@ -32,6 +32,6 @@ static void journal_growth(void) {
     recent_frames[0].lists = 10;
     CHECK(next_frame_fits());
     for (uint32_t i = 0; i < 247; i++) w32_gl_charge_foreign(64, 2);
-    CHECK(!next_frame_fits() && frame_use.lists == 247 && frame_use.vertices == 247 * 16);
+    CHECK(!next_frame_fits() && frame_use.lists == 247 && frame_use.vertices == 247 * 32);
     puts("journal growth keeps every deferred upload byte-exact OK");
 }

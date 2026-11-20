@@ -144,17 +144,14 @@ static const void *wire_address(uint32_t p) {
 static int journal_add(const uint8_t *buf, uint32_t len, const gpu_usage_t *u) {
     gpu_usage_t total = journal_use, empty = {0}; usage_add(&total, u);
     if (!fits(&empty, &total)) return 0; /* the deferred span must fit a fresh host frame */
-    uint32_t need = 8 + ((len + 3) & ~3u);
+    uint64_t wide = 8 + (((uint64_t)len + 3) & ~3ull); /* 64-bit: upload sizes can approach 4 GiB */
     for (uint32_t off = 16; off + 8 <= len;) {
         uint32_t code = buf[off] | ((uint32_t)buf[off + 1] << 8), size = word_at(buf + off + 4), p, l;
-        if (data_words(code, &p, &l) && size >= (l + 1) * 4) {
-            uint32_t n = word_at(buf + off + 8 + l * 4);
-            if (n > JOURNAL_MAX) return 0;
-            need += (n + 3) & ~3u;
-        }
+        if (data_words(code, &p, &l) && size >= (l + 1) * 4) wide += ((uint64_t)word_at(buf + off + 8 + l * 4) + 3) & ~3ull;
         off += 8 + size;
     }
-    if (need > JOURNAL_MAX - journal_len) return 0;
+    if (wide > (uint64_t)JOURNAL_MAX - journal_len) return 0;
+    uint32_t need = (uint32_t)wide;
     if (journal_len + need > journal_cap) {
         uint32_t cap = journal_cap ? journal_cap : 65536;
         while (cap < journal_len + need) cap = cap > JOURNAL_MAX / 2 ? JOURNAL_MAX : cap * 2;
@@ -224,6 +221,7 @@ static int32_t host_submit(bgt_cmdbuf_t *b, uint16_t flags) {
         copy(held, list, len); list = held; bgt_cmd_reset(b);
         gl_deferred_yields++; w32_wait_transport(); /* the resume hook submits the journal */
     } else if (journal_len) { journal_submit(); exposed = 1; }
+    if (deferring) exposed = 1; /* post-present work that could not be journaled reaches this frame */
     host_frame_sync();
     int32_t rc = bgt_submit_commands(list, len);
     if (rc != BGT_E_LIMIT) usage_add(&frame_use, &u);
@@ -231,11 +229,11 @@ static int32_t host_submit(bgt_cmdbuf_t *b, uint16_t flags) {
     return rc;
 }
 /* Other submitters in the same host frame (GDI/legacy 2D lists) are charged here too. A legacy list
- * counts against the list allowance and the aggregate wire budget; every legacy vertex needs at least
- * four payload bytes, so bytes/4 bounds its vertices. */
+ * counts against the list allowance and the aggregate wire budget. The densest legacy command is CLEAR
+ * (12 wire bytes, 6 vertices), so bytes/2 bounds its vertices. */
 void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands) {
     host_frame_sync();
-    gpu_usage_t u = {bytes, commands, 1, 0, bytes / 4};
+    gpu_usage_t u = {bytes, commands, 1, 0, bytes / 2};
     usage_add(&frame_use, &u);
 }
 /* A request result is only visible once its list reached the host. */
