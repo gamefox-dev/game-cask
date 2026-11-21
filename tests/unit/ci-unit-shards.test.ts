@@ -52,12 +52,13 @@ it('retains every configured file regardless of directory, extension or naming c
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-it('partitions the measured inventory into three bounded CI shards',()=>{
-  const dir=fixture();
+it('partitions the measured inventory into four bounded CI shards',()=>{
+  const extra=['tests/unit/c.test.ts'],dir=fixture(false,false,extra),all=[...files,...extra];
   try {
-    const shards=[1,2,3].map(i=>execFileSync(process.execPath,[join(dir,'tools/build/ci-unit-shards.mjs'),i+'/3'],{encoding:'utf8'}).trim().split('\n'));
-    expect(shards.flat().sort()).toEqual([...files].sort());
-    expect(new Set(shards.flat()).size).toBe(files.length);
+    const shards=[1,2,3,4].map(i=>execFileSync(process.execPath,[join(dir,'tools/build/ci-unit-shards.mjs'),i+'/4'],{encoding:'utf8'}).trim().split('\n'));
+    for(const shard of shards)expect(shard.filter(Boolean).length).toBeGreaterThan(0); // an empty shard would run npm test unfiltered
+    expect(shards.flat().sort()).toEqual([...all].sort());
+    expect(new Set(shards.flat()).size).toBe(all.length);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -71,7 +72,7 @@ it('accounts for cold setup and keeps tests sharing an expensive prebuild togeth
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-it('requires the third unit shard to succeed in the actual aggregate gate',()=>{
+it('requires every unit shard to succeed in the actual aggregate gate',()=>{
   const workflow=readFileSync(join(ROOT,'.github/workflows/ci.yml'),'utf8');
   const start=workflow.indexOf('\n  gate:');
   // workflow_dispatch.inputs.webgpu appears before jobs; only the later job
@@ -79,13 +80,18 @@ it('requires the third unit shard to succeed in the actual aggregate gate',()=>{
   const end=workflow.indexOf('\n  webgpu:',start);
   expect(start).toBeGreaterThanOrEqual(0);expect(end).toBeGreaterThan(start);
   const gate=workflow.slice(start,end);
-  expect(gate).toMatch(/needs: \[.*unit_3/);
-  expect(gate).toContain('UNIT3: ${{ needs.unit_3.result }}');
   const script=gate.split('        run: |\n')[1].trim();
-  const env={...process.env,LINT_JS:'success',LINT_NATIVE:'success',LINT_EXAMPLES:'success',UNIT1:'success',UNIT2:'success',E2E:'success',SCALE:'success'};
-  for(const UNIT3 of ['success','failure','cancelled','skipped']){
-    const result=spawnSync('bash',['-e','-c',script],{env:{...env,UNIT3},encoding:'utf8'});
-    expect(result.status,UNIT3).toBe(UNIT3==='success'?0:1);
+  // I17: four shards (K50/K51/K53 pushed three past the 60-min job limit); each one must gate.
+  const ok={LINT_JS:'success',LINT_NATIVE:'success',LINT_EXAMPLES:'success',UNIT1:'success',UNIT2:'success',UNIT3:'success',UNIT4:'success',E2E:'success',SCALE:'success'};
+  expect(spawnSync('bash',['-e','-c',script],{env:{...process.env,...ok},encoding:'utf8'}).status).toBe(0);
+  for(const n of [1,2,3,4]){
+    expect(gate).toMatch(new RegExp('needs: \\[.*unit_'+n+'[,\\]]'));
+    expect(gate).toContain('UNIT'+n+': ${{ needs.unit_'+n+'.result }}');
+    expect(workflow).toContain('ci-unit-shards.mjs '+n+'/4');
+    for(const bad of ['failure','cancelled','skipped']){
+      const result=spawnSync('bash',['-e','-c',script],{env:{...process.env,...ok,['UNIT'+n]:bad},encoding:'utf8'});
+      expect(result.status,'UNIT'+n+'='+bad).toBe(1);
+    }
   }
 });
 
@@ -96,7 +102,7 @@ it('fails closed on inventory drift before CI starts npm test',()=>{
     // substitution would swallow Node's exit status and create the marker.
     const workflow=readFileSync(join(ROOT,'.github/workflows/ci.yml'),'utf8');
     const commands=workflow.split('\n').filter(line=>line.includes('node tools/build/ci-unit-shards.mjs')).map(line=>line.trim());
-    expect(commands).toHaveLength(3);
+    expect(commands).toHaveLength(4);
     for(const command of commands){
       const result=spawnSync('bash',['-e','-c',command+'\ntouch "'+marker+'"'],{cwd:dir,env:{...process.env,RUNNER_TEMP:dir},encoding:'utf8'});
       expect(result.status).not.toBe(0);
