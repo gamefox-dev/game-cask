@@ -10,6 +10,8 @@ Use the generic deterministic driver (or a custom scratch input script):
 npm run probe -- --game YOUR-ID --backend webgl2 --script tools/probe/record-to-frame.mjs --params recordTo=7063 --record-frame 7063 --out /private/scratch/title
 ```
 
+Add `--software` on a host without a GPU: the probe otherwise refuses the SwiftShader fallback.
+
 The probe exposes its sink **before navigation/init**. Scripts receive CLI query parameters as `p.params` (for example `p.params.recordTo`). The runtime awaits each snapshot before drawing or consuming it. During a recorded frame, canvas resize/letterbox changes are deferred until drawing completes, so the recorded dimensions and scale are exactly those used for that frame; pending resizes apply to the next frame. This is opt-in, adds no game ABI import/opcode, and does not replace native results with CPU shadows. The probe fails if the script does not render the exact requested update. Use one runtime lifetime per recording; do not navigate/restart within a recording.
 
 ## Versioned format

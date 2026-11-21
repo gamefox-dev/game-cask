@@ -25,10 +25,11 @@ No BGT ABI change is required: the only suspending host import remains `bgt_yiel
   manual events stay signalled. Mutex acquisition is recursive and an exited owner's mutex reports abandonment.
   Lock release reserves ownership for queued waiters; new SRW readers do not bypass a waiting writer.
 - Sleep(0) and SwitchToThread rotate immediately. Sleep/SleepEx and finite object/CV/address waits use unsigned
-  elapsed virtual milliseconds, never wall time. When nobody is runnable, the scheduler advances virtual time
-  in 1 ms increments, yielding through `bgt_yield` at frame boundaries. INFINITE waits have no deadline.
-- A CPU-bound thread reaches a deterministic two-million-instruction quantum, yields a browser frame and rotates.
-  Lifted and interpreted execution use the same accounting. AMD64 REP operations can suspend between iterations;
+  elapsed virtual milliseconds, never wall time. With nobody runnable, time jumps to the earliest finite
+  thread/audio/USER timer deadline, clipped at the next clock-frame boundary. INFINITE has no invented deadline.
+- A CPU-bound thread reaches a deterministic two-million-unit quantum and rotates, **without ending a host
+  update or adding a frame of virtual time**. The process cap, presentation and idle boundaries described below
+  end updates. Lifted and interpreted execution use the same budget. AMD64 REP operations can suspend between iterations;
   i386 REP is one indivisible guest instruction. LOCK instructions/exported Interlocked operations are indivisible.
 - Legacy USER/file frame waits can retain native profile C locals. At their frame yield, a parked continuation
   lends execution to runnable workers and is restored only to its exact original host caller. Guest callbacks
@@ -42,6 +43,74 @@ Guest PC continuation dispatch is explicit labelled C. AMD64 uses its existing i
 for i386 the lifter emits exact instruction entries and a label-entry switch. `lift.entries` records registry
 size separately from `lift.functions`. The runtime's `lifted_functions` metric still counts source functions.
 There is no decoder/fetch loop in the generated code, and the fixtures assert zero interpreted instructions.
+
+## Guest time model (K50, version 1)
+
+The Win32 clock is independent of BGT completed-update count and host wall time. Existing dispatch budget
+units (including REP iterations, not opt-in retirement counters) represent a fixed nominal CPU rate of
+**4000 units per microsecond**. Partial budgets are committed at scheduler boundaries; clock reads include
+current uncommitted debt, so QPC/GetTickCount/timeGetTime busy-waits progress without sleeping. The nominal
+rate is a model, not measured hardware speed. QPC has a 1 MHz frequency and microsecond resolution.
+
+A successful SwapBuffers with interval N >= 1 ends the update and snaps forward to a 16667-us grid point at
+least N periods after the previous present and not earlier than current virtual time. CPU/idle time already
+spent is credited, not added again. **Interval 0** (K50 review ruling) does not end the update: the guest keeps
+running and later presents replace the displayed frame (counted as guest_time.dropped_presents) until the
+next 16667-us frame target. So that the shown frame is complete, the update ends at the present after which
+the next frame (the costliest of the last four, in instruction units and virtual time) would cross that target
+or the instruction cap, or would not fit any per-host-frame GPU budget (wire bytes, commands, legacy lists,
+upload bytes = gpu_budget_bytes, GPU vertices), counted as guest_time.present_budget_ends. Ending before the
+target snaps forward to it, so each host update carries exactly one period of guest time and an uncapped game
+runs at real speed. If an update still ends mid-frame (cap or idle boundary) after a present in it, the GL work
+issued after that present is journaled (with private copies of its upload data) and submitted in order at the
+start of the next update, so the last presented image stays shown (deferred_gl_lists). Upload copies are
+addressed by journal offset (the journal may move as it grows). The journal is bounded to fit an empty host
+frame and is submitted into the current one only if its measured cost fits there; otherwise the update ends
+first (at the present, or by a transport-only yield, deferred_gl_yields) and it opens the next frame. It is
+submitted early only when a GL request needs its result or the 32-MiB journal is full; an update that then ends
+without a present counts as guest_time.torn_frames. GDI/legacy lists in the same host frame are charged too
+(bytes/2 bounds their vertices: CLEAR is 12 bytes for 6). A deferred list the host still rejects (deferred_gl_rejects, not expected)
+sets the GL error when it is submitted, so it is attributed to whatever GL call is current then; GL's
+first-error latch is otherwise unchanged. A dirty GDI screen batch counts once at a
+USER wait/process-cap/idle boundary, including dirty-screen Sleep(0)/SwitchToThread (one clock boundary,
+then rotation). Clean zero sleeps only rotate. Individual GDI calls and extra host renders are not frame
+boundaries. If the bounded GDI command list fills first, records are flushed through a transport-only
+yield without advancing the clock or counting a present; draw state is restored after consumption.
+Graphics consumption/render never advances this clock. Long CPU frames can span multiple clock frames.
+
+The process instruction cap defaults to **64,000,000 units**, with at most a quantum of overshoot, independent
+of the number/priority of threads. Set pipeline.timeModel.instructionCap to an integer in 2,000,000..256,000,000;
+the manifest records version, cap, rate and frame period. Cap checks include short scheduler transfers,
+not just complete quanta, so Sleep(0) cannot bypass it. Cap/legacy USER wait/idle frames advance to at least
+the next clock boundary. External file/range/GL readback waits yield for transport, without advancing
+Win32 time solely because the host is slow. Audio follows the same virtual clock and event deadlines.
+A WASAPI event client gets one event per elapsed 10-ms engine period, in order, even when a present or
+frame boundary snaps across several periods: the next event is signalled only after the client thread has
+consumed the previous one, so it runs between them. At most 8 per client and host update; older periods
+beyond that coalesce (guest_time.audio_events_coalesced). GetCurrentPadding/GetPosition drain to the current
+virtual time. Diagnostics guest_time exposes exact decimal-string clock-frame/cap-hit/yield counts and virtual_us.
+
+**All-idle scheduler.** With no runnable thread, the scheduler jumps to the earliest finite thread, audio or
+USER deadline. A SleepConditionVariable waiter that has timed out (or was woken) but cannot reacquire its lock
+is not a deadline: it becomes runnable when the holder releases. An undeliverable audio backlog (event still
+set) is not "due now" either. As a guard, a zero delay that makes no progress after two pumps advances virtual
+time by 1 ms (guest_time.idle_guard_hits, expected 0), so the idle loop can never spin with time frozen.
+
+The optional read-only bgt_guest_time_us export exposes the clock for deterministic test audio/time services;
+it does not schedule by wall time. All clock/debt/budget/deadline state is wasm state, shared by both oracle
+sides and both suspension modes. See [savestates](../../docs/savestates.md).
+
+**step(n) means n consumed host updates**, not n quanta or n guaranteed presents. For a presenting guest
+below the cap with no I/O waits, this is one present per update. Non-presenting, idle, cap-limited and
+transport-bound guests can differ. Real-page pipeline pacing runs at most one update per rAF, keeps the
+sub-period remainder (at most one period) and drops older backlog; native BGT fixed-step games keep their catch-up policy. The deterministic cap bounds work, not
+milliseconds: main-thread wasm cannot offer hard wall-time preemption. No phone responsiveness guarantee.
+
+Original CC0 examples/x64-time verifies a multi-quantum main, real WASAPI event worker, Sleep/QPC/timeGetTime
+worker, busy-wait limiter, intervals 0/1/2, an uncapped interval-0 phase (many presents per update, one period
+per update) and non-presenting cap phase. tests/unit/cv-timeout.test.ts (i386 and AMD64, CS and SRW) and
+tests/unit/audio-periods.test.ts (one-period-per-event writer) cover the K50 review fixes. See [K50](../../docs/handoff/K50.md)
+for measured before/after and validation status.
 
 ## Implemented surface
 

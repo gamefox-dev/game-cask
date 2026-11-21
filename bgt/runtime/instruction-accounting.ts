@@ -71,3 +71,26 @@ export function instructionSummary(metrics: Row) {
     instructions_per_guest_frame:frames.length&&measured!==null?measured/frames.length:null,
     frames:ring?{capacity:ring.capacity,dropped:ring.dropped,intervals_measured:frames.length,intervals:frames}:null};
 }
+
+/** K51 owner census: numeric top-N tables (owner as 0x-hex guest address, share of the table total).
+ * Raw exact decimal strings remain in metrics.owner_census; unsafe values are null, never rounded. */
+export function ownerCensusSummary(metrics: Row) {
+  const c=object(metrics.owner_census);
+  if(c?.enabled!==1)return {status:'unavailable' as const,cumulative:null,last_frame:null,frames:null};
+  const table=(t:Row|null)=>{
+    if(!t)return null;const total=safe(count(t.total));
+    const rows=(Array.isArray(t.rows)?t.rows:[]).map(object).filter((r):r is Row=>!!r).map(r=>{
+      const n=safe(count(r.total));
+      return {owner:typeof r.owner==='number'?(r.owner===0xffffffff?'unowned':'0x'+r.owner.toString(16).padStart(8,'0')):null,
+        instructions:n,lifted:safe(count(r.lifted)),generic:safe(count(r.generic)),interpreted:safe(count(r.interpreted)),
+        share:n!==null&&total?n/total:null};
+    });
+    return {present:t.present===undefined?undefined:safe(count(t.present)),instructions:total,
+      unattributed:t.unattributed===undefined?undefined:safe(count(t.unattributed)),
+      active_owners:typeof t.active_owners==='number'?t.active_owners:undefined,rows};
+  };
+  const ring=object(c.frames),snapshots=(Array.isArray(ring?.snapshots)?ring.snapshots:[]).map(object).filter((r):r is Row=>!!r);
+  return {status:'available' as const,top_n:c.top_n,owners:c.rows,unattributed:safe(count(c.unattributed)),
+    cumulative:table(object(c.cumulative)),last_frame:snapshots.length?table(snapshots[snapshots.length-1]):null,
+    frames:ring?{capacity:ring.capacity,dropped:safe(count(ring.dropped)),retained:snapshots.length}:null};
+}

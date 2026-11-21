@@ -31,6 +31,7 @@ export function coveragePlan(files,gameDir) {
     const bytes=readFileSync(file),c=JSON.parse(bytes);
     if(c.schema!=='game-cask/coverage/1'||!Array.isArray(c.code)||!Array.isArray(c.files)||!Array.isArray(c.modules))throw new Error('invalid coverage snapshot');
     if(!validModules(c.modules))throw moduleMismatch(file,'unique named module identities with bases/hashes',c.modules);
+    if(c.recording==='off')throw new Error('coverage snapshot came from a coverage-off performance build (K51); record with a normal build');
     if(c.metrics?.code_entries_dropped>0 || c.interpreter?.dropped>0)throw new Error('coverage overflowed; cannot package an incomplete recording');
     if(c.metrics?.errors>0)throw new Error('coverage has runtime errors; record a successful workload');
     const execution=c.metrics?.execution;

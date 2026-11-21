@@ -9,6 +9,7 @@
 x86_cpu_t X;
 static bgt_io_t native_io;
 bgt_io_t *w32_io = &native_io;
+w32_metrics_t w32_m;
 uint8_t *x86_pages[1u<<20];
 uint8_t x86_protection[1u<<20]; int x86_protection_active;
 __attribute__((noreturn)) void x86_fault(const char *s,uint32_t a){fprintf(stderr,"fault %s %u\n",s,a);exit(3);}
@@ -45,6 +46,9 @@ uint32_t w32_slen(const char *s){return (uint32_t)strlen(s);}
 void w32_logf2(const char *a,const char *b){fprintf(stderr,"%s%s\n",a,b);}
 void w32_log(const char *s){fprintf(stderr,"%s\n",s);}
 void w32_wait_frame(void){abort();}
+void w32_wait_transport(void){abort();}
+void w32_clock_present(uint32_t interval){(void)interval;abort();}
+int w32_clock_swap0(int budget_full){(void)budget_full;abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,
  * command shape and handle/request lifecycle; compiler rejection is independently injected. */
 int32_t bgt_submit_commands(const void *p,uint32_t n) {
@@ -107,6 +111,13 @@ int32_t bgt_request_read(uint32_t r,void *p,uint32_t n){if(r!=request_pending)ab
     if(n<4)abort();
     memcpy(p,&request_result,4);return 4;}
 int32_t bgt_request_close(uint32_t r){if(r!=request_pending)abort();request_pending=device_readback=0;return 0;}
+/* K51: the GL profile queries the active GPU namespace's real uniform-block limit (§13.6 offset 52). */
+static uint32_t native_uniform_limit=65536,native_limit_queries;
+int32_t bgt_gpu_limits(bgt_gpu_limits_t *d,uint32_t cap){
+    if(cap<sizeof(bgt_gpu_limits_v3_t))abort();
+    native_limit_queries++;
+    bgt_gpu_limits_v3_t *l=(bgt_gpu_limits_v3_t *)d;memset(l,0,sizeof *l);l->base.byte_size=sizeof *l;
+    l->gpu_supported=1;l->max_uniform_range=native_uniform_limit;l->shader_languages=6;return 0;}
 uint32_t w32_pstr(uint32_t a,uint32_t n,int wide,const char *s){(void)wide;uint32_t k=0;while(k+1<n&&s[k]){memory[a+k]=s[k];k++;}if(n)memory[a+k]=0;return k;}
 uint32_t w32_gstr(uint32_t a,int wide,char *s,uint32_t n){(void)wide;snprintf(s,n,"%s",memory+a);return (uint32_t)strlen(s);}
 static uint32_t call(uint32_t (*fn)(void),uint32_t a,uint32_t b,uint32_t c,uint32_t d){X.r[ESP]=1024;x86_wr32(1028,a);x86_wr32(1032,b);x86_wr32(1036,c);x86_wr32(1040,d);return fn();}
@@ -416,11 +427,15 @@ static void buffer_mapping(void) {
 #include "gl_scale_cases.h"
 #include "gl_hotpath_cases.h"
 #include "gl_error_order_cases.h"
+#include "gl_journal_cases.h"
+#include "gl_limit_cases.h"
 int main(int argc,char **argv) {
     for(uint32_t i=0;i<sizeof memory/4096;i++)x86_pages[i]=memory+i*4096;
     CHECK(argc==2);
     if(!strcmp(argv[1],"error-order"))error_order_cases();
+    else if(!strcmp(argv[1],"journal"))journal_growth();
     else if(!strcmp(argv[1],"hotpaths"))hotpath_cases();
+    else if(!strcmp(argv[1],"uniform-limits"))uniform_limit_cases();
     else if(!strcmp(argv[1],"hotpath-bench"))hotpath_bench();
     else if(!strcmp(argv[1],"demand"))demand_probe();
     else if(!strcmp(argv[1],"scale-churn"))scale_churn();

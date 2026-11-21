@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BACKEND_HEADLESS, BUTTONS, ButtonName, CAP_DIRECT_DRAW, CAP_LINEAR_FILTER, CAP_RENDER_TARGETS, CAP_SCISSOR, CAP_STORAGE, CAP_TRIANGLES } from '../../bgt/runtime/abi';
 import { GameHost, InputSnapshot, StorageSink, emptyInput } from '../../bgt/runtime/host';
+import type { AudioSink } from '../../bgt/runtime/host';
 import { Vfs } from '../../bgt/runtime/vfs';
 import { RangeFiles } from '../../bgt/runtime/range-files';
 import { HID } from '../../bgt/input/input';
@@ -41,6 +42,8 @@ export interface Headless {
 export async function loadHeadless(id: string, opts: StreamOptions & {
   seed?: number; arg0?: number; arg1?: number; storage?: Map<string, Uint8Array>; dir?: string;
   suspension?: 'asyncify' | 'jspi';
+  now?: () => number; /* host wall clock override (e.g. to bound a runaway update) */
+  audio?: AudioSink;
 } = {}): Promise<Headless> {
   const dir = opts.dir ?? join(ROOT, 'web', 'public', 'games', id);
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
@@ -62,7 +65,8 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
     vfs,
     storage,
     entropy: opts.entropy, /* LANE-K1 */
-    now: () => performance.now(),
+    now: opts.now ?? (() => performance.now()),
+    audio: opts.audio,
     rangeRead:(path,offset,length,ahead)=>ranges.read(path,offset,length,ahead),
   }, {
     backend: BACKEND_HEADLESS,

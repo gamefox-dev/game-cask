@@ -3,6 +3,16 @@
 The guest ABI is unchanged: only `bgt.yield` suspends, only inside update, resuming at the exact call site.
 This policy is backend-independent (WebGL2 and WebGPU), not a coverage/selection optimization.
 
+## Win32 update boundaries (K50)
+
+Both suspension artifacts use the same [guest time model](../platforms/win32/THREADS.md#guest-time-model-k50-version-1).
+A 2M-unit quantum rotates guest contexts without automatically yielding a host update. Present, process-cap,
+idle/legacy wait and transport boundaries still suspend only through bgt.yield, at the exact call site.
+`step(n)` counts n consumed host updates, not instruction quanta or guaranteed guest presents. Nominal
+instruction-rate clock progress, positive swap-interval snapping and idle deadlines are deterministic;
+no host wall-time-dependent scheduling is added. Clock/budget state is wasm checkpoint state. The existing
+JSPI suspended-continuation checkpoint rejection remains unchanged; no restart or fake snapshot is used.
+
 ## Build/package policy
 
 | Build setting | Artifacts | Runtime requirement |

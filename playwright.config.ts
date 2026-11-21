@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
-import { noWebGPU, webgpuArgs, webglArgs } from './tests/e2e/browser-options';
+import { noWebGPU, webgl2Gpu, webgpuArgs, webglArgs, webglGpuArgs } from './tests/e2e/browser-options';
 
 // Projects:
-//   chromium-webgl2  forced WebGL 2 fallback (software-friendly; the CI gate)
+//   chromium-webgl2  forced WebGL 2 fallback (software-friendly; the CI gate). BGT_WEBGL2_GPU=1 (K51) runs it
+//                    on the native GPU (ANGLE Metal on macOS) instead of headless SwiftShader
 //   chromium-webgpu  WebGPU; tests requiring it skip unless available, or fail
 //                    when BGT_REQUIRE_WEBGPU=1 (hardware gate, reported separately)
 //   chromium-auto    default backend selection, as a user would get it
@@ -58,7 +59,8 @@ export default defineConfig({
       // Cross-backend comparisons belong to the opt-in, required-device project.
       grepInvert: /@webgpu/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 },
-        ...(noWebGPU || process.env.BGT_SOFTWARE_RENDERER === '1' ? { launchOptions: { args: webglArgs } } : {}),
+        ...(noWebGPU || process.env.BGT_SOFTWARE_RENDERER === '1' ? { launchOptions: { args: webglArgs } } :
+          webgl2Gpu ? { launchOptions: { args: webglGpuArgs } } : {}),
         backendParam: 'webgl2' } as never,
     },
     {

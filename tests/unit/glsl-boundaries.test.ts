@@ -27,6 +27,10 @@ describe('WebGL native indexed-swizzle out/inout boundary is contained before co
     const source = '#version 330 core\nstruct S { float rgba[2]; }; vec4 s; void put(out float a) { a=1.0; } void main(){S s; int i=0; put(s.rgba[i]);}';
     expect(() => translateShader(source, 1, 1)).not.toThrow();
   });
+  it('treats a decimal literal argument as unknown storage, not a member access (K53)', () => {
+    // Caught by x64-gl-batch: `uv*4.0` tokenized '.' without a member and crashed shader creation.
+    expect(() => validateNativeLvalues('vec4 f(vec4 v){return v;} vec2 g(vec2 p){return p;} void main(){vec2 uv; vec4 u=f(vec4(g(uv*4.0),0.0,1.0)); float x=f(u).a*0.25;}')).not.toThrow();
+  });
   it('does not reject an indexed swizzle passed by value or hidden in comments', () => {
     expect(() => translateShader('#version 330 core\nvoid put(float a){}void main(){vec4 v=vec4(0.0);int i=0;put(v.wy[i]);/* void other(out float a){}other(v.wy[i]); */}', 1, 1)).not.toThrow();
   });

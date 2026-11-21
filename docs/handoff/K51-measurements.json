@@ -1,0 +1,455 @@
+{
+ "schema": "k51-measurements/1",
+ "machine": "Apple M4 (macOS), Chromium from Playwright 1.64.1, headless, channel chromium",
+ "webgl_device": {
+  "before": {
+   "gate": "MAX_UNIFORM_BLOCK_SIZE>=65536",
+   "metal_reports": 16384,
+   "result": "CAP_GPU refused on ANGLE Metal; WebGL2 measurements ran on SwiftShader",
+   "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "after": {
+   "gate": "MAX_UNIFORM_BLOCK_SIZE>=16384",
+   "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+   "software": false,
+   "nativeMaxUniformRange": 16384,
+   "maxUniformRange": 16384,
+   "languages": 6
+  },
+  "webgpu": {
+   "renderer": "apple / metal-3",
+   "nativeMaxUniformRange": 65536,
+   "maxUniformRange": 65536,
+   "languages": 7
+  }
+ },
+ "page_fps": {
+  "game": "x64-smoke",
+  "window_ms": 4000,
+  "warmup_ms": 1500,
+  "before_pacing_fix": [
+   {
+    "backend": "webgl2",
+    "suspension": "asyncify",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "software": false,
+    "maxUniformRange": 16384,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4000.75,
+     "raf_ticks": 240,
+     "raf_per_second": 59.98875210897957,
+     "busy_ticks": 0,
+     "presents": 136,
+     "presents_per_second": 33.99362619508842,
+     "frame_ms": {
+      "mean": 29.50348148169341,
+      "p50": 32.90499997138977,
+      "p95": 35.019999980926514,
+      "max": 37.6800000667572,
+      "samples": 135
+     },
+     "updates": 136,
+     "updates_per_present": 1,
+     "guest_presents": 136,
+     "guest_presents_per_second": 33.99362619508842,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgl2",
+    "suspension": "jspi",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "software": false,
+    "maxUniformRange": 16384,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4001.5099999904633,
+     "raf_ticks": 240,
+     "raf_per_second": 59.977358547291395,
+     "busy_ticks": 0,
+     "presents": 134,
+     "presents_per_second": 33.48735852223769,
+     "frame_ms": {
+      "mean": 29.696278195632132,
+      "p50": 33.06000018119812,
+      "p95": 34.87999987602234,
+      "max": 35.325000047683716,
+      "samples": 133
+     },
+     "updates": 134,
+     "updates_per_present": 1,
+     "guest_presents": 134,
+     "guest_presents_per_second": 33.48735852223769,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgpu",
+    "suspension": "asyncify",
+    "renderer": "apple / metal-3",
+    "software": false,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4001.8849999904633,
+     "raf_ticks": 241,
+     "raf_per_second": 60.221620561453996,
+     "busy_ticks": 0,
+     "presents": 136,
+     "presents_per_second": 33.98398504712757,
+     "frame_ms": {
+      "mean": 29.62074074038753,
+      "p50": 32.86500000953674,
+      "p95": 34.855000019073486,
+      "max": 35.34000015258789,
+      "samples": 135
+     },
+     "updates": 136,
+     "updates_per_present": 1,
+     "guest_presents": 136,
+     "guest_presents_per_second": 33.98398504712757,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgpu",
+    "suspension": "jspi",
+    "renderer": "apple / metal-3",
+    "software": false,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4001.0999999046326,
+     "raf_ticks": 241,
+     "raf_per_second": 60.23343580658926,
+     "busy_ticks": 0,
+     "presents": 135,
+     "presents_per_second": 33.74072130244627,
+     "frame_ms": {
+      "mean": 29.711194029494898,
+      "p50": 32.91499996185303,
+      "p95": 35.12000012397766,
+      "max": 35.24499988555908,
+      "samples": 134
+     },
+     "updates": 135,
+     "updates_per_present": 1,
+     "guest_presents": 135,
+     "guest_presents_per_second": 33.74072130244627,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   }
+  ],
+  "after": [
+   {
+    "backend": "webgl2",
+    "suspension": "asyncify",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "software": false,
+    "maxUniformRange": 16384,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4000.7949998378754,
+     "raf_ticks": 240,
+     "raf_per_second": 59.98807737205369,
+     "busy_ticks": 0,
+     "presents": 241,
+     "presents_per_second": 60.23802769443724,
+     "frame_ms": {
+      "mean": 16.66545833349228,
+      "p50": 16.69000005722046,
+      "p95": 18.22000002861023,
+      "max": 18.670000076293945,
+      "samples": 240
+     },
+     "updates": 241,
+     "updates_per_present": 1,
+     "guest_presents": 240,
+     "guest_presents_per_second": 59.98807737205369,
+     "guest_presents_per_page_present": 0.995850622406639,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgl2",
+    "suspension": "jspi",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "software": false,
+    "maxUniformRange": 16384,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4003.204999923706,
+     "raf_ticks": 241,
+     "raf_per_second": 60.20176333827347,
+     "busy_ticks": 0,
+     "presents": 241,
+     "presents_per_second": 60.20176333827347,
+     "frame_ms": {
+      "mean": 16.663333333532016,
+      "p50": 16.609999895095825,
+      "p95": 18.384999990463257,
+      "max": 18.734999895095825,
+      "samples": 240
+     },
+     "updates": 241,
+     "updates_per_present": 1,
+     "guest_presents": 240,
+     "guest_presents_per_second": 59.951963490396814,
+     "guest_presents_per_page_present": 0.995850622406639,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgpu",
+    "suspension": "asyncify",
+    "renderer": "apple / metal-3",
+    "software": false,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4002.100000143051,
+     "raf_ticks": 240,
+     "raf_per_second": 59.96851652667885,
+     "busy_ticks": 0,
+     "presents": 241,
+     "presents_per_second": 60.218385345540014,
+     "frame_ms": {
+      "mean": 16.668395833174387,
+      "p50": 16.695000171661377,
+      "p95": 18.240000009536743,
+      "max": 18.730000019073486,
+      "samples": 240
+     },
+     "updates": 241,
+     "updates_per_present": 1,
+     "guest_presents": 240,
+     "guest_presents_per_second": 59.96851652667885,
+     "guest_presents_per_page_present": 0.995850622406639,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgpu",
+    "suspension": "jspi",
+    "renderer": "apple / metal-3",
+    "software": false,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4002.8949999809265,
+     "raf_ticks": 240,
+     "raf_per_second": 59.95660640639926,
+     "busy_ticks": 0,
+     "presents": 240,
+     "presents_per_second": 59.95660640639926,
+     "frame_ms": {
+      "mean": 16.66617154775803,
+      "p50": 16.649999856948853,
+      "p95": 18.369999885559082,
+      "max": 18.84500002861023,
+      "samples": 239
+     },
+     "updates": 240,
+     "updates_per_present": 1,
+     "guest_presents": 239,
+     "guest_presents_per_second": 59.70678721303926,
+     "guest_presents_per_page_present": 0.9958333333333333,
+     "log_dropped": 0
+    }
+   }
+  ],
+  "webgl2_swiftshader_after": [
+   {
+    "backend": "webgl2",
+    "suspension": "asyncify",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "software": true,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4014.2249999046326,
+     "raf_ticks": 238,
+     "raf_per_second": 59.289152951230754,
+     "busy_ticks": 0,
+     "presents": 239,
+     "presents_per_second": 59.538267039261136,
+     "frame_ms": {
+      "mean": 16.795588234893415,
+      "p50": 16.484999895095825,
+      "p95": 18.81500005722046,
+      "max": 40.299999952316284,
+      "samples": 238
+     },
+     "updates": 239,
+     "updates_per_present": 1,
+     "guest_presents": 239,
+     "guest_presents_per_second": 59.538267039261136,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   },
+   {
+    "backend": "webgl2",
+    "suspension": "jspi",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "software": true,
+    "maxUniformRange": 65536,
+    "summary": {
+     "schema": "game-cask/page-fps/1",
+     "window_ms": 4019.7750000953674,
+     "raf_ticks": 239,
+     "raf_per_second": 59.456064081778166,
+     "busy_ticks": 0,
+     "presents": 240,
+     "presents_per_second": 59.70483422437975,
+     "frame_ms": {
+      "mean": 16.747280334329005,
+      "p50": 16.429999828338623,
+      "p95": 18.74500012397766,
+      "max": 32.19000005722046,
+      "samples": 239
+     },
+     "updates": 240,
+     "updates_per_present": 1,
+     "guest_presents": 240,
+     "guest_presents_per_second": 59.70483422437975,
+     "guest_presents_per_page_present": 1,
+     "log_dropped": 0
+    }
+   }
+  ]
+ },
+ "overhead": {
+  "fixture": "tools/bench/calls-fixture.mjs direct, 200000 iterations x 16 nested calls (16M lifted calls), headless node asyncify, 6 alternating samples after 1 warm-up, CALLS begin->end wall ms",
+  "direct": {
+   "default": {
+    "median_ms": 53.72675000000163,
+    "samples": [
+     50,
+     50.3,
+     51,
+     53.7,
+     54.2,
+     54.3
+    ]
+   },
+   "coverage_off": {
+    "median_ms": 39.689375000001746,
+    "samples": [
+     39.1,
+     39.4,
+     39.7,
+     39.7,
+     40,
+     40.4
+    ]
+   },
+   "accounting": {
+    "median_ms": 54.95199999999022,
+    "samples": [
+     53.2,
+     53.6,
+     53.8,
+     55,
+     55,
+     55.4
+    ]
+   },
+   "census": {
+    "median_ms": 62.730541000011726,
+    "samples": [
+     58.5,
+     58.8,
+     59,
+     62.7,
+     62.8,
+     65.9
+    ]
+   }
+  },
+  "regions_note": "regions pattern folds to a few ms (clang collapses straight-line incl); noise-dominated, not used",
+  "regions": {
+   "default": {
+    "median_ms": 9.414499999998952,
+    "samples": [
+     5.7,
+     5.9,
+     6.4,
+     9.4,
+     9.8,
+     10.2
+    ]
+   },
+   "coverage_off": {
+    "median_ms": 7.81066699999792,
+    "samples": [
+     7.1,
+     7.6,
+     7.7,
+     7.8,
+     8,
+     8.2
+    ]
+   },
+   "accounting": {
+    "median_ms": 9.826874999998836,
+    "samples": [
+     9.6,
+     9.7,
+     9.8,
+     9.8,
+     10.7,
+     11.1
+    ]
+   },
+   "census": {
+    "median_ms": 10.694250000000466,
+    "samples": [
+     7,
+     7.4,
+     7.7,
+     10.7,
+     11.2,
+     11.2
+    ]
+   }
+  },
+  "census_example_direct": [
+   {
+    "owner": 16781400,
+    "total": "1000000",
+    "lifted": "1000000",
+    "generic": "0",
+    "interpreted": "0"
+   },
+   {
+    "owner": 16781416,
+    "total": "1000000",
+    "lifted": "999991",
+    "generic": "9",
+    "interpreted": "0"
+   },
+   {
+    "owner": 16781432,
+    "total": "1000000",
+    "lifted": "999991",
+    "generic": "9",
+    "interpreted": "0"
+   },
+   {
+    "owner": 16781448,
+    "total": "1000000",
+    "lifted": "999994",
+    "generic": "6",
+    "interpreted": "0"
+   }
+  ],
+  "retired_direct": "16000028"
+ },
+ "zero_cost_off": "calls fixture direct+indirect default-build game.wasm sha256 identical with and without the K51 lifter changes (81af48e0..., 4a2b1413...)"
+}

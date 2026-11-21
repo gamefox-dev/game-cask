@@ -76,21 +76,104 @@ uint32_t w32_misc_alloc(uint32_t n) {
     misc_top = a + n;
     return a;
 }
-static uint64_t virtual_us;
-uint64_t w32_now_ms64(void) {
-    uint64_t frame_us = w32_io ? (uint64_t)w32_io->frame * BGT_DT_US : 0;
-    if (virtual_us < frame_us) virtual_us = frame_us;
-    return virtual_us / 1000u;
+/* K50: dispatch budget units, including REP iterations, model a nominal 4 GIPS
+ * CPU. This is independent of opt-in retirement diagnostics and host wall time.
+ * Only scheduler/quantum boundaries commit debt; clock reads include live debt. */
+#define CLOCK_UNITS_PER_US 4000u
+static uint64_t virtual_units, boundary_us, present_us, frame_units, cap_hits, clock_frames, transport_yields;
+static uint64_t swap_units, swap_us, dropped_presents, budget_ends; /* interval-0 presents in this host frame */
+static int present_pending;
+static uint32_t charged[X86_THREADS];
+static uint32_t clock_debt(uint32_t budget) {
+    return budget >= charged[x86_current] ? budget - charged[x86_current] : 0;
 }
+double w32_guest_time_us(void) {
+    return (double)((virtual_units + clock_debt(X.frame_insns)) / CLOCK_UNITS_PER_US);
+}
+void w32_clock_sync(void) {
+    uint32_t units=clock_debt(X.frame_insns);
+    virtual_units+=units;frame_units+=units;charged[x86_current]=X.frame_insns;
+}
+void w32_clock_quantum(uint32_t units) {
+    uint32_t delta=clock_debt(units);
+    virtual_units+=delta;frame_units+=delta;charged[x86_current]=0;
+}
+uint64_t w32_now_ms64(void) { return (uint64_t)w32_guest_time_us()/1000u; }
 uint32_t w32_now_ms(void) { return (uint32_t)w32_now_ms64(); }
+static void clock_boundary(uint32_t interval, int present) {
+    w32_clock_sync();
+    uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
+    if(interval) {
+        uint64_t target=(present?present_us:boundary_us)+(uint64_t)interval*BGT_DT_US;
+        target=((target+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+        if(target<now)target=((now+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+        if(target>now)virtual_units=target*CLOCK_UNITS_PER_US;
+    }
+    boundary_us=virtual_units/CLOCK_UNITS_PER_US;
+    if(present)present_us=boundary_us;
+    frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
+}
+void w32_clock_present(uint32_t interval) { clock_boundary(interval,1); }
+static uint32_t instruction_cap(void) { return cfg && cfg->instruction_cap ? cfg->instruction_cap : 64000000u; }
+void w32_clock_check_cap(void) {
+    w32_clock_sync();
+    if(frame_units >= instruction_cap()) {
+        cap_hits++;w32_wait_frame();
+    }
+}
+/* K50 review ruling: swap interval 0 does not end the host update. The guest keeps running and
+ * later presents replace the displayed frame until the next 16667-us frame target. To show a
+ * complete frame, the update ends at the present after which the next frame would cross that target
+ * or the instruction cap, or when the GL profile reports that one more frame would not fit a host
+ * frame budget. The next frame is estimated as the costliest of the last four (instruction units and
+ * virtual time), so jittery or alternating frame costs still end at a present. Ending before the
+ * target snaps forward to it, as at a vsync, so one host update carries one period of guest time.
+ * A present already past the target keeps the grid phase without skipping a period. Mid-frame cap or
+ * idle ends remain possible; the GL profile then keeps the post-present work for the next update.
+ * Returns whether the host update ended. */
+static uint64_t recent_units[4], recent_us[4];
+int w32_clock_swap0(int budget_full) {
+    w32_clock_sync();
+    uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
+    uint64_t target=((boundary_us+BGT_DT_US+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
+    for(unsigned i=3;i;i--){recent_units[i]=recent_units[i-1];recent_us[i]=recent_us[i-1];}
+    recent_units[0]=frame_units-swap_units;recent_us[0]=now-swap_us;
+    uint64_t du=0,dt=0;
+    for(unsigned i=0;i<4;i++) {
+        du=recent_units[i]>du?recent_units[i]:du;
+        dt=recent_us[i]>dt?recent_us[i]:dt;
+    }
+    if(present_pending)dropped_presents++;
+    present_pending=1;present_us=now;swap_units=frame_units;swap_us=now;
+    if(now<target && now+dt<target && frame_units+du<instruction_cap() && !budget_full)return 0;
+    if(budget_full)budget_ends++;
+    if(now<target) { virtual_units=target*CLOCK_UNITS_PER_US;boundary_us=target; }
+    else boundary_us=target+(now-target)/BGT_DT_US*BGT_DT_US;
+    present_us=now>boundary_us?now:boundary_us;
+    frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
+    w32_wait_transport();
+    return 1;
+}
+void w32_idle_ms(uint32_t ms) {
+    w32_clock_sync();
+    uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
+    if(virtual_units>=boundary) { w32_wait_frame();return; }
+    uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
+    virtual_units=deadline<boundary?deadline:boundary;
+    w32_audio_pump();w32_user_fire_timers();
+    if(virtual_units==boundary)w32_wait_frame();
+}
 void w32_sleep_ms(uint32_t ms) {
     if (!ms) { w32_wait_frame(); return; }
-    uint64_t deadline = virtual_us + (uint64_t)ms * 1000u;
-    while (virtual_us < deadline) {
-        uint64_t boundary = ((uint64_t)w32_io->frame + 1u) * BGT_DT_US;
-        if (deadline < boundary) { virtual_us = deadline; break; }
-        virtual_us = boundary;
-        w32_wait_frame();
+    w32_clock_sync();
+    uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
+    while(virtual_units<deadline) {
+        uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
+        if(boundary<virtual_units) { w32_wait_frame();continue; }
+        uint64_t target=deadline<boundary?deadline:boundary;
+        virtual_units=target;
+        w32_audio_pump();w32_user_fire_timers();
+        if(target==boundary)w32_wait_frame();
     }
 }
 
@@ -747,7 +830,8 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     return BGT_OK;
 }
 
-void w32_wait_frame(void) {
+static void wait_host(void) {
+    w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
     static int accounted_exit;
     if(w32_exited && !accounted_exit) {
@@ -755,15 +839,17 @@ void w32_wait_frame(void) {
         accounted_exit=1;
     }
 #endif
-    w32_m.yields++;
-    X.frame_insns=0;
-    w32_thread_yield(); /* LANE-C: USER/I/O frame waits also give ready workers a turn. */
+    w32_m.yields++;present_pending=0;
+    w32_clock_sync();
+    X.frame_insns=0;charged[x86_current]=0;
     x86_coverage_flush();
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(1,bgt_time_us());
+    w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
     x86_profile_idle_begin();
     bgt_yield();
     x86_profile_idle_end();
+    w32_gl_host_yield(1);
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(0,bgt_time_us());
     if (w32_io->events & BGT_EVENT_TARGETS_LOST) { w32_m.targets_lost++; w32_gdi_targets_lost(); w32_user_targets_lost(); }
@@ -772,7 +858,15 @@ void w32_wait_frame(void) {
     w32_input_pump();
     w32_user_pump_input();
     w32_user_fire_timers();
+    /* Resume workers only after the new host input/virtual-time boundary. */
+    w32_thread_yield();
 }
+void w32_wait_frame(void) {
+    clock_boundary(1,0);
+    w32_gdi_present_boundary();
+    wait_host();
+}
+void w32_wait_transport(void) { transport_yields++;wait_host(); }
 
 #define RET_SENTINEL 0xfffffff4u
 void w32_update(void) {
@@ -804,13 +898,19 @@ void w32_update(void) {
 }
 
 /* LANE-GL: GL owns the shared screen while its context is current. */
-void w32_render(void) { if (!w32_gl_active()) w32_gdi_flush_and_present(); }
+void w32_render(void) { w32_gl_flush(); if (!w32_gl_active()) w32_gdi_flush_and_present(); }
 
 /* Guest presentations, not cooperative updates or repeated host redraws. Ring
  * timestamps are real wall microseconds (include waits/pauses), not virtual time. */
 static double guest_present_times[10000];
 static struct {uint64_t count,swaps,gdi;double *times;uint32_t length,next,reserved;} guest_present={.times=guest_present_times};
 #define ACCOUNT_FRAMES 64u
+#if X86_NATIVE_STATS
+typedef struct { uint64_t present; x86_native_stats_t counters; } dispatch_frame_t;
+static dispatch_frame_t dispatch_frames[ACCOUNT_FRAMES];
+static uint32_t dispatch_length, dispatch_next;
+static uint64_t dispatch_dropped;
+#endif
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
 typedef struct {
     uint64_t present, lifted_calls, generic_insn_execs;
@@ -822,12 +922,19 @@ static account_frame_t account_frames[ACCOUNT_FRAMES];
 static uint32_t account_length,account_next;
 static uint64_t account_dropped;
 static uint64_t account_virtual_now(void) {
-    uint64_t frame_ms=w32_io?(uint64_t)w32_io->frame*BGT_DT_US/1000u:0;
-    return virtual_us/1000u>frame_ms?virtual_us/1000u:frame_ms;
+    return w32_now_ms64();
 }
 #endif
 void w32_guest_present(int swap) {
     guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
+#if X86_OWNER_CENSUS
+    x86_census_present(guest_present.count);
+#endif
+#if X86_NATIVE_STATS
+    dispatch_frames[dispatch_next]=(dispatch_frame_t){guest_present.count,x86_native_stats};
+    dispatch_next=(dispatch_next+1)%ACCOUNT_FRAMES;
+    if(dispatch_length<ACCOUNT_FRAMES)dispatch_length++;else dispatch_dropped++;
+#endif
     double now=bgt_time_us();
     guest_present_times[guest_present.next]=now;
 #if X86_ACCOUNTING_ENABLED && X86_PROFILE_ENABLED
@@ -869,11 +976,11 @@ static void jkv(const char *k, uint64_t v) { jput("\""); jput(k); jput("\":"); j
 
 /* Decimal strings preserve all 64 bits; JS summary subtracts with BigInt before
  * converting safe results. Existing legacy execution counters remain untouched. */
-#if X86_ACCOUNTING_ENABLED
 /* All accounting u64s use decimal strings. Host wall values are measured
  * doubles quantized to integer microseconds, not exact hardware CPU clocks. */
 static void jexact(uint64_t v) { jput("\"");jnum(v);jput("\""); }
 static inline void jexactkv(const char *k, uint64_t v) { jput("\"");jput(k);jput("\":");jexact(v);jput(","); }
+#if X86_ACCOUNTING_ENABLED
 static void jretired(const x86_retired_t *r) {
     static const char *const keys[]={"lifted","generic","interpreted"};
     uint64_t total=0;jput("{");
@@ -934,6 +1041,86 @@ static void jaccounting(void) {
     jput("},");
 }
 
+#if X86_NATIVE_STATS
+static void jdispatch_values(const x86_native_stats_t *s) {
+    jput("{");
+#define JD_FIELD(n) jexactkv(#n,s->n);
+    X86_DISPATCH_PREFIX(JD_FIELD)
+    X86_DISPATCH_FIELDS(JD_FIELD)
+#undef JD_FIELD
+    jkv("peak_depth",s->peak_depth);
+    jput("\"exits\":{");
+#define JD_EXIT(n) jexactkv(#n,s->exits[XD_##n]);
+    X86_DISPATCH_EXITS(JD_EXIT)
+#undef JD_EXIT
+    jn--;jput("},\"driver_stops\":{");
+#define JD_STOP(n) jexactkv(#n,s->stops[XD_STOP_##n]);
+    X86_DISPATCH_STOPS(JD_STOP)
+#undef JD_STOP
+    jn--;jput("}");
+#define JD_REJECT(n) jexactkv(#n,reject[XD_REJECT_##n]);
+#define JD_REJECT_KIND(kind) do { const uint64_t *reject=s->kind##_reject; jput(",\"" #kind "_reject\":{"); X86_DISPATCH_REJECTS(JD_REJECT) jn--;jput("}"); } while(0)
+    JD_REJECT_KIND(enter);JD_REJECT_KIND(resume);JD_REJECT_KIND(rechain);JD_REJECT_KIND(indirect);
+#undef JD_REJECT_KIND
+#undef JD_REJECT
+    jput("}");
+}
+#endif
+/* K51 owner census: exact decimal strings; OFF reports enabled:0 with null tables, never zeros. */
+#if X86_OWNER_CENSUS
+static void jcensus_rows(const x86_census_top_t *top, uint32_t count) {
+    jput("[");
+    for (uint32_t i = 0; i < count; i++) {
+        const x86_census_top_t *r = &top[i]; uint64_t sum = 0;
+        for (unsigned k = 0; k < XR_KINDS; k++) sum += r->instructions[k];
+        if (i) jput(","); jput("{"); jkv("owner", r->owner);
+        jexactkv("total", sum); jexactkv("lifted", r->instructions[XR_LIFTED]);
+        jexactkv("generic", r->instructions[XR_GENERIC]); jexactkv("interpreted", r->instructions[XR_INTERPRETED]);
+        jn--; jput("}");
+    }
+    jput("]");
+}
+#endif
+static void jcensus(void) {
+    jput("\"owner_census\":{");jkv("enabled",X86_OWNER_CENSUS);
+#if X86_OWNER_CENSUS
+    static x86_census_top_t top[X86_OWNER_CENSUS_TOP]; uint64_t total;
+    uint32_t count = x86_census_cumulative(top, X86_OWNER_CENSUS_TOP, &total);
+    jkv("capacity",X86_OWNER_CENSUS_CAP);jkv("top_n",X86_OWNER_CENSUS_TOP);jkv("rows",x86_census_rows());
+    jexactkv("unattributed",x86_census_unattributed());
+    jput("\"cumulative\":{");jexactkv("total",total);jput("\"rows\":");jcensus_rows(top,count);
+    jput("},\"frames\":{");jkv("capacity",X86_OWNER_CENSUS_FRAMES);jexactkv("dropped",x86_census_frames_dropped());
+    jput("\"snapshots\":[");
+    for (uint32_t i = 0; i < x86_census_frame_count(); i++) {
+        const x86_census_frame_t *f = x86_census_frame(i);
+        if (i) jput(","); jput("{"); jexactkv("present", f->present); jexactkv("total", f->total);
+        jexactkv("unattributed", f->unattributed); jkv("active_owners", f->active);
+        jput("\"rows\":"); jcensus_rows(f->top, f->count); jput("}");
+    }
+    jput("]}");
+#else
+    jput("\"cumulative\":null,\"frames\":null");
+#endif
+    jput("},");
+}
+static void jdispatch(void) {
+    jput("\"native_dispatch\":{");jkv("enabled",X86_NATIVE_STATS);
+    jput("\"counters\":");
+#if X86_NATIVE_STATS
+    jdispatch_values(&x86_native_stats);
+    jput(",\"frames\":{");jkv("capacity",ACCOUNT_FRAMES);jexactkv("dropped",dispatch_dropped);
+    jput("\"snapshots\":[");
+    for(unsigned n=0;n<dispatch_length;n++) {
+        const dispatch_frame_t *f=&dispatch_frames[((dispatch_length==ACCOUNT_FRAMES?dispatch_next:0)+n)%ACCOUNT_FRAMES];
+        if(n)jput(",");jput("{");jexactkv("present",f->present);jput("\"counters\":");jdispatch_values(&f->counters);jput("}");
+    }
+    jput("]}");
+#else
+    jput("null,\"frames\":null");
+#endif
+    jput("},");
+}
+
 const char *w32_metrics_json(void) {
     x86_coverage_flush();
     jn = 0;json_overflow=0;
@@ -942,9 +1129,17 @@ const char *w32_metrics_json(void) {
     jkv("lifted_calls", x86_metrics.lifted_calls);
     jkv("guest_instruction_clock", x86_guest_instruction_clock());
     jaccounting();
+    jdispatch();
+    jcensus();
+#if X86_COVERAGE_MODE == 3
+    /* K51 coverage-off performance build: no hooks exist, so the counters are unavailable, not zero. */
+    jput("\"coverage_events\":null,\"coverage_crossings\":null,\"coverage_cache_hits\":null,");
+#else
     jkv("coverage_events",x86_coverage_events);
     jkv("coverage_crossings",x86_coverage_crossings);
     jkv("coverage_cache_hits",x86_coverage_cache_hits);
+#endif
+    jkv("coverage_mode",X86_COVERAGE_MODE);
     jkv("interp_insns", x86_metrics.interp_insns);
     jkv("interpreter_timing_enabled",X86_PROFILE_ENABLED);
     jkv("interpreter_exclusive_us",(uint64_t)x86_interpreter_exclusive_us());
@@ -971,6 +1166,10 @@ const char *w32_metrics_json(void) {
     jkv("gl_state_changes", w32_gl_state_changes);
     jkv("gl_pipelines", w32_gl_pipelines);
     /* Successful live-store re-specifications, cumulative (not initial allocations). */
+    jkv("gl_batched_lists", w32_gl_batched_lists);
+    jkv("gl_batch_flushes", w32_gl_batch_flushes);
+    jkv("gl_sync_submits", w32_gl_sync_submits);
+    jkv("gl_batch_replays", w32_gl_batch_replays);
     jkv("gl_buffer_respec_reused", w32_gl_buffer_respec_reused);
     jkv("gl_buffer_respec_resized", w32_gl_buffer_respec_resized);
     jkv("gl_buffer_respec_grew", w32_gl_buffer_respec_grew);
@@ -1014,6 +1213,12 @@ const char *w32_metrics_json(void) {
     jkv("messages", w32_m.messages);
     jkv("paints", w32_m.paints);
     jkv("timers_fired", w32_m.timers_fired);
+    jput("\"guest_time\":{");jkv("version",1);jkv("units_per_us",CLOCK_UNITS_PER_US);
+    jkv("instruction_cap",instruction_cap());
+    jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
+    jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);jexactkv("torn_frames",w32_gl_torn_frames());jexactkv("deferred_gl_lists",w32_gl_deferred_lists());jexactkv("deferred_gl_rejects",w32_gl_deferred_rejects());jexactkv("deferred_gl_yields",w32_gl_deferred_yields());
+    jexactkv("idle_guard_hits",w32_thread_idle_guard_hits());jexactkv("audio_events_coalesced",w32_audio_events_coalesced());
+    jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);
     jkv("peek_yields", w32_m.peek_yields);
     jkv("targets_lost", w32_m.targets_lost);

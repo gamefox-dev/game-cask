@@ -57,7 +57,9 @@ for(const wide of [false,true])it('scheduler-owned exact waits, work, presents a
   expect(s.frames?.intervals).toHaveLength(1);expect(s.frames?.intervals[0].retired.total).toBe('3');
   expect(s.frames?.intervals[0].threads?.map(t=>t.instructions)).toEqual([0,3]);
   expect(s.frames?.intervals[0]).toMatchObject({wall_us:320,active_wall_us:160,executing_instructions_per_second:18750});
-  expect(a.threads[0].virtual_ms.sleep_timer).toBe('16');
+  // K50 approved contract: the Win32 clock no longer follows w32_io->frame (16-ms update quantization).
+  // With every thread idle, the scheduler jumps to the earliest deadline, so Sleep(10) sleeps exactly 10 ms.
+  expect(a.threads[0].virtual_ms.sleep_timer).toBe('10');
   for(let i=0;i<70;i++){us+=10;ex.account_work();ex.account_present();if(i===34)ex.bgt_profile_reset();}
   ex.account_work(); // This tail MUST NOT leak into the last native present.
   const last=(host.metrics() as any).execution_accounting;

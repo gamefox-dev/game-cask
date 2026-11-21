@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { test, expect, openGame, assertBackend } from './fixtures';
+import { webgl2Gpu } from './browser-options';
 
 // Exercises a real ResizeObserver while the recorder's asynchronous sink stalls.
 // Metadata equality alone is insufficient: assert the pending resize is applied
@@ -56,9 +57,12 @@ test('capture and draw use one atomic size across ResizeObserver delivery', asyn
 // alternate driver. A complete footer and contiguous frames catch truncated files.
 test('documented capture command writes a complete startup-to-target recording', async ({ backendParam }, info) => {
   const out = info.outputPath('capture');
+  // K51: the probe refuses a software renderer unless --software asks for it. The WebGL2 project is the software
+  // CI gate unless BGT_WEBGL2_GPU=1 (GPU-less Linux runners get SwiftShader), so ask for the same renderer here.
+  const software = backendParam === 'webgl2' && !webgl2Gpu;
   const { stdout } = await promisify(execFile)('npm', ['run', 'probe', '--', '--game', 'sample2d',
-    '--backend', backendParam, '--script', 'tools/probe/record-to-frame.mjs', '--params', 'recordTo=3',
-    '--record-frame', '3', '--out', out], { timeout: 45000 });
+    '--backend', backendParam, ...(software ? ['--software'] : []), '--script', 'tools/probe/record-to-frame.mjs',
+    '--params', 'recordTo=3', '--record-frame', '3', '--out', out], { timeout: 45000 });
   expect(stdout).toContain('0 error(s)');
   const records = readFileSync(resolve(out, 'frame-recording.ndjson'), 'utf8').trim().split('\n').map(s => JSON.parse(s));
   expect(records[0]).toEqual({ type: 'header', schema: 'game-cask/renderer-recording/1', fromStartup: true, targetUpdate: 3 });
@@ -67,5 +71,7 @@ test('documented capture command writes a complete startup-to-target recording',
   expect(frames.map(f => f.sequence)).toEqual(frames.map((_, i) => i));
   expect(frames.at(-1).update).toBe(3);
   expect(records.at(-1)).toEqual({ type: 'end', frames: frames.length, targetUpdate: 3 });
-  expect(JSON.parse(readFileSync(resolve(out, 'probe.json'), 'utf8')).errors).toEqual([]);
+  const probe = JSON.parse(readFileSync(resolve(out, 'probe.json'), 'utf8'));
+  expect(probe.errors).toEqual([]);
+  if (backendParam === 'webgl2') expect(probe.software).toBe(software); // the renderer the run asked for
 });

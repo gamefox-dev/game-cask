@@ -3,7 +3,7 @@
 // and pixel helpers.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { test as base, expect, Page, TestInfo } from '@playwright/test';
+import { test as base, expect, Page, Route, TestInfo } from '@playwright/test';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 import { assertWebGPUAvailable, webGPUWasAvailable } from './webgpu-availability';
 import { suspensionCapabilities } from '../../bgt/runtime/jspi';
@@ -90,6 +90,8 @@ export function hardwarePixels(): boolean {
   return false;
 }
 
+const faviconRoute = (route: Route) => route.fulfill({ status: 204, body: '' });
+
 export async function openGame(
   page: Page,
   backend: string,
@@ -97,23 +99,39 @@ export async function openGame(
   options: { allowSuspensionFallback?: boolean } = {},
 ): Promise<'ready' | 'failed'> {
   if (backend === 'webgpu') await assertWebGPUAvailable(page, test.info());
+  let preflightRoute = false;
   const q = new URLSearchParams({ game: 'sample2d', backend, ephemeral: '1', paused: '1',
     ...(process.env.BGT_E2E_SUSPENSION === 'jspi' ? {suspension:'jspi'} : {}), ...params });
   if (q.get('suspension') === 'jspi' && !options.allowSuspensionFallback) {
     // Use the browser's routed manifest (including synthetic JSPI-only fixtures),
     // not disk or APIRequestContext, which would bypass Playwright routes.
     // A JSON document runs init scripts but never boots the runtime/fallback.
-    const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json');
-    if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
-    const manifest = await response.json();
-    const supported = await page.evaluate(() => {
-      const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown; promising?: unknown };
-      return typeof wasm.Suspending === 'function' && typeof wasm.promising === 'function';
-    });
-    const reason = jspiUnavailableReason(suspensionCapabilities(manifest, 'jspi', supported));
-    if (reason) test.info().skip(true, q.get('game')+': '+reason);
+    // A JSON document has no <link rel=icon>, so full Chromium requests /favicon.ico, which the dev server
+    // 404s; that harness-made console error is not the game's. Answer it without touching real requests.
+    // Scoped to the preflight: removed once the game document replaces the JSON one (page.route disables the
+    // HTTP cache while active); web/index.html declares a data: icon, so the game page never asks for it.
+    await page.route('**/favicon.ico', faviconRoute);
+    preflightRoute = true;
+    // 'commit': never let a non-JSON answer (the dev server's SPA index.html for an unknown game) boot the app here.
+    const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json', { waitUntil: 'commit' });
+    const json = /\bjson\b/i.test(response?.headers()['content-type'] ?? '');
+    // A game with no manifest (404, or the SPA HTML fallback) has no artifact whose JSPI capability could be checked:
+    // let the test reach the runtime's own "game not found" path and assert that. Any other HTTP failure stays fatal,
+    // and a real manifest always gets the capability check (plus the suspension assertion after boot below).
+    const missing = !!response && (response.status() === 404 || (response.ok() && !json));
+    if (!missing) {
+      if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
+      const manifest = await response.json();
+      const supported = await page.evaluate(() => {
+        const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown; promising?: unknown };
+        return typeof wasm.Suspending === 'function' && typeof wasm.promising === 'function';
+      });
+      const reason = jspiUnavailableReason(suspensionCapabilities(manifest, 'jspi', supported));
+      if (reason) test.info().skip(true, q.get('game')+': '+reason);
+    }
   }
   await page.goto(`/?${q}`);
+  if (preflightRoute) await page.unroute('**/favicon.ico', faviconRoute);
   await page.waitForFunction(() => {
     const t = (window as unknown as { __BGT_TEST__?: { ready(): boolean; failed(): boolean } }).__BGT_TEST__;
     return !!t && (t.ready() || t.failed());

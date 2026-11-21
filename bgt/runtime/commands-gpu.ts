@@ -1,7 +1,7 @@
 // v0.3 GPU validation. No browser/GPU objects and no guest-memory references survive submission.
 import {
   BGT_OK, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_UNSUPPORTED,
-  GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP,
+  GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN,
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
@@ -42,9 +42,21 @@ export class GpuState {
   /** Negotiated by gpu_buffer_handles, never inferred from backend support alone. */
   bufferHandles = false;
   pass?: Pass;
+  /** K51: the backend's actual UNIFORM_BUFFER range limit (§13.6 offset 52), fixed for this namespace. */
+  readonly uniformRange: number;
   constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
     this.budget = budget;
+    this.uniformRange = backendUniformRange(backend);
   }
+}
+
+/** Clamp a backend's native uniform binding limit to the portable [16384, 65536] range, multiple of 16.
+ * A backend below the WebGL2/GL 3.3 minimum must not advertise languages; reject it rather than under-report. */
+export function backendUniformRange(backend: GpuBackend): number {
+  const native = backend.maxUniformRange ?? GPU_LIMITS.uniformRange;
+  if (!Number.isSafeInteger(native) || native < GPU_UNIFORM_RANGE_MIN)
+    throw new RangeError(`GPU backend uniform range ${native} is below the required ${GPU_UNIFORM_RANGE_MIN}`);
+  return Math.min(GPU_LIMITS.uniformRange, native - native % 16);
 }
 
 const fixedSizes = new Map<number, number>(Object.entries(GPU_OP)
@@ -477,7 +489,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (w[2] + w[3] > b.shadow.length) return E_BOUNDS;
       const align = index ? (w[1] ? 4 : 2) : usage === 4 ? GPU_LIMITS.uniformAlignment : 4;
       if (w[2] % align || (usage === 4 && w[3] % 16) || (index && w[3] % align)) return E_INVALID;
-      if (usage === 4 && w[3] > GPU_LIMITS.uniformRange) return E_LIMIT;
+      if (usage === 4 && w[3] > g.uniformRange) return E_LIMIT;
       const binding = { handle, offset: w[2], size: w[3], format: index ? w[1] : undefined };
       if (index) pass.index = binding;
       else (usage === 4 ? pass.uniforms : pass.vertices).set(slot, binding);

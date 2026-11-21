@@ -181,7 +181,7 @@ static uint32_t k_GetVersionEx(void) {
     return 1;
 }
 static uint32_t k_GetTickCount(void) { return w32_now_ms(); }
-static uint32_t k_QueryPerformanceCounter(void) { uint64_t t = (uint64_t)w32_now_ms() * 1000u; x86_wr32(ARG(0), (uint32_t)t); x86_wr32(ARG(0) + 4, (uint32_t)(t >> 32)); return 1; }
+static uint32_t k_QueryPerformanceCounter(void) { uint64_t t = (uint64_t)w32_guest_time_us(); x86_wr32(ARG(0), (uint32_t)t); x86_wr32(ARG(0) + 4, (uint32_t)(t >> 32)); return 1; }
 static uint32_t k_QueryPerformanceFrequency(void) { x86_wr32(ARG(0), 1000000u); x86_wr32(ARG(0) + 4, 0); return 1; }
 static uint64_t filetime_now(void) {
     /* INFERRED: deterministic clock = 2001-10-25 00:00 UTC + ?seed days + elapsed frames */
@@ -425,7 +425,7 @@ static int file_read_buffered(uint32_t h, uint8_t *dst, uint32_t want, uint32_t 
         if (r < 0) return 0;
         int32_t status;
         w32_thread_io_wait(1);
-        while ((status = bgt_request_status((uint32_t)r)) == 0) w32_wait_frame();
+        while ((status = bgt_request_status((uint32_t)r)) == 0) w32_wait_transport();
         w32_thread_io_wait(0);
         int32_t count = status == 1 ? bgt_request_read((uint32_t)r, dst + *got, n) : status;
         bgt_request_close((uint32_t)r);
@@ -490,7 +490,7 @@ static uint32_t k_ReadFile(void){
         int32_t request=bgt_asset_range_request(files[i].asset,(uint32_t)files[i].pos,(uint32_t)(files[i].pos>>32),n);
         if(request<0){last_error=30;return 0;}
         w32_thread_io_wait(1);
-        int32_t status;while((status=bgt_request_status((uint32_t)request))==0)w32_wait_frame();
+        int32_t status;while((status=bgt_request_status((uint32_t)request))==0)w32_wait_transport();
         w32_thread_io_wait(0);
         int32_t count=status==1?bgt_request_read((uint32_t)request,buffer,sizeof buffer):status;
         bgt_request_close((uint32_t)request);

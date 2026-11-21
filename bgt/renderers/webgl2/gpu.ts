@@ -1,6 +1,6 @@
 // §13 execution. GPU attachments use GL row zero as BGT's top row, just like legacy targets.
-import type { GpuBackend, GpuItem, Letterbox } from '../types';
-import { GPU_OP as OP } from '../../runtime/abi';
+import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem, type Letterbox } from '../types';
+import { GPU_LIMITS, GPU_OP as OP, GPU_UNIFORM_RANGE_MIN } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
 import { vertexFormatScalar } from '../vertex-input';
 import { blitStencil } from './blit-stencil';
@@ -54,6 +54,9 @@ function halfBits(value: number): number {
 
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
+  /** K51: min(65536, native MAX_UNIFORM_BLOCK_SIZE rounded down to 16); fixed for this backend instance. */
+  readonly maxUniformRange: number;
+  readonly device: GpuDeviceInfo;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
   get nativeQueryPolicy(): 'production' | 'strict' { return this.opts.debug ? 'strict' : 'production'; }
@@ -96,15 +99,33 @@ export class WebGL2Gpu implements GpuBackend {
   private nextObjectId = 1;
   private feedback = new Map<number, FeedbackLayout>();
   private capture?: readonly number[];
+  /** K53: a non-screen pass leaves its framebuffer bound; a following PASS_BEGIN on the same native
+   * images skips re-attachment/completeness work. Released before any op that may rebind framebuffers. */
+  private lingering = false;
+  private passKey = '';
+  readonly batch = { nativePasses: 0, mergedPasses: 0, skippedBinds: 0 };
+  /** K53 GL state shadow for the calls §13 pass/pipeline setup repeats across merged passes. Valid only
+   * while the last GL writer was this executor's pass/draw path: any other op (blits, mips, creates,
+   * feedback setup), the renderer's 2D path (invalidateState) and context restore clear it. Unknown
+   * fields always issue the call. */
+  private sc: { program?: WebGLProgram; vao?: WebGLVertexArrayObject; scissorOn?: boolean;
+    viewport?: number[]; scissor?: number[]; depthRange?: number[]; blendColor?: number[] } = {};
 
   constructor(private gl: WebGL2RenderingContext, private error: (message: string) => void,
-    private readonly opts: { debug?: boolean } = {}) {
+    private readonly opts: { debug?: boolean; batch?: boolean } = {}) {
     this.maxElementIndex = gl.getParameter(gl.MAX_ELEMENT_INDEX) as number;
     this.maxDrawBuffers = gl.getParameter(gl.MAX_DRAW_BUFFERS) as number;
     this.indexed = gl.getExtension('OES_draw_buffers_indexed') as IndexedBlend | null;
     const formats = gl.getExtension('EXT_color_buffer_float');
+    // K51: GL ES 3.0/WebGL2 and desktop GL 3.3 guarantee only 16384-byte uniform blocks (ANGLE Metal reports
+    // exactly that). Accept the real minimum and report the native limit instead of refusing real GPUs.
+    const uniformBlock = gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) as number;
+    this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, uniformBlock - uniformBlock % 16);
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = (gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) as string | null) ?? null;
+    this.device = { renderer, software: softwareRenderer(renderer), nativeMaxUniformRange: uniformBlock };
     this.languages = this.indexed && formats && gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4096 &&
-      gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) >= 65536 &&
+      this.maxUniformRange >= GPU_UNIFORM_RANGE_MIN &&
       gl.getParameter(gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT) <= 256 &&
       gl.getParameter(gl.MAX_COLOR_ATTACHMENTS) >= 4 && gl.getParameter(gl.MAX_DRAW_BUFFERS) >= 4 &&
       gl.getParameter(gl.MAX_VERTEX_ATTRIBS) >= 16 && gl.getParameter(gl.MAX_UNIFORM_BUFFER_BINDINGS) >= 8 &&
@@ -124,6 +145,7 @@ export class WebGL2Gpu implements GpuBackend {
 
   beginFrame(width: number, height: number, lb: Letterbox): void {
     this.frame = { width, height, lb };
+    this.batch.nativePasses = this.batch.mergedPasses = this.batch.skippedBinds = 0; this.sc = {};
     for (const key of Object.keys(this.nativeSyncQueryOps)) delete this.nativeSyncQueryOps[key];
     this.nativeSyncQueries.getError = this.nativeSyncQueries.checkFramebufferStatus = this.nativeSyncQueries.generatedBufferReadbacks = 0;
   }
@@ -267,8 +289,59 @@ export class WebGL2Gpu implements GpuBackend {
     this.completeFramebuffers.add(key);
   }
 
+  /** Release a lingering pass framebuffer (frame end, legacy items, framebuffer-using ops). */
+  flush(): void {
+    if (!this.lingering) return;
+    this.lingering = false; this.passKey = '';
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+  }
+
+  /** Forget the shadowed GL state (another GL writer ran). */
+  invalidateState(): void { this.sc = {}; }
+  private same(a: number[] | undefined, b: number[]): boolean {
+    if (!a || !this.opts.batch) return false; // gpubatch=0 A/B: issue every call, as before K53
+    for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  private setScissorTest(on: boolean): void {
+    if (this.opts.batch && this.sc.scissorOn === on) { this.batch.skippedBinds++; return; }
+    this.sc.scissorOn = on; if (on) this.gl.enable(this.gl.SCISSOR_TEST); else this.gl.disable(this.gl.SCISSOR_TEST);
+  }
+  private setViewport(v: number[]): void {
+    if (this.same(this.sc.viewport, v)) { this.batch.skippedBinds++; return; }
+    this.sc.viewport = v; this.gl.viewport(v[0], v[1], v[2], v[3]);
+  }
+  private setScissor(v: number[]): void {
+    if (this.same(this.sc.scissor, v)) { this.batch.skippedBinds++; return; }
+    this.sc.scissor = v; this.gl.scissor(v[0], v[1], v[2], v[3]);
+  }
+  private setDepthRange(v: number[]): void {
+    if (this.same(this.sc.depthRange, v)) { this.batch.skippedBinds++; return; }
+    this.sc.depthRange = v; this.gl.depthRange(v[0], v[1]);
+  }
+  private setBlendColor(v: number[]): void {
+    if (this.same(this.sc.blendColor, v)) { this.batch.skippedBinds++; return; }
+    this.sc.blendColor = v; this.gl.blendColor(v[0], v[1], v[2], v[3]);
+  }
+
   private dispatch(item: GpuItem): void {
+    try { this.dispatchOp(item); } catch (e) { this.sc = {}; throw e; }
+    // Ops outside the pass/draw path may write shadowed state with raw GL calls.
+    switch (item.op) {
+      case OP.PASS_BEGIN: case OP.PASS_END: case OP.PIPELINE: case OP.VIEWPORT: case OP.SCISSOR: case OP.STENCIL_REF:
+      case OP.BLEND_CONSTANT: case OP.VERTEX_BUFFER: case OP.INDEX_BUFFER: case OP.UNIFORM_BUFFER: case OP.TEXTURE:
+      case OP.DRAW: case OP.DRAW_INDEXED: case OP.CLEAR_BUFFER: case OP.BUFFER_UPDATE:
+        return;
+      default: this.sc = {};
+    }
+  }
+
+  private dispatchOp(item: GpuItem): void {
     const g = this.gl, { op, words: w } = canonicalize(item.op, item.words), h = w[0];
+    if (this.lingering && op !== OP.PASS_BEGIN && op !== OP.BUFFER_UPDATE && op !== OP.BUFFER_CREATE &&
+      op !== OP.BUFFER_DELETE && op !== OP.SAMPLER_CREATE_EX && op !== OP.SAMPLER_DELETE && op !== OP.SHADER_CREATE &&
+      op !== OP.SHADER_DELETE && op !== OP.PIPELINE_CREATE && op !== OP.PIPELINE_DELETE &&
+      !(op === OP.TEXTURE_UPDATE_EX && !isDepthFormat(this.textures.get(h)?.desc.format ?? 0))) this.flush();
     switch (op) {
       case OP.FEEDBACK_VARYINGS: {
         const old=this.requirePipeline(h),layout=feedbackLayout(item.source!,!!w[1],w[2]),previous=this.feedback.get(h);
@@ -433,13 +506,16 @@ export class WebGL2Gpu implements GpuBackend {
         this.pipeline = this.requirePipeline(h); this.applyPipeline(); break;
       case OP.VIEWPORT:
         this.viewport = w.slice(0, 4).map(float);
-        g.depthRange(float(w[4]), float(w[5])); break;
-      case OP.SCISSOR: g.scissor(w[0], w[1], w[2], w[3]); break;
+        this.setDepthRange([float(w[4]), float(w[5])]); break;
+      case OP.SCISSOR: this.setScissor([w[0], w[1], w[2], w[3]]); break;
       case OP.STENCIL_REF: this.stencil = h; if (this.pipeline) this.applyStencil(); break;
-      case OP.BLEND_CONSTANT: g.blendColor(float(w[0]), float(w[1]), float(w[2]), float(w[3])); break;
+      case OP.BLEND_CONSTANT: this.setBlendColor([float(w[0]), float(w[1]), float(w[2]), float(w[3])]); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER: this.index = w; break;
-      case OP.UNIFORM_BUFFER: this.uniforms.set(h, w); break;
+      case OP.UNIFORM_BUFFER:
+        // The host validator enforces the reported limit; never bind a native range above the device's.
+        if (w[3] > this.maxUniformRange) throw new Error(`Uniform range ${w[3]} exceeds device limit ${this.maxUniformRange}`);
+        this.uniforms.set(h, w); break;
       case OP.TEXTURE: this.textureBindings.set(h, w); break;
       case OP.DRAW: this.draw(w, false); break;
       case OP.DRAW_INDEXED: this.draw(w, true); break;
@@ -755,6 +831,16 @@ export class WebGL2Gpu implements GpuBackend {
         this.screenSize = [this.width, this.height];
       }
     }
+    const colors = Array.from({length:w[0]}, (_, i) => this.imageKey(
+      this.screenPass ? this.screen : this.textures.get(w[7+i*7])!.object, w[8+i*7])).join(",");
+    const depthKey = w[1] ? this.imageKey(this.textures.get(w[1])!.object,w[2]) : "0";
+    const key = `pass:${colors}:${depthKey}`;
+    if (this.lingering && !this.screenPass && key === this.passKey) {
+      // Same native images: the bound framebuffer, its attachments and completeness are unchanged.
+      this.lingering = false; this.batch.mergedPasses++;
+      g.drawBuffers(this.passDrawBuffers);
+    } else {
+    this.lingering = false; this.batch.nativePasses++;
     g.bindFramebuffer(g.FRAMEBUFFER, this.framebuffer);
     for (let i = 0; i < 4; i++) {
       g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0+i, g.TEXTURE_2D,
@@ -771,11 +857,14 @@ export class WebGL2Gpu implements GpuBackend {
     this.passDrawBuffers = w[0] ? Array.from({ length: w[0] }, (_, i) => g.COLOR_ATTACHMENT0+i) : [g.NONE];
     g.drawBuffers(this.passDrawBuffers);
     g.readBuffer(w[0] ? g.COLOR_ATTACHMENT0 : g.NONE);
-    const colors = Array.from({length:w[0]}, (_, i) => this.imageKey(
-      this.screenPass ? this.screen : this.textures.get(w[7+i*7])!.object, w[8+i*7])).join(",");
-    const depthKey = w[1] ? this.imageKey(this.textures.get(w[1])!.object,w[2]) : "0";
-    this.checkFramebuffer(g.FRAMEBUFFER, `pass:${colors}:${depthKey}`, 'Incomplete GPU pass');
-    g.disable(g.SCISSOR_TEST); g.depthMask(true); g.stencilMask(255);
+    this.checkFramebuffer(g.FRAMEBUFFER, key, 'Incomplete GPU pass');
+    this.passKey = this.screenPass ? '' : key;
+    }
+    // Clears and the screen LOAD blit below must be unscissored; the pass then ends with a full scissor.
+    let unscissored = (this.screenPass && w[9] === 0) || (!!w[1] && !!(w[3] || w[4]));
+    for (let i = 0; i < w[0]; i++) if (w[9+i*7]) unscissored = true;
+    if (unscissored) this.setScissorTest(false);
+    g.depthMask(true); g.stencilMask(255);
     for (let i = 0; i < 4; i++) this.indexed!.colorMaskiOES(i, true, true, true, true);
     if (this.screenPass && w[9] === 0) {
       const b = this.frame.lb, H = g.drawingBufferHeight;
@@ -798,20 +887,22 @@ export class WebGL2Gpu implements GpuBackend {
     if (w[1] && w[3]) g.clearBufferfv(g.DEPTH, 0, [float(w[5])]);
     if (w[1] && w[4]) g.clearBufferiv(g.STENCIL, 0, [w[6]]);
     this.viewport = [0, 0, this.width, this.height];
-    g.viewport(0, 0, this.width, this.height); g.depthRange(0, 1);
-    g.enable(g.SCISSOR_TEST); g.scissor(0, 0, this.width, this.height); g.blendColor(0, 0, 0, 0);
+    this.setViewport([0, 0, this.width, this.height]); this.setDepthRange([0, 1]);
+    this.setScissorTest(true); this.setScissor([0, 0, this.width, this.height]); this.setBlendColor([0, 0, 0, 0]);
   }
 
   private endPass(): void {
     const g = this.gl;
     if (this.screenPass) {
       const b = this.frame.lb, H = g.drawingBufferHeight;
-      g.disable(g.SCISSOR_TEST); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null);
+      this.setScissorTest(false); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null);
       g.bindFramebuffer(g.READ_FRAMEBUFFER, this.framebuffer); g.readBuffer(g.COLOR_ATTACHMENT0);
       g.blitFramebuffer(0, 0, this.width, this.height, b.x, H-b.y, b.x+b.w, H-b.y-b.h,
         g.COLOR_BUFFER_BIT, g.NEAREST);
-    }
-    g.bindFramebuffer(g.FRAMEBUFFER, null); this.pipeline = undefined;
+      g.bindFramebuffer(g.FRAMEBUFFER, null);
+    } else if (this.opts.batch) this.lingering = true;
+    else g.bindFramebuffer(g.FRAMEBUFFER, null);
+    this.pipeline = undefined;
   }
 
   private applyStencil(): void {
@@ -824,7 +915,8 @@ export class WebGL2Gpu implements GpuBackend {
   }
   private applyPipeline(): void {
     const g = this.gl, p = this.pipeline!, w = p.words;
-    g.useProgram(p.object); g.bindVertexArray(p.vao);
+    if (this.opts.batch && this.sc.program === p.object) this.batch.skippedBinds++; else { this.sc.program = p.object; g.useProgram(p.object); }
+    if (this.opts.batch && this.sc.vao === p.vao) this.batch.skippedBinds++; else { this.sc.vao = p.vao; g.bindVertexArray(p.vao); }
     // WebGL requires active draw buffers to have a fragment output even with colorMask=0.
     // Disable only absent outputs, preserving attachment contents and restoring this on pipeline changes.
     g.drawBuffers(this.passDrawBuffers.map((buffer, i) => p.outputs.has(i) ? buffer : g.NONE));
@@ -1025,11 +1117,16 @@ export class WebGL2Gpu implements GpuBackend {
     if (this.languages && (!this.indexed || !this.gl.getExtension('EXT_color_buffer_float'))) {
       throw new Error('GPU extensions lost');
     }
+    this.lingering = false; this.passKey = ''; this.sc = {};
     this.framebuffer = this.gl.createFramebuffer()!; this.scratchIndex = this.gl.createBuffer()!;
     this.scratchAttributes.clear(); this.scratchIds = null;
     this.completeFramebuffers.clear(); this.objectIds = new WeakMap(); this.nextObjectId = 1;
     this.maxElementIndex = this.gl.getParameter(this.gl.MAX_ELEMENT_INDEX) as number;
     this.maxDrawBuffers = this.gl.getParameter(this.gl.MAX_DRAW_BUFFERS) as number;
+    // The guest already observed maxUniformRange; a restored context must still honour it.
+    if (this.languages && (this.gl.getParameter(this.gl.MAX_UNIFORM_BLOCK_SIZE) as number) < this.maxUniformRange) {
+      throw new Error('GPU uniform block limit decreased');
+    }
     this.screen = null; this.screenSize = [0, 0]; this.enableFloatExtensions();
     const replay = (item: GpuItem) => { if (this.execute(item)) throw new Error('GPU resource restoration failed'); };
     for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });

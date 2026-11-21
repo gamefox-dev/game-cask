@@ -20,7 +20,12 @@ it('normal CRT -O2 worker pool matches native source, fully lifted and determini
     const h = await loadHeadless('x64-threads');
     const sequence: (string | null)[] = [];
     try {
-      for (let i = 0; i < 300; i++) { await h.stepAsync(1); sequence.push(h.host.stateHash()); }
+      for (let i = 0; i < 300; i++) {
+        await h.stepAsync(1); sequence.push(h.host.stateHash());
+        // K50: the fixture opts into the 2M process cap so its first update ends live
+        // (savestates.spec checkpoints a running scheduler there), not after the whole pool.
+        if (i === 0) { const g = (h.host.metrics() as any); expect(g.exited).toBe(0); expect(g.guest_time.instruction_cap).toBe(2000000); expect(g.guest_time.cap_hits).toBe('1'); }
+      }
     } catch (e) { throw new Error(`${e}\n${h.logs.join('\n')}`); }
     expect(h.logs.some((s) => s.endsWith(reference)), h.logs.join('\n')).toBe(true);
     const m = h.host.metrics() as any;

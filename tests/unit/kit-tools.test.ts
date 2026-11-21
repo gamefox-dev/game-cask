@@ -21,6 +21,8 @@ import { validateProgress } from '../../tools/report/schema.mjs';
 import { peResources } from '../../tools/inspect/pe-resources.mjs';
 // @ts-expect-error -- plain ESM module
 import { automaticCoverageFiles } from '../../tools/build/coverage.mjs';
+// @ts-expect-error -- plain ESM module
+import { makeProbe } from '../../tools/probe/probe.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bgt-kit-'));
 
@@ -148,6 +150,25 @@ describe('trial brief and work queue', () => {
 });
 
 describe('probe mode', () => {
+  // K51 guard: a native-GPU probe that lands on a CPU rasterizer must fail loudly unless --software accepted it.
+  // Fake page, so the guard is exercised identically on GPU Macs and GPU-less Linux CI.
+  it('refuses an unexpected software renderer and records the software flag', async () => {
+    const device = { renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)', software: true };
+    const page = { goto: async () => null, waitForFunction: async () => true,
+      evaluate: async () => ({ backend: 'webgl2', backendNotes: [], gpuDevice: device }) };
+    const log = () => ({ notes: [] as string[], artifacts: [] as string[] } as Record<string, unknown>);
+    const strict = log();
+    await expect(makeProbe(page, { game: 'g', backend: 'webgl2', out: tmpdir(), params: {}, log: strict }).start())
+      .rejects.toThrow(/software renderer .*SwiftShader.*--software/);
+    expect(strict.software).toBe(true);
+    const accepted = log();
+    await makeProbe(page, { game: 'g', backend: 'webgl2', out: tmpdir(), params: {}, log: accepted, software: true }).start();
+    expect(accepted).toMatchObject({ software: true, device });
+    const native = log();
+    const gpu = { ...page, evaluate: async () => ({ backend: 'webgl2', backendNotes: [], gpuDevice: { renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)', software: false } }) };
+    await makeProbe(gpu, { game: 'g', backend: 'webgl2', out: tmpdir(), params: {}, log: native }).start();
+    expect(native.software).toBe(false);
+  });
   it('loads the intended module/backend on its own server and writes artifacts and real coverage', () => {
     const dir = tmp();
     const beforeEvidence = new Set<string>(automaticCoverageFiles(ROOT, 'win32-hello'));
@@ -160,8 +181,12 @@ describe('probe mode', () => {
         p.log('mz', (await p.peek(st.modules[0].base, 2)).toString('latin1'), (await p.metrics()).interp_insns);
         p.log(d.game.id, d.backend, st.modules[0].name);
       }\n`);
-      execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--backend', 'webgl2', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out'), '--cpu-profile', '1:4'], { cwd: ROOT, stdio: 'pipe' });
+      execFileSync(process.execPath, [join(ROOT, 'tools/probe/probe.mjs'), '--game', 'win32-hello', '--backend', 'webgl2', '--software', '--script', join(dir, 's.mjs'), '--out', join(dir, 'out'), '--cpu-profile', '1:4'], { cwd: ROOT, stdio: 'pipe' });
       const j = JSON.parse(readFileSync(join(dir, 'out', 'probe.json'), 'utf8'));
+      // This test covers probe mechanics, not the GPU: --software (SwiftShader) makes it identical on GPU Macs and
+      // GPU-less Linux CI. The recorded flag must match the renderer actually used (the guard is tested above).
+      expect(j.software).toBe(j.device ? j.device.software : null);
+      if (j.device) expect(j.software).toBe(true);
       expect(j.errors).toEqual([]);
       expect(j.notes).toEqual([]);
       expect(j.resources.start.cpuCount).toBeGreaterThan(0);expect(j.resources.end.cpuCount).toBeGreaterThan(0);

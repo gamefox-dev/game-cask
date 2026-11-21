@@ -45,6 +45,20 @@ Imports by ordinal keep their number in fault and stub names (`comctl32.dll!#17`
 Images keep their preferred base address unless two overlap; then the later one is relocated (it needs a
 `.reloc` section). Lifting and loading use the same base.
 
+### Win32 guest time (model version 1)
+
+Optional `pipeline.timeModel.instructionCap` (integer 2,000,000..256,000,000; default 64,000,000)
+limits deterministic dispatch work per host update across all threads, including REP budget units.
+The manifest records `pipeline.timeModel = {version:1, instructionCap, unitsPerUs:4000, frameUs:16667}`.
+The fixed nominal instruction-rate clock progresses within updates; positive swap interval N snaps
+forward to at least N vsync periods since the previous present and ends the update. Interval 0 does not end
+the update per present: later presents replace the displayed frame until the next 16667-us frame target, and
+the update ends at a present with exactly one period of guest time. CPU quanta only rotate threads. Non-presenting guests hit the cap or an idle/legacy wait boundary.
+Transport-only waits do not charge host latency. `step(n)` still means n consumed host updates.
+See [THREADS.md](../platforms/win32/THREADS.md) for GDI, idle-credit and deadline rules. Pipeline page
+pacing runs at most one update per rAF, carries at most one period of remainder and drops older backlog; deterministic instruction caps are not
+hard wall-time preemption or a phone responsiveness guarantee.
+
 ## Stages and what they guarantee
 | stage | tool | output | guarantees |
 |---|---|---|---|
@@ -242,6 +256,36 @@ This denominator is explicitly active wall, not CPU cycles, inclusive sampled C 
 Missing timing or a zero denominator yields null. No interval is bridged across a presentation gap; partial
 first/last frames and work after the last present are excluded. Probe JSON retains the full per-thread and
 per-frame breakdown; the terminal summary labels instructions/active-wall-second and snapshot drops.
+
+### Performance measurement (K51)
+
+Real-GPU WebGL2, the real-page frame-rate tool (`npm run bench:page`), coverage-off performance builds
+(`BGT_COVERAGE=off` / `--no-coverage`) and the opt-in owner census (`BGT_OWNER_CENSUS=1`) are documented in
+[performance.md](performance.md).
+
+### Exact native dispatch observations (Q85)
+
+Set **BGT_DISPATCH_COUNTERS=1** and rebuild to enable "native_dispatch" diagnostics
+(internal X86_NATIVE_STATS). Default **OFF** compiles every increment out, with no runtime
+branch, sampling clock or hot-path reset. OFF reports enabled:0 and counters/frames:null,
+not zero activity. Independent of execution_accounting and sampled CPU profiling; does not
+change guest registers, flags, memory, clock, retirement, API traces or suspension.
+
+The cumulative u64 values are **unsigned decimal strings**, including per-presentation
+snapshots. Only bounded peak_depth/capacity/enabled remain numbers. The 64-entry ring captures
+native guest GDI/SwapBuffers presentations, retains chronological present identities, and
+reports exact overwritten-snapshot drops. It is not an update/frame-timer approximation.
+Counters are never reset by a sampled-profile window reset or context switch.
+
+Driver entries/steps and terminal return reasons, accepted enter/resume/rechain/indirect
+continuations and first failed admission guards, generated native region exits by reason,
+inline leaf continuations, native lookups, registry exact-PC positive/negative cache hits,
+search exact/range/miss and force-interpreter refusals are separate observations. Faulting
+attempts do not invent successful returns/rejections. A generated region return is not a
+retired guest instruction; handwritten overrides are not generated region exits. Nested
+callback dispatch counts independently. Existing sampled census semantics are unchanged.
+Precise event definitions, known-count regressions, OFF/ON trace comparisons and separately
+measured instrumentation overhead: [K49 handoff](handoff/K49.md).
 
 ### Buffered coverage and Asyncify boundaries
 
@@ -688,8 +732,12 @@ memory only on demand, not by allocating/zeroing the full window. Gaps are inacc
 RSS). `x64-memory` writes **all 629145600 bytes**, verifies **153600 pages** and patterns, then maps/writes/reads the
 2 GiB window's upper edge. Host wasm memory can consequently exceed 2 GiB; mobile physical memory limits still apply.
 
-AMD64 execution now cooperatively yields after a deterministic two-million-instruction quantum instead of aborting
-CPU-heavy legitimate programs. Both oracle modes use the same quantum and virtual clock; this is not multithreading.
+AMD64 and i386 rotate cooperative threads after a deterministic two-million-unit quantum without automatically
+ending the host update. K50 uses guest presents, a configured process instruction cap and idle/legacy waits
+for clock-frame boundaries, with nominal 4000-unit/µs CPU progress for busy-waits. Both oracle modes and
+suspension artifacts share the [guest time model](../platforms/win32/THREADS.md#guest-time-model-k50-version-1).
+`step(n)` remains n host updates; presenting guests below the cap normally present once per update
+(interval-0 guests may present several times per update).
 Leaf tail-call helpers and callbacks referenced from leaf functions are also discovered without requiring .pdata.
 
 **Decode cache ownership (K30).** The interpreter's 8,192-entry direct-mapped decode cache is shared by every guest

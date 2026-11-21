@@ -21,7 +21,7 @@ const probes = [
   { name: '3D sampler unit 3: updated slice lower row', x: 300, y: 75, rgb: [255, 255, 255], tolerance: 2 },
   { name: '2D array layer 0', x: 20, y: 150, rgb: [255, 0, 0], tolerance: 2 },
   { name: '2D array layer 1', x: 60, y: 150, rgb: [0, 255, 0], tolerance: 2 },
-  { name: '3D texture() bias selects generated mip 2', x: 316, y: 50, rgb: [124, 139, 139], tolerance: 3 },
+  { name: '3D texture() bias selects generated mip 2', x: 316, y: 50, rgb: [124, 139, 139], tolerance: 3 }, // rgb: box filter; checked against the guest's level-2 readback
   { name: 'array texture() bias selects explicit mip 1 layer 1', x: 76, y: 150, rgb: [255, 255, 0], tolerance: 2 },
   { name: 'explicit mip level 1 selected by textureLod', x: 100, y: 150, rgb: [0, 255, 0], tolerance: 2 },
   { name: 'MAX_LEVEL clamps explicit LOD to level 1', x: 120, y: 150, rgb: [0, 255, 0], tolerance: 2 },
@@ -59,11 +59,18 @@ for (const cross of [false, true])
         expect(m.gl_approximations).toBe(2);
         expect(m.gl_approximation_kinds).toEqual(['GL_CLAMP_TO_BORDER treated as CLAMP_TO_EDGE', 'GL_TEXTURE_LOD_BIAS ignored']);
         const px = await readPixels(p);
+        // GL leaves glGenerateMipmap's filter implementation-defined (box: 124,139,139; ANGLE Metal: 53,110,110 -- see
+        // the fixture's 3D mip check). The bias probe proves mip 2 is *selected*, so it expects the guest's own
+        // GetTexImage of generated level 2, not a fixed box-filter value.
+        const mip2Log = d.logs.map(l => /x64-gl-fbo 3D mip level 2 = (\d+),(\d+),(\d+),/.exec(l.message)).find(Boolean);
+        expect(mip2Log, 'guest logs generated 3D mip level 2').toBeTruthy();
+        const mip2 = mip2Log!.slice(1, 4).map(Number);
         if (hardwarePixels()) for (const probe of probes) {
           const x = Math.floor(d.letterbox.x + (probe.x + .5) * d.letterbox.w / 320);
           const y = Math.floor(d.letterbox.y + (probe.y + .5) * d.letterbox.h / 200), i = (y * px.width + x) * 4;
           for (let c = 0; c < 3; c++) {
-            expect(Math.abs(px.data[i + c] - probe.rgb[c]), `${probe.name} channel ${c}: ${px.data[i + c]}`)
+            const want = probe.name === '3D texture() bias selects generated mip 2' ? mip2 : probe.rgb;
+            expect(Math.abs(px.data[i + c] - want[c]), `${probe.name} channel ${c}: ${px.data[i + c]}`)
               .toBeLessThanOrEqual(probe.tolerance);
           }
         }

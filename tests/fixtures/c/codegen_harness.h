@@ -36,6 +36,8 @@ void x86_run_native(x86_native_fn step) { step(X.eip); }
 int x86_native_enter(uint32_t target,x86_native_fn fn) { (void)target;(void)fn;return 0; }
 int x86_native_resume(uint32_t next,uint64_t floor,x86_native_fn fn) { (void)next;(void)floor;(void)fn;__builtin_trap(); }
 x86_lifted_fn x86_find_lifted(uint32_t addr) { (void)addr; return 0; }
+int x86_native_enter_cached(x86_native_admission_t *site,uint32_t target,x86_native_fn fn){(void)site;return x86_native_enter(target,fn);}
+int x86_native_resume_cached(x86_native_admission_t *site,uint32_t next,uint64_t floor,x86_native_fn fn){(void)site;return x86_native_resume(next,floor,fn);}
 static uint32_t yields, fault_address, fault_hash, stop_at_quantum;
 unsigned x86_lift_reason;
 static unsigned last_reason, last_block_reason;

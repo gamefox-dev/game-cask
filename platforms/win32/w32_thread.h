@@ -18,5 +18,7 @@ uint32_t *w32_thread_error(void);
 /* LANE-E/C: native audio notifications share guest events without changing guest arguments/errors. */
 int w32_thread_event_valid(uint32_t h);
 void w32_thread_signal_event(uint32_t h);
+int w32_thread_event_signaled(uint32_t h);
+uint64_t w32_thread_idle_guard_hits(void);
 void w32_thread_io_wait(int begin);
 #endif

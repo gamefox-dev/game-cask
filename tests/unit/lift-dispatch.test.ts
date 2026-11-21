@@ -19,6 +19,15 @@ it.each([0,1])('native fast paths invalidate site caches and reject replaced, nu
   expect(()=> (exports.nx_fast as ()=>void)()).toThrow(GameAbort);
 });
 
+it.each([0,1])('warm exact-PC admission certificates preserve all live guards (kind=%s)',async(kind)=>{
+ const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_cached_guards.c'));
+ expect((exports.cached_guards as (k:number)=>number)(kind)).toBe(0);
+ expect(()=>(exports.cached_nx as (k:number)=>void)(kind)).toThrow(GameAbort);
+});
+it.each([0,1])('cached enter/resume recheck tightened strict membership (kind=%s)',async(kind)=>{
+ const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_cached_guards.c',['X86_COVERAGE_MODE=2']));
+ expect(()=>(exports.cached_strict as (k:number)=>void)(kind)).toThrow(new OutsideSlice(1,0x2000));
+});
 it('registry growth and an override installed mid-frame invalidate direct, indirect and resume admissions',async()=>{
   const {exports}=await instantiateFixture(await compileC('tests/fixtures/c/native_registry_growth.c'));
   expect((exports.growth as ()=>number)()).toBe(0);

@@ -63,9 +63,19 @@ loop:        ─► runtime fills io (input) ─► bgt_update(16667)   × N (fi
 | `bgt_debug_state` *(optional)* | `uint32_t (void)` | address of a game-owned NUL-terminated UTF-8 JSON string describing observable state. Debug/test only |
 | `bgt_debug_peek` *(optional, v0.2.1)* | `uint32_t (uint32_t addr, uint32_t len)` | **debug/test only, read-only**: copy `len` (1..65536) bytes of the game's *guest* memory at `addr` (e.g. the emulated address space of a pipeline game) into a game-owned buffer and return its address, or 0 if any byte is unmapped. Must not change game state. Reached only through the test API's `peek` |
 
-Timing: the runtime accumulates real time and runs up to 4 updates per displayed frame
-(`LIMITS.maxCatchUpUpdates`), then drops any backlog. Under the test API, updates run only
-through `step(n)`.
+Timing: for native BGT games the runtime accumulates real time and runs up to 4 updates per displayed
+frame (`LIMITS.maxCatchUpUpdates`), then drops backlog. Pipeline-profile packages run at most one bounded
+update per animation frame, carry at most one period of remainder (so a 60 Hz display updates every
+frame) and drop older backlog instead of multiplying guest-frame work. Under the test API,
+`step(n)` consumes exactly n host updates, not n instruction quanta or a guarantee of n guest presents.
+The Win32 profile defines its deterministic [guest time model](../../platforms/win32/THREADS.md#guest-time-model-k50-version-1)
+independently of `io.frame`; this does not change native BGT fixed-step semantics.
+
+Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
+microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
+host wall time. Deterministic harness time/audio services use it when present; without it they retain
+completed-updates × 16667 µs. It is not an import, a suspension primitive, or an instruction-retirement
+counter. All clock/rate/cap state participates in artifact/configuration/checkpoint identity.
 
 Traps: a wasm trap or `bgt_abort` stops the loop and shows an accessible error panel.
 The error is recorded in diagnostics. The runtime never resumes a trapped instance.
@@ -891,7 +901,7 @@ Fragment position is top-left pixel centre with depth [0,1]. No guest-visible ba
 
 VERTEX/INDEX/UNIFORM_BUFFER require corresponding usage bits and positive size fitting the buffer. Vertex offset
 multiple of 4; index format UINT16=0 or UINT32=1, offset and size multiple of 2 or 4 respectively. Uniform offset
-multiple of 256, size multiple of 16 and <=65536. Slots 0..7; uniform and texture slots are independent namespaces.
+multiple of 256, size multiple of 16 and <= the reported `max_uniform_range` (§13.6; 16384..65536). Slots 0..7; uniform and texture slots are independent namespaces.
 TEXTURE requires SAMPLED usage and an existing sampler. Every pipeline layout buffer slot must be bound, even if
 no attributes reference it. Required masks must be covered before a draw; extra bound slots are harmless. Buffer
 and texture bindings need not wait for PIPELINE. No automatic binding of handle 0 or dummy buffers/textures.
@@ -1011,7 +1021,7 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 40 | max_binding_slots | 8 each uniform/texture namespace |
 | 44 | max_color_attachments | 4 |
 | 48 | uniform_offset_alignment | 256 |
-| 52 | max_uniform_range | 65536 |
+| 52 | max_uniform_range | 65536 without CAP_GPU; with CAP_GPU min(65536, native limit) — 16384..65536 (K51) |
 | 56 | max_vertex_stride | 2048 |
 | 60 | max_shader_bytes | 1048576 |
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
@@ -1020,7 +1030,20 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 76 | reserved | 0 |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
-supported/languages zero. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
+supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
+portable ceiling and rounded down to 16: WebGL2 `MAX_UNIFORM_BLOCK_SIZE` (ANGLE Metal reports the WebGL2/GL 3.3
+minimum 16384), WebGPU `maxUniformBufferBindingSize` (default 65536). A backend below 16384 does not advertise
+CAP_GPU. UNIFORM_BUFFER sizes above the reported value are E_LIMIT, and a native backend never binds a larger range.
+The value is fixed per GPU namespace: a restored device below it is unrecoverable, not silently smaller. A
+WebGPU→WebGL2 fallback (only allowed without live GPU resources) creates a new namespace that reports the new
+backend's value, possibly 16384; the WGL profile re-queries it at every link, so programs linked afterwards use it.
+Nothing is relinked: a program linked before the fallback at the larger value is not re-validated (it has no live
+GPU module, or the fallback is refused), and a value the guest queried earlier is not updated, so a later
+compile/link of a block above the new limit fails with the `GL_MAX_UNIFORM_BLOCK_SIZE` info log.
+The WGL profile reports it as `GL_MAX_UNIFORM_BLOCK_SIZE` and fails compile/link (with an explicit
+`GL_MAX_UNIFORM_BLOCK_SIZE` info log) for a user std140 block above it. Default-block uniforms keep up to
+min(16384, limit) bytes: when the profile's own meta/swizzle words would not fit beside them, they move to a separate
+internal block in the next free uniform slot (offset 256-aligned in the same buffer), so they are not charged to the guest. The legacy max_texture_dimension can exceed the GPU layer's fixed 4096 ceiling. Each allocated GPU
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
@@ -1145,9 +1168,13 @@ internal representable range on upload and to the external range on readback wit
 
 **Named native boundary: out-of-range integer fragment outputs.** GL 3.3 does not define a portable result when the
 fragment output exceeds a narrower integer attachment range. WebGL currently shows native narrowing/intermediate
-signed-conversion behavior (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); WebGPU saturates (255/-128).
-No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range raster values and
-full-width 32-bit outputs, and separately pins each backend's current overflow behavior. All 18 formats have exact
+signed-conversion behavior on SwiftShader (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); ANGLE Metal and WebGPU
+saturate (255/-128). No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range
+raster values and full-width 32-bit outputs, pins the overflow result where the implementation is fixed (WebGPU,
+software WebGL2), and on a native-GPU WebGL2 driver only requires a value the 8-bit attachment can hold.
+Generated mipmaps (`glGenerateMipmap`) use the driver's filter, which GL leaves implementation-defined: a box filter
+on SwiftShader and WebGPU, while ANGLE Metal weights the two source slices of a 3D level about 7/8 : 1/8. The
+`x64-gl-fbo` check accepts any blend of the box-reduced slice pairs; sampling is checked against the level read back. All 18 formats have exact
 upload/sample/render/readback coverage in `x64-gl-integer`; this is not general unrestricted GL 3.3 compatibility.
 
 ### 13.9 Indexed clear-buffer operation (additive v0.3, opcode 0x5f)
@@ -1312,6 +1339,33 @@ output locations (zero for absent outputs), retaining the application's per-chan
 Vertex/fragment input locations do not count as outputs, including in combined WGSL modules. Depth-only and feedback
 programs remain valid; an absent color output is not a reason to drop depth/feedback work.
 
+**Frame batching (K53; no wire, opcode, capability or limit change).** The desktop WGL profile appends
+GPU-only lists whose acceptance changes no profile bookkeeping (pass/draw/clear lists without transform
+feedback, BUFFER_UPDATE, TEXTURE_UPDATE[_EX]) to one pending continuation list, with upload bytes copied
+into a batch-owned arena at the GL call. It submits that list, in unchanged stream order, before any
+synchronous submission (creates, deletes, copies, readbacks, requests, feedback draws), at every host
+yield (SwapBuffers, transport waits, update end), before GDI record flushes, and at glGetError, glFlush,
+glFinish or any newly latched guest error. A rejected batch (whole-list, no effects) is replayed as its
+original per-call lists in order, so each call is accepted or rejected as it would have been unbatched
+(first rejection latches GL_OUT_OF_MEMORY for E_LIMIT, otherwise GL_INVALID_OPERATION; a draw whose deferred
+uniform upload was rejected is not emitted), and a journal restores profile shadow bytes, generation and
+uniform dirtiness of rejected calls. One divergence remains under GL_OUT_OF_MEMORY (GL state undefined): a
+rejected equal-size glBufferData keeps its old store instead of the unbatched delete/create fallback. Only
+list boundaries move; Frame.items and upload bytes are identical. Renderers merge passes natively: WebGPU
+records the frame's §13 passes into one command encoder, continues the open native pass for a following
+PASS_BEGIN on identical attachments whose loads are all LOAD (begin state reset per §13.1), keeps screen
+passes separate (opaque store boundary), renames CPU-authoritative buffers (≤256 KiB) updated while the
+pending encoder references them, and submits before blit/copy/readback/mip generation/referenced texture
+uploads/legacy items; presentation and the retained-snapshot copy are encoded into the frame's last command
+buffer, so a batched GL frame costs one GPUQueue.submit. WebGL 2 keeps a pass framebuffer bound for the next
+same-image pass and shadows program/VAO/viewport/scissor/depth-range/blend-color state to skip identical calls
+(cleared by any other GL writer); its one production native-error poll per frame runs at the next frame's start.
+Standalone executors keep per-pass submission unless the renderer enables merging; `?gpubatch=0` and the
+`BGT_GL_SYNC_SUBMIT=1` build restore the old shapes for A/B evidence. Diagnostics `lastFrame.nativePasses`,
+`nativeSubmits`, `mergedPasses`, `bufferRenames`, `skippedBinds`, and opt-in `?gputiming=1` `gpuMs`/`gpuTiming`
+(WebGPU timestamp-query §13 pass time; WebGL EXT_disjoint_timer_query_webgl2 frame time; otherwise
+`unavailable`) report the effect. GL metrics `gl_batched_lists`, `gl_batch_flushes`, `gl_sync_submits`, `gl_batch_replays`.
+
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 
 `BUFFER_COPY` is a 20-byte **outside-pass** operation: `source, source_offset, destination,
@@ -1342,7 +1396,7 @@ a bound but undersized user uniform block draws with its actual available prefix
 This is a counted approximation of desktop GL's undefined shader result, not an ES/WebGL draw-error rule, and is
 independent of source language (GLSL330/ES300). Every affected block/draw increments `gl_approximations` under
 `undersized uniform block range zero-filled`. An explicit program/block/name/binding/buffer/offset/size/required
-warning is logged once per linked program/block/binding. Seven reusable private UBOs (at most 7 * 64 KiB) are
+warning is logged once per linked program/block/binding. Seven reusable private UBOs (at most 7 * max_uniform_range) are
 zeroed and populated with native BUFFER_COPY prefixes before drawing, so GPU-generated prefixes remain correct
 and unrelated application bytes beyond the bound range never leak into the tail. Relink resets warning state.
 Missing buffers remain GL_INVALID_OPERATION. Valid ranges use exactly the complete linked std140 size; neither the

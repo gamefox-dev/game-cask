@@ -19,7 +19,7 @@ export interface Savestate {
   host: ReturnType<GameHost['checkpoint']>;
   vfs: ReturnType<BGTRuntime['vfs']['checkpoint']>;
   input: ReturnType<BGTRuntime['input']['checkpoint']>;
-  services: {ticks: number; rng: number; audioQueued: number; storage: Map<string, Uint8Array>};
+  services: {ticks: number; rng: number; audioQueued: number; audioTimeUs: number; storage: Map<string, Uint8Array>};
   journal: CheckpointFrame[]; gpuBase: GPUCheckpoint | null;
   stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number};
 }
@@ -28,6 +28,7 @@ export class Savestates {
   private ticks = 0;
   private rng: number;
   private audioQueued = 0;
+  private audioTimeUs = 0;
   private storage = new Map<string, Uint8Array>();
   private journal: CheckpointFrame[] = [];
   private gpuBase: GPUCheckpoint | null = null;
@@ -43,7 +44,7 @@ export class Savestates {
     this.rng = (seed >>> 0) || 1;
     rt.testHarness = {
       services: s => this.services(s),
-      updated: () => { this.ticks++; this.audioQueued = Math.max(0,this.audioQueued - DT_US * 48000 / 1000000); },
+      updated: () => { this.ticks++; this.drainAudio(); },
 
       frame: (...args) => {
         if (this.journalError) return;
@@ -72,18 +73,25 @@ export class Savestates {
   }
   private services(s: HostServices): HostServices {
     return {...s,
-      guestNow: () => this.ticks * DT_US / 1000,
+      guestNow: () => this.clockUs() / 1000,
       entropy: bytes => { for (let i = 0; i < bytes.length; i++) {
         let x = this.rng; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.rng = x >>> 0; bytes[i] = x & 255;
       } },
       storage: {persistent:false, read:key => this.storage.get(key)?.slice() ?? null,
         write:(key,data) => { this.storage.set(key,data.slice()); return 0; }},
-      audio:{sampleRate:48000, queued:() => Math.round(this.audioQueued),
+      audio:{sampleRate:48000, queued:() => { this.drainAudio(); return Math.round(this.audioQueued); },
         push:samples => this.pushAudio(samples.length), pushStereo:samples => this.pushAudio(Math.floor(samples.length/2))},
       gamepadRumble:() => {},
     };
   }
+  private clockUs(): number { return this.rt.host?.guestTimeUs() ?? this.ticks * DT_US; }
+  private drainAudio(): void {
+    const now=this.clockUs();
+    this.audioQueued=Math.max(0,this.audioQueued-Math.max(0,now-this.audioTimeUs)*48000/1000000);
+    this.audioTimeUs=now;
+  }
   private pushAudio(frames: number): number {
+    this.drainAudio();
     const n = Math.min(frames,Math.max(0,Math.floor(14400 - this.audioQueued)));
     this.audioQueued += n; return n;
   }
@@ -107,7 +115,7 @@ export class Savestates {
       return {schema:'bgt-savestate/1',identity:this.identity(),backend:rt.renderer!.kind,
         width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,
         gpuBase:cloneCheckpoint(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
-        services:cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,storage:this.storage}),
+        services:cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,audioTimeUs:this.audioTimeUs,storage:this.storage}),
         journal:cloneCheckpoint(this.journal)};
     });
   }
@@ -147,7 +155,7 @@ export class Savestates {
         host.restoreCheckpoint(s.host);
         rt.testReplace(host,renderer,input.letterbox); renderer = null;
         Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
-        this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued;
+        this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
         this.journalBytes = journalBytes; this.journalError = null;
       } finally { renderer?.destroy(); }

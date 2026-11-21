@@ -165,7 +165,7 @@ static uint32_t clear_buffer(uint32_t cls) {
         uint32_t sc[] = {(uint32_t)x, tg.h - (uint32_t)y - sh, sw, sh}; op(0x50, sc, 4);
     }
     uint32_t cw[] = {kind | (cls << 2) | masks, 0, values[0], values[1], values[2], values[3]};
-    op(0x5f, cw, 6); op(0x4d, 0, 0); submit(); return 0;
+    op(0x5f, cw, 6); op(0x4d, 0, 0); submit_deferred(); return 0;
 }
 static uint32_t api_ClearBufferfv(void) { return clear_buffer(0); }
 static uint32_t api_ClearBufferiv(void) { return clear_buffer(1); }
@@ -182,7 +182,7 @@ static uint32_t api_Clear(void) {
     if (!fbo && dfb_draw == 0) mask &= ~0x4000u;
     if (!tg.ncolor && !tg.has_depth && !tg.has_stencil) return 0;
     if (!mask) return 0;
-    uint32_t w[35]; uint32_t n = pass_words(&tg, mask, w); begin(); op(0x4c, w, n); op(0x4d, 0, 0); submit(); return 0;
+    uint32_t w[35]; uint32_t n = pass_words(&tg, mask, w); begin(); op(0x4c, w, n); op(0x4d, 0, 0); submit_deferred(); return 0;
 }
 static uint32_t topology(uint32_t mode) {
     switch (mode) { case 0: return 0; case 1: return 1; case 3: return 2; case 4: return 3; case 5: return 4;
@@ -402,6 +402,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         smask |= 1 << slot;
     }
     for (uint32_t i = 0; i < p->nb; i++) umask |= 1 << (i + 1);
+    if (p->info->split) umask |= 1u << p->info->meta_slot; /* K51 split default block */
     uint32_t ds = tg.has_depth || tg.has_stencil, depth_format = ds ? tg.ds.bgt : 0xffffffffu;
     uint32_t w[200] = {0, p->vgpu, p->fgpu, topo, cull ? cull_face : 0, front_face,
         depth_format, depth && tg.has_depth, depth && tg.has_depth && depth_write, depth_compare,
@@ -502,8 +503,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * a zero-output capture must not write, advance cursors or change buffer authority. */
     if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices)) return 0;
     if (!uniform_ranges(p, block_handles, block_offsets, 1)) return 0;
-    float h = (float)tg.h; copy(p->values, &h, 4);
-    uint32_t swz_base = p->usize - p->info->nslots * 16;
+    float h = (float)tg.h; copy(p->values + p->info->meta_off, &h, 4);
+    uint32_t swz_base = p->info->split ? p->info->meta_off + 16 : p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
         uint32_t unit = p->slot_unit[slot], id = tex_bind[p->info->slot_dim[slot]][unit];
         /* Incomplete sampling returns the specified black fallback, independent of the object's swizzle. */
@@ -514,7 +515,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
     }
     uint32_t upload[] = {p->ubuf, 0, PTR(p->values), p->usize};
-    if (!send(0x41, upload, 4)) { retire_generated_ubos(); return 0; }
+    if (!send_deferred(0x41, upload, 4)) { retire_generated_ubos(); return 0; }
+    PendRec *ubo = pend_last; /* deferred: a replayed rejection re-marks the values dirty and skips the draw */
+    if (ubo) { ubo->kind = PR_UBO; ubo->obj = (uint32_t)(p - programs); }
     p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
@@ -536,7 +539,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
-    uint32_t ub[] = {0, p->ubuf, 0, p->usize}; op(0x55, ub, 4);
+    uint32_t ub[] = {0, p->ubuf, 0, p->info->ubytes}; op(0x55, ub, 4);
+    if (p->info->split) { uint32_t mb[] = {p->info->meta_slot, p->ubuf, p->info->meta_off, 16 + 16 * p->info->nslots}; op(0x55, mb, 4); }
     for (uint32_t i = 0; i < p->nb; i++) {
         uint32_t b[] = {i + 1, block_handles[i], block_offsets[i], p->info->b[i].size}; op(0x55, b, 4);
     }
@@ -550,7 +554,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         op(0x58, d, 5);
     } else { if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {(uint32_t)count, (uint32_t)instances, first, 0}; op(0x57, d, 4); }
-    op(0x4d, 0, 0); if (submit()) {
+    op(0x4d, 0, 0); pend_dep_seq = ubo ? ubo->seq : 0;
+    if (tf_active ? submit() : submit_deferred()) {
+        if (!tf_active && pend_last) pend_last->kind = PR_DRAW;
         if (tf_active) {
             for (uint32_t i = 0; i < (p->tf_link_separate ? p->tf_link_count : 1); i++) {
                 tf_cursor[i] += tf_vertices * (uint32_t)instances * p->tf_stride[i]; buffers[tf_bound[i]].generated = 1;
@@ -624,7 +630,7 @@ static uint32_t api_ReadPixels(void) {
     if (!fbo_read) {
         uint32_t req = request_id_next(); begin(); bgt_cmd_readback(&cmd, req, 0, (uint32_t)x0, tg.h - (uint32_t)y1, rw, rh);
         submit();
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        int status; while ((status = request_status(req)) == 0) w32_wait_transport();
         uint32_t n = rw * rh * 4; uint8_t *data = scratch(n);
         int got = data && status > 0 ? bgt_request_read(req, data, n) : -1; bgt_request_close(req);
         if (got != (int)n) { fail(BAD_OP); return 0; }
@@ -675,5 +681,5 @@ static uint32_t api_BlitFramebuffer(void) {
     }
     return 0;
 }
-static uint32_t api_Flush(void) { return 0; }
-static uint32_t api_Finish(void) { return 0; }
+static uint32_t api_Flush(void) { flush_pending(); return 0; }
+static uint32_t api_Finish(void) { flush_pending(); return 0; }
