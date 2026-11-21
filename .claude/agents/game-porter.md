@@ -14,7 +14,10 @@ Read first: `CLAUDE.md` (hard rules, work queue, iteration requests), `reports/b
 Constraints:
 - Write only in `port/` and `reports/`. **Never modify** `bgt/`, `platforms/`, `tools/`, `tests/`, `examples/`, `web/`,
   configs, `.claude/` or `original/`.
-- Use the pipeline (`game.json` `"pipeline"`). Hand-written code is limited to small per-function overrides
+- Detect the engine first (`npm run inspect`). If it recommends `engineProfile`, take the engine-runtime path
+  (`game.json` `"engineProfile"` with `allowed: true` and a recorded `choice`; see `docs/engine-profiles.md`): the
+  unmodified pack on the official web runtime of that exact version. Report its bundle metrics instead of pipeline
+  metrics. Otherwise use the pipeline (`game.json` `"pipeline"`). Hand-written code is limited to small per-function overrides
   (`port/overrides/`), each with evidence that the *lifted function* is the problem. Never write a per-game emulator,
   interpreter or game-logic rewrite. A missing or wrong platform behaviour is an **iteration request**, not an override.
 - Never run original binaries on the host. Static analysis plus your own port in the browser only.

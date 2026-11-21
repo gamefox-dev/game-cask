@@ -1,16 +1,1408 @@
 {
-  "schema": "game-cask/engine-runtimes/1",
+  "schema": "game-cask/engine-runtimes/2",
   "runtimes": [
     {
-      "id": "godot-3.5.3",
+      "id": "godot-3.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.2",
+      "status": "stable.official",
+      "build": "4e7d75ccd350b98bccea517c034b367f52cf127e",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.2-stable/Godot_v3.2-stable_export_templates.tpz",
+        "size": 454914348,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4128457,
+        "compressedSize": 4121183,
+        "crc32": 1933905003,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-legacy",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "3aa8ff954579b34f90924e5a91903403c1be94aeb6076b58e36ce6bc128942bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "13c8b4fddbb23f22f19f40563ca0d89e4eb514186838ec9dfa9a06873690c870",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.2.1-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.2.1",
+      "status": "stable.official",
+      "build": "b0eca5828ccd3a5c07b77e82e567c45937de9056",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.2.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.2.1-stable/Godot_v3.2.1-stable_export_templates.tpz",
+        "size": 455307445,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4128230,
+        "compressedSize": 4120888,
+        "crc32": 2487049339,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-legacy",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "3aa8ff954579b34f90924e5a91903403c1be94aeb6076b58e36ce6bc128942bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "13c8b4fddbb23f22f19f40563ca0d89e4eb514186838ec9dfa9a06873690c870",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.2.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.2.2",
+      "status": "stable.official",
+      "build": "6a9fbafcbbd7954761fb17554ed08fb62e3554dd",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.2.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.2.2-stable/Godot_v3.2.2-stable_export_templates.tpz",
+        "size": 461710702,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4181922,
+        "compressedSize": 4174208,
+        "crc32": 1261360078,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-legacy",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "3aa8ff954579b34f90924e5a91903403c1be94aeb6076b58e36ce6bc128942bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "49d25b42c0d01bd0a6602b1b5d9091fdde1ad3cb6d61b26e2c887fa61ebb2645",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.2.3-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.2.3",
+      "status": "stable.official",
+      "build": "31d0f8ad8d5cf50a310ee7e8ada4dcdb4510690b",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.2.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.2.3-stable/Godot_v3.2.3-stable_export_templates.tpz",
+        "size": 462726034,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4201122,
+        "compressedSize": 4193616,
+        "crc32": 4103663177,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-legacy",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "3aa8ff954579b34f90924e5a91903403c1be94aeb6076b58e36ce6bc128942bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "49d25b42c0d01bd0a6602b1b5d9091fdde1ad3cb6d61b26e2c887fa61ebb2645",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.2.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3",
+      "status": "stable.official",
+      "build": "8e68f2e5f48c66bfa80b9bb7746a488afb70086d",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3-stable/Godot_v3.3-stable_export_templates.tpz",
+        "size": 512218431,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 3954015,
+        "compressedSize": 3948490,
+        "crc32": 3166591245,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "50d934aa4ed37a011e4de9a566a5e8d9cef761c63e65f5c87416b312683da387",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3",
+      "status": "stable.official",
+      "build": "8e68f2e5f48c66bfa80b9bb7746a488afb70086d",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3-stable/Godot_v3.3-stable_export_templates.tpz",
+        "size": 512218431,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 3996499,
+        "compressedSize": 3990371,
+        "crc32": 2375014282,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "50d934aa4ed37a011e4de9a566a5e8d9cef761c63e65f5c87416b312683da387",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.1-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.1",
+      "status": "stable.official",
+      "build": "4da4277dc9ff253ec9b23af1355d6f8bcefff5ca",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.1-stable/Godot_v3.3.1-stable_export_templates.tpz",
+        "size": 515583179,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 3957355,
+        "compressedSize": 3951665,
+        "crc32": 708897922,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.1-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.1",
+      "status": "stable.official",
+      "build": "4da4277dc9ff253ec9b23af1355d6f8bcefff5ca",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.1-stable/Godot_v3.3.1-stable_export_templates.tpz",
+        "size": 515583179,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4001247,
+        "compressedSize": 3995556,
+        "crc32": 1666326761,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.2",
+      "status": "stable.official",
+      "build": "7610409b8a14b8499763efa76578795c755a846d",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.2-stable/Godot_v3.3.2-stable_export_templates.tpz",
+        "size": 515533976,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 3957177,
+        "compressedSize": 3951682,
+        "crc32": 3949666105,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.2-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.2",
+      "status": "stable.official",
+      "build": "7610409b8a14b8499763efa76578795c755a846d",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.2-stable/Godot_v3.3.2-stable_export_templates.tpz",
+        "size": 515533976,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4001541,
+        "compressedSize": 3995434,
+        "crc32": 2969835734,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.3-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.3",
+      "status": "stable.official",
+      "build": "b973f997ff56bd9ad4c0a521e123cc4aee13135d",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.3-stable/Godot_v3.3.3-stable_export_templates.tpz",
+        "size": 515993025,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 3959502,
+        "compressedSize": 3953720,
+        "crc32": 1731877722,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.3-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.3",
+      "status": "stable.official",
+      "build": "b973f997ff56bd9ad4c0a521e123cc4aee13135d",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.3-stable/Godot_v3.3.3-stable_export_templates.tpz",
+        "size": 515993025,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4002956,
+        "compressedSize": 3996724,
+        "crc32": 1938485106,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.4-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.4",
+      "status": "stable.official",
+      "build": "faf3f883d1a25ec8a2b7a31ecc9e3363613b2478",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.4-stable/Godot_v3.3.4-stable_export_templates.tpz",
+        "size": 516114728,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 3959256,
+        "compressedSize": 3954026,
+        "crc32": 698857851,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.3.4-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.3.4",
+      "status": "stable.official",
+      "build": "faf3f883d1a25ec8a2b7a31ecc9e3363613b2478",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.3.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.3.4-stable/Godot_v3.3.4-stable_export_templates.tpz",
+        "size": 516114728,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4003149,
+        "compressedSize": 3996608,
+        "crc32": 1785536877,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "d2359c73ff949ab2900b46e2765cee00bff982378505f51cbe317503146ee417",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.3.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4",
+      "status": "stable.official",
+      "build": "206ba70f4b2a3eac4455bb21bd7c8af76285bd86",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4-stable/Godot_v3.4-stable_export_templates.tpz",
+        "size": 533199593,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4140758,
+        "compressedSize": 4133468,
+        "crc32": 538046389,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4",
+      "status": "stable.official",
+      "build": "206ba70f4b2a3eac4455bb21bd7c8af76285bd86",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4-stable/Godot_v3.4-stable_export_templates.tpz",
+        "size": 533199593,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4201897,
+        "compressedSize": 4193312,
+        "crc32": 4209239367,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.1-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.1",
+      "status": "stable.official",
+      "build": "0a87e218e3d1a3f9337d11053060ec23c4119ffb",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.1-stable/Godot_v3.4.1-stable_export_templates.tpz",
+        "size": 533806361,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4144782,
+        "compressedSize": 4136516,
+        "crc32": 3807237012,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.1-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.1",
+      "status": "stable.official",
+      "build": "0a87e218e3d1a3f9337d11053060ec23c4119ffb",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.1-stable/Godot_v3.4.1-stable_export_templates.tpz",
+        "size": 533806361,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4206594,
+        "compressedSize": 4198390,
+        "crc32": 1675100637,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.2",
+      "status": "stable.official",
+      "build": "45eaa2daf1e3d2571a9f31a3421911262ec82f51",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.2-stable/Godot_v3.4.2-stable_export_templates.tpz",
+        "size": 533836284,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4144718,
+        "compressedSize": 4137236,
+        "crc32": 3256428941,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.2-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.2",
+      "status": "stable.official",
+      "build": "45eaa2daf1e3d2571a9f31a3421911262ec82f51",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.2-stable/Godot_v3.4.2-stable_export_templates.tpz",
+        "size": 533836284,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4206625,
+        "compressedSize": 4198519,
+        "crc32": 2587084886,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b42748ea02ebddfb9ee09fd5f153596ba96100c36e7541e1d2206b82ac0112a7",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "941746c2d6144011f28737de643787be5239d5a90c996a2c66f05dec347551bb",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.3-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.3",
+      "status": "stable.official",
+      "build": "242c05d12f134d8f079debaf50161ef83d1a3b8c",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.3-stable/Godot_v3.4.3-stable_export_templates.tpz",
+        "size": 534152940,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4148641,
+        "compressedSize": 4141469,
+        "crc32": 7580774,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.3-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.3",
+      "status": "stable.official",
+      "build": "242c05d12f134d8f079debaf50161ef83d1a3b8c",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.3-stable/Godot_v3.4.3-stable_export_templates.tpz",
+        "size": 534152940,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4207551,
+        "compressedSize": 4199098,
+        "crc32": 3885708167,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.4-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.4",
+      "status": "stable.official",
+      "build": "419e713a29f20bd3351a54d1e6c4c5af7ef4b253",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.4-stable/Godot_v3.4.4-stable_export_templates.tpz",
+        "size": 534244039,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4148960,
+        "compressedSize": 4140641,
+        "crc32": 3681103884,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.4-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.4",
+      "status": "stable.official",
+      "build": "419e713a29f20bd3351a54d1e6c4c5af7ef4b253",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.4-stable/Godot_v3.4.4-stable_export_templates.tpz",
+        "size": 534244039,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4207527,
+        "compressedSize": 4198933,
+        "crc32": 3931707606,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.5-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.5",
+      "status": "stable.official",
+      "build": "f9ac000d5dc0d1014fa347fb2f23069b294d511a",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.5-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.5-stable/Godot_v3.4.5-stable_export_templates.tpz",
+        "size": 534515254,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4145757,
+        "compressedSize": 4137392,
+        "crc32": 2956163587,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.5-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.5-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.4.5-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.4.5",
+      "status": "stable.official",
+      "build": "f9ac000d5dc0d1014fa347fb2f23069b294d511a",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.4.5-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.4.5-stable/Godot_v3.4.5-stable_export_templates.tpz",
+        "size": 534515254,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4204929,
+        "compressedSize": 4196329,
+        "crc32": 2116547129,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.5-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0a8e8befac1e23f3dbcf197abf8d28f53a30f80673679eb57e5a86e8c0c49719",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.4.5-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5",
+      "status": "stable.official",
+      "build": "991bb6ac74ac8c09d7683041b50a8ced3a2defb1",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5-stable/Godot_v3.5-stable_export_templates.tpz",
+        "size": 576112811,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4642594,
+        "compressedSize": 4633701,
+        "crc32": 4110422372,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "8c4a27b643101fa2b4fb50dc2da78deef2e8fa43ed188e6f8f619a08c0ecbbe3",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5",
+      "status": "stable.official",
+      "build": "991bb6ac74ac8c09d7683041b50a8ced3a2defb1",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5-stable/Godot_v3.5-stable_export_templates.tpz",
+        "size": 576112811,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4696757,
+        "compressedSize": 4687470,
+        "crc32": 125417928,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "8c4a27b643101fa2b4fb50dc2da78deef2e8fa43ed188e6f8f619a08c0ecbbe3",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5.1-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.1",
+      "status": "stable.official",
+      "build": "6fed1ffa313c6760fa88b368ae580378daaef0f0",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.1-stable/Godot_v3.5.1-stable_export_templates.tpz",
+        "size": 576109816,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4643486,
+        "compressedSize": 4634639,
+        "crc32": 2700520565,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "8c4a27b643101fa2b4fb50dc2da78deef2e8fa43ed188e6f8f619a08c0ecbbe3",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5.1-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.1",
+      "status": "stable.official",
+      "build": "6fed1ffa313c6760fa88b368ae580378daaef0f0",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.1-stable/Godot_v3.5.1-stable_export_templates.tpz",
+        "size": 576109816,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4697330,
+        "compressedSize": 4688055,
+        "crc32": 1561058630,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "966313e8129db5d0b3b081d1a50ae107da9a3da2d8faa05899e3042a33192525",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "8c4a27b643101fa2b4fb50dc2da78deef2e8fa43ed188e6f8f619a08c0ecbbe3",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.2",
+      "status": "stable.official",
+      "build": "170ba337a5d9e4c1e40d63b89dc1ba297b71860b",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.2-stable/Godot_v3.5.2-stable_export_templates.tpz",
+        "size": 575563522,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4647209,
+        "compressedSize": 4638121,
+        "crc32": 3447055602,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5.2-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.2",
+      "status": "stable.official",
+      "build": "170ba337a5d9e4c1e40d63b89dc1ba297b71860b",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.2-stable/Godot_v3.5.2-stable_export_templates.tpz",
+        "size": 575563522,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4699783,
+        "compressedSize": 4690720,
+        "crc32": 2924262696,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.5.3-nothreads",
+      "aliases": [
+        "godot-3.5.3"
+      ],
       "adapter": "godot3",
       "engine": "godot",
       "version": "3.5.3",
       "status": "stable.official",
       "build": "6c814135b69d4e703956bacc2073b4b179ff5a00",
-      "sha256": "d9248e058d7edbdfb8b6df2401484fd8b5995c0fa69c8ae3ba93da1678f954a7",
-      "officialSource": "https://github.com/godotengine/godot/releases/tag/3.5.3-stable",
-      "provenance": "Operator-provided official release template; pinned by K45 brief. No automatic download.",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.3-stable/Godot_v3.5.3-stable_export_templates.tpz",
+        "size": 575689292,
+        "sha512": "b8563e4e6d2b9eb0de491620080f0b315dcb25e9e2f1176c93da90688f288442b98cc4a72bbd61b05e65a92e156023fd08332bf3d9c0885198487d89fe972f66",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.5.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 4641298,
+        "compressedSize": 4633171,
+        "crc32": 2012982067,
+        "sha256": "d9248e058d7edbdfb8b6df2401484fd8b5995c0fa69c8ae3ba93da1678f954a7",
+        "pinnedFrom": "K45 reviewer-supplied; K55 confirmed identical to the member of the archive verified against the published SHA-512 (2026-11-21)"
+      },
       "files": [
         "godot.js",
         "godot.wasm",
@@ -18,21 +1410,6 @@
         "godot.html",
         "godot.service.worker.js",
         "godot.offline.html"
-      ],
-      "entry": "godot.js",
-      "license": "MIT (engine); bundled third-party licenses apply",
-      "requirements": {
-        "renderer": "webgl2",
-        "threads": false,
-        "isolation": false
-      },
-      "unsupported": [
-        "native-extension/GDNative",
-        "Mono/C#",
-        "encrypted-content",
-        "threads-build",
-        "runtime-version-mismatch",
-        "additional-packs"
       ],
       "fileHashes": {
         "godot.js": "8e515babe04058fca9668d31fcb4e59048ce659cecf9331b4e93fcfd4a36c975",
@@ -42,16 +1419,1325 @@
         "godot.service.worker.js": "df5424471ad313b5af96ab48e7ec662c3981f662eff5789669645ec091bbb706",
         "godot.offline.html": "af9d2a5ad331fcfec0e0a28743901179e336649520eff443180595994deb5222"
       },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
       "notices": [
         {
           "file": "LICENSE.txt",
-          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80"
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.3-stable/LICENSE.txt"
         },
         {
           "file": "COPYRIGHT.txt",
-          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04"
+          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.3-stable/COPYRIGHT.txt"
+        }
+      ],
+      "provenance": "K45 pinned files/notices; K55 regenerated from the official release host"
+    },
+    {
+      "id": "godot-3.5.3-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.5.3",
+      "status": "stable.official",
+      "build": "6c814135b69d4e703956bacc2073b4b179ff5a00",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.5.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.5.3-stable/Godot_v3.5.3-stable_export_templates.tpz",
+        "size": 575689292,
+        "sha512": "b8563e4e6d2b9eb0de491620080f0b315dcb25e9e2f1176c93da90688f288442b98cc4a72bbd61b05e65a92e156023fd08332bf3d9c0885198487d89fe972f66",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.5.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 4696224,
+        "compressedSize": 4687352,
+        "crc32": 2423258169,
+        "sha256": "919c6f4bc7a64e0f83ff2c2df776a5936ab68372c3acc210f68d247a5be0f699",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "1523b431a20b8f1eab3517e10e66620ace20fc3ef2491a96c0b5a8bb117a4d04",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.5.3-stable/COPYRIGHT.txt"
+        }
+      ],
+      "files": [
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm",
+        "godot.worker.js"
+      ],
+      "fileHashes": {
+        "godot.audio.worklet.js": "8b3e52c1f0806bc623f174cfa2989ba1d6f63e44022d7923580579a1b88cab37",
+        "godot.html": "35a6e286ea09319eaaef37b0941352595afc6074595032026b1555ab5f3d3652",
+        "godot.js": "1c40937f00c315dc79c785c4418d8f4ac0a083e5e02fa01e4245caad9fa79d3a",
+        "godot.offline.html": "af9d2a5ad331fcfec0e0a28743901179e336649520eff443180595994deb5222",
+        "godot.service.worker.js": "df5424471ad313b5af96ab48e7ec662c3981f662eff5789669645ec091bbb706",
+        "godot.wasm": "5fe2abbb70a1e3c52a3e865f5818dc948c397a0b76f9b253c7075903834414aa",
+        "godot.worker.js": "b40e38df0d648256ae978c119e95de032f8020114ca1fa97f2f483191ea4698d"
+      }
+    },
+    {
+      "id": "godot-3.6-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6",
+      "status": "stable.official",
+      "build": "de2f0f147c5b7eff2d0f6dbc35042a4173fd59be",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6-stable/Godot_v3.6-stable_export_templates.tpz",
+        "size": 606706456,
+        "sha512": "2affd3feadd68a2d734b80dd3e6521d5edf9d931bfec4a374d65ffb859731bc25500190dc5b32ba98153f146f0488845736aa04ec9bc872e059a9960e9b3b8e8",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 5432408,
+        "compressedSize": 5421784,
+        "crc32": 3841986983,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6-stable/COPYRIGHT.txt"
         }
       ]
+    },
+    {
+      "id": "godot-3.6-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6",
+      "status": "stable.official",
+      "build": "de2f0f147c5b7eff2d0f6dbc35042a4173fd59be",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6-stable/Godot_v3.6-stable_export_templates.tpz",
+        "size": 606706456,
+        "sha512": "2affd3feadd68a2d734b80dd3e6521d5edf9d931bfec4a374d65ffb859731bc25500190dc5b32ba98153f146f0488845736aa04ec9bc872e059a9960e9b3b8e8",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 5438181,
+        "compressedSize": 5427545,
+        "crc32": 1276118316,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.1-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.1",
+      "status": "stable.official",
+      "build": "b1ba98fced19ac05b7a39b64a97dd7b1005cb7bb",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.1-stable/Godot_v3.6.1-stable_export_templates.tpz",
+        "size": 523369533,
+        "sha512": "bd705758de1a7a7ca578dd1bfbebadd739fa70d21879bdb6ec40daa94009b94eac188fe980fd28cca5d6ee867e2f2ccbf95fd72932a6b625d35f218b68b1f6f9",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.1-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 5435074,
+        "compressedSize": 5425868,
+        "crc32": 2449703557,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.1-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.1",
+      "status": "stable.official",
+      "build": "b1ba98fced19ac05b7a39b64a97dd7b1005cb7bb",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.1-stable/Godot_v3.6.1-stable_export_templates.tpz",
+        "size": 523369533,
+        "sha512": "bd705758de1a7a7ca578dd1bfbebadd739fa70d21879bdb6ec40daa94009b94eac188fe980fd28cca5d6ee867e2f2ccbf95fd72932a6b625d35f218b68b1f6f9",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.1-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 5439113,
+        "compressedSize": 5428819,
+        "crc32": 3449101419,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.2-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.2",
+      "status": "stable.official",
+      "build": "3cd3caab6779a7f3ec3bbeb9f200db50c735cfc8",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.2-stable/Godot_v3.6.2-stable_export_templates.tpz",
+        "size": 526723575,
+        "sha512": "11609918871f773b5945285ab24bb516af332afa3d3185bf65e51bab81195d4aec9fd235576771e4f08e5d8e4995ccce7f6f97162c56ad95171b661dd10aa08c",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.2-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 5497807,
+        "compressedSize": 5492310,
+        "crc32": 2221600090,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.2-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.2",
+      "status": "stable.official",
+      "build": "3cd3caab6779a7f3ec3bbeb9f200db50c735cfc8",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.2-stable/Godot_v3.6.2-stable_export_templates.tpz",
+        "size": 526723575,
+        "sha512": "11609918871f773b5945285ab24bb516af332afa3d3185bf65e51bab81195d4aec9fd235576771e4f08e5d8e4995ccce7f6f97162c56ad95171b661dd10aa08c",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.2-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 5510469,
+        "compressedSize": 5505314,
+        "crc32": 3655971235,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "99fe137bab2c1f182fed0d6bf8ca5eef5261a3fd600b85ee1a3ae157aba16971",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.3-nothreads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.3",
+      "status": "stable.official",
+      "build": "a3378686f7196db78d7b3cc7947f72a13bc4864c",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.3-stable/Godot_v3.6.3-stable_export_templates.tpz",
+        "size": 530863170,
+        "sha512": "a01cd60bfb31bdca55a6252fbf69df8baf1c20c57a85de0822fb101a63262ac0a7a83fee4ee85a45520453627519a9c62e9a49270fe8c4676ba6fe812cfc254f",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_release.zip",
+        "size": 5497079,
+        "compressedSize": 5491833,
+        "crc32": 3167519489,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "de07bf87199ea5d77f471f0d119fb6c871f3434094870fa466448e8ae9702b7f",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-3.6.3-threads",
+      "adapter": "godot3",
+      "engine": "godot",
+      "version": "3.6.3",
+      "status": "stable.official",
+      "build": "a3378686f7196db78d7b3cc7947f72a13bc4864c",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/3.6.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/3.6.3-stable/Godot_v3.6.3-stable_export_templates.tpz",
+        "size": 530863170,
+        "sha512": "a01cd60bfb31bdca55a6252fbf69df8baf1c20c57a85de0822fb101a63262ac0a7a83fee4ee85a45520453627519a9c62e9a49270fe8c4676ba6fe812cfc254f",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/3.6.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/webassembly_threads_release.zip",
+        "size": 5508121,
+        "compressedSize": 5502933,
+        "crc32": 986893374,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "de07bf87199ea5d77f471f0d119fb6c871f3434094870fa466448e8ae9702b7f",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/3.6.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.0-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.0",
+      "status": "stable.official",
+      "build": "92bee43adba8d2401ef40e2480e53087bcb1eaf1",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.0-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.0-stable/Godot_v4.0-stable_export_templates.tpz",
+        "size": 793224714,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7311494,
+        "compressedSize": 7275574,
+        "crc32": 4226907246,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "67b2e7f36ea12f04aee4373c47f13a617230438eacc2b6171f18f5625311621c",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.0.1-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.0.1",
+      "status": "stable.official",
+      "build": "cacf49999e3fb37281d66cc591ca8bebc5712d4d",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.0.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.0.1-stable/Godot_v4.0.1-stable_export_templates.tpz",
+        "size": 793286553,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7312529,
+        "compressedSize": 7276560,
+        "crc32": 3056298682,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "67b2e7f36ea12f04aee4373c47f13a617230438eacc2b6171f18f5625311621c",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.0.2-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.0.2",
+      "status": "stable.official",
+      "build": "7a0977ce2c558fe6219f0a14f8bd4d05aea8f019",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.0.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.0.2-stable/Godot_v4.0.2-stable_export_templates.tpz",
+        "size": 793561769,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7315587,
+        "compressedSize": 7279837,
+        "crc32": 3653477488,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "67b2e7f36ea12f04aee4373c47f13a617230438eacc2b6171f18f5625311621c",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.0.3-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.0.3",
+      "status": "stable.official",
+      "build": "5222a99f5d38cd5346254cefed8f65315bca4fcb",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.0.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.0.3-stable/Godot_v4.0.3-stable_export_templates.tpz",
+        "size": 793933212,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7318002,
+        "compressedSize": 7282127,
+        "crc32": 1653951781,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "2f034bffa68b16261b3d4052832509a5ff8aa3da743a7771f432c65cb7fdc8a9",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.0.4-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.0.4",
+      "status": "stable.official",
+      "build": "fc0b241c9b0be3890712c3b72248d6bd790e7889",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.0.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.0.4-stable/Godot_v4.0.4-stable_export_templates.tpz",
+        "size": 794649841,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7321863,
+        "compressedSize": 7285878,
+        "crc32": 4248505578,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "492c8dc31a9947bf32f5c34742c650959c5616e429df74480523acf634fbde5a",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.0.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.1-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.1",
+      "status": "stable.official",
+      "build": "970459615f6b2b4151742ec6d7ef8559f87fd5c5",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.1-stable/Godot_v4.1-stable_export_templates.tpz",
+        "size": 816985078,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7543241,
+        "compressedSize": 7504160,
+        "crc32": 2255820561,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "f1fa7090ceaa45e95d8bb1d5bbf53c7b7753e5cc0f902315dcb5dc548419d249",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.1.1-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.1.1",
+      "status": "stable.official",
+      "build": "bd6af8e0ea69167dd0627f3bd54f9105bda0f8b5",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.1.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.1.1-stable/Godot_v4.1.1-stable_export_templates.tpz",
+        "size": 817195141,
+        "sha512": null,
+        "sha512Source": null
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7544742,
+        "compressedSize": 7504676,
+        "crc32": 1827811137,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "f1fa7090ceaa45e95d8bb1d5bbf53c7b7753e5cc0f902315dcb5dc548419d249",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.1.2-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.1.2",
+      "status": "stable.official",
+      "build": "399c9dc393f6f84c0b4e4d4117906c70c048ecf2",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.1.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.1.2-stable/Godot_v4.1.2-stable_export_templates.tpz",
+        "size": 966723426,
+        "sha512": "48b5f38021c13ead79c5ee943d4940c6f86c4acb2a6c19994e8ac4368a20c8686f9ce5a085bf72863f9b4897ca7ee582130f6d1c61479c4a6c553ab895e89d58",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.1.2-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7265960,
+        "compressedSize": 7228434,
+        "crc32": 687784759,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "0534c4f7edf4cab18ed0de492d0dd51e3456e3a8282995ee14ff994dde530305",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.1.3-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.1.3",
+      "status": "stable.official",
+      "build": "fc79201851a16215f9554884aa242ed957801b10",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.1.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.1.3-stable/Godot_v4.1.3-stable_export_templates.tpz",
+        "size": 966869057,
+        "sha512": "96b18f272ebaf7d0cdd24e8dc2b6cb49e2d0acf6266c9a37468a1a375b018ca065539b3aa80a7a6c185ad40fb7a5471ef75746da16fc229653df3f31139e57dc",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.1.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7267252,
+        "compressedSize": 7229594,
+        "crc32": 3408688160,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "4c030d6a6d99679ff687a99278f98002fe10e2c923bc3da93e0a4e89dad0ff2c",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.3-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.1.4-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.1.4",
+      "status": "stable.official",
+      "build": "fe0e8e55752b0c2e64997025717b491703e0f8ad",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.1.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.1.4-stable/Godot_v4.1.4-stable_export_templates.tpz",
+        "size": 819991135,
+        "sha512": "436cd91c7c4d2c0e9bac2c25046b6638ba7073d92c52c59feaddd16c90cad4284f6bf2fb573d0bc9c78a758529c17535b500baaea223b7a227aab3d4c63e7b8b",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.1.4-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 7295250,
+        "compressedSize": 7257953,
+        "crc32": 1085931591,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "dc34da09bc4cb1a988644e764c88c724e06d717fa253b73a2a63cf85c0fcdfda",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.1.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.2-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.2",
+      "status": "stable.official",
+      "build": "46dc277917a93cbf601bbcf0d27d00f6feeec0d5",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.2-stable/Godot_v4.2-stable_export_templates.tpz",
+        "size": 896917541,
+        "sha512": "4ded511c4de93b6b536cafb9190b9563cf28a24033313aeaed2254d91ef2aad57f78143e97c28ecd0154b0ada9419512d15168deb3ecac4c2f7bbff02963a3c6",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.2-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 8014817,
+        "compressedSize": 7971558,
+        "crc32": 1546545217,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "5e52f558f2ad1b8da9c4beb46e1fd35ef906cda135d2f6ab07f241553e4f0d4b",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.2.1-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.2.1",
+      "status": "stable.official",
+      "build": "b09f793f564a6c95dc76acc654b390e68441bd01",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.2.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.2.1-stable/Godot_v4.2.1-stable_export_templates.tpz",
+        "size": 891798340,
+        "sha512": "dd8add7402c47f509de6ce16f6162fe03108d18a8c407b2c84ecc361d8986520db7fb3dfe489e493e809405c1d8b7628649a4ab84399f299da3ffa29e782a790",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.2.1-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 8032172,
+        "compressedSize": 7985499,
+        "crc32": 2324978431,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "5e52f558f2ad1b8da9c4beb46e1fd35ef906cda135d2f6ab07f241553e4f0d4b",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2.1-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.2.2-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.2.2",
+      "status": "stable.official",
+      "build": "15073afe3856abd2aa1622492fe50026c7d63dc1",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.2.2-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz",
+        "size": 894856756,
+        "sha512": "a0c810c984a282f5874a991652be5603a7c8be4a0e47849df9d4cf9f44f2b7f2b864aaa1febec29a6a77a1784d45fedcb82173a99a39bc7ae03323de9e0d5cea",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.2.2-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 8045733,
+        "compressedSize": 8001676,
+        "crc32": 452968056,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2.2-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "f96c7f372b91c49473b97b20fbfb0daee82cddd0896a72b8ad9bc09892b1d94a",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.2.2-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.3-nothreads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.3",
+      "status": "stable.official",
+      "build": "77dcf97d82cbfe4e4615475fa52ca03da645dbd8",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz",
+        "size": 1073228327,
+        "sha512": "476366caf0fd45a8f24136cf9cf1dc0bc2b96f7c82d53e5f82200b55aefd07b286d283fd6f1ce29e0de70648c5a51d3b12f96c6d4fafd4e8c4878ecda6406d6a",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_nothreads_release.zip",
+        "size": 8168102,
+        "compressedSize": 8137674,
+        "crc32": 1970580925,
+        "sha256": "5c54b5db14199571790576408940843b76e3e46884bf6c79d06b369334f512c1",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "7d27f1b25c53ccf2304e3dd05ed8e6fc957d3e9be079512fac784b1b6441aecd",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.3-stable/COPYRIGHT.txt"
+        }
+      ],
+      "files": [
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm"
+      ],
+      "fileHashes": {
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "9626474f862df670b04cc8365fe0a8c7b9d2541b7d52194c8dcd2ee4377c389d",
+        "godot.js": "8b649683883a8be172e229a0479503d50cd5245ebf87aa71fda70bf720824075",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "00bb2d74cf33c1f9b68b70392c85ddf1f700d131a6c250b80e3d186366b54116",
+        "godot.wasm": "fe5cebc590758c10bc4469be5a591e28edbde5ec8f458f21baeb83db50d028b9"
+      }
+    },
+    {
+      "id": "godot-4.3-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.3",
+      "status": "stable.official",
+      "build": "77dcf97d82cbfe4e4615475fa52ca03da645dbd8",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.3-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz",
+        "size": 1073228327,
+        "sha512": "476366caf0fd45a8f24136cf9cf1dc0bc2b96f7c82d53e5f82200b55aefd07b286d283fd6f1ce29e0de70648c5a51d3b12f96c6d4fafd4e8c4878ecda6406d6a",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.3-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 8120251,
+        "compressedSize": 8092178,
+        "crc32": 2976453837,
+        "sha256": "ff84333c5992633f2df4fe3a18a99049d173af959f5452de17ee44e4545294c7",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.3-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "7d27f1b25c53ccf2304e3dd05ed8e6fc957d3e9be079512fac784b1b6441aecd",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.3-stable/COPYRIGHT.txt"
+        }
+      ],
+      "files": [
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm",
+        "godot.worker.js"
+      ],
+      "fileHashes": {
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "9626474f862df670b04cc8365fe0a8c7b9d2541b7d52194c8dcd2ee4377c389d",
+        "godot.js": "56109c0796391ac21ffc8f0c15a9fd48e2f1a377e34b79c9befff7c531488d82",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "00bb2d74cf33c1f9b68b70392c85ddf1f700d131a6c250b80e3d186366b54116",
+        "godot.wasm": "bc89948b9ad7c284dfe154b4200cad823414e614ebae49aff8238ee43e440cc0",
+        "godot.worker.js": "5e53987fb26c1fe6b4d5d8c0ebf97f2ecd89c64ea1479a7d886474f3b0eb731e"
+      }
+    },
+    {
+      "id": "godot-4.4-nothreads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.4",
+      "status": "stable.official",
+      "build": "4c311cbee68c0b66ff8ebb8b0defdd9979dd2a41",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz",
+        "size": 1205251984,
+        "sha512": "ce5801d2868f8217eb200b402918494184486dab0ea7be97f9ffab73b9283241b6e8c2e3b4ae58218b09b56743449f1d55240f9db50a045efe6186aea0fd8c2c",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_nothreads_release.zip",
+        "size": 9581577,
+        "compressedSize": 9540025,
+        "crc32": 1784495414,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.4-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.4",
+      "status": "stable.official",
+      "build": "4c311cbee68c0b66ff8ebb8b0defdd9979dd2a41",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.4-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz",
+        "size": 1205251984,
+        "sha512": "ce5801d2868f8217eb200b402918494184486dab0ea7be97f9ffab73b9283241b6e8c2e3b4ae58218b09b56743449f1d55240f9db50a045efe6186aea0fd8c2c",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.4-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 9509315,
+        "compressedSize": 9469041,
+        "crc32": 3342603204,
+        "sha256": null
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4-stable/COPYRIGHT.txt"
+        }
+      ]
+    },
+    {
+      "id": "godot-4.4.1-nothreads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.4.1",
+      "status": "stable.official",
+      "build": "49a5bc7b616bd04689a2c89e89bda41f50241464",
+      "variant": "nothreads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.4.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz",
+        "size": 1206040900,
+        "sha512": "8f461c7d6e91a0fbabfc95b1e4ca70ff1732c6f2920956a16b086ec2a85b5f7e238baf4dbce60dcc5630fae3bcb9a1fa2ae2027b92cb495c02d082705715e441",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_nothreads_release.zip",
+        "size": 9585345,
+        "compressedSize": 9542582,
+        "crc32": 174930677,
+        "sha256": "3a49cc3b1843882eee6cda6cf2ce0440acc8aa8df03a2e3941a3028e1cae9ac9",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": false,
+        "isolation": false
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/COPYRIGHT.txt"
+        }
+      ],
+      "files": [
+        "godot.audio.position.worklet.js",
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm"
+      ],
+      "fileHashes": {
+        "godot.audio.position.worklet.js": "347b512529c5dca302093f7b9de6d184dd09d10e9a6fba62cbab098a891b2368",
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "3a5f265e788646513c32494fc0faead64c6b7f92ef005bf475da0c622bd481f4",
+        "godot.js": "19eb180d568bb8e17bcf4c72ca034ed3af44deeb90304deefee4e665562dfe31",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "c72e9a688cd06978be343fd8481130e89dd81439267e1cfd8aef8343ea9f4139",
+        "godot.wasm": "e4a43dbae28662b2a68f6136857a94db6695430901515800b9883f6327cb7116"
+      }
+    },
+    {
+      "id": "godot-4.4.1-threads",
+      "adapter": "godot4",
+      "engine": "godot",
+      "version": "4.4.1",
+      "status": "stable.official",
+      "build": "49a5bc7b616bd04689a2c89e89bda41f50241464",
+      "variant": "threads",
+      "officialSource": "https://github.com/godotengine/godot-builds/releases/tag/4.4.1-stable",
+      "archive": {
+        "url": "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz",
+        "size": 1206040900,
+        "sha512": "8f461c7d6e91a0fbabfc95b1e4ca70ff1732c6f2920956a16b086ec2a85b5f7e238baf4dbce60dcc5630fae3bcb9a1fa2ae2027b92cb495c02d082705715e441",
+        "sha512Source": "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/SHA512-SUMS.txt"
+      },
+      "member": {
+        "name": "templates/web_release.zip",
+        "size": 9510448,
+        "compressedSize": 9470087,
+        "crc32": 2813928803,
+        "sha256": "7d15b2351f9ed3f4ef1355eb801f974d8bb4371e78b495956be5fc6255001b12",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
+      },
+      "entry": "godot.js",
+      "shell": "godot-config",
+      "license": "MIT (engine); bundled third-party licenses apply (COPYRIGHT.txt)",
+      "requirements": {
+        "renderer": "webgl2",
+        "threads": true,
+        "isolation": true
+      },
+      "notices": [
+        {
+          "file": "LICENSE.txt",
+          "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/LICENSE.txt"
+        },
+        {
+          "file": "COPYRIGHT.txt",
+          "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
+          "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/COPYRIGHT.txt"
+        }
+      ],
+      "files": [
+        "godot.audio.position.worklet.js",
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm"
+      ],
+      "fileHashes": {
+        "godot.audio.position.worklet.js": "347b512529c5dca302093f7b9de6d184dd09d10e9a6fba62cbab098a891b2368",
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "3a5f265e788646513c32494fc0faead64c6b7f92ef005bf475da0c622bd481f4",
+        "godot.js": "dd8b42107108b4bc30c21eec8b2bb75e21b389f79b6e5d6553c7483eac284a33",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "c72e9a688cd06978be343fd8481130e89dd81439267e1cfd8aef8343ea9f4139",
+        "godot.wasm": "06e279b5d08a8888fc6c670b12d48c0e953bb526429ce521f2e17ec91fc15286"
+      }
     }
-  ]
+  ],
+  "generatedBy": "tools/engine/godot-releases.mjs"
 }

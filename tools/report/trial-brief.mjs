@@ -17,14 +17,15 @@ export function section(text, name) {
 }
 
 /** Fill the template. Pure: no file system access (tests use it directly). */
-export function fillBrief(template, { game, slug, sha256, kit, date, scratch, resume, slice, allowEngineProfile = false }) {
-  if (allowEngineProfile && (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) || !/^[a-f0-9]{64}$/.test(sha256))) throw new Error('engine authorization requires a game slug and runner SHA-256');
+// K55: the engine-runtime path needs no operator authorization any more (the porter records the choice in
+// port/game.json); a legacy allowEngineProfile option is accepted and ignored.
+export function fillBrief(template, { game, slug, sha256, kit, date, scratch, resume, slice }) {
   const vars = { GAME: game, SLUG: slug, SHA256: sha256, KIT: kit, DATE: date, SCRATCH: scratch, SLICE: slice ? `## Selected slice\n${slice}\n\nThis is the launcher's L3 definition and packaging scope. Do not silently broaden or lower it.` : '## Selected slice\nNo launcher-selected slice. Use SPEC.md §8: one complete representative authentic gameplay loop.', RESUME: resume ? '\n' + section(template, 'RESUME') : '' };
   const out = section(template, 'BRIEF').replace(/\{\{([A-Z0-9]+)\}\}/g, (all, k) => {
     if (!(k in vars)) throw new Error(`docs/trial-brief.md: unknown placeholder ${all}`);
     return vars[k];
   });
-  return out.replace(/\n{3,}/g, '\n\n') + (allowEngineProfile ? `\n## Operator-authorized engine path\n<!-- engine-profile: allowed game=${slug} runnerSha256=${sha256} -->\nThis operator permits the engine-profile path as well as systematic lifting for this game id and runner SHA-256 only. The port may select engineProfile; preserve pack logic/assets and exact runtime hashes. Report the selected path. The porter must not grant or edit this authorization. If the input is an installer rather than the runner, the operator must separately authorize the extracted runner hash.\n` : '');
+  return out.replace(/\n{3,}/g, '\n\n');
 }
 
 function parseArgs(argv) {
@@ -35,7 +36,7 @@ function parseArgs(argv) {
     else if (argv[i] === '--scratch') a.scratch = argv[++i];
     else if (argv[i] === '--slice') a.slice = argv[++i];
     else if (argv[i] === '--resume') a.resume = true;
-    else if (argv[i] === '--allow-engine-profile') a.allowEngineProfile = true;
+    else if (argv[i] === '--allow-engine-profile') console.error('trial:brief: --allow-engine-profile is obsolete (K55): the engine-runtime path is a recorded porter choice; ignored');
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   return a;
@@ -71,7 +72,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       scratch,
       resume: a.resume,
       slice: a.slice,
-      allowEngineProfile: a.allowEngineProfile,
     });
     mkdirSync(join(ROOT, 'reports'), { recursive: true });
     writeFileSync(join(ROOT, 'reports', 'brief.md'), brief);

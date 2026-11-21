@@ -123,16 +123,13 @@ describe('trial brief and work queue', () => {
     expect(fillBrief(tpl, { ...args, resume: true })).toMatch(/## Resume mode[\s\S]*npm run oracle -- port/);
   });
 
-  it('only the explicit operator flag emits engine authorization bound to slug and runner hash', () => {
+  it('K55: briefs carry no engine authorization marker; the legacy flag is ignored', () => {
     const tpl = readFileSync(join(ROOT, 'docs/trial-brief.md'), 'utf8');
     const args = { game: 'runner.exe', slug: 'cc0-engine', sha256: 'a'.repeat(64), kit: 'abc', date: 'today', scratch: '/tmp/cc0' };
     const defaultBrief = fillBrief(tpl, args);
     expect(defaultBrief).not.toContain('<!-- engine-profile:');
-    expect(fillBrief(tpl, { ...args, allowEngineProfile: false })).toBe(defaultBrief);
-    const approved = fillBrief(tpl, { ...args, allowEngineProfile: true });
-    expect(approved).toContain(`<!-- engine-profile: allowed game=${args.slug} runnerSha256=${args.sha256} -->`);
-    expect(approved).toContain('porter must not grant or edit');
-    for (const patch of [{ slug: 'bad -->' }, { sha256: '' }]) expect(() => fillBrief(tpl, { ...args, ...patch, allowEngineProfile: true })).toThrow(/slug and runner SHA-256/);
+    expect(fillBrief(tpl, { ...args, allowEngineProfile: true } as any)).toBe(defaultBrief);
+    expect(tpl).toMatch(/needs no operator authorization/);
   });
 
   it('validates queue items: layer, status, evidence; no "unverified"; authentic only for the game layer', () => {

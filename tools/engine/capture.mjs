@@ -1,3 +1,4 @@
+/* global XMLHttpRequest */
 // Browser evidence only: observe the ORIGINAL fetch reader, never buffer/replace
 // responses, patch runtime bytes, disable streaming compilation or suppress errors.
 export async function captureEngineErrors(page, files) {
@@ -44,6 +45,25 @@ export async function captureEngineErrors(page, files) {
         return reader;
       };
       return response;
+    };
+    // Godot 3.2's loader uses XMLHttpRequest (arraybuffer). Observe completed bodies the same way, read-only.
+    const open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, target, ...rest) {
+      const url = new URL(String(target), location.href), name = url.pathname.slice(1);
+      if (url.origin === location.origin && Object.hasOwn(expected, name)) {
+        const record = { token: null, transport: 'xhr', url: url.href, status: null, length: 0, received: 0, done: false, sha256: null };
+        records.push(record);
+        this.addEventListener('loadend', () => {
+          record.status = this.status; record.length = Number(this.getResponseHeader('Content-Length'));
+          const body = this.responseType === 'arraybuffer' ? this.response : null;
+          if (!body) return;
+          record.received = body.byteLength; record.done = true;
+          record.hashing = crypto.subtle.digest('SHA-256', body).then(digest => {
+            record.sha256 = Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+          });
+        });
+      }
+      return open.call(this, method, target, ...rest);
     };
   }, { expected });
   page.on('pageerror', e => errors.push('page: ' + e.message));
