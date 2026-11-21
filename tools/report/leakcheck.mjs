@@ -24,7 +24,7 @@ const BINARY_EXT = /\.(exe|com|dll|ovl|drv|bin|img|iso|cue|mdf|nrg|ccd|chd|rom|g
 const MAX_BINARY = 1024 * 1024;
 // Reviewed official runtime archive/member fingerprints also catch renamed copies.
 const ENGINE_RUNTIMES = JSON.parse(readFileSync(new URL('../engine/runtimes.json', import.meta.url))).runtimes;
-const RUNTIME_HASHES = new Set(ENGINE_RUNTIMES.flatMap(r => [r.sha256, ...Object.values(r.fileHashes)]));
+const RUNTIME_HASHES = new Set(ENGINE_RUNTIMES.flatMap(r => [r.sha256, r.member?.sha256, ...Object.values(r.fileHashes ?? {})]).filter(Boolean));
 
 function walk(dir, base = dir) {
   const out = [];
@@ -106,7 +106,7 @@ export function leakcheck({ root = KIT_ROOT, staged = false, against = [] } = {}
   for (const p of files) {
     const add = (why) => problems.push({ path: p, why });
     if (p.startsWith('.engine-private/')) add('offline runtimes, extracted packs and engine builds are never committed');
-    if (/(^|\/)(godot(?:\.audio\.worklet|\.service\.worker)?\.js|godot\.wasm|webassembly_release\.zip)$/.test(p)) add('official runtime artifact is local-only, never committed');
+    if (/(^|\/)(godot(?:\.audio(?:\.position)?\.worklet|\.service\.worker|\.worker)?\.js|godot\.wasm|(webassembly|web)(_[a-z]+)*_(release|debug)\.zip|[^/]*export_templates\.tpz)$/.test(p)) add('official runtime artifact is local-only, never committed');
     if (p.startsWith('original/') && p !== 'original/.gitkeep') add('file under original/ (user-supplied game files are never committed)');
     if (p.startsWith('port/') && !['port/README.md', 'port/.gitkeep'].includes(p) && !portPublic) {
       add('generated port code is private by default (set "private": false in port/game.json only if you have the rights to publish)');

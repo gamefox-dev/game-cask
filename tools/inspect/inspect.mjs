@@ -15,6 +15,7 @@ import { ROOT } from '../build/toolchain.mjs';
 import { detect, entropy, strings, utf16Strings } from './detect.mjs';
 import { menuLines, peResources } from './pe-resources.mjs';
 import { detectRea, detectTools } from './detect-rea.mjs';
+import { detectEngines } from '../engine/detect.mjs';
 
 const MAX_FILES = 20000;
 const SAMPLE_BYTES = 1024 * 1024;
@@ -158,6 +159,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const out = outIdx >= 0 ? argv[outIdx + 1] : 'reports/inventory.json';
   const dir = argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--out') ?? 'original';
   const inv = inventory(dir);
+  // Engine detection first: a known engine with an official web runtime is the default fast path.
+  inv.engines = existsSync(resolve(ROOT, dir)) ? detectEngines(inv, resolve(ROOT, dir)) : null;
   const outPath = resolve(ROOT, out);
   if (outPath.startsWith(resolve(ROOT, dir) + sep)) {
     console.error('refusing to write output inside the inspected directory');
@@ -169,6 +172,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const f of inv.files) console.log(`  ${f.path}  ${f.size} B  ${f.format}${f.platform ? ` (${f.platform})` : ''}  confidence=${f.confidence}  entropy=${f.entropy}`);
   for (const f of inv.files) for (const h of f.hints) console.log(`    hint: ${h}`);
   for (const n of inv.notes) console.log(`  note: ${n}`);
+  for (const e of inv.engines?.engines ?? []) {
+    console.log(`  engine: ${e.engine} ${e.version ?? '?'}${e.build ? ` (build ${e.build.slice(0, 9)})` : ''} runner=${e.runner ?? '-'} pack=${e.pack ?? '-'}${e.packLocation ? ` (${e.packLocation}, PCK format ${e.packFormat})` : ''}`);
+    if (e.runtime) console.log(`    runtime: ${e.runtime.id} (threads ${e.runtime.threads ? 'yes: needs COOP/COEP' : 'no'}; ${e.runtime.verification}; ${e.runtime.provisioned === true ? 'cached' : e.next ?? 'not cached'})`);
+    if (e.requirements) console.log(`    requirements: threads ${e.requirements.threads}, renderer ${e.requirements.renderer}`);
+    console.log(`    blockers: ${e.blockers.join(', ') || 'none'}`);
+    for (const w of e.warnings.slice(1)) console.log(`    warning: ${w}`);
+  }
+  for (const e of inv.engines?.otherEngines ?? []) console.log(`  engine: ${e.engine} (no adapter) evidence ${e.evidence.join(', ')}: ${e.note}`);
+  for (const e of inv.engines?.errors ?? []) console.log(`  engine detection error: ${e}`);
+  if (inv.engines) console.log(`  RECOMMENDED PATH: ${inv.engines.recommendation.path} - ${inv.engines.recommendation.reason}${inv.engines.recommendation.profile ? ' (suggested engineProfile in reports/inventory.json engines.recommendation.profile)' : ''}`);
   console.log(`  REA: ${inv.tools.rea.available ? 'detected' : 'not detected'} — ${inv.tools.rea.note}`);
   const avail = Object.entries(inv.tools.local).filter(([, v]) => v.available).map(([k, v]) => (v.rawBinary === false ? `${k} (object files only, not raw images)` : k));
   console.log(`  local tools: ${avail.join(', ') || 'none'}`);

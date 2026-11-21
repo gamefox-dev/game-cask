@@ -38,6 +38,7 @@ const trial = {
   brief: brief ? { sha256: createHash('sha256').update(brief).digest('hex'), text: brief } : null,
   executionPath: cfg.engineProfile ? 'engineProfile' : cfg.pipeline ? 'pipeline' : 'bgt',
   engineProfile: manifest?.engineProfile ?? null,
+  engineBundle: manifest?.metrics ? { ...manifest.metrics, files: undefined, headers: manifest.headers ?? null } : null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
     metrics: manifest.pipeline.metrics ?? null,

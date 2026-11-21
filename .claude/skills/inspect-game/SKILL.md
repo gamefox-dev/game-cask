@@ -13,6 +13,13 @@ Goal: a factual inventory with confidence levels. No execution of game code, no 
    doesn't follow symlinks, and tolerates an empty `original/`.
    - Empty `original/`: stop. Ask the user to copy their legally obtained game files there.
      Record the trial as `blocked: no user game provided`.
+   - **Engine detection comes first.** The summary lists each detected engine (`engine: godot 4.3 (build …)`), its
+     runtime, requirements, blockers and warnings, then `RECOMMENDED PATH: engineProfile|pipeline`.
+     `reports/inventory.json` → `engines` holds the details and `recommendation.profile`, a ready `engineProfile`
+     block for `port/game.json`. If the engine path is recommended, fetch the runtime (`npm run engine -- fetch ID`),
+     record the choice in `game.json` and follow docs/engine-profiles.md; skip the lifting steps. Engines listed
+     under `otherEngines` (no adapter) and blocked engines fall back to the pipeline; record them as engine
+     iteration requests. Installer/archive contents need the same check after extraction (step 5).
 2. Read `original/PROVENANCE.txt` and any README the user placed there. Record any **POLICY**
    (e.g. binary-only) in `reports/progress.json` → `constraints`, and follow it for the whole port.
 3. For each executable candidate, note:
@@ -29,7 +36,7 @@ Goal: a factual inventory with confidence levels. No execution of game code, no 
    anything. It unpacks zip, RCDATA-embedded PEs (bundlers/wrappers) and Inno Setup 5.x, verifies the installer's own
    SHA-1s, and names payload files from their PE metadata. It writes `extract.json` with the chain of each file.
    Treat the contents as untrusted. Inventory them with
-   `node tools/inspect/inspect.mjs <dir> --out reports/inventory-extracted.json`. In `game.json`, refer to them as
+   `node tools/inspect/inspect.mjs <dir> --out reports/inventory-extracted.json` (includes engine detection). In `game.json`, refer to them as
    `"installer.exe#NAME.EXE"`. The build re-extracts them reproducibly.
    Unsupported formats (other installers, Inno 6, encryption) are kit gaps: record them.
 6. Executables: `npm run analyze -- <file>` (JSON) and `npm run analyze -- <file> --disasm [--func HEX]`

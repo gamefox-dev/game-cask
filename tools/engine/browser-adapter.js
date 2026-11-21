@@ -4,7 +4,20 @@ export function installEngineTestAdapter(canvas, identity) {
   const errors = [], logs = []; let ready = false, frame = 0;
   const unsupported = feature => { throw new Error('engineProfile does not support BGT ' + feature); };
   const bounded = (list, value) => { if (list.length < 1000) list.push(value); };
+  const warnings = [];
   const error = (kind, message) => bounded(errors, { kind, message: String(message) });
+  // Engine stderr carries both errors and warnings. Godot prefixes them ("ERROR:", "USER ERROR:", "SCRIPT ERROR:",
+  // "WARNING:", "USER WARNING:") and continues with indented "at:" or follow-up lines; those inherit the severity.
+  // Unprefixed stderr without context, and anything after an error, stays an error (fail-closed).
+  let lastSeverity = null;
+  const engineStderr = message => {
+    const text = String(message);
+    const severity = /^(USER |SCRIPT )?ERROR:/.test(text) ? 'error' : /^(USER )?WARNING:/.test(text) || /^Blocking on the main thread is very dangerous/.test(text) ? 'warning'
+      : lastSeverity === 'warning' ? 'warning' : 'error';
+    lastSeverity = severity;
+    if (severity === 'warning') bounded(warnings, { kind: 'engine', message: text }); else error('engine', text);
+    return severity;
+  };
   window.addEventListener('error', e => error('page', e.message));
   window.addEventListener('unhandledrejection', e => error('promise', e.reason));
   const timestamps = [];
@@ -45,7 +58,7 @@ export function installEngineTestAdapter(canvas, identity) {
   };
   const api = {
     ready: () => ready, failed: () => errors.length > 0, backend: () => identity.renderer,
-    diagnostics: () => ({ ...identity, frame, errors: [...errors], logs: [...logs], backend: identity.renderer,
+    diagnostics: () => ({ ...identity, frame, errors: [...errors], warnings: [...warnings], logs: [...logs], backend: identity.renderer,
       backendNotes: ['Official engine runtime; BGT backend/suspension selection does not apply'],
       logical: { width: canvas.width, height: canvas.height }, letterbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
       capabilities: { deterministic: false, pause: false, peek: false, savestates: false, cpuProfile: false, coverage: false },
@@ -62,5 +75,5 @@ export function installEngineTestAdapter(canvas, identity) {
   };
   for (const name of ['peek', 'snapshot', 'restore', 'exportSnapshot', 'importSnapshot', 'profileReset', 'injectCommands', 'simulateDeviceLoss']) api[name] = () => unsupported(name);
   window.__BGT_TEST__ = api;
-  return { ready: () => { ready = true; }, error, log: message => bounded(logs, String(message)) };
+  return { ready: () => { ready = true; }, error, engineStderr, log: message => { lastSeverity = null; bounded(logs, String(message)); } };
 }

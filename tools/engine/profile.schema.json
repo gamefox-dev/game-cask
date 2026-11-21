@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Game Cask engine profile selection v1",
+  "title": "Game Cask engine profile selection (v1/v2; v2 = K55 recorded choice, Godot 3.x/4.x)",
   "type": "object",
   "required": [
     "schema",
@@ -17,7 +17,10 @@
   ],
   "properties": {
     "schema": {
-      "const": "game-cask/engine-profile/1"
+      "enum": [
+        "game-cask/engine-profile/1",
+        "game-cask/engine-profile/2"
+      ]
     },
     "allowed": {
       "const": true
@@ -25,15 +28,17 @@
     "adapter": {
       "type": "string",
       "enum": [
-        "godot3"
+        "godot3",
+        "godot4"
       ]
     },
     "runtime": {
-      "type": "string"
+      "type": "string",
+      "description": "Runtime id from tools/engine/runtimes.json, e.g. godot-4.3-nothreads (alias godot-3.5.3)."
     },
     "version": {
       "type": "string",
-      "pattern": "^3\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^[34]\\.[0-9]+(\\.[0-9]+)?$"
     },
     "build": {
       "type": "string",
@@ -60,6 +65,7 @@
         "location": {
           "enum": [
             "embedded-trailer",
+            "embedded-section",
             "adjacent",
             "explicit"
           ]
@@ -76,11 +82,13 @@
     },
     "renderer": {
       "enum": [
-        "webgl2"
+        "webgl2",
+        "webgl"
       ]
     },
     "threads": {
-      "const": false
+      "type": "boolean",
+      "description": "Must equal the runtime variant: true selects a threaded web runtime (served with COOP/COEP)."
     },
     "width": {
       "type": "integer",
@@ -91,7 +99,12 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 4096
+    },
+    "choice": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "The porter's recorded reason for choosing the engine runtime (no operator authorization since K55)."
     }
   },
-  "$comment": "Runtime manifest supplies renderer/thread/header requirements, unsupported detector ids and pinned official archive/member/notice hashes. Build validates exact allowlist pairing."
+  "$comment": "Runtime manifest supplies renderer/thread/header requirements and pinned official archive/member/notice hashes. Build validates exact pairing."
 }
