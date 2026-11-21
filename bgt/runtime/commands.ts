@@ -374,7 +374,7 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
     const p = off + CMD_PREFIX_SIZE;
     // K57: CMD_FLAG_IF_HEAD (continuation lists) runs a command only if the latest unflagged command took effect.
     const conditional = continuation && flags === CMD_FLAG_IF_HEAD;
-    const code = conditional ? (headOk ? execute(op, dv, p, payload, mem, ctx) : E_STATE)
+    const code: number = conditional ? (headOk ? execute(op, dv, p, payload, mem, ctx) : E_STATE)
       : flags !== 0 ? E_UNSUPPORTED : execute(op, dv, p, payload, mem, ctx);
     if (!conditional) headOk = code === BGT_OK;
     if (code !== BGT_OK) {
