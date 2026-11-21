@@ -137,7 +137,14 @@ uint64_t x86_guest_committed;
 static void (*scheduler)(void);
 uint32_t x86_quantum_insns;
 void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
+/* K52 fast mode. x86_fast_inline > 0 while a fast frame executes one generic instruction
+ * inline: cooperation is deferred (budget stays exhausted) to the next fast quantum check,
+ * which runs it inline when the probe proves it cannot suspend/transfer, or unwinds. */
+unsigned x86_fast_depth, x86_fast_yield, x86_fast_inline;
+static int (*quantum_probe)(void);
+void x86_set_quantum_probe(int (*probe)(void)) { quantum_probe = probe; }
 void x86_cooperate(void) {
+    if (x86_fast_inline) return;
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
     x86_quantum_insns = X.frame_insns > 2000000u ? 2000000u : X.frame_insns;
     X.frame_insns = 0;
@@ -148,6 +155,21 @@ void x86_cooperate(void) {
     exclusive_resume(span,start);
 }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
+/* K52: state (at least X.tsc/X.frame_insns) is published. 0: the quantum ran inline and the
+ * fast frame continues; 1: unwind all native frames (x86_fast_yield or X.transfer is set). */
+int x86_fast_quantum(void) {
+    if (scheduler && quantum_probe && quantum_probe()) {
+        x86_cooperate();
+        return X.transfer ? 1 : 0;
+    }
+    x86_fast_yield = 1;
+    return 1;
+}
+void x86_fast_exec(const x86_insn_t *in) {
+    x86_fast_inline++;
+    x86_exec_one(in);
+    x86_fast_inline--;
+}
 
 static void profiled_native(x86_lifted_fn fn) {
     double paused=0,*span=exclusive_pause(&paused);
@@ -272,6 +294,8 @@ void x86_wr32_slow(uint32_t a, uint32_t v) {
 /* ------------------------------------------------------------------ lifted registry */
 static const x86_lifted_entry_t *lifted;
 static uint32_t nlifted, lifted_generation = 1;
+/* K52: read-only mirror of the registry generation for fast-mode indirect-call caches. */
+uint32_t x86_lifted_generation = 1;
 unsigned x86_native_chain;
 /* Exact-PC direct-mapped lookup: cache only immutable registry results, not guest pointers.
  * Permissions and force-interpreter are checked on every hit. Registration invalidates all slots. */
@@ -281,6 +305,7 @@ void x86_register_lifted(const x86_lifted_entry_t *table, uint32_t n) {
     lifted = table;
     nlifted = n;
     if (!++lifted_generation) x86_fault("lifted generation exhausted",0);
+    x86_lifted_generation = lifted_generation;
     __builtin_memset(lifted_cache, 0, sizeof lifted_cache);
     /* LANE-C: i386 continuation entries are not additional functions. */
     x86_metrics.lifted_functions = 0;
@@ -349,7 +374,9 @@ static uint32_t thunk_lo, thunk_hi;
 static x86_thunk_fn thunk_fn;
 static x86_import_binding_t *import_buckets[1024];
 static uint32_t import_generation = 1;
-static const x86_import_binding_t *pending_import;
+/* K52: exported so fast-mode lifted frames can detect a deferred import after a direct call. */
+const x86_import_binding_t *x86_pending_import;
+#define pending_import x86_pending_import
 void x86_set_thunks(uint32_t lo, uint32_t hi, x86_thunk_fn fn) {
     thunk_lo = lo; thunk_hi = hi; thunk_fn = fn;
     __builtin_memset(import_buckets,0,sizeof import_buckets);
@@ -403,7 +430,7 @@ void x86_lift_thunk(void) {
  * frames. Existing K29 explicitly non-suspending leaves retain their guarded path.
  * Recheck the outer invocation stop before either a call or a resumed continuation. */
 int x86_native_ready(void) {
-    return native_limit && !X.transfer && !x86_lift_pending && !x86_lift_count && !pending_import &&
+    return native_limit && !X.transfer && !x86_lift_pending && !x86_lift_count && !pending_import && !x86_fast_yield &&
         !(X.eip == native_stop && X.r[ESP] > native_floor);
 }
 static int native_admitted(x86_native_admission_t *site, uint32_t target, x86_native_fn expected) {
@@ -453,6 +480,12 @@ int x86_native_enter(uint32_t target, x86_native_fn expected) {
     return 1;
 }
 void x86_native_drop(void) { native_depth--; }
+/* K52 fast-mode indirect call/jump cache fill: immutable registry result for one exact PC. */
+x86_native_fn x86_fast_lookup(x86_fast_site_t *site, uint32_t target) {
+    x86_native_fn fn = x86_force_interp ? 0 : find_native(target);
+    site->generation = lifted_generation; site->target = target; site->fn = fn;
+    return fn;
+}
 int x86_native_rechain(x86_native_fn owner) {
     X86_DISPATCH_COUNT(rechain_attempts);
     if (!x86_native_ready()) { X86_DISPATCH_REJECT(rechain,not_ready); return 0; }
@@ -509,6 +542,7 @@ void x86_run_native(x86_native_fn step) {
     /* A previous aborted wasm export may have abandoned fast frames. Every driver
      * entry is outside them, including nested callbacks after an import boundary. */
     native_depth = 0;
+    x86_fast_depth = 0; x86_fast_inline = 0; /* K52: no fast frame is live below a driver */
     for (;;) {
         NATIVE_COUNT(driver_steps);
         uint32_t old = X.eip; uint64_t clock = X.tsc;
@@ -516,6 +550,7 @@ void x86_run_native(x86_native_fn step) {
         if (X.transfer) { X86_DRIVER_STOP(transfer); return; }
         if (x86_lift_pending) { X86_DRIVER_STOP(pending); return; }
         if (x86_lift_count) { X86_DRIVER_STOP(block); return; }
+        if (x86_fast_yield) { X86_DRIVER_STOP(block); return; }
         if (X.eip == old && X.tsc == clock) x86_fault("lifted AMD64 entry made no progress", old);
         if (limit && X.eip == stop && X.r[ESP] > floor) { X86_DRIVER_STOP(stop); return; }
         if (pending_import) {
@@ -527,6 +562,7 @@ void x86_run_native(x86_native_fn step) {
         if (X.transfer) { X86_DRIVER_STOP(transfer); return; }
         if (x86_lift_pending) { X86_DRIVER_STOP(pending); return; }
         if (x86_lift_count) { X86_DRIVER_STOP(block); return; }
+        if (x86_fast_yield) { X86_DRIVER_STOP(block); return; }
         if (limit && X.eip == stop && X.r[ESP] > floor) { X86_DRIVER_STOP(stop); return; }
         /* A naked call outside invoke has no return boundary; execute only its supplied step. */
         if (!limit) { X86_DRIVER_STOP(unbounded); return; }
@@ -703,6 +739,10 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 } else if (x86_lift_count) {
                     uint32_t count = x86_lift_count; x86_lift_count = 0;
                     x86_lift_block(count);
+                } else if (x86_fast_yield) {
+                    /* K52: a fast frame unwound for a quantum that may suspend/transfer. */
+                    x86_fast_yield = 0;
+                    x86_cooperate();
                 } else if (X.eip == old && X.tsc == old_clock && !X.transfer) {
                     x86_fault("lifted AMD64 entry made no progress", old);
                 }

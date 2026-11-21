@@ -115,6 +115,8 @@ static void clock_boundary(uint32_t interval, int present) {
 }
 void w32_clock_present(uint32_t interval) { clock_boundary(interval,1); }
 static uint32_t instruction_cap(void) { return cfg && cfg->instruction_cap ? cfg->instruction_cap : 64000000u; }
+/* K52: would committing a quantum of `units` leave the cap check below without waiting? */
+int w32_clock_quantum_fits(uint32_t units) { return frame_units + clock_debt(units) < instruction_cap(); }
 void w32_clock_check_cap(void) {
     w32_clock_sync();
     if(frame_units >= instruction_cap()) {
@@ -794,6 +796,7 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 #endif
     X.mode64=c->mode64;X.mxcsr=0x1f80;
     x86_set_scheduler(w32_thread_quantum); /* LANE-C */
+    x86_set_quantum_probe(w32_thread_quantum_probe); /* K52 */
     w32_io = io;
     slots = (slot_t *)x86_alloc(W32_THUNK_SLOTS * sizeof(slot_t));
     if (!slots || !x86_map(W32_THUNK_LO, W32_THUNK_HI - W32_THUNK_LO) || !x86_map(W32_MISC, W32_MISC_SIZE)) return BGT_E_LIMIT;
