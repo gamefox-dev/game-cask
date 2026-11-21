@@ -7,7 +7,7 @@
 // opcode, bad handle, limit) skips just that command and is reported.
 
 import { executeGpu, type GpuState } from './commands-gpu';
-import { GPU_OP, CMD_GPU_CONTINUATION, GPU_CONTINUATION_LIMITS } from './abi';
+import { GPU_OP, CMD_GPU_CONTINUATION, CMD_FLAG_IF_HEAD, GPU_CONTINUATION_LIMITS } from './abi';
 import type { GpuItem } from '../renderers/types';
 
 import {
@@ -231,6 +231,8 @@ export interface DecodeResult {
   status: number;
   executed: number;
   errors: CommandError[];
+  /** K57: rejected before the execution pass (framing/aggregate budget): no command took effect. */
+  whole?: boolean;
 }
 
 export interface DecodeContext {
@@ -314,7 +316,7 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
   const errors: CommandError[] = [];
   const fail = (code: number, message: string, offset = 0, op = 0): DecodeResult => {
     errors.push({ code, message, offset, op });
-    return { status: code, executed: 0, errors };
+    return { status: code, executed: 0, errors, whole: true };
   };
 
   ptr >>>= 0;
@@ -364,15 +366,19 @@ export function decodeCommands(mem: Uint8Array, ptr: number, len: number, ctx: D
   ctx.frame.commandCount += count;
   ctx.frame.commandBytes += len;
   off = CMD_HEADER_SIZE;
-  let executed = 0;
+  let executed = 0, headOk = true;
   for (let i = 0; i < count; i++) {
     const op = dv.getUint16(off, true);
     const flags = dv.getUint16(off + 2, true);
     const payload = dv.getUint32(off + 4, true);
     const p = off + CMD_PREFIX_SIZE;
-    const code = flags !== 0 ? E_UNSUPPORTED : execute(op, dv, p, payload, mem, ctx);
+    // K57: CMD_FLAG_IF_HEAD (continuation lists) runs a command only if the latest unflagged command took effect.
+    const conditional = continuation && flags === CMD_FLAG_IF_HEAD;
+    const code = conditional ? (headOk ? execute(op, dv, p, payload, mem, ctx) : E_STATE)
+      : flags !== 0 ? E_UNSUPPORTED : execute(op, dv, p, payload, mem, ctx);
+    if (!conditional) headOk = code === BGT_OK;
     if (code !== BGT_OK) {
-      errors.push({ code, message: describe(op, code, flags), offset: off, op });
+      errors.push({ code, message: conditional && !headOk ? `${describe(op, code, 0)} (skipped: its head command failed)` : describe(op, code, conditional ? 0 : flags), offset: off, op });
     } else {
       executed++;
       if (ctx.opCounts) ctx.opCounts[op] = (ctx.opCounts[op] ?? 0) + 1;

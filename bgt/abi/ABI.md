@@ -1366,6 +1366,39 @@ Standalone executors keep per-pass submission unless the renderer enables mergin
 (WebGPU timestamp-query §13 pass time; WebGL EXT_disjoint_timer_query_webgl2 frame time; otherwise
 `unavailable`) report the effect. GL metrics `gl_batched_lists`, `gl_batch_flushes`, `gl_sync_submits`, `gl_batch_replays`.
 
+**Capacity reuse and batched allocations (K57; no wire, opcode, capability or limit change).** The WGL profile
+keeps a buffer's exact logical GL size apart from its native store capacity. glBufferData that fits the live
+capacity (equal, smaller or larger size) is one BUFFER_UPDATE of the logical prefix; every native range the
+profile emits (vertex/index/uniform bindings, feedback captures, copies, readbacks) and every guest-visible
+query, bound and mapping uses the logical size, so the native tail is never observable. Growth beyond the
+capacity reallocates once with headroom (1.5x the old capacity, 16-byte rounded, at most 16 MiB of headroom in
+total) as DELETE + one CREATE(capacity) carrying the new bytes and a zero tail; a headroom allocation the host
+rejects is retried at the exact size, so headroom is never the cause of GL_OUT_OF_MEMORY. A whole-logical-store write of a GPU-generated
+store with spare capacity uploads the whole capacity, so the host's generated provenance (cleared only by a
+whole-store write) equals the profile's. Buffer DELETE/CREATE of these reallocations, transform-feedback draws
+(FEEDBACK_CAPTURE) and BLIT join the frame batch; a replayed rejection withdraws exactly what each call committed
+(logical size, shadow bytes, generation, wire handle occupancy, feedback cursor/query/provenance), leaves a buffer
+whose CREATE was rejected empty (the unbatched accepted-DELETE/rejected-CREATE outcome), and releases a store
+whose DELETE was rejected later (abandoned-handle retry). Correction to the K53 text above: only framing and
+aggregate-budget rejections have no effects; an execution-pass error skips only its command. The new additive
+import `bgt_submit_failures(dst, cap)` (bgt.h) reports the last submission's outcome: 0 success, -1 rejected
+whole, else the number of skipped commands, writing {list byte offset, error code} pairs. The profile settles a
+partially executed batch from those offsets (no resubmission, so no accepted command runs twice) and replays per
+call only a list rejected whole. A deferred call that depends on the immediately preceding one (a draw on its
+uniform upload, a reallocation's CREATE on its DELETE) carries the new additive command-prefix flag
+`BGT_CMD_FLAG_IF_HEAD` = 1 (continuation lists only; formerly E_UNSUPPORTED): the command runs only if the most
+recent unflagged command of the same list took effect, otherwise it is skipped with E_STATE and reported like a
+failure, so a draw whose uniform upload failed is never executed, as in the unbatched path. Remaining
+difference, only after the first GL_OUT_OF_MEMORY inside a partially executed batch (GL state undefined): later
+independent calls of that batch were validated against speculative profile state, so their GL error codes may
+differ (the first error, which glGetError returns, is exact). Guest GL errors still come only from the profile and
+the decoder at the first glGetError after the call, never from native polls. Renderers: WebGPU encodes blits and
+compute-emulated captures into the frame encoder (their buffers/textures count as used; temporaries are destroyed
+after the frame submit), so such frames still cost one GPUQueue.submit; WebGL 2 production no longer polls
+getError around BUFFER_CREATE, BLIT or feedback draws (their native errors reach the deferred frame-end poll;
+strict `?debug=1` still polls every op). Metrics `gl_buffer_capacity_reused` (resized within capacity) and
+`gl_buffer_capacity_grown` (live store reallocated); `gl_buffer_respec_*` keep counting logical size changes.
+
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 
 `BUFFER_COPY` is a 20-byte **outside-pass** operation: `source, source_offset, destination,

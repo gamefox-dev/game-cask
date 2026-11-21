@@ -288,10 +288,18 @@ uint64_t w32_gl_deferred_rejects(void) { return gl_deferred_rejects; }
  * (buffer shadow bytes/generation, uniform dirtiness, draw count). */
 uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits, w32_gl_batch_replays;
 static int submit(void);
-enum { PR_NONE, PR_BYTES, PR_UBO, PR_DRAW };
-/* One deferred call: its byte range in the pending list and what it committed on deferral. */
+enum { PR_NONE, PR_BYTES, PR_UBO, PR_DRAW, PR_RELEASE, PR_CREATE };
+/* One deferred call: its byte range in the pending list and what it committed on deferral.
+ * K57: PR_BYTES may also carry a logical size change (capacity reuse: size_old -> size_new, `resize`)
+ * and writes into `dst`, the shadow block current at the call (a later deferred reallocation of the
+ * same buffer retires that block only after the batch). PR_RELEASE/PR_CREATE are the wire DELETE and
+ * CREATE of a buffer reallocation (`handle`, buffer slot `obj`, capacity `cap`, logical size `n`).
+ * A PR_DRAW under transform feedback keeps what its capture committed (cursor advance, generated
+ * provenance, primitives-written query) so a replayed rejection can withdraw it. */
 typedef struct {
     uint64_t seq, dep_seq; uint32_t start, end, kind, obj, off, n; uint8_t gen_old, gen_clear; uint8_t *old, *src;
+    uint8_t *dst; uint32_t size_old, size_new, handle, cap; uint8_t resize, tf_n, tf_gen[4];
+    uint32_t tf_obj[4], tf_add[4], tf_query, tf_prims;
 } PendRec;
 static PendRec *pend_last;          /* record of the latest deferred call; NULL when it was submitted synchronously */
 static uint64_t pend_dep_seq;       /* set by draw(): the next list depends on this record's acceptance */
@@ -305,9 +313,15 @@ static uint32_t replay_error;       /* error a replay newly latched (callers tha
  * as does the BGT_GL_SYNC_SUBMIT=1 A/B build (tools/build/pipeline.mjs). */
 static void flush_pending(void) {}
 void w32_gl_flush(void) {}
+static void retire_block(uint8_t *p, uint32_t n) { if (p) glp_free(p, n); }
 static int submit_deferred_x(uint32_t reserve) { (void)reserve; pend_last = 0; return submit(); }
 #else
-static void pend_apply(PendRec *r, int redo); /* journal effects, after the Buffer/Program types */
+/* Journal effects for a replayed batch, after the Buffer/Program types: undo (newest-first, back to the
+ * pre-batch state), redo (oldest-first, accepted calls only), reject (rejected calls), fixup (after both). */
+static void pend_undo(PendRec *r);
+static void pend_redo(PendRec *r);
+static void pend_reject(PendRec *r);
+static void pend_fixup(PendRec *r, int accepted);
 #define PEND_BYTES (256u * 1024u)
 #define PEND_DATA (1024u * 1024u)
 static uint32_t pend_mem[PEND_BYTES / 4];
@@ -316,8 +330,14 @@ static bgt_cmdbuf_t pend; static uint32_t pend_ready, pend_used, nrecs;
 static PendRec recs[4096]; static uint64_t pend_seq;
 static uint32_t replay_mem[PEND_BYTES / 16 + 64];
 static uint8_t replay_ok[4096];
-static void replay(void) {
-    w32_gl_batch_replays++; uint32_t latched = error;
+/* K57: shadow blocks replaced by a deferred reallocation stay allocated until the batch is settled. */
+static struct { uint8_t *p; uint32_t n; } pend_retired[4096]; static uint32_t pend_nretired;
+/* K57: the decoder skips only a failing command (§6 execution pass); a list is rejected with no effects
+ * only before that pass (framing, aggregate wire budget). bgt_submit_failures tells which: per-command
+ * failures settle the journal from the failed command offsets (no resubmission: every other command already
+ * took effect, exactly as its per-call list would have); a list rejected whole is replayed per call. */
+static uint32_t replay_failed[2 * 4096];
+static void replay_whole(void) {
     for (uint32_t i = 0; i < nrecs; i++) {
         PendRec *r = &recs[i]; int dead = 0;
         if (r->dep_seq) for (uint32_t j = i; j-- > 0;) if (recs[j].seq == r->dep_seq) { dead = !replay_ok[j]; break; }
@@ -330,15 +350,38 @@ static void replay(void) {
             off += 8 + size;
         }
         int32_t rc = host_submit(&one, BGT_CMD_GPU_CONTINUATION); /* I17: charged/journaled like any list */
+        /* A reallocation's headroom is never the reason for GL_OUT_OF_MEMORY: retry it at the exact size. */
+        if (rc < 0 && r->kind == PR_CREATE && r->cap > r->n) {
+            bgt_cmd_init(&one, replay_mem, sizeof replay_mem);
+            uint8_t *w = bgt_cmd_push(&one, 0x40, 20); __builtin_memcpy(w, pend.buf + r->start + 8, 20);
+            copy(w + 8, &r->n, 4); copy(w + 16, &r->n, 4);
+            rc = host_submit(&one, BGT_CMD_GPU_CONTINUATION);
+            if (rc >= 0) r->cap = r->n;
+        }
         replay_ok[i] = rc >= 0;
         if (rc < 0 && !error) error = rc == -3 ? OOM : BAD_OP;
     }
-    /* Shadow bytes: back to the pre-batch state, then forward through the accepted calls only. */
-    for (uint32_t i = nrecs; i-- > 0;) if (recs[i].kind == PR_BYTES) pend_apply(&recs[i], 0);
-    for (uint32_t i = 0; i < nrecs; i++) {
-        if (replay_ok[i] ? recs[i].kind == PR_BYTES : recs[i].kind != PR_BYTES) pend_apply(&recs[i], 1);
-        if (!replay_ok[i]) pend_rejected_seq = recs[i].seq;
+}
+static void replay(void) {
+    w32_gl_batch_replays++; uint32_t latched = error;
+    int32_t failed = bgt_submit_failures(replay_failed, 4096);
+    if (failed < 0 || failed > 4096) replay_whole();
+    else {
+        for (uint32_t i = 0; i < nrecs; i++) replay_ok[i] = 1;
+        for (int32_t k = 0, r = 0; k < failed; k++) {
+            uint32_t at = replay_failed[2 * k]; int32_t code = (int32_t)replay_failed[2 * k + 1];
+            if (!error) error = code == -3 ? OOM : BAD_OP; /* first failed command in stream order */
+            while (r < (int32_t)nrecs && recs[r].end <= at) r++;
+            if (r < (int32_t)nrecs && recs[r].start <= at) replay_ok[r] = 0;
+        }
     }
+    /* Profile state: back to the pre-batch state, then forward through the accepted calls only. */
+    for (uint32_t i = nrecs; i-- > 0;) pend_undo(&recs[i]);
+    for (uint32_t i = 0; i < nrecs; i++) {
+        if (replay_ok[i]) pend_redo(&recs[i]);
+        else { pend_reject(&recs[i]); pend_rejected_seq = recs[i].seq; }
+    }
+    for (uint32_t i = 0; i < nrecs; i++) pend_fixup(&recs[i], replay_ok[i]);
     if (!latched && error) replay_error = error;
 }
 /* I17 (K50 x K53): the batch is one more list on K50's single host-submission path. host_submit
@@ -353,13 +396,27 @@ static int pend_flushing;
 static void flush_pending(void) {
     if (pend_flushing) return;
     pend_last = 0;
-    if (!pend_ready || !pend.count) { nrecs = 0; return; }
+    if (!pend_ready || !pend.count) {
+        nrecs = 0;
+        for (uint32_t i = 0; i < pend_nretired; i++) glp_free(pend_retired[i].p, pend_retired[i].n);
+        pend_nretired = 0; return;
+    }
     pend_flushing = 1;
     int32_t rc = host_submit(&pend, BGT_CMD_GPU_CONTINUATION);
     w32_gl_batch_flushes++;
     if (rc < 0) replay();
     pend_flushing = 0;
     bgt_cmd_reset(&pend); pend_used = 0; nrecs = 0;
+    for (uint32_t i = 0; i < pend_nretired; i++) glp_free(pend_retired[i].p, pend_retired[i].n);
+    pend_nretired = 0;
+}
+/* A shadow block replaced while calls of this batch may still reference it (journal undo/redo). */
+static void retire_block(uint8_t *p, uint32_t n) {
+    if (!p) return;
+    if (!nrecs) { glp_free(p, n); return; }
+    if (pend_nretired == sizeof pend_retired / sizeof pend_retired[0]) flush_pending();
+    if (!nrecs) { glp_free(p, n); return; }
+    pend_retired[pend_nretired].p = p; pend_retired[pend_nretired].n = n; pend_nretired++;
 }
 void w32_gl_flush(void) { flush_pending(); }
 /* Data pointer/length word indices of the deferrable upload opcodes. */
@@ -380,7 +437,7 @@ static int submit_deferred_x(uint32_t reserve) {
     for (uint32_t off = 16; off < cmd.len;) {
         uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size, pi, li, n;
         copy(&size, cmd.buf + off + 4, 4);
-        if (code < 0x40 || code > 0x64 || code == 0x62) return submit();
+        if (code < 0x40 || code > 0x64) return submit(); /* K57: feedback captures (0x62) batch too */
         if (data_field(code, &pi, &li)) { copy(&n, cmd.buf + off + 8 + li * 4, 4); data += (n + 15u) & ~15u; }
         off += 8 + size;
     }
@@ -393,6 +450,10 @@ static int submit_deferred_x(uint32_t reserve) {
         flush_pending();
         if (pend_dep_seq && pend_rejected_seq == pend_dep_seq) { pend_dep_seq = 0; bgt_cmd_reset(&cmd); return 0; }
     }
+    /* K57: a call that depends on the immediately preceding deferred call (a draw on its uniform upload, a
+     * reallocation's CREATE on its DELETE) is chained to it with BGT_CMD_FLAG_IF_HEAD: if the head command fails
+     * inside the batch, the host skips the dependent commands, as the unbatched path would never have sent them. */
+    int chained = pend_dep_seq && nrecs && recs[nrecs - 1].seq == pend_dep_seq && recs[nrecs - 1].end - recs[nrecs - 1].start >= 8;
     PendRec *r = &recs[nrecs++];
     *r = (PendRec){.seq = ++pend_seq, .dep_seq = pend_dep_seq, .start = pend.len};
     pend_dep_seq = 0;
@@ -400,6 +461,7 @@ static int submit_deferred_x(uint32_t reserve) {
         uint32_t code = cmd.buf[off] | ((uint32_t)cmd.buf[off + 1] << 8), size, pi, li;
         copy(&size, cmd.buf + off + 4, 4);
         uint8_t *payload = bgt_cmd_push(&pend, code, size);
+        if (chained && payload) payload[-6] = (uint8_t)BGT_CMD_FLAG_IF_HEAD;
         __builtin_memcpy(payload, cmd.buf + off + 8, size);
         if (data_field(code, &pi, &li)) {
             uint32_t src, n; copy(&src, payload + pi * 4, 4); copy(&n, payload + li * 4, 4);
@@ -497,7 +559,8 @@ static void missing(const char *name) {
 }
 
 typedef struct { uint32_t used, size, gpu, generated; uint8_t *data;
-    uint32_t map, map_offset, map_size, map_flags, map_access, bound, vao_refs, collect_next, collect_queued; } Buffer;
+    uint32_t map, map_offset, map_size, map_flags, map_access, bound, vao_refs, collect_next, collect_queued;
+    uint32_t cap, extra; /* K57: native store/shadow capacity (>= size) and the headroom granted at allocation */ } Buffer;
 static void approximate(const char *kind);
 static void unmap_storage(Buffer *b);
 typedef struct { uint32_t enabled, buffer, count, type, normalized, stride, offset, divisor, integer; } Attribute;
@@ -677,51 +740,132 @@ static uint32_t api_BindBuffer(void) {
 
     default_element_compat(target, "core VAO 0 element-buffer binding"); return 0;
 }
+/* K57 capacity reuse. b->size is the exact logical GL store (queries, bounds, mapping, feedback ranges,
+ * binding sizes); b->cap is the live native store and of its CPU shadow block (b->data holds cap bytes).
+ * glBufferData that fits the capacity rewrites the logical prefix with one BUFFER_UPDATE (the native
+ * tail beyond b->size is never observable: every native range the profile emits is bounded by b->size).
+ * Growth beyond it reallocates once with headroom (1.5x the old capacity, 16-byte rounded, bounded by
+ * BUFFER_HEADROOM_MAX in total), as a deferred DELETE and one CREATE(cap) whose data is the new bytes
+ * plus a zero tail (a single command takes effect whole or not at all). Headroom never causes GL_OUT_OF_MEMORY: a rejected headroom allocation is retried exact (in
+ * the call, or in the batch replay). The host clears GPU-generated provenance only for a write that
+ * covers its whole store, so a whole-logical-store write of a generated buffer uploads the whole
+ * capacity (new bytes plus the shadow tail) and both views stay equal. */
+#define BUFFER_MAX 67108864u
+#define BUFFER_HEADROOM_MAX (16u << 20)
+uint64_t w32_gl_buffer_capacity_reused, w32_gl_buffer_capacity_grown;
+static uint64_t buffer_headroom;
+static uint32_t whole_store(const Buffer *b, uint32_t off, uint32_t n) {
+    return b->generated && !off && n == b->size && b->size != b->cap ? b->cap : n;
+}
+/* Rewrite the logical store in place (equal size or within capacity). 1 = accepted, 0 = rejected (the
+ * caller reallocates), -1 = profile memory exhausted (GL_OUT_OF_MEMORY latched, nothing changed). */
+static int respec_in_place(Buffer *b, const uint8_t *data, uint32_t n) {
+    uint32_t len = b->generated && n != b->cap ? b->cap : n;
+    uint8_t *full = 0; const uint8_t *src = data;
+    if (len != n) {
+        full = glp_alloc(len); if (!full) { fail(OOM); return -1; }
+        copy(full, data, n); copy(full + n, b->data + n, len - n); src = full;
+    }
+    /* Transport owns uploads in order: earlier draws still see the old bytes. A rejected UPDATE has no
+     * emitted item/native side effect (decoder validates before emit). In that exceptional case the
+     * caller restores the error latch and runs the delete/create path: its own acceptance decides both
+     * state and guest error. An error latched by a replayed rejection of earlier deferred calls (a
+     * flush inside the send) is not this call's own and survives the restore; flushing up front instead
+     * would split every frame's batch here. */
+    uint32_t pending = error, update[] = {b->gpu, 0, PTR(src), len}; replay_error = 0;
+    int ok = send_deferred_bytes(0x41, update, 4, len);
+    if (ok) {
+        PendRec *r = pend_last;
+        if (r) { /* deferred: rewrite the store in place so a replayed rejection can restore it */
+            *r = (PendRec){.seq = r->seq, .dep_seq = r->dep_seq, .start = r->start, .end = r->end, .kind = PR_BYTES,
+                .obj = (uint32_t)(b - buffers), .n = len, .gen_old = (uint8_t)b->generated, .gen_clear = 1,
+                .old = r->old, .src = r->src, .dst = b->data, .size_old = b->size, .size_new = n, .resize = 1};
+            copy(r->old, b->data, len);
+        }
+        __builtin_memcpy(b->data, src, len);
+        unmap_storage(b); b->map_access = 0x88ba; b->generated = 0; b->size = n;
+    } else error = pending ? pending : replay_error;
+    if (full) glp_free(full, len);
+    return ok;
+}
 static uint32_t api_BufferData(void) {
     Buffer *b = bound_buffer(ARG(0)); int64_t size = (int64_t)ARG64(1);
     if (!b) return 0;
-    if (size <= 0 || size > 67108864) { fail(BAD_VALUE); return 0; }
+    if (size <= 0 || size > BUFFER_MAX) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
-    uint8_t *data = guest(ARG(2), (uint32_t)size); if (!data) return 0;
-    uint32_t id = b->gpu, old_size = b->size;
-    if (id && old_size == (uint32_t)size) {
-        /* Transport owns uploads in order: earlier draws still see the old bytes.
-         * A rejected UPDATE has no emitted item/native side effect (decoder validates before
-         * emit). In that exceptional case restore the error latch and run the original
-         * delete/create path: its own acceptance decides both state and guest error. An error latched by
-         * a replayed rejection of earlier deferred calls (a flush inside the send) is not this call's own
-         * and survives the restore; flushing up front instead would split every frame's batch here. */
-        uint32_t pending = error, update[] = {id, 0, PTR(data), (uint32_t)size}; replay_error = 0;
-        if (send_deferred_bytes(0x41, update, 4, (uint32_t)size)) {
-            PendRec *r = pend_last;
-            unmap_storage(b); b->map_access = 0x88ba;
-            if (r) { /* deferred: rewrite the store in place so a replayed rejection can restore it */
-                *r = (PendRec){.seq = r->seq, .dep_seq = r->dep_seq, .start = r->start, .end = r->end, .kind = PR_BYTES,
-                    .obj = (uint32_t)(b - buffers), .n = (uint32_t)size, .gen_old = (uint8_t)b->generated, .gen_clear = 1,
-                    .old = r->old, .src = r->src};
-                copy(r->old, b->data, (uint32_t)size); __builtin_memcpy(b->data, data, (uint32_t)size); glp_free(data, (uint32_t)size);
-            } else { glp_free(b->data, b->size); b->data = data; }
-            b->generated = 0;
-            w32_gl_buffer_respec_reused++;
+    uint32_t n = (uint32_t)size, id = b->gpu, old_size = b->size, slot = (uint32_t)(b - buffers);
+    uint8_t *data = guest(ARG(2), n); if (!data) return 0;
+    int fallback = 0;
+    if (id && n <= b->cap) {
+        int in_place = respec_in_place(b, data, n);
+        if (in_place < 0) { glp_free(data, n); return 0; }
+        if (in_place) {
+            glp_free(data, n);
+            if (n == old_size) w32_gl_buffer_respec_reused++;
+            else {
+                w32_gl_buffer_respec_resized++; w32_gl_buffer_capacity_reused++;
+                if (n > old_size) w32_gl_buffer_respec_grew++; else w32_gl_buffer_respec_shrank++;
+            }
             default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
         }
-        error = pending ? pending : replay_error;
+        fallback = 1; /* K47: a rejected in-place update reruns the exact delete/create path */
     }
-    if (b->gpu && !send(0x42, &id, 1)) { glp_free(data, (uint32_t)size); return 0; }
+    uint32_t cap = n;
+    if (id && !fallback) {
+        uint64_t grown = (uint64_t)b->cap + b->cap / 2;
+        if (grown > n) {
+            grown = (grown + 15) & ~15ull;
+            if (grown > BUFFER_MAX) grown = BUFFER_MAX;
+            if (buffer_headroom + (grown - n) <= BUFFER_HEADROOM_MAX) cap = (uint32_t)grown;
+        }
+    }
+    uint8_t *block = data;
+    if (cap != n) {
+        block = glp_alloc(cap);
+        if (!block) cap = n, block = data;
+        else { copy(block, data, n); zero(block + n, cap - n); glp_free(data, n); }
+    }
+    if (b->gpu) {
+        if (!send_deferred(0x42, &id, 1)) { glp_free(block, cap); return 0; }
+        PendRec *r = pend_last;
+        if (r) { r->kind = PR_RELEASE; r->obj = slot; r->handle = id; }
+        if (id < buffer_wire_slots) { gpu_buffer[id] = 0; if (id < buffer_next_free) buffer_next_free = id; }
+    }
+    uint64_t release_seq = b->gpu && pend_last ? pend_last->seq : 0;
     /* BufferData replaces the store and resets mapping state (GL3.3 table 2.10). */
     unmap_storage(b); b->map_access = 0x88ba;
-    glp_free(b->data, b->size); b->data = 0;
-    b->gpu = 0; b->size = 0; b->generated = 0;
-    id = buffer_handle((uint32_t)(b - buffers) < 256 ? (uint32_t)(b - buffers) : 0, "buffers");
-    if (!id) { glp_free(data, (uint32_t)size); return 0; }
-    uint32_t create[] = {id, 15, (uint32_t)size, PTR(data), (uint32_t)size};
-    if (!send(0x40, create, 5)) { if (error == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(data, (uint32_t)size); return 0; }
-    b->gpu = id; b->size = (uint32_t)size; b->data = data;
-    if (old_size && old_size != (uint32_t)size) {
+    retire_block(b->data, b->cap); b->data = 0;
+    buffer_headroom -= b->extra; b->extra = 0;
+    b->gpu = 0; b->size = 0; b->cap = 0; b->generated = 0;
+    id = buffer_handle(slot < 256 ? slot : 0, "buffers");
+    if (!id) { glp_free(block, cap); return 0; }
+    for (;;) {
+        /* One command (a CREATE either takes effect whole or not at all): the zero tail travels with it. */
+        begin(); { uint32_t create[] = {id, 15, cap, PTR(block), cap}; op(0x40, create, 5); }
+        pend_dep_seq = release_seq; /* a rejected DELETE never reaches its CREATE (unbatched order) */
+        uint32_t pending = error; error = 0; replay_error = 0;
+        int ok = submit_deferred();
+        uint32_t own = error;
+        if (!ok && cap != n && own == OOM && !replay_error) {
+            error = pending; /* the headroom alone was rejected: retry at the exact size */
+            uint8_t *exact = glp_alloc(n);
+            if (!exact) { fail(OOM); glp_free(block, cap); return 0; }
+            copy(exact, block, n); glp_free(block, cap); block = exact; cap = n; continue;
+        }
+        error = pending ? pending : own;
+        if (!ok) { if (own == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(block, cap); return 0; }
+        break;
+    }
+    PendRec *r = pend_last;
+    if (r) { r->kind = PR_CREATE; r->obj = slot; r->handle = id; r->cap = cap; r->n = n; }
+    if (id < buffer_wire_slots) gpu_buffer[id] = 1;
+    b->gpu = id; b->size = n; b->cap = cap; b->data = block; b->extra = cap - n; buffer_headroom += cap - n;
+    if (old_size && old_size != n) {
         w32_gl_buffer_respec_resized++;
-        if ((uint32_t)size > old_size) w32_gl_buffer_respec_grew++;
+        if (n > old_size) w32_gl_buffer_respec_grew++;
         else w32_gl_buffer_respec_shrank++;
     }
+    if (old_size) w32_gl_buffer_capacity_grown++;
     default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0;
 }
 static uint32_t api_BufferSubData(void) {
@@ -732,14 +876,16 @@ static uint32_t api_BufferSubData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     if (b->generated && ((off & 3) || (n & 3)) && (off || n != b->size)) { fail(BAD_OP); return 0; }
     if (n) {
-        uint8_t *data = glp_alloc((uint32_t)n); if (!data) { fail(OOM); return 0; }
+        uint32_t len = whole_store(b, (uint32_t)off, (uint32_t)n);
+        uint8_t *data = glp_alloc(len); if (!data) { fail(OOM); return 0; }
         for (uint32_t i = 0; i < n; i++) data[i] = x86_rd8(ARG(3) + i);
-        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), (uint32_t)n}; int accepted = send_deferred_bytes(0x41, w, 4, (uint32_t)n);
+        if (len > n) copy(data + n, b->data + n, len - (uint32_t)n);
+        uint32_t w[] = {b->gpu, (uint32_t)off, PTR(data), len}; int accepted = send_deferred_bytes(0x41, w, 4, len);
         PendRec *r = accepted ? pend_last : 0;
-        if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = (uint32_t)off; r->n = (uint32_t)n;
-            r->gen_old = (uint8_t)b->generated; copy(r->old, b->data + off, (uint32_t)n); }
-        if (accepted) copy(b->data + off, data, (uint32_t)n);
-        glp_free(data, (uint32_t)n); if (!accepted) return 0;
+        if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = (uint32_t)off; r->n = len; r->dst = b->data;
+            r->gen_old = (uint8_t)b->generated; copy(r->old, b->data + off, len); }
+        if (accepted) copy(b->data + off, data, len);
+        glp_free(data, len); if (!accepted) return 0;
         if (!off && n == b->size) b->generated = 0;
         if (r) r->gen_clear = !off && n == b->size;
     }
@@ -756,6 +902,15 @@ static uint32_t api_CopyBufferSubData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(src - buffers) ||
         tf_bound[i] == (uint32_t)(dst - buffers)) { fail(BAD_OP); return 0; }
     if (!size) return 0;
+    if (!src->generated && dst->generated && !off && (uint64_t)size == dst->size && dst->size != dst->cap) {
+        /* K57: CPU-authoritative bytes over a generated store with spare capacity: the host clears provenance
+         * only for a whole-store write, so upload the whole capacity (the copied bytes plus the shadow tail). */
+        uint8_t *full = glp_alloc(dst->cap); if (!full) { fail(OOM); return 0; }
+        copy(full, src->data + so, (uint32_t)size); copy(full + size, dst->data + size, dst->cap - (uint32_t)size);
+        uint32_t w[] = {dst->gpu, 0, PTR(full), dst->cap};
+        if (send(0x41, w, 4)) { copy(dst->data, full, dst->cap); dst->generated = 0; }
+        glp_free(full, dst->cap); return 0;
+    }
     uint32_t w[] = {src->gpu, (uint32_t)so, dst->gpu, (uint32_t)off, (uint32_t)size};
     if (send(0x64, w, 5)) {
         copy(dst->data + off, src->data + so, (uint32_t)size);
@@ -958,7 +1113,8 @@ static void collect_deleted(void) {
         buffers[id].collect_next = buffers[id].collect_queued = 0;
         if (buffers[id].vao_refs) continue;
         if (buffers[id].gpu && !cleanup_send("buffers", 0x42, buffers[id].gpu)) { queue_retired_buffer(id); continue; }
-        unmap_storage(&buffers[id]); glp_free(buffers[id].data, buffers[id].size);
+        unmap_storage(&buffers[id]); retire_block(buffers[id].data, buffers[id].cap);
+        buffer_headroom -= buffers[id].extra;
         erase_name(OBJECTS(buffers), id);
     }
     if (!image_collection_dirty) return;
@@ -1021,21 +1177,82 @@ const w32_api_t w32_api_gl[] = {
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
 #if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
-/* Journal effects for a replayed batch (see replay): PR_BYTES redo=0 restores the pre-call shadow
- * bytes/generation, redo=1 re-applies the accepted call; other kinds are applied for rejected calls. */
-static void pend_apply(PendRec *r, int redo) {
+/* Journal effects for a replayed batch (see replay). Undo runs newest-first over every record and
+ * restores the pre-batch profile state; redo runs oldest-first over the accepted records; reject
+ * withdraws what a rejected call committed; fixup reconciles buffer objects with the wire truth. */
+static void pend_undo(PendRec *r) {
     switch (r->kind) {
     case PR_BYTES: {
         Buffer *b = &buffers[r->obj];
-        if (b->data && r->off + r->n <= b->size) __builtin_memcpy(b->data + r->off, redo ? r->src : r->old, r->n);
-        /* A call's own effect on generation is a transition (whole-store write clears it, a partial write
-         * keeps it), never an absolute value: earlier calls in the batch may have been rejected. */
-        if (!redo) b->generated = r->gen_old; else if (r->gen_clear) b->generated = 0;
+        uint8_t *d = r->dst ? r->dst : b->data;
+        if (d && (d != b->data || r->off + r->n <= b->cap)) __builtin_memcpy(d + r->off, r->old, r->n);
+        b->generated = r->gen_old;
+        if (r->resize && d == b->data) b->size = r->size_old;
         break;
     }
-    case PR_UBO: programs[r->obj].dirty = 1; break;
-    case PR_DRAW: if (w32_gl_draws) w32_gl_draws--; break;
+    case PR_DRAW:
+        for (uint32_t i = r->tf_n; i-- > 0;) buffers[r->tf_obj[i]].generated = r->tf_gen[i];
+        break;
+    case PR_RELEASE: if (r->handle < buffer_wire_slots) gpu_buffer[r->handle] = 1; break;
+    case PR_CREATE:
+        if (r->handle < buffer_wire_slots) {
+            gpu_buffer[r->handle] = 0; if (r->handle < buffer_next_free) buffer_next_free = r->handle;
+        }
+        break;
     default: break;
+    }
+}
+static void pend_redo(PendRec *r) {
+    switch (r->kind) {
+    case PR_BYTES: {
+        Buffer *b = &buffers[r->obj];
+        uint8_t *d = r->dst ? r->dst : b->data;
+        if (d && (d != b->data || r->off + r->n <= b->cap)) __builtin_memcpy(d + r->off, r->src, r->n);
+        /* A call's own effect on generation is a transition (whole-store write clears it, a partial write
+         * keeps it), never an absolute value: earlier calls in the batch may have been rejected. */
+        if (r->gen_clear) b->generated = 0;
+        if (r->resize && d == b->data) b->size = r->size_new;
+        break;
+    }
+    case PR_DRAW: for (uint32_t i = 0; i < r->tf_n; i++) buffers[r->tf_obj[i]].generated = 1; break;
+    case PR_RELEASE:
+        if (r->handle < buffer_wire_slots) {
+            gpu_buffer[r->handle] = 0; if (r->handle < buffer_next_free) buffer_next_free = r->handle;
+        }
+        break;
+    case PR_CREATE:
+        if (r->handle < buffer_wire_slots) gpu_buffer[r->handle] = 1;
+        if (buffers[r->obj].gpu == r->handle) buffers[r->obj].generated = 0; /* a fresh store; later captures redo after */
+        break;
+    default: break;
+    }
+}
+static void pend_reject(PendRec *r) {
+    switch (r->kind) {
+    case PR_UBO: programs[r->obj].dirty = 1; break;
+    case PR_DRAW:
+        if (w32_gl_draws) w32_gl_draws--;
+        for (uint32_t i = 0; i < r->tf_n; i++) if (tf_active && tf_cursor[i] >= r->tf_add[i]) tf_cursor[i] -= r->tf_add[i];
+        if (r->tf_n && r->tf_query && gl_queries[r->tf_query].result >= r->tf_prims) gl_queries[r->tf_query].result -= r->tf_prims;
+        break;
+    default: break;
+    }
+}
+/* After undo/redo, gpu_buffer[] is the host's truth. A buffer whose CREATE was rejected (or never
+ * reached the host because its DELETE was) is left empty, as the unbatched failure path leaves it;
+ * a store whose DELETE was rejected is still live on the host and is released later (collect_wire). */
+static void pend_fixup(PendRec *r, int accepted) {
+    if (r->handle >= buffer_wire_slots) return;
+    if (r->kind == PR_CREATE) {
+        Buffer *b = &buffers[r->obj];
+        if (accepted) { if (b->gpu == r->handle && b->cap > r->cap) { buffer_headroom -= b->extra; b->extra = 0; b->cap = r->cap; } return; }
+        if (b->gpu != r->handle) return;
+        unmap_storage(b); glp_free(b->data, b->cap); b->data = 0;
+        buffer_headroom -= b->extra; b->extra = 0;
+        b->gpu = b->size = b->cap = b->generated = 0;
+        object_exhaustion("buffers", "GPU byte/submission budget", 1);
+    } else if (r->kind == PR_RELEASE && !accepted && gpu_buffer[r->handle] && !abandoned_buffer[r->handle]) {
+        abandoned_buffer[r->handle] = 2; abandoned_buffers++;
     }
 }
 #endif

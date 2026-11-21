@@ -52,18 +52,23 @@ static int mapped_upload(Buffer *b, uint32_t off, uint32_t n) {
     if (!n) return 1;
     uint32_t at = b->map_offset + off;
     /* Native BUFFER_UPDATE cannot preserve generated neighbours for odd byte writes. Snapshot
-     * the complete native buffer then upload an authoritative replacement (no stale shadow). */
-    int whole = b->generated && ((at & 3) || (n & 3)) && (at || n != b->size);
-    uint32_t size = whole ? b->size : n, dest = whole ? 0 : at;
+     * the complete native buffer then upload an authoritative replacement (no stale shadow).
+     * K57: a generated store with spare capacity is replaced whole (logical bytes plus the shadow
+     * tail), since the host clears generated provenance only for a whole native store. */
+    int cover = !at && n == b->size, whole = b->generated && ((at & 3) || (n & 3)) && !cover;
+    uint32_t full = b->generated && b->size != b->cap ? b->cap : b->size;
+    int extend = whole || (cover && full != n);
+    uint32_t size = extend ? full : n, dest = extend ? 0 : at;
     uint8_t *data = glp_alloc(size); if (!data) { fail(OOM); return 0; }
     if (whole && !buffer_read(b, 0, b->size, data)) { glp_free(data, size); return 0; }
-    for (uint32_t i = 0; i < n; i++) data[(whole ? at : 0) + i] = x86_rd8(b->map + off + i);
+    if (extend && size > b->size) copy(data + b->size, b->data + b->size, size - b->size);
+    for (uint32_t i = 0; i < n; i++) data[(extend ? at : 0) + i] = x86_rd8(b->map + off + i);
     uint32_t words[] = {b->gpu, dest, PTR(data), size}; int ok = send_deferred_bytes(0x41, words, 4, size);
     PendRec *r = ok ? pend_last : 0;
-    if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = dest; r->n = size;
+    if (r) { r->kind = PR_BYTES; r->obj = (uint32_t)(b - buffers); r->off = dest; r->n = size; r->dst = b->data;
         r->gen_old = (uint8_t)b->generated; copy(r->old, b->data + dest, size); }
-    if (ok) { copy(b->data + dest, data, size); if (!dest && size == b->size) b->generated = 0; }
-    if (r) r->gen_clear = !dest && size == b->size;
+    if (ok) { copy(b->data + dest, data, size); if (!dest && size >= b->size) b->generated = 0; }
+    if (r) r->gen_clear = !dest && size >= b->size;
     glp_free(data, size); return ok;
 }
 static uint32_t api_FlushMappedBufferRange(void) {

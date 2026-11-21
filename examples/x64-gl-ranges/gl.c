@@ -17,7 +17,9 @@
  X(PFNGLGENFRAMEBUFFERSPROC,glGenFramebuffers) X(PFNGLBINDFRAMEBUFFERPROC,glBindFramebuffer) X(PFNGLFRAMEBUFFERTEXTURE2DPROC,glFramebufferTexture2D) X(PFNGLDRAWBUFFERSPROC,glDrawBuffers) X(PFNGLREADBUFFERPROC,glReadBuffer) \
  X(PFNGLCOPYBUFFERSUBDATAPROC,glCopyBufferSubData) X(PFNGLDELETEBUFFERSPROC,glDeleteBuffers) X(PFNGLGETINTEGERVPROC,glGetIntegerv) \
  X(PFNGLGETERRORPROC,glGetError) X(PFNGLENABLEPROC,glEnable) X(PFNGLDISABLEPROC,glDisable) X(PFNGLDRAWARRAYSPROC,glDrawArrays) X(PFNGLVIEWPORTPROC,glViewport) \
- X(PFNGLCLEARCOLORPROC,glClearColor) X(PFNGLCLEARPROC,glClear) X(PFNGLCOLORMASKPROC,glColorMask) X(PFNGLREADPIXELSPROC,glReadPixels)
+ X(PFNGLCLEARCOLORPROC,glClearColor) X(PFNGLCLEARPROC,glClear) X(PFNGLCOLORMASKPROC,glColorMask) X(PFNGLREADPIXELSPROC,glReadPixels) \
+ X(PFNGLGETBUFFERPARAMETERIVPROC,glGetBufferParameteriv) X(PFNGLGENQUERIESPROC,glGenQueries) X(PFNGLBEGINQUERYPROC,glBeginQuery) \
+ X(PFNGLENDQUERYPROC,glEndQuery) X(PFNGLGETQUERYOBJECTUIVPROC,glGetQueryObjectuiv)
 #define X(t,n) static t n;
 FUNCTIONS
 #undef X
@@ -47,6 +49,21 @@ static void failure_case(void){
  glBufferSubData(GL_ARRAY_BUFFER,0,16,whole);glBufferSubData(GL_ARRAY_BUFFER,4,4,&part);error(GL_OUT_OF_MEMORY,"headroom whole upload rejected");OutputDebugStringA("x64-gl-ranges restore materialization budget");
  glGetBufferSubData(GL_ARRAY_BUFFER,0,16,after);note("rejected whole write keeps generated contents",before[0]==37&&after[0]==37&&after[1]==5&&after[2]==before[2]&&after[3]==before[3]);
  glBufferSubData(GL_ARRAY_BUFFER,0,16,clean);error(GL_NO_ERROR,"headroom recovery");
+ /* K57: a deferred reallocation (growth beyond the live capacity) rejected by the host surfaces GL_OUT_OF_MEMORY at the next
+  * glGetError and leaves the store empty (accepted DELETE + rejected CREATE, as the unbatched path); re-specification recovers. */
+ unsigned grow_data[64],grow_back[64];for(unsigned i=0;i<64;i++)grow_data[i]=i*2654435761u;GLuint grow=store(16,grow_data);GLint grow_size=-1;
+ glBindBuffer(GL_ARRAY_BUFFER,grow);error(GL_NO_ERROR,"growth store");OutputDebugStringA("x64-gl-ranges inject rejected full upload");
+ glBufferData(GL_ARRAY_BUFFER,256,grow_data,GL_DYNAMIC_DRAW);error(GL_OUT_OF_MEMORY,"deferred growth limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&grow_size);note("rejected growth leaves an empty store",grow_size==0);
+ glBufferData(GL_ARRAY_BUFFER,256,grow_data,GL_DYNAMIC_DRAW);memset(grow_back,0,sizeof grow_back);glGetBufferSubData(GL_ARRAY_BUFFER,0,256,grow_back);note("growth recovery exact bytes",!memcmp(grow_back,grow_data,256));
+ glBufferData(GL_ARRAY_BUFFER,24,grow_data+8,GL_DYNAMIC_DRAW);glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&grow_size);memset(grow_back,0,sizeof grow_back);glGetBufferSubData(GL_ARRAY_BUFFER,0,24,grow_back);
+ note("capacity reuse keeps the exact logical size",grow_size==24&&!memcmp(grow_back,grow_data+8,24));glGetBufferSubData(GL_ARRAY_BUFFER,0,28,grow_back);error(GL_INVALID_VALUE,"logical bounds after capacity reuse");
+ glDeleteBuffers(1,&grow);error(GL_NO_ERROR,"growth recovery");
+ /* K57: a batched feedback draw whose upload the host rejects is withdrawn whole: no primitives are counted. */
+ GLuint written_query,written=99;glGenQueries(1,&written_query);glUseProgram(generate);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);error(GL_NO_ERROR,"capture setup");
+ OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,written_query);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+ error(GL_OUT_OF_MEMORY,"deferred capture limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ glGetQueryObjectuiv(written_query,GL_QUERY_RESULT,&written);note("rejected capture counts no primitives",written==0);
  glDeleteBuffers(1,&source);error(GL_NO_ERROR,"generated app source deleted");OutputDebugStringA("x64-gl-ranges failure case done");for(;;)Sleep(16);
 }
 int main(void){

@@ -47,5 +47,9 @@ test('partial two-block materialization retires generated private UBOs after upl
  },{backend:backendParam,root:'/@fs'+resolve('bgt')});
  expect(result).toHaveLength(3);
  for(const r of result){expect(r.injected).toBe(true);expect(r.deletedScratch).toBe(true);expect(r.errors).toEqual([]);expect(r.commandErrors).toBeGreaterThan(0);
-   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.some(s=>s.includes('ok rejected whole write keeps generated contents'))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
+   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.some(s=>s.includes('ok rejected whole write keeps generated contents'))).toBe(true);
+   // K57: deferred reallocations and feedback draws rejected inside a batch keep the unbatched outcome.
+   for(const note of ['deferred growth limit surfaced','rejected growth leaves an empty store','growth recovery exact bytes',
+     'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
+     'rejected capture counts no primitives'])expect(r.logs.some(s=>s.includes('ok '+note))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
 });

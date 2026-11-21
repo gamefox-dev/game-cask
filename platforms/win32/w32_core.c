@@ -1174,6 +1174,8 @@ const char *w32_metrics_json(void) {
     jkv("gl_buffer_respec_resized", w32_gl_buffer_respec_resized);
     jkv("gl_buffer_respec_grew", w32_gl_buffer_respec_grew);
     jkv("gl_buffer_respec_shrank", w32_gl_buffer_respec_shrank);
+    jkv("gl_buffer_capacity_reused", w32_gl_buffer_capacity_reused); /* K57: resized within the native capacity */
+    jkv("gl_buffer_capacity_grown", w32_gl_buffer_capacity_grown);   /* K57: live store reallocated (headroom) */
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);

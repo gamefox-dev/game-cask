@@ -69,6 +69,15 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
         for(uint32_t off=16;off<n;){const uint32_t *c=w+off/4;uint32_t code=c[0]&65535u,bytes=c[1];
             if(code==0x56&&bytes>=12&&(!c[4]||c[4]>GPU_MAX||!live_samplers[c[4]]))invalid_sampler_bindings++;
             if(code==0x57||code==0x58)native_draws++;
+            /* K57: a buffer reallocation with headroom is one CREATE(capacity) + UPDATE(size) list. */
+            const uint32_t *a=c+2;
+            if(code==0x40){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||live_buffers[a[0]])abort();live_buffers[a[0]]=1;}
+            if(code==0x42){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||!live_buffers[a[0]])abort();live_buffers[a[0]]=0;}
+            if((code==0x40||code==0x41)&&a[0]<256) {
+                uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
+                if(code==0x40)device_sizes[a[0]]=size;
+                if(size&&ptr&&dest+size<=256)memcpy(device_buffers[a[0]]+dest,host+(uint32_t)(ptr-(uint32_t)(uintptr_t)host),size);
+            }
             off+=8+bytes;}
         if(invalid_sampler_bindings)abort();
         submissions++;return 0;
@@ -230,6 +239,21 @@ static void buffer_respec(void) {
     call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4); CHECK(!error&&buffers[1].size==4&&w32_gl_buffer_respec_shrank==1);
     call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==4);
     CHECK(w32_gl_buffer_respec_reused==3&&w32_gl_buffer_respec_resized==2);
+    /* K57: growth to exactly 1.5x (8 -> 12) needs no headroom; the shrink fit the capacity in place. Sizes within the
+     * capacity are one UPDATE each and keep the exact logical size; growth beyond it reallocates once with headroom
+     * (12 -> 1.5x = 18 -> 32 bytes, 16-byte rounded). */
+    CHECK(buffers[1].gpu==grown&&buffers[1].cap==12&&w32_gl_buffer_capacity_reused==1&&w32_gl_buffer_capacity_grown==1);
+    CHECK(device_buffers[grown][0]==33&&device_buffers[grown][3]==36);
+    before=submissions; for (uint32_t i=0;i<17;i++) memory[8192+i]=(uint8_t)(i+50);
+    call(api_BufferData,ARRAY_BUFFER,12,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].size==12&&buffers[1].cap==12);
+    call(api_BufferSubData,ARRAY_BUFFER,8,8,8192); CHECK(error==BAD_VALUE); error=0;
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,16,8192,0x88e4);
+    CHECK(!error&&submissions==before+2&&buffers[1].size==16&&buffers[1].cap==32&&w32_gl_buffer_capacity_grown==2);
+    CHECK(device_buffers[buffers[1].gpu][15]==65);
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,17,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].cap==32);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==17&&device_buffers[buffers[1].gpu][16]==66);
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].cap==32);
+    CHECK(w32_gl_buffer_capacity_reused==4&&w32_gl_buffer_capacity_grown==2);
     /* Transform-feedback binding is rejected before any reuse submission. */
     tf_active=1; tf_bound[0]=1; before=submissions; call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4);
     CHECK(error==BAD_OP&&submissions==before); error=0; tf_bound[0]=0; tf_active=0;

@@ -555,13 +555,21 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     } else { if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {(uint32_t)count, (uint32_t)instances, first, 0}; op(0x57, d, 4); }
     op(0x4d, 0, 0); pend_dep_seq = ubo ? ubo->seq : 0;
-    if (tf_active ? submit() : submit_deferred()) {
-        if (!tf_active && pend_last) pend_last->kind = PR_DRAW;
+    /* K57: feedback draws batch like any draw; the record keeps what the capture commits (cursor advance,
+     * generated provenance, primitives written) so a replayed rejection withdraws exactly that. */
+    if (submit_deferred()) {
+        PendRec *r = pend_last;
+        if (r) r->kind = PR_DRAW;
         if (tf_active) {
-            for (uint32_t i = 0; i < (p->tf_link_separate ? p->tf_link_count : 1); i++) {
-                tf_cursor[i] += tf_vertices * (uint32_t)instances * p->tf_stride[i]; buffers[tf_bound[i]].generated = 1;
+            uint32_t bindings = p->tf_link_separate ? p->tf_link_count : 1;
+            uint32_t prims = tf_vertices / (primitive == 0 ? 1 : primitive == 1 ? 2 : 3) * (uint32_t)instances;
+            if (r) { r->tf_n = (uint8_t)bindings; r->tf_query = tf_query; r->tf_prims = prims; }
+            for (uint32_t i = 0; i < bindings; i++) {
+                uint32_t add = tf_vertices * (uint32_t)instances * p->tf_stride[i];
+                if (r) { r->tf_obj[i] = tf_bound[i]; r->tf_add[i] = add; r->tf_gen[i] = (uint8_t)buffers[tf_bound[i]].generated; }
+                tf_cursor[i] += add; buffers[tf_bound[i]].generated = 1;
             }
-            if (tf_query) gl_queries[tf_query].result += tf_vertices / (primitive == 0 ? 1 : primitive == 1 ? 2 : 3) * (uint32_t)instances;
+            if (tf_query) gl_queries[tf_query].result += prims;
         }
         w32_gl_draws++;
     }
@@ -677,7 +685,7 @@ static uint32_t api_BlitFramebuffer(void) {
         uint32_t w[18] = {a->gpu, a->mip, b->gpu, b->mip, ARG(0), src.h - ARG(1), ARG(2), src.h - ARG(3),
             ARG(4), dst.h - ARG(5), ARG(6), dst.h - ARG(7), ds ? ((mask & 0x100 ? 2u : 0u) | (mask & 0x400 ? 4u : 0u)) : 1u,
             filter == 0x2601, clip[0], clip[1], clip[2], clip[3]};
-        send(0x60, w, 18);
+        send_deferred(0x60, w, 18); /* K57: no profile bookkeeping depends on acceptance; batched */
     }
     return 0;
 }

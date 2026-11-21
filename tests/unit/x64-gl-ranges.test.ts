@@ -15,7 +15,8 @@ it('per-program std140 sizes, exact mapped ranges, counted zero-tail approximati
  expect(failures).toEqual(['MRT absent zero preserved','MRT one written','MRT absent two preserved','MRT three written','MRT color mask intersected','MRT blue mask','MRT absent mask preserved','empty fragment keeps color','80 base bytes','176 base bytes','192 base bytes','odd range zero tail','offset exact linked bytes','relinked range','two blocks independent slots','two blocks independent slots','3000 exact audit words','ping pong final word','generated odd-byte copy','generated undersized UBO prefix and zero tail']);
  const summary=h.logs.find(l=>l.includes('x64-gl-ranges PASS'));expect(summary).toMatch(/x64-gl-ranges PASS failures=20 checks=\d+/);
  console.info(summary,`peak continuation submissions=${max}`);
- expect(h.host.commandErrorCount).toBe(0);expect(max).toBeGreaterThan(6000);
+ // K57 contract change: feedback draws batch (K53: >6000 per-call lists in this update); order is still exact (browser spec).
+ expect(h.host.commandErrorCount).toBe(0);expect(max).toBeLessThan(64);
  const ranges=stream.items.filter(i=>i.op===O.UNIFORM_BUFFER&&i.words[0]===1).map(i=>i.words.slice(2));
  expect(ranges).toContainEqual([0,80]);expect(ranges).toContainEqual([0,176]);expect(ranges).toContainEqual([0,192]);expect(ranges).toContainEqual([256,192]);
  expect(ranges.some(w=>w[1]===191||w[1]===193||w[1]===800)).toBe(false);
@@ -43,6 +44,10 @@ it.each(['upload','wire','uniform'])('partial materialization %s limit retires g
  expect(h.logs.some(l=>l.includes('ok headroom whole upload rejected'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok materialization limit surfaced'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok generated app source deleted'))).toBe(true);
+ // K57: rejected deferred reallocation / feedback draw inside a batch (replayed per call).
+ for(const note of ['deferred growth limit surfaced','rejected growth leaves an empty store','growth recovery exact bytes',
+   'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
+   'rejected capture counts no primitives'])expect(h.logs.some(l=>l.includes('ok '+note))).toBe(true);
  // One retirement per generated-source TF draw: three, plus the K53 headroom case's draw.
  expect(stream.items.filter(i=>i.op===O.BUFFER_DELETE&&i.words[0]===1000)).toHaveLength(4);
  expect(h.host.commandErrorCount).toBeGreaterThan(0);

@@ -117,12 +117,23 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
       }
       send(O.BUFFER_UPDATE,[2,0,0,64],{data:new Uint8Array(64)});
       begin();send(O.PIPELINE,[1]);send(O.VERTEX_BUFFER,[0,1,0,5]);send(O.FEEDBACK_CAPTURE,[1,2,0,64,0,0,0,0,0,0,0,0,0]);
-      const armed=state.capture,original=gl.beginTransformFeedback.bind(gl);
-      gl.beginTransformFeedback=()=>original(0xffffffff);
-      const rejected=send(O.DRAW,[1,1,0,0]);gl.beginTransformFeedback=original;
+      // K57 contract change: only strict (?debug=1) polls around feedback setup/begin/draw, so only strict rejects
+      // a natively failed capture synchronously and keeps it armed for a retry. Production latches the native
+      // error for the one deferred frame-end poll (below) instead of three polls per feedback draw.
+      const armed=state.capture,original=gl.beginTransformFeedback.bind(gl),opts=(gpu as unknown as {opts:{debug?:boolean}}).opts;
+      gl.beginTransformFeedback=()=>original(0xffffffff);opts.debug=true;
+      const rejected=send(O.DRAW,[1,1,0,0]);gl.beginTransformFeedback=original;opts.debug=false;
       cleanup=!gl.isEnabled(gl.RASTERIZER_DISCARD)&&gl.getParameter(gl.TRANSFORM_FEEDBACK_BINDING)===null&&errors.length===1;
       retryRetained=rejected===-6&&state.capture===armed;
       errors.splice(0);send(O.DRAW,[1,1,0,0]);send(O.PASS_END,[]);
+      begin();send(O.PIPELINE,[1]);send(O.VERTEX_BUFFER,[0,1,0,5]);send(O.FEEDBACK_CAPTURE,[1,2,0,64,0,0,0,0,0,0,0,0,0]);
+      const wg=gpu as unknown as {nativeSyncQueries:{getError:number};checkNativeError():void};
+      gl.beginTransformFeedback=()=>original(0xffffffff);const polls=wg.nativeSyncQueries.getError;
+      const unpolled=send(O.DRAW,[1,1,0,0]);gl.beginTransformFeedback=original;send(O.PASS_END,[]);
+      const quiet=wg.nativeSyncQueries.getError===polls&&errors.length===0;for(let i=0;i<8;i++)wg.checkNativeError();
+      cleanup&&=unpolled===0&&quiet&&!gl.isEnabled(gl.RASTERIZER_DISCARD)&&gl.getParameter(gl.TRANSFORM_FEEDBACK_BINDING)===null&&
+        errors.length>=1&&errors.every(e=>e.startsWith('WebGL error'));
+      errors.splice(0);
     }
     const retained=await read(2,0,16);
     // Captured content is not an upload shadow. Recovery must fail visibly instead of restoring zero data.

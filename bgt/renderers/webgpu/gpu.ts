@@ -279,6 +279,8 @@ export class WebGPUCommands implements GpuBackend {
         if (t && this.used.has(t.native)) { this.batch.splits++; this.flush(); }
         return;
       }
+      // K57: a merged frame encodes blits into its own command encoder (no split, no extra submit).
+      case OP.BLIT: if (this.merge) return; if (this.encoder) this.batch.splits++; this.flush(); return;
       default: if (this.encoder) this.batch.splits++; this.flush();
     }
   }
@@ -306,7 +308,18 @@ export class WebGPUCommands implements GpuBackend {
           kind: this.textures.get(h)!.desc.format,
         } : {texture: this.screen!, mip: 0, format: 'rgba8unorm', kind: 0};
         this.framebufferBlit ??= new WebGPUBlit(d);
-        this.framebufferBlit.execute(w, image(h, w[1]), image(w[2], w[3]));
+        const source = image(h, w[1]), dest = image(w[2], w[3]);
+        if (this.merge) {
+          // K57: encoded in order into the frame encoder after the open native pass; the transfer's
+          // textures count as used (a later queue write to them splits), temporaries die after the submit.
+          this.endNative();
+          const encoder = this.encoder ??= d.createCommandEncoder();
+          this.retiredDestroy.push(...this.framebufferBlit.execute(w, source, dest, encoder));
+          this.used.add(source.texture); this.used.add(dest.texture);
+          if (!w[2]) this.makeScreenOpaque(encoder);
+          break;
+        }
+        this.framebufferBlit.execute(w, source, dest);
         if (!w[2]) {
           const encoder = d.createCommandEncoder();
           this.makeScreenOpaque(encoder); d.queue.submit([encoder.finish()]);
@@ -585,26 +598,32 @@ export class WebGPUCommands implements GpuBackend {
     const source=d.createBuffer({size:Math.max(4,bytes),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE});
     const output=d.createBuffer({size:outputBytes,usage:GPUBufferUsage.COPY_SRC|GPUBufferUsage.STORAGE});
     this.pass!.end();this.pass=undefined;this.lingering=false;
-    {const pending=this.encoder!;this.encoder=undefined;d.queue.submit([pending.finish()]);this.batch.encoderSubmits++;this.batch.splits++;
+    // K57: a merged frame keeps one encoder across the capture (gathers, compute, scatter, resumed pass). Every
+    // buffer/texture the capture reads or writes is marked used, so a later same-frame queue write to it renames
+    // or splits instead of reaching the earlier capture; the capture's temporaries die after the frame submit.
+    const merged=this.merge;
+    if(!merged){const pending=this.encoder!;this.encoder=undefined;d.queue.submit([pending.finish()]);this.batch.encoderSubmits++;this.batch.splits++;
       for(const r of this.retiredDestroy.splice(0))r.destroy();for(const b of this.retiredPool.splice(0))this.recycle(b);}
-    const encoder=d.createCommandEncoder();for(const c of copies)if(c.size)encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);
+    const encoder=merged?this.encoder!:d.createCommandEncoder();for(const c of copies)if(c.size){encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);this.used.add(c.source);}
     if(ids)d.queue.writeBuffer(source,indexWord!*4,ids);
     const pass=encoder.beginComputePass();pass.setPipeline(pipeline);
     for(const group of [0,1]) {const entries:GPUBindGroupEntry[]=bindings.filter(b=>b.group===group).map(b=>{
-      if(group===0)return {binding:b.binding,resource:this.uniforms.get(b.binding)!};
-      const t=this.sampled.get(b.binding>>1)!,texture=this.textures.get(t[1])!;
+      if(group===0){const u=this.uniforms.get(b.binding)!;this.used.add(u.buffer);return {binding:b.binding,resource:u};}
+      const t=this.sampled.get(b.binding>>1)!,texture=this.textures.get(t[1])!;this.used.add(texture.native);
       const sampler=this.samplers.get(t[2])!;if(b.type==='nonfiltering')sampler.nonfilter??=d.createSampler();
       return {binding:b.binding,resource:b.binding%2?(b.type==='nonfiltering'?sampler.nonfilter!:sampler.native):texture.native.createView({aspect:isDepthFormat(texture.desc.format)?'depth-only':'all',dimension:texture.desc.dimension===1?'3d':texture.desc.dimension===2?'2d-array':'2d'})};
     });pass.setBindGroup(group,d.createBindGroup({layout:pipeline!.getBindGroupLayout(group),entries}));}
     pass.setBindGroup(2,d.createBindGroup({layout:pipeline.getBindGroupLayout(2),entries:[{binding:0,resource:{buffer:source}},{binding:1,resource:{buffer:output}}]}));
     pass.dispatchWorkgroups(Math.min(65535,Math.ceil(total/64)),Math.ceil(total/(65535*64)));pass.end();
     let off=0;layout.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!,n=total*stride;
-      encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);b.generated=true;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
-    d.queue.submit([encoder.finish()]);source.destroy();output.destroy();
+      encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);this.used.add(b.native);b.generated=true;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
+    if(merged)this.retiredDestroy.push(source,output);
+    else {d.queue.submit([encoder.finish()]);source.destroy();output.destroy();}
     const desc=this.passDescriptor!;
     for(const c of desc.colorAttachments)if(c)c.loadOp='load';
     if(desc.depthStencilAttachment){desc.depthStencilAttachment.depthLoadOp='load';if(this.passDepth===5)desc.depthStencilAttachment.stencilLoadOp='load';}
-    this.used.clear();this.beginNative(desc);
+    if(!merged)this.used.clear();
+    this.beginNative(desc);
     const v=this.viewport;this.pass!.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
     const sc=this.scissor;this.pass!.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass!.setStencilReference(this.stencilRef);this.pass!.setBlendConstant(this.blendConstant);
     // The resumed pass belongs to a fresh encoder: every rebound resource must be marked used again, or a

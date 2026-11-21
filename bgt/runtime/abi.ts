@@ -107,6 +107,9 @@ export const CMD_MAGIC = 0x43544742;
 export const CMD_VERSION = 1;
 /** §13.12: GPU-only bounded continuation; command prefix flags remain zero. */
 export const CMD_GPU_CONTINUATION = 1;
+/** K57 (additive v0.3): command-prefix flag, continuation lists only. The command runs only if the most recent
+ * unflagged command of the same list took effect; otherwise it is skipped (E_STATE, reported like a failure). */
+export const CMD_FLAG_IF_HEAD = 1;
 export const GPU_CONTINUATION_LIMITS = { bytes: 64 * 1024 * 1024, commands: 1048576 } as const;
 export const CMD_HEADER_SIZE = 16;
 export const CMD_PREFIX_SIZE = 8;

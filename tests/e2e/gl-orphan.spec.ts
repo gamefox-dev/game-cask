@@ -24,8 +24,12 @@ for(const debug of ['0','1'])test('GL BufferData equal-size reuse, exact varying
   expect(counter(varying,'gl_buffer_respec_grew')-counter(varyingBefore,'gl_buffer_respec_grew')).toBe(40);
   expect(counter(varying,'gl_buffer_respec_shrank')-counter(varyingBefore,'gl_buffer_respec_shrank')).toBe(40);
   expect(counter(varying,'gl_buffer_respec_reused')-counter(varyingBefore,'gl_buffer_respec_reused')).toBe(0);
-  // Allocation boundaries stay synchronous: 4 DELETE/CREATE submits per draw + 39 deferred-list flushes + glGetError (was 243).
-  expect(varying.lastFrame.submits).toBe(200);expect(varying.commandErrors.count).toBe(0);expect(varying.errors).toEqual([]);
+  // K57 contract change: varying sizes reuse the live native capacity (one in-place update each, no DELETE/CREATE),
+  // so the varying frame is one deferred list too (K53: 200 submits, allocation boundaries were synchronous).
+  expect(counter(varying,'gl_buffer_capacity_reused')-counter(varyingBefore,'gl_buffer_capacity_reused')).toBe(80);
+  expect(counter(varying,'gl_buffer_capacity_grown')-counter(varyingBefore,'gl_buffer_capacity_grown')).toBe(0);
+  expect(varying.lastFrame.submits).toBe(1);expect(varying.commandErrors.count).toBe(0);expect(varying.errors).toEqual([]);
+  if(backendParam==='webgl2'&&debug==='0')expect(varying.lastFrame.nativeSyncQueries?.getError).toBe(1);
   const pixels=await readPixels(page),b=varying.letterbox;
   const at=(Math.floor(b.y+b.h/2)*pixels.width+Math.floor(b.x+b.w/2))*4;
   expect([...pixels.data.slice(at,at+4)]).toEqual([255,0,0,255]);
