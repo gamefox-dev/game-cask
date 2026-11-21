@@ -1168,9 +1168,13 @@ internal representable range on upload and to the external range on readback wit
 
 **Named native boundary: out-of-range integer fragment outputs.** GL 3.3 does not define a portable result when the
 fragment output exceeds a narrower integer attachment range. WebGL currently shows native narrowing/intermediate
-signed-conversion behavior (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); WebGPU saturates (255/-128).
-No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range raster values and
-full-width 32-bit outputs, and separately pins each backend's current overflow behavior. All 18 formats have exact
+signed-conversion behavior on SwiftShader (R8UI: 0xfedcba98 -> 0; R8I: -2147483647 -> 1); ANGLE Metal and WebGPU
+saturate (255/-128). No normalization or cross-backend equality is claimed for this case. The fixture asserts in-range
+raster values and full-width 32-bit outputs, pins the overflow result where the implementation is fixed (WebGPU,
+software WebGL2), and on a native-GPU WebGL2 driver only requires a value the 8-bit attachment can hold.
+Generated mipmaps (`glGenerateMipmap`) use the driver's filter, which GL leaves implementation-defined: a box filter
+on SwiftShader and WebGPU, while ANGLE Metal weights the two source slices of a 3D level about 7/8 : 1/8. The
+`x64-gl-fbo` check accepts any blend of the box-reduced slice pairs; sampling is checked against the level read back. All 18 formats have exact
 upload/sample/render/readback coverage in `x64-gl-integer`; this is not general unrestricted GL 3.3 compatibility.
 
 ### 13.9 Indexed clear-buffer operation (additive v0.3, opcode 0x5f)

@@ -10,7 +10,7 @@ const RENDER_DEPENDENT = [
   'RGBA16F values above one survive', 'stencil-marked half is green', 'unmarked half keeps clear colour',
   'attachment 1 receives output 1', 'attachment 0 receives output 0',
   'clipped read preserves requested row stride',
-  '3D mip chain average', 'array mip layers stay independent', // GPU-side box filter, asserted in the browser
+  '3D mip chain is a filtered reduction of both slice pairs', 'array mip layers stay independent', // GPU-side filter, asserted in the browser
 ];
 
 // Shader compilation and texture readbacks yield to the host, so a fixed eight updates cannot reach setup.

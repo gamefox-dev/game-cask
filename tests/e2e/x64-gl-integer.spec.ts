@@ -14,12 +14,27 @@ async function capture(page: Page, backend: string, info: TestInfo) {
   }
   await step(page, 24);
   const d = await diagnostics(page), logs = [...messages];
+  console.log('x64-gl-integer native-boundary', backend, d.gpuDevice?.renderer ?? null, logs.filter(l => l.includes('native-boundary')));
   expect(logs.some(l => l.includes('x64-gl-integer display ready')), JSON.stringify(logs)).toBe(true);
   expect(logs.filter(l => /x64-gl-integer FAIL/.test(l)), JSON.stringify(logs)).toEqual([]);
   expect(logs.some(l => /x64-gl-integer PASS failures=0 checks=228/.test(l)), JSON.stringify(logs)).toBe(true);
-  // Named native boundary, excluded from portable equality: never normalize or float-round these values.
-  expect(logs.some(l => l.includes(`native-boundary unsigned=1 value=${backend === 'webgl2' ? 0 : 255}`))).toBe(true);
-  expect(logs.some(l => l.includes(`native-boundary unsigned=0 value=${backend === 'webgl2' ? 1 : 4294967168}`))).toBe(true);
+  // Named native boundary (ABI §13.8), excluded from portable equality: never normalize or float-round these values.
+  // GL 3.3 defines no result for an out-of-range integer output into a narrower attachment. Pinned exactly where the
+  // implementation is fixed: WebGPU saturates (255 / -128) and SwiftShader WebGL2 narrows (0 / 1). On a native-GPU
+  // WebGL2 driver (BGT_WEBGL2_GPU=1) the value is the driver's; it must still be what an 8-bit attachment can hold.
+  const boundary = (unsigned: 0 | 1) => {
+    const line = logs.find(l => l.includes(`native-boundary unsigned=${unsigned} value=`));
+    expect(line, JSON.stringify(logs)).toBeDefined();
+    return Number(/value=(\d+)/.exec(line!)![1]);
+  };
+  const u8 = boundary(1), i8 = boundary(0), nativeDriver = backend === 'webgl2' && d.gpuDevice?.software === false;
+  if (!nativeDriver) {
+    expect(u8, 'R8UI overflow').toBe(backend === 'webgl2' ? 0 : 255);
+    expect(i8, 'R8I overflow').toBe(backend === 'webgl2' ? 1 : 4294967168);
+  } else {
+    expect(u8, 'R8UI overflow must fit 0..255').toBeLessThanOrEqual(255);
+    expect(i8 <= 127 || i8 >= 4294967168, `R8I overflow ${i8} must fit -128..127`).toBe(true);
+  }
   expect(d.commandErrors.count).toBe(0); expect(d.errors).toEqual([]);
   const m = d.metrics as Record<string, any>;
   expect(m.gl_unimplemented).toBe(0); expect(m.gl_approximations).toBe(0); expect(m.gl_stubs).toEqual([]); expect(m.interp_insns).toBe(0);
