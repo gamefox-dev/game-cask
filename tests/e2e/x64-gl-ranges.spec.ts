@@ -15,7 +15,8 @@ async function capture(page:Page,backend:string,info:TestInfo){
   console.info(backend,[...logs].find(s=>s.includes('x64-gl-ranges PASS')),`peak lists=${peak}, commands=${commands}`);
   expect(text).toMatch(/x64-gl-ranges PASS failures=0 checks=\d+/);expect(text).not.toContain('x64-gl-ranges FAIL');
   expect(text).toMatch(/GL undefined uniform block range zero-filled: program=\d+ block=0 name=Data binding=5 buffer=\d+ offset=0 size=80 required=192/);
-  expect(peak).toBeGreaterThan(6000);expect(commands).toBeGreaterThan(30000);
+  // K57 contract change: feedback draws batch (K53: >6000 per-call lists per update); the audit hash below still proves order.
+  expect(peak).toBeLessThan(64);expect(commands).toBeGreaterThan(30000);
   expect((d.metrics as Record<string,number>).gl_approximations).toBe(4);
   expect(d.commandErrors.count).toBe(0);expect(d.errors).toEqual([]);expect((d.metrics as Record<string,number>).gl_unimplemented).toBe(0);
   const image=await readPixels(page),x=Math.floor(d.letterbox.x+160*d.letterbox.w/320),y=Math.floor(d.letterbox.y+100*d.letterbox.h/200);

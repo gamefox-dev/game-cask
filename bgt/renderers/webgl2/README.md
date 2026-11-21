@@ -63,10 +63,12 @@ resolves CPU attachment state. K46 adds no query/flush ABI and changes neither r
 The shared validator and renderer retain parameter, binding, type and reflected uniform-range checks.
 
 Production performs one native getError poll after each frame's final work, feeding existing renderer
-diagnostics, not a second guest GL-error queue. Allocation/request boundaries, feedback replacement/setup/
-capture and exceptional drains retain immediate checks. Before synchronous transactions, pending errors
+diagnostics, not a second guest GL-error queue. Texture/sampler/shader/pipeline creation, feedback varyings,
+readbacks and exceptional drains retain immediate checks. K57: buffer creation, framebuffer blits and
+transform-feedback draws do not poll in production (they are ordinary batched work; their native errors are
+latched by the frame-end poll, or drained as earlier unpolled work by the next checked transaction). Before synchronous transactions, pending errors
 from earlier unpolled work are drained into frame diagnostics, never charged to the new transaction's
-return/callback. Feedback draws also isolate setup/capture checks this way. Debug additionally polls every command.
+return/callback. Debug additionally polls every command, including feedback setup/begin/draw.
 Ordinary validated binds/uploads/draws/pass boundaries no longer poll errors. Locations/block sizes are
 reflected once per linked native program; native index/output limits are initialization/restoration state.
 

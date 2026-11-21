@@ -29,9 +29,13 @@ interface PipelineObject {
   locations: Map<string, WebGLUniformLocation | null>;
 }
 // Operations that can allocate native storage or complete a guest request retain immediate checks.
-const nativeCheckOps = new Set<number>([OP.BUFFER_CREATE, OP.TEXTURE_CREATE, OP.TEXTURE_CREATE_EX,
+// K57: BUFFER_CREATE, BLIT and transform-feedback draws are ordinary batched work in production: guest GL
+// errors come from the decoder/profile (never from these polls), so their native errors are latched by the
+// one deferred frame-end poll (or reported as earlier unpolled work by the next checked transaction).
+// Strict (?debug=1) still polls every operation.
+const nativeCheckOps = new Set<number>([OP.TEXTURE_CREATE, OP.TEXTURE_CREATE_EX,
   OP.TEXTURE_ALLOCATE_MIPS, OP.SAMPLER_CREATE, OP.SAMPLER_CREATE_EX, OP.SHADER_CREATE,
-  OP.PIPELINE_CREATE, OP.FEEDBACK_VARYINGS, OP.TEXTURE_READBACK, OP.BUFFER_READBACK, OP.BLIT]);
+  OP.PIPELINE_CREATE, OP.FEEDBACK_VARYINGS, OP.TEXTURE_READBACK, OP.BUFFER_READBACK]);
 // Allocate attribution labels once, never on unchecked command dispatch.
 const nativeQueryKeys = Array.from({length: 0x65}, (_, op) => '0x'+op.toString(16));
 const float = (word: number) => new Float32Array(new Uint32Array([word]).buffer)[0];
@@ -222,8 +226,7 @@ export class WebGL2Gpu implements GpuBackend {
       // Native errors from unchecked work must never reject a later allocation/readback/feedback
       // transaction. Drain before dispatch (not after): only the transaction's own errors may
       // affect its synchronous result. Ordinary validated work retains zero pre/post polls.
-      if (this.opts.debug || nativeCheckOps.has(item.op) ||
-        ((item.op === OP.DRAW || item.op === OP.DRAW_INDEXED) && this.capture)) {
+      if (this.opts.debug || nativeCheckOps.has(item.op)) {
         let clean = false;
         for (let i = 0; i < 32; i++) {
           const code = this.nativeError();
@@ -1087,9 +1090,9 @@ export class WebGL2Gpu implements GpuBackend {
       const layout=this.feedback.get(pw[0])!;
       layout.strides.forEach((_,i)=>g.bindBufferRange(g.TRANSFORM_FEEDBACK_BUFFER,i,this.buffers.get(capture[1+i*3])!.object,capture[2+i*3],capture[3+i*3]));
       if(capture[0])g.enable(g.RASTERIZER_DISCARD);
-      const before=this.nativeError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);
+      if(this.opts.debug){const before=this.nativeError();if(before)throw new Error(`Feedback setup 0x${before.toString(16)}`);}
       g.beginTransformFeedback(pw[3]===0?g.POINTS:pw[3]<=2?g.LINES:g.TRIANGLES);
-      const after=this.nativeError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);began=true;
+      if(this.opts.debug){const after=this.nativeError();if(after)throw new Error(`Feedback begin 0x${after.toString(16)}`);}began=true;
     }
       if (!indexed || capture) g.drawArraysInstanced(topology, 0, drawCount, w[1]);
       else {
@@ -1097,7 +1100,7 @@ export class WebGL2Gpu implements GpuBackend {
         g.bufferData(g.ELEMENT_ARRAY_BUFFER, indices!, g.STREAM_DRAW);
         g.drawElementsInstanced(topology, w[0], g.UNSIGNED_INT, 0, w[1]);
       }
-      if (capture || this.opts.debug) {
+      if (this.opts.debug) {
         const drawError=this.nativeError();if(drawError)throw new Error(`Native feedback/draw 0x${drawError.toString(16)}`);
       }
       succeeded=true;

@@ -17,7 +17,9 @@
  X(PFNGLGENFRAMEBUFFERSPROC,glGenFramebuffers) X(PFNGLBINDFRAMEBUFFERPROC,glBindFramebuffer) X(PFNGLFRAMEBUFFERTEXTURE2DPROC,glFramebufferTexture2D) X(PFNGLDRAWBUFFERSPROC,glDrawBuffers) X(PFNGLREADBUFFERPROC,glReadBuffer) \
  X(PFNGLCOPYBUFFERSUBDATAPROC,glCopyBufferSubData) X(PFNGLDELETEBUFFERSPROC,glDeleteBuffers) X(PFNGLGETINTEGERVPROC,glGetIntegerv) \
  X(PFNGLGETERRORPROC,glGetError) X(PFNGLENABLEPROC,glEnable) X(PFNGLDISABLEPROC,glDisable) X(PFNGLDRAWARRAYSPROC,glDrawArrays) X(PFNGLVIEWPORTPROC,glViewport) \
- X(PFNGLCLEARCOLORPROC,glClearColor) X(PFNGLCLEARPROC,glClear) X(PFNGLCOLORMASKPROC,glColorMask) X(PFNGLREADPIXELSPROC,glReadPixels)
+ X(PFNGLCLEARCOLORPROC,glClearColor) X(PFNGLCLEARPROC,glClear) X(PFNGLCOLORMASKPROC,glColorMask) X(PFNGLREADPIXELSPROC,glReadPixels) \
+ X(PFNGLGETBUFFERPARAMETERIVPROC,glGetBufferParameteriv) X(PFNGLDELETETEXTURESPROC,glDeleteTextures) X(PFNGLGENQUERIESPROC,glGenQueries) X(PFNGLBEGINQUERYPROC,glBeginQuery) \
+ X(PFNGLENDQUERYPROC,glEndQuery) X(PFNGLGETQUERYOBJECTUIVPROC,glGetQueryObjectuiv)
 #define X(t,n) static t n;
 FUNCTIONS
 #undef X
@@ -47,6 +49,40 @@ static void failure_case(void){
  glBufferSubData(GL_ARRAY_BUFFER,0,16,whole);glBufferSubData(GL_ARRAY_BUFFER,4,4,&part);error(GL_OUT_OF_MEMORY,"headroom whole upload rejected");OutputDebugStringA("x64-gl-ranges restore materialization budget");
  glGetBufferSubData(GL_ARRAY_BUFFER,0,16,after);note("rejected whole write keeps generated contents",before[0]==37&&after[0]==37&&after[1]==5&&after[2]==before[2]&&after[3]==before[3]);
  glBufferSubData(GL_ARRAY_BUFFER,0,16,clean);error(GL_NO_ERROR,"headroom recovery");
+ /* K57: a deferred reallocation (growth beyond the live capacity) rejected by the host surfaces GL_OUT_OF_MEMORY at the next
+  * glGetError and leaves the store empty (accepted DELETE + rejected CREATE, as the unbatched path); re-specification recovers. */
+ unsigned grow_data[64],grow_back[64];for(unsigned i=0;i<64;i++)grow_data[i]=i*2654435761u;GLuint grow=store(16,grow_data);GLint grow_size=-1;
+ glBindBuffer(GL_ARRAY_BUFFER,grow);error(GL_NO_ERROR,"growth store");OutputDebugStringA("x64-gl-ranges inject rejected full upload");
+ glBufferData(GL_ARRAY_BUFFER,256,grow_data,GL_DYNAMIC_DRAW);error(GL_OUT_OF_MEMORY,"deferred growth limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&grow_size);note("rejected growth leaves an empty store",grow_size==0);
+ glBufferData(GL_ARRAY_BUFFER,256,grow_data,GL_DYNAMIC_DRAW);memset(grow_back,0,sizeof grow_back);glGetBufferSubData(GL_ARRAY_BUFFER,0,256,grow_back);note("growth recovery exact bytes",!memcmp(grow_back,grow_data,256));
+ glBufferData(GL_ARRAY_BUFFER,24,grow_data+8,GL_DYNAMIC_DRAW);glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&grow_size);memset(grow_back,0,sizeof grow_back);glGetBufferSubData(GL_ARRAY_BUFFER,0,24,grow_back);
+ note("capacity reuse keeps the exact logical size",grow_size==24&&!memcmp(grow_back,grow_data+8,24));glGetBufferSubData(GL_ARRAY_BUFFER,0,28,grow_back);error(GL_INVALID_VALUE,"logical bounds after capacity reuse");
+ glDeleteBuffers(1,&grow);error(GL_NO_ERROR,"growth recovery");
+ /* K57 review: growth whose 1.5x headroom does not fit the resident budget but whose exact size does is retried exact
+  * (no GL_OUT_OF_MEMORY the exact-size kit would not raise); a rejected allocation reclaims retained slack first. */
+ static unsigned big[(5u<<20)/16];for(unsigned i=0;i<sizeof big/4;i++)big[i]=i*40503u+7u;unsigned tail[4]={0};
+ GLuint wide=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,wide);error(GL_NO_ERROR,"wide store");
+ OutputDebugStringA("x64-gl-ranges inject resident room 266240");glBufferData(GL_ARRAY_BUFFER,1310720,big,GL_DYNAMIC_DRAW);
+ error(GL_NO_ERROR,"headroom growth near the resident limit retried exact");OutputDebugStringA("x64-gl-ranges restore resident budget");
+ glGetBufferSubData(GL_ARRAY_BUFFER,1310720-16,16,tail);note("exact retry keeps the bytes",!memcmp(tail,(unsigned char*)big+1310720-16,16));
+ GLuint slack=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,slack);glBufferData(GL_ARRAY_BUFFER,600u<<10,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"slack store");
+ GLuint late;glGenBuffers(1,&late);glBindBuffer(GL_ARRAY_BUFFER,late);OutputDebugStringA("x64-gl-ranges inject resident room 4096");
+ glBufferData(GL_ARRAY_BUFFER,65536,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"slack reclaimed before GL_OUT_OF_MEMORY");OutputDebugStringA("x64-gl-ranges restore resident budget");
+ glBindBuffer(GL_ARRAY_BUFFER,slack);glGetBufferSubData(GL_ARRAY_BUFFER,(600u<<10)-16,16,tail);note("reclaimed store keeps its bytes",!memcmp(tail,(unsigned char*)big+(600u<<10)-16,16));
+ GLuint gone[3]={wide,slack,late};glDeleteBuffers(3,gone);error(GL_NO_ERROR,"wide stores deleted");
+ /* K57 review vK57b: any allocation, here a 1 MiB texture, that fits only after reclaiming retained slack succeeds. */
+ GLuint spare=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,spare);glBufferData(GL_ARRAY_BUFFER,300u<<10,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"spare store");
+ GLuint fit;glGenTextures(1,&fit);glBindTexture(GL_TEXTURE_2D,fit);OutputDebugStringA("x64-gl-ranges inject resident room 311296");
+ glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,512,512,0,GL_RGBA,GL_UNSIGNED_BYTE,0);error(GL_NO_ERROR,"texture fits after slack reclaim");
+ OutputDebugStringA("x64-gl-ranges restore resident budget");glGetBufferSubData(GL_ARRAY_BUFFER,(300u<<10)-16,16,tail);
+ note("texture reclaim keeps the store bytes",!memcmp(tail,(unsigned char*)big+(300u<<10)-16,16));
+ glDeleteTextures(1,&fit);glDeleteBuffers(1,&spare);error(GL_NO_ERROR,"texture reclaim cleanup");
+ /* K57: a batched feedback draw whose upload the host rejects is withdrawn whole: no primitives are counted. */
+ GLuint written_query,written=99;glGenQueries(1,&written_query);glUseProgram(generate);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);error(GL_NO_ERROR,"capture setup");
+ OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,written_query);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+ error(GL_OUT_OF_MEMORY,"deferred capture limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ glGetQueryObjectuiv(written_query,GL_QUERY_RESULT,&written);note("rejected capture counts no primitives",written==0);
  glDeleteBuffers(1,&source);error(GL_NO_ERROR,"generated app source deleted");OutputDebugStringA("x64-gl-ranges failure case done");for(;;)Sleep(16);
 }
 int main(void){

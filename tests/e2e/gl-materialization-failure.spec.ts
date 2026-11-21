@@ -18,7 +18,7 @@ test('partial two-block materialization retires generated private UBOs after upl
     const gpu=gl?new WebGL2Gpu(gl,(e:string)=>errors.push(e)):new WebGPUCommands(device!,(e:string)=>errors.push(e));
     const screen=device?.createTexture({size:[320,200],format:'rgba8unorm',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC|GPUTextureUsage.COPY_DST});
     if(screen)(gpu as InstanceType<typeof WebGPUCommands>).frame(screen);else(gpu as InstanceType<typeof WebGL2Gpu>).beginFrame(320,200,{x:0,y:0,w:320,h:200,scale:1});
-    let injected=false;const ops:{op:number;words:readonly number[]}[]=[];
+    let injected=false,residentOffset=0;const ops:{op:number;words:readonly number[]}[]=[];
     const host:InstanceType<typeof GameHost>=await GameHost.create(wasm,{vfs,now:()=>performance.now(),log:(_level:number,message:string)=>{
       logs.push(message);
       if(message.includes('inject partial materialization limit')){
@@ -31,6 +31,10 @@ test('partial two-block materialization retires generated private UBOs after upl
       // K53 review: room for the 4-byte partial write but not the 16-byte whole write (replayed batch).
       if(message.includes('inject upload headroom'))host.frame.gpuUploadBytes=A.GPU_LIMITS.budget-15;
       if(message.includes('restore materialization budget')){host.frame.gpuUploadBytes=0;host.frame.commandBytes=0;}
+      // K57 review: resident-budget room (decoder GpuState.bytes), restored by offset so real accounting continues.
+      const g=(host as unknown as {gpu:{bytes:number;budget:number}}).gpu,room=/inject resident room (\d+)/.exec(message);
+      if(room){residentOffset=g.budget-Number(room[1])-g.bytes;g.bytes+=residentOffset;}
+      if(message.includes('restore resident budget')){g.bytes-=residentOffset;residentOffset=0;}
     }},{backend:backend==='webgpu'?A.BACKEND_WEBGPU:A.BACKEND_WEBGL2,caps:A.CAP_GPU,gpuBackend:gpu,seed:1,displayWidth:320,displayHeight:200,arg0:0,arg1:0});
     host.init();const input=emptyInput();input.keys[66>>5]|=1<<(66&31); // HID F9: public Windows input selects the fixture branch.
     for(let i=0;i<200&&!logs.some(s=>s.includes('failure case done'));i++){
@@ -47,5 +51,11 @@ test('partial two-block materialization retires generated private UBOs after upl
  },{backend:backendParam,root:'/@fs'+resolve('bgt')});
  expect(result).toHaveLength(3);
  for(const r of result){expect(r.injected).toBe(true);expect(r.deletedScratch).toBe(true);expect(r.errors).toEqual([]);expect(r.commandErrors).toBeGreaterThan(0);
-   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.some(s=>s.includes('ok rejected whole write keeps generated contents'))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
+   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.some(s=>s.includes('ok rejected whole write keeps generated contents'))).toBe(true);
+   // K57: deferred reallocations and feedback draws rejected inside a batch keep the unbatched outcome.
+   for(const note of ['deferred growth limit surfaced','rejected growth leaves an empty store','growth recovery exact bytes',
+     'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
+     'rejected capture counts no primitives','headroom growth near the resident limit retried exact','exact retry keeps the bytes',
+     'slack reclaimed before GL_OUT_OF_MEMORY','reclaimed store keeps its bytes','wide stores deleted',
+   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup'])expect(r.logs.some(s=>s.includes('ok '+note))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
 });
