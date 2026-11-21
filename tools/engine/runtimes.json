@@ -2634,7 +2634,8 @@
         "size": 9585345,
         "compressedSize": 9542582,
         "crc32": 174930677,
-        "sha256": null
+        "sha256": "3a49cc3b1843882eee6cda6cf2ce0440acc8aa8df03a2e3941a3028e1cae9ac9",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
       },
       "entry": "godot.js",
       "shell": "godot-config",
@@ -2655,7 +2656,25 @@
           "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
           "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/COPYRIGHT.txt"
         }
-      ]
+      ],
+      "files": [
+        "godot.audio.position.worklet.js",
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm"
+      ],
+      "fileHashes": {
+        "godot.audio.position.worklet.js": "347b512529c5dca302093f7b9de6d184dd09d10e9a6fba62cbab098a891b2368",
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "3a5f265e788646513c32494fc0faead64c6b7f92ef005bf475da0c622bd481f4",
+        "godot.js": "19eb180d568bb8e17bcf4c72ca034ed3af44deeb90304deefee4e665562dfe31",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "c72e9a688cd06978be343fd8481130e89dd81439267e1cfd8aef8343ea9f4139",
+        "godot.wasm": "e4a43dbae28662b2a68f6136857a94db6695430901515800b9883f6327cb7116"
+      }
     },
     {
       "id": "godot-4.4.1-threads",
@@ -2677,7 +2696,8 @@
         "size": 9510448,
         "compressedSize": 9470087,
         "crc32": 2813928803,
-        "sha256": null
+        "sha256": "7d15b2351f9ed3f4ef1355eb801f974d8bb4371e78b495956be5fc6255001b12",
+        "pinnedFrom": "full archive verified against the published SHA-512 (2026-11-21)"
       },
       "entry": "godot.js",
       "shell": "godot-config",
@@ -2698,7 +2718,25 @@
           "sha256": "54345b2362747231e34b138b191914b852d44f15443acff17f04a76d86a5c584",
           "url": "https://raw.githubusercontent.com/godotengine/godot/4.4.1-stable/COPYRIGHT.txt"
         }
-      ]
+      ],
+      "files": [
+        "godot.audio.position.worklet.js",
+        "godot.audio.worklet.js",
+        "godot.html",
+        "godot.js",
+        "godot.offline.html",
+        "godot.service.worker.js",
+        "godot.wasm"
+      ],
+      "fileHashes": {
+        "godot.audio.position.worklet.js": "347b512529c5dca302093f7b9de6d184dd09d10e9a6fba62cbab098a891b2368",
+        "godot.audio.worklet.js": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+        "godot.html": "3a5f265e788646513c32494fc0faead64c6b7f92ef005bf475da0c622bd481f4",
+        "godot.js": "dd8b42107108b4bc30c21eec8b2bb75e21b389f79b6e5d6553c7483eac284a33",
+        "godot.offline.html": "b0a5d443e78f58717adac780bac91c1431bfa3b801c41f4707d507fb5ad2e47f",
+        "godot.service.worker.js": "c72e9a688cd06978be343fd8481130e89dd81439267e1cfd8aef8343ea9f4139",
+        "godot.wasm": "06e279b5d08a8888fc6c670b12d48c0e953bb526429ce521f2e17ec91fc15286"
+      }
     }
   ],
   "generatedBy": "tools/engine/godot-releases.mjs"

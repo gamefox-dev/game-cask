@@ -137,7 +137,7 @@ describe('official runtime manifest and exact-version selection', () => {
     }
     // Published SHA512-SUMS exist from 3.5.3 / 4.1.2 on; the generator recorded them.
     for (const id of ['godot-3.5.3-nothreads', 'godot-3.6-threads', 'godot-4.2.2-threads', 'godot-4.4.1-nothreads']) expect(runtimeById(id).archive.sha512).toMatch(/^[a-f0-9]{128}$/);
-    for (const id of ['godot-3.5.3-nothreads', 'godot-3.5.3-threads']) expect(runtimeById(id).pinned).toBe(true);
+    for (const id of ['godot-3.5.3-nothreads', 'godot-3.5.3-threads', 'godot-4.3-nothreads', 'godot-4.3-threads', 'godot-4.4.1-nothreads', 'godot-4.4.1-threads']) expect(runtimeById(id).pinned).toBe(true);
     expect(runtimeById('godot-3.5.3').id).toBe('godot-3.5.3-nothreads');
   });
   it('variant rules follow the shipped template names', () => {

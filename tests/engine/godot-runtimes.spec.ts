@@ -16,7 +16,7 @@ import { openEngineProfile, engineKey, engineTiming, observeEngineFrames, engine
 import { attachScreenshot, readPixels, diffFraction } from '../e2e/fixtures';
 import { expectChange } from '../support/evidence';
 
-const IDS = (process.env.BGT_ENGINE_RUNTIMES ?? 'godot-3.5.3-nothreads,godot-3.5.3-threads,godot-4.3-nothreads,godot-4.3-threads').split(',');
+const IDS = (process.env.BGT_ENGINE_RUNTIMES ?? 'godot-3.5.3-nothreads,godot-3.5.3-threads,godot-4.3-nothreads,godot-4.3-threads,godot-4.4.1-nothreads,godot-4.4.1-threads').split(',');
 for (const id of IDS) {
   test(`${id}: CC0 pack boots on the official runtime, draws, reacts to Enter; headers match threading`, async ({ page }, info) => {
     info.annotations.push({ type: 'catches', description: 'Wrong PCK format/normalization for the engine version, wrong shell API, missing COOP/COEP for threaded builds (no SharedArrayBuffer), missing runtime files, dead DOM input or unchanged pixels.' });

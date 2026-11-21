@@ -125,7 +125,7 @@ build manifest and the inspect report:
 | `published-archive-sha512` | no member pin yet: the whole archive is downloaded and checked against the published SHA-512 (`--full` forces this) | 0.5–1.3 GB, deleted after extraction unless `--keep-archive` |
 | `manifest-crc32` | the release publishes no checksum: only the pinned CRC32/size and TLS from the official host. Weak; refused unless `--allow-unpublished` | ~5–10 MB |
 
-Pinned members today: 3.5.3 (both variants) and 4.3 (both variants). After a `published-archive-sha512` fetch, a
+Pinned members today: 3.5.3, 4.3 and 4.4.1 (both variants each). After a `published-archive-sha512` fetch, a
 maintainer may run `npm run engine -- pin ID` to pin that member (the review is the commit of runtimes.json).
 Offline: `npm run engine -- fetch ID --from Godot_v…_export_templates.tpz` (verifies the published SHA-512;
 `LICENSE.txt`/`COPYRIGHT.txt` beside it or fetched from the tag) or the K45 form
@@ -176,7 +176,7 @@ JSPI) selection do not apply: Godot web runtimes render with WebGL 2 (GLES2 proj
 CC0 fixtures: `tests/fixtures/engine/godot3-fixture.mjs` (PCK 1) and `godot4-fixture.mjs` (PCK 2, absolute or
 relative file base, 4.4 path style) write project.binary, a text scene and a GDScript that fills the viewport red
 and cyan after Enter, plus a stub runner with an appended pack. `tests/engine/godot-runtimes.spec.ts` boots them on
-the real cached runtimes (default 3.5.3 and 4.3, both variants; `BGT_ENGINE_RUNTIMES=id,id` selects others) and
+the real cached runtimes (default 3.5.3, 4.3 and 4.4.1, both variants; `BGT_ENGINE_RUNTIMES=id,id` selects others) and
 checks pixels, input, headers/cross-origin isolation, network integrity and timing; a case skips only when its
 runtime is not cached. Unit tests never need a runtime or the network.
 
