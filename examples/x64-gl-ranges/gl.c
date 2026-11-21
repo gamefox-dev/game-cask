@@ -18,7 +18,7 @@
  X(PFNGLCOPYBUFFERSUBDATAPROC,glCopyBufferSubData) X(PFNGLDELETEBUFFERSPROC,glDeleteBuffers) X(PFNGLGETINTEGERVPROC,glGetIntegerv) \
  X(PFNGLGETERRORPROC,glGetError) X(PFNGLENABLEPROC,glEnable) X(PFNGLDISABLEPROC,glDisable) X(PFNGLDRAWARRAYSPROC,glDrawArrays) X(PFNGLVIEWPORTPROC,glViewport) \
  X(PFNGLCLEARCOLORPROC,glClearColor) X(PFNGLCLEARPROC,glClear) X(PFNGLCOLORMASKPROC,glColorMask) X(PFNGLREADPIXELSPROC,glReadPixels) \
- X(PFNGLGETBUFFERPARAMETERIVPROC,glGetBufferParameteriv) X(PFNGLGENQUERIESPROC,glGenQueries) X(PFNGLBEGINQUERYPROC,glBeginQuery) \
+ X(PFNGLGETBUFFERPARAMETERIVPROC,glGetBufferParameteriv) X(PFNGLDELETETEXTURESPROC,glDeleteTextures) X(PFNGLGENQUERIESPROC,glGenQueries) X(PFNGLBEGINQUERYPROC,glBeginQuery) \
  X(PFNGLENDQUERYPROC,glEndQuery) X(PFNGLGETQUERYOBJECTUIVPROC,glGetQueryObjectuiv)
 #define X(t,n) static t n;
 FUNCTIONS
@@ -71,6 +71,13 @@ static void failure_case(void){
  glBufferData(GL_ARRAY_BUFFER,65536,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"slack reclaimed before GL_OUT_OF_MEMORY");OutputDebugStringA("x64-gl-ranges restore resident budget");
  glBindBuffer(GL_ARRAY_BUFFER,slack);glGetBufferSubData(GL_ARRAY_BUFFER,(600u<<10)-16,16,tail);note("reclaimed store keeps its bytes",!memcmp(tail,(unsigned char*)big+(600u<<10)-16,16));
  GLuint gone[3]={wide,slack,late};glDeleteBuffers(3,gone);error(GL_NO_ERROR,"wide stores deleted");
+ /* K57 review vK57b: any allocation, here a 1 MiB texture, that fits only after reclaiming retained slack succeeds. */
+ GLuint spare=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,spare);glBufferData(GL_ARRAY_BUFFER,300u<<10,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"spare store");
+ GLuint fit;glGenTextures(1,&fit);glBindTexture(GL_TEXTURE_2D,fit);OutputDebugStringA("x64-gl-ranges inject resident room 311296");
+ glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,512,512,0,GL_RGBA,GL_UNSIGNED_BYTE,0);error(GL_NO_ERROR,"texture fits after slack reclaim");
+ OutputDebugStringA("x64-gl-ranges restore resident budget");glGetBufferSubData(GL_ARRAY_BUFFER,(300u<<10)-16,16,tail);
+ note("texture reclaim keeps the store bytes",!memcmp(tail,(unsigned char*)big+(300u<<10)-16,16));
+ glDeleteTextures(1,&fit);glDeleteBuffers(1,&spare);error(GL_NO_ERROR,"texture reclaim cleanup");
  /* K57: a batched feedback draw whose upload the host rejects is withdrawn whole: no primitives are counted. */
  GLuint written_query,written=99;glGenQueries(1,&written_query);glUseProgram(generate);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);error(GL_NO_ERROR,"capture setup");
  OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,written_query);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);

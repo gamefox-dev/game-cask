@@ -127,7 +127,7 @@ Input snapshot rules:
 | `log(level, ptr, len)` | `bgt_log` | — (len capped at 4096) |
 | `abort(code, ptr, len)` | `bgt_abort` | never returns |
 | `submit_commands(ptr, len)` | `bgt_submit_commands` | `BGT_OK` / first error (see §6) |
-| `submit_failures(dst, cap)` | `bgt_submit_failures` | outcome of the last `submit_commands` (additive v0.3, K57): 0 success, -1 rejected whole with no effects, else the number N of skipped commands; writes min(N, cap) u32 pairs {list byte offset of the command prefix, error code} to `dst` (§13.12) |
+| `submit_failures(dst, cap)` | `bgt_submit_failures` | outcome of the last `submit_commands` (additive v0.3, K57): 0 success, -1 rejected whole with no effects, else the number N of skipped commands; writes min(N, cap) u32 pairs {list byte offset of the command prefix, error code} to `dst`; `BGT_E_BOUNDS` (-2) if `dst` + 8·min(N, cap) lies outside linear memory (nothing written) (§13.12) |
 | `asset_open(path, len)` | `bgt_asset_open` | handle > 0 or error |
 | `asset_size(h)` / `asset_read(h, dst, size)` / `asset_seek(h, off)` / `asset_close(h)` | `bgt_asset_*` | size / bytes read (0 at EOF) / 0 / 0, or error |
 | `audio_push(samples, frames)` | `bgt_audio_push` | frames accepted |
@@ -1380,9 +1380,13 @@ Growth beyond the capacity reallocates once with headroom (1.5x the old capacity
 budget, as DELETE + one CREATE(capacity) carrying the new bytes and a zero tail; a store whose size falls below a
 quarter of its capacity (with at least 64 KiB slack), or whose shrink would exceed the budget, is reallocated at the
 exact size. A CREATE is batched only while no slack is retained (the host then holds exactly the exact-size bytes at
-that stream position, so a rejection is genuine); otherwise it is submitted synchronously, and a budget rejection is
-retried without headroom, then after reclaiming slack (exact-size reallocation of CPU-authoritative stores), before
-GL_OUT_OF_MEMORY is latched. Capacity therefore never causes an OUT_OF_MEMORY the exact-size profile would not raise.
+that stream position, so a rejection is genuine); otherwise it is submitted synchronously. Any single allocating
+command the profile submits synchronously (buffer, texture and shader creation, program and private uniform buffers,
+the current-attribute buffer, mip allocation) that the host rejects with E_LIMIT while slack is retained first
+reclaims the slack (each CPU-authoritative store with slack is released and recreated at its exact size from its
+shadow under the same handle, after checking every per-frame budget; a rejected exact recreation restores the old
+store) and is then retried once; a buffer CREATE with headroom is also retried at the exact size. Only then is
+GL_OUT_OF_MEMORY latched. Capacity therefore never causes an OUT_OF_MEMORY the exact-size profile would not raise.
 A generated store with spare capacity whose whole logical store is rewritten from the CPU (glBufferData,
 glBufferSubData, mapped writes, glCopyBufferSubData from a CPU source) is reallocated at the exact size, because the
 host clears generated provenance only for a whole-store write; uploads stay the written/logical range. Buffer DELETE/CREATE of these reallocations, transform-feedback draws

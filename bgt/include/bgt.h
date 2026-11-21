@@ -257,7 +257,8 @@ BGT_IMPORT(submit_commands) int32_t bgt_submit_commands(const void *ptr, uint32_
 /* K57 (additive v0.3): outcome of the most recent bgt_submit_commands. Returns 0 if it succeeded, -1 if it was
  * rejected whole with no effects (framing or aggregate budget), otherwise the number N of commands that failed
  * and were skipped (§6 execution pass; every other command took effect). Writes min(N, cap) pairs
- * {byte offset of the failed command's prefix within the list, its negative error code as u32} to dst. */
+ * {byte offset of the failed command's prefix within the list, its negative error code as u32} to dst; BGT_E_BOUNDS if
+ * dst + 8 * min(N, cap) is outside linear memory (nothing written). */
 BGT_IMPORT(submit_failures) int32_t bgt_submit_failures(uint32_t *dst, uint32_t cap);
 
 /* Virtual file system (read-only, preloaded before bgt_init, synchronous).

@@ -479,7 +479,14 @@ static int submit_deferred_x(uint32_t reserve) {
 }
 #endif
 static int submit_deferred(void) { return submit_deferred_x(0); }
+/* K57 capacity budget (see buffer_store): retained slack, reclaim guard, last synchronous submit result. */
+static uint64_t buffer_slack;
+static uint32_t reclaiming;
+static int32_t last_submit_rc;
+uint64_t w32_gl_reclaim_retries;
+static void reclaim_slack(void);
 static int submit(void) {
+    last_submit_rc = 0;
     flush_pending();
     if (pend_dep_seq) { /* draw() after a deferred uniform upload that the flush just rejected */
         int dead = pend_rejected_seq == pend_dep_seq; pend_dep_seq = 0;
@@ -496,7 +503,21 @@ static int submit(void) {
         if (code < 0x40 || code > 0x64) flags = 0;
         off += 8 + size;
     }
+    /* K57 review: one allocating command (buffer/texture/shader creation, mip allocation) rejected for the budget
+     * while capacity slack is retained reclaims the slack and is retried once: capacity reuse never causes a
+     * GL_OUT_OF_MEMORY the exact-size profile would not raise. A single command takes effect whole or not at all. */
+    uint32_t saved[64], saved_code = 0, saved_size = 0;
+    if (buffer_slack && !reclaiming && cmd.count == 1 && cmd.len <= 16 + 8 + sizeof saved) {
+        uint32_t code = cmd.buf[16] | ((uint32_t)cmd.buf[17] << 8), size; copy(&size, cmd.buf + 20, 4);
+        if ((code == 0x40 || code == 0x43 || code == 0x48 || code == 0x59 || code == 0x5a || code == 0x5d || code == 0x5e) &&
+            size <= sizeof saved) { saved_code = code; saved_size = size; copy(saved, cmd.buf + 24, size); }
+    }
     int32_t rc = host_submit(&cmd, flags);
+    if (rc == BGT_E_LIMIT && saved_code) {
+        reclaim_slack(); w32_gl_reclaim_retries++;
+        begin(); op(saved_code, saved, saved_size / 4); rc = host_submit(&cmd, flags);
+    }
+    last_submit_rc = rc;
     if (rc < 0) { fail(rc == -3 ? OOM : BAD_OP); return 0; }
     return 1;
 }
@@ -760,7 +781,6 @@ static uint32_t api_BindBuffer(void) {
 #define BUFFER_SLACK_MAX (16u << 20)
 #define BUFFER_RELEASE_MIN (64u << 10)
 uint64_t w32_gl_buffer_capacity_reused, w32_gl_buffer_capacity_grown, w32_gl_buffer_capacity_released;
-static uint64_t buffer_slack;
 static uint64_t slack_max(void) { uint64_t m = upload_budget / 16; return m < BUFFER_SLACK_MAX ? m : BUFFER_SLACK_MAX; }
 /* Every change of a buffer's logical size or capacity goes through here (slack accounting). */
 static void store_size(Buffer *b, uint32_t size, uint32_t cap) {
@@ -790,23 +810,36 @@ static int respec_in_place(Buffer *b, const uint8_t *data, uint32_t n) {
     } else error = pending ? pending : replay_error;
     return ok;
 }
-static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int keep_map);
-static uint32_t reclaiming;
-/* An allocation was rejected while capacity slack is retained: reallocate other CPU-authoritative stores
- * at their exact size (contents from the shadow; mapping, bindings and names unchanged). Generated stores
- * keep their slack (their contents are native-only). */
-static void reclaim_slack(const Buffer *except) {
+/* An allocation was rejected while capacity slack is retained: give CPU-authoritative stores with slack an
+ * exact-size store under the same handle (contents from the shadow; mapping, bindings and names unchanged).
+ * The DELETE frees the capacity first, so the exact CREATE always fits the resident budget; the whole
+ * sequence (DELETE, exact CREATE, and the fallback below) is checked against every per-frame budget before
+ * it starts. Should the exact CREATE still be rejected, the old store is recreated from its shadow at its
+ * old capacity (the bytes it just released), so no contents are lost. Generated stores keep their slack
+ * (their contents are native-only). */
+static void reclaim_slack(void) {
     flush_pending(); reclaiming = 1;
     for (uint32_t s = 1; s < BN && buffer_slack; s++) {
         Buffer *o = &buffers[s];
-        if (o == except || !o->used || !o->gpu || !o->size || o->cap <= o->size || o->generated) continue;
-        gpu_usage_t u = {0, 0, 0, o->size, 0}; host_frame_sync(); if (!fits(&frame_use, &u)) continue;
+        if (!o->used || !o->gpu || !o->size || o->cap <= o->size || o->generated) continue;
+        gpu_usage_t u = {3 * (16 + 8) + 4 + 2 * 20, 3, 0, (uint64_t)o->size + o->cap, 0}; /* DELETE, CREATE, fallback */
+        host_frame_sync(); if (!fits(&frame_use, &u)) continue;
         uint8_t *exact = glp_alloc(o->size); if (!exact) break;
         copy(exact, o->data, o->size);
-        uint32_t pending = error; error = 0;
-        if (buffer_store(o, exact, o->size, o->size, 1)) w32_gl_buffer_capacity_released++;
-        else w32_log("GL capacity reclaim failed: store left empty after GL_OUT_OF_MEMORY");
-        error = pending;
+        uint32_t pending = error, h = o->gpu; error = 0;
+        if (!send(0x42, &h, 1)) { error = pending; glp_free(exact, o->size); continue; } /* old store intact */
+        uint32_t create[] = {h, 15, o->size, PTR(exact), o->size};
+        if (send(0x40, create, 5)) {
+            retire_block(o->data, o->cap); o->data = exact; store_size(o, o->size, o->size); w32_gl_buffer_capacity_released++;
+        } else {
+            glp_free(exact, o->size);
+            uint32_t again[] = {h, 15, o->cap, PTR(o->data), o->cap};
+            if (!send(0x40, again, 5)) { /* not expected: the budgets were checked above */
+                unmap_storage(o); glp_free(o->data, o->cap); o->data = 0; store_size(o, 0, 0); o->gpu = 0;
+                w32_log("GL capacity reclaim: store recreation rejected after its release");
+            }
+        }
+        error = pending; /* reclaim is the profile's own work, never a guest error */
     }
     reclaiming = 0;
 }
@@ -828,24 +861,31 @@ static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int
     store_size(b, 0, 0); b->gpu = 0; b->generated = 0;
     id = buffer_handle(slot < 256 ? slot : 0, "buffers");
     if (!id) { glp_free(block, cap); return 0; }
-    for (int reclaimed = reclaiming;;) {
+    /* Reserve the handle across the CREATE: a slack reclaim inside submit() allocates handles too. */
+    if (id < buffer_wire_slots) gpu_buffer[id] = 1;
+    for (;;) {
+        /* Synchronous while slack is retained (submit() then reclaims slack and retries once on a budget
+         * rejection); batched only when the host holds exactly the exact-size bytes at this stream position. */
         int sync = cap != n || buffer_slack > 0;
         begin(); { uint32_t create[] = {id, 15, cap, PTR(block), cap}; op(0x40, create, 5); }
         pend_dep_seq = release_seq; /* a rejected DELETE never reaches its CREATE (unbatched order) */
         uint32_t pending = error; error = 0; replay_error = 0;
         int ok = sync ? submit() : submit_deferred();
         uint32_t own = error; release_seq = 0;
-        if (!ok && own == OOM && !replay_error && (cap != n || (!reclaimed && buffer_slack))) {
-            error = pending;
-            if (cap != n) { /* the headroom alone was rejected: retry at the exact size */
-                uint8_t *exact = glp_alloc(n);
-                if (!exact) { fail(OOM); glp_free(block, cap); return 0; }
-                copy(exact, block, n); glp_free(block, cap); block = exact; cap = n;
-            } else { reclaimed = 1; reclaim_slack(b); }
-            continue;
+        /* This call's own CREATE was rejected for the budget (independently of errors earlier deferred calls
+         * latched in the same flush): the headroom alone is dropped and the CREATE retried at the exact size. */
+        if (!ok && sync && last_submit_rc == BGT_E_LIMIT && cap != n) {
+            error = pending ? pending : replay_error; /* keep only what earlier deferred calls latched */
+            uint8_t *exact = glp_alloc(n);
+            if (!exact) { fail(OOM); glp_free(block, cap); return 0; }
+            copy(exact, block, n); glp_free(block, cap); block = exact; cap = n; continue;
         }
         error = pending ? pending : own;
-        if (!ok) { if (own == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1); glp_free(block, cap); return 0; }
+        if (!ok) {
+            if (id < buffer_wire_slots) { gpu_buffer[id] = 0; if (id < buffer_next_free) buffer_next_free = id; }
+            if (own == OOM) object_exhaustion("buffers", "GPU byte/submission budget", 1);
+            glp_free(block, cap); return 0;
+        }
         break;
     }
     PendRec *r = pend_last;

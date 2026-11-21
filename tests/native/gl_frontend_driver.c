@@ -17,7 +17,7 @@ static uint8_t memory[2u<<20];
 static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
 static uint32_t live_modules[N], live_textures[N], live_buffers[65536], live_samplers[N], module_creates;
-static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws, reject_creates; /* K57: reject the next N BUFFER_CREATEs */
+static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws, reject_creates, reject_textures; /* K57: reject the next N BUFFER_CREATEs / TEXTURE_CREATE_EXs */
 static uint8_t device_buffers[256][256];
 static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
 /* Bounded guest staging adapter, one live mapping in these focused tests. */
@@ -86,6 +86,7 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     uint32_t code=w[4]&65535u; const uint32_t *a=w+6;
     if((reject_transport&&code==0x48)||code==reject_opcode)return -3;
     if(code==0x40&&reject_creates){reject_creates--;return -3;}
+    if(code==0x59&&reject_textures){reject_textures--;return -3;}
     if(code==0x41&&reject_update)return -3;
     if(code==0x63&&reject_readback)return -3;
     if(code==0x42&&reject_delete)return -3;
@@ -307,6 +308,20 @@ static void buffer_capacity_budget(void) {
     call(api_BindBuffer,ARRAY_BUFFER,2,0,0);reject_creates=1;call(api_BufferData,ARRAY_BUFFER,32,8192,0x88e4);
     CHECK(!error&&buffers[2].gpu&&buffers[2].size==32&&buffers[1].cap==64u<<10&&buffers[1].size==64u<<10&&buffer_slack==0);
     CHECK(w32_gl_buffer_capacity_released==2&&buffers[1].data[0]==7&&live_buffers[buffers[1].gpu]);
+    /* K57 review: any allocation (here a texture) rejected while slack is retained reclaims it and is retried once. */
+    call(api_BindBuffer,ARRAY_BUFFER,1,0,0);call(api_BufferData,ARRAY_BUFFER,40u<<10,8192,0x88e4);
+    CHECK(!error&&buffers[1].cap==64u<<10&&buffer_slack>=(24u<<10));uint32_t keep=buffers[1].gpu;
+    uint64_t slack0=buffer_slack,retries0=w32_gl_reclaim_retries,released0=w32_gl_buffer_capacity_released;
+    Texture tex;zero(&tex,sizeof tex);reject_textures=1;CHECK(gpu_create(&tex,600,0,4,4,1,0)&&!error&&tex.gpu);
+    CHECK(w32_gl_reclaim_retries==retries0+1&&buffer_slack<slack0&&buffers[1].cap==40u<<10&&buffers[1].gpu==keep&&live_buffers[keep]);
+    CHECK(live_buffers[buffers[1].gpu]&&buffers[1].data[0]==7&&w32_gl_buffer_capacity_released==released0+1);gpu_destroy(&tex);
+    /* A reclaim whose exact CREATE is rejected recreates the old store (contents kept); the allocation then fails truthfully. */
+    call(api_BufferData,ARRAY_BUFFER,32u<<10,8192,0x88e4);keep=buffers[1].gpu;uint8_t *shadow=buffers[1].data;
+    CHECK(!error&&buffers[1].cap==40u<<10);zero(&tex,sizeof tex);reject_textures=2;reject_creates=1; /* the exact CREATE: the old store is recreated */
+    CHECK(!gpu_create(&tex,601,0,4,4,1,0)&&error==OOM&&!tex.gpu);error=0;
+    CHECK(buffers[1].gpu==keep&&live_buffers[keep]&&buffers[1].data==shadow&&buffers[1].cap==40u<<10&&buffers[1].size==32u<<10);
+    CHECK(!reject_textures&&!reject_creates&&w32_gl_reclaim_retries==retries0+2);
+    call(api_BufferData,ARRAY_BUFFER,64u<<10,8192,0x88e4);CHECK(!error);call(api_BindBuffer,ARRAY_BUFFER,2,0,0);
     /* A genuine rejection (no slack left) is GL_OUT_OF_MEMORY with an empty store. */
     reject_creates=1;call(api_BufferData,ARRAY_BUFFER,48,8192,0x88e4);CHECK(error==OOM&&!buffers[2].gpu&&!buffers[2].size);error=0;
     /* A generated store with spare capacity rewritten from the CPU becomes an exact store (upload = logical size). */
