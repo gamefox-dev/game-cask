@@ -124,6 +124,9 @@ BGT_E2E_PORT=5294 npm run probe -- --game sample2d --backend webgl2 \
   --params deterministic=1,suspension=asyncify --script ./search.mjs --out reports/probe/search
 ```
 
+On a host without a GPU (WebGL2 falls back to SwiftShader), add `--software`; otherwise the probe stops
+with a software-renderer error (see [performance.md](performance.md)).
+
 A checked-in integration script is `tools/probe/examples/savestate-search.mjs` (also exercises
 file import and restore-on-score-failure). Run it with the same command, substituting that path.
 
