@@ -482,7 +482,9 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             fprintf(o,"extern void F_%08x(void); /* measured override, no native body */\n",original->addr);
             vpush(&order,original->addr);vpush(&ends,original->addr+1);continue;
         }
-        if (lift_fast && original->insns.n && original->insns.n <= L64F_MAX_INSNS) {
+        /* Fast form needs the entry to be the first listed instruction (code laid out below the
+         * entry, e.g. split cold blocks, keeps the exact emitter; both interoperate via the registry). */
+        if (lift_fast && original->insns.n && original->insns.n <= L64F_MAX_INSNS && original->insns.v[0] == original->addr) {
             l64f_lift(o, a, original, st);
             vpush(&order, original->addr); vpush(&ends, original->end);
             continue;

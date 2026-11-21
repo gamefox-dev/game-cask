@@ -350,7 +350,7 @@ static func_t *l64f_inline_target(an_t *a, const l64f_fn_t *x, uint32_t k, const
     int fi = func_index(a, in->target);
     if (fi < 0 || vhas(&skip, in->target) || !lift_selected(in->target)) return 0;
     func_t *g = &a->f[fi];
-    if (!g->insns.n || g->insns.n > lift_fast_inline || g->insns.n > c->budget) return 0;
+    if (!g->insns.n || g->insns.v[0] != g->addr || g->insns.n > lift_fast_inline || g->insns.n > c->budget) return 0;
     for (uint32_t i = 0; i <= c->depth; i++) if (c->stack[i] == g->addr) return 0;
     return g;
 }
@@ -592,7 +592,7 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
 static void l64f_declare_tails(FILE *o, an_t *a, vec_t *weak) {
     for (uint32_t i = 0; i < a->nf; i++) {
         func_t *f = &a->f[i];
-        if (!lift_selected(f->addr) || vhas(&skip, f->addr) || f->insns.n > L64F_MAX_INSNS) continue;
+        if (!lift_selected(f->addr) || vhas(&skip, f->addr) || f->insns.n > L64F_MAX_INSNS || !f->insns.n || f->insns.v[0] != f->addr) continue;
         for (uint32_t k = 0; k < f->insns.n; k++) {
             x86_insn_t in;
             if (!decode_at(a->pe, f->insns.v[k], &in) || (in.op != XO_JMP && in.op != XO_JCC)) continue;
