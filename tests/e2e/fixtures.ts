@@ -112,15 +112,23 @@ export async function openGame(
     // HTTP cache while active); web/index.html declares a data: icon, so the game page never asks for it.
     await page.route('**/favicon.ico', faviconRoute);
     preflightRoute = true;
-    const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json');
-    if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
-    const manifest = await response.json();
-    const supported = await page.evaluate(() => {
-      const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown; promising?: unknown };
-      return typeof wasm.Suspending === 'function' && typeof wasm.promising === 'function';
-    });
-    const reason = jspiUnavailableReason(suspensionCapabilities(manifest, 'jspi', supported));
-    if (reason) test.info().skip(true, q.get('game')+': '+reason);
+    // 'commit': never let a non-JSON answer (the dev server's SPA index.html for an unknown game) boot the app here.
+    const response = await page.goto('/games/'+encodeURIComponent(q.get('game')!)+'/manifest.json', { waitUntil: 'commit' });
+    const json = /\bjson\b/i.test(response?.headers()['content-type'] ?? '');
+    // A game with no manifest (404, or the SPA HTML fallback) has no artifact whose JSPI capability could be checked:
+    // let the test reach the runtime's own "game not found" path and assert that. Any other HTTP failure stays fatal,
+    // and a real manifest always gets the capability check (plus the suspension assertion after boot below).
+    const missing = !!response && (response.status() === 404 || (response.ok() && !json));
+    if (!missing) {
+      if (!response?.ok()) throw new Error('Cannot inspect JSPI artifact manifest: HTTP '+response?.status());
+      const manifest = await response.json();
+      const supported = await page.evaluate(() => {
+        const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown; promising?: unknown };
+        return typeof wasm.Suspending === 'function' && typeof wasm.promising === 'function';
+      });
+      const reason = jspiUnavailableReason(suspensionCapabilities(manifest, 'jspi', supported));
+      if (reason) test.info().skip(true, q.get('game')+': '+reason);
+    }
   }
   await page.goto(`/?${q}`);
   if (preflightRoute) await page.unroute('**/favicon.ico', faviconRoute);
