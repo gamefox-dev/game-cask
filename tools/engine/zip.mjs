@@ -7,9 +7,6 @@ import { crc32, inflateRawSync } from 'node:zlib';
 
 const MAX_MEMBER = 512 * 1024 ** 2;
 
-export function bufferSource(buf) {
-  return { size: buf.length, describe: 'buffer', read: async (offset, length) => buf.subarray(offset, offset + length) };
-}
 export function fileSource(path) {
   const fd = openSync(path, 'r'), size = fstatSync(fd).size;
   return { size, describe: path, close: () => closeSync(fd), read: async (offset, length) => {
@@ -44,20 +41,28 @@ function eocd(tail, tailStart) {
   for (let i = tail.length - 22; i >= 0; i--) if (tail.readUInt32LE(i) === 0x06054b50) return { at: tailStart + i, b: tail.subarray(i) };
   throw new Error('zip: end of central directory not found');
 }
-export async function listEntries(source) {
+// Parsing is a generator that yields [offset, length] reads, so one implementation serves async (HTTP/file)
+// and sync (in-memory) sources.
+const drive = (gen, read) => { let r = gen.next(); while (!r.done) r = gen.next(read(...r.value)); return r.value; };
+async function driveAsync(gen, read) { let r = gen.next(); while (!r.done) r = gen.next(await read(...r.value)); return r.value; }
+export const listEntries = source => driveAsync(listGen(source.size), source.read);
+export const listEntriesSync = buf => drive(listGen(buf.length), (o, n) => buf.subarray(o, o + n));
+export const readEntrySync = (buf, entry) => drive(readGen(entry), (o, n) => buf.subarray(o, o + n));
+function* listGen(sourceSize) {
+  const source = { size: sourceSize };
   const tailLength = Math.min(source.size, 65557 + 20), tailStart = source.size - tailLength;
-  const tail = await source.read(tailStart, tailLength), e = eocd(tail, tailStart);
+  const tail = yield [tailStart, tailLength], e = eocd(tail, tailStart);
   let count = e.b.readUInt16LE(10), cdSize = e.b.readUInt32LE(12), cdOffset = e.b.readUInt32LE(16);
   if (e.b.readUInt16LE(4) !== 0 || e.b.readUInt16LE(6) !== 0) throw new Error('zip: multi-disk archives unsupported');
   if (count === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) {
     const loc = e.at - 20 - tailStart;
     if (loc < 0 || tail.readUInt32LE(loc) !== 0x07064b50) throw new Error('zip: zip64 locator missing');
-    const z = await source.read(Number(tail.readBigUInt64LE(loc + 8)), 56);
+    const z = yield [Number(tail.readBigUInt64LE(loc + 8)), 56];
     if (z.readUInt32LE(0) !== 0x06064b50) throw new Error('zip: zip64 EOCD missing');
     count = Number(z.readBigUInt64LE(32)); cdSize = Number(z.readBigUInt64LE(40)); cdOffset = Number(z.readBigUInt64LE(48));
   }
   if (count > 100000 || cdOffset + cdSize > source.size) throw new Error('zip: implausible central directory');
-  const cd = await source.read(cdOffset, cdSize), entries = [];
+  const cd = yield [cdOffset, cdSize], entries = [];
   for (let at = 0, i = 0; i < count; i++) {
     if (at + 46 > cd.length || cd.readUInt32LE(at) !== 0x02014b50) throw new Error('zip: corrupt central directory');
     const nameLength = cd.readUInt16LE(at + 28), extraLength = cd.readUInt16LE(at + 30), commentLength = cd.readUInt16LE(at + 32);
@@ -99,19 +104,21 @@ export function validateEntries(entries, { maxTotal = 4 * 1024 ** 3, maxFile = M
   return entries;
 }
 
-export async function readEntry(source, entry) {
-  const local = await source.read(entry.offset, 30);
+export const readEntry = (source, entry) => driveAsync(readGen(entry), source.read);
+function* readGen(entry) {
+  const local = yield [entry.offset, 30];
   if (local.readUInt32LE(0) !== 0x04034b50) throw new Error('zip: bad local header for ' + entry.name);
   const dataAt = entry.offset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
-  const raw = await source.read(dataAt, entry.compressedSize);
+  const raw = yield [dataAt, entry.compressedSize];
+  if (raw.length !== entry.compressedSize) throw new Error('zip: truncated member ' + entry.name);
   const data = entry.method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: entry.size + 1 });
   if (data.length !== entry.size || crc32(data) !== entry.crc32) throw new Error('zip: CRC32/size mismatch for ' + entry.name);
   return data;
 }
 
 /** Validated member map of an in-memory archive, keyed by base name; nested dirs are flattened, collisions refused. */
-export async function extractFlat(buf, { names, maxTotal = 512 * 1024 ** 2 } = {}) {
-  const source = bufferSource(buf), entries = validateEntries(await listEntries(source), { maxTotal, maxFile: 256 * 1024 ** 2 });
+export function extractFlatSync(buf, { names, maxTotal = 512 * 1024 ** 2 } = {}) {
+  const entries = validateEntries(listEntriesSync(buf), { maxTotal, maxFile: 256 * 1024 ** 2 });
   const files = new Map();
   for (const e of entries) {
     if (e.name.endsWith('/')) continue;
@@ -121,6 +128,7 @@ export async function extractFlat(buf, { names, maxTotal = 512 * 1024 ** 2 } = {
   }
   for (const n of names ?? []) if (!files.has(n)) throw new Error('zip: missing runtime member ' + n);
   const out = new Map();
-  for (const [base, e] of files) if (!names || names.includes(base)) out.set(base, await readEntry(source, e));
+  for (const [base, e] of files) if (!names || names.includes(base)) out.set(base, readEntrySync(buf, e));
   return out;
 }
+export async function extractFlat(buf, options) { return extractFlatSync(buf, options); }

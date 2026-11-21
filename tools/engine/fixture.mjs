@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { embeddedFixture as godot3Fixture } from '../../tests/fixtures/engine/godot3-fixture.mjs';
 import { embeddedFixture as godot4Fixture } from '../../tests/fixtures/engine/godot4-fixture.mjs';
 import { parsePack, sha256 } from './godot.mjs';
-import { PRIVATE, runtimeById } from './runtime.mjs';
+import { PRIVATE, runtimeById, verifyRuntime } from './runtime.mjs';
 import { buildEngine } from './framework.mjs';
 
 /** runtimeId: godot-3.5.3-nothreads (default), godot-3.x-threads, godot-4.x-nothreads|threads. */
@@ -18,7 +18,9 @@ export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = jo
   const cfg = { id, name: 'CC0 Godot ' + runtime.version + ' ' + runtime.variant + ' fixture', private: true, engineProfile: {
     schema: 'game-cask/engine-profile/2', allowed: true, choice: 'CC0 fixture for the engine-runtime path', adapter: runtime.adapter, runtime: runtime.id,
     version: runtime.version, build: runtime.build, inputRoot: 'inputs', runner: 'runner.exe', runnerSha256: sha256(source),
-    pack: { location: 'embedded-trailer', sha256: parsePack(source).packSha256 }, renderer: 'webgl2', threads: runtime.requirements.threads, width: 320, height: 180 } };
+    pack: { location: 'embedded-trailer', sha256: parsePack(source).packSha256 }, renderer: 'webgl2', threads: runtime.requirements.threads, width: 320, height: 180,
+    // Unverified (no published checksum) runtimes need the recorded opt-in, exactly like a port.
+    ...(verifyRuntime(runtime.id).verified ? {} : { allowUnverifiedRuntime: true }) } };
   writeFileSync(join(gameDir, 'game.json'), JSON.stringify(cfg, null, 2) + '\n');
   buildEngine(gameDir, cfg, { quiet: true, outRoot });
   return join(outRoot, cfg.id);

@@ -12,7 +12,8 @@ import { closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, rea
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractFlat, fileSource, httpSource, listEntries, readEntry, validateEntries } from './zip.mjs';
+import { crc32 } from 'node:zlib';
+import { extractFlatSync, fileSource, httpSource, listEntries, readEntry, validateEntries } from './zip.mjs';
 
 export const ENGINE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 export const PRIVATE = join(ENGINE_ROOT, '.engine-private');
@@ -20,7 +21,14 @@ export const storeRoot = () => resolve(process.env.BGT_ENGINE_CACHE || join(proc
 export const STORE = storeRoot();
 export const hash = b => createHash('sha256').update(b).digest('hex');
 export const manifest = JSON.parse(readFileSync(new URL('runtimes.json', import.meta.url)));
-const STRENGTH = { 'pinned-member-sha256': 3, 'published-archive-sha512': 3, 'manifest-crc32': 1 };
+const TEMPLATE = 'web-template.zip';
+/** Levels a cache receipt may claim for this manifest entry: a receipt can never raise what the manifest allows. */
+export function allowedVerifications(r) {
+  if (r.member?.sha256) return ['pinned-member-sha256', ...(r.archive?.sha512 ? ['published-archive-sha512'] : [])];
+  return r.archive?.sha512 ? ['published-archive-sha512'] : ['manifest-crc32'];
+}
+/** Only manifest-crc32 is unverified (no published checksum; explicit --allow-unpublished / allowUnverifiedRuntime). */
+export const isVerified = level => level !== 'manifest-crc32';
 
 /** Flattened view used by builds/tests: sha256 = web template ZIP SHA-256 when pinned (null otherwise). */
 function view(r) {
@@ -49,7 +57,7 @@ const receiptPath = target => join(target, 'provision.json');
 function install(runtime, memberZip, { store = storeRoot(), notices, verification, archive }) {
   if (runtime.member?.sha256 && hash(memberZip) !== runtime.member.sha256) throw new Error('runtime archive SHA-256 mismatch');
   return (async () => {
-    const files = await extractFlat(memberZip, { names: runtime.files ?? undefined });
+    const files = extractFlatSync(memberZip, { names: runtime.files ?? undefined });
     const fileHashes = Object.fromEntries([...files].map(([n, b]) => [n, hash(b)]));
     if (runtime.fileHashes) for (const [n, h] of Object.entries(runtime.fileHashes)) if (fileHashes[n] !== h) throw new Error('runtime member hash mismatch: ' + n);
     if (!files.has(runtime.entry) || ![...files.keys()].some(n => n.endsWith('.wasm'))) throw new Error('runtime archive lacks ' + runtime.entry + '/wasm');
@@ -59,6 +67,8 @@ function install(runtime, memberZip, { store = storeRoot(), notices, verificatio
     try {
       const out = join(staging, runtime.id); mkdirSync(out);
       for (const [n, b] of files) writeFileSync(join(out, n), b, { flag: 'wx' });
+      // Keep the official web template ZIP: verification of unpinned runtimes re-extracts it, never trusts the receipt.
+      writeFileSync(join(out, TEMPLATE), memberZip, { flag: 'wx' });
       runtime.notices.forEach(n => writeFileSync(join(out, n.file), notices.get(n.file), { flag: 'wx' }));
       const all = { ...fileHashes, ...Object.fromEntries(runtime.notices.map(n => [n.file, n.sha256])) };
       writeFileSync(receiptPath(out), JSON.stringify({ schema: 'game-cask/engine-provision/2', runtime: runtime.id, archiveSha256: hash(memberZip),
@@ -181,9 +191,19 @@ export function verifyRuntime(id, { store = storeRoot(), runtime: entry } = {}) 
   const receipt = JSON.parse(readFileSync(receiptPath(target)));
   if (receipt.runtime !== runtime.id || (runtime.sha256 && receipt.archiveSha256 !== runtime.sha256)) throw new Error('runtime provision receipt mismatch');
   const verification = receipt.verification ?? 'pinned-member-sha256';
-  if (!STRENGTH[verification]) throw new Error('unknown runtime verification ' + verification);
-  // Pinned runtimes re-verify against the checked-in manifest, never merely the mutable receipt.
-  const expected = runtime.fileHashes ? { ...runtime.fileHashes, ...Object.fromEntries(runtime.notices.map(n => [n.file, n.sha256])) } : receipt.files;
+  if (!allowedVerifications(runtime).includes(verification)) throw new Error(`runtime receipt claims verification ${verification}, impossible for ${runtime.id} (allowed: ${allowedVerifications(runtime).join(', ')})`);
+  let expected;
+  if (runtime.fileHashes) {
+    // Pinned runtimes re-verify against the checked-in manifest, never merely the mutable receipt.
+    expected = { ...runtime.fileHashes, ...Object.fromEntries(runtime.notices.map(n => [n.file, n.sha256])) };
+  } else {
+    // Unpinned: recompute from the cached official ZIP, which must match the manifest's CRC32/size pin.
+    const zipFile = join(target, TEMPLATE);
+    if (!existsSync(zipFile) || lstatSync(zipFile).isSymbolicLink()) throw new Error('provisioned runtime lacks its web template ZIP (re-fetch ' + runtime.id + ')');
+    const zip = readFileSync(zipFile);
+    if (zip.length !== runtime.member.size || crc32(zip) !== runtime.member.crc32 || hash(zip) !== receipt.archiveSha256) throw new Error('provisioned runtime web template differs from the manifest pin');
+    expected = { ...Object.fromEntries([...extractFlatSync(zip)].map(([n, b]) => [n, hash(b)])), ...Object.fromEntries(runtime.notices.map(n => [n.file, n.sha256])) };
+  }
   for (const n of runtime.notices) if (expected[n.file] !== n.sha256) throw new Error('provisioned runtime hash mismatch: ' + n.file);
   for (const [name, sha] of Object.entries(expected)) {
     const file = join(target, name);
@@ -191,8 +211,8 @@ export function verifyRuntime(id, { store = storeRoot(), runtime: entry } = {}) 
     const st = lstatSync(file);
     if (!st.isFile() || st.isSymbolicLink() || hash(readFileSync(file)) !== sha || receipt.files[name] !== sha) throw new Error('provisioned runtime hash mismatch: ' + name);
   }
-  const extra = readdirSync(target).filter(n => n !== 'provision.json' && !(n in expected));
+  const extra = readdirSync(target).filter(n => n !== 'provision.json' && n !== TEMPLATE && !(n in expected));
   if (extra.length) throw new Error('provisioned runtime has unexpected files: ' + extra.join(', '));
-  return { runtime, target, receipt, verification, files: expected, runtimeFiles: Object.keys(expected).filter(n => !runtime.notices.some(x => x.file === n)) };
+  return { runtime, target, receipt, verification, verified: isVerified(verification), files: expected, runtimeFiles: Object.keys(expected).filter(n => !runtime.notices.some(x => x.file === n)) };
 }
 export const isProvisioned = (id, opts) => { try { verifyRuntime(id, opts); return true; } catch (e) { if (/not provisioned/.test(e.message)) return false; throw e; } };

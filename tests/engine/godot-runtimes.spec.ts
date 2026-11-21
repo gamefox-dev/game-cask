@@ -44,6 +44,9 @@ for (const id of IDS) {
       await observeEngineFrames(page, 60); const timing = await engineTiming(page);
       expect(timing.samples).toBeGreaterThanOrEqual(60);
       const d = await engineDiagnostics(page); expect(d.path).toBe('engineProfile'); expect(d.runtimeId).toBe(id);
+      // Unverified runtimes (no published checksum) are built only with the recorded opt-in and say so.
+      expect(manifest.engineProfile.runtime.verified).toBe(runtime.verified);
+      expect(manifest.engineProfile.allowUnverifiedRuntime).toBe(!runtime.verified);
       const network = await capture.finish();
       await info.attach('network.json', { body: JSON.stringify(network), contentType: 'application/json' });
       await info.attach('bundle-metrics.json', { body: JSON.stringify(manifest.metrics), contentType: 'application/json' });
@@ -76,8 +79,8 @@ test('threaded runtime without cross-origin isolation headers fails loudly', asy
   } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); }
 });
 
-test('engine stderr: Godot warnings are recorded as warnings, errors and unprefixed lines still fail', async ({ page }, info) => {
-  info.annotations.push({ type: 'catches', description: 'Severity classification must never hide an engine ERROR (or context-free stderr) as a warning.' });
+test('engine stderr: Godot warnings stay warnings; aborts, errors and unprefixed lines fail even right after a warning', async ({ page }, info) => {
+  info.annotations.push({ type: 'catches', description: 'Severity classification must never hide an engine ERROR, a wasm abort/trap or context-free stderr as a warning (vK55 finding 1).' });
   const { createServer } = await import('node:http');
   const adapter = readFileSync(new URL('../../tools/engine/browser-adapter.js', import.meta.url));
   const server = createServer((req, res) => {
@@ -89,15 +92,22 @@ test('engine stderr: Godot warnings are recorded as warnings, errors and unprefi
   await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve));
   try {
     await page.goto(`http://127.0.0.1:${port}/`); await page.waitForFunction(() => (window as any).t);
-    const result = await page.evaluate(() => {
-      const t = (window as any).t;
-      const s = ['USER WARNING: Invalid mix rate of 0', 'Defaulting mix rate to value 44100.', '   at: _get_configured_mix_rate (servers/audio_server.cpp:125)',
-        'Blocking on the main thread is very dangerous, see https://emscripten.org/docs/porting/pthreads.html', 'ERROR: Condition "x" is true.', '   at: f (a.cpp:1)', 'unprefixed after error']
-        .map(x => t.engineStderr(x));
-      t.log('stdout resets context'); s.push(t.engineStderr('context-free stderr'));
-      return { s, d: (window as any).__BGT_TEST__.diagnostics() };
-    });
-    expect(result.s).toEqual(['warning', 'warning', 'warning', 'warning', 'error', 'error', 'error', 'error']);
-    expect(result.d.warnings).toHaveLength(4); expect(result.d.errors).toHaveLength(4);
+    const lines: [string, string][] = [
+      ['USER WARNING: Invalid mix rate of 0', 'warning'], ['Defaulting mix rate to value 44100.', 'warning'],
+      ['   at: _get_configured_mix_rate (servers/audio_server.cpp:125)', 'warning'],
+      ['Blocking on the main thread is very dangerous, see https://emscripten.org/docs/porting/pthreads.html', 'warning'],
+      ['Aborted(RuntimeError: unreachable)', 'error'], // abort right after warnings
+      ['WARNING: something', 'warning'], ['RuntimeError: memory access out of bounds', 'error'],
+      ['WARNING: again', 'warning'], ['Defaulting mix rate to value 44100. trailing', 'error'], // allowlist is exact
+      ['ERROR: Condition "x" is true.', 'error'], ['   at: f (a.cpp:1)', 'error'], ['unprefixed after error', 'error'],
+    ];
+    const result = await page.evaluate(lines => {
+      const t = (window as any).t, s = lines.map(([x]) => t.engineStderr(x));
+      t.log('stdout resets context'); s.push(t.engineStderr('   at: orphan continuation'), t.engineStderr('context-free stderr'));
+      return { s, failed: (window as any).__BGT_TEST__.failed(), d: (window as any).__BGT_TEST__.diagnostics() };
+    }, lines);
+    expect(result.s).toEqual([...lines.map(([, sev]) => sev), 'error', 'error']);
+    expect(result.d.warnings).toHaveLength(6); expect(result.d.errors).toHaveLength(8); expect(result.failed).toBe(true);
+    expect(result.d.errors.map((e: any) => e.message)).toEqual(expect.arrayContaining(['Aborted(RuntimeError: unreachable)', 'RuntimeError: memory access out of bounds']));
   } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); }
 });

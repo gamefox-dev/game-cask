@@ -123,7 +123,7 @@ build manifest and the inspect report:
 |---|---|---|
 | `pinned-member-sha256` | the web template ZIP's SHA-256 is pinned in the manifest (only ever pinned from a full archive verified against the published SHA-512, or reviewer-supplied and since confirmed so); only that member is range-fetched | ~5–10 MB |
 | `published-archive-sha512` | no member pin yet: the whole archive is downloaded and checked against the published SHA-512 (`--full` forces this) | 0.5–1.3 GB, deleted after extraction unless `--keep-archive` |
-| `manifest-crc32` | the release publishes no checksum: only the pinned CRC32/size and TLS from the official host. Weak; refused unless `--allow-unpublished` | ~5–10 MB |
+| `manifest-crc32` = **unverified** | the release publishes no checksum: only the pinned CRC32/size and TLS from the official host. Refused unless `--allow-unpublished` at fetch time **and** `engineProfile.allowUnverifiedRuntime: true` recorded in game.json at build/serve time; the build report says UNVERIFIED | ~5–10 MB |
 
 Pinned members today: 3.5.3, 4.3 and 4.4.1 (both variants each). After a `published-archive-sha512` fetch, a
 maintainer may run `npm run engine -- pin ID` to pin that member (the review is the commit of runtimes.json).
@@ -131,8 +131,10 @@ Offline: `npm run engine -- fetch ID --from Godot_v…_export_templates.tpz` (ve
 `LICENSE.txt`/`COPYRIGHT.txt` beside it or fetched from the tag) or the K45 form
 `npm run engine:provision -- ID web_template.zip NOTICES_DIR` for pinned members. Every member ZIP is validated
 entry by entry (paths, links/special files, encryption, sizes) before extraction, every member is CRC32 checked,
-and every later build re-verifies the cached files (against the manifest for pinned runtimes, the receipt
-otherwise). `npm run engine -- doctor ID` re-verifies a cache entry.
+and every later build re-verifies the cached files: pinned runtimes against the manifest; unpinned ones by
+re-extracting the cached official web template ZIP (kept as `web-template.zip`, checked against the manifest's
+CRC32/size pin and the receipt). A receipt can never claim a level the manifest entry does not allow. The bundle is
+written from bytes re-hashed against those verified hashes. `npm run engine -- doctor ID` re-verifies a cache entry.
 
 ## Deployable bundle and metrics
 

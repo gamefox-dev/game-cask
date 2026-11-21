@@ -13,7 +13,7 @@ import * as g3 from '../fixtures/engine/godot3-fixture.mjs';
 // @ts-expect-error adapter
 import { parsePack, analyzePack, projectSettings, identifyRunner, locatePack } from '../../tools/engine/godot.mjs';
 // @ts-expect-error orchestration
-import { detectProfile, validateConfig, bundledRuntimeFiles } from '../../tools/engine/framework.mjs';
+import { detectProfile, validateConfig, bundledRuntimeFiles, copyVerified, requireVerifiedOrOptIn } from '../../tools/engine/framework.mjs';
 // @ts-expect-error detection
 import { detectEngines } from '../../tools/engine/detect.mjs';
 // @ts-expect-error runtimes
@@ -32,6 +32,8 @@ import { inventory } from '../../tools/inspect/inspect.mjs';
 const temp = () => mkdtempSync(join(tmpdir(), 'k55-engine-'));
 const sha = (b: Buffer, alg = 'sha256') => createHash(alg).update(b).digest('hex');
 const B43 = '77dcf97d82cbfe4e4615475fa52ca03da645dbd8';
+const validProfile = () => ({ schema: 'game-cask/engine-profile/2', allowed: true, adapter: 'godot4', runtime: 'godot-4.3-nothreads', version: '4.3', build: B43,
+  runner: 'game.exe', runnerSha256: 'a'.repeat(64), pack: { location: 'embedded-trailer', sha256: 'b'.repeat(64) }, renderer: 'webgl2', threads: false });
 
 describe('Godot 4 PCK format 2', () => {
   it('standalone pack parses unchanged; 4.4 paths without res:// are equivalent', () => {
@@ -284,6 +286,48 @@ describe('runtime download and verification (synthetic official host)', () => {
     const r = await fetchRuntime(runtime.id, { store, runtime, fetchImpl: h.fetchImpl, allowUnpublished: true });
     expect(r.verification).toBe('manifest-crc32');
     await expect(fetchRuntime(runtime.id, { store: temp(), runtime: entry({ member: { crc32: 1 } }), fetchImpl: h.fetchImpl, allowUnpublished: true })).rejects.toThrow(/differs from the manifest pin/);
+  });
+  it('vK55-3: unpinned caches are recomputed from the cached official ZIP; a receipt can never raise the level', async () => {
+    const h = host(), runtime = entry(), store = temp();
+    const r = await fetchRuntime(runtime.id, { store, runtime, fetchImpl: h.fetchImpl, allowUnpublished: true });
+    expect(r.verified).toBe(false);
+    const receiptFile = join(r.target, 'provision.json'), receipt = JSON.parse(readFileSync(receiptFile, 'utf8'));
+    // Upgrade claim refused.
+    writeFileSync(receiptFile, JSON.stringify({ ...receipt, verification: 'published-archive-sha512' }));
+    expect(() => verifyRuntime(runtime.id, { store, runtime })).toThrow(/impossible/);
+    writeFileSync(receiptFile, JSON.stringify(receipt));
+    // Consistent tampering of a file AND its receipt hash is still caught (expected hashes come from the ZIP).
+    writeFileSync(join(r.target, 'godot.js'), 'evil');
+    writeFileSync(receiptFile, JSON.stringify({ ...receipt, files: { ...receipt.files, 'godot.js': sha(Buffer.from('evil')) } }));
+    expect(() => verifyRuntime(runtime.id, { store, runtime })).toThrow(/hash mismatch: godot.js/);
+    // A swapped template ZIP no longer matches the manifest CRC32/size pin.
+    writeFileSync(join(r.target, 'web-template.zip'), zip({ 'godot.js': Buffer.from('evil'), 'godot.wasm': wasm }));
+    expect(() => verifyRuntime(runtime.id, { store, runtime })).toThrow(/differs from the manifest pin/);
+    // A published-checksum runtime can never be "downgraded/forged" into crc32 either.
+    expect(() => verifyRuntime(runtime.id, { store, runtime: entry({ archive: { sha512: sha(tpz, 'sha512') } }) })).toThrow(/impossible/);
+  });
+  it('vK55-4: unverified runtimes need a recorded opt-in to build and to serve', async () => {
+    expect(() => requireVerifiedOrOptIn({ runtime: 'godot-4.1.1-threads' }, 'manifest-crc32')).toThrow(/UNVERIFIED.*allowUnverifiedRuntime/);
+    expect(() => requireVerifiedOrOptIn({ runtime: 'godot-4.1.1-threads', allowUnverifiedRuntime: true }, 'manifest-crc32')).not.toThrow();
+    expect(() => requireVerifiedOrOptIn({ runtime: 'godot-4.3-nothreads' }, 'pinned-member-sha256')).not.toThrow();
+    const cfg = { id: 'x', name: 'x', engineProfile: { ...validProfile(), allowUnverifiedRuntime: 'yes' } };
+    expect(() => validateConfig(cfg)).toThrow(/boolean/);
+    const root = temp(), html = '<html></html>'; writeFileSync(join(root, 'index.html'), html);
+    const manifest = (optIn: boolean) => writeFileSync(join(root, 'manifest.json'), JSON.stringify({ schema: 'game-cask/engine-build/2', path: 'engineProfile',
+      engineProfile: { requirements: { isolation: false }, runtime: { id: 'r', verification: 'manifest-crc32', verified: false }, allowUnverifiedRuntime: optIn }, files: { 'index.html': sha(Buffer.from(html)) } }));
+    manifest(false);
+    await expect(serveEngine(root, { port: Number(process.env.BGT_E2E_PORT ?? 5189) })).rejects.toThrow(/UNVERIFIED/);
+    manifest(true);
+    const s = await serveEngine(root, { port: Number(process.env.BGT_E2E_PORT ?? 5189) });
+    try { expect(s.unverifiedRuntime).toBe(true); expect((await fetch(s.url)).status).toBe(200); } finally { await s.close(); }
+  });
+  it('vK55-2: bundle copies come from bytes re-hashed against the verified runtime hash', () => {
+    const from = temp(), to = temp(); writeFileSync(join(from, 'godot.wasm'), 'ok');
+    copyVerified(from, to, 'godot.wasm', sha(Buffer.from('ok')));
+    expect(readFileSync(join(to, 'godot.wasm'), 'utf8')).toBe('ok');
+    writeFileSync(join(from, 'godot.js'), 'swapped');
+    expect(() => copyVerified(from, to, 'godot.js', sha(Buffer.from('original')))).toThrow(/changed after verification/);
+    expect(() => copyVerified(from, temp(), 'godot.js', undefined)).toThrow(/changed after verification/);
   });
   it('notices are hash-pinned; an offline .tpz import verifies the published SHA-512', async () => {
     const bad = mockHost({ 'https://host/t.tpz': tpz, 'https://notices/LICENSE.txt': Buffer.from('changed'), 'https://notices/COPYRIGHT.txt': notices['https://notices/COPYRIGHT.txt'] });

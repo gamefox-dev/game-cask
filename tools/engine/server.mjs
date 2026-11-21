@@ -20,6 +20,8 @@ export async function serveEngine(dir, { port = Number(process.env.BGT_E2E_PORT 
     files.set('/' + name, data);
   }
   files.set('/manifest.json', Buffer.from(JSON.stringify(manifest)));
+  const runtime = manifest.engineProfile?.runtime;
+  if (runtime?.verification === 'manifest-crc32' && manifest.engineProfile.allowUnverifiedRuntime !== true) throw new Error('engine build uses an UNVERIFIED runtime without the recorded allowUnverifiedRuntime opt-in');
   // The bundle's own deploy headers (integrity-checked above) are what we serve; older builds derive them.
   const declared = files.has('/headers.json') ? JSON.parse(files.get('/headers.json')) : staticHeaders({ isolation: !!manifest.engineProfile?.requirements?.isolation });
   if (manifest.engineProfile?.requirements?.isolation && !declared.crossOriginIsolation) throw new Error('threaded engine build without cross-origin isolation headers');
@@ -33,5 +35,5 @@ export async function serveEngine(dir, { port = Number(process.env.BGT_E2E_PORT 
     res.end(req.method === 'HEAD' ? undefined : data);
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-  return { server, url: 'http://127.0.0.1:' + port + '/', headers: declared, close: () => new Promise((resolve, reject) => { server.close(e => e ? reject(e) : resolve()); server.closeAllConnections(); }) };
+  return { server, url: 'http://127.0.0.1:' + port + '/', headers: declared, unverifiedRuntime: runtime?.verification === 'manifest-crc32', close: () => new Promise((resolve, reject) => { server.close(e => e ? reject(e) : resolve()); server.closeAllConnections(); }) };
 }

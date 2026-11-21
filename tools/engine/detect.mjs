@@ -90,7 +90,7 @@ function describe(inv, root, { runner, pack }, runners) {
       packLocation: d.location, packSha256: d.packSha256, runnerSha256: runner ? d.runnerSha256 : null, files: d.files,
       blockers: d.blockers, warnings: d.warnings, requirements: d.requirements, settings: d.settings,
       runtime: runtime ? { id: runtime.id, variant: runtime.variant, threads: runtime.requirements.threads, crossOriginIsolation: runtime.requirements.isolation,
-        verification: runtime.member.sha256 ? 'pinned-member-sha256' : runtime.archive.sha512 ? 'published-archive-sha512' : 'unpublished (needs --allow-unpublished)', provisioned,
+        verification: runtime.member.sha256 ? 'pinned-member-sha256' : runtime.archive.sha512 ? 'published-archive-sha512' : 'UNVERIFIED: no published checksum (--allow-unpublished + allowUnverifiedRuntime)', provisioned,
         alternatives: d.runtimeCandidates } : null };
     if (!d.blockers.length && runtime) {
       entry.recommendation = 'engineProfile';
@@ -100,7 +100,9 @@ function describe(inv, root, { runner, pack }, runners) {
         runner, runnerSha256: d.runnerSha256, pack: { location: d.location === 'standalone' ? (dirOf(pack) === dirOf(runner) ? 'adjacent' : 'explicit') : d.location, ...(pack !== runner ? { from: pack } : {}), sha256: d.packSha256 },
         renderer: d.requirements.renderer, threads: runtime.requirements.threads,
         width: s['display/window/size/viewport_width'] ?? s['display/window/size/width'] ?? 640, height: s['display/window/size/viewport_height'] ?? s['display/window/size/height'] ?? 360 };
-      if (!provisioned) entry.next = `npm run engine -- fetch ${runtime.id}`;
+      const weak = !runtime.member.sha256 && !runtime.archive.sha512;
+      if (weak) entry.warnings.push('runtime-unverified: this release publishes no checksum; fetch with --allow-unpublished and record engineProfile.allowUnverifiedRuntime: true');
+      if (!provisioned) entry.next = `npm run engine -- fetch ${runtime.id}${weak ? ' --allow-unpublished' : ''}`;
     }
     return entry;
   } catch (e) {

@@ -104,6 +104,10 @@
       "type": "string",
       "maxLength": 500,
       "description": "The porter's recorded reason for choosing the engine runtime (no operator authorization since K55)."
+    },
+    "allowUnverifiedRuntime": {
+      "type": "boolean",
+      "description": "Recorded opt-in to build/serve with a runtime whose release publishes no checksum (verification manifest-crc32)."
     }
   },
   "$comment": "Runtime manifest supplies renderer/thread/header requirements and pinned official archive/member/notice hashes. Build validates exact pairing."

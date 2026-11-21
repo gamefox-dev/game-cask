@@ -7,13 +7,15 @@ export function installEngineTestAdapter(canvas, identity) {
   const warnings = [];
   const error = (kind, message) => bounded(errors, { kind, message: String(message) });
   // Engine stderr carries both errors and warnings. Godot prefixes them ("ERROR:", "USER ERROR:", "SCRIPT ERROR:",
-  // "WARNING:", "USER WARNING:") and continues with indented "at:" or follow-up lines; those inherit the severity.
-  // Unprefixed stderr without context, and anything after an error, stays an error (fail-closed).
+  // "WARNING:", "USER WARNING:"). Only indented continuation lines ("   at: ...") inherit the previous severity, plus
+  // an exact allowlist of known benign engine/emscripten notices. Everything else (e.g. "Aborted(RuntimeError: ...)",
+  // "RuntimeError: memory access out of bounds") is an error, even right after a warning (fail-closed).
+  const BENIGN = [/^Defaulting mix rate to value \d+\.$/, /^Blocking on the main thread is very dangerous, see https:\/\/emscripten\.org\//];
   let lastSeverity = null;
   const engineStderr = message => {
     const text = String(message);
-    const severity = /^(USER |SCRIPT )?ERROR:/.test(text) ? 'error' : /^(USER )?WARNING:/.test(text) || /^Blocking on the main thread is very dangerous/.test(text) ? 'warning'
-      : lastSeverity === 'warning' ? 'warning' : 'error';
+    const severity = /^(USER |SCRIPT )?ERROR:/.test(text) ? 'error' : /^(USER )?WARNING:/.test(text) || BENIGN.some(re => re.test(text)) ? 'warning'
+      : /^\s+at:\s/.test(text) && lastSeverity ? lastSeverity : 'error';
     lastSeverity = severity;
     if (severity === 'warning') bounded(warnings, { kind: 'engine', message: text }); else error('engine', text);
     return severity;

@@ -35,7 +35,7 @@ try {
   } else if (command === 'runtimes') {
     const version = option(args, '--version');
     for (const r of runtimes().filter(r => !version || r.version === version)) {
-      const level = r.member.sha256 ? 'pinned-member-sha256' : r.archive.sha512 ? 'published-archive-sha512 (full download)' : 'unpublished (needs --allow-unpublished)';
+      const level = r.member.sha256 ? 'pinned-member-sha256' : r.archive.sha512 ? 'published-archive-sha512 (full download)' : 'UNVERIFIED (needs --allow-unpublished)';
       let cached; try { cached = isProvisioned(r.id) ? 'cached' : '-'; } catch (e) { cached = 'CORRUPT: ' + e.message; }
       console.log(`${r.id.padEnd(24)} ${r.build.slice(0, 9)} threads=${r.requirements.threads ? 'yes (COOP/COEP)' : 'no '} ${level.padEnd(42)} ${cached}`);
     }
@@ -54,7 +54,9 @@ try {
     const dir = resolve(args[0] ?? 'port');
     buildEngine(dir, JSON.parse(readFileSync(join(dir, 'game.json'))));
   } else if (command === 'serve') {
-    const serving = await serveEngine(args[0]); console.log(serving.url);
+    const serving = await serveEngine(args[0]);
+    if (serving.unverifiedRuntime) console.error('engine: WARNING serving an UNVERIFIED runtime (no published checksum; recorded opt-in)');
+    console.log(serving.url);
   } else if (command === 'detect' && args.length <= 1) {
     const root = resolve(args[0] ?? 'original');
     console.log(JSON.stringify(detectEngines(inventory(root), root), null, 2));

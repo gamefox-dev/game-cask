@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { inventory } from '../inspect/inspect.mjs';
 import * as godot from './godot.mjs';
-import { PRIVATE, runtimeById, selectRuntime, verifyRuntime, runtimes } from './runtime.mjs';
+import { PRIVATE, hash, runtimeById, selectRuntime, verifyRuntime, runtimes } from './runtime.mjs';
 import { generateShell } from './shell.mjs';
 import { staticHeaders, headersFile } from './headers.mjs';
 
@@ -23,6 +23,7 @@ export function validateConfig(cfg) {
   if (!SCHEMAS.includes(p.schema) || !adapters[p.adapter]) throw new Error('unsupported engine profile schema/adapter');
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(cfg.id) || typeof cfg.name !== 'string') throw new Error('invalid engine game id/name');
   if (p.choice !== undefined && (typeof p.choice !== 'string' || p.choice.length > 500)) throw new Error('engineProfile.choice must be a short string');
+  if (p.allowUnverifiedRuntime !== undefined && typeof p.allowUnverifiedRuntime !== 'boolean') throw new Error('engineProfile.allowUnverifiedRuntime must be boolean');
   const runtime = runtimeById(p.runtime);
   if (runtime.adapter !== p.adapter) throw new Error('runtime adapter mismatch');
   if (p.version !== runtime.version || p.build !== runtime.build) throw new Error('profile/runtime exact version/build mismatch');
@@ -104,6 +105,18 @@ export function detectProfile(inspectOutput, { root, runner, pack = runner, runt
 }
 export function publicDetection(d) { const { _parsed, ...report } = d; return report; }
 
+/** Copy once, from bytes hashed right here against the verified runtime hash (no check-then-copy race). */
+export function copyVerified(fromDir, toDir, name, expected) {
+  const data = readFileSync(join(fromDir, name));
+  if (!expected || hash(data) !== expected) throw new Error('runtime file changed after verification: ' + name);
+  writeFileSync(join(toDir, name), data, { flag: 'wx' });
+}
+/** manifest-crc32 runtimes (no published checksum) need a recorded opt-in in game.json, at build AND serve time. */
+export function requireVerifiedOrOptIn(profile, verification) {
+  if (verification === 'manifest-crc32' && profile?.allowUnverifiedRuntime !== true)
+    throw new Error(`runtime ${profile?.runtime} is UNVERIFIED (manifest-crc32: its release publishes no checksum); record engineProfile.allowUnverifiedRuntime: true in game.json to use it`);
+}
+
 /** Files of the official template a page actually loads (no HTML templates, service workers, PWA files). */
 export const bundledRuntimeFiles = names => names.filter(n => /\.(js|wasm)$/.test(n) && !/service\.worker\.js$/.test(n));
 
@@ -118,6 +131,7 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   if (!p.pack.location.startsWith('embedded') && detection.location !== 'standalone') throw new Error('expected standalone side pack');
   if (p.pack.location === 'adjacent' && dirname(resolve(root, p.pack.from)) !== dirname(resolve(root, p.runner))) throw new Error('adjacent pack must be beside runner');
   const provisioned = verifyRuntime(runtime.id, { store });
+  requireVerifiedOrOptIn(p, provisioned.verification);
   const parent = resolve(outRoot); mkdirSync(parent, { recursive: true });
   const out = join(parent, cfg.id), staging = mkdtempSync(join(parent, '.engine-build-'));
   const runtimeFiles = bundledRuntimeFiles(provisioned.runtimeFiles), notices = runtime.notices.map(n => n.file);
@@ -125,11 +139,12 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   const result = { schema: 'game-cask/engine-build/2', id: cfg.id, name: cfg.name, private: true, path: 'engineProfile',
     engineProfile: { ...publicDetection(detection), choice: { by: 'game.json engineProfile.allowed', reason: p.choice ?? null },
       runtime: { id: runtime.id, variant: runtime.variant, version: runtime.version, build: runtime.build, sha256: provisioned.receipt.archiveSha256,
-        verification: provisioned.verification, archive: runtime.archive, files: provisioned.files },
+        verification: provisioned.verification, verified: provisioned.verified, archive: runtime.archive, files: provisioned.files },
+      allowUnverifiedRuntime: p.allowUnverifiedRuntime === true,
       requirements: runtime.requirements, notices: runtime.notices, scan: 'Known unsupported patterns only; not a complete platform feature proof.' },
     headers, files: {}, metrics: null };
   try {
-    for (const name of [...runtimeFiles, ...notices]) cpSync(join(provisioned.target, name), join(staging, name), { errorOnExist: true });
+    for (const name of [...runtimeFiles, ...notices]) copyVerified(provisioned.target, staging, name, provisioned.files[name]);
     writeFileSync(join(staging, 'game.pck'), detection._parsed.pack);
     cpSync(new URL('browser-adapter.js', import.meta.url), join(staging, 'browser-adapter.js'));
     const wasm = runtimeFiles.find(n => n.endsWith('.wasm'));
@@ -149,6 +164,7 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
       wasmBytes: sizes[wasm].bytes, downloadBytes: sum(boot, 'bytes'), downloadGzipBytes: sum(boot, 'gzipBytes'), bundleBytes: sum(served, 'bytes'),
       fileCount: served.length + 1, files: sizes,
       note: 'downloadBytes: every file the page may fetch (runtime JS/wasm/worklets/workers, pack, shell); gzip estimated at level 9' };
+    for (const name of [...runtimeFiles, ...notices]) if (result.files[name] !== provisioned.files[name]) throw new Error('bundled runtime file differs from the verified runtime: ' + name);
     writeFileSync(join(staging, 'manifest.json'), JSON.stringify(result, null, 2) + '\n');
     if (!check) {
       // Refuse unrelated output/symlinks. A previous engine build can be replaced.
@@ -162,7 +178,7 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   if (!quiet) {
     const m = result.metrics, mb = n => (n / 1048576).toFixed(2) + ' MiB';
     console.log(`engineProfile: ${cfg.id} -> ${out}`);
-    console.log(`  runtime ${runtime.id} (${provisioned.verification})${runtime.requirements.isolation ? ', threads: COOP/COEP headers in _headers/headers.json' : ''}`);
+    console.log(`  runtime ${runtime.id} (${provisioned.verified ? provisioned.verification : 'UNVERIFIED: ' + provisioned.verification + ', no published checksum; allowUnverifiedRuntime recorded'})${runtime.requirements.isolation ? ', threads: COOP/COEP headers in _headers/headers.json' : ''}`);
     console.log(`  download ${mb(m.downloadBytes)} (gzip ~${mb(m.downloadGzipBytes)}): pack ${mb(m.packBytes)}, runtime ${mb(m.runtimeBytes)} (wasm ${mb(m.wasmBytes)}); bundle ${m.fileCount} files`);
   }
   return result;
