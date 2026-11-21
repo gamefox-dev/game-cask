@@ -690,7 +690,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 l64_write(o, aa, "t", next); break;
             case XO_CMOVCC:
                 l64_read(o, bb, "t", next); fprintf(o, "if(xl_cond(%u,flags)){", in->cc);
-                l64_write(o, aa, "t", next); fprintf(o, "}"); break;
+                l64_write(o, aa, "t", next); fprintf(o, "}");
+                /* AMD64: a 32-bit CMOVcc zero-extends its destination even when the condition is false. */
+                if (aa->kind == XK_REG && aa->reg < 16 && n == 4) fprintf(o, "else r[%u]=(uint32_t)r[%u];", aa->reg, aa->reg);
+                break;
             case XO_SETCC:
                 fprintf(o, "t=xl_cond(%u,flags);", in->cc); l64_write(o, aa, "t", next); break;
             case XO_SIMD: l64_simd(o, in, next); break;

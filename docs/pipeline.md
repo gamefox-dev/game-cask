@@ -440,6 +440,13 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
 - **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
   the fast emitter as guarded switch candidates; the real computed target is always compared.
 
+**ABI assumption (accepted).** Fast mode assumes Win64 calling-convention behaviour: EFLAGS are not read
+across calls/returns, and callees preserve RBX, RBP, RSI, RDI and R12-R15 (only volatile registers and RSP are
+reloaded after a call). Compiler output satisfies this. Use `liftMode: "exact"` for a module whose hand-written
+assembly passes values in flags or clobbers callee-saved registers, and whenever exact fault behaviour is needed:
+`memory: "mask"` turns a wild guest pointer into an aliased guest access instead of an access-violation stop,
+and `memory: "range"` is the checked option. The pipeline default stays `exact` until the game measurement.
+
 Dropped on purpose (STRATEGY-UNRESTRICTED): exact fault order and faulting state, per-instruction entries,
 page holes/protections inside the window, coverage beyond function entries, the exact quantum position, flags
 observed across calls/returns and callee-saved registers clobbered against the ABI. Guest-visible results

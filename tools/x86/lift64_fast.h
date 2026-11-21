@@ -464,7 +464,11 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             if (fused_consumer) snprintf(cond, sizeof cond, "xf_cond(%d,ca,cb,cr,%d,%u)", l64f_alu_op(ins[k - 1].op),
                 ins[k - 1].o[0].size ? ins[k - 1].o[0].size : ins[k - 1].osz, in->cc);
             else snprintf(cond, sizeof cond, "xl_cond(%u,flags)", in->cc);
-            if (in->op == XO_CMOVCC) { l64_read(o, bb, "t", next); fprintf(o, "if(%s){", cond); l64_write(o, aa, "t", next); fprintf(o, "}"); }
+            if (in->op == XO_CMOVCC) {
+                l64_read(o, bb, "t", next); fprintf(o, "if(%s){", cond); l64_write(o, aa, "t", next); fprintf(o, "}");
+                /* AMD64: a 32-bit CMOVcc zero-extends its destination even when the condition is false. */
+                if (aa->kind == XK_REG && aa->reg < 16 && sz == 4) fprintf(o, "else r[%u]=(uint32_t)r[%u];", aa->reg, aa->reg);
+            }
             else if (in->op == XO_SETCC) { fprintf(o, "t=%s;", cond); l64_write(o, aa, "t", next); }
             else {
                 int t = l64_index(f, in->target);
@@ -522,7 +526,10 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 l64f_body(o, a, y, st, c, gpre, next, label, l64_fast_sp);
                 *st = copy;
                 c->depth--; l64f_release(y); l64_fast_pc = va;
-                fprintf(o, "%s: __attribute__((unused));\n", label);
+                /* Both the inlined RET and an inlined tail call's return arrive here. The callee may
+                 * have moved RSP (alloca-style ___chkstk/__alloca): re-derive the stack base from the
+                 * real r[4], exactly as after a non-inlined call. */
+                fprintf(o, "%s: __attribute__((unused));", label); l64f_spset(o, sp_call); fprintf(o, "\n");
                 continue;
             }
             fprintf(o, "XF_SPILL;");

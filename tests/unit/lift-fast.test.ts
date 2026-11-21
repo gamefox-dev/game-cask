@@ -179,3 +179,34 @@ it(`execution (${suspension}): fast frames unwind before callbacks, park/rewind 
     expect(snapshots[0]).toEqual(snapshots[1]);
   }
 }, 120000);
+
+// vK52 must-fix: an inlined alloca-style callee (pop r11; sub rsp,rax; push r11; ret, as in mingw
+// ___chkstk/__alloca) moves RSP. The caller's [rsp] stores after the call must use the moved RSP, which
+// fails if the static stack base is not re-derived at the inlined return.
+it.each([['48'], ['0']])('execution: alloca-style callee that moves RSP keeps caller stack slots correct (inline %s)', async (inline) => {
+  // f: sub rsp,0x28; mov eax,0x40; call g; mov qword [rsp],0x77; mov qword [rsp+8],0x99; mov rax,rsp;
+  //    add rsp,0x68; ret.   g: pop r11; sub rsp,rax; push r11; ret
+  const code = Buffer.alloc(0x50, 0x90);
+  Buffer.from('4883ec28' + 'b840000000' + 'e832000000' + '48c7042477000000' + '48c744240899000000' + '4889e0' + '4883c468' + 'c3', 'hex').copy(code);
+  Buffer.from('415b' + '4829c4' + '4153' + 'c3', 'hex').copy(code, 0x40);
+  const h = await harness(code, [0, 0x40], [...FAST, '--fast-inline', inline]);
+  if (inline !== '0') expect(h.text).toContain('L_i1_00002040');
+  const got = h.run(0, 0); expect(h.ex.interpretation()).toBe(0);
+  const rsp = 0x9000 - 8 - 0x28 - 0x40;
+  expect(new DataView(got.regs.buffer).getBigUint64(0, true)).toBe(BigInt(rsp));
+  const at = (a: number) => new DataView(got.ram.buffer).getBigUint64(a - 0x1000, true);
+  expect(at(rsp)).toBe(0x77n); expect(at(rsp + 8)).toBe(0x99n);
+  expect(got).toEqual(h.run(1, 0));
+}, 120000);
+
+// AMD64 CMOVcc r32 zero-extends the destination even when the condition is false (interpreter, exact
+// emitter and fast emitter). mov rax,-1; mov ecx,5; cmp eax,eax; cmovne eax,ecx; cmove edx,ecx; ret
+it.each([[['--lift-preset', 'size']], [['--lift-preset', 'fast']], [FAST]])('32-bit CMOVcc zero-extends with a false condition (%s)', async (args) => {
+  const code = Buffer.from('48c7c0ffffffff' + '48c7c2ffffffff' + 'b905000000' + '39c0' + '0f45c1' + '0f44d1' + 'c3', 'hex');
+  const h = await harness(code, [0], args);
+  for (const interpreted of [0, 1]) {
+    const got = h.run(interpreted, 0), r = new DataView(got.regs.buffer);
+    expect(r.getBigUint64(0, true), 'rax: false cmovne').toBe(0xffffffffn);
+    expect(r.getBigUint64(16, true), 'rdx: true cmove').toBe(5n);
+  }
+}, 120000);
