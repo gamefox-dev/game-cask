@@ -127,6 +127,7 @@ Input snapshot rules:
 | `log(level, ptr, len)` | `bgt_log` | — (len capped at 4096) |
 | `abort(code, ptr, len)` | `bgt_abort` | never returns |
 | `submit_commands(ptr, len)` | `bgt_submit_commands` | `BGT_OK` / first error (see §6) |
+| `submit_failures(dst, cap)` | `bgt_submit_failures` | outcome of the last `submit_commands` (additive v0.3, K57): 0 success, -1 rejected whole with no effects, else the number N of skipped commands; writes min(N, cap) u32 pairs {list byte offset of the command prefix, error code} to `dst` (§13.12) |
 | `asset_open(path, len)` | `bgt_asset_open` | handle > 0 or error |
 | `asset_size(h)` / `asset_read(h, dst, size)` / `asset_seek(h, off)` / `asset_close(h)` | `bgt_asset_*` | size / bytes read (0 at EOF) / 0 / 0, or error |
 | `audio_push(samples, frames)` | `bgt_audio_push` | frames accepted |
@@ -175,7 +176,7 @@ the logical surface with preserved aspect ratio, using an integer scale when
 
 ```
 header  (16 B): u32 magic 'BGTC' (0x43544742) | u16 version (1) | u16 flags (0) | u32 byte_len | u32 cmd_count
-command  (8 B): u16 opcode | u16 flags (0) | u32 payload_len (multiple of 4) | payload
+command  (8 B): u16 opcode | u16 flags (0; 1 = BGT_CMD_FLAG_IF_HEAD in GPU continuation lists, §13.12) | u32 payload_len (multiple of 4) | payload
 ```
 
 The buffer must be 4-byte aligned, ≤ 8 MiB, and `byte_len` must equal the submitted length.
@@ -699,7 +700,8 @@ Profiles implement these only by general transformations or report unsupported; 
 
 Framing validation is still all-or-nothing. Semantic failures skip **only** the failing command, preserve prior state,
 and return the first error from submit (all errors retain opcode/offset). Wrong fixed length or inconsistent inline
-tail → E_INVALID; oversized inline counts → E_LIMIT; nonzero command flags → E_UNSUPPORTED. Capability gating
+tail → E_INVALID; oversized inline counts → E_LIMIT; nonzero command flags → E_UNSUPPORTED, except `BGT_CMD_FLAG_IF_HEAD` (1) in a GPU continuation list (§13.12: run only
+if the latest unflagged command of the list took effect, else skipped with E_STATE). Capability gating
 precedes payload validation so old modules retain E_UNSUPPORTED for formerly unknown opcodes (even malformed).
 With the capability present: shape validation precedes lifecycle/state checks, which precede
 resource checks; create checks handle/duplicate first. Bad enums, boolean outside 0..1, NaN/Inf, zero required size,
@@ -1312,7 +1314,9 @@ normal Win64 pipeline fixture and direct native `gpu-feedback` regressions on bo
 ### 13.12 Bounded GPU submission continuation (additive v0.3)
 
 Command-stream **header** flag `GPU_CONTINUATION=1` opts a GPU-only list into bounded continuation of the
-current frame/update. Command-prefix flags remain zero. Unflagged headers retain their existing 256-list ceiling;
+current frame/update. Command-prefix flags are zero except `BGT_CMD_FLAG_IF_HEAD` (1, K57; any other value is
+E_UNSUPPORTED): the command runs only if the most recent unflagged command of the same list took effect, otherwise it
+is skipped with E_STATE (reported as a failed command, below). Unflagged headers retain their existing 256-list ceiling;
 continuation lists do not consume that legacy list allowance. CAP_GPU is required, otherwise E_UNSUPPORTED.
 A flagged list containing any opcode outside 0x40..0x64 is rejected in the framing pass (E_UNSUPPORTED, no effects).
 Unknown header bits remain E_UNSUPPORTED. All passes must still end in the same submission. This is not a yield,
@@ -1368,14 +1372,20 @@ Standalone executors keep per-pass submission unless the renderer enables mergin
 
 **Capacity reuse and batched allocations (K57; no wire, opcode, capability or limit change).** The WGL profile
 keeps a buffer's exact logical GL size apart from its native store capacity. glBufferData that fits the live
-capacity (equal, smaller or larger size) is one BUFFER_UPDATE of the logical prefix; every native range the
-profile emits (vertex/index/uniform bindings, feedback captures, copies, readbacks) and every guest-visible
-query, bound and mapping uses the logical size, so the native tail is never observable. Growth beyond the
-capacity reallocates once with headroom (1.5x the old capacity, 16-byte rounded, at most 16 MiB of headroom in
-total) as DELETE + one CREATE(capacity) carrying the new bytes and a zero tail; a headroom allocation the host
-rejects is retried at the exact size, so headroom is never the cause of GL_OUT_OF_MEMORY. A whole-logical-store write of a GPU-generated
-store with spare capacity uploads the whole capacity, so the host's generated provenance (cleared only by a
-whole-store write) equals the profile's. Buffer DELETE/CREATE of these reallocations, transform-feedback draws
+capacity (equal, smaller or larger size) is one BUFFER_UPDATE of the logical prefix;
+every native range the profile emits (vertex/index/uniform bindings, feedback captures, copies, readbacks) and every
+guest-visible query, bound and mapping uses the logical size, so the native tail is never observable. Retained
+capacity is budgeted: the sum of (capacity - size) over live stores stays at most min(16 MiB, GPU budget / 16).
+Growth beyond the capacity reallocates once with headroom (1.5x the old capacity, 16-byte rounded) only within that
+budget, as DELETE + one CREATE(capacity) carrying the new bytes and a zero tail; a store whose size falls below a
+quarter of its capacity (with at least 64 KiB slack), or whose shrink would exceed the budget, is reallocated at the
+exact size. A CREATE is batched only while no slack is retained (the host then holds exactly the exact-size bytes at
+that stream position, so a rejection is genuine); otherwise it is submitted synchronously, and a budget rejection is
+retried without headroom, then after reclaiming slack (exact-size reallocation of CPU-authoritative stores), before
+GL_OUT_OF_MEMORY is latched. Capacity therefore never causes an OUT_OF_MEMORY the exact-size profile would not raise.
+A generated store with spare capacity whose whole logical store is rewritten from the CPU (glBufferData,
+glBufferSubData, mapped writes, glCopyBufferSubData from a CPU source) is reallocated at the exact size, because the
+host clears generated provenance only for a whole-store write; uploads stay the written/logical range. Buffer DELETE/CREATE of these reallocations, transform-feedback draws
 (FEEDBACK_CAPTURE) and BLIT join the frame batch; a replayed rejection withdraws exactly what each call committed
 (logical size, shadow bytes, generation, wire handle occupancy, feedback cursor/query/provenance), leaves a buffer
 whose CREATE was rejected empty (the unbatched accepted-DELETE/rejected-CREATE outcome), and releases a store
@@ -1396,8 +1406,8 @@ the decoder at the first glGetError after the call, never from native polls. Ren
 compute-emulated captures into the frame encoder (their buffers/textures count as used; temporaries are destroyed
 after the frame submit), so such frames still cost one GPUQueue.submit; WebGL 2 production no longer polls
 getError around BUFFER_CREATE, BLIT or feedback draws (their native errors reach the deferred frame-end poll;
-strict `?debug=1` still polls every op). Metrics `gl_buffer_capacity_reused` (resized within capacity) and
-`gl_buffer_capacity_grown` (live store reallocated); `gl_buffer_respec_*` keep counting logical size changes.
+strict `?debug=1` still polls every op). Metrics `gl_buffer_capacity_reused` (resized within capacity),
+`gl_buffer_capacity_grown` (live store reallocated larger), `gl_buffer_capacity_released` (exact-size release/reclaim); `gl_buffer_respec_*` keep counting logical size changes.
 
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 

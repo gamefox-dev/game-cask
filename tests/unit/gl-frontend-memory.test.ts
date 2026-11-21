@@ -29,6 +29,7 @@ for (const [mode, marker] of [
   ['allocator', 'allocator split/coalesce/zero/overflow OK'],
   ['backend-failure', 'backend rejected compile and command submission failures remain visible OK'],
   ['buffers', 'buffer reupload/delete cycles=600 reusable host memory OK'],
+  ['capacity-budget', 'buffer capacity budget/release/exact retry/reclaim/generated exact store OK'], // K57
   ['respec', 'buffer re-specification contents/size/map/TF/errors counters OK'],
   ['respec-failures', 'buffer rejected reuse reproduces original delete/create stages and first-error latch OK'],
   ['consumers', 'consumers bidirectional GL/CRT/FILE reuse random=30000'],

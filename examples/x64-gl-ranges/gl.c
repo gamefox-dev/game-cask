@@ -59,6 +59,18 @@ static void failure_case(void){
  glBufferData(GL_ARRAY_BUFFER,24,grow_data+8,GL_DYNAMIC_DRAW);glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&grow_size);memset(grow_back,0,sizeof grow_back);glGetBufferSubData(GL_ARRAY_BUFFER,0,24,grow_back);
  note("capacity reuse keeps the exact logical size",grow_size==24&&!memcmp(grow_back,grow_data+8,24));glGetBufferSubData(GL_ARRAY_BUFFER,0,28,grow_back);error(GL_INVALID_VALUE,"logical bounds after capacity reuse");
  glDeleteBuffers(1,&grow);error(GL_NO_ERROR,"growth recovery");
+ /* K57 review: growth whose 1.5x headroom does not fit the resident budget but whose exact size does is retried exact
+  * (no GL_OUT_OF_MEMORY the exact-size kit would not raise); a rejected allocation reclaims retained slack first. */
+ static unsigned big[(5u<<20)/16];for(unsigned i=0;i<sizeof big/4;i++)big[i]=i*40503u+7u;unsigned tail[4]={0};
+ GLuint wide=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,wide);error(GL_NO_ERROR,"wide store");
+ OutputDebugStringA("x64-gl-ranges inject resident room 266240");glBufferData(GL_ARRAY_BUFFER,1310720,big,GL_DYNAMIC_DRAW);
+ error(GL_NO_ERROR,"headroom growth near the resident limit retried exact");OutputDebugStringA("x64-gl-ranges restore resident budget");
+ glGetBufferSubData(GL_ARRAY_BUFFER,1310720-16,16,tail);note("exact retry keeps the bytes",!memcmp(tail,(unsigned char*)big+1310720-16,16));
+ GLuint slack=store(1u<<20,big);glBindBuffer(GL_ARRAY_BUFFER,slack);glBufferData(GL_ARRAY_BUFFER,600u<<10,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"slack store");
+ GLuint late;glGenBuffers(1,&late);glBindBuffer(GL_ARRAY_BUFFER,late);OutputDebugStringA("x64-gl-ranges inject resident room 4096");
+ glBufferData(GL_ARRAY_BUFFER,65536,big,GL_DYNAMIC_DRAW);error(GL_NO_ERROR,"slack reclaimed before GL_OUT_OF_MEMORY");OutputDebugStringA("x64-gl-ranges restore resident budget");
+ glBindBuffer(GL_ARRAY_BUFFER,slack);glGetBufferSubData(GL_ARRAY_BUFFER,(600u<<10)-16,16,tail);note("reclaimed store keeps its bytes",!memcmp(tail,(unsigned char*)big+(600u<<10)-16,16));
+ GLuint gone[3]={wide,slack,late};glDeleteBuffers(3,gone);error(GL_NO_ERROR,"wide stores deleted");
  /* K57: a batched feedback draw whose upload the host rejects is withdrawn whole: no primitives are counted. */
  GLuint written_query,written=99;glGenQueries(1,&written_query);glUseProgram(generate);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,output);error(GL_NO_ERROR,"capture setup");
  OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,written_query);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
