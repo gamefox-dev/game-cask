@@ -2,7 +2,7 @@
 #ifndef X86_COVERAGE_H
 #define X86_COVERAGE_H
 #ifndef X86_COVERAGE_MODE
-#define X86_COVERAGE_MODE 1 /* 0 direct reference, 1 buffered discovery, 2 strict check only */
+#define X86_COVERAGE_MODE 1 /* 0 direct reference, 1 buffered discovery, 2 strict check only, 3 off (K51) */
 #endif
 #define XC_SLOTS 65536u
 #define XC_PENDING 4096u
@@ -63,7 +63,10 @@ static __attribute__((noinline)) void coverage_miss(uint32_t address,uint32_t ki
 }
 #endif
 void x86_coverage_entry(uint32_t address,uint32_t kind) {
-#if X86_COVERAGE_MODE == 2
+#if X86_COVERAGE_MODE == 3
+    /* Unreachable from generated/runtime hooks (they preprocess away); never crosses to the host. */
+    (void)address;(void)kind;
+#elif X86_COVERAGE_MODE == 2
     /* Same half-open membership contract as the host, checked before guest execution. */
     if(!host_allows(address)) { bgt_slice_missing(1,address);return; }
     uint32_t lo=0,hi=slice_nentries;

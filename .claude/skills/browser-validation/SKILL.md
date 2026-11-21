@@ -75,9 +75,10 @@ test('resource tour', async ({ page, backendParam, collector }, testInfo) => {
 Or from a probe script: `await p.tour({ outDir: 'reports/tour' })`. Review every PNG with the checklist below.
 
 ## Probe mode (exploration without a spec)
-`npm run probe -- --game <id> [--backend webgl2|webgpu] --script <file.mjs> [--out reports/probe] [--params seed=2]`
+`npm run probe -- --game <id> [--backend webgl2|webgpu] [--software] --script <file.mjs> [--out reports/probe] [--params seed=2]`
 runs your script against the test API in headless Chromium on its own server, and writes artifacts to `reports/probe/`
 (`probe.json` with the log, console and errors, plus PNGs). Build the game first (`npm run build:port`).
+WebGL2 probes use the native GPU and fail on a software renderer; pass `--software` on a GPU-less host.
 ```js
 // scratch/look.mjs
 export default async function (p) {

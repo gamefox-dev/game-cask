@@ -5,6 +5,7 @@
 //   node tools/build/build.mjs --all                 every examples/* plus port/ (if it has game.json)
 //   node tools/build/build.mjs --examples            every examples/* only (kit suites: never touch port/)
 //   node tools/build/build.mjs --examples --check    compile to a temp dir only (lint gate)
+//   node tools/build/build.mjs port --no-coverage    performance build: coverage recording compiled out (K51)
 //
 // Output: web/public/games/<id>/{game.wasm, manifest.json, assets/...}
 import { execFileSync, withBuildWriters } from './exec.mjs';
@@ -87,17 +88,18 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null, coverage = null } = {}) {
   if (asyncifyPartitionBytes !== null && (!Number.isInteger(asyncifyPartitionBytes) || asyncifyPartitionBytes < 1024 || asyncifyPartitionBytes > 16 * 1048576))
     throw new Error('asyncifyPartitionBytes must be null or an integer in 1024..16777216');
   const buildStarted = performance.now();
   const gameDir = resolve(ROOT, gameDirArg);
   const cfg = loadGameConfig(gameDir);
   if (cfg.engineProfile) {
-    if (interpretOnly || sliceCoverage || selection || onLinkedWasm || asyncifyPartitionBytes !== null) throw new Error('BGT-only build options are unsupported for engineProfile');
+    if (interpretOnly || sliceCoverage || selection || onLinkedWasm || asyncifyPartitionBytes !== null || coverage !== null) throw new Error('BGT-only build options are unsupported for engineProfile');
     return buildEngine(gameDir, cfg, { ...(outRoot === OUT_ROOT ? {} : { outRoot }), check, quiet });
   }
   cfg.coverageGameId=cfg.id;
+  if(coverage!==null){if(coverage!=='on'&&coverage!=='off')throw new Error('coverage must be on or off');cfg.coverageRecording=coverage;}
   if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])
     if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
@@ -420,6 +422,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const all = argv.includes('--all');
   const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
+  const coverage = argv.includes('--no-coverage') ? 'off' : null; // K51 performance builds
   const mi=argv.indexOf('--selection');
   const selection=mi>=0?argv[mi+1]:null;
   if(mi>=0 && !['all','coverage'].includes(selection))throw new Error('--selection needs all or coverage');
@@ -435,7 +438,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check, interpretOnly, selection, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
+      buildGame(t, { check, interpretOnly, selection, coverage, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);

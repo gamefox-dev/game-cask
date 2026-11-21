@@ -1,5 +1,5 @@
 /* Queries and WGL. SPDX-License-Identifier: MIT — LANE-GL */
-static uint32_t api_GetError(void) { uint32_t e = error; error = 0; return e; }
+static uint32_t api_GetError(void) { flush_pending(); uint32_t e = error; error = 0; return e; }
 static uint32_t string_guest(const char *s) {
     uint32_t n = w32_slen(s) + 1, p = w32_misc_alloc(n);
     for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]);
@@ -25,7 +25,7 @@ static uint32_t query(uint32_t key, int32_t *v) {
     case 0x821b: v[0] = 3; break; case 0x821c: v[0] = 3; break; case 0x821d: v[0] = 3; break;
     case 0x9126: v[0] = 1; break; case 0xd33: v[0] = 4096; break; case 0x8869: v[0] = 16; break;
     case 0x8b4d: case 0x8872: case 0x8a2f: v[0] = 8; break;
-    case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = 65536; break;
+    case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = (int32_t)gl_uniform_limit(); break;
     case 0x8cdf: case 0x8824: v[0] = 4; break;
     case 0x8073: case 0x88ff: v[0] = 256; break; case 0x84e8: v[0] = 4096; break;
     case 0x84fd: case 0x8d57: case 0x910e: case 0x910f: case 0x9110: v[0] = 0; break;
@@ -118,7 +118,7 @@ static uint32_t api_GetBufferSubData(void) {
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
     if (b->generated) {
         uint32_t req = ++request_id; SEND(0x63, b->gpu, (uint32_t)offset, (uint32_t)size, req);
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        int status; while ((status = request_status(req)) == 0) w32_wait_transport();
         uint8_t *data = glp_alloc((uint32_t)size);
         int n = data && status > 0 ? bgt_request_read(req, data, (uint32_t)size) : -1; bgt_request_close(req);
         if (n != (int)size) fail(BAD_OP);
@@ -153,6 +153,7 @@ static uint32_t api_wglCreateContext(void) {
     bgt_gpu_limits_v3_t limits;
     zero(&limits, sizeof limits); bgt_gpu_limits(&limits.base, sizeof limits);
     if (!ARG(0) || !pixel_format || !limits.gpu_supported || !(limits.shader_languages & 2)) return 0;
+    if (limits.gpu_budget_bytes) upload_budget = limits.gpu_budget_bytes;
     if (context) { missing("multiple WGL contexts"); return 0; }
     if ((w32_io->caps & BGT_CAP_GPU_BUFFER_HANDLES) && bgt_gpu_buffer_handles() == 0) buffer_handles_enabled = 1;
     context = 0x474c0001; viewport[2] = scissor[2] = (int32_t)width();
@@ -181,7 +182,14 @@ static uint32_t api_wglDeleteContext(void) {
     if (!context || ARG(0) != context || current == context) return 0;
     invalidate_pipelines(); context = 0; return 1;
 }
-static uint32_t api_SwapBuffers(void) { if (!current || ARG(0) != dc) return 0; w32_guest_present(1); w32_wait_frame(); return 1; }
+static uint32_t api_SwapBuffers(void) {
+    if (!current || ARG(0) != dc) return 0;
+    if (!interval) { present_interval0(); return 1; }
+    flush_pending(); /* I17: K53's batch joins the ordered queue (journal first if deferring) before the present */
+    if (journal_len && !journal_fits_frame()) w32_wait_transport(); /* resume submits it */
+    journal_submit(); exposed = 0; deferring = 0; guest_frame = (gpu_usage_t){0};
+    w32_clock_present(interval); w32_guest_present(1); w32_wait_transport(); return 1;
+}
 static uint32_t api_wglSwapIntervalEXT(void) {
     if (!current || (int32_t)ARG(0) < 0) return 0;
     interval = ARG(0); return 1;

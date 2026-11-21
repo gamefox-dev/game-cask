@@ -107,6 +107,7 @@ void x86_wr32_slow(uint32_t a, uint32_t v);
 /* LANE-C: both guest widths share cooperative yield hooks. */
 void x86_cooperate(void);
 void x86_set_scheduler(void (*schedule)(void));
+extern uint32_t x86_quantum_insns; /* completed budget epoch, published before scheduler hook */
 #ifdef X86_FLAT_GUEST
 #ifndef X86_FLAT_BYTES
 #define X86_FLAT_BYTES (1024ull << 20)
@@ -301,8 +302,16 @@ extern uint64_t x86_coverage_events, x86_coverage_crossings, x86_coverage_cache_
 #endif
 /* Strict mode performs only a wasm-local membership check, never recording.
  * Keep it at internal indirect dispatches as well as registry entries: a host
- * policy can be narrower than a compiled function range. */
+ * policy can be narrower than a compiled function range.
+ * K51 mode 3 (performance builds, BGT_COVERAGE=off): no recording, no strict check, no host
+ * crossing; every generated and runtime hook preprocesses away. */
+#if X86_COVERAGE_MODE == 3
+#define x86_coverage_lifted(address,kind) ((void)0)
+#define x86_coverage_runtime(address,kind) ((void)0)
+#else
 #define x86_coverage_lifted(address,kind) x86_coverage_entry(address,kind)
+#define x86_coverage_runtime(address,kind) x86_coverage_entry(address,kind)
+#endif
 
 /* ------------------------------------------------------------------ metrics */
 /* Names say what they count (kit v0.2.1; v0.2 had `interp_entries`, `exec_one`, `continues`). */

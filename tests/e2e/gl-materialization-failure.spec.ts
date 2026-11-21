@@ -28,6 +28,8 @@ test('partial two-block materialization retires generated private UBOs after upl
         else host.frame.commandBytes=A.GPU_CONTINUATION_LIMITS.bytes-128;
       }
       if(message.includes('inject rejected full upload'))host.frame.gpuUploadBytes=A.GPU_LIMITS.budget;
+      // K53 review: room for the 4-byte partial write but not the 16-byte whole write (replayed batch).
+      if(message.includes('inject upload headroom'))host.frame.gpuUploadBytes=A.GPU_LIMITS.budget-15;
       if(message.includes('restore materialization budget')){host.frame.gpuUploadBytes=0;host.frame.commandBytes=0;}
     }},{backend:backend==='webgpu'?A.BACKEND_WEBGPU:A.BACKEND_WEBGL2,caps:A.CAP_GPU,gpuBackend:gpu,seed:1,displayWidth:320,displayHeight:200,arg0:0,arg1:0});
     host.init();const input=emptyInput();input.keys[66>>5]|=1<<(66&31); // HID F9: public Windows input selects the fixture branch.
@@ -45,5 +47,5 @@ test('partial two-block materialization retires generated private UBOs after upl
  },{backend:backendParam,root:'/@fs'+resolve('bgt')});
  expect(result).toHaveLength(3);
  for(const r of result){expect(r.injected).toBe(true);expect(r.deletedScratch).toBe(true);expect(r.errors).toEqual([]);expect(r.commandErrors).toBeGreaterThan(0);
-   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
+   expect(r.logs.some(s=>s.includes('ok materialization limit surfaced'))).toBe(true);expect(r.logs.some(s=>s.includes('ok generated app source deleted'))).toBe(true);expect(r.logs.some(s=>s.includes('ok failed full upload retains native prefix'))).toBe(true);expect(r.logs.some(s=>s.includes('ok materialization failure leaves output untouched'))).toBe(true);expect(r.logs.some(s=>s.includes('ok rejected whole write keeps generated contents'))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
 });

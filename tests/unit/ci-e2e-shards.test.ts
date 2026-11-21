@@ -33,7 +33,7 @@ it('requires the complete e2e matrix aggregate and rejects every non-success res
   expect(gate).toMatch(/needs: \[.*\be2e\b/);
   expect(gate).toContain('E2E: ${{ needs.e2e.result }}');
   const script=gate.split('        run: |\n')[1].trim();
-  const env={...process.env,LINT_JS:'success',LINT_NATIVE:'success',LINT_EXAMPLES:'success',UNIT1:'success',UNIT2:'success',UNIT3:'success',SCALE:'success'};
+  const env={...process.env,LINT_JS:'success',LINT_NATIVE:'success',LINT_EXAMPLES:'success',UNIT1:'success',UNIT2:'success',UNIT3:'success',UNIT4:'success',SCALE:'success'};
   for(const E2E of ['success','failure','cancelled','skipped','']){
     const result=spawnSync('bash',['-e','-c',script],{env:{...env,E2E},encoding:'utf8'});
     expect(result.status,E2E).toBe(E2E==='success'?0:1);

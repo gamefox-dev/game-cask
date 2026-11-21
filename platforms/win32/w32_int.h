@@ -115,6 +115,26 @@ int w32_memory_region(uint32_t addr,uint32_t *base,uint64_t *end,uint32_t *type,
 uint32_t w32_now_ms(void);
 uint64_t w32_now_ms64(void);
 void w32_sleep_ms(uint32_t ms);
+void w32_clock_sync(void);
+void w32_idle_ms(uint32_t ms);
+void w32_clock_quantum(uint32_t units);
+void w32_clock_check_cap(void);
+void w32_clock_present(uint32_t interval);
+int w32_clock_swap0(int budget_full);
+void w32_gl_host_yield(int resume);
+void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands);
+uint64_t w32_gl_deferred_yields(void);
+uint64_t w32_gl_torn_frames(void);
+uint64_t w32_gl_deferred_lists(void);
+uint64_t w32_gl_deferred_rejects(void);
+uint64_t w32_audio_events_coalesced(void);
+void w32_wait_transport(void);
+/* K53: submit the GL profile's deferred GPU list (frame boundaries, foreign submissions). */
+void w32_gl_flush(void);
+void w32_gdi_present_boundary(void);
+int w32_gdi_pending(void);
+uint32_t w32_audio_next_ms(void);
+uint32_t w32_user_next_timer_ms(void);
 uint32_t w32_shell_about(int wide);
 
 /* modules */

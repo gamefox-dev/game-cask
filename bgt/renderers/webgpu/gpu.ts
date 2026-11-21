@@ -1,6 +1,6 @@
 // §13 executor. The decoder owns validation; this class owns native resources and recovery shadows.
-import { E_IO, GPU_OP as OP } from '../../runtime/abi';
-import type { GpuBackend, GpuItem } from '../types';
+import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
+import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
 import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { lowerDepthSampling, type DepthSampling } from './depth';
 import { fragmentOutputs } from './outputs';
@@ -9,6 +9,7 @@ import { WebGPUOpaqueScreen } from './screen';
 import { WebGPUBlit, type BlitImage } from './blit';
 import { lowerFeedback, type FeedbackInput } from './feedback';
 import { feedbackLayout, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
+import { WebGPUTiming } from './timing';
 import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
@@ -85,20 +86,117 @@ export class WebGPUCommands implements GpuBackend {
   private passDescriptor?: GPURenderPassDescriptor;
   private scissor = [0,0,1,1];
   private blendConstant = [0,0,0,0];
+  /** K53 frame batching: one command encoder spans the frame's passes and is submitted at a sync point
+   * (frame end, readback/blit/copy/mip generation, or a queue write to a resource the encoder uses).
+   * A non-screen native pass outlives its logical PASS_END; the next PASS_BEGIN on identical
+   * attachments with LOAD ops continues it, so stored pixels are those of the split pass sequence. */
+  private lingering = false;
+  private passKey = '';
+  private used = new Set<GPUBuffer | GPUTexture>();
+  private retiredDestroy: Array<GPUBuffer | GPUTexture> = [];
+  private retiredPool: GPUBuffer[] = [];
+  private pool = new Map<number, GPUBuffer[]>();
+  private poolBytes = 0;
+  private ids = new WeakMap<GPUTexture, number>();
+  private nextId = 1;
+  /** Per-frame native work census (reset by the renderer at frame start). */
+  readonly batch = { nativePasses: 0, mergedPasses: 0, bufferRenames: 0, splits: 0, encoderSubmits: 0, renameBytes: 0 };
+  timing?: WebGPUTiming;
+  /** True (set by WebGPURenderer): frame encoder + pass merging; the frame loop must call flush() at its sync
+   * points. False (standalone executors, gpubatch=0): every native pass is submitted at its PASS_END. */
+  merge = false;
 
-  constructor(private device: GPUDevice, private error: (message: string) => void) {}
+  /** K51: min(65536, device maxUniformBufferBindingSize). WebGPU's default (and minimum) limit is 65536. */
+  readonly maxUniformRange: number;
+  readonly device: GpuDeviceInfo;
+  constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
+    // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
+    const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
+    this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
+    this.device = { renderer: adapter, software: softwareRenderer(adapter), nativeMaxUniformRange: native };
+  }
 
   get hasResources(): boolean {
     return !!(this.buffers.size || this.textures.size || this.samplers.size || this.shaders.size ||
       this.failedShaders.size || this.pipelines.size || this.failedPipelines.size);
   }
 
-  frame(screen: GPUTexture): void { this.screen = screen; }
+  frame(screen: GPUTexture): void {
+    this.screen = screen;
+    this.batch.nativePasses = this.batch.mergedPasses = this.batch.bufferRenames = this.batch.splits = this.batch.encoderSubmits = 0;
+    this.batch.renameBytes = 0;
+  }
+
+  /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder.
+   * `tail` appends the renderer's frame-end work (presentation, snapshot copy) to the same command
+   * buffer, so a batched frame costs one GPUQueue.submit. */
+  flush(tail?: (encoder: GPUCommandEncoder) => void): void {
+    this.endNative();
+    if (tail) { this.encoder ??= this.gpuDevice.createCommandEncoder(); tail(this.encoder); }
+    if (this.encoder) {
+      const encoder = this.encoder; this.encoder = undefined;
+      this.gpuDevice.queue.submit([encoder.finish()]); this.batch.encoderSubmits++;
+    }
+    // Submitted work keeps its resources alive; later queue writes are ordered after it.
+    for (const r of this.retiredDestroy.splice(0)) r.destroy();
+    for (const b of this.retiredPool.splice(0)) this.recycle(b);
+    this.scratch.splice(0).forEach(b => b.destroy());
+    this.used.clear();
+  }
+
+  private endNative(): void {
+    if (!this.pass) return;
+    this.pass.end(); this.pass = undefined; this.lingering = false; this.passKey = '';
+    // Match WebGL's logical staging -> alpha:false default framebuffer boundary.
+    if (this.screenPass) this.makeScreenOpaque(this.encoder!);
+  }
+
+  private beginNative(desc: GPURenderPassDescriptor): void {
+    this.encoder ??= this.gpuDevice.createCommandEncoder();
+    const writes = this.timing?.writes();
+    this.pass = this.encoder.beginRenderPass(writes ? { ...desc, timestampWrites: writes } : desc);
+    this.batch.nativePasses++;
+    for (const c of desc.colorAttachments) if (c) this.used.add((c.view as GPUTextureView & { bgtTexture?: GPUTexture }).bgtTexture!);
+    const depth = desc.depthStencilAttachment?.view as (GPUTextureView & { bgtTexture?: GPUTexture }) | undefined;
+    if (depth) this.used.add(depth.bgtTexture!);
+  }
+
+  private view(texture: GPUTexture, mip: number): GPUTextureView {
+    const view = texture.createView({ baseMipLevel: mip, mipLevelCount: 1 }) as GPUTextureView & { bgtTexture?: GPUTexture };
+    view.bgtTexture = texture; return view;
+  }
+
+  private textureId(t: GPUTexture): number {
+    let id = this.ids.get(t); if (id === undefined) { id = this.nextId++; this.ids.set(t, id); } return id;
+  }
+
+  private retire(r: GPUBuffer | GPUTexture): void {
+    if (this.used.has(r)) this.retiredDestroy.push(r); else r.destroy();
+  }
+
+  private recycle(b: GPUBuffer): void {
+    if (this.poolBytes + b.size > 32 << 20) { b.destroy(); return; }
+    const list = this.pool.get(b.size) ?? []; list.push(b); this.pool.set(b.size, list); this.poolBytes += b.size;
+  }
+
+  /** Copy-on-write for a CPU-authoritative buffer referenced by the pending encoder: earlier encoded
+   * work keeps the old native buffer, later work sees a fresh one holding the complete new contents. */
+  private rename(b: BufferResource): void {
+    const size = b.native.size, list = this.pool.get(size);
+    let native = list?.pop();
+    if (native) this.poolBytes -= size;
+    else native = this.gpuDevice.createBuffer({ size, usage: b.native.usage });
+    this.writeBuffer(native, 0, b.shadow);
+    this.retiredPool.push(b.native); b.native = native; this.batch.bufferRenames++; this.batch.renameBytes += size;
+  }
 
   lost(): void {
     this.inactive = true;
     this.pass = undefined;
     this.encoder = undefined;
+    this.lingering = false; this.passKey = ''; this.used.clear();
+    this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0;
+    this.timing = undefined;
     this.screen = undefined;
     this.vertices.clear(); this.uniforms.clear(); this.sampled.clear(); this.index = undefined;
     this.scratch.splice(0).forEach(b => b.destroy());
@@ -113,7 +211,8 @@ export class WebGPUCommands implements GpuBackend {
 
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
-    this.device = device;
+    if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
+    this.gpuDevice = device;
     this.opaqueScreen = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
@@ -165,8 +264,28 @@ export class WebGPUCommands implements GpuBackend {
     }
   }
 
+  /** Ops that encode their own submissions (or read results) observe all earlier encoded work. */
+  private prepare(op: number, w: readonly number[]): void {
+    switch (op) {
+      case OP.PASS_BEGIN: case OP.PASS_END: case OP.PIPELINE: case OP.VIEWPORT: case OP.SCISSOR: case OP.STENCIL_REF:
+      case OP.BLEND_CONSTANT: case OP.VERTEX_BUFFER: case OP.INDEX_BUFFER: case OP.UNIFORM_BUFFER: case OP.TEXTURE:
+      case OP.DRAW: case OP.DRAW_INDEXED: case OP.CLEAR_BUFFER: case OP.FEEDBACK_CAPTURE: case OP.FEEDBACK_VARYINGS:
+      case OP.BUFFER_CREATE: case OP.BUFFER_UPDATE: case OP.BUFFER_DELETE: case OP.TEXTURE_CREATE_EX: case OP.TEXTURE_DELETE:
+      case OP.SAMPLER_CREATE_EX: case OP.SAMPLER_DELETE: case OP.SHADER_CREATE: case OP.SHADER_DELETE:
+      case OP.PIPELINE_CREATE: case OP.PIPELINE_DELETE:
+        return;
+      case OP.TEXTURE_UPDATE_EX: case OP.TEXTURE_ALLOCATE_MIPS: {
+        const t = this.textures.get(w[0]);
+        if (t && this.used.has(t.native)) { this.batch.splits++; this.flush(); }
+        return;
+      }
+      default: if (this.encoder) this.batch.splits++; this.flush();
+    }
+  }
+
   private run(item: GpuItem): void {
-    const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.device;
+    const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.gpuDevice;
+    this.prepare(op, w);
     switch (op) {
       case OP.FEEDBACK_VARYINGS:
         this.requirePipeline(h); this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
@@ -206,13 +325,20 @@ export class WebGPUCommands implements GpuBackend {
       case OP.BUFFER_UPDATE: {
         const b = this.buffers.get(h)!;
         if(b.generated && (w[1]%4 || item.data!.length%4) && !(w[1]===0&&item.data!.length===b.shadow.length)) throw new Error('Unaligned updates of GPU-generated buffers are unsupported');
+        const referenced = this.used.has(b.native);
+        // Copy-on-write costs a full-buffer queue write: bounded per buffer (256 KiB) and per frame (4 MiB);
+        // beyond that (or for GPU-generated contents) split the encoder, which costs one LOAD pass instead.
+        if (referenced && (b.generated || b.shadow.length > 256 << 10 || this.batch.renameBytes + b.shadow.length > 4 << 20)) {
+          this.batch.splits++; this.flush();
+        }
         b.shadow.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.shadow.length)b.generated=false;
+        if (referenced && this.encoder) { this.rename(b); break; }
         // ABI allows byte updates. WebGPU writeBuffer needs 4-aligned regions.
         const start = w[1] & ~3, end = Math.min(b.shadow.length, Math.ceil((w[1] + item.data!.length) / 4) * 4);
         this.writeBuffer(b.native, start, b.shadow.slice(start, end));
         break;
       }
-      case OP.BUFFER_DELETE: this.buffers.get(h)!.native.destroy(); this.buffers.delete(h); break;
+      case OP.BUFFER_DELETE: this.retire(this.buffers.get(h)!.native); this.buffers.delete(h); break;
       case OP.TEXTURE_CREATE_EX: {
         const desc = toCanonicalTexture(w), depthFormat = isDepthFormat(desc.format);
         if (desc.format >= 10 && desc.format <= 12 && !d.features.has('float32-filterable')) {
@@ -272,7 +398,7 @@ export class WebGPUCommands implements GpuBackend {
         break;
       }
       case OP.TEXTURE_GENERATE_MIPS: this.generateMips(w[0], w[1]); break;
-      case OP.TEXTURE_DELETE: this.textures.get(h)!.native.destroy(); this.textures.delete(h); break;
+      case OP.TEXTURE_DELETE: this.retire(this.textures.get(h)!.native); this.textures.delete(h); break;
       case OP.SAMPLER_CREATE_EX: {
         const filter = ['nearest', 'linear'] as const, wrap = ['clamp-to-edge', 'repeat', 'mirror-repeat'] as const;
         // mip_filter NONE reads exactly level floor(min_lod).
@@ -314,8 +440,27 @@ export class WebGPUCommands implements GpuBackend {
       case OP.PASS_BEGIN: {
         this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
         this.index = undefined; this.current = undefined; this.capture=undefined;
-        this.screenPass = h === 1 && w[7] === 0;
-        this.encoder = d.createCommandEncoder();
+        const screenPass = h === 1 && w[7] === 0;
+        let key = `${h}`, loads = w[1] ? w[3] | w[4] : 0;
+        for (let i = 0; i < h; i++) {
+          const j = 7 + i * 7; loads |= w[j + 2];
+          key += `,${w[j] ? this.textureId(this.textures.get(w[j])!.native) : 0}/${w[j + 1]}`;
+        }
+        if (w[1]) key += `;${this.textureId(this.textures.get(w[1])!.native)}/${w[2]}`;
+        if (this.lingering && !screenPass && !loads && key === this.passKey) {
+          // Same attachments, LOAD everywhere: continue the native pass with §13.1 begin-state reset.
+          this.lingering = false; this.batch.mergedPasses++;
+          const [width, height] = this.passSize;
+          this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
+          this.scissor = [0, 0, width, height]; this.blendConstant = [0, 0, 0, 0];
+          this.pass!.setViewport(0, 0, width, height, 0, 1);
+          this.pass!.setScissorRect(0, 0, width, height);
+          this.pass!.setStencilReference(0);
+          this.pass!.setBlendConstant([0, 0, 0, 0]);
+          break;
+        }
+        this.endNative();
+        this.screenPass = screenPass;
         const colors: GPURenderPassColorAttachment[] = [];
         this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
         let width = 0, height = 0;
@@ -323,14 +468,14 @@ export class WebGPUCommands implements GpuBackend {
           const j = 7 + i * 7, t = w[j] ? this.textures.get(w[j])!.native : this.screen!;
           width = Math.max(1, t.width >> w[j + 1]); height = Math.max(1, t.height >> w[j + 1]);
           this.passFormats.push(w[j] ? this.textures.get(w[j])!.desc.format : 0);
-          colors.push({ view: t.createView({ baseMipLevel: w[j + 1], mipLevelCount: 1 }),
+          colors.push({ view: this.view(t, w[j + 1]),
             loadOp: w[j + 2] ? 'clear' : 'load', storeOp: 'store', clearValue: w.slice(j + 3, j + 7).map(f) });
         }
         let depth: GPURenderPassDepthStencilAttachment | undefined;
         if (w[1]) {
           const t = this.textures.get(w[1])!;
           width = Math.max(1, t.native.width >> w[2]); height = Math.max(1, t.native.height >> w[2]);
-          depth = { view: t.native.createView({ baseMipLevel: w[2], mipLevelCount: 1 }),
+          depth = { view: this.view(t.native, w[2]),
             depthLoadOp: w[3] ? 'clear' : 'load', depthStoreOp: 'store', depthClearValue: f(w[5]) };
           if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
             stencilStoreOp: 'store', stencilClearValue: w[6] });
@@ -338,25 +483,18 @@ export class WebGPUCommands implements GpuBackend {
         this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
         this.passDescriptor={ colorAttachments: colors, depthStencilAttachment: depth };
         this.scissor=[0,0,width,height]; this.blendConstant=[0,0,0,0];
-        this.pass = this.encoder.beginRenderPass(this.passDescriptor);
-        this.pass.setViewport(0, 0, width, height, 0, 1);
-        this.pass.setScissorRect(0, 0, width, height);
-        this.pass.setStencilReference(0);
-        this.pass.setBlendConstant([0, 0, 0, 0]);
+        this.beginNative(this.passDescriptor); this.passKey = screenPass ? '' : key;
+        this.pass!.setViewport(0, 0, width, height, 0, 1);
+        this.pass!.setScissorRect(0, 0, width, height);
+        this.pass!.setStencilReference(0);
+        this.pass!.setBlendConstant([0, 0, 0, 0]);
         break;
       }
       case OP.CLEAR_BUFFER: this.clearBuffer(w); break;
       case OP.PASS_END:
-        this.pass!.end();
-        // Match WebGL's logical staging -> alpha:false default framebuffer boundary.
-        // This is a native alpha-only store, before later LOAD/BLIT/DST_ALPHA/readback.
-        if (this.screenPass) this.makeScreenOpaque(this.encoder!);
-        d.queue.submit([this.encoder!.finish()]); this.pass = undefined; this.encoder = undefined;
-        // Destruction is deferred until submissions using these buffers finish.
-        if (this.scratch.length) {
-          const scratch = this.scratch.splice(0), release = () => scratch.forEach(b => b.destroy());
-          void d.queue.onSubmittedWorkDone().then(release, release);
-        }
+        // Screen passes end natively: the opaque-alpha store is observable by a following LOAD/BLIT.
+        // Other native passes linger until a target change or sync point (see flush/prepare).
+        if (!this.merge) this.flush(); else if (this.screenPass) this.endNative(); else this.lingering = true;
         break;
       case OP.PIPELINE:
         this.current = undefined;
@@ -368,9 +506,11 @@ export class WebGPUCommands implements GpuBackend {
       case OP.BLEND_CONSTANT: this.blendConstant=w.map(f); this.pass!.setBlendConstant(this.blendConstant); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER:
-        this.index = [...w];
+        this.index = [...w]; this.used.add(this.buffers.get(h)!.native);
         this.pass!.setIndexBuffer(this.buffers.get(h)!.native, w[1] ? 'uint32' : 'uint16', w[2], w[3]); break;
       case OP.UNIFORM_BUFFER:
+        // The host validator enforces the reported limit; never bind a native range above the device's.
+        if (w[3] > this.maxUniformRange) throw new Error(`Uniform range ${w[3]} exceeds device limit ${this.maxUniformRange}`);
         this.uniforms.set(h, { buffer: this.buffers.get(w[1])!.native, offset: w[2], size: w[3] }); break;
       case OP.TEXTURE: this.sampled.set(h, [...w]); break;
       case OP.DRAW: case OP.DRAW_INDEXED: {
@@ -389,12 +529,12 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   private makeScreenOpaque(encoder: GPUCommandEncoder): void {
-    this.opaqueScreen ??= new WebGPUOpaqueScreen(this.device);
+    this.opaqueScreen ??= new WebGPUOpaqueScreen(this.gpuDevice);
     this.opaqueScreen.encode(encoder, this.screen!);
   }
 
   private bufferReadback(item:GpuItem):void {
-    const w=item.words, d=this.device, buffer=d.createBuffer({size:Math.ceil((w[1]%4+w[2])/4)*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    const w=item.words, d=this.gpuDevice, buffer=d.createBuffer({size:Math.ceil((w[1]%4+w[2])/4)*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     const encoder=d.createCommandEncoder();encoder.copyBufferToBuffer(this.buffers.get(w[0])!.native,w[1]&~3,buffer,0,buffer.size);
     d.queue.submit([encoder.finish()]);this.readbacks.add(item);
     void buffer.mapAsync(GPUMapMode.READ).then(()=>{
@@ -409,7 +549,7 @@ export class WebGPUCommands implements GpuBackend {
     const s=this.shaders.get(pw[1])!;
     if(!s.item.words[2])throw new Error('Feedback currently requires canonical GLSL vertex IO');
     const count=feedbackVertexCount(pw[3],w[0]), total=count*w[1];if(!total)return;
-    const d=this.device, offsets:number[]=[], inputs:FeedbackInput[]=[], copies:{source:GPUBuffer;offset:number;size:number;target:number}[]=[];
+    const d=this.gpuDevice, offsets:number[]=[], inputs:FeedbackInput[]=[], copies:{source:GPUBuffer;offset:number;size:number;target:number}[]=[];
     let bytes=0;
     for(let slot=0;slot<pw[23];slot++) {
       const b=this.vertices.get(slot)!;offsets[slot]=bytes;
@@ -444,7 +584,9 @@ export class WebGPUCommands implements GpuBackend {
     if(outputBytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback output exceeds storage binding limit');
     const source=d.createBuffer({size:Math.max(4,bytes),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE});
     const output=d.createBuffer({size:outputBytes,usage:GPUBufferUsage.COPY_SRC|GPUBufferUsage.STORAGE});
-    this.pass!.end();d.queue.submit([this.encoder!.finish()]);
+    this.pass!.end();this.pass=undefined;this.lingering=false;
+    {const pending=this.encoder!;this.encoder=undefined;d.queue.submit([pending.finish()]);this.batch.encoderSubmits++;this.batch.splits++;
+      for(const r of this.retiredDestroy.splice(0))r.destroy();for(const b of this.retiredPool.splice(0))this.recycle(b);}
     const encoder=d.createCommandEncoder();for(const c of copies)if(c.size)encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);
     if(ids)d.queue.writeBuffer(source,indexWord!*4,ids);
     const pass=encoder.beginComputePass();pass.setPipeline(pipeline);
@@ -462,10 +604,14 @@ export class WebGPUCommands implements GpuBackend {
     const desc=this.passDescriptor!;
     for(const c of desc.colorAttachments)if(c)c.loadOp='load';
     if(desc.depthStencilAttachment){desc.depthStencilAttachment.depthLoadOp='load';if(this.passDepth===5)desc.depthStencilAttachment.stencilLoadOp='load';}
-    this.encoder=d.createCommandEncoder();this.pass=this.encoder.beginRenderPass(desc);
-    const v=this.viewport;this.pass.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
-    const sc=this.scissor;this.pass.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass.setStencilReference(this.stencilRef);this.pass.setBlendConstant(this.blendConstant);
-    if(this.index)this.pass.setIndexBuffer(this.buffers.get(this.index[0])!.native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);
+    this.used.clear();this.beginNative(desc);
+    const v=this.viewport;this.pass!.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
+    const sc=this.scissor;this.pass!.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass!.setStencilReference(this.stencilRef);this.pass!.setBlendConstant(this.blendConstant);
+    // The resumed pass belongs to a fresh encoder: every rebound resource must be marked used again, or a
+    // later same-frame BUFFER_UPDATE skips the copy-on-write rename and the pending draw reads new bytes.
+    // (Vertex/uniform/texture bindings are re-marked by the next draw's bind(); attachments by beginNative.)
+    if(this.index){const native=this.buffers.get(this.index[0])!.native;this.used.add(native);
+      this.pass!.setIndexBuffer(native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);}
   }
 
   /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */
@@ -480,11 +626,11 @@ export class WebGPUCommands implements GpuBackend {
       const assignments = this.passFormats.map((fmt, i) => `o.c${i}=${kind === 0 && w[1] === i ?
         cls === 0 ? 'bitcast<vec4f>(v.value)' : cls === 1 ? 'bitcast<vec4i>(v.value)' : 'v.value' : `${colorType(fmt)}(0)`};`);
       if (kind === 1 || kind === 3) assignments.push('o.depth=bitcast<f32>(v.value.x);');
-      const module = this.device.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
+      const module = this.gpuDevice.createShaderModule({ code: `struct V {value:vec4u}; @group(0) @binding(0) var<uniform> v:V;
 @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f { var p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3)); return vec4f(p[i],0,1); }
 ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O;${assignments.join('')}return o;}` : '@fragment fn fs() {}'}` });
       const stencilFace: GPUStencilFaceState = { compare: 'always', passOp: kind >= 2 ? 'replace' : 'keep' };
-      pipeline = this.device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
+      pipeline = this.gpuDevice.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' },
         fragment: { module, entryPoint: 'fs', targets: this.passFormats.map((fmt, i) => ({ format: formats[fmt],
           writeMask: kind === 0 && i === w[1] ? mask : 0 })) },
         depthStencil: this.passDepth === 0xffffffff ? undefined : { format: formats[this.passDepth],
@@ -497,9 +643,9 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
     this.pass!.setPipeline(pipeline);
     // Stencil-only clears use no uniform binding. All other forms consume exact u32/f32 bit patterns.
     if (kind !== 2) {
-      const uniform = this.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
+      const uniform = this.gpuDevice.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM, mappedAtCreation: true });
       new Uint32Array(uniform.getMappedRange()).set(w.slice(2)); uniform.unmap(); this.scratch.push(uniform);
-      this.pass!.setBindGroup(0, this.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
+      this.pass!.setBindGroup(0, this.gpuDevice.createBindGroup({ layout: pipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: { buffer: uniform } }] }));
     }
     this.pass!.setViewport(0, 0, this.passSize[0], this.passSize[1], 0, 1);
@@ -528,7 +674,7 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
         values[i * 4 + 1] = packed & 255; stencilValues.add(packed & 255);
       } else values[i * 4] = view.getFloat32(i * 4, true);
     }
-    const d = this.device, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
+    const d = this.gpuDevice, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     d.queue.writeTexture({ texture: source }, values, { bytesPerRow: width * 16, rowsPerImage: height }, [width, height, 1]);
     const encoder = d.createCommandEncoder(), target = t.native.createView({ baseMipLevel: mip, mipLevelCount: 1 });
@@ -550,7 +696,7 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
 
   private depthUploadPipeline(format: number, stencilValue: number, x: number, y: number): GPURenderPipeline {
     const key = `${format}:${stencilValue}:${x}:${y}`, existing = this.depthUploadPipelines.get(key); if (existing) return existing;
-    const d = this.device, check = stencilValue >= 0 ? `if (abs(q.y - ${stencilValue}.0) > 0.1) { discard; }` : '';
+    const d = this.gpuDevice, check = stencilValue >= 0 ? `if (abs(q.y - ${stencilValue}.0) > 0.1) { discard; }` : '';
     const module = d.createShaderModule({ code: `
 @group(0) @binding(0) var src: texture_2d<f32>;
 struct VO { @builtin(position) pos: vec4f };
@@ -566,7 +712,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   /** Grow an immutable WebGPU texture without losing already rendered/uploaded levels. */
   private growTexture(handle: number, allocatedMips: number): void {
-    const d = this.device, t = this.textures.get(handle)!;
+    const d = this.gpuDevice, t = this.textures.get(handle)!;
     if (allocatedMips <= t.allocatedMips) return;
     if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
     const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
@@ -593,7 +739,7 @@ struct VO { @builtin(position) pos: vec4f };
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
-    const d = this.device, t = this.textures.get(handle)!, desc = t.desc;
+    const d = this.gpuDevice, t = this.textures.get(handle)!, desc = t.desc;
     this.growTexture(handle, desc.mips);
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
     const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
@@ -650,7 +796,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 
   /** Depth readback is an ordered depth-sampling conversion; stencil is not a sampleable WebGPU aspect. */
   private readDepthback(item: GpuItem, w: number[]): void {
-    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    const d = this.gpuDevice, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     if (t.desc.format === 5) { item.readback?.(undefined, -4); return; }
     if (t.desc.dimension !== 0 || z !== 0 || depth !== 1) throw new Error('Depth readback is 2D only');
     const source = t.native.createView({ aspect: 'depth-only', baseMipLevel: mip, mipLevelCount: 1 });
@@ -681,7 +827,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   /** §13.7 TEXTURE_READBACK: copy in stream order, map later; exact stored texels, rows top-first. */
   private readback(item: GpuItem, w: number[]): void {
-    const d = this.device, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
+    const d = this.gpuDevice, t = this.textures.get(w[0])!, [, mip, x, y, z, width, height, depth] = w;
     const bpp = TEXEL_BYTES[t.desc.format], row = width * bpp, aligned = Math.ceil(row / 256) * 256;
     const buffer = d.createBuffer({ size: aligned * height * depth,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
@@ -704,7 +850,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private writeBuffer(buffer: GPUBuffer, offset: number, data: Uint8Array<ArrayBuffer>): void {
     const aligned = new Uint8Array(Math.ceil(data.length / 4) * 4); aligned.set(data);
-    this.device.queue.writeBuffer(buffer, offset, aligned);
+    this.gpuDevice.queue.writeBuffer(buffer, offset, aligned);
   }
 
   private requirePipeline(handle: number): PipelineResource {
@@ -721,7 +867,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private pipeline(w: readonly number[], depthSlots: ReadonlySet<number> = new Set(),
     sampling: readonly DepthSampling[] = [], integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()): PipelineResource {
-    const d = this.device, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
+    const d = this.gpuDevice, buffers: GPUVertexBufferLayout[] = [], targets: GPUColorTargetState[] = [];
     const repack: Repack[] = [];
     let j = 26;
     for (let i = 0; i < w[23]; i++, j += 2)
@@ -820,7 +966,7 @@ struct VO { @builtin(position) pos: vec4f };
 
   private bind(): void {
     let p = this.requireCurrentPipeline();
-    const d = this.device;
+    const d = this.gpuDevice;
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
     const depthSlots = new Set(p.bindings.filter(b => (b.type === 'texture' || b.type === 'depth') && b.group === 1)
       .map(b => b.binding >> 1).filter(slot => isDepthFormat(this.textures.get(this.sampled.get(slot)![1])!.desc.format)));
@@ -845,7 +991,7 @@ struct VO { @builtin(position) pos: vec4f };
     for (let slot = 0; slot < p.words[23]; slot++) {
       const w = this.vertices.get(slot)!, b = this.buffers.get(w[1])!;
       const r = p.repack.find(r => r.slot === slot);
-      if (!r) { this.pass!.setVertexBuffer(slot, b.native, w[2], w[3]); continue; }
+      if (!r) { this.used.add(b.native); this.pass!.setVertexBuffer(slot, b.native, w[2], w[3]); continue; }
       const stride = r.attributes.reduce((n, a) => n + a.size, 0), count = Math.ceil(w[3] / r.stride);
       const bytes = new Uint8Array(count * stride);
       for (let i = 0; i < count; i++) {
@@ -862,9 +1008,10 @@ struct VO { @builtin(position) pos: vec4f };
     }
     const uniforms: GPUBindGroupEntry[] = [], textures: GPUBindGroupEntry[] = [];
     for (const b of p.bindings) {
-      if (b.group === 0) uniforms.push({ binding: b.binding, resource: this.uniforms.get(b.binding)! });
-      else {
-        const w = this.sampled.get(b.binding >> 1)!, t = this.textures.get(w[1])!;
+      if (b.group === 0) {
+        const u = this.uniforms.get(b.binding)!; this.used.add(u.buffer); uniforms.push({ binding: b.binding, resource: u });
+      } else {
+        const w = this.sampled.get(b.binding >> 1)!, t = this.textures.get(w[1])!; this.used.add(t.native);
         const sampler = this.samplers.get(w[2])!;
         if (b.type === 'nonfiltering') sampler.nonfilter ??= d.createSampler();
         textures.push({ binding: b.binding, resource: b.binding % 2 ?
@@ -891,7 +1038,7 @@ struct VO { @builtin(position) pos: vec4f };
       else result.push(at(i), at(i + 1));
     }
     if (!result.length) return;
-    const native = this.device.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
+    const native = this.gpuDevice.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
       mappedAtCreation: true });
     new Uint32Array(native.getMappedRange()).set(result); native.unmap(); this.scratch.push(native);
     this.pass!.setIndexBuffer(native, 'uint32');

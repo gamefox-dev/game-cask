@@ -23,11 +23,20 @@ uint64_t x86_guest_instruction_clock(void){return 123;}
 void x86_coverage_flush(void){}
 uint64_t w32_gl_calls,w32_gl_draws,w32_gl_state_changes,w32_gl_pipelines,w32_gl_unimplemented,w32_gl_approximations;
 uint64_t w32_gl_buffer_respec_reused,w32_gl_buffer_respec_resized,w32_gl_buffer_respec_grew,w32_gl_buffer_respec_shrank;
+uint64_t w32_gl_batched_lists,w32_gl_batch_flushes,w32_gl_sync_submits,w32_gl_batch_replays; /* K53 batching counters (I17 merge) */
 const char *w32_gl_stubs_json(void){return "[]";}
 /* Idle GL metric provider only; object behavior is exercised by x64-gl-capacity. */
 const char *w32_gl_objects_json(void){return "{}";}
 const char *w32_gl_approximations_json(void){return "[]";}
 int w32_rp_enabled(void){return 0;}
+/* K50 guest-time metric providers: idle CPU state and zero scheduler/audio diagnostics. */
+x86_cpu_t X;
+uint64_t w32_thread_idle_guard_hits(void){return 0;}
+uint64_t w32_audio_events_coalesced(void){return 0;}
+uint64_t w32_gl_torn_frames(void){return 0;}
+uint64_t w32_gl_deferred_lists(void){return 0;}
+uint64_t w32_gl_deferred_rejects(void){return 0;}
+uint64_t w32_gl_deferred_yields(void){return 0;}
 static slot_t test_slots[W32_THUNK_SLOTS];
 BGT_EXPORT(prepare) void prepare(uint32_t pathological) {
     slots=test_slots;nslots=W32_THUNK_SLOTS;

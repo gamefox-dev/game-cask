@@ -17,6 +17,8 @@ beforeAll(() => {
 afterAll(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 for (const [mode, marker] of [
   ['error-order', 'guest first-error ordering and immediate framebuffer completeness OK'],
+  ['journal', 'journal growth keeps every deferred upload byte-exact OK'], // K50 vK50c use-after-free
+  ['uniform-limits', 'uniform limits follow device 16384/65536: GetIntegerv, std140 block and default block link OK'],
   ['hotpaths', 'hot paths: cached namespaces, direct/hash lookup, collision churn, dormant retirement and final detach OK'],
   ['object-identity', 'object identity namespaces=9 reserved/instantiated/unbind/delete/regen OK'],
   ['sampler-churn', 'sampler churn sampler+texture states draws=2176 bounded/reclaimed OK'],

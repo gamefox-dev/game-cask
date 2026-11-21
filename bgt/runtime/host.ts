@@ -3,7 +3,7 @@
 // browser runtime and directly by Node unit tests (headless backend).
 
 import {readInterpreterCoverage,readInterpreterSummary,readGuestPresentations} from './execution-metrics';
-import {instructionSummary} from './instruction-accounting';
+import {instructionSummary, ownerCensusSummary} from './instruction-accounting';
 import {
   ABI_VERSION,
   BGT_OK,
@@ -172,6 +172,7 @@ interface GameExports {
   bgt_metrics?(): number;
   bgt_interpreter_coverage?(): number;
   bgt_guest_presentations?(): number;
+  bgt_guest_time_us?(): number;
   bgt_profile_reset?():void;
   bgt_profile_abort?(nowUs:number):void;
   bgt_slice_policy?(entries:number,ranges:number):number;
@@ -511,7 +512,7 @@ export class GameHost {
           if (size === GPU_LIMITS_SIZE) values.push(
             this.gpu ? 1 : 0, GPU_LIMITS.handles, this.config.gpuBudgetBytes ?? GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
             GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
-            GPU_LIMITS.uniformAlignment, GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
+            GPU_LIMITS.uniformAlignment, this.gpu?.uniformRange ?? GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
             this.gpu?.backend.languages ?? 0, 13, 65535, 0,
           );
           values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
@@ -719,6 +720,9 @@ export class GameHost {
   }
 
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
+  /** K51: the uniform range this host reports at §13.6 offset 52, or null without a GPU namespace. */
+  get gpuUniformRange(): number | null { return this.gpu?.uniformRange ?? null; }
+
   setBackend(backend: number, gpuBackend?: GpuBackend): void {
     if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
     this.config.backend = backend;
@@ -893,6 +897,9 @@ export class GameHost {
     return ptr?readInterpreterCoverage(this.exports.memory.buffer,ptr):null;
   }
 
+  /** Optional read-only profile clock. Never used for wall-dependent scheduling. */
+  guestTimeUs(): number | null { return this.exports.bgt_guest_time_us?.() ?? null; }
+
   /** Optional kit metrics JSON exported by the game (bgt_metrics). */
   metrics(): unknown {
     const fn = this.exports.bgt_metrics;
@@ -917,7 +924,7 @@ export class GameHost {
       const presentPtr=this.exports.bgt_guest_presentations?.() ?? 0;
       return { ...metrics, host_profile: this.profile,
         execution_summary:{suspension:this.config.suspensionMode ?? 'asyncify',updates:this.frameIndex,elapsed_ms:elapsed,updates_per_second:elapsed>0?this.frameIndex*1000/elapsed:null,
-          instructions:instructionSummary(metrics),
+          instructions:instructionSummary(metrics),owner_census:ownerCensusSummary(metrics),
           interpreter:readInterpreterSummary(metrics,this.exports.memory.buffer,this.exports.bgt_interpreter_coverage?.() ?? 0,this.frameIndex,this.profile.updateMs),
           guest_frames:presentPtr?readGuestPresentations(this.exports.memory.buffer,presentPtr,elapsed):null} };
     } catch {

@@ -50,6 +50,7 @@ typedef struct {
     uint32_t capacity, queued, head;
     uint32_t buffer, ring;        /* guest heap: client staging buffer, int16 stereo queue */
     uint32_t acquired, event, last_ms, remainder, phase, event_ms, flags;
+    uint32_t event_epoch, events;  /* engine-period events delivered in the current host update */
     uint32_t have_prev, session;  /* session is 1-based */
     int32_t prev[2];
     uint64_t out_frames;
@@ -126,15 +127,51 @@ static void pump_one(audio_t *a, uint32_t now, uint32_t out_rate) {
     if (count) bgt_audio_push_stereo(out, count / 2);
     a->queued -= n;
 }
+/* K50 review ruling: one event per elapsed 10-ms engine period, in order. A clock snap (present,
+ * frame boundary) can cross several periods at once; the next period's event is delivered only
+ * after the client thread has consumed the previous one, so it runs between them. At most
+ * EVENTS_PER_UPDATE per client and host update; older periods beyond that are coalesced (as an
+ * auto-reset event would) and counted. Padding/position always drain to the current virtual time. */
+#define ENGINE_PERIOD_MS 10u
+#define EVENTS_PER_UPDATE 8u
+static uint64_t events_coalesced;
+uint64_t w32_audio_events_coalesced(void) { return events_coalesced; }
+static int event_client(const audio_t *a) {
+    return a->used && a->initialized && a->running;
+}
+/* Due periods after the per-update bound is applied; returns whether one can be signalled now. */
+static int event_ready(audio_t *a, uint32_t now) {
+    uint32_t due = (now - a->event_ms) / ENGINE_PERIOD_MS;
+    if (!due) return 0;
+    if (!a->event) { a->event_ms += due * ENGINE_PERIOD_MS; return 0; }
+    if (a->event_epoch != w32_m.yields) { a->event_epoch = w32_m.yields; a->events = 0; }
+    uint32_t room = EVENTS_PER_UPDATE - a->events;
+    if (due > room) {
+        events_coalesced += due - room;
+        a->event_ms += (due - room) * ENGINE_PERIOD_MS;
+        due = room;
+    }
+    return due && !w32_thread_event_signaled(a->event);
+}
+uint32_t w32_audio_next_ms(void) {
+    uint32_t delay=0xffffffffu,now=w32_now_ms();
+    for(uint32_t i=0;i<NAUDIO;i++) {
+        audio_t *a=&clients[i];
+        if(!event_client(a))continue;
+        /* An undeliverable backlog (event still set) must not read as "due now" in the idle loop. */
+        uint32_t remaining=event_ready(a,now)?0:ENGINE_PERIOD_MS-(now-a->event_ms)%ENGINE_PERIOD_MS;
+        if(remaining<delay)delay=remaining;
+    }
+    return delay;
+}
 void w32_audio_pump(void) {
     uint32_t now = w32_now_ms(), out_rate = w32_io->audio_sample_rate;
     for (uint32_t i = 0; i < NAUDIO; i++) {
         audio_t *a = &clients[i];
-        if (!a->used || !a->initialized || !a->running) continue;
+        if (!event_client(a)) continue;
         pump_one(a, now, out_rate);
-        /* One signal per virtual pump; auto-reset events coalesce missed periods, as on Windows. */
-        if (now - a->event_ms >= 10) {
-            a->event_ms = now;
+        if (event_ready(a, now)) {
+            a->event_ms += ENGINE_PERIOD_MS; a->events++;
             w32_thread_signal_event(a->event);
         }
     }

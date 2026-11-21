@@ -15,7 +15,7 @@ const words=(v:unknown)=>v instanceof Uint32Array&&v.length===8;
 function letterbox(v:unknown){return object(v)&&['x','y','w','h','scale'].every(k=>finite(v[k]))&&Number(v.w)>0&&Number(v.h)>0&&Number(v.scale)>0;}
 export function validateSavestate(s:Savestate):void {
  requireState(object(s));
- fields(s.services,{ticks:integer,rng:v=>integer(v)&&Number(v)<=0xffffffff,audioQueued:v=>finite(v)&&Number(v)>=0,storage:map});
+ fields(s.services,{ticks:integer,rng:v=>integer(v)&&Number(v)<=0xffffffff,audioQueued:v=>finite(v)&&Number(v)>=0,audioTimeUs:v=>finite(v)&&Number(v)>=0,storage:map});
  for(const [k,v] of s.services.storage)requireState(typeof k==='string'&&v instanceof Uint8Array);
  fields(s.vfs,{open:map,nextHandle:integer,missing:set,ranges:map,consumedBytes:integer,observedBytes:integer,readAheadBytes:integer,readAheadRequests:integer,aheadRanges:map});
  for(const [h,f] of s.vfs.open)requireState(integer(h)&&object(f)&&typeof f.path==='string'&&(f.data===null||f.data instanceof Uint8Array)&&integer(f.size)&&integer(f.pos)&&f.pos<=f.size);

@@ -30,6 +30,7 @@ typedef struct {
     const char *const *sys_dlls;
     uint32_t nsys_dlls;
     int mode64;
+    uint32_t instruction_cap; /* zero selects the 64M-unit default */
 } w32_config_t;
 
 typedef struct {
@@ -42,6 +43,7 @@ typedef struct {
 } w32_metrics_t;
 
 int32_t w32_boot(const w32_config_t *cfg, bgt_io_t *io);
+double w32_guest_time_us(void); /* read-only, independent of host update count */
 /* bgt_update: runs the guest; blocks (bgt_yield) inside the guest's message loop */
 void w32_update(void);
 /* bgt_render: flushes deferred GDI drawing and presents the desktop */

@@ -8,3 +8,7 @@ export const webgpuArgs = noWebGPU ? withoutWebGPU : [
   ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--ignore-gpu-blocklist',
 ];
 export const webglArgs = noWebGPU ? withoutWebGPU : swiftShader;
+/** K51: BGT_WEBGL2_GPU=1 runs the chromium-webgl2 project on the native GPU (ANGLE Metal on macOS) instead of the
+ * headless-shell SwiftShader default. Opt-in: the default WebGL2 project remains the software CI gate. */
+export const webgl2Gpu = process.env.BGT_WEBGL2_GPU === '1' && !noWebGPU && process.env.BGT_SOFTWARE_RENDERER !== '1';
+export const webglGpuArgs = [...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--ignore-gpu-blocklist'];

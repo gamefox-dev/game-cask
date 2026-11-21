@@ -135,9 +135,11 @@ uint64_t x86_guest_committed;
 #endif
 /* LANE-C: architecture-independent cooperative hook. */
 static void (*scheduler)(void);
+uint32_t x86_quantum_insns;
 void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
 void x86_cooperate(void) {
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
+    x86_quantum_insns = X.frame_insns > 2000000u ? 2000000u : X.frame_insns;
     X.frame_insns = 0;
     double start=0,*span=exclusive_pause(&start);
     int active=interpreter_span_set(0);
@@ -547,9 +549,10 @@ static x86_interpreter_coverage_t interpreter_coverage={.capacity=X86_INTERPRETE
 static uint32_t *interpreter_index;
 static uint32_t interpreter_record,interpreter_rows_allocated;
 void x86_register_code_owner_addresses(const uint32_t *addresses) {code_owner_addresses=addresses;}
+#include "x86_owner_census.h" /* K51 */
 const x86_interpreter_coverage_t *x86_interpreter_coverage(void) {return &interpreter_coverage;}
 static uint32_t interpreter_row(uint32_t address,const x86_code_range_t *range) {
-    if(X86_COVERAGE_MODE==2)return 0;
+    if(X86_COVERAGE_MODE==2||X86_COVERAGE_MODE==3)return 0; /* strict/off builds record no coverage rows */
     if(!interpreter_index)interpreter_index=x86_alloc(X86_INTERPRETER_CAP*sizeof(uint32_t));
     if(!interpreter_index){interpreter_coverage.dropped++;return 0;}
     uint32_t h=(address*2654435761u)&(X86_INTERPRETER_CAP-1);
@@ -591,7 +594,7 @@ static int interpreted_entry(uint32_t addr, int entry) {
     /* Entering an unowned gap is also a continuation boundary. Cache the gap
      * so its remaining straight-line instructions do not become entry events. */
     entry = entry || changed;
-    if(entry)x86_coverage_entry(addr,2);
+    if(entry)x86_coverage_runtime(addr,2);
     if(entry || interpreter_generation!=x86_census_generation) {
         interpreter_generation=x86_census_generation;
         interpreter_bucket=x86_profile_exit(addr,XE_INTERPRETER);
@@ -636,7 +639,7 @@ static void execute_counted(const x86_insn_t *in, unsigned kind) {
     if (string) {
         if (X.eip != addr + in->len) return;
     } else if (X.mode64 && budget >= 2000000u && X.transfer && X.eip == addr) return;
-    x86_retire(kind, 1);
+    x86_retire(kind, 1); XOC_AT(addr, kind);
 }
 
 /* ------------------------------------------------------------------ interpreter loop */
@@ -767,7 +770,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
             if (fn) {
                 uint32_t next = in->addr + in->len;
                 x86_push(next);
-                x86_retire(XR_INTERPRETED, 1);
+                x86_retire(XR_INTERPRETED, 1); XOC_AT(in->addr, XR_INTERPRETED);
                 x86_metrics.lifted_calls++;
                 profiled_native(fn);
                 if(interpreter_start>=0){x86_interpreter_exclusive_sample_us+=x86_profile_clock()-interpreter_start-excluded;exclusive_span=0;}

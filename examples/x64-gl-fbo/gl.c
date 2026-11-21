@@ -260,10 +260,19 @@ int main(void) {
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 2, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, array_pixels);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     expect_error(GL_NO_ERROR, "array upload");
-    {   /* GPU mip generation for volumes and arrays; box-filter rounding may differ by backend (+-3). */
+    {   /* GPU mip generation for volumes and arrays. GL leaves the reduction filter implementation-defined (a box
+         * filter is only recommended). Level 2 (1x1x1) must be a blend of the two 2x2 box-reduced level-1 slices,
+         * s0 = avg(z0, z1) and s1 = avg(z2, z3): R 30 / 217.5, G = B 100 / 177.5 (x/y symmetric), each channel +-3
+         * for rounding, with one z weight w in [0,1] shared by all channels. A box filter gives w = 0.5 (124,139,139:
+         * SwiftShader, WebGPU); ANGLE Metal's 3D generateMipmap weights the slices ~7/8 : 1/8 (53,110,110). This still
+         * proves the x/y reduction, slice placement and level storage, and rejects unfiltered or misplaced levels. */
         glBindTexture(GL_TEXTURE_3D, volume); glGenerateMipmap(GL_TEXTURE_3D); expect_error(GL_NO_ERROR, "3D mip generation");
         unsigned char top[4]; glGetTexImage(GL_TEXTURE_3D, 2, GL_RGBA, GL_UNSIGNED_BYTE, top);
-        note("3D mip chain average", near_byte(top[0], 124, 3) && near_byte(top[1], 139, 3) && near_byte(top[2], 139, 3));
+        { char v[96]; snprintf(v, sizeof v, "x64-gl-fbo 3D mip level 2 = %u,%u,%u,%u", top[0], top[1], top[2], top[3]); OutputDebugStringA(v); }
+        double w = (177.5 - top[1]) / 77.5; /* from G; B and R must then agree */
+        int blend = w >= -0.04 && w <= 1.04 && near_byte(top[2], top[1], 1) && top[3] == 255 &&
+            near_byte(top[0], (int)(w * 30.0 + (1.0 - w) * 217.5 + 0.5), 3);
+        note("3D mip chain is a filtered reduction of both slice pairs", blend);
         glBindTexture(GL_TEXTURE_2D_ARRAY, layers); glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
         unsigned char small[8]; glGetTexImage(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA, GL_UNSIGNED_BYTE, small);
         note("array mip layers stay independent", small[0] == 255 && small[1] == 0 && small[4] == 0 && small[5] == 255);

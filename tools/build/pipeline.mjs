@@ -199,14 +199,40 @@ export function hostArenaSize(memory = {}) {
   }
   return n;
 }
+export function guestTimeModel(timeModel = {}) {
+  const instructionCap = timeModel?.instructionCap ?? 64000000;
+  if (!Number.isInteger(instructionCap) || instructionCap < 2000000 || instructionCap > 256000000) {
+    throw new Error('pipeline.timeModel.instructionCap must be an integer in 2000000..256000000');
+  }
+  return { version: 1, instructionCap, unitsPerUs: 4000, frameUs: 16667 };
+}
+/** K51: `BGT_COVERAGE=off` / `build.mjs --no-coverage` compiles coverage recording out (X86_COVERAGE_MODE=3) for
+ * performance measurement. Strict slice builds already record nothing and keep their membership checks. */
+export function coverageInstrumentation(cfg, env = process.env) {
+  const value = cfg.coverageRecording ?? env.BGT_COVERAGE ?? 'on';
+  if (value !== 'on' && value !== 'off') throw new Error('BGT_COVERAGE must be on or off');
+  if (value === 'off' && cfg.slice) throw new Error('coverage off cannot combine with a strict --slice build (strict builds already omit recording)');
+  if (value === 'off' && env.BGT_COVERAGE_DIRECT === '1') throw new Error('BGT_COVERAGE=off conflicts with BGT_COVERAGE_DIRECT=1');
+  return value;
+}
+/** K51: BGT_OWNER_CENSUS=1 opts into the exact per-owner retirement census (implies exact accounting). */
+export function ownerCensus(env = process.env) {
+  const value = env.BGT_OWNER_CENSUS ?? '0';
+  if (value !== '0' && value !== '1') throw new Error('BGT_OWNER_CENSUS must be 0 or 1');
+  if (value === '1' && env.BGT_CPU_ACCOUNTING === '0') throw new Error('BGT_OWNER_CENSUS=1 requires exact accounting; unset BGT_CPU_ACCOUNTING=0');
+  return value === '1';
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
+  const timeModel = guestTimeModel(p.timeModel);
   const policy = liftPolicy(p);
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
   }
   const hostArenaMiB = hostArenaSize(p.memory);
+  const coverage = coverageInstrumentation(cfg);
+  const census = ownerCensus();
   const mode=selectionMode(p,!!cfg.slice);
   const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
   const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
@@ -362,7 +388,7 @@ ${codeRanges.map((r)=>`    {${r.addr}u,${r.end}u,${r.owner}u},`).join('\n')}
 ${cfg.slice && plan ? `static const uint32_t slice_entries[]={${[...sliceCode].sort((a,b)=>a-b).map(a=>a+'u').join(',')}};
 static const x86_code_range_t slice_ranges[]={${sliceRanges.map(r=>`{${r.addr}u,${r.end}u,0},`).join('')}};` : ''}
 static const char *const sys_dlls[] = {${sysDlls.map((d) => JSON.stringify(d)).join(', ')}};
-static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}};
+static const w32_config_t config = {modules, ${mods.length}, "", ${p.width ?? 640}, ${p.height ?? 480}, sys_dlls, ${sysDlls.length}, ${mode64?1:0}, ${timeModel.instructionCap}u};
 static uint8_t async_buf[1u << 20] __attribute__((aligned(16)));
 BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buf; }
 BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buf; }
@@ -375,6 +401,7 @@ BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();}
 BGT_EXPORT(bgt_interpreter_coverage) uint32_t bgt_interpreter_coverage(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}
+BGT_EXPORT(bgt_guest_time_us) double bgt_guest_time_us(void) {return w32_guest_time_us();}
 BGT_EXPORT(bgt_guest_presentations) uint32_t bgt_guest_presentations(void) {return (uint32_t)(uintptr_t)w32_guest_presentations();}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
 BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
@@ -411,6 +438,11 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     timings: phaseTimings,
     platform: p.platform,
     machine: mode64?'x86-64':'i386',
+    timeModel,
+    /* K51: build-time instrumentation provenance; "off" coverage builds are performance artifacts, not slice evidence. */
+    instrumentation: { coverage: cfg.slice && plan ? 'strict' : coverage === 'off' ? 'off' : process.env.BGT_COVERAGE_DIRECT === '1' ? 'direct' : 'buffered',
+      cpuProfile: process.env.BGT_CPU_PROFILE !== '0', accounting: process.env.BGT_CPU_ACCOUNTING === '1' || census,
+      dispatchCounters: process.env.BGT_DISPATCH_COUNTERS === '1', ownerCensus: census },
     liftPolicy: policy,
     selection: mode,
     memory: mode64 ? { guestWindowMiB, growth: 'on-demand', hostArenaMiB } : null,
@@ -432,9 +464,12 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),
+      // K53 A/B evidence only: restore per-call GL profile submission (no deferred frame list).
+      ...(process.env.BGT_GL_SYNC_SUBMIT === '1' ? ['-DW32_GL_SYNC_SUBMIT=1'] : []),
       ...(process.env.BGT_DISPATCH_COUNTERS === '1' ? ['-DX86_NATIVE_STATS=1'] : []),
-      ...(process.env.BGT_CPU_ACCOUNTING === '1' ? ['-DX86_ACCOUNTING_ENABLED=1'] : process.env.BGT_CPU_ACCOUNTING === '0' ? ['-DX86_ACCOUNTING_ENABLED=0'] : []),
-      `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
+      ...(process.env.BGT_CPU_ACCOUNTING === '1' || census ? ['-DX86_ACCOUNTING_ENABLED=1'] : process.env.BGT_CPU_ACCOUNTING === '0' ? ['-DX86_ACCOUNTING_ENABLED=0'] : []),
+      ...(census ? ['-DX86_OWNER_CENSUS=1'] : []),
+      `-DX86_COVERAGE_MODE=${cfg.slice && plan ? 2 : coverage === 'off' ? 3 : process.env.BGT_COVERAGE_DIRECT === '1' ? 0 : 1}`,
       ...(mode64 ? ['-DX86_FLAT_GUEST=1', `-DX86_FLAT_BYTES=${guestWindowMiB}ull*1048576ull`,
         `-DX86_HOST_ARENA_BYTES=${hostArenaMiB}u*1048576u`,
         '-D_GNU_SOURCE', '-fno-math-errno'] : []),

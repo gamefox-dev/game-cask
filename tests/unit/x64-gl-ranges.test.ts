@@ -33,13 +33,17 @@ it.each(['upload','wire','uniform'])('partial materialization %s limit retires g
      else h.host.frame.commandBytes=GPU_CONTINUATION_LIMITS.bytes-128;
    }
    if(message.includes('inject rejected full upload'))h.host.frame.gpuUploadBytes=GPU_LIMITS.budget;
+   if(message.includes('inject upload headroom'))h.host.frame.gpuUploadBytes=GPU_LIMITS.budget-15;
    if(message.includes('restore materialization budget')){h.host.frame.gpuUploadBytes=0;h.host.frame.commandBytes=0;}
  }});h.key('F9',true);
  for(let i=0;i<180&&!h.logs.some(l=>l.includes('failure case done'));i++)await h.stepAsync(1);
  expect(injected).toBe(true);expect(h.logs.some(l=>l.includes('failure case done'))).toBe(true);
- expect(h.logs.filter(l=>l.includes('x64-gl-ranges FAIL')).map(l=>l.replace('guest: x64-gl-ranges FAIL ',''))).toEqual(['failed full upload retains native prefix']);
+ expect(h.logs.filter(l=>l.includes('x64-gl-ranges FAIL')).map(l=>l.replace('guest: x64-gl-ranges FAIL ',''))).toEqual(['failed full upload retains native prefix','rejected whole write keeps generated contents']);
+ // Both need real captured GPU bytes (the recording backend has none); gl-materialization-failure.spec.ts asserts them.
+ expect(h.logs.some(l=>l.includes('ok headroom whole upload rejected'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok materialization limit surfaced'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok generated app source deleted'))).toBe(true);
- expect(stream.items.filter(i=>i.op===O.BUFFER_DELETE&&i.words[0]===1000)).toHaveLength(3);
+ // One retirement per generated-source TF draw: three, plus the K53 headroom case's draw.
+ expect(stream.items.filter(i=>i.op===O.BUFFER_DELETE&&i.words[0]===1000)).toHaveLength(4);
  expect(h.host.commandErrorCount).toBeGreaterThan(0);
 },120000);

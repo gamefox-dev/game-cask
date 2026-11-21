@@ -119,6 +119,13 @@ static uint32_t api_ShaderSource(void) {
     if (s->str_len) glp_free(s->str_len, (s->nstr ? s->nstr : 1) * 4);
     s->source = source; s->source_len = at; s->str_len = lens; s->nstr = (uint32_t)count; return 0;
 }
+/* K51: the real limit of the active GPU namespace (never a fixed 65536 claim): §13.6 offset 52. */
+static uint32_t gl_uniform_limit(void) {
+    bgt_gpu_limits_v3_t limits; zero(&limits, sizeof limits);
+    if (bgt_gpu_limits(&limits.base, sizeof limits) || limits.base.byte_size < sizeof limits || !limits.gpu_supported)
+        return BGT_GPU_LIMIT_UNIFORM_RANGE;
+    return limits.max_uniform_range;
+}
 static uint32_t compile_shader_build(void) {
     uint32_t id = SLOT(shaders, ARG(0)); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id]; GsLog log = {s->log, sizeof s->log, 0, 0};
@@ -129,6 +136,7 @@ static uint32_t compile_shader_build(void) {
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "provisional link layout"); return 0; }
     GsUnit *vs = s->type == 0x8b31 ? s->unit : 0, *fs = s->type == 0x8b31 ? 0 : s->unit;
+    gp_uniform_limit = gl_uniform_limit();
     if (gp_link(g, vs, fs, 0, 0, 0, 0, &log)) s->compiled = (uint32_t)stage_module(s->unit, vs, fs, g, &s->gpu, &log, 0);
     glp_free(g, sizeof(Gp)); if (!s->compiled && !log.errors) log.errors++;
     return 0;
@@ -226,6 +234,7 @@ static uint32_t link_program_build(void) {
         if (!gs_parse(fs, 2, unused, sizeof unused - 1, &log)) { glp_free(fs, sizeof(GsUnit)); glp_free(g, sizeof(Gp)); return 0; }
         gs_analyze(fs);
     }
+    gp_uniform_limit = gl_uniform_limit();
     if (!tf_link(p, vs, &log) || !gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
         !stage_module(vs, vs, fs, g, &p->vgpu, &log, p) || !stage_module(fs, vs, fs, g, &p->fgpu, &log, 0)) {
         if (p->vgpu) { release_wire(0x49, p->vgpu, "programs"); p->vgpu = 0; }

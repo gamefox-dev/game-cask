@@ -47,7 +47,8 @@ export async function checkWebGPUDevice(device: GPUDevice, timeoutMs = 3000): Pr
 }
 
 export interface ProbedWebGPU { gpu: GPU; adapter: GPUAdapter; device: GPUDevice }
-export async function acquireWebGPU(gpu: GPU | undefined = navigator.gpu, timeoutMs = 3000): Promise<ProbedWebGPU> {
+export async function acquireWebGPU(gpu: GPU | undefined = navigator.gpu, timeoutMs = 3000,
+  extraFeatures: readonly GPUFeatureName[] = []): Promise<ProbedWebGPU> {
   if (!gpu) throw new WebGPUUnavailable('navigator.gpu is absent');
   let device: GPUDevice | undefined, cancelled = false;
   let stage = 'requestAdapter';
@@ -58,7 +59,8 @@ export async function acquireWebGPU(gpu: GPU | undefined = navigator.gpu, timeou
       if (cancelled) throw new WebGPUUnavailable('probe cancelled');
       stage = 'requestDevice';
       // §13.7 float32 color textures need filtering/blending semantics; request them when the adapter has them.
-      const optional = (['float32-filterable', 'float32-blendable'] as const)
+      // Opt-in extras (e.g. K53 GPU timing's 'timestamp-query') are requested only when present.
+      const optional = (['float32-filterable', 'float32-blendable', ...extraFeatures] as GPUFeatureName[])
         .filter(feature => adapter.features?.has(feature));
       device = await adapter.requestDevice(optional.length ? { requiredFeatures: optional } : undefined);
       if (cancelled) { device.destroy(); throw new WebGPUUnavailable('probe cancelled'); }

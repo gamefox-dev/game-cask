@@ -142,8 +142,8 @@ static void upload_region(Texture *t, uint32_t id, uint32_t lvl, uint32_t x, uin
             }
         }
         uint32_t by = mh - (y + yo + rows);
-        if (legacy) SEND(0x44, id, lvl, x, by, w, rows, PTR(buf), w * rows * bpp);
-        else SEND(0x5a, id, lvl, x, by, z + zi, w, rows, 1, PTR(buf), w * rows * bpp);
+        if (legacy) SEND_DEFERRED(0x44, id, lvl, x, by, w, rows, PTR(buf), w * rows * bpp);
+        else SEND_DEFERRED(0x5a, id, lvl, x, by, z + zi, w, rows, 1, PTR(buf), w * rows * bpp);
     }
 }
 static int gpu_create(Texture *t, uint32_t id, uint32_t dim, uint32_t w, uint32_t h, uint32_t d, uint32_t bgt) {
@@ -549,7 +549,7 @@ static int fetch_texels(uint32_t gpu, uint32_t lvl, uint32_t x, uint32_t y, uint
     for (uint32_t yo = 0; yo < h; yo += bh) {
         uint32_t rows = h - yo < bh ? h - yo : bh, req = request_id_next();
         SEND(0x5c, gpu, lvl, x, y + yo, z, w, rows, 1, req);
-        int status; while ((status = bgt_request_status(req)) == 0) w32_wait_frame();
+        int status; while ((status = request_status(req)) == 0) w32_wait_transport();
         int got = status > 0 ? bgt_request_read(req, buf, w * rows * bpp) : -1; bgt_request_close(req);
         if (got != (int)(w * rows * bpp)) { fail(BAD_OP); return 0; }
         sink(ctx, yo, rows, buf);

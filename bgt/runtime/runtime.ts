@@ -42,6 +42,10 @@ export interface RuntimeOptions {
   gameUrl: string; // directory containing manifest.json, trailing slash
   backend?: BackendPreference;
   debug?: boolean;
+  /** K53: opt-in GPU timing (WebGPU timestamp-query / WebGL disjoint timer query). */
+  gpuTiming?: boolean;
+  /** K53: false restores per-pass native submission (WebGPU) / framebuffer release (WebGL) for A/B checks. */
+  gpuBatch?: boolean;
   seed?: number;
   arg0?: number;
   arg1?: number;
@@ -84,6 +88,8 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
+import { retainedAccumulator } from './page-pacing';
+import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 
 export interface BGTDiagnostics {
   abi: string;
@@ -93,6 +99,8 @@ export interface BGTDiagnostics {
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
   nativeQueryPolicy: 'production' | 'strict' | null;
+  /** K51: native device identity and the uniform range reported to the guest (§13.6 offset 52); null without CAP_GPU. */
+  gpuDevice: { renderer: string | null; software: boolean; nativeMaxUniformRange: number; maxUniformRange: number; languages: number } | null;
   ready: boolean;
   paused: boolean;
   failed: boolean;
@@ -116,6 +124,10 @@ export interface BGTDiagnostics {
   };
   lastFrame: { drawCalls: number; passes: number; vertices: number; commandBytes: number; submits: number;
     commandCount: number; continuationSubmits: number; continuationByteLimit: number; continuationCommandLimit: number;
+    /** K53 native census (see GpuStats): encoded render passes, GPUQueue submits, merged §13 passes,
+     * WebGPU buffer renames, opt-in GPU ms (null when off/unavailable/pending) and its source. */
+    nativePasses: number; nativeSubmits: number; mergedPasses: number; bufferRenames: number; skippedBinds: number;
+    gpuMs: number | null; gpuTiming: string;
     nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null;
     nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }> | null };
   commandErrors: { count: number; recent: CommandError[] };
@@ -214,6 +226,9 @@ export class BGTRuntime {
   private last = 0;
   private acc = 0;
   private intervals: number[] = [];
+  /** K51: real-page loop log (rAF ticks and completed canvas presents), allocated only while measurePage runs. */
+  private pageLog: PageLoopLog | null = null;
+  private presentsCompleted = 0;
   private errors: RuntimeErrorRecord[] = [];
   private logs: Array<{ level: number; message: string; frame: number }> = [];
   private backendNotes: string[] = [];
@@ -223,7 +238,8 @@ export class BGTRuntime {
   private cssH = 0;
   private deviceResets = 0;
   private resizeObs: ResizeObserver | null = null;
-  private lastFrameStats = { drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
+  private lastFrameStats = { nativePasses: 0, nativeSubmits: 0, mergedPasses: 0, bufferRenames: 0, skippedBinds: 0,
+    gpuMs: null as number | null, gpuTiming: 'off', drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
     commandCount: 0, continuationSubmits: 0, continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes as number,
     continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands as number };
   private stage: HTMLElement;
@@ -523,7 +539,7 @@ export class BGTRuntime {
     }
     console.warn(`[bgt] ${reason}; switching to WebGL 2`);
     this.canvas = this.newCanvas();
-    const gl = WebGL2Renderer.create(this.canvas, { debug: !!this.opts.debug });
+    const gl = WebGL2Renderer.create(this.canvas, { debug: !!this.opts.debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
     if (!gl) {
       this.fail('device-lost', `WebGPU device lost (${reason}) and WebGL 2 is unavailable`);
       return;
@@ -558,7 +574,7 @@ export class BGTRuntime {
         this.backendNotes.push('webgpu: initialization deliberately failed (?backend=webgpu-fail)');
       } else {
         try {
-          const r = await WebGPURenderer.create(this.canvas, { debug });
+          const r = await WebGPURenderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
           if (r) return r;
           this.backendNotes.push(navigator.gpu ? 'webgpu: no adapter available' : 'webgpu: navigator.gpu not present');
         } catch (e) {
@@ -569,7 +585,7 @@ export class BGTRuntime {
       // A canvas that handed out a 'webgpu' context cannot give WebGL; use a fresh one.
       this.canvas = this.newCanvas();
     }
-    const gl = WebGL2Renderer.create(this.canvas, { debug });
+    const gl = WebGL2Renderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
     if (gl) return gl;
     this.backendNotes.push('webgl2: context creation failed');
     throw new RuntimeFailure('init', `Neither WebGPU nor WebGL 2 is available in this browser. (${this.backendNotes.join('; ')})`);
@@ -708,8 +724,12 @@ export class BGTRuntime {
       continuationSubmits: frame.continuationSubmits,
       continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes,
       continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands,
+      nativePasses: r.stats.nativePasses ?? 0, nativeSubmits: r.stats.nativeSubmits ?? 0,
+      mergedPasses: r.stats.mergedPasses ?? 0, bufferRenames: r.stats.bufferRenames ?? 0, skippedBinds: r.stats.skippedBinds ?? 0,
+      gpuMs: r.stats.gpuMs ?? null, gpuTiming: r.stats.gpuTiming ?? 'off',
     };
     host.consume();
+    this.presentsCompleted++;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) await this.testHarness?.afterFrame?.();
     if(this.firstFrameMs===null)this.firstFrameMs=performance.now()-this.loadStarted;
     this.frameTimes.push(performance.now()-started);if(this.frameTimes.length>10000)this.frameTimes.shift();
@@ -728,18 +748,31 @@ export class BGTRuntime {
       }
       this.last = t;
       this.checkLossWatchdog();
-      if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy || this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) return;
+      if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy || this.paused || !this.ready || this.failed || this.outsideSlice || this.renderer?.lost || this.host?.ioPending || this.renderBusy || this.updateBusy) {
+        if (this.pageLog && !this.paused && this.ready && !this.failed) pageLogPush(this.pageLog, 1, t);
+        return;
+      }
+      if (this.pageLog) pageLogPush(this.pageLog, 0, t);
       this.updateBusy = true;
       try {
       let n = 0;
-      while (this.acc >= STEP_MS && n < LIMITS.maxCatchUpUpdates && !this.host?.ioPending) {
+      // A pipeline update is already a bounded guest frame; never multiply its
+      // work with fixed-step catch-up. Native BGT games keep their old policy.
+      const limit = this.manifest?.pipeline ? 1 : LIMITS.maxCatchUpUpdates;
+      while (this.acc >= STEP_MS && n < limit && !this.host?.ioPending) {
         await this.stepGuarded();
         if (this.failed || this.outsideSlice) return;
         this.acc -= STEP_MS;
         n++;
       }
-      if (n === LIMITS.maxCatchUpUpdates) this.acc = 0; // drop backlog rather than spiral
-      if (n > 0) void this.renderFrame(false);
+      this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog, keep the sub-step remainder
+      if (n > 0) {
+        const before = this.presentsCompleted, updates = n, log = this.pageLog;
+        if (log) void this.renderFrame(false).then(() => {
+          if (this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
+        }, () => {});
+        else void this.renderFrame(false);
+      }
       } finally { this.updateBusy = false; }
     };
     this.raf = requestAnimationFrame(tick);
@@ -757,6 +790,33 @@ export class BGTRuntime {
     if(this.outsideSlice)return; // select a broader package and reload; never resume an aborted guest stack
     this.paused = false;
     this.acc = 0;
+  }
+
+  /**
+   * K51 real-page measurement: let the page's own rAF loop run for warmupMs, then measure a fixed
+   * windowMs of wall time (no step()). Guest presents come from the native present counter. Pauses again.
+   */
+  async measurePage(windowMs: number, warmupMs = 1000): Promise<PageWindowSummary> {
+    if (!this.ready || this.failed) throw new Error('runtime not ready');
+    if (!(windowMs > 0 && windowMs <= 600_000) || !(warmupMs >= 0 && warmupMs <= 600_000)) throw new Error('invalid measurement window');
+    if (this.stepping) throw new Error('Overlapping test operations');
+    const guest = () => {
+      const g = (this.host?.metrics() as { execution_summary?: { guest_frames?: { count?: unknown } | null } } | null)?.execution_summary?.guest_frames?.count;
+      return typeof g === 'number' || typeof g === 'bigint' || typeof g === 'string' ? Number(g) : null;
+    };
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    if (this.pageLog) throw new Error('Overlapping page measurements');
+    const log = this.pageLog = newPageLog();
+    this.resume();
+    try {
+      await sleep(warmupMs);
+      const g0 = guest(), start = performance.now();
+      await sleep(windowMs);
+      const end = performance.now(), g1 = guest();
+      // Presents complete asynchronously; let a submitted frame finish before reducing the window.
+      await this.renderTail;
+      return summarizePageWindow(log, start, end, g0 !== null && g1 !== null ? g1 - g0 : null);
+    } finally { this.pause(); await this.renderTail; this.pageLog = null; }
   }
 
   async step(frames: number): Promise<void> {
@@ -814,7 +874,9 @@ export class BGTRuntime {
   coverageSnapshot() {
     // Metrics flush wasm-buffered coverage. Observe entries/drops only after that flush.
     const execution=this.host?.metrics() ?? null;
-    return {schema:'game-cask/coverage/1',game:this.manifest?.id,modules:this.manifest?.pipeline?.modules ?? [],
+    // K51: a coverage-off performance build records nothing; say so rather than publishing empty evidence.
+    const recording=(this.manifest?.pipeline as {instrumentation?:{coverage?:string}}|undefined)?.instrumentation?.coverage ?? 'buffered';
+    return {schema:'game-cask/coverage/1',game:this.manifest?.id,recording,modules:this.manifest?.pipeline?.modules ?? [],
       interpreter:this.host?.interpreterCoverage() ?? undefined,
       code:[...(this.host?.codeCoverage ?? new Map<number,number>())].sort((a,b)=>a[0]-b[0]).map(([address,kind])=>({address,kind})),
       files:[...this.vfs.coverage(),...(this.rangeFiles?.coverage() ?? [])],
@@ -839,6 +901,8 @@ export class BGTRuntime {
       backend: r ? r.kind : 'unavailable',
       backendNotes: [...this.backendNotes],
       nativeQueryPolicy: r?.gpu?.nativeQueryPolicy ?? null,
+      gpuDevice: r?.gpu?.device && r.gpu.languages ? { ...r.gpu.device, languages: r.gpu.languages,
+        maxUniformRange: host?.gpuUniformRange ?? r.gpu.maxUniformRange ?? 65536 } : null,
       ready: this.ready,
       paused: this.paused,
       failed: this.failed,

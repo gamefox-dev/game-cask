@@ -80,6 +80,10 @@ for(const wide of [false,true])it('guest-import exact multithread retirement, Sl
      rangeRead:(path,offset,length)=>{reads.push({path,offset,length});return pending;}},
      {backend:3,caps:0,seed:1,displayWidth:64,displayHeight:64,arg0:0,arg1:0,suspensionMode:mode});host.init();
     await host.update();await Promise.resolve();expect(host.ioPending).toBe(true);expect(host.suspended).toBe(true);
+    // Transport now yields immediately without inventing a quantum/frame. Resume
+    // once at the same host timestamp to lend execution to the ready worker.
+    expect((host.metrics() as any).execution_accounting.threads.map((t:any)=>t.state)).toEqual(['io','ready']);
+    await host.update();
     const before=(host.metrics() as any).execution_accounting;
     expect(before.threads.map((t:any)=>t.state)).toEqual(['io','wait_objects']);
     us=1000;await host.update();const parked=(host.metrics() as any).execution_accounting;

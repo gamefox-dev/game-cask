@@ -11,7 +11,7 @@ static void l64_sync(FILE *o, int load) {
         else fprintf(o, "X.r[%d]=r[%d];", i, i);
     }
     fprintf(o, load ? "flags=X.flags;clock=X.tsc;budget=X.frame_insns;retire_clock=clock;\n" :
-                     "x86_retire(XR_LIFTED,clock-retire_clock);retire_clock=clock;X.flags=flags;X.tsc=clock;X.frame_insns=budget;\n");
+                     "XR_LIFT(clock-retire_clock);retire_clock=clock;X.flags=flags;X.tsc=clock;X.frame_insns=budget;\n");
 }
 static void l64_ea(char *s, size_t cap, const x86_opnd_t *p, int segment) {
     char base[100], index[60] = "", seg[40] = "", expr[240];
@@ -530,6 +530,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                    "uint32_t flags,budget,count=0,dirty=0,exit_reason=XE_OTHER,entry_index=0;int32_t debt=0;int action=0,width=0,writing=0;"
                    "const x86_insn_t *pending=0;uint8_t *p;"
                    "x86_vec_t av,bv;(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)dirty;(void)debt;(void)entry_index;\n");
+        fprintf(o, "XR_OWNER(0x%08xu)\n", original->addr); /* K51 owner census; empty unless BGT_OWNER_CENSUS=1 */
         l64_sync(o, 1);
         /* Record only entries actually handled by this region. An indirect jump
          * may dispatch out to an import thunk or another owner; its real handler
