@@ -1,4 +1,7 @@
-// @bgt-examples: none
+// @bgt-examples: x64-cpprt
+// I17: the baseline loads the prebuilt web/public/games/x64-cpprt (and its assets) and buildGame() below must be a
+// build-cache hit: a cold x64-cpprt build alone exceeds the 300 s budget. The old `none` only worked while the CI
+// shard balancer happened to co-locate this file with crt.test.ts, the other x64-cpprt user.
 // Original CC0 C++ pipeline input: catches Binaryen duplicate-name normalization,
 // profile/global/table mismatches, unsafe native exclusions, and real loader regressions.
 import {it,expect} from 'vitest';
