@@ -53,7 +53,8 @@ it.each(['upload','wire','uniform'])('partial materialization %s limit retires g
    'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
    'rejected capture counts no primitives','headroom growth near the resident limit retried exact','exact retry keeps the bytes',
    'slack reclaimed before GL_OUT_OF_MEMORY','reclaimed store keeps its bytes','wide stores deleted',
-   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup'])expect(h.logs.some(l=>l.includes('ok '+note))).toBe(true);
+   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup',
+   'deferred failure before validation error is first','first-error latch cleared','validation error before deferred failure is first','second latch cleared'])expect(h.logs.some(l=>l.includes('ok '+note))).toBe(true);
  // One retirement per generated-source TF draw: three, plus the K53 headroom case's draw.
  expect(stream.items.filter(i=>i.op===O.BUFFER_DELETE&&i.words[0]===1000)).toHaveLength(4);
  expect(h.host.commandErrorCount).toBeGreaterThan(0);

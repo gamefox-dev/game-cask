@@ -83,6 +83,14 @@ static void failure_case(void){
  OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,written_query);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,1);glEndTransformFeedback();glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
  error(GL_OUT_OF_MEMORY,"deferred capture limit surfaced");OutputDebugStringA("x64-gl-ranges restore materialization budget");
  glGetQueryObjectuiv(written_query,GL_QUERY_RESULT,&written);note("rejected capture counts no primitives",written==0);
+ /* K60: validation errors no longer flush deferred work, yet glGetError still reports the first error in call order:
+  * a rejected deferred upload before an invalid enum is GL_OUT_OF_MEMORY, an invalid enum before it is GL_INVALID_ENUM. */
+ GLuint order=store(16,0);unsigned word=5;glBindBuffer(GL_ARRAY_BUFFER,order);error(GL_NO_ERROR,"order setup");
+ OutputDebugStringA("x64-gl-ranges inject rejected full upload");glBufferSubData(GL_ARRAY_BUFFER,0,4,&word);glEnable(0x1234);
+ error(GL_OUT_OF_MEMORY,"deferred failure before validation error is first");error(GL_NO_ERROR,"first-error latch cleared");
+ glEnable(0x1234);glBufferSubData(GL_ARRAY_BUFFER,4,4,&word);glDisable(GL_DITHER);
+ error(GL_INVALID_ENUM,"validation error before deferred failure is first");OutputDebugStringA("x64-gl-ranges restore materialization budget");
+ error(GL_NO_ERROR,"second latch cleared");glDeleteBuffers(1,&order);
  glDeleteBuffers(1,&source);error(GL_NO_ERROR,"generated app source deleted");OutputDebugStringA("x64-gl-ranges failure case done");for(;;)Sleep(16);
 }
 int main(void){

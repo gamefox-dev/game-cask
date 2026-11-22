@@ -1413,6 +1413,26 @@ getError around BUFFER_CREATE, BLIT or feedback draws (their native errors reach
 strict `?debug=1` still polls every op). Metrics `gl_buffer_capacity_reused` (resized within capacity),
 `gl_buffer_capacity_grown` (live store reallocated larger), `gl_buffer_capacity_released` (exact-size release/reclaim); `gl_buffer_respec_*` keep counting logical size changes.
 
+**K60 (profile and WebGPU renderer; no wire change).** GL validation errors no longer flush the pending batch:
+while deferred calls are pending, the error is latched at once and its stream position remembered; if the batch
+later settles with a failed call at or before that position, glGetError returns that call's error (first-error
+order is unchanged). Profile regions that save and restore the error themselves (resource retirement, slack
+reclaim, buffer reallocation) keep the flush. Every GL 3.3 core glEnable capability is tracked state (no
+GL_INVALID_ENUM): DITHER and MULTISAMPLE (initially enabled) never change §13 rendering; enabling any other
+capability the profile does not render (logic op, depth clamp, framebuffer sRGB, smoothing, polygon offset,
+primitive restart, program point size, sample coverage/mask, seamless cube maps, clip distances) is a counted
+approximation (`gl_approximations`; rendering stays as with it disabled). Each program's private uniform buffer
+(usage uniform|vertex) is a ring of 256-aligned slots of the uniform values plus a 256-byte tail (at most 16
+slots, 32 KiB): a draw uploads into the next slot and binds that slot; a single-instance draw that reads generic
+current attributes carries them in the tail of the same upload and binds its constant vertex slot there (no
+separate synchronous upload to the private current-attribute buffer, which instanced draws still use). WebGPU
+tracks the byte ranges the pending frame encoder uses per buffer: a BUFFER_UPDATE whose (4-aligned) range no
+earlier command of the frame uses writes the native buffer directly; only overlapping writes rename (copy-on-write)
+or split as before. Transform-feedback capture draws cache their GLSL translation per pipeline, vertex shader and
+sampler specialization, and their compute pipeline per draw shape (dropped with the pipeline, on FEEDBACK_VARYINGS
+and when the shader handle names a different shader); `lastFrame.captureTranslations`/`captureLowerings` count
+misses and `renameBytes` the bytes renames rewrote.
+
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 
 `BUFFER_COPY` is a 20-byte **outside-pass** operation: `source, source_offset, destination,
