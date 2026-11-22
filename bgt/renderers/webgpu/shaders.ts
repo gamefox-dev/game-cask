@@ -23,7 +23,35 @@ const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool
 const vector = (n: number, t: string) => n === 1 ? scalar(t) :
   scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
-export const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast', 'shared'].includes(text) ? `bgt_internal_glsl_${text}` : text;
+// K62 (vK62): every WGSL reserved word, keyword, predeclared type and builtin function that is a legal GLSL 330/ES 300
+// identifier (`f32`, `select`, `textureSample`, `target`, ...) is renamed at token level, like `ref`/`var`: a guest
+// `float textureSample;` would otherwise shadow or collide (`var<private> f32: f32` is a cyclic declaration). GLSL
+// syntax words and GLSL builtin functions with the same spelling (`abs`, `mix`, `mod`, `max`, ...) keep their meaning.
+const wgslTypeName = /^(?:[fiu]32|f16|vec[234][fiuh]|mat[234]x[234][fh]|texture_\w+|sampler_comparison)$/;
+const wgslWords = new Set(`alias const_assert continuing diagnostic enable fn let loop override requires var array atomic
+ptr sampler bitcast NULL Self abstract active alignas alignof as asm asm_fragment async auto await become binding_array
+cast catch class co_await co_return co_yield coherent column_major common compile compile_fragment concept const_cast
+consteval constexpr constinit crate debugger decltype delete demote demote_to_helper dynamic_cast enum explicit export
+extends extern external fallthrough filter final finally friend from fxgroup get goto groupshared impl implements import
+inline instanceof interface macro macro_rules match meta module move mut mutable namespace new nil noexcept noinline
+nointerpolation non_coherent noncoherent null nullptr of operator package packoffset partition pass patch pixelfragment
+precise premerge priv protected pub public readonly ref regardless register reinterpret_cast require resource restrict
+self set shared sizeof snorm static static_assert static_cast std subroutine super target template this thread_local
+throw trait try type typedef typeid typename typeof union unless unorm unsafe unsized use using virtual volatile wgsl
+where with writeonly yield
+atan2 countLeadingZeros countOneBits countTrailingZeros dot4U8Packed dot4I8Packed extractBits faceForward firstLeadingBit
+firstTrailingBit insertBits inverseSqrt quantizeToF16 reverseBits saturate select arrayLength dpdx dpdxCoarse dpdxFine dpdy
+dpdyCoarse dpdyFine fwidthCoarse fwidthFine textureDimensions textureGather textureGatherCompare textureLoad
+textureNumLayers textureNumLevels textureNumSamples textureSample textureSampleBias textureSampleCompare
+textureSampleCompareLevel textureSampleGrad textureSampleLevel textureSampleBaseClampToEdge textureStore atomicLoad
+atomicStore atomicAdd atomicSub atomicMax atomicMin atomicAnd atomicOr atomicXor atomicExchange atomicCompareExchangeWeak
+pack4x8snorm pack4x8unorm pack4xI8 pack4xU8 pack4xI8Clamp pack4xU8Clamp pack2x16snorm pack2x16unorm pack2x16float
+unpack4x8snorm unpack4x8unorm unpack4xI8 unpack4xU8 unpack2x16snorm unpack2x16unorm unpack2x16float storageBarrier
+textureBarrier workgroupBarrier workgroupUniformLoad subgroupAdd subgroupAll subgroupAnd subgroupAny subgroupBallot
+subgroupBroadcast subgroupBroadcastFirst subgroupElect subgroupMax subgroupMin subgroupMul subgroupOr subgroupShuffle
+subgroupShuffleDown subgroupShuffleUp subgroupShuffleXor subgroupXor subgroupExclusiveAdd subgroupExclusiveMul
+subgroupInclusiveAdd subgroupInclusiveMul quadBroadcast quadSwapDiagonal quadSwapX quadSwapY`.split(/\s+/));
+export const glslName = (text: string) => wgslWords.has(text) || wgslTypeName.test(text) ? `bgt_internal_glsl_${text}` : text;
 
 function lex(source: string): Token[] {
   const result: Token[] = [];
@@ -84,7 +112,8 @@ class GLSL {
   private varyings: string[];
   constructor(source: string, private stage: number, language: number, varyingNames?: string[],
     private depthSlots: ReadonlySet<number> = new Set(),
-    private integerSamplers: ReadonlyMap<number, readonly number[]> = new Map()) {
+    private integerSamplers: ReadonlyMap<number, readonly number[]> = new Map(),
+    private options: TranslateOptions = {}) {
     this.varyings = (varyingNames ?? glslVaryings(source, stage)).map(glslName);
     const version = language === 1 ? /^\s*#version\s+330\s+core\s*(?:\r?\n|$)/ :
       /^\s*#version\s+300\s+es\s*(?:\r?\n|$)/;
@@ -149,9 +178,37 @@ class GLSL {
         const direction = this.take(), type = this.type(), name = this.name(); this.need(';');
         const explicit = layout.get('location');
         const varying = this.stage === 1 ? direction === 'out' : direction === 'in';
+        const packed = varying ? this.options.packing?.at.get(name) : undefined;
+        if (varying && this.options.packing) {
+          // K62: packed interface. The value lives in a private variable; the entry point copies its
+          // components to/from the shared vec4 locations (flat values as u32 bit patterns).
+          // vK62: a vertex output the fragment stage does not read (e.g. the profile's captured gl_Position) is not
+          // part of the render interface: it stays a private variable (capture lowering translates without packing).
+          if (!packed && direction === 'out') {
+            this.declarations.push(`var<private> ${name}: ${type};`);
+            this.variables.set(name, { code: name, type, place: name });
+            continue;
+          }
+          if (!packed) this.fail(`varying '${name}' is missing from the linked interface`);
+          if (explicit !== undefined) this.fail('GLSL330 varying locations are not supported; link by name');
+          this.declarations.push(`var<private> ${name}: ${type};`);
+          this.variables.set(name, { code: name, type, place: direction === 'out' ? name : undefined });
+          const sc = scalar(type), n = packed!.length;
+          const part = (k: number) => n === 1 ? name : `${name}.${'xyzw'[k]}`;
+          if (direction === 'out') packed!.forEach((c, k) => this.outputs.push(
+            `bgt_internal_out.bgt_internal_v${c.location}[${c.component}] = ${c.flat && sc !== 'u32' ? `bitcast<u32>(${part(k)})` : part(k)};`));
+          else {
+            const comps = packed!.map(c => { const v = `bgt_internal_in.bgt_internal_v${c.location}[${c.component}]`;
+              return c.flat && sc !== 'u32' ? `bitcast<${sc}>(${v})` : v; });
+            this.inputs.push(`${name} = ${n === 1 ? comps[0] : `${type}(${comps.join(', ')})`};`);
+          }
+          continue;
+        }
         // Stable name-derived locations allow separately compiled vertex/fragment modules to link.
         const location = explicit ?? (varying ? this.varyingLocation(name) : -1);
-        if (location < 0 || location > 15) this.fail('attributes and fragment outputs require location 0..15');
+        // Linked varying locations are name indices (any count; the device's inter-stage limit applies at pipeline
+        // creation, and capture lowering has none); attributes and fragment outputs keep 0..15.
+        if (location < 0 || (!varying && location > 15)) this.fail('attributes and fragment outputs require location 0..15');
         if (varying && explicit !== undefined) this.fail('GLSL330 varying locations are not supported; link by name');
         const key = `${direction}:${location}`;
         if (this.used.has(key)) this.fail(`duplicate/colliding ${direction} location ${location}`);
@@ -241,13 +298,27 @@ class GLSL {
       }
     }
     if (!this.functions.has('main')) this.fail('missing main');
+    if (this.options.packing) for (const slot of this.options.packing.slots) {
+      const field = `@location(${slot.location}) ${slot.interpolation === 'flat' ? '@interpolate(flat) ' :
+        slot.interpolation === 'linear' ? '@interpolate(linear) ' : ''}bgt_internal_v${slot.location}: ${slot.interpolation === 'flat' ? 'vec4u' : 'vec4f'}`;
+      (this.stage === 1 ? this.output : this.input).push(field);
+    }
     if (this.stage === 1) {
       this.input.push('@builtin(vertex_index) bgt_vertex_index: u32',
         '@builtin(instance_index) bgt_instance_index: u32');
       this.inputs.push('bgt_vertex_index = bgt_internal_in.bgt_vertex_index;',
         'bgt_instance_index = bgt_internal_in.bgt_instance_index;');
       this.output.unshift('@builtin(position) bgt_internal_position: vec4f');
-      this.outputs.unshift('bgt_internal_out.bgt_internal_position = bgt_internal_position;');
+      // K62: an off-attachment viewport is clamped natively; the renderer's per-draw view transform maps the
+      // clip volume onto the clamped rectangle so window coordinates equal the GL viewport's (identity otherwise).
+      this.outputs.unshift(this.options.viewTransform ?
+        'bgt_internal_out.bgt_internal_position = bgt_internal_viewed(bgt_internal_position);' :
+        'bgt_internal_out.bgt_internal_position = bgt_internal_position;');
+      if (this.options.viewTransform) this.declarations.push('struct bgt_internal_ViewTransform { t: vec4f };',
+        '@group(2) @binding(0) var<uniform> bgt_internal_view: bgt_internal_ViewTransform;',
+        'fn bgt_internal_viewed(p: vec4f) -> vec4f { let t = bgt_internal_view.t;',
+        '  if (all(t == vec4f(1.0, 1.0, 0.0, 0.0))) { return p; }',
+        '  return vec4f(p.xy * t.xy + p.w * t.zw, p.zw); }');
       this.declarations.push('var<private> bgt_internal_position: vec4f;',
         'var<private> bgt_vertex_index: u32;', 'var<private> bgt_instance_index: u32;',
         'var<private> bgt_internal_point_size: f32;');
@@ -825,9 +896,60 @@ export function glslVaryings(source: string, stage: number): string[] {
   return [...new Set([...clean.matchAll(re)].map(m => m[1]))].sort();
 }
 
+/** K62: a GLSL varying declaration (stage 1 output or stage 2 input) as the linker sees it. */
+export interface VaryingDecl { name: string; type: string; interpolation: 'smooth' | 'linear' | 'flat' }
+const varyingComponents: Record<string, [number, string]> = {
+  float: [1, 'f'], vec2: [2, 'f'], vec3: [3, 'f'], vec4: [4, 'f'], int: [1, 'i'], ivec2: [2, 'i'], ivec3: [3, 'i'],
+  ivec4: [4, 'i'], uint: [1, 'u'], uvec2: [2, 'u'], uvec3: [3, 'u'], uvec4: [4, 'u'],
+};
+export function glslVaryingDecls(source: string, stage: number): VaryingDecl[] {
+  const clean = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+  const re = new RegExp(`(?:\\b(flat|smooth|noperspective)\\s+)?(?:(?:centroid|invariant)\\s+)*\\b${stage === 1 ? 'out' : 'in'}\\s+` +
+    '(?:(?:highp|mediump|lowp)\\s+)?(\\w+)\\s+(\\w+)\\s*;', 'g');
+  const result = new Map<string, VaryingDecl>();
+  for (const m of clean.matchAll(re)) {
+    const kind = varyingComponents[m[2]]?.[1];
+    result.set(m[3], { name: m[3], type: m[2],
+      interpolation: m[1] === 'flat' || (kind && kind !== 'f') ? 'flat' : m[1] === 'noperspective' ? 'linear' : 'smooth' });
+  }
+  return [...result.values()];
+}
+/** K62: the linked varying interface packed into vec4 locations. Three classes (perspective f32, linear f32,
+ * flat as u32 bit patterns), each a dense component stream in name order starting at a fresh location; a varying
+ * may span two locations. Interpolation is per component, so values equal the unpacked interface's. A program
+ * of N components in total needs at most ceil(N/4)+2 locations (the device's maxInterStageShaderVariables). */
+export interface VaryingPacking {
+  slots: { location: number; interpolation: VaryingDecl['interpolation'] }[];
+  at: Map<string, { location: number; component: number; flat: boolean }[]>;
+}
+export function packVaryings(decls: readonly VaryingDecl[]): VaryingPacking {
+  const slots: VaryingPacking['slots'] = [], at: VaryingPacking['at'] = new Map();
+  let location = 0;
+  for (const interpolation of ['smooth', 'linear', 'flat'] as const) {
+    let component = 0;
+    for (const d of [...decls].filter(d => d.interpolation === interpolation).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+      const n = varyingComponents[d.type]?.[0];
+      if (!n) throw new Error(`GLSL: varying type ${d.type} is not supported`);
+      const parts: { location: number; component: number; flat: boolean }[] = [];
+      for (let k = 0; k < n; k++, component++) {
+        if (component % 4 === 0) slots.push({ location: location + component / 4, interpolation });
+        parts.push({ location: location + Math.floor(component / 4), component: component % 4, flat: interpolation === 'flat' });
+      }
+      at.set(glslName(d.name), parts);
+    }
+    location += Math.ceil(component / 4);
+  }
+  return { slots, at };
+}
+/** The linked render interface: the fragment stage's inputs (the GL profile has checked that each has a vertex output
+ * of the same type and qualifiers). Vertex outputs the fragment stage does not read occupy no location (vK62). */
+export function linkedVaryings(_vertex: string, fragment: string): VaryingDecl[] {
+  return glslVaryingDecls(fragment, 2);
+}
+export interface TranslateOptions { packing?: VaryingPacking; viewTransform?: boolean }
 export function translateGLSL(source: string, stage: number, language: number, varyingNames?: string[],
-  depthSlots?: ReadonlySet<number>, integerSamplers?: ReadonlyMap<number, readonly number[]>): string {
-  return validateWGSL(new GLSL(source, stage, language, varyingNames, depthSlots, integerSamplers).compile(), stage, true);
+  depthSlots?: ReadonlySet<number>, integerSamplers?: ReadonlyMap<number, readonly number[]>, options?: TranslateOptions): string {
+  return validateWGSL(new GLSL(source, stage, language, varyingNames, depthSlots, integerSamplers, options).compile(), stage, true);
 }
 
 export interface ShaderBinding {
@@ -844,6 +966,7 @@ export function shaderBindings(source: string, activeOnly = false): ShaderBindin
     const binding = /@binding\s*\(\s*(0x[\da-f]+|\d+)u?\s*\)/i.exec(m[1]);
     if (!group || !binding) throw new Error('WGSL: reflection requires literal @group and @binding numbers');
     const g = Number(group[1]), b = Number(binding[1]);
+    if (g === 2 && /var\s*<\s*uniform\s*>\s*bgt_internal_view\b/.test(m[0])) continue; // K62 renderer-internal
     const type = m[2]?.trim() === 'uniform' ? 'uniform' : m[3].trim() === 'texture_depth_2d' ? 'depth' :
       /^texture_2d\s*<\s*f32\s*>$/.test(m[3].trim()) ? 'texture' :
       /^texture_2d\s*<\s*i32\s*>$/.test(m[3].trim()) ? 'textureI' :

@@ -1,7 +1,9 @@
 // §13 executor. The decoder owns validation; this class owns native resources and recovery shadows.
 import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
 import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
-import { glslVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
+import { glslVaryingDecls, glslVaryings, linkedVaryings, packVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
+import { clampViewport, ViewTransforms } from './view';
+import { RotatedIndexRing, RotatedSequences, rotateList } from './provoking';
 import { lowerDepthSampling, type DepthSampling } from './depth';
 import { fragmentOutputs } from './outputs';
 import { WebGPUBufferCopy } from './buffer-copy';
@@ -36,16 +38,28 @@ const vertexFormats: GPUVertexFormat[] = [
   'sint32x4', 'uint32', 'uint32x2', 'uint32x3', 'uint32x4',
 ];
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
-interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean }
+/** `serial` (K62, vK62): unique per store for this executor's life, so a reused handle never matches an old store. */
+interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number }
 interface TextureResource {
   native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
+/** K60 (Q117): a translated transform-feedback capture. `code` is the vertex stage translated for one sampler
+ * specialization; `pipelines` holds the compute pipelines lowered from it per draw shape (inputs, counts). */
+interface CaptureProgram {
+  shader: ShaderResource; code: string; bindings: ShaderBinding[]; pipelines: Map<string, GPUComputePipeline>;
+}
 interface PipelineResource {
   native: GPURenderPipeline; words: readonly number[]; bindings: ShaderBinding[]; repack: Repack[];
   variants: Map<string, PipelineResource>; validation: Promise<GPUError | null>; failure?: string;
+  /** K60: capture translations of this pipeline (dropped with it: PIPELINE_DELETE/re-create, FEEDBACK_VARYINGS). */
+  captures?: Map<string, CaptureProgram>;
+  /** K62: GLSL vertex stage with the group-2 view transform (empty groups 0/1 are then bound explicitly). */
+  view?: boolean; empty?: GPUBindGroup[];
+  /** K62: GLSL fragment stage with flat inputs: lines/triangles are drawn last-vertex-first (GL convention). */
+  flat?: boolean;
 }
 
 export class WebGPUCommands implements GpuBackend {
@@ -85,6 +99,15 @@ export class WebGPUCommands implements GpuBackend {
   private capture?: readonly number[];
   private passDescriptor?: GPURenderPassDescriptor;
   private scissor = [0,0,1,1];
+  /** K62: clamped native viewport state (see view.ts). */
+  private views?: ViewTransforms;
+  private viewOffset = 0;
+  private viewEmpty = false;
+  private viewIdentity = true;
+  private rotations?: RotatedSequences;
+  /** K62: rotated index copies (indexed flat draws); exposed for tests. */
+  rotatedIndices?: RotatedIndexRing;
+  private bufferSerial = 0;
   private blendConstant = [0,0,0,0];
   /** K53 frame batching: one command encoder spans the frame's passes and is submitted at a sync point
    * (frame end, readback/blit/copy/mip generation, or a queue write to a resource the encoder uses).
@@ -93,6 +116,9 @@ export class WebGPUCommands implements GpuBackend {
   private lingering = false;
   private passKey = '';
   private used = new Set<GPUBuffer | GPUTexture>();
+  /** K60: byte ranges of each buffer that commands of the pending encoder read or write. A queue write to a
+   * range no earlier command of the frame touches goes straight to the native buffer (no copy-on-write). */
+  private usedRanges = new Map<GPUBuffer, number[]>();
   private retiredDestroy: Array<GPUBuffer | GPUTexture> = [];
   private retiredPool: GPUBuffer[] = [];
   private pool = new Map<number, GPUBuffer[]>();
@@ -100,7 +126,8 @@ export class WebGPUCommands implements GpuBackend {
   private ids = new WeakMap<GPUTexture, number>();
   private nextId = 1;
   /** Per-frame native work census (reset by the renderer at frame start). */
-  readonly batch = { nativePasses: 0, mergedPasses: 0, bufferRenames: 0, splits: 0, encoderSubmits: 0, renameBytes: 0 };
+  readonly batch = { nativePasses: 0, mergedPasses: 0, bufferRenames: 0, splits: 0, encoderSubmits: 0, renameBytes: 0,
+    captureTranslations: 0, captureLowerings: 0 };
   timing?: WebGPUTiming;
   /** True (set by WebGPURenderer): frame encoder + pass merging; the frame loop must call flush() at its sync
    * points. False (standalone executors, gpubatch=0): every native pass is submitted at its PASS_END. */
@@ -108,11 +135,18 @@ export class WebGPUCommands implements GpuBackend {
 
   /** K51: min(65536, device maxUniformBufferBindingSize). WebGPU's default (and minimum) limit is 65536. */
   readonly maxUniformRange: number;
+  /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
+  readonly maxVaryingComponents: number;
+  readonly glRaster = true;
   readonly device: GpuDeviceInfo;
   constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
     // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
     const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
+    // K62: packed varyings (shaders.ts packVaryings) need at most ceil(N/4) + 2 locations for N components; vK62:
+    // every translated fragment stage reads @builtin(front_facing), which (like a point-list topology, not both)
+    // costs one inter-stage location (measured: 28 -> 27 on M4), so 4 x (L - 1) - 6.
+    this.maxVaryingComponents = 4 * ((gpuDevice.limits?.maxInterStageShaderVariables ?? 16) - 1) - 6;
     this.device = { renderer: adapter, software: softwareRenderer(adapter), nativeMaxUniformRange: native };
   }
 
@@ -124,7 +158,7 @@ export class WebGPUCommands implements GpuBackend {
   frame(screen: GPUTexture): void {
     this.screen = screen;
     this.batch.nativePasses = this.batch.mergedPasses = this.batch.bufferRenames = this.batch.splits = this.batch.encoderSubmits = 0;
-    this.batch.renameBytes = 0;
+    this.batch.renameBytes = this.batch.captureTranslations = this.batch.captureLowerings = 0;
   }
 
   /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder.
@@ -141,7 +175,26 @@ export class WebGPUCommands implements GpuBackend {
     for (const r of this.retiredDestroy.splice(0)) r.destroy();
     for (const b of this.retiredPool.splice(0)) this.recycle(b);
     this.scratch.splice(0).forEach(b => b.destroy());
-    this.used.clear();
+    this.used.clear(); this.usedRanges.clear();
+  }
+
+  /** K60: mark bytes [offset, offset + size) of `b` as used by the pending encoder (ranges merged; more than 16
+   * disjoint ranges collapse to their hull, which only makes later overlap tests conservative). */
+  private useBuffer(b: GPUBuffer, offset = 0, size = b.size): void {
+    const lo = Math.max(0, offset), hi = Math.min(b.size, offset + size);
+    const r = this.usedRanges.get(b);
+    if (!r) { this.usedRanges.set(b, [lo, hi]); return; }
+    for (let i = 0; i < r.length; i += 2) if (lo <= r[i + 1] && hi >= r[i]) {
+      r[i] = Math.min(r[i], lo); r[i + 1] = Math.max(r[i + 1], hi); return;
+    }
+    if (r.length >= 32) { let a = lo, z = hi; for (let i = 0; i < r.length; i += 2) { a = Math.min(a, r[i]); z = Math.max(z, r[i + 1]); } r.length = 0; r.push(a, z); return; }
+    r.push(lo, hi);
+  }
+
+  private bufferUsed(b: GPUBuffer, lo = 0, hi = b.size): boolean {
+    const r = this.usedRanges.get(b); if (!r) return false;
+    for (let i = 0; i < r.length; i += 2) if (lo < r[i + 1] && hi > r[i]) return true;
+    return false;
   }
 
   private endNative(): void {
@@ -171,7 +224,7 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   private retire(r: GPUBuffer | GPUTexture): void {
-    if (this.used.has(r)) this.retiredDestroy.push(r); else r.destroy();
+    if (this.used.has(r) || this.usedRanges.has(r as GPUBuffer)) this.retiredDestroy.push(r); else r.destroy();
   }
 
   private recycle(b: GPUBuffer): void {
@@ -194,7 +247,8 @@ export class WebGPUCommands implements GpuBackend {
     this.inactive = true;
     this.pass = undefined;
     this.encoder = undefined;
-    this.lingering = false; this.passKey = ''; this.used.clear();
+    this.lingering = false; this.passKey = ''; this.used.clear(); this.usedRanges.clear();
+    this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
     this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0;
     this.timing = undefined;
     this.screen = undefined;
@@ -213,7 +267,7 @@ export class WebGPUCommands implements GpuBackend {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
     this.gpuDevice = device;
-    this.opaqueScreen = undefined;
+    this.opaqueScreen = undefined; this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
@@ -290,14 +344,14 @@ export class WebGPUCommands implements GpuBackend {
     this.prepare(op, w);
     switch (op) {
       case OP.FEEDBACK_VARYINGS:
-        this.requirePipeline(h); this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
+        this.requirePipeline(h).captures = undefined; this.feedback.set(h,feedbackLayout(item.source!,!!w[1],w[2])); break;
       case OP.FEEDBACK_CAPTURE:
         this.requireCurrentPipeline(); this.capture=w; break;
       case OP.BUFFER_COPY: {
         const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
         this.bufferCopy ??= new WebGPUBufferCopy(d);
         this.bufferCopy.copy(src.native, w[1], dst.native, w[3], w[4]);
-        dst.shadow.set(src.shadow.slice(w[1], w[1] + w[4]), w[3]);
+        dst.shadow.set(src.shadow.slice(w[1], w[1] + w[4]), w[3]); dst.version = (dst.version ?? 0) + 1;
         if (src.generated) dst.generated = true; else if (!w[3] && w[4] === dst.shadow.length) dst.generated = false;
         break;
       }
@@ -331,23 +385,25 @@ export class WebGPUCommands implements GpuBackend {
           usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
         const shadow = new Uint8Array(w[2]);
         if (item.data) shadow.set(item.data);
-        this.buffers.set(h, { native, words: w, shadow });
+        this.buffers.set(h, { native, words: w, shadow, serial: ++this.bufferSerial });
         this.writeBuffer(native, 0, shadow);
         break;
       }
       case OP.BUFFER_UPDATE: {
         const b = this.buffers.get(h)!;
         if(b.generated && (w[1]%4 || item.data!.length%4) && !(w[1]===0&&item.data!.length===b.shadow.length)) throw new Error('Unaligned updates of GPU-generated buffers are unsupported');
-        const referenced = this.used.has(b.native);
+        // K60: only a write overlapping bytes that earlier commands of the pending encoder use needs a new store.
+        const start = w[1] & ~3, end = Math.min(b.shadow.length, Math.ceil((w[1] + item.data!.length) / 4) * 4);
+        const referenced = this.bufferUsed(b.native, start, Math.max(end, start + 1));
         // Copy-on-write costs a full-buffer queue write: bounded per buffer (256 KiB) and per frame (4 MiB);
         // beyond that (or for GPU-generated contents) split the encoder, which costs one LOAD pass instead.
         if (referenced && (b.generated || b.shadow.length > 256 << 10 || this.batch.renameBytes + b.shadow.length > 4 << 20)) {
           this.batch.splits++; this.flush();
         }
         b.shadow.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.shadow.length)b.generated=false;
+        b.version = (b.version ?? 0) + 1;
         if (referenced && this.encoder) { this.rename(b); break; }
         // ABI allows byte updates. WebGPU writeBuffer needs 4-aligned regions.
-        const start = w[1] & ~3, end = Math.min(b.shadow.length, Math.ceil((w[1] + item.data!.length) / 4) * 4);
         this.writeBuffer(b.native, start, b.shadow.slice(start, end));
         break;
       }
@@ -425,7 +481,9 @@ export class WebGPUCommands implements GpuBackend {
       }
       case OP.SAMPLER_DELETE: this.samplers.delete(h); break;
       case OP.SHADER_CREATE: {
-        const code = w[2] ? translateGLSL(item.source!, w[1], w[2]) : validateWGSL(item.source!, w[1]);
+        // K62: compiled with the stage's own packed interface (the module a pipeline uses is relinked by name).
+        const code = w[2] ? translateGLSL(item.source!, w[1], w[2], undefined, undefined, undefined,
+          w[1] === 1 || w[1] === 2 ? { packing: packVaryings(glslVaryingDecls(item.source!, w[1])) } : undefined) : validateWGSL(item.source!, w[1]);
         // Shader syntax errors belong to the request log, not the uncaptured renderer error channel.
         d.pushErrorScope('validation');
         const native = d.createShaderModule({ code });
@@ -466,7 +524,7 @@ export class WebGPUCommands implements GpuBackend {
           const [width, height] = this.passSize;
           this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
           this.scissor = [0, 0, width, height]; this.blendConstant = [0, 0, 0, 0];
-          this.pass!.setViewport(0, 0, width, height, 0, 1);
+          this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
           this.pass!.setScissorRect(0, 0, width, height);
           this.pass!.setStencilReference(0);
           this.pass!.setBlendConstant([0, 0, 0, 0]);
@@ -497,7 +555,7 @@ export class WebGPUCommands implements GpuBackend {
         this.passDescriptor={ colorAttachments: colors, depthStencilAttachment: depth };
         this.scissor=[0,0,width,height]; this.blendConstant=[0,0,0,0];
         this.beginNative(this.passDescriptor); this.passKey = screenPass ? '' : key;
-        this.pass!.setViewport(0, 0, width, height, 0, 1);
+        this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
         this.pass!.setScissorRect(0, 0, width, height);
         this.pass!.setStencilReference(0);
         this.pass!.setBlendConstant([0, 0, 0, 0]);
@@ -512,14 +570,13 @@ export class WebGPUCommands implements GpuBackend {
       case OP.PIPELINE:
         this.current = undefined;
         this.current = this.requirePipeline(h); this.pass!.setPipeline(this.current.native); break;
-      case OP.VIEWPORT:
-        this.viewport = w.map(f); this.pass!.setViewport(f(h), f(w[1]), f(w[2]), f(w[3]), f(w[4]), f(w[5])); break;
+      case OP.VIEWPORT: this.viewport = w.map(f); this.applyViewport(); break;
       case OP.SCISSOR: this.scissor=[...w]; this.pass!.setScissorRect(h, w[1], w[2], w[3]); break;
       case OP.STENCIL_REF: this.stencilRef = h; this.pass!.setStencilReference(h); break;
       case OP.BLEND_CONSTANT: this.blendConstant=w.map(f); this.pass!.setBlendConstant(this.blendConstant); break;
       case OP.VERTEX_BUFFER: this.vertices.set(h, w); break;
       case OP.INDEX_BUFFER:
-        this.index = [...w]; this.used.add(this.buffers.get(h)!.native);
+        this.index = [...w]; this.useBuffer(this.buffers.get(h)!.native, w[2], w[3]);
         this.pass!.setIndexBuffer(this.buffers.get(h)!.native, w[1] ? 'uint32' : 'uint16', w[2], w[3]); break;
       case OP.UNIFORM_BUFFER:
         // The host validator enforces the reported limit; never bind a native range above the device's.
@@ -531,14 +588,67 @@ export class WebGPUCommands implements GpuBackend {
         const discard = this.capture?.[0];
         if(this.capture) { this.captureDraw(item); this.capture=undefined; }
         if(discard) break;
-        this.bind();
-        if (this.current!.words[3] === 2 || this.current!.words[3] === 4) this.strip(item);
+        // K62: a viewport that misses the attachment rasterizes nothing (capture above still ran).
+        if (this.viewEmpty) break;
+        const p = this.bind(), topology = this.current!.words[3];
+        if (topology === 2 || topology === 4) this.strip(item, !!p.flat);
+        else if (p.flat && (topology === 1 || topology === 3)) this.rotated(item, topology === 1 ? 2 : 3);
         else if (item.op === OP.DRAW) this.pass!.draw(h, w[1], w[2], w[3]);
         else this.pass!.drawIndexed(h, w[1], w[2], w[3] | 0, w[4]);
         break;
       }
       default: throw new Error('Unknown §13 opcode');
     }
+  }
+
+  /** K62: PASS_BEGIN state: the whole attachment, identity transform. */
+  private resetView(): void { this.viewOffset = 0; this.viewEmpty = false; this.viewIdentity = true; }
+  /** K62: clamp the §13 viewport to the attachment natively and select the compensating view transform. */
+  private applyViewport(): void {
+    const v = this.viewport, c = clampViewport(v[0], v[1], v[2], v[3], this.passSize[0], this.passSize[1]);
+    this.pass!.setViewport(c.native[0], c.native[1], c.native[2], c.native[3], v[4], v[5]);
+    this.viewEmpty = c.empty;
+    const t = c.transform; this.viewIdentity = t[0] === 1 && t[1] === 1 && t[2] === 0 && t[3] === 0;
+    this.viewOffset = this.viewIdentity ? 0 : this.viewTransforms().offset(t);
+  }
+  private viewTransforms(): ViewTransforms {
+    return this.views ??= new ViewTransforms(this.gpuDevice, b => this.retiredDestroy.push(b));
+  }
+
+  /** K62: lists drawn last-vertex-first (see provoking.ts). Non-indexed draws use a static rotated sequence with
+   * base_vertex = first; indexed draws a rotated copy of the index range in an index ring, cached per store and
+   * contents version. */
+  private rotated(item: GpuItem, n: 2 | 3): void {
+    const w = item.words, count = w[0] - w[0] % n;
+    if (!count) return;
+    if (item.op === OP.DRAW && w[2] <= 0x7fffffff) {
+      this.rotations ??= new RotatedSequences(this.gpuDevice, b => this.retiredDestroy.push(b));
+      this.pass!.setIndexBuffer(this.rotations.get(n, count / n), 'uint32');
+      this.pass!.drawIndexed(count, w[1], 0, w[2], w[3]);
+    } else {
+      if (item.op === OP.DRAW) {
+        this.pass!.setIndexBuffer(this.scratchIndex(rotateList(Uint32Array.from({ length: count }, (_, i) => w[2] + i), n)), 'uint32');
+        this.pass!.drawIndexed(count, w[1], 0, 0, w[3]);
+      } else {
+        // vK62: keyed by the store's serial (a deleted and re-created handle is a different store) and contents version.
+        const ib = this.index!, b = this.buffers.get(ib[0])!, size = ib[1] ? 4 : 2, start = ib[2] + w[2] * size;
+        this.rotatedIndices ??= new RotatedIndexRing(this.gpuDevice, r => this.retiredDestroy.push(r));
+        const r = this.rotatedIndices.get(`${b.serial}:${b.version ?? 0}:${size}:${start}:${count}:${n}`, () => {
+          const at = b.shadow.byteOffset + start;
+          return rotateList(size === 4 ? new Uint32Array(b.shadow.buffer.slice(at, at + count * 4)) :
+            new Uint16Array(b.shadow.buffer.slice(at, at + count * 2)), n);
+        });
+        this.pass!.setIndexBuffer(r.buffer, 'uint32', r.offset, r.bytes);
+        this.pass!.drawIndexed(count, w[1], 0, w[3] | 0, w[4]);
+      }
+    }
+    if (this.index) this.pass!.setIndexBuffer(this.buffers.get(this.index[0])!.native,
+      this.index[1] ? 'uint32' : 'uint16', this.index[2], this.index[3]);
+  }
+  private scratchIndex(data: Uint32Array<ArrayBuffer>): GPUBuffer {
+    const native = this.gpuDevice.createBuffer({ size: Math.max(4, data.byteLength), usage: GPUBufferUsage.INDEX, mappedAtCreation: true });
+    new Uint32Array(native.getMappedRange()).set(data); native.unmap(); this.scratch.push(native);
+    return native;
   }
 
   private makeScreenOpaque(encoder: GPUCommandEncoder): void {
@@ -577,21 +687,28 @@ export class WebGPUCommands implements GpuBackend {
     }
     for(let i=0;i<pw[24];i++){const a=26+pw[23]*2+i*4,slot=pw[a+1];inputs.push({location:pw[a],format:pw[a+3],offset:offsets[slot]+pw[a+2],stride:pw[26+slot*2],step:pw[27+slot*2]});}
     if(bytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback input exceeds storage binding limit');
-    const depthSlots=new Set(s.bindings.filter(b=>b.group===1 && b.binding%2===0 && isDepthFormat(this.textures.get(this.sampled.get(b.binding>>1)![1])!.desc.format)).map(b=>b.binding>>1));
-    const sampling=[...depthSlots].filter(slot=>s.bindings.some(b=>b.group===1&&b.binding===slot*2+1&&b.type!=='comparison')).map(slot=>({binding:slot*2,sampler:this.samplers.get(this.sampled.get(slot)![2])!.words}));
-    const integerSamplers=new Map(s.bindings.filter(b=>b.group===1&&(b.type.startsWith('texture')||b.type==='depth')).map(b=>[b.binding>>1,this.samplers.get(this.sampled.get(b.binding>>1)![2])!.words] as const));
-    const code=lowerDepthSampling(translateGLSL(s.item.source!,1,s.item.words[2],undefined,depthSlots,integerSamplers),sampling);
-    const lowered=lowerFeedback(code,layout,inputs,pw[3],w[0],w[1],w[2],w[indexed?4:3],indexWord,indexed?w[3]|0:0);
-    const module=d.createShaderModule({code:lowered}), bindings=shaderBindings(code,true).map(b=>b.type==='sampler'&&depthSlots.has(b.binding>>1)?{...b,type:'nonfiltering' as const}:b);
-    const layouts=[0,1].map(group=>d.createBindGroupLayout({entries:bindings.filter(b=>b.group===group).map(b=>({binding:b.binding,visibility:GPUShaderStage.COMPUTE,
-      ...(b.type==='uniform'?{buffer:{type:'uniform' as const}}:
-        b.type.startsWith('texture')||b.type==='depth'?{texture:{sampleType:b.type==='depth'?'depth' as const:b.type.startsWith('textureI')?'sint' as const:b.type.startsWith('textureU')?'uint' as const:'float' as const,viewDimension:b.type.endsWith('3d')?'3d' as const:b.type.endsWith('2darray')?'2d-array' as const:'2d' as const}}:
-        {sampler:{type:b.type==='comparison'?'comparison' as const:b.type==='nonfiltering'?'non-filtering' as const:'filtering' as const}})}))}));
-    layouts.push(d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}));
-    let pipeline=this.feedbackPipelines.get(lowered);
-    if(!pipeline){pipeline=d.createComputePipeline({layout:d.createPipelineLayout({bindGroupLayouts:layouts}),compute:{module,entryPoint:'bgt_internal_capture'}});
-      if(this.feedbackPipelines.size>=64)this.feedbackPipelines.delete(this.feedbackPipelines.keys().next().value!);
-      this.feedbackPipelines.set(lowered,pipeline);
+    // K60 (Q117): the GLSL translation depends only on the vertex shader and its sampler specialization, the
+    // lowered compute pipeline additionally on the draw shape: both are cached on the pipeline resource, so a
+    // steady capture draw costs no GLSL parsing, shader module or pipeline creation.
+    const program=this.captureProgram(p,s), {code,bindings}=program;
+    const shapeKey=`${inputs.map(a=>`${a.location},${a.format},${a.offset},${a.stride},${a.step}`).join(';')}|${pw[3]}|${w[0]}|${w[1]}|${w[2]}|${w[indexed?4:3]}|${indexWord}|${indexed?w[3]|0:0}`;
+    let pipeline=program.pipelines.get(shapeKey);
+    if(!pipeline){
+      const lowered=lowerFeedback(code,layout,inputs,pw[3],w[0],w[1],w[2],w[indexed?4:3],indexWord,indexed?w[3]|0:0);
+      pipeline=this.feedbackPipelines.get(lowered);
+      if(!pipeline){
+        const module=d.createShaderModule({code:lowered});
+        const layouts=[0,1].map(group=>d.createBindGroupLayout({entries:bindings.filter(b=>b.group===group).map(b=>({binding:b.binding,visibility:GPUShaderStage.COMPUTE,
+          ...(b.type==='uniform'?{buffer:{type:'uniform' as const}}:
+            b.type.startsWith('texture')||b.type==='depth'?{texture:{sampleType:b.type==='depth'?'depth' as const:b.type.startsWith('textureI')?'sint' as const:b.type.startsWith('textureU')?'uint' as const:'float' as const,viewDimension:b.type.endsWith('3d')?'3d' as const:b.type.endsWith('2darray')?'2d-array' as const:'2d' as const}}:
+            {sampler:{type:b.type==='comparison'?'comparison' as const:b.type==='nonfiltering'?'non-filtering' as const:'filtering' as const}})}))}));
+        layouts.push(d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}));
+        pipeline=d.createComputePipeline({layout:d.createPipelineLayout({bindGroupLayouts:layouts}),compute:{module,entryPoint:'bgt_internal_capture'}});
+        if(this.feedbackPipelines.size>=64)this.feedbackPipelines.delete(this.feedbackPipelines.keys().next().value!);
+        this.feedbackPipelines.set(lowered,pipeline);
+      }
+      if(program.pipelines.size>=64)program.pipelines.delete(program.pipelines.keys().next().value!);
+      program.pipelines.set(shapeKey,pipeline); this.batch.captureLowerings++;
     }
     const outputBytes=total*layout.strides.reduce((a,b)=>a+b,0);
     if(outputBytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback output exceeds storage binding limit');
@@ -604,11 +721,11 @@ export class WebGPUCommands implements GpuBackend {
     const merged=this.merge;
     if(!merged){const pending=this.encoder!;this.encoder=undefined;d.queue.submit([pending.finish()]);this.batch.encoderSubmits++;this.batch.splits++;
       for(const r of this.retiredDestroy.splice(0))r.destroy();for(const b of this.retiredPool.splice(0))this.recycle(b);}
-    const encoder=merged?this.encoder!:d.createCommandEncoder();for(const c of copies)if(c.size){encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);this.used.add(c.source);}
+    const encoder=merged?this.encoder!:d.createCommandEncoder();for(const c of copies)if(c.size){encoder.copyBufferToBuffer(c.source,c.offset,source,c.target,c.size);this.useBuffer(c.source,c.offset,c.size);}
     if(ids)d.queue.writeBuffer(source,indexWord!*4,ids);
     const pass=encoder.beginComputePass();pass.setPipeline(pipeline);
     for(const group of [0,1]) {const entries:GPUBindGroupEntry[]=bindings.filter(b=>b.group===group).map(b=>{
-      if(group===0){const u=this.uniforms.get(b.binding)!;this.used.add(u.buffer);return {binding:b.binding,resource:u};}
+      if(group===0){const u=this.uniforms.get(b.binding)!;this.useBuffer(u.buffer,u.offset,u.size);return {binding:b.binding,resource:u};}
       const t=this.sampled.get(b.binding>>1)!,texture=this.textures.get(t[1])!;this.used.add(texture.native);
       const sampler=this.samplers.get(t[2])!;if(b.type==='nonfiltering')sampler.nonfilter??=d.createSampler();
       return {binding:b.binding,resource:b.binding%2?(b.type==='nonfiltering'?sampler.nonfilter!:sampler.native):texture.native.createView({aspect:isDepthFormat(texture.desc.format)?'depth-only':'all',dimension:texture.desc.dimension===1?'3d':texture.desc.dimension===2?'2d-array':'2d'})};
@@ -616,21 +733,40 @@ export class WebGPUCommands implements GpuBackend {
     pass.setBindGroup(2,d.createBindGroup({layout:pipeline.getBindGroupLayout(2),entries:[{binding:0,resource:{buffer:source}},{binding:1,resource:{buffer:output}}]}));
     pass.dispatchWorkgroups(Math.min(65535,Math.ceil(total/64)),Math.ceil(total/(65535*64)));pass.end();
     let off=0;layout.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!,n=total*stride;
-      encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);this.used.add(b.native);b.generated=true;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
+      encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);this.useBuffer(b.native,capture[2+i*3],n);b.generated=true;b.version=(b.version??0)+1;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
     if(merged)this.retiredDestroy.push(source,output);
     else {d.queue.submit([encoder.finish()]);source.destroy();output.destroy();}
     const desc=this.passDescriptor!;
     for(const c of desc.colorAttachments)if(c)c.loadOp='load';
     if(desc.depthStencilAttachment){desc.depthStencilAttachment.depthLoadOp='load';if(this.passDepth===5)desc.depthStencilAttachment.stencilLoadOp='load';}
-    if(!merged)this.used.clear();
+    if(!merged){this.used.clear();this.usedRanges.clear();}
     this.beginNative(desc);
-    const v=this.viewport;this.pass!.setViewport(v[0],v[1],v[2],v[3],v[4],v[5]);
+    this.applyViewport();
     const sc=this.scissor;this.pass!.setScissorRect(sc[0],sc[1],sc[2],sc[3]);this.pass!.setStencilReference(this.stencilRef);this.pass!.setBlendConstant(this.blendConstant);
     // The resumed pass belongs to a fresh encoder: every rebound resource must be marked used again, or a
     // later same-frame BUFFER_UPDATE skips the copy-on-write rename and the pending draw reads new bytes.
     // (Vertex/uniform/texture bindings are re-marked by the next draw's bind(); attachments by beginNative.)
-    if(this.index){const native=this.buffers.get(this.index[0])!.native;this.used.add(native);
+    if(this.index){const native=this.buffers.get(this.index[0])!.native;this.useBuffer(native,this.index[2],this.index[3]);
       this.pass!.setIndexBuffer(native,this.index[1]?'uint32':'uint16',this.index[2],this.index[3]);}
+  }
+
+  /** K60 (Q117): the capture translation of pipeline `p`'s vertex shader `s` for the currently bound samplers
+   * (depth textures, sampler words). Cached on the pipeline resource; a different shader object under the
+   * same handle (deleted and re-created) misses. */
+  private captureProgram(p:PipelineResource, s:ShaderResource):CaptureProgram {
+    const depthSlots=new Set(s.bindings.filter(b=>b.group===1 && b.binding%2===0 && isDepthFormat(this.textures.get(this.sampled.get(b.binding>>1)![1])!.desc.format)).map(b=>b.binding>>1));
+    const sampling=[...depthSlots].filter(slot=>s.bindings.some(b=>b.group===1&&b.binding===slot*2+1&&b.type!=='comparison')).map(slot=>({binding:slot*2,sampler:this.samplers.get(this.sampled.get(slot)![2])!.words}));
+    const integerSamplers=new Map(s.bindings.filter(b=>b.group===1&&(b.type.startsWith('texture')||b.type==='depth')).map(b=>[b.binding>>1,this.samplers.get(this.sampled.get(b.binding>>1)![2])!.words] as const));
+    const key=`${[...depthSlots].join(',')}|${sampling.map(x=>`${x.binding}:${x.sampler.join(',')}`).join(';')}|${[...integerSamplers].map(([k,v])=>`${k}:${v.join(',')}`).join(';')}`;
+    const cache=p.captures??=new Map();
+    const hit=cache.get(key);
+    if(hit && hit.shader===s)return hit;
+    const code=lowerDepthSampling(translateGLSL(s.item.source!,1,s.item.words[2],undefined,depthSlots,integerSamplers),sampling);
+    const bindings=shaderBindings(code,true).map(b=>b.type==='sampler'&&depthSlots.has(b.binding>>1)?{...b,type:'nonfiltering' as const}:b);
+    const program:CaptureProgram={shader:s,code,bindings,pipelines:new Map()};
+    if(cache.size>=16)cache.delete(cache.keys().next().value!);
+    cache.set(key,program); this.batch.captureTranslations++;
+    return program;
   }
 
   /** GL clear ignores viewport, blending and depth/stencil comparisons, but honors scissor/write masks. */
@@ -670,7 +806,7 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
     this.pass!.setViewport(0, 0, this.passSize[0], this.passSize[1], 0, 1);
     if (kind >= 2) this.pass!.setStencilReference(w[kind === 2 ? 2 : 3]);
     this.pass!.draw(3);
-    const v = this.viewport; this.pass!.setViewport(v[0], v[1], v[2], v[3], v[4], v[5]);
+    this.applyViewport();
     this.pass!.setStencilReference(this.stencilRef);
     if (this.current) this.pass!.setPipeline(this.current.native);
   }
@@ -954,12 +1090,18 @@ struct VO { @builtin(position) pos: vec4f };
     const varyingNames = [...new Set([
       ...glslVaryings(vs.item.source!, 1), ...glslVaryings(fs.item.source!, 2),
     ])].sort();
+    // K62: GLSL pipelines pack their varyings into vec4 locations and apply the per-draw view transform.
+    const glsl = !!vs.item.words[2], packing = glsl && fs.item.words[2] ? packVaryings(linkedVaryings(vs.item.source!, fs.item.source!)) : undefined;
+    let fragmentCode = '';
     const linked = (s: ShaderResource) => {
       if (!s.item.words[2] && !sampling.length) return s.native;
       const source = s.item.words[2] ?
-        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots, integerSamplers) : s.item.source!;
+        translateGLSL(s.item.source!, s.item.words[1], s.item.words[2], varyingNames, depthSlots, integerSamplers,
+          { packing, viewTransform: s === vs && glsl }) : s.item.source!;
+      if (s === fs) fragmentCode = source;
       return d.createShaderModule({ code: lowerDepthSampling(source, sampling) });
     };
+    if (glsl) layouts.push(this.viewTransforms().layout);
     let native: GPURenderPipeline, validation: Promise<GPUError | null>;
     d.pushErrorScope('validation');
     try {
@@ -972,7 +1114,8 @@ struct VO { @builtin(position) pos: vec4f };
       // Even a synchronous translation/native exception must balance the owned scope.
       validation = d.popErrorScope().catch(e => new GPUValidationError(String(e)));
     }
-    const pipeline: PipelineResource = { native, words: w, bindings: [...bindings.values()], repack, variants: new Map(), validation };
+    const pipeline: PipelineResource = { native, words: w, bindings: [...bindings.values()], repack, variants: new Map(), validation,
+      view: glsl, flat: !!fs.item.words[2] && /@interpolate\(flat\)/.test(fragmentCode) };
     void validation.then(e => {
       if (!e) return;
       pipeline.failure = e.message;
@@ -983,7 +1126,7 @@ struct VO { @builtin(position) pos: vec4f };
     return pipeline;
   }
 
-  private bind(): void {
+  private bind(): PipelineResource {
     let p = this.requireCurrentPipeline();
     const d = this.gpuDevice;
     // GLSL sampler2D may sample color or non-comparison depth. Specialize depth sampling by immutable sampler.
@@ -1010,7 +1153,7 @@ struct VO { @builtin(position) pos: vec4f };
     for (let slot = 0; slot < p.words[23]; slot++) {
       const w = this.vertices.get(slot)!, b = this.buffers.get(w[1])!;
       const r = p.repack.find(r => r.slot === slot);
-      if (!r) { this.used.add(b.native); this.pass!.setVertexBuffer(slot, b.native, w[2], w[3]); continue; }
+      if (!r) { this.useBuffer(b.native, w[2], w[3]); this.pass!.setVertexBuffer(slot, b.native, w[2], w[3]); continue; }
       const stride = r.attributes.reduce((n, a) => n + a.size, 0), count = Math.ceil(w[3] / r.stride);
       const bytes = new Uint8Array(count * stride);
       for (let i = 0; i < count; i++) {
@@ -1028,7 +1171,7 @@ struct VO { @builtin(position) pos: vec4f };
     const uniforms: GPUBindGroupEntry[] = [], textures: GPUBindGroupEntry[] = [];
     for (const b of p.bindings) {
       if (b.group === 0) {
-        const u = this.uniforms.get(b.binding)!; this.used.add(u.buffer); uniforms.push({ binding: b.binding, resource: u });
+        const u = this.uniforms.get(b.binding)!; this.useBuffer(u.buffer, u.offset, u.size); uniforms.push({ binding: b.binding, resource: u });
       } else {
         const w = this.sampled.get(b.binding >> 1)!, t = this.textures.get(w[1])!; this.used.add(t.native);
         const sampler = this.samplers.get(w[2])!;
@@ -1042,26 +1185,41 @@ struct VO { @builtin(position) pos: vec4f };
     // Explicit layouts include only declared bindings, not extra bound guest slots.
     for (const [group, entries] of [[0, uniforms], [1, textures]] as const) if (entries.length)
       this.pass!.setBindGroup(group, d.createBindGroup({ layout: p.native.getBindGroupLayout(group), entries }));
+    else if (p.view) this.pass!.setBindGroup(group, (p.empty ??= [])[group] ??= d.createBindGroup({ layout: p.native.getBindGroupLayout(group), entries: [] }));
+    if (p.view) {
+      this.pass!.setBindGroup(2, this.viewTransforms().group, [this.viewOffset]);
+    } else if (!this.viewIdentity) throw new Error('A viewport extending past the attachment needs a GLSL vertex stage on WebGPU');
+    return p;
   }
 
-  private strip(item: GpuItem): void {
+  private strip(item: GpuItem, flat = false): void {
     // Expand strips to lists: native indexed strips reserve all-ones as restart; BGT explicitly does not.
-    const w = item.words, triangle = this.current!.words[3] === 4, result: number[] = [];
+    // vK62: the list lives in the rotated-index ring, cached per store serial + contents version (or per first/count
+    // for non-indexed strips), so a steady strip draw costs no buffer creation and no re-expansion.
+    const w = item.words, triangle = this.current!.words[3] === 4;
     const indexed = item.op === OP.DRAW_INDEXED, b = indexed ? this.buffers.get(this.index![0])! : undefined;
-    const view = b ? new DataView(b.shadow.buffer) : undefined, size = this.index?.[1] ? 4 : 2;
-    const at = (i: number) => !view ? w[2] + i : size === 4 ?
-      view.getUint32(this.index![2] + (w[2] + i) * size, true) :
-      view.getUint16(this.index![2] + (w[2] + i) * size, true);
-    for (let i = 0; i < w[0] - (triangle ? 2 : 1); i++) {
-      if (triangle) result.push(at(i + (i % 2)), at(i + 1 - (i % 2)), at(i + 2));
-      else result.push(at(i), at(i + 1));
-    }
-    if (!result.length) return;
-    const native = this.gpuDevice.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
-      mappedAtCreation: true });
-    new Uint32Array(native.getMappedRange()).set(result); native.unmap(); this.scratch.push(native);
-    this.pass!.setIndexBuffer(native, 'uint32');
-    this.pass!.drawIndexed(result.length, w[1], 0, indexed ? w[3] | 0 : 0, indexed ? w[4] : w[3]);
+    const size = this.index?.[1] ? 4 : 2, n = Math.max(0, w[0] - (triangle ? 2 : 1)) * (triangle ? 3 : 2);
+    if (!n) return;
+    const key = `strip:${indexed ? `${b!.serial}:${b!.version ?? 0}:${size}:${this.index![2] + w[2] * size}` : `-:${w[2]}`}:${w[0]}:${+triangle}:${+flat}`;
+    this.rotatedIndices ??= new RotatedIndexRing(this.gpuDevice, r => this.retiredDestroy.push(r));
+    const ring = this.rotatedIndices.get(key, () => {
+      const view = b ? new DataView(b.shadow.buffer, b.shadow.byteOffset) : undefined, result = new Uint32Array(n);
+      const at = (i: number) => !view ? w[2] + i : size === 4 ?
+        view.getUint32(this.index![2] + (w[2] + i) * size, true) :
+        view.getUint16(this.index![2] + (w[2] + i) * size, true);
+      let k = 0;
+      for (let i = 0; i < w[0] - (triangle ? 2 : 1); i++) {
+        // K62: with flat inputs the GL provoking vertex (the last, i + 2 / i + 1) is drawn first.
+        if (triangle) {
+          const t = flat ? [at(i + 2), at(i + (i % 2)), at(i + 1 - (i % 2))] : [at(i + (i % 2)), at(i + 1 - (i % 2)), at(i + 2)];
+          result[k++] = t[0]; result[k++] = t[1]; result[k++] = t[2];
+        } else if (flat) { result[k++] = at(i + 1); result[k++] = at(i); }
+        else { result[k++] = at(i); result[k++] = at(i + 1); }
+      }
+      return result;
+    });
+    this.pass!.setIndexBuffer(ring.buffer, 'uint32', ring.offset, ring.bytes);
+    this.pass!.drawIndexed(n, w[1], 0, indexed ? w[3] | 0 : 0, indexed ? w[4] : w[3]);
     if (this.index) this.pass!.setIndexBuffer(this.buffers.get(this.index[0])!.native,
       this.index[1] ? 'uint32' : 'uint16', this.index[2], this.index[3]);
   }

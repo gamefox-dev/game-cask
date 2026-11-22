@@ -43,6 +43,10 @@ export interface GpuStats {
   /** §13 passes continued in the previous native pass / WebGPU copy-on-write buffer renames. */
   mergedPasses?: number;
   bufferRenames?: number;
+  /** K60 WebGPU: bytes rewritten by renames; transform-feedback GLSL translations / compute lowerings this frame (cache misses). */
+  renameBytes?: number;
+  captureTranslations?: number;
+  captureLowerings?: number;
   /** WebGL 2: redundant program/VAO/viewport/scissor/depth-range/blend-color calls skipped by the state shadow. */
   skippedBinds?: number;
   /** Opt-in GPU time (ms) of a recently completed frame's §13 passes; null when unavailable/pending. */
@@ -76,6 +80,11 @@ export interface GpuBackend {
   /** K51: largest UNIFORM_BUFFER range (and std140 block) the native device accepts, bytes. Absent means the
    * portable 65536 ceiling. Hosts clamp it to [16384, 65536], multiple of 16, and report it at §13.6 offset 52. */
   readonly maxUniformRange?: number;
+  /** K62: GLSL user varying components (vertex outputs = fragment inputs, gl_Position excluded) that every program
+   * of at most this many components links with on this device; reported at §13.6 offset 76. Absent means 60. */
+  readonly maxVaryingComponents?: number;
+  /** K62: implements CAP_GPU_GL_RASTER (VIEWPORT past the attachment, GLSL flat = last vertex). */
+  readonly glRaster?: boolean;
   /** K51 diagnostics only: native renderer/adapter identity captured at init (never a per-frame query). */
   readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */

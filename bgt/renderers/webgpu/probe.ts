@@ -62,7 +62,12 @@ export async function acquireWebGPU(gpu: GPU | undefined = navigator.gpu, timeou
       // Opt-in extras (e.g. K53 GPU timing's 'timestamp-query') are requested only when present.
       const optional = (['float32-filterable', 'float32-blendable', ...extraFeatures] as GPUFeatureName[])
         .filter(feature => adapter.features?.has(feature));
-      device = await adapter.requestDevice(optional.length ? { requiredFeatures: optional } : undefined);
+      // K62: GL varyings pack into vec4 locations; request the adapter's inter-stage capacity (default 16) so
+      // the reported GL_MAX_VARYING_COMPONENTS (4 * locations - 6, see shaders.ts packVaryings) reaches GL's 60.
+      const stageVariables = adapter.limits?.maxInterStageShaderVariables;
+      const requiredLimits = stageVariables && stageVariables > 16 ? { maxInterStageShaderVariables: stageVariables } : undefined;
+      device = await adapter.requestDevice(optional.length || requiredLimits ?
+        { ...(optional.length ? { requiredFeatures: optional } : {}), ...(requiredLimits ? { requiredLimits } : {}) } : undefined);
       if (cancelled) { device.destroy(); throw new WebGPUUnavailable('probe cancelled'); }
       stage = 'submission/readback';
       await checkWebGPUDevice(device, timeoutMs);

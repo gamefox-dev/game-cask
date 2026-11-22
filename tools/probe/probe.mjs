@@ -72,7 +72,8 @@ export function makeProbe(page, { game, backend, out, params, log, profiler = nu
     async start(extra = {}) {
       const q = new URLSearchParams({ game, backend, paused: '1', ephemeral: '1', ...params, ...extra });
       await page.goto(engineUrl ?? `/?${q}`);
-      await page.waitForFunction(() => { const t = window.__BGT_TEST__; return !!t && (t.ready() || t.failed()); }, null, { timeout: 30_000 });
+      // Engine pages may run under the K59 frame pacer (virtual rAF): poll on an interval there.
+      await page.waitForFunction(() => { const t = window.__BGT_TEST__; return !!t && (t.ready() || t.failed()); }, null, engineUrl ? { timeout: 60_000, polling: 50 } : { timeout: 30_000 });
       const d = await api('diagnostics');
       if (d.backend !== backend) log.notes.push(`requested ${backend}, got ${d.backend}: ${d.backendNotes.join('; ')}`);
       // K51: native renderer string; software:true means a CPU rasterizer. A native-GPU probe that silently

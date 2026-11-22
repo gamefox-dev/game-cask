@@ -1,7 +1,7 @@
 // K55: engine-runtime path as a first-class port path. CC0 synthetic packs/archives only; no network.
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -17,7 +17,7 @@ import { detectProfile, validateConfig, bundledRuntimeFiles, copyVerified, requi
 // @ts-expect-error detection
 import { detectEngines } from '../../tools/engine/detect.mjs';
 // @ts-expect-error runtimes
-import { selectRuntime, runtimes, runtimeById, fetchRuntime, verifyRuntime, godotVersion } from '../../tools/engine/runtime.mjs';
+import { selectRuntime, runtimes, runtimeById, fetchRuntime, verifyRuntime, godotVersion, storeRoot } from '../../tools/engine/runtime.mjs';
 // @ts-expect-error generator rules
 import { variantsFromMembers, shellFlavor } from '../../tools/engine/godot-releases.mjs';
 // @ts-expect-error headers
@@ -249,6 +249,51 @@ function mockHost(files: Record<string, Buffer>) {
   };
   return { fetchImpl, log };
 }
+
+describe('K58: Mono/C# and native-extension detectors need real evidence', () => {
+  const dir = (files: Record<string, Buffer>) => { const root = temp(); for (const [n, b] of Object.entries(files)) { mkdirSync(join(root, n, '..'), { recursive: true }); writeFileSync(join(root, n), b); } return root; };
+  const detect = (root: string) => detectEngines(inventory(root), root);
+  const r353 = () => runtimeById('godot-3.5.3-nothreads');
+  const pe = Buffer.from('MZ'.padEnd(64, '\0'));
+  it('the bare GodotSharp symbol string (in every official 3.5.3 build) is not Mono; a .mono. signature is', () => {
+    // Would catch: a substring heuristic refusing official non-Mono runners (the real 3.5.3 regression).
+    const plain = g3.makeRunner('Ssharp\0GodotSharp\0mono_gd\0GodotPlugins.dll');
+    expect(identifyRunner(plain, r353())).toMatchObject({ mono: false, blockers: [] });
+    expect(identifyRunner(plain, null, { knownBuilds: [r353().build] })).toMatchObject({ mono: false, blockers: [] });
+    expect(identifyRunner(g3.makeRunner('', { mono: true }), r353()).blockers).toEqual(['Mono/C#-runner']);
+    expect(identifyRunner(g4.makeRunner({ mono: true }), null, { knownBuilds: [B43] }).blockers).toEqual(['Mono/C#-runner']);
+    const ok = detect(dir({ 'g.exe': plain, 'g.pck': g3.makePack() }));
+    expect(ok.engines[0].blockers).toEqual([]); expect(ok.recommendation.path).toBe('engineProfile');
+    const mono = detect(dir({ 'g.exe': g3.makeRunner('', { mono: true }), 'g.pck': g3.makePack() }));
+    expect(mono.engines[0].blockers).toContain('Mono/C#'); expect(mono.recommendation.path).toBe('pipeline');
+  });
+  it('Mono companion files beside the runner and .NET resources in the pack block as Mono/C# (not GDNative)', () => {
+    const blockersWith = (extra: Record<string, Buffer>) => detect(dir({ 'g.exe': g3.makeRunner(), 'g.pck': g3.makePack(), ...extra })).engines[0].blockers;
+    for (const extra of <Record<string, Buffer>[]>[{ 'GodotSharp.dll': pe }, { 'data_game/Assemblies/Game.dll': pe }, { 'data_game/Mono/etc/mono/config': Buffer.from('<configuration/>'.padEnd(32)) },
+      { 'mono-2.0-sgen.dll': pe }]) expect(blockersWith(extra), Object.keys(extra)[0]).toEqual(['Mono/C#']);
+    const g4b = (extra: Record<string, Buffer>, files: Record<string, Buffer> = {}) => detect(dir({ 'game.exe': g4.embeddedFixture({ version: '4.3', files: { ...g4.fixtureFiles('4.3'), ...files } }), ...extra })).engines[0].blockers;
+    expect(g4b({ 'data_game_windows_x86_64/GodotPlugins.dll': pe, 'data_game_windows_x86_64/System.Runtime.dll': pe })).toEqual(['Mono/C#']);
+    expect(g4b({}, { '.mono/assemblies/Release/Game.dll': pe })).toEqual(['Mono/C#']);
+    expect(g4b({}, { 'player.tscn': Buffer.from('[gd_scene format=3]\n[ext_resource type="Script" path="res://Player.cs" id="1_a"]\n') })).toEqual(['Mono/C#']);
+  });
+  it('official-export companions and look-alike names are not blockers; real native libraries still are', () => {
+    const g4b = (extra: Record<string, Buffer>, files: Record<string, Buffer> = {}) => detect(dir({ 'game.exe': g4.embeddedFixture({ version: '4.3', files: { ...g4.fixtureFiles('4.3'), ...files } }), ...extra })).engines[0].blockers;
+    // Direct3D 12 Agility SDK / DXIL / ANGLE DLLs ship with official Godot 4 Windows exports.
+    expect(g4b({ 'D3D12/D3D12Core.dll': pe, 'D3D12/d3d12SDKLayers.dll': pe, 'dxil.dll': pe, 'libEGL.dll': pe, 'libGLESv2.dll': pe })).toEqual([]);
+    // A "mono" (audio) folder and an editor-only export preset naming a .pck are not Mono / extra packs.
+    expect(g4b({}, { 'sfx/mono/beep.wav': Buffer.from('RIFF'), 'export_presets.cfg': Buffer.from('[preset.0]\nexport_path="build/game.pck"\n') })).toEqual([]);
+    expect(g4b({ 'steam_api64.dll': pe })).toEqual(['native-extension/GDExtension']);
+    expect(detect(dir({ 'g.exe': g3.makeRunner(), 'g.pck': g3.makePack(), 'libgame.dll': pe })).engines[0].blockers).toEqual(['native-extension/GDNative']);
+  });
+  // Every pinned official web runtime provisioned on this machine must pass the runner detectors unflagged.
+  const provisioned = runtimes().filter((r: any) => existsSync(join(storeRoot(), r.id)));
+  it.runIf(provisioned.length > 0)('provisioned official runtimes (' + provisioned.map((r: any) => r.id).join(', ') + ') trip no Mono detector', () => {
+    for (const r of provisioned) for (const f of readdirSync(join(storeRoot(), r.id)).filter(n => /\.(wasm|js)$/.test(n))) {
+      const id = identifyRunner(readFileSync(join(storeRoot(), r.id, f)), null, { knownBuilds: [r.build] });
+      expect(id.mono, r.id + '/' + f).toBe(false); expect(id.blockers, r.id + '/' + f).not.toContain('Mono/C#-runner');
+    }
+  });
+});
 
 describe('runtime download and verification (synthetic official host)', () => {
   const wasm = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);

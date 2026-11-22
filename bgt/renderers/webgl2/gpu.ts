@@ -56,10 +56,15 @@ function halfBits(value: number): number {
   return sign | (((e << 10) | m) + (up ? 1 : 0));
 }
 
+/** K60: stores up to this size are re-specified whole on a partial CPU update (see BUFFER_UPDATE). */
+const SMALL_RESPECIFY = 32768;
 export class WebGL2Gpu implements GpuBackend {
   readonly languages: number;
   /** K51: min(65536, native MAX_UNIFORM_BLOCK_SIZE rounded down to 16); fixed for this backend instance. */
   readonly maxUniformRange: number;
+  /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
+  readonly maxVaryingComponents: number;
+  readonly glRaster = true;
   readonly device: GpuDeviceInfo;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
@@ -125,6 +130,11 @@ export class WebGL2Gpu implements GpuBackend {
     // exactly that). Accept the real minimum and report the native limit instead of refusing real GPUs.
     const uniformBlock = gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) as number;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, uniformBlock - uniformBlock % 16);
+    // K62: GLSL ES 3.00 packs varyings into MAX_VARYING_VECTORS rows; one row holds the renderer's own clip
+    // vec3 (+ the noperspective w), one the profile's captured gl_Position (vK62: transform feedback; a captured
+    // gl_PointSize fits a spare column), and a row may waste one column (a vec3 beside no float), so 3*(rows-2)
+    // user components always link.
+    this.maxVaryingComponents = 3 * ((gl.getParameter(gl.MAX_VARYING_VECTORS) as number) - 2);
     const info = gl.getExtension('WEBGL_debug_renderer_info');
     const renderer = (gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) as string | null) ?? null;
     this.device = { renderer, software: softwareRenderer(renderer), nativeMaxUniformRange: uniformBlock };
@@ -376,8 +386,15 @@ export class WebGL2Gpu implements GpuBackend {
         this.buffers.set(h, { object, words: w, data }); break;
       }
       case OP.BUFFER_UPDATE: {
-        const b = this.buffers.get(h)!; b.data.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.data.length)b.generated=false;
-        g.bindBuffer(g.COPY_WRITE_BUFFER, b.object); g.bufferSubData(g.COPY_WRITE_BUFFER, w[1], item.data!); break;
+        const b = this.buffers.get(h)!, whole = w[1] === 0 && item.data!.length === b.data.length;
+        b.data.set(item.data!, w[1]); if (whole) b.generated = false;
+        g.bindBuffer(g.COPY_WRITE_BUFFER, b.object);
+        // K60: a partial update of a small CPU-authoritative store (e.g. one slot of a program's uniform ring) is a
+        // whole re-specification from the exact shadow: drivers (ANGLE Metal) orphan a fully replaced store instead
+        // of synchronizing with or copying around in-flight GPU reads. Same bytes; generated stores keep sub-data.
+        if (!whole && !b.generated && b.data.length <= SMALL_RESPECIFY && this.opts.batch) g.bufferData(g.COPY_WRITE_BUFFER, b.data, g.DYNAMIC_DRAW);
+        else g.bufferSubData(g.COPY_WRITE_BUFFER, w[1], item.data!);
+        break;
       }
       case OP.BUFFER_DELETE: g.deleteBuffer(this.buffers.get(h)!.object); this.buffers.delete(h); break;
       case OP.TEXTURE_CREATE_EX: {

@@ -147,7 +147,7 @@ it('admits every kit example option inventory and a port-sized 4096-object compi
   const cfg=JSON.parse(readFileSync(join(ROOT,'examples',n,'game.json'),'utf8'));
   return ['zig','cc',...portableFlags([...CFLAGS,...(cfg.cflags??[]),...hermeticTimeFlags()],ROOT),...LDFLAGS,...(cfg.ldflags??[]),...(cfg.pipeline?.fixture?.libs??[]).map((l:string)=>'-l'+l),'-o','example.wasm','source.c'];
  });
- expect(plans).toHaveLength(43); // 39 + K50 examples/x64-time, K51 examples/x64-gl-limits, K53 examples/x64-gl-batch, K57 examples/x64-gl-respec
+ expect(plans).toHaveLength(46); // 39 + K50 examples/x64-time, K51 examples/x64-gl-limits, K53 examples/x64-gl-batch, K57 examples/x64-gl-respec, K60 examples/x64-gl-frame, K61 examples/x64-gl-prims, K62 examples/x64-gl-raster
  // Enumerate pipeline-generated compile/probe variants and source fixture plans,
  // not just top-level game.json flags (which do not contain these options).
  for(const target of ['wasm32-wasi','wasm32-freestanding'])for(const mode of [0,1,2]){

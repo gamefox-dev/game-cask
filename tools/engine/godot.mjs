@@ -165,11 +165,24 @@ export function projectSettings(buf, major) {
 }
 
 const TEXT = /\.(gd|tscn|tres|godot|gdnlib|gdns|gdextension|cfg|import|remap)$/i;
+// export_presets.cfg is editor metadata (older 3.x exports ship it); the running game never reads it.
+const EDITOR_ONLY = /(^|\/)export_presets\.cfg$/i;
+/** Lower-cased paths only Mono/.NET builds ship: the C# glue/runtime assemblies, the Godot 3 Mono data layout,
+ * assemblies in a data_<name>[_<platform>_<arch>] folder, the .mono/ build directory and C# sources/projects. */
+const MONO_PATHS = [
+  /(^|\/)(godotsharp|godotplugins|godottools[^/]*|mono-2\.0-sgen|monoposixhelper)\.dll$/,
+  /(^|\/)data_[^/]+\/(assemblies|mono)\//,
+  /(^|\/)data_[^/]+\/(.+\/)?[^/]+\.dll$/,
+  /(^|\/)(\.mono|godotsharp|mono_gd[^/]*)\//,
+  /\.(cs|csproj|sln)$/,
+];
+/** DLLs official Godot 4 Windows exports place beside the runner (Direct3D 12 Agility SDK, DXIL, ANGLE): not GDExtensions. */
+const OFFICIAL_COMPANIONS = /(^|\/)(d3d12core|d3d12sdklayers|dxil|libegl|libglesv2)\.dll$/;
 /** Bounded text scan of every text resource, covering chunk boundaries. Supplementary heuristics only. */
 function scanText(parsed, patterns) {
   const hits = new Set();
   for (const e of parsed.entries) {
-    if (e.encrypted || e.removal || !TEXT.test(e.name)) continue;
+    if (e.encrypted || e.removal || !TEXT.test(e.name) || EDITOR_ONLY.test(e.name)) continue;
     const data = parsed.pack.subarray(e.offset, e.offset + e.size), chunk = 1048576, overlap = 512;
     for (let at = 0; at < data.length; at += chunk) {
       const text = data.subarray(Math.max(0, at - overlap), Math.min(data.length, at + chunk)).toString('utf8');
@@ -193,8 +206,9 @@ export function analyzePack(parsed, inventory = [], runnerInfo = null) {
   if (parsed.entries.some(e => /\.pck$/i.test(e.name))) blockers.add('additional-packs');
   const names = [...parsed.entries.map(e => e.name), ...inventory.map(f => f.path)].map(n => n.toLowerCase());
   for (const name of names) {
-    if (/\.(dll|so|dylib|gdnlib|gdns|gdextension)$/.test(name) || /(^|\/)\.godot\/extension_list\.cfg$/.test(name)) blockers.add(major === 3 ? 'native-extension/GDNative' : 'native-extension/GDExtension');
-    if (/\.(cs|csproj|sln)$/.test(name) || /(^|\/)(mono|\.mono|godotsharp)(\/|$)/.test(name) || /(^|\/)data_[^/]+_(windows|linux|macos)_[^/]+\//.test(name)) blockers.add('Mono/C#');
+    // Mono-specific paths only: a plain "mono/" folder (e.g. mono audio) is not C# evidence. Their assemblies are Mono, not GDNative.
+    if (MONO_PATHS.some(re => re.test(name))) blockers.add('Mono/C#');
+    else if (/\.(dll|so|dylib|gdnlib|gdns|gdextension)$/.test(name) && !(major === 4 && OFFICIAL_COMPANIONS.test(name)) || /(^|\/)\.godot\/extension_list\.cfg$/.test(name)) blockers.add(major === 3 ? 'native-extension/GDNative' : 'native-extension/GDExtension');
     if (/\.(gde|pcke|enc)$/.test(name)) blockers.add('encrypted-content');
   }
   for (const e of parsed.entries) {
@@ -219,12 +233,15 @@ export function analyzePack(parsed, inventory = [], runnerInfo = null) {
     ['os-execute', /\bOS\s*\.\s*(execute|create_process|create_instance|shell_open|kill)\s*\(/],
     ['additional-packs', /\.pck["']|load_resource_pack\s*\(/i],
     ['gdextension', /\bGDExtensionManager\b|\bNativeScript\b|\bGDNative\b/],
+    // A scene/resource that loads a C# script (Godot exports the .cs resource path even when the file list hides it).
+    ['csharp-script', /\bpath\s*=\s*"res:\/\/[^"\n]+\.cs"/],
   ]);
   if (hits.has('threads')) requirements.threads = 'required';
   if (hits.has('worker-pool')) warnings.push('WorkerThreadPool used: runs on the main thread in non-threaded web runtimes');
   if (hits.has('os-execute')) blockers.add('platform-code/OS.execute');
   if (hits.has('additional-packs')) blockers.add('additional-packs');
   if (hits.has('gdextension')) blockers.add(major === 3 ? 'native-extension/GDNative' : 'native-extension/GDExtension');
+  if (hits.has('csharp-script')) blockers.add('Mono/C#');
   if (runnerInfo?.mono) blockers.add('Mono/C#');
   warnings.unshift('feature-scan-incomplete: static detection is not a complete platform feature inventory; require browser boot, input and no runtime errors before any level claim');
   if (parsed.entries.some(e => /\.gdc$/i.test(e.name))) warnings.push('compiled-GDScript: bytecode feature use is not scanned; structural native/Mono/encryption/thread detectors still apply');
@@ -264,7 +281,9 @@ export function identifyRunner(runner, runtime, { knownBuilds = [] } = {}) {
     if (primary.flavor !== 'official') blockers.push('runner-custom-build');
     if (!builds.length) blockers.push('runner-exact-version/build-unverified');
   }
-  const mono = sigs.some(s => s.mono) || /GodotSharp|mono_gd|GodotPlugins\.dll/.test(text);
+  // Mono only from a ".mono." signature: "GodotSharp" (and similar) symbol strings are in every official build,
+  // including the non-Mono web runtimes. Companion assemblies/folders are checked by analyzePack on the inventory.
+  const mono = sigs.some(s => s.mono);
   if (mono) blockers.push('Mono/C#-runner');
   return { engine: 'godot', version: runtime?.version ?? primary?.version ?? null, status: primary?.status ?? null, flavor: primary?.flavor ?? null,
     build: runtime ? (hashes.has(runtime.build) ? runtime.build : null) : builds[0] ?? null, mono, signatures: sigs.slice(0, 8), blockers,

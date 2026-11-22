@@ -52,9 +52,10 @@ export function makePack({ version = '4.3', files, flags = 0, packStart = 0, fil
   }
   return Buffer.concat([header, ...directory, Buffer.alloc(headerPad), ...contents]);
 }
-export function makeRunner({ version = '4.3', build = '77dcf97d82cbfe4e4615475fa52ca03da645dbd8', extra = '' } = {}) {
+/** mono: a .NET build's signature ("<version>.stable.mono.official"). */
+export function makeRunner({ version = '4.3', build = '77dcf97d82cbfe4e4615475fa52ca03da645dbd8', extra = '', mono = false } = {}) {
   const b = Buffer.alloc(512); b.write('MZ'); b.writeUInt32LE(128, 60); b.write('PE\0\0', 128);
-  b.write('Godot Engine\0' + version + '.stable.official\0' + build + '\0' + extra, 160);
+  b.write('Godot Engine\0' + version + (mono ? '.stable.mono.official\0' : '.stable.official\0') + build + '\0' + extra, 160);
   return b;
 }
 /** Runner + 8-byte aligned pack + u64 size + "GDPC" (editor export layout). relative=false: 4.0-4.2 absolute base. */

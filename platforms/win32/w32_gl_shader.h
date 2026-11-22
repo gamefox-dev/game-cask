@@ -126,6 +126,13 @@ static uint32_t gl_uniform_limit(void) {
         return BGT_GPU_LIMIT_UNIFORM_RANGE;
     return limits.max_uniform_range;
 }
+/* K62: the active backend's guaranteed GLSL varying components (§13.6 offset 76; 60 when not stated). */
+static uint32_t gl_varying_limit(void) {
+    bgt_gpu_limits_v3_t limits; zero(&limits, sizeof limits);
+    if (bgt_gpu_limits(&limits.base, sizeof limits) || limits.base.byte_size < sizeof limits || !limits.gpu_supported ||
+        !limits.max_varying_components) return 60;
+    return limits.max_varying_components;
+}
 static uint32_t compile_shader_build(void) {
     uint32_t id = SLOT(shaders, ARG(0)); if (!shader_ok(id)) { fail(BAD_VALUE); return 0; }
     Shader *s = &shaders[id]; GsLog log = {s->log, sizeof s->log, 0, 0};
@@ -136,7 +143,7 @@ static uint32_t compile_shader_build(void) {
     /* Provisional layout for this stage alone: full program layout is decided at link time. */
     Gp *g = glp_alloc(sizeof(Gp)); if (!g) { gl_front_oom(&log, "provisional link layout"); return 0; }
     GsUnit *vs = s->type == 0x8b31 ? s->unit : 0, *fs = s->type == 0x8b31 ? 0 : s->unit;
-    gp_uniform_limit = gl_uniform_limit();
+    gp_uniform_limit = gl_uniform_limit(); gp_varying_limit = gl_varying_limit();
     if (gp_link(g, vs, fs, 0, 0, 0, 0, &log)) s->compiled = (uint32_t)stage_module(s->unit, vs, fs, g, &s->gpu, &log, 0);
     glp_free(g, sizeof(Gp)); if (!s->compiled && !log.errors) log.errors++;
     return 0;
@@ -208,7 +215,7 @@ static void invalidate_pipelines(void) {
 }
 static void program_free_link(Program *p) {
     if (p->info) { glp_free(p->info, sizeof(Gp)); p->info = 0; }
-    if (p->values) { glp_free(p->values, p->usize); p->values = 0; }
+    if (p->values) { glp_free(p->values, p->usize + GL_UBO_TAIL); p->values = 0; }
     p->nb = p->nslots = p->ndef = 0;
 }
 static uint32_t link_program_build(void) {
@@ -234,7 +241,7 @@ static uint32_t link_program_build(void) {
         if (!gs_parse(fs, 2, unused, sizeof unused - 1, &log)) { glp_free(fs, sizeof(GsUnit)); glp_free(g, sizeof(Gp)); return 0; }
         gs_analyze(fs);
     }
-    gp_uniform_limit = gl_uniform_limit();
+    gp_uniform_limit = gl_uniform_limit(); gp_varying_limit = gl_varying_limit();
     if (!tf_link(p, vs, &log) || !gp_link(g, vs, fs, p->abind, p->nab, p->obind, p->nob, &log) ||
         !stage_module(vs, vs, fs, g, &p->vgpu, &log, p) || !stage_module(fs, vs, fs, g, &p->fgpu, &log, 0)) {
         if (p->vgpu) { release_wire(0x49, p->vgpu, "programs"); p->vgpu = 0; }
@@ -242,14 +249,15 @@ static uint32_t link_program_build(void) {
         glp_free(g, sizeof(Gp)); if (!log.errors) gs_put(&log, "error: program failed to link\n"); return 0;
     }
     if (!p->fs) glp_free(fs, sizeof(GsUnit));
-    p->values = glp_alloc(g->usize); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
+    p->values = glp_alloc(g->usize + GL_UBO_TAIL); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
     if (p->ubuf && p->usize != g->usize) { release_wire(0x42, p->ubuf, "programs"); p->ubuf = 0; }
     p->usize = g->usize;
     if (!p->ubuf) {
         for (uint32_t h = 256; h < 700 && !p->ubuf; h++) if (!gpu_buffer[h]) p->ubuf = h;
         if (!p->ubuf) p->ubuf = buffer_handle(0, "programs");
         if (!p->ubuf) { glp_free(g, sizeof(Gp)); gs_put(&log, "error: out of GPU uniform buffer handles\n"); fail(OOM); return 0; }
-        uint32_t payload[] = {p->ubuf, 4, p->usize, 0, 0};
+        p->ubo_slots = ubo_ring_slots(p->usize); p->ubo_next = 0;
+        uint32_t payload[] = {p->ubuf, 5, p->ubo_slots * ubo_stride(p->usize), 0, 0}; /* K60: ring of uniform + constant-attribute slots */
         if (!send(0x40, payload, 5)) { p->ubuf = 0; if (error == OOM) object_exhaustion("programs", "GPU byte/submission budget", 1);
             glp_free(g, sizeof(Gp)); gs_put(&log, error == OOM ? "error: uniform buffer submission out of memory\n" : "error: uniform buffer submission failed\n"); return 0;
         }
@@ -446,7 +454,7 @@ static uint32_t api_GetActiveUniformBlockName(void) {
 static uint32_t api_UniformBlockBinding(void) {
     uint32_t id = SLOT(programs, ARG(0));
     if (!program_ok(id)) fail(BAD_VALUE); else if (!programs[id].linked) fail(BAD_OP);
-    else if (ARG(1) >= programs[id].nb || ARG(2) >= 8) fail(BAD_VALUE);
+    else if (ARG(1) >= programs[id].nb || ARG(2) >= GL_UBO_BINDINGS) fail(BAD_VALUE);
     else programs[id].block[ARG(1)].binding = ARG(2);
     return 0;
 }
@@ -521,7 +529,7 @@ static uint32_t uniform_value(uint32_t components, int pointer, int kind, int ma
         for (uint32_t i = 0; i < components; i++) value[i] = pointer ? x86_rd32(src + (e * components + i) * 4) :
             kind ? ARG(i + 1) : bits(argf(i + 1));
         if (sampler) {
-            if (value[0] >= 8) { fail(BAD_VALUE); return 0; }
+            if (value[0] >= GL_TEXTURE_UNITS) { fail(BAD_VALUE); return 0; }
             p->slot_unit[u->slot - 1 + first + e] = value[0]; continue;
         }
         if (is_bool) for (uint32_t i = 0; i < components; i++)

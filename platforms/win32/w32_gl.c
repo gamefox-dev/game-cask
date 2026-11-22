@@ -46,9 +46,18 @@ static bgt_cmdbuf_t cmd;
 static uint32_t width(void) { return w32_io->logical_width; }
 static uint32_t height(void) { return w32_io->logical_height; }
 static void flush_pending(void);
-/* K53: a guest-visible error flushes deferred work first, so an earlier deferred failure keeps
- * first-error order in the latch. Errors are exceptional; the deferred fast path never polls. */
-static void fail(uint32_t e) { flush_pending(); if (!error) error = e; }
+/* K60: profile validation errors no longer flush deferred work (K53 flushed so that an earlier deferred
+ * failure kept first-error order). While deferred calls are pending, the error is latched at once (callers
+ * use it for control flow) and its stream position is remembered: `err_seq` is the sequence number of the
+ * newest deferred call before it. If a later flush finds that a deferred call at or before that position
+ * failed, that call's error preceded the latched one, and glGetError returns it instead (`latch_fix`).
+ * Profile regions that save and restore `error` themselves (`latch_local`) keep the K53 flush. `latch_outer`
+ * is the error latched before the current API call (the API wrapper clears `error` during a call). */
+static uint32_t latch_outer, latch_local, latch_fix;
+static int fail_deferred(uint32_t e);
+/* K61: every raised error is counted (gl_errors_raised) and attributed to the running entry point (gl_error_calls). */
+uint64_t w32_gl_errors_raised;
+static void fail(uint32_t e) { w32_gl_errors_raised++; if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
 static int eq(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; } return *a == *b;
 }
@@ -312,6 +321,7 @@ static uint32_t replay_error;       /* error a replay newly latched (callers tha
 /* Native 64-bit test hosts cannot express owned wire pointers; they keep per-call submission,
  * as does the BGT_GL_SYNC_SUBMIT=1 A/B build (tools/build/pipeline.mjs). */
 static void flush_pending(void) {}
+static int fail_deferred(uint32_t e) { (void)e; return 0; }
 void w32_gl_flush(void) {}
 static void retire_block(uint8_t *p, uint32_t n) { if (p) glp_free(p, n); }
 static int submit_deferred_x(uint32_t reserve) { (void)reserve; pend_last = 0; return submit(); }
@@ -337,7 +347,22 @@ static struct { uint8_t *p; uint32_t n; } pend_retired[4096]; static uint32_t pe
  * failures settle the journal from the failed command offsets (no resubmission: every other command already
  * took effect, exactly as its per-call list would have); a list rejected whole is replayed per call. */
 static uint32_t replay_failed[2 * 4096];
+static int pend_flushing;
+static uint32_t err_seq_valid; static uint64_t err_seq; /* K60: see fail() */
+/* K60: see fail(). Returns 1 when the error was latched without a flush. */
+static int fail_deferred(uint32_t e) {
+    if (!nrecs || pend_flushing || latch_local) return 0;
+    if (!error && !latch_outer && !err_seq_valid) { err_seq = pend_seq; err_seq_valid = 1; }
+    if (!error) error = e;
+    return 1;
+}
+/* The first failed deferred call of a settled batch (stream order): if it precedes a latched validation error
+ * raised while it was pending, its error is the first one (glGetError reports latch_fix). */
+static void replay_first(const PendRec *r, uint32_t code) {
+    if (err_seq_valid && r->seq <= err_seq && !latch_fix) latch_fix = code;
+}
 static void replay_whole(void) {
+    int first = 0;
     for (uint32_t i = 0; i < nrecs; i++) {
         PendRec *r = &recs[i]; int dead = 0;
         if (r->dep_seq) for (uint32_t j = i; j-- > 0;) if (recs[j].seq == r->dep_seq) { dead = !replay_ok[j]; break; }
@@ -359,6 +384,7 @@ static void replay_whole(void) {
             if (rc >= 0) r->cap = r->n;
         }
         replay_ok[i] = rc >= 0;
+        if (rc < 0 && !first) { first = 1; replay_first(r, rc == -3 ? OOM : BAD_OP); }
         if (rc < 0 && !error) error = rc == -3 ? OOM : BAD_OP;
     }
 }
@@ -372,7 +398,10 @@ static void replay(void) {
             uint32_t at = replay_failed[2 * k]; int32_t code = (int32_t)replay_failed[2 * k + 1];
             if (!error) error = code == -3 ? OOM : BAD_OP; /* first failed command in stream order */
             while (r < (int32_t)nrecs && recs[r].end <= at) r++;
-            if (r < (int32_t)nrecs && recs[r].start <= at) replay_ok[r] = 0;
+            if (r < (int32_t)nrecs && recs[r].start <= at) {
+                if (!k) replay_first(&recs[r], code == -3 ? OOM : BAD_OP);
+                replay_ok[r] = 0;
+            }
         }
     }
     /* Profile state: back to the pre-batch state, then forward through the accepted calls only. */
@@ -392,12 +421,11 @@ static void replay(void) {
  * there, so a flush in progress is not re-entered. The list bytes stay in pend_mem (reset only
  * rewinds the cursor) for a replay. A journaled batch reports success; a later host rejection of it
  * is K50's late deferred error (deferred_gl_rejects), not a per-call replay. */
-static int pend_flushing;
 static void flush_pending(void) {
     if (pend_flushing) return;
     pend_last = 0;
     if (!pend_ready || !pend.count) {
-        nrecs = 0;
+        nrecs = 0; err_seq_valid = 0;
         for (uint32_t i = 0; i < pend_nretired; i++) glp_free(pend_retired[i].p, pend_retired[i].n);
         pend_nretired = 0; return;
     }
@@ -407,6 +435,7 @@ static void flush_pending(void) {
     if (rc < 0) replay();
     pend_flushing = 0;
     bgt_cmd_reset(&pend); pend_used = 0; nrecs = 0;
+    err_seq_valid = 0; /* every deferred call is settled: a latched error now precedes all later ones */
     for (uint32_t i = 0; i < pend_nretired; i++) glp_free(pend_retired[i].p, pend_retired[i].n);
     pend_nretired = 0;
 }
@@ -592,6 +621,18 @@ static Buffer *buffers = buffers_initial; static Vao *vaos = vaos_initial;
 static uint32_t buffer_slots = N, vao_slots = N;
 #define BN buffer_slots
 #define VN vao_slots
+/* K60: each program's private uniform buffer has GL_UBO_TAIL bytes after its uniform values (usage
+ * uniform|vertex). A single-instance draw that reads generic current attributes (disabled arrays) carries
+ * them there, in the same batched BUFFER_UPDATE as its uniform values, and binds its constant vertex slot to
+ * that tail: no separate (synchronous) current-attribute upload, and the draw depends on one upload. */
+#define GL_UBO_TAIL 256u
+/* K60: the private uniform buffer is a ring of slots (values + tail, 256-aligned); each draw uploads into the
+ * next slot and binds it, so consecutive draws of one program write disjoint bytes and a WebGPU frame encoder
+ * that still reads the previous slot needs no copy-on-write rename. At most 16 slots and 32 KiB per program. */
+static uint32_t ubo_stride(uint32_t usize) { return (usize + GL_UBO_TAIL + 255u) & ~255u; }
+static uint32_t ubo_ring_slots(uint32_t usize) {
+    uint32_t n = 32768u / ubo_stride(usize); return n < 1 ? 1 : n > 16 ? 16 : n;
+}
 /* Generic current values belong to the context, not the VAO (GL 3.3 §2.8). */
 static float current_attr[16][4]; static uint32_t current_attr_ready;
 static void init_current_attr(void) {
@@ -612,9 +653,13 @@ static uint32_t current_attribute(uint32_t n, int vector) {
 CURRENT_ATTR(1) CURRENT_ATTR(2) CURRENT_ATTR(3) CURRENT_ATTR(4)
 #undef CURRENT_ATTR
 static Shader shaders[N]; static Program programs[N];
-static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
+/* K62: GL 3.3 minimums: 36 uniform-buffer binding points, 48 combined texture image units (profile state; a program
+ * still maps at most 7 blocks and 8 sampler slots onto §13's 8 + 8 per-pipeline slots). */
+#define GL_UBO_BINDINGS 36
+#define GL_TEXTURE_UNITS 48
+static uint32_t vao, array, uniform, ubo[GL_UBO_BINDINGS], ubo_offset[GL_UBO_BINDINGS], ubo_size[GL_UBO_BINDINGS], active_unit, samp[GL_TEXTURE_UNITS];
 static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
-static uint32_t ubo_whole[8], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
+static uint32_t ubo_whole[GL_UBO_BINDINGS], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
 /* Retire generated private temporaries even when materialization or a later submission fails.
  * If the aggregate wire budget is exhausted, retry before the next public submission: a source
  * cannot be successfully deleted/reuploaded while an inaccessible generated temporary remains. */
@@ -646,6 +691,9 @@ static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
 static uint32_t stencil_compare = 7, stencil_read = 255, stencil_write = 255, stencil_ref;
 static uint32_t stencil_fail, stencil_zfail, stencil_pass, color_mask = 15, color_masks[4] = {15, 15, 15, 15};
+/* K61: back-face stencil state (glStencil*Separate). Compare/ops are per face in §13 pipelines; reference and
+ * masks have one value per pipeline/pass, so a back value that differs from the front one is an approximation. */
+static uint32_t back_compare = 7, back_fail, back_zfail, back_pass, back_read = 255, back_write = 255, back_ref;
 static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t clear_stencil;
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
@@ -669,7 +717,7 @@ static uint8_t abandoned_buffer_initial[N], abandoned_shader[N], abandoned_pipel
 static uint8_t *abandoned_buffer = abandoned_buffer_initial;
 static uint32_t abandoned_buffers, abandoned_shaders, abandoned_pipelines;
 static int cleanup_send(const char *kind, uint32_t code, uint32_t handle) {
-    flush_pending(); uint32_t pending = error; error = 0; int ok = send(code, &handle, 1);
+    flush_pending(); uint32_t pending = error; error = 0; latch_local++; int ok = send(code, &handle, 1); latch_local--;
     if (!ok && error == OOM) object_exhaustion(kind, "GPU resource retirement budget", 1);
     if (pending) error = pending;
     return ok;
@@ -818,7 +866,7 @@ static int respec_in_place(Buffer *b, const uint8_t *data, uint32_t n) {
  * old capacity (the bytes it just released), so no contents are lost. Generated stores keep their slack
  * (their contents are native-only). */
 static void reclaim_slack(void) {
-    flush_pending(); reclaiming = 1;
+    flush_pending(); reclaiming = 1; latch_local++;
     for (uint32_t s = 1; s < BN && buffer_slack; s++) {
         Buffer *o = &buffers[s];
         if (!o->used || !o->gpu || !o->size || o->cap <= o->size || o->generated) continue;
@@ -841,7 +889,7 @@ static void reclaim_slack(void) {
         }
         error = pending; /* reclaim is the profile's own work, never a guest error */
     }
-    reclaiming = 0;
+    reclaiming = 0; latch_local--;
 }
 /* Replace b's store with a new native store of logical size n and capacity cap (`block`: cap owned bytes,
  * contents then a zero tail), as DELETE + one CREATE (a single command takes effect whole or not at all).
@@ -870,7 +918,7 @@ static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int
         begin(); { uint32_t create[] = {id, 15, cap, PTR(block), cap}; op(0x40, create, 5); }
         pend_dep_seq = release_seq; /* a rejected DELETE never reaches its CREATE (unbatched order) */
         uint32_t pending = error; error = 0; replay_error = 0;
-        int ok = sync ? submit() : submit_deferred();
+        latch_local++; int ok = sync ? submit() : submit_deferred(); latch_local--;
         uint32_t own = error; release_seq = 0;
         /* This call's own CREATE was rejected for the budget (independently of errors earlier deferred calls
          * latched in the same flush): the headroom alone is dropped and the CREATE retried at the exact size. */
@@ -1012,7 +1060,7 @@ static uint32_t api_DeleteBuffers(void) {
             if (vaos[j].element == id) { vaos[j].element = 0; buffer_unref(id); }
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffer_unref(id); }
         }
-        for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
+        for (uint32_t j = 0; j < GL_UBO_BINDINGS; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
         if (copy_read == id) copy_read = 0;
         if (copy_write == id) copy_write = 0;
@@ -1033,7 +1081,7 @@ static uint32_t api_BindBufferBase(void) {
         tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    if (ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
+    if (ARG(1) >= GL_UBO_BINDINGS) { fail(BAD_VALUE); return 0; }
     uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= BN) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
 
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
@@ -1049,7 +1097,7 @@ static uint32_t api_BindBufferRange(void) {
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
-    if (s >= 8 || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
+    if (s >= GL_UBO_BINDINGS || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
         (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }
@@ -1220,10 +1268,13 @@ static const char *entry_objects(const char *name) {
     OBJECTS(programs); return "programs";
 }
 #define API(name, fn, nargs, mutates) \
+    static uint32_t errs_##fn; \
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
-        uint32_t pending = error, exhaustion_before = gl_exhaustion_events; error = 0; \
+        uint64_t raised = w32_gl_errors_raised; \
+        uint32_t pending = error, exhaustion_before = gl_exhaustion_events, outer = latch_outer; error = 0; \
+        latch_outer = pending; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
             eq(name, "glDeleteBuffers") || eq(name, "glCopyBufferSubData") || \
             eq(name, "glUnmapBuffer") || eq(name, "glFlushMappedBufferRange"); \
@@ -1232,11 +1283,14 @@ static const char *entry_objects(const char *name) {
         if (error == OOM && exhaustion_before == gl_exhaustion_events) \
             object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
+        if (w32_gl_errors_raised != raised) errs_##fn++; \
         if (pending) error = pending; \
+        latch_outer = outer; \
         return result; \
     }
 #define GLSTUB(name, fn, nargs, mutates) \
-    static uint32_t call_##fn(void) { w32_gl_calls++; missing(name); fail(BAD_OP); return 0; }
+    static uint32_t errs_##fn; \
+    static uint32_t call_##fn(void) { w32_gl_calls++; errs_##fn++; missing(name); fail(BAD_OP); return 0; }
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
@@ -1248,6 +1302,29 @@ const w32_api_t w32_api_gl[] = {
 #undef API
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
+/* K61 error census: {"entry": calls that raised a GL error, ...}, in table order, nonzero entries only.
+ * One loop over a {name, counter} table: a call per entry would inline into a ~200 KiB function, which the
+ * whole-module Binaryen -O2/Asyncify transform must then optimize (K61 review: Linux CI wasm-opt failure). */
+static const struct { const char *name; const uint32_t *count; } census[] = {
+#define API(name, fn, nargs, mutates) {name, &errs_##fn},
+#define GLSTUB API
+#include "w32_gl_api.h"
+#undef API
+#undef GLSTUB
+};
+const char *w32_gl_error_calls_json(void) {
+    static char s[4096]; uint32_t n = 0, cap = sizeof s - 2; s[n++] = '{';
+    for (uint32_t e = 0; e < sizeof census / sizeof census[0]; e++) {
+        uint32_t count = *census[e].count; if (!count) continue;
+        char digits[12]; uint32_t d = 0, len = w32_slen(census[e].name);
+        do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
+        if (n + len + d + 6 >= cap) break;
+        if (n > 1) s[n++] = ',';
+        s[n++] = '"'; copy(s + n, census[e].name, len); n += len; s[n++] = '"'; s[n++] = ':';
+        while (d) s[n++] = digits[--d];
+    }
+    s[n++] = '}'; s[n] = 0; return s;
+}
 #if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
 /* Journal effects for a replayed batch (see replay). Undo runs newest-first over every record and
  * restores the pre-batch profile state; redo runs oldest-first over the accepted records; reject

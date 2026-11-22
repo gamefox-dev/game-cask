@@ -1,0 +1,36 @@
+{
+  "id": "x64-gl-frame",
+  "name": "Engine-shaped 2D GL frame: per-item constant attributes and uniforms, capability toggles, feedback (CC0)",
+  "private": false,
+  "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu",
+      "crt": true,
+      "sources": [
+        "gl.c"
+      ],
+      "out": "gl.exe",
+      "libs": [
+        "kernel32",
+        "user32",
+        "gdi32",
+        "opengl32"
+      ]
+    },
+    "modules": [
+      {
+        "from": "./build/gl.exe",
+        "name": "gl.exe",
+        "main": true
+      }
+    ],
+    "width": 256,
+    "height": 224
+  },
+  "touch": {
+    "dpad": false,
+    "buttons": []
+  }
+}

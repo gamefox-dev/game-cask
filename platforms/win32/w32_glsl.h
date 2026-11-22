@@ -1578,6 +1578,8 @@ static int gs_sampler_capability(const GsVar *v, GsLog *log) {
 /* K51: the active GPU namespace's real uniform-block/binding limit (bgt_gpu_limits offset 52, 16384..65536).
  * The GL profile refreshes it before every link; host tools keep the portable 65536 ceiling. */
 static uint32_t gp_uniform_limit = 65536u;
+/* K62: the active GPU namespace's GL_MAX_VARYING_COMPONENTS (bgt_gpu_limits offset 76), refreshed before links. */
+static uint32_t gp_varying_limit = 60u;
 typedef struct { uint32_t name, gl_type; int32_t size, location, block; uint32_t offset, stride, mstride, slot; uint8_t kind, cols, rows, dim, shadow, stages; } GpUniform;
 typedef struct { uint32_t name, size, nmembers, first; int32_t unit[2]; uint8_t stages; } GpBlock;
 typedef struct { uint32_t name, gl_type; int32_t size, location; } GpAttrib;
@@ -1592,6 +1594,8 @@ typedef struct {
      * ordinary uniforms keep bgt_u0 alone (ubytes) and meta/swizzles move to bgt_u<meta_slot> at meta_off
      * (256-aligned) of the same buffer, so the guest's uniform budget is not charged for profile words. */
     uint32_t ubytes, meta_off; uint8_t split, meta_slot;
+    /* K62: the fragment stage reads a flat (or integer) varying; user varying components of the interface. */
+    uint8_t flat_inputs; uint32_t varying_components;
 } Gp;
 
 static const char *gp_name(const Gp *g, uint32_t off) { return g->names + off; }
@@ -1803,6 +1807,17 @@ static int gp_link_layout(Gp *g, GsUnit *vs, GsUnit *fs, const GpBinding *abind,
             gs_diag(log, 1, 0, v->decl_line, 1, "fragment input and vertex output types differ", v->name); return 0; }
         if (v->interp != w->interp) { gs_diag(log, 1, 0, v->decl_line, 1, "fragment input and vertex output interpolation qualifiers differ", v->name); return 0; }
     }
+    /* K62: GL 3.3 §2.11.6 varying components (every vertex output or fragment input, gl_Position excluded). */
+    g->flat_inputs = 0; g->varying_components = 0;
+    if (vs) for (uint32_t i = 0; i < vs->nvars; i++) if (vs->vars[i].storage == GS_OUT && vs->vars[i].type < GS_STRUCT_BASE)
+        g->varying_components += (uint32_t)gs_types[vs->vars[i].type].cols * gs_types[vs->vars[i].type].rows;
+    if (fs) for (uint32_t i = 0; i < fs->nvars; i++) {
+        GsVar *v = &fs->vars[i]; if (v->storage != GS_IN || !v->used || v->type >= GS_STRUCT_BASE) continue;
+        if (v->interp == GI_FLAT || gs_types[v->type].kind != 'f') g->flat_inputs = 1;
+        if (!vs) g->varying_components += (uint32_t)gs_types[v->type].cols * gs_types[v->type].rows;
+    }
+    if (vs && fs && g->varying_components > gp_varying_limit) {
+        gs_diag(log, 1, 0, 0, 0, "varyings exceed GL_MAX_VARYING_COMPONENTS", 0); return 0; }
     uint32_t mx = 0; for (uint32_t i = 0; i < g->nu; i++) { uint32_t n = gs_len(gp_name(g, g->u[i].name)) + 1; if (n > mx) mx = n; }
     g->name_max = mx;
     return 1;
@@ -2284,7 +2299,8 @@ static char *gs_emit(GsUnit *u, GsUnit *vs, GsUnit *fs, Gp *g, GsLog *log, uint3
         for (uint32_t k = 0; k < em->nspec && !em->failed; k++) em_specialized_function(em, k, 1);
         em_range(em, u->src[0] == '\n' ? 1 : 0, u->srclen, 1);
         for (uint32_t k = 0; k < em->nspec && !em->failed; k++) em_specialized_function(em, k, 0);
-        if (u->stage == 1) eb_str(o, "\nvoid main(){bgt_gl_main();gl_Position.z=(gl_Position.z+gl_Position.w)*0.5;}\n");
+        /* GL [-w,w] depth -> BGT [0,w]; K62: meta.y = 1 flips it for a reversed glDepthRange (n > f). */
+        if (u->stage == 1) eb_str(o, "\nvoid main(){bgt_gl_main();gl_Position.z=(bgt_gl_meta.y!=0.0?gl_Position.w-gl_Position.z:gl_Position.z+gl_Position.w)*0.5;}\n");
         if (o->over) { gs_diag(log, 1, 0, 0, 0, "translated shader exceeds the 1 MiB BGT source limit", 0); em->failed = 1; }
         if (o->len > GS_MAX_SOURCE) { gs_diag(log, 1, 0, 0, 0, "translated shader exceeds the 1 MiB BGT source limit", 0); em->failed = 1; }
     }

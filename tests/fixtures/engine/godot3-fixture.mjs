@@ -24,8 +24,40 @@ export function projectBinary() {
 }
 export const scene = '[gd_scene load_steps=2 format=2]\n\n[ext_resource path="res://main.gd" type="Script" id=1]\n\n[node name="Main" type="Node2D"]\nscript = ExtResource( 1 )\n';
 export const script = 'extends Node2D\nvar changed = false\nfunc _ready():\n    update()\nfunc _process(_delta):\n    if Input.is_action_just_pressed("ui_accept"):\n        changed = not changed\n        update()\nfunc _draw():\n    var color = Color(1, 0, 0, 1)\n    if changed:\n        color = Color(0, 1, 1, 1)\n    draw_rect(Rect2(0, 0, 320, 180), color)\n';
-export function fixtureFiles() { return { 'project.binary': projectBinary(), 'main.tscn': Buffer.from(scene), 'main.gd': Buffer.from(script) }; }
-export function makePack({ files = fixtureFiles(), version = [3, 5, 3], embeddedBase = 0 } = {}) {
+// K59 variants (CC0): tone = a 440 Hz sine through AudioStreamGenerator (audio-output evidence); duplicateSignal = the
+// script connects the same signal to the same method twice, which Godot reports as an engine ERROR line (allowlist tests).
+// Observed on the official 3.5.3 web runtime (followed by an indented "   at: connect (core/object.cpp:…)" line).
+export const DUPLICATE_SIGNAL_ERROR = "ERROR: Signal 'tree_entered' is already connected to given method '_noop' in that object.";
+// physics (K59 Q7): a jumping box integrated in _physics_process (state depends on delta and on the frame of each
+// ui_accept press); it prints "state <physics frame> <x> <y>" every physics frame and draws the box.
+export const physicsScript = 'extends Node2D\nvar pos = Vector2(40, 140)\nvar vel = Vector2(60, 0)\n' +
+  'func _physics_process(delta):\n    vel.y += 400.0 * delta\n    if Input.is_action_just_pressed("ui_accept") and pos.y >= 140.0:\n        vel.y = -220.0\n' +
+  '    pos += vel * delta\n    if pos.y > 140.0:\n        pos.y = 140.0\n        vel.y = 0.0\n    if pos.x > 300.0:\n        pos.x = 20.0\n' +
+  '    print("state ", Engine.get_physics_frames(), " ", pos.x, " ", pos.y)\n    update()\n' +
+  'func _draw():\n    draw_rect(Rect2(0, 0, 320, 180), Color(0.1, 0.1, 0.2, 1))\n    draw_rect(Rect2(pos.x - 8, pos.y - 16, 16, 16), Color(1, 0.8, 0, 1))\n';
+// clock (K59 Q8): a box whose x follows the main-thread clock (OS.get_ticks_usec reads performance.now); prints
+// "clock <frames drawn> <ticks usec>" every frame. With --fixed-fps alone it still depends on wall time.
+export const clockScript = 'extends Node2D\nvar x = 0.0\nfunc _process(_delta):\n    var us = OS.get_ticks_usec()\n' +
+  '    x = fmod(us / 10000.0, 300.0)\n    print("clock ", Engine.get_frames_drawn(), " ", us)\n    update()\n' +
+  'func _draw():\n    draw_rect(Rect2(0, 0, 320, 180), Color(0.1, 0.2, 0.1, 1))\n    draw_rect(Rect2(x, 80, 16, 16), Color(1, 1, 1, 1))\n';
+export function variantScript({ tone = false, duplicateSignal = false, physics = false, clock = false } = {}) {
+  if (physics || clock) { if (tone || duplicateSignal || (physics && clock)) throw new Error('physics/clock fixture variants are exclusive'); return physics ? physicsScript : clockScript; }
+  if (!tone && !duplicateSignal) return script;
+  const lines = script.split('\n'), ready = lines.indexOf('func _ready():'), process = lines.indexOf('func _process(_delta):');
+  const head = ['var playback = null', 'var phase = 0.0'], readyBody = [], processBody = [], extra = [];
+  if (duplicateSignal) { readyBody.push('    connect("tree_entered", self, "_noop")', '    connect("tree_entered", self, "_noop")'); extra.push('func _noop():', '    pass'); }
+  if (tone) {
+    readyBody.push('    var player = AudioStreamPlayer.new()', '    var generator = AudioStreamGenerator.new()', '    generator.mix_rate = 44100.0',
+      '    generator.buffer_length = 0.25', '    player.stream = generator', '    add_child(player)', '    player.play()', '    playback = player.get_stream_playback()');
+    processBody.push('    if playback != null:', '        for _i in range(playback.get_frames_available()):',
+      '            playback.push_frame(Vector2.ONE * sin(phase * TAU) * 0.5)', '            phase = fmod(phase + 440.0 / 44100.0, 1.0)');
+  }
+  const out = [...lines.slice(0, 1), ...lines.slice(1, ready), ...head, lines[ready], ...readyBody, ...lines.slice(ready + 1, process + 1), ...processBody, ...lines.slice(process + 1)];
+  return out.join('\n').replace(/\n$/, '') + '\n' + (extra.length ? extra.join('\n') + '\n' : '');
+}
+export function fixtureFiles(options = {}) { return { 'project.binary': projectBinary(), 'main.tscn': Buffer.from(scene), 'main.gd': Buffer.from(variantScript(options)) }; }
+export function makePack({ files, version = [3, 5, 3], embeddedBase = 0, tone = false, duplicateSignal = false, physics = false, clock = false } = {}) {
+  files ??= fixtureFiles({ tone, duplicateSignal, physics, clock });
   const header = Buffer.alloc(88); header.write('GDPC'); header.writeUInt32LE(1, 4);
   version.forEach((x, i) => header.writeUInt32LE(x, 8 + i * 4));
   header.writeUInt32LE(Object.keys(files).length, 84);
@@ -40,9 +72,10 @@ export function makePack({ files = fixtureFiles(), version = [3, 5, 3], embedded
   }
   return Buffer.concat([header, ...directory, ...contents]);
 }
-export function makeRunner(extra = '', { version = '3.5.3', build = '6c814135b69d4e703956bacc2073b4b179ff5a00' } = {}) {
+/** mono: a Mono build's signature ("<version>.stable.mono.official"). */
+export function makeRunner(extra = '', { version = '3.5.3', build = '6c814135b69d4e703956bacc2073b4b179ff5a00', mono = false } = {}) {
   const b = Buffer.alloc(512); b.write('MZ'); b.writeUInt32LE(128, 60); b.write('PE\0\0', 128);
-  b.write('Godot Engine\0' + version + '.stable.official\0' + build + '\0' + extra, 160);
+  b.write('Godot Engine\0' + version + (mono ? '.stable.mono.official\0' : '.stable.official\0') + build + '\0' + extra, 160);
   return b;
 }
 /** options.version: [3, x, y]; options.build: release commit for the runner signature. */

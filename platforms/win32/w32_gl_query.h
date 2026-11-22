@@ -1,5 +1,6 @@
 /* Queries and WGL. SPDX-License-Identifier: MIT — LANE-GL */
-static uint32_t api_GetError(void) { flush_pending(); uint32_t e = error; error = 0; return e; }
+/* K60: latch_fix is a deferred call's error that preceded the latched validation error (see fail()). */
+static uint32_t api_GetError(void) { flush_pending(); uint32_t e = latch_fix ? latch_fix : error; error = latch_fix = 0; return e; }
 static uint32_t string_guest(const char *s) {
     uint32_t n = w32_slen(s) + 1, p = w32_misc_alloc(n);
     for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]);
@@ -24,7 +25,9 @@ static uint32_t query(uint32_t key, int32_t *v) {
     switch (key) {
     case 0x821b: v[0] = 3; break; case 0x821c: v[0] = 3; break; case 0x821d: v[0] = 3; break;
     case 0x9126: v[0] = 1; break; case 0xd33: v[0] = 4096; break; case 0x8869: v[0] = 16; break;
-    case 0x8b4d: case 0x8872: case 0x8a2f: v[0] = 8; break;
+    case 0x8872: v[0] = 8; break;                       /* MAX_TEXTURE_IMAGE_UNITS: §13 sampler slots per pipeline */
+    case 0x8b4d: v[0] = GL_TEXTURE_UNITS; break;        /* K62: MAX_COMBINED_TEXTURE_IMAGE_UNITS (glActiveTexture units) */
+    case 0x8a2f: v[0] = GL_UBO_BINDINGS; break;         /* K62: MAX_UNIFORM_BUFFER_BINDINGS (binding points) */
     case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = (int32_t)gl_uniform_limit(); break;
     case 0x8cdf: case 0x8824: v[0] = 4; break;
     case 0x8073: case 0x88ff: v[0] = 256; break; case 0x84e8: v[0] = 4096; break;
@@ -74,6 +77,60 @@ static uint32_t query(uint32_t key, int32_t *v) {
     case 0xb72: v[0] = (int32_t)depth_write; break;
     case 0xb91: v[0] = (int32_t)clear_stencil; break;
     case 0xcf3: v[0] = (int32_t)unpack_st.skip_rows; break; case 0xcf4: v[0] = (int32_t)unpack_st.skip_pixels; break;
+    /* K61: state and limits engines query at start-up or per frame (all previously GL_INVALID_ENUM). */
+    case 0x80c8: case 0x80ca: {
+        static const int32_t enums[] = {0,1,0x300,0x301,0x306,0x307,0x302,0x303,0x304,0x305,0x8001,0x8002};
+        v[0] = enums[key == 0x80c8 ? dst_rgb : dst_alpha]; break;
+    }
+    case 0x8009: case 0x883d: {
+        static const int32_t ops[] = {0x8006, 0x800a, 0x800b, 0x8007, 0x8008};
+        v[0] = ops[key == 0x8009 ? blend_op_rgb : blend_op_alpha]; break;
+    }
+    case 0xc23: for (uint32_t i = 0; i < 4; i++) v[i] = (int32_t)((color_masks[0] >> i) & 1); return 4;
+    case 0xb45: v[0] = cull_face == 1 ? 0x404 : cull_face == 2 ? 0x405 : 0x408; break;
+    case 0xb46: v[0] = front_face ? 0x900 : 0x901; break;
+    case 0xb92: v[0] = (int32_t)stencil_compare + 0x200; break; case 0x8800: v[0] = (int32_t)back_compare + 0x200; break;
+    case 0xb93: v[0] = (int32_t)stencil_read; break; case 0x8ca4: v[0] = (int32_t)back_read; break;
+    case 0xb97: v[0] = (int32_t)stencil_ref; break; case 0x8ca3: v[0] = (int32_t)back_ref; break;
+    case 0xb98: v[0] = (int32_t)stencil_write; break; case 0x8ca5: v[0] = (int32_t)back_write; break;
+    case 0xb94: case 0xb95: case 0xb96: case 0x8801: case 0x8802: case 0x8803: {
+        static const int32_t ops[] = {0x1e00, 0, 0x1e01, 0x1e02, 0x1e03, 0x150a, 0x8507, 0x8508};
+        uint32_t o = key == 0xb94 ? stencil_fail : key == 0xb95 ? stencil_zfail : key == 0xb96 ? stencil_pass :
+            key == 0x8801 ? back_fail : key == 0x8802 ? back_zfail : back_pass;
+        v[0] = ops[o]; break;
+    }
+    case 0xb40: v[0] = v[1] = (int32_t)polygon_mode; return 2;
+    case 0xc52: case 0xc53: case 0x84ef: case 0x8b8b: v[0] = (int32_t)hints[hint_slot(key)]; break;
+    case 0x8f9e: v[0] = (int32_t)restart_index; break;
+    case 0x846e: case 0xb22: case 0xb12: v[0] = v[1] = 1; return 2; /* ALIASED/SMOOTH_LINE_WIDTH_RANGE, POINT_SIZE_RANGE */
+    case 0xb23: case 0xb13: v[0] = 0; break;                       /* line width / point size granularity */
+    /* K62: viewports may exceed the target (both backends clip exactly); glViewport clamps to this. */
+    case 0xd3a: v[0] = v[1] = GL_MAX_VIEWPORT; return 2;            /* MAX_VIEWPORT_DIMS */
+    /* K62: cube-map and rectangle targets are not implemented (glBindTexture/glTexImage2D raise GL_INVALID_ENUM),
+     * so no size is supported: 0, below GL 3.3's 1024 (documented gap, see docs/handoff/K62.md). */
+    case 0x851c: case 0x84f8: v[0] = 0; break;                      /* MAX_CUBE_MAP_TEXTURE_SIZE, MAX_RECTANGLE_TEXTURE_SIZE */
+    case 0x8514: v[0] = 0; break;                                    /* TEXTURE_BINDING_CUBE_MAP (no cube maps bound) */
+    case 0x80e8: case 0x80e9: v[0] = 1 << 20; break;                /* MAX_ELEMENTS_VERTICES/INDICES (advisory) */
+    case 0x8b4a: case 0x8b49: v[0] = (int32_t)(gl_uniform_limit() / 4); break; /* MAX_*_UNIFORM_COMPONENTS */
+    case 0x8dfb: case 0x8dfd: v[0] = (int32_t)(gl_uniform_limit() / 16); break; /* MAX_*_UNIFORM_VECTORS */
+    case 0x8a2b: case 0x8a2d: v[0] = 7; break; case 0x8a2e: v[0] = 7; break; /* MAX_VERTEX/FRAGMENT/COMBINED_UNIFORM_BLOCKS */
+    case 0x8b4c: v[0] = 8; break;                                    /* MAX_VERTEX_TEXTURE_IMAGE_UNITS */
+    /* K62: the backend's guaranteed varying capacity (packed on WebGPU, GLSL ES rows on WebGL 2); the vertex outputs
+     * and fragment inputs add gl_Position / gl_FragCoord. Links above it fail with an info log. */
+    case 0x8b4b: v[0] = (int32_t)gl_varying_limit(); break;          /* MAX_VARYING_COMPONENTS */
+    case 0x9122: case 0x9125: v[0] = (int32_t)gl_varying_limit() + 4; break; /* MAX_VERTEX_OUTPUT / FRAGMENT_INPUT_COMPONENTS */
+    case 0x8a31: case 0x8a33:                                         /* MAX_COMBINED_VERTEX/FRAGMENT_UNIFORM_COMPONENTS */
+        v[0] = (int32_t)(2 * gl_uniform_limit()); break;              /* 7 blocks x limit/4 + limit/4 default */
+    case 0xd50: v[0] = 4; break;                                     /* SUBPIXEL_BITS: the floor of every backend */
+    case 0x8c2b: v[0] = 0; break;                                    /* MAX_TEXTURE_BUFFER_SIZE: no buffer textures */
+    case 0x8e59: v[0] = 0; break;                                    /* MAX_SAMPLE_MASK_WORDS: single-sampled */
+    case 0x8904: case 0x8905: v[0] = 0; break;                       /* MIN/MAX_PROGRAM_TEXEL_OFFSET: offset lookups untranslated */
+    case 0x8e4f: v[0] = provoking_first ? 0x8e4d : 0x8e4e; break;    /* K62: PROVOKING_VERTEX */
+    case 0xd32: v[0] = 8; break;                                     /* MAX_CLIP_DISTANCES (enabling one is a counted approximation) */
+    case 0x88fc: v[0] = 0; break;                                    /* MAX_DUAL_SOURCE_DRAW_BUFFERS */
+    case 0x86a2: v[0] = 0; break;                                    /* NUM_COMPRESSED_TEXTURE_FORMATS */
+    case 0x821e: v[0] = 0; break;                                    /* CONTEXT_FLAGS */
+    case 0x80a8: case 0x80a9: v[0] = 0; break;                       /* SAMPLE_BUFFERS, SAMPLES: single-sampled */
     default: { uint32_t *p = capability(key); if (!p) { fail(BAD_ENUM); return 0; } v[0] = (int32_t)*p; }
     } return 1;
 }
@@ -88,6 +145,13 @@ static uint32_t api_GetBooleanv(void) {
 static uint32_t api_GetFloatv(void) {
     if (ARG(0) == 0xc22) { for (uint32_t i = 0; i < 4; i++) x86_wr32(ARG(1) + i * 4, bits(clear_color[i])); return 0; }
     if (ARG(0) == 0xb73) { x86_wr32(ARG(1), bits(clear_depth)); return 0; }
+    /* K61: float state */
+    if (ARG(0) == 0x8005) { for (uint32_t i = 0; i < 4; i++) x86_wr32(ARG(1) + i * 4, bits(blend_color[i])); return 0; }
+    if (ARG(0) == 0xb70) { x86_wr32(ARG(1), bits(range_min)); x86_wr32(ARG(1) + 4, bits(range_max)); return 0; }
+    if (ARG(0) == 0xb21) { x86_wr32(ARG(1), bits(line_width)); return 0; }
+    if (ARG(0) == 0xb11) { x86_wr32(ARG(1), bits(point_size)); return 0; }
+    if (ARG(0) == 0x8038) { x86_wr32(ARG(1), bits(offset_factor)); return 0; }
+    if (ARG(0) == 0x2a00) { x86_wr32(ARG(1), bits(offset_units)); return 0; }
     int32_t v[4]; uint32_t n = query(ARG(0), v);
     for (uint32_t i = 0; i < n; i++) x86_wr32(ARG(1) + i * 4, bits((float)v[i]));
     return 0;
@@ -97,16 +161,68 @@ static uint32_t api_GetDoublev(void) {
     for (uint32_t i = 0; i < n; i++) { union { double d; uint64_t u; } d = {(double)v[i]};
         x86_wr64(ARG(1) + i * 8, d.u); } return 0;
 }
-static uint32_t api_GetBufferParameteriv(void) {
+static int buffer_parameter(uint32_t *v) {
     Buffer *b = bound_buffer(ARG(0)); if (!b) return 0;
-    if (ARG(1) == 0x8764) x86_wr32(ARG(2), b->size);
-    else if (ARG(1) == 0x8765) x86_wr32(ARG(2), 0x88e4);
-    else if (ARG(1) == 0x88bc) x86_wr32(ARG(2), !!b->map);
-    else if (ARG(1) == 0x88bb) x86_wr32(ARG(2), b->map_access ? b->map_access : 0x88ba);
-    else if (ARG(1) == 0x911f) x86_wr32(ARG(2), b->map_flags);
-    else if (ARG(1) == 0x9120) x86_wr32(ARG(2), b->map_size);
-    else if (ARG(1) == 0x9121) x86_wr32(ARG(2), b->map_offset);
-    else fail(BAD_ENUM);
+    if (ARG(1) == 0x8764) *v = b->size;
+    else if (ARG(1) == 0x8765) *v = 0x88e4;
+    else if (ARG(1) == 0x88bc) *v = !!b->map;
+    else if (ARG(1) == 0x88bb) *v = b->map_access ? b->map_access : 0x88ba;
+    else if (ARG(1) == 0x911f) *v = b->map_flags;
+    else if (ARG(1) == 0x9120) *v = b->map_size;
+    else if (ARG(1) == 0x9121) *v = b->map_offset;
+    else { fail(BAD_ENUM); return 0; }
+    return 1;
+}
+static uint32_t api_GetBufferParameteriv(void) { uint32_t v; if (buffer_parameter(&v)) x86_wr32(ARG(2), v); return 0; }
+static uint32_t api_GetBufferParameteri64v(void) { uint32_t v; if (buffer_parameter(&v)) x86_wr64(ARG(2), v); return 0; }
+static uint32_t api_GetInteger64v(void) {
+    if (ARG(0) == 0x9111) { x86_wr64(ARG(1), 0); return 0; } /* MAX_SERVER_WAIT_TIMEOUT */
+    int32_t v[4]; uint32_t n = query(ARG(0), v);
+    for (uint32_t i = 0; i < n; i++) x86_wr64(ARG(1) + i * 8, (uint64_t)(int64_t)v[i]);
+    return 0;
+}
+/* K61: sync objects (GL 3.3 §5.2). The profile's command stream is ordered and every guest-visible result
+ * (readbacks, query results, buffer reads) is produced in stream order when the guest asks for it, so every
+ * command before a fence is complete as far as the guest can observe: a fence is signaled when created. */
+#define SYNC_TAG 0x5c000000u
+static uint8_t syncs[4096]; static uint32_t sync_next;
+static uint32_t sync_slot(uint64_t h) {
+    if ((h & ~(uint64_t)0xfffu) != SYNC_TAG) return 0;
+    uint32_t i = (uint32_t)h & 0xfffu; return i && syncs[i] ? i : 0;
+}
+static uint32_t api_FenceSync(void) {
+    if (ARG(0) != 0x9117) { fail(BAD_ENUM); return 0; }
+    if (ARG(1)) { fail(BAD_VALUE); return 0; }
+    for (uint32_t n = 0; n < 4095; n++) {
+        uint32_t i = 1 + (sync_next + n) % 4095;
+        if (!syncs[i]) { syncs[i] = 1; sync_next = i; return SYNC_TAG | i; }
+    }
+    fail(OOM); return 0;
+}
+static uint32_t api_IsSync(void) { return sync_slot(ARG64(0)) != 0; }
+static uint32_t api_DeleteSync(void) {
+    uint64_t h = ARG64(0); if (!h) return 0;
+    uint32_t i = sync_slot(h); if (!i) fail(BAD_VALUE); else syncs[i] = 0;
+    return 0;
+}
+static uint32_t api_ClientWaitSync(void) {
+    if (!sync_slot(ARG64(0)) || (ARG(1) & ~1u)) { fail(BAD_VALUE); return 0x911d; } /* WAIT_FAILED */
+    return 0x911a; /* ALREADY_SIGNALED */
+}
+static uint32_t api_WaitSync(void) {
+    uint64_t timeout = W32_64 ? ARG64(2) : ((uint64_t)ARG(3) << 32 | ARG(2));
+    if (!sync_slot(ARG64(0)) || ARG(1) || timeout != ~(uint64_t)0) fail(BAD_VALUE);
+    return 0;
+}
+static uint32_t api_GetSynciv(void) {
+    if (!sync_slot(ARG64(0))) { fail(BAD_VALUE); return 0; }
+    uint32_t v;
+    switch (ARG(1)) { case 0x9112: v = 0x9116; break; case 0x9113: v = 0x9117; break;
+        case 0x9114: v = 0x9119; break; case 0x9115: v = 0; break; default: fail(BAD_ENUM); return 0; }
+    int32_t cap = (int32_t)ARG(2); uint32_t length = ARG(3), values = ARG(4);
+    if (cap < 0) { fail(BAD_VALUE); return 0; }
+    if (cap >= 1) x86_wr32(values, v);
+    if (length) x86_wr32(length, cap >= 1 ? 1 : 0);
     return 0;
 }
 static uint32_t api_GetBufferSubData(void) {

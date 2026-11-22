@@ -96,8 +96,11 @@ template's service worker (Godot 4's `ensureCrossOriginIsolationHeaders` is off:
 Threaded shells fail loudly when the page is not cross-origin isolated.
 
 **Blockers** (fail-closed, structural): `native-extension/GDNative` / `native-extension/GDExtension` (`.dll/.so/
-.dylib/.gdnlib/.gdns/.gdextension`, `extension_list.cfg`, GDNative singletons), `Mono/C#` (`.cs`, assemblies,
-`data_*` dirs, `C#` feature, `.mono.` runner), `encrypted-pack`, `encrypted-content`, `encrypted-script`,
+.dylib/.gdnlib/.gdns/.gdextension`, `extension_list.cfg`, GDNative singletons; the Direct3D 12/DXIL/ANGLE DLLs of
+official 4.x Windows exports are not extensions), `Mono/C#` (`.cs`/`.csproj`/`.sln`, `res://*.cs` script references,
+CLR assemblies, `GodotSharp`/`GodotPlugins`/Mono runtime DLLs, assemblies in `data_*` dirs, `data_*/Assemblies|Mono/`,
+`.mono/`, the `C#` feature or assembly-name settings, and a `.mono.` runner version signature — never symbol strings
+such as `GodotSharp`, which every official build contains), `encrypted-pack`, `encrypted-content`, `encrypted-script`,
 `patch-pack` (4.4 removal entries), `additional-packs`, `platform-code/OS.execute`, runner `custom_build`/prerelease/
 unknown build, `no-official-web-runtime-for-version`, `threads-required-but-no-threaded-web-runtime` (3.2),
 `runtime-version-mismatch`, `uninspected-files`. **Requirements/warnings** (never block): thread use (selects the
@@ -159,20 +162,121 @@ games only in an isolated browser/host sandbox; localhost/CSP is not an OS secur
 ## Browser tests and probes
 
 `tests/support/engine-profile.ts` opens a served build, injects trusted Playwright DOM keys, observes RAF intervals
-and collects console/page/HTTP/request failures. Install `await collectEngineErrors(page, files)` before navigation
-with the runtime's verified hashes (`verifyRuntime(id).files`, which for pinned runtimes are the checked-in
-allowlist), then `await capture.finish()` before asserting errors. The engine:probe command uses the normal
-`makeProbe` facade.
+and collects console/page/HTTP/request failures. Install `await collectEngineErrors(page, files, { build })` before
+navigation with the runtime's verified hashes (`verifyRuntime(id).files`, which for pinned runtimes are the checked-in
+allowlist) and the build directory (`.engine-private/builds/<id>`) or its parsed `manifest.json`, then
+`await capture.finish()` before asserting errors.
+
+    const capture = await collectEngineErrors(page, verifyRuntime(id).files, { build: '.engine-private/builds/<id>' });
+    await installEnginePerf(page);                       // optional, before navigation
+    await openEngineProfile(page, baseURL!);
+    const perf = await measureEngine(page, { ms: 2000 }); // game-cask/engine-perf/1
+    expect((await capture.finish()).errors).toEqual([]);
 
 Godot's loader wraps the original fetch reader in a progress stream, then tees/clones that response; Chromium can
-report `net::ERR_ABORTED` at that handoff after receiving the entire wasm. Capture classifies a cancellation as
-**canceled-after-complete** only for HTTP 200, EOF observed, Content-Length equal to the received bytes and SHA-256
-equal to the verified runtime member, using a per-request capture token (test/probe only; production shells send
-none). Partial, early, HTTP-error and wrong-hash responses fail.
+report `net::ERR_ABORTED` at that handoff after receiving the entire wasm **or pack**. Capture classifies a
+cancellation as **canceled-after-complete** only for HTTP 200, EOF observed, Content-Length equal to the received
+bytes, the manifest length (when known) and SHA-256 equal to the verified runtime member or the build manifest's
+pack hash, using a per-request capture token (test/probe only; production shells send none). Partial, early,
+HTTP-error, unsized, wrong-length and wrong-hash responses fail, and so does a tracked body the page never fetched.
+Tracked bodies: the runtime `.wasm` always; with `{ build }` also every `*.pck` and the wasm with their manifest
+lengths (`buildAssets(manifest)`); `{ assets: { name: sha256 | { sha256, bytes } } }` adds others.
 
-**Not supported on this path:** pause, deterministic stepping/seed replay, peek, savestates, command injection,
-BGT resource tours, trace oracles, guest coverage and BGT CPU profiling (explicit errors/null). `step(n)` observes n
-RAFs; timing is browser display cadence, not engine FPS. BGT backend (WebGPU/WebGL 2) and suspension (Asyncify/
+**Renderer (K59).** Chromium in Playwright's headless shell renders WebGL with SwiftShader by default. The K51 switch
+applies to the engine path too: `BGT_WEBGL2_GPU=1 npm run test:engine` / `npm run test:port` (the `port-engine`
+project) use the native GPU (ANGLE Metal on macOS); `BGT_SOFTWARE_RENDERER=1` or `BGT_E2E_NO_WEBGPU=1` keep
+SwiftShader. `npm run engine:probe` defaults to the native GPU, like `npm run probe`, and fails when the page lands
+on a software rasterizer unless `--software` was given; a renderer string that cannot be read counts as software
+(`rendererUnknown: true`), so it fails closed too. probe.json records `device` (renderer, vendor, context) and
+`software`, with the same classification as BGT (`softwareRenderer`, bgt/renderers/types.ts).
+
+**Performance helpers** (`tools/engine/perf.mjs`, re-exported by tests/support/engine-profile.ts).
+`installEnginePerf(page)` (before navigation) observes the wasm memories the loader instantiates and fans every
+node connected to an AudioContext destination into an extra AnalyserNode; nothing the game renders, hears or
+computes changes, and production shells never install it. `measureEngine(page, { ms, label })` returns:
+`renderer`/`software`; `window` (RAF frames, fps, avg/p50/p95/max ms, frames over 33.4 ms: display cadence, not
+engine frames); `cpu` (Chromium CDP `Performance.getMetrics`: main-thread task, script and layout/style ms per
+frame, busy share); `memory` (JS heap, each wasm memory's bytes and sharedness, renderer/GPU process CPU per frame
+and RSS via `SystemInfo.getProcessInfo` + `ps`, where available); `audio` (contexts and their state, sources
+feeding the destination, peak/RMS, `present` = peak above 1e-4). Fields a browser cannot report are null with a
+`notes` entry (WebKit has no CDP). `engineRenderer(page)` gives the renderer alone.
+
+**engine:probe** uses the normal `makeProbe` facade plus `p.measure({ ms, label })`:
+
+    npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS]
+
+probe.json (`game-cask/engine-probe/2`) adds `browser`, `bootMs`, `device`, `software`, `measurements`, `allowlisted`
+and the network evidence. `--browser webkit` runs on Playwright WebKit (desktop engine, **not** iPhone Safari
+verification): boot (plus the script, if given), renderer and errors; CPU/heap/process figures are null there.
+
+**Recorded engine error allowlist (K59).** Engine `ERROR:` lines fail boots and probes. When the binary/pack proves a
+line comes from the game itself (for example a scene connecting the same signal to the same method twice), record it
+in `port/game.json`:
+
+    "engineProfile": { …,
+      "allowedErrors": [{
+        "message": "ERROR: Signal 'tree_entered' is already connected to given method '_noop' in that object.",
+        "justification": "main.gd (pack entry res://main.gd) connects tree_entered to _noop twice in _ready",
+        "evidence": "../reports/evidence/duplicate-signal.txt" }] }
+
+Each entry has exactly one of `message` (the exact line) or `pattern` (a whole-line JavaScript regex that starts with
+the literal ERROR prefix, has at least 24 literal characters and does not match generic engine errors), a
+`justification` (20–1000 characters) and an `evidence` path relative to game.json, which must exist at build time
+inside the game directory or the sibling `reports/` tree (its SHA-256 goes into the manifest, entries get ids `E1`,
+`E2`, …). A `pattern` must compile on its own and may not use top-level alternation (`a|b`; use one entry per line),
+lookarounds, backreferences, negated classes, control/line-separator characters or escapes other than `\d \w \S \b
+\B` and escaped punctuation (vK59). Stderr messages are split into lines and each line is classified on its own, so
+an allowed line never carries an abort on the next line. Only engine stderr lines that start with
+`ERROR:`/`USER ERROR:`/`SCRIPT ERROR:` can match. A matching line and the indented `at:` continuation lines right
+after it are logged as warnings and counted. Aborts, traps, page errors, context-free stderr and every unmatched error
+still fail. `diagnostics().allowlisted` (`engineAllowlisted(page)` in specs) and probe.json `allowlisted` list
+**every** entry with its `count` and `continuations`, zero included, so an entry that never matches is visible.
+
+**Recorded engine options and the frame pacer (K59).** Godot advances physics by real elapsed time, so identical
+scripted inputs drift (positions, precise jumps) between runs. Two parts make replays reproducible:
+
+1. `engineProfile.engineArgs` records official engine command-line options, validated against a per-adapter
+   allowlist (Godot 3/4: `--fixed-fps <1..1000>`, `--time-scale <0.01..100>`, `--frame-delay <0..100>`,
+   `--print-fps`; each at most once). The build refuses an option the exact runtime's wasm does not parse, passes
+   them through the runtime's documented `Engine` config `args` in the generated shell, records them in the manifest
+   (`engineProfile.engineArgs`) and the shell identity, and prints `engine args: …` in the build report. The 3.2
+   legacy shell takes none. `--fixed-fps N` disables Godot's real-time synchronization: every main-loop iteration
+   advances one fixed step. It is a game-visible change of timing (the game runs at N steps per iteration regardless
+   of display rate), so record why in `choice`; deployments normally omit it.
+
+       "engineArgs": ["--fixed-fps", "60"]
+
+2. The **frame pacer** (`tools/engine/pacer.mjs`, test/probe only, never in production shells) virtualizes the page's
+   `requestAnimationFrame`: the engine's main loop runs only when the test advances it, one engine frame per real
+   browser frame. `installEngineFramePacer(page, { fps })` before navigation; then `__BGT_TEST__.step(n)` /
+   `engineAdvance(page, n)` runs n engine frames, `engineInputAt(page, frame, events)` dispatches inputs right before
+   that frame's callbacks, `engineFrameHash(page, n)` runs n frames and returns the SHA-256 of the canvas read in the
+   same task as the last one, and `diagnostics().pacer` gives `{ fps, frame, pending }`. `npm run engine:probe --
+   … --pace 60` does the same for probe scripts (`p.step`, `p.inputAt`, `p.frameHash`, `p.engineFrame`; probe.json
+   `pacer`, `engineArgs`, and a note when `--fixed-fps` is missing or differs). Specs must wait with interval polling
+   (`openEngineProfile` does), since Playwright's default rAF polling would wait on the virtual rAF.
+
+With both, the CC0 physics fixture replays identically (frame-indexed state lines and screen hashes), even with
+wall-time jitter between steps; without `--fixed-fps` the same paced run drifts.
+
+3. **Virtual clock (K59 Q8):** `installEngineFramePacer(page, { fps, virtualTime: true })` (probe: `--pace FPS
+   --virtual-time`) also replaces the main thread's `performance.now()`, `Date.now()` and the rAF timestamps with a
+   clock that is constant within each engine frame and advances exactly one period per frame: frame k reads
+   `1000 + k * 1000 / fps` ms (`Date.now`: `epochMs` (default 2026-01-01T00:00Z) `+ k * period`, floored). It returns
+   the same value however often it is read, so main-thread audio callbacks that read the clock a varying number of
+   times cannot change what the game sees (a clock that ticks per read does not repeat), and its base is a constant,
+   so microsecond rounding repeats too. Engine code that reads wall time (Godot `OS.get_ticks_usec`, particles,
+   timers) then replays: the CC0 clock fixture gives identical frame hashes across runs with wall-time jitter, and
+   different ones on the real clock. Not virtualized: worker threads (threaded runtimes), `AudioContext.currentTime`,
+   `event.timeStamp`, `new Date()`, `performance.timeOrigin`. During boot (before the first paced frame) the clock
+   reads frame 0's time.
+
+Without `virtualTime`, `performance.now`/`Date` stay real, so game code that reads wall time stays wall-time
+dependent; audio always runs in real time; rAF timestamps given to callbacks are virtual (`frame * 1000 / fps`).
+
+**Not supported on this path:** pause, seed replay, peek, savestates, command injection, BGT resource tours, trace
+oracles, guest coverage and BGT CPU profiling (explicit errors/null). Without the frame pacer `step(n)` observes n
+RAFs (with it, it runs n engine frames); timing is browser display cadence, not engine FPS. BGT backend (WebGPU/WebGL 2) and suspension (Asyncify/
 JSPI) selection do not apply: Godot web runtimes render with WebGL 2 (GLES2 projects: WebGL 1).
 
 CC0 fixtures: `tests/fixtures/engine/godot3-fixture.mjs` (PCK 1) and `godot4-fixture.mjs` (PCK 2, absolute or
