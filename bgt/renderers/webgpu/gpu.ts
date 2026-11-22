@@ -1,5 +1,6 @@
 // §13 executor. The decoder owns validation; this class owns native resources and recovery shadows.
 import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
+import { textureLevelBytes, type GpuNativeMemory } from '../../runtime/memory';
 import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
 import { glslVaryingDecls, glslVaryings, linkedVaryings, packVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { clampViewport, ViewTransforms } from './view';
@@ -42,7 +43,8 @@ const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number }
 interface TextureResource {
   native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
-  generated?: { base: number; source: GpuItem; overridden: Set<number> };
+  /** `source` absent (K64): 2D/array levels generated from a never-uploaded (zero) base restore as zeros. */
+  generated?: { base: number; source?: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
@@ -280,7 +282,7 @@ export class WebGPUCommands implements GpuBackend {
       if (t.allocatedMips > 1) this.execute({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
         words: [t.words[0], t.allocatedMips] });
       if (t.generated && t.desc.dimension !== 1) {
-        this.execute(t.generated.source);
+        if (t.generated.source) this.execute(t.generated.source);
         this.execute({ kind: 'gpu', op: OP.TEXTURE_GENERATE_MIPS, words: [t.words[0], t.generated.base] });
       }
       for (const item of t.uploads) if (!t.generated || t.desc.dimension === 1 ||
@@ -891,16 +893,44 @@ struct VO { @builtin(position) pos: vec4f };
     old.destroy();
   }
 
+  /** K64 diagnostics from the executor's own tables (no GPU queries). `bytes` equal the decoder's reservations. */
+  memory(): GpuNativeMemory {
+    let bytes = 0, nativeBytes = 0, bufferShadows = 0, textureBytes = 0, depthBytes = 0, textureShadows = 0;
+    for (const b of this.buffers.values()) { bytes += b.shadow.length; nativeBytes += b.native.size; bufferShadows += b.shadow.length; }
+    for (const t of this.textures.values()) {
+      const n = textureLevelBytes(t.desc, t.allocatedMips, TEXEL_BYTES[t.desc.format]);
+      textureBytes += n; if (isDepthFormat(t.desc.format)) depthBytes += n;
+      for (const u of t.uploads) textureShadows += u.data?.length ?? 0;
+      textureShadows += t.generated?.source?.data?.length ?? 0;
+    }
+    const screenBytes = this.screen ? this.screen.width * this.screen.height * 4 : 0;
+    let poolBytes = this.poolBytes, scratchBytes = 0;
+    for (const b of this.retiredPool) poolBytes += b.size;
+    for (const b of this.scratch) scratchBytes += b.size;
+    for (const r of this.retiredDestroy) if ('size' in r && typeof r.size === 'number') scratchBytes += r.size;
+    return { backend: 'webgpu', buffers: { count: this.buffers.size, bytes, nativeBytes },
+      textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes },
+      renderbuffers: { count: 0, bytes: 0 },
+      internal: { bytes: screenBytes + poolBytes + scratchBytes, screenBytes, poolBytes, scratchBytes },
+      shadows: { bufferBytes: bufferShadows, textureBytes: textureShadows } };
+  }
+
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
    * from the upload shadow (volumes can never be render targets, so the shadow is exact). */
   private generateMips(handle: number, base: number): void {
     const d = this.gpuDevice, t = this.textures.get(handle)!, desc = t.desc;
     this.growTexture(handle, desc.mips);
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
-    const data = old?.data!.slice() ?? new Uint8Array(extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format]);
+    // K64: a 2D/array base that was never uploaded is zero for recovery purposes, so its generated levels are too:
+    // keep no zero source/chain shadows (render targets regenerating mips every frame allocated both per call).
+    if (!old && desc.dimension !== 1) {
+      t.generated = { base, overridden: new Set() };
+      t.uploads = t.uploads.filter(u => u.words[1] <= base);
+    }
+    const data = old?.data!.slice() ?? new Uint8Array(desc.dimension === 1 ? extent.width * extent.height * extent.depth * TEXEL_BYTES[desc.format] : 0);
     const source: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, base, 0, 0, 0,
       extent.width, extent.height, extent.depth, 0, data.length], data };
-    t.generated = { base, source, overridden: new Set() };
+    if (old || desc.dimension === 1) t.generated = { base, source, overridden: new Set() };
     if (desc.dimension === 1) {
       let prev = data, e = extent;
       for (let k = base + 1; k < desc.mips; k++) {
@@ -941,7 +971,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
       pass.draw(3); pass.end();
     }
     d.queue.submit([encoder.finish()]);
-    for (const level of generatedMipShadows(desc, base, data)) {
+    if (old) for (const level of generatedMipShadows(desc, base, data)) {
       const e = mipExtent(desc, level.mip), previous = t.uploads.findIndex(u => u.words[1] === level.mip);
       const shadow: GpuItem = { kind: 'gpu', op: OP.TEXTURE_UPDATE_EX, words: [handle, level.mip, 0, 0, 0,
         e.width, e.height, e.depth, 0, level.data.length], data: level.data };

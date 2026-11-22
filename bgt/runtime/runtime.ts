@@ -53,6 +53,8 @@ export interface RuntimeOptions {
   ephemeralStorage?: boolean;
   directDraw?: boolean;
   autostart?: boolean;
+  /** K64: estimated-total memory budget (bytes) for the iPhone-class warning; overrides ?memorybudget= and the manifest. */
+  memoryBudgetBytes?: number;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
   startPaused?: boolean;
   /** Opt-in JSPI; both manifest and runtime request must opt in. */
@@ -74,6 +76,8 @@ export interface Manifest {
   preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
   suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
   gpu?: { budgetBytes?: number };
+  /** K64: estimated-total memory budget for this game (game.json "memoryBudget"); default 1.5 GiB. */
+  memoryBudget?: { bytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
   input?: InputConfig;
@@ -90,6 +94,8 @@ import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
 import { retainedAccumulator } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
+import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs } from './memory';
+import { loadSummary, type LoadDiagnostics, type LoadMarks, type ResourceTransfer } from './load-metrics';
 
 export interface BGTDiagnostics {
   abi: string;
@@ -148,6 +154,10 @@ export interface BGTDiagnostics {
   metrics: unknown;
   /** kit coverage: BGT commands executed (by name) and runtime imports called */
   coverage: { ops: Record<string, number>; imports: Record<string, number> };
+  /** K64: memory attribution by component, an estimated total and the iPhone-class budget check. */
+  memory: MemoryDiagnostics;
+  /** K64: load phases (manifest, wasm download/compile/instantiate, init, first frame/update) and transfer evidence. */
+  load: LoadDiagnostics;
 }
 
 export class RuntimeFailure extends Error {
@@ -201,6 +211,15 @@ export class BGTRuntime {
   private wasmLoadMs = 0;
   private wasmStreaming = false;
   private firstFrameMs: number | null = null;
+  /** K64 load/memory bookkeeping. */
+  private loadMarks: LoadMarks = { manifestMs: null, wasmMs: null, assetsMs: null, instantiateMs: null, initMs: null, readyMs: null,
+    firstFrameMs: null, firstUpdateMs: null };
+  private wasmEvidence: { url: string; bytes: number; streamingReason: string; contentType: string | null; contentEncoding: string | null;
+    memoryLimits: { initialBytes: number; maximumBytes: number | null } | null } | null = null;
+  private wasmTransfer: ResourceTransfer | null = null;
+  private linearAtInstantiate = 0;
+  private memoryBudget: { bytes: number; source: MemoryBudgetSource } = resolveMemoryBudget();
+  private memoryPeaks = { linear: 0, total: 0 };
   private frameTimes: number[] = [];
   private gpuWallMs = 0;
   private gpuSubmitTotalMs = 0;
@@ -333,7 +352,7 @@ export class BGTRuntime {
     if (this.opts.autostart !== false) this.loop();
   }
 
-  private async fetchBytes(url: string, label: string, onBytes: (n: number) => void): Promise<ArrayBuffer> {
+  private async fetchBytes(url: string, label: string, onBytes: (n: number) => void, expectedSize?: number): Promise<ArrayBuffer> {
     let res: Response;
     try {
       res = await fetch(url);
@@ -347,6 +366,21 @@ export class BGTRuntime {
       return b;
     }
     const reader = res.body.getReader();
+    // K64: with a manifest size, read straight into one buffer instead of chunks + a concatenated copy.
+    if (expectedSize !== undefined && Number.isSafeInteger(expectedSize) && expectedSize >= 0) {
+      const out = new Uint8Array(expectedSize);
+      let n = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (n + value.byteLength > expectedSize) throw new RuntimeFailure('asset', `integrity check failed for ${label} (larger than manifest size)`);
+          out.set(value, n); n += value.byteLength; onBytes(value.byteLength);
+        }
+      } catch (e) { void reader.cancel().catch(() => {}); throw e; }
+      if (n !== expectedSize) throw new RuntimeFailure('asset', `integrity check failed for ${label} (size ${n}, manifest ${expectedSize})`);
+      return out.buffer;
+    }
     const chunks: Uint8Array[] = [];
     let total = 0;
     for (;;) {
@@ -383,6 +417,8 @@ export class BGTRuntime {
     const manifest = (await res.json()) as Manifest;
     if (manifest.schema !== 'bgt-manifest/1') throw new RuntimeFailure('asset', `unsupported manifest schema ${manifest.schema}`);
     this.manifest = manifest;
+    this.loadMarks.manifestMs = performance.now() - this.loadStarted;
+    this.memoryBudget = this.resolveBudget(manifest);
     this.rangeFiles = new RangeFiles(base);
     for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
@@ -401,21 +437,26 @@ export class BGTRuntime {
       const got = await sha256Hex(buf);
       if (got && got !== expect) throw new RuntimeFailure('asset', `integrity check failed for ${label}`);
     };
-    const wasmP = fetch(base + variant.artifact.url).then((res) => ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? compileVerifiedWasm(res,variant.artifact,tick,!!this.testHarness) : compileVerifiedWasm(res,variant.artifact,tick))).then((result) => {
+    const wasmUrl = base + variant.artifact.url;
+    const wasmP = fetch(wasmUrl).then((res) => ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? compileVerifiedWasm(res,variant.artifact,tick,!!this.testHarness) : compileVerifiedWasm(res,variant.artifact,tick))).then((result) => {
       this.wasmLoadMs = result.downloadCompileVerifyMs;
       this.wasmStreaming = result.streaming;
+      this.loadMarks.wasmMs = performance.now() - this.loadStarted;
+      this.wasmEvidence = { url: wasmUrl, bytes: variant.artifact.size, streamingReason: result.streamingReason,
+        contentType: result.contentType, contentEncoding: result.contentEncoding, memoryLimits: result.memoryLimits };
       return result.module;
     }).catch((e: unknown) => { throw new RuntimeFailure('asset', `game.wasm: ${(e as Error).message}`); });
     // Chunked preload with bounded concurrency.
     const queue = [...manifest.assets];
     const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
       for (let a = queue.shift(); a; a = queue.shift()) {
-        const b = await this.fetchBytes(base + a.url, a.path, tick);
+        const b = await this.fetchBytes(base + a.url, a.path, tick, a.size);
         await verify(b, a.sha256, a.path);
         this.vfs.add(a.path, new Uint8Array(b));
       }
     });
-    const [wasm] = await Promise.all([wasmP, ...workers]);
+    const assetsP = Promise.all(workers).then(() => { this.loadMarks.assetsMs = performance.now() - this.loadStarted; });
+    const [wasm] = await Promise.all([wasmP, assetsP]);
 
     this.status('Starting graphics…');
     this.renderer = await this.pickRenderer(this.opts.backend ?? 'auto');
@@ -474,7 +515,11 @@ export class BGTRuntime {
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHostFactory = this.testHarness ? (renderer) => GameHost.create(wasm,actualServices,
         {...config,gpuBackend:renderer.gpu}) : undefined;
       this.host = await GameHost.create(wasm,actualServices,config);
+      this.linearAtInstantiate = this.host.memoryBytes;
+      this.loadMarks.instantiateMs = this.host.instantiateMs;
+      const initStart = performance.now();
       this.host.init();
+      this.loadMarks.initMs = performance.now() - initStart;
     } catch (e) {
       throw new RuntimeFailure(e instanceof Error && e.name === 'GameAbort' ? 'abort' : 'init', e instanceof Error ? e.message : String(e));
     }
@@ -487,6 +532,7 @@ export class BGTRuntime {
     this.status('');
     if (this.opts.startPaused) this.paused = true;
     this.ready = true;
+    this.loadMarks.readyMs = performance.now() - this.loadStarted;
     this.canvas.focus({ preventScroll: true });
   }
 
@@ -666,6 +712,7 @@ export class BGTRuntime {
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
     await host.update();
+    if (this.loadMarks.firstUpdateMs === null && this.ready) this.loadMarks.firstUpdateMs = performance.now() - this.loadStarted;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHarness?.updated();
     if (host.sizeChanged) {
       host.sizeChanged = false;
@@ -735,7 +782,8 @@ export class BGTRuntime {
     host.consume();
     this.presentsCompleted++;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) await this.testHarness?.afterFrame?.();
-    if(this.firstFrameMs===null)this.firstFrameMs=performance.now()-this.loadStarted;
+    if(this.firstFrameMs===null)this.firstFrameMs=this.loadMarks.firstFrameMs=performance.now()-this.loadStarted;
+    if(this.presentsCompleted%30===1)this.sampleMemory();
     this.frameTimes.push(performance.now()-started);if(this.frameTimes.length>10000)this.frameTimes.shift();
     return out;
   }
@@ -893,10 +941,71 @@ export class BGTRuntime {
       timing:this.diagnostics().timing};
   }
 
+  private resolveBudget(manifest: Manifest | null): { bytes: number; source: MemoryBudgetSource } {
+    const url = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('memorybudget') : null;
+    try { return resolveMemoryBudget(this.opts.memoryBudgetBytes, url, manifest?.memoryBudget?.bytes); }
+    catch (e) {
+      if (url === null || this.opts.memoryBudgetBytes !== undefined) throw new RuntimeFailure('init', (e as Error).message);
+      // A mistyped URL override must not stop the game: report it and use the configured budget.
+      this.backendNotes.push(`memory: ${(e as Error).message}; ignored`);
+      try { return resolveMemoryBudget(undefined, null, manifest?.memoryBudget?.bytes); }
+      catch (m) { throw new RuntimeFailure('init', (m as Error).message); }
+    }
+  }
+
+  private memoryInputs(metrics: unknown): MemoryInputs {
+    const host = this.host, r = this.renderer, reserved = host?.gpuReservedByKind ?? null, gpu = host?.gpuMetrics ?? null;
+    const heap = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
+    return {
+      wasm: { linearBytes: host?.memoryBytes ?? 0, initialBytes: this.wasmEvidence?.memoryLimits?.initialBytes ?? this.linearAtInstantiate,
+        moduleBytes: this.wasmEvidence?.bytes ?? 0 },
+      guest: guestMemoryFromMetrics(metrics),
+      gpu: gpu ? { budgetBytes: gpu.budgetBytes, reservedBytes: gpu.reservedBytes, peakReservedBytes: gpu.peakReservedBytes,
+        reserved: reserved ?? { buffers: 0, textures: 0, shaders: 0 } } : null,
+      native: r?.gpu?.memory?.() ?? null,
+      legacyTextureBytes: host?.textures.totalBytes ?? 0,
+      canvas: { width: this.canvas.width, height: this.canvas.height },
+      js: { assetBytes: this.vfs.totalBytes, streamCacheBytes: this.rangeFiles?.cacheBytes ?? 0,
+        gpuDecoderShadowBytes: reserved?.buffers ?? 0,
+        // Scheduled AudioBuffers hold float32 per channel; stereo is the upper bound.
+        audioQueuedBytes: this.audio.queued() * 2 * 4,
+        heapUsedBytes: typeof heap === 'number' ? heap : null },
+      budget: this.memoryBudget,
+    };
+  }
+
+  /** Peak tracking without the profile's metrics serialization (guest bytes live inside linear memory anyway). */
+  private sampleMemory(): MemoryDiagnostics {
+    const m = memoryBreakdown(this.memoryInputs(null), this.memoryPeaks);
+    this.memoryPeaks = { linear: m.wasm.peakLinearBytes, total: m.estimate.peakTotalBytes };
+    return m;
+  }
+
+  /** K64: memory attribution (also inside diagnostics()). */
+  memory(metrics: unknown = this.executionMetrics()): MemoryDiagnostics {
+    const m = memoryBreakdown(this.memoryInputs(metrics), this.memoryPeaks);
+    this.memoryPeaks = { linear: m.wasm.peakLinearBytes, total: m.estimate.peakTotalBytes };
+    return m;
+  }
+
+  /** K64: load phases and the wasm response evidence (resource timing read once it exists). */
+  loadMetrics(): LoadDiagnostics {
+    if (!this.wasmTransfer && this.wasmEvidence && typeof performance.getEntriesByName === 'function') {
+      const url = new URL(this.wasmEvidence.url, location.href).href;
+      const e = performance.getEntriesByName(url).find((x): x is PerformanceResourceTiming => 'transferSize' in x);
+      if (e) this.wasmTransfer = { transferSize: e.transferSize, encodedBodySize: e.encodedBodySize, decodedBodySize: e.decodedBodySize,
+        durationMs: e.duration };
+    }
+    return loadSummary(this.loadMarks, this.wasmEvidence, this.wasmTransfer, {
+      downloadCompileVerifyMs: this.wasmLoadMs, instantiateMs: this.host?.instantiateMs ?? 0, streaming: this.wasmStreaming,
+      assetBytes: this.manifest?.assets.reduce((n, a) => n + a.size, 0) ?? 0 });
+  }
+
   diagnostics(): BGTDiagnostics {
     const iv = [...this.intervals].sort((a, b) => a - b);
     const host = this.host;
     const r = this.renderer;
+    const metrics = this.executionMetrics();
     return {
       abi: `${ABI_VERSION >> 16}.${(ABI_VERSION >> 8) & 0xff}`,
       suspension: host ? (host.config.suspensionMode ?? 'asyncify') : null,
@@ -953,11 +1062,13 @@ export class BGTRuntime {
       yields: host?.yields ?? 0,
       suspended: host?.suspended ?? false,
       outsideSlice: this.outsideSlice,
-      metrics: this.executionMetrics(),
+      metrics,
       coverage: {
         ops: Object.fromEntries(Object.entries(host?.opCounts ?? {}).map(([k, v]) => [OP_NAMES[Number(k)] ?? k, v])),
         imports: { ...(host?.importCounts ?? {}) },
       },
+      memory: this.memory(metrics),
+      load: this.loadMetrics(),
     };
   }
 

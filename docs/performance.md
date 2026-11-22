@@ -118,3 +118,38 @@ of the table total, and a `last_frame` table. OFF builds report `{enabled: 0, cu
 interpreted, and both suspension modes. It also covers a generic CPUID charged to its lifted owner, and checks
 that per-present frame totals equal the exact accounting deltas. Measured overhead is in
 [K51](handoff/K51.md).
+
+## 5. Memory and load (K64)
+
+**Memory attribution.** `diagnostics().memory` (also `__BGT_TEST__.memory()`) splits what the runtime owns:
+
+| field | what it is |
+|---|---|
+| `wasm.linearBytes` / `peakLinearBytes` / `initialBytes` | linear memory now, its high-water mark, and the module's declared initial size |
+| `wasm.moduleBytes` | the selected game.wasm artifact; `compiledBytes` is `null` (engine machine code is not observable) |
+| `guest` | Win32 profile only: `committedBytes` (highest flat-guest address mapped), `heapBytes`, `virtualLiveBytes`/`virtualPeakBytes` (VirtualAlloc; reserve = commit in this profile), `host*` (runtime/GL/CRT/file host arena), `glFrontendBytes` (guest-side GL data copies). All of it lives **inside** linear memory |
+| `gpu.reserved` | the §13 decoder's reservation by kind (buffers/textures/shaders); sums to `reservedBytes` (the budget accounting) |
+| `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (allocated levels; depth/stencil part), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
+| `gpu.canvasBytesEstimate` | canvas drawing buffer + one swap buffer, RGBA8 |
+| `js` | JS-heap copies: preloaded assets, stream chunk cache, decoder buffer shadows (`gpuDecoderShadowBytes`), executor recovery shadows (`gpuRecoveryShadowBytes`), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
+| `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), its peak, the budget and `status` |
+
+The **budget** defaults to 1.5 GiB (iPhone-class tab). Override with game.json `"memoryBudget": {"bytes": N}` (copied to
+the manifest), `?memorybudget=1536m|1.5g|BYTES` or `RuntimeOptions.memoryBudgetBytes`. `status: "over-budget"` is a
+warning, never a failure. The estimate is not process RSS: compiled code, browser/driver overhead and the JS engine are
+excluded. **Real-device memory (iPhone Safari WebContent + GPU process) is a hardware gate**: report it separately, e.g.
+from Xcode Instruments / Safari Web Inspector Timelines, next to this estimate; the difference is mostly compiled code.
+
+**Load metrics.** `diagnostics().load` (also `__BGT_TEST__.loadMetrics()`) has the phase marks since load start
+(`manifestMs`, `wasmMs`, `assetsMs`, `readyMs`, `firstFrameMs`, `firstUpdateMs`), spans (`instantiateMs`, `initMs`),
+and for game.wasm: streaming compilation and why not (`streamingReason`: `wrong-content-type`, `no-body`,
+`no-compileStreaming`), Content-Type/Encoding, resource-timing transfer sizes and the compression ratio.
+`timeToFirstInteractiveUpdateMs` is the first completed update once ready (input is live from there); measure without
+`?paused=1`.
+
+**Packaging tool.** `npm run package:metrics -- --game ID [--serve] [--browser] [--url BASE] [--brotli 11]` writes
+`reports/package-metrics-ID.json`: raw/gzip/brotli sizes per artifact kind (wasm, js, data, meta), how the server sends
+game.wasm (MIME → streaming compile, Content-Encoding) and, with `--browser`, a free-running Chromium load with the
+load phases and memory breakdown. The Vite dev server sends `application/wasm` (streaming compile) **uncompressed**.
+`npm run bundle -- --game ID --precompress` writes `.br`/`.gz` next to compressible bundle files for hosts with
+precompressed serving; verify a deployment with `--url`.

@@ -257,6 +257,7 @@ interface BGTTestAPI {
   debugState(): unknown; injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(): Promise<void>;
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
+  memory(): MemoryDiagnostics; loadMetrics(): LoadDiagnostics; // K64 runtime metrics, = diagnostics().memory/.load
 }
 type BGTTestInputEvent =
   | { type: 'key'; code: string /* KeyboardEvent.code */; down: boolean }
@@ -277,6 +278,9 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
   `bgt_debug_peek` export, or `null` (no export, unmapped, bad length). It exists only where the test API exists
   (dev / `VITE_BGT_TEST=1` builds) and has deliberately **no write counterpart**: tests may observe game state, never
   change it. Calling it does not alter `stateHash()`.
+- `memory()` / `loadMetrics()` (K64) are runtime observations, not ABI: memory attribution by component with an
+  estimated total against a configurable budget, and load phase times plus how `game.wasm` was delivered. See
+  `docs/performance.md` §Memory and load. They change nothing the game can observe.
 - **Determinism:** simulation state is deterministic for identical input/seed (the e2e
   suite checks the browser against the Node host). GPU output is not bit-exact across GPU
   stacks: linear filtering, rasterization edges and blending rounding may differ by a few

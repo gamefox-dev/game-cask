@@ -52,6 +52,14 @@ export class GpuState {
     const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
     this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
   }
+  /** K64: the reservation split by kind (sums to `bytes`). Buffer bytes are also this decoder's JS shadow copies. */
+  reservedByKind(): { buffers: number; textures: number; shaders: number } {
+    let buffers = 0, textures = 0, shaders = 0;
+    for (const b of this.buffers.values()) buffers += b.shadow.length;
+    for (const t of this.textures.values()) textures += t.bytes;
+    for (const s of this.shaders.values()) shaders += s.bytes;
+    return { buffers, textures, shaders };
+  }
 }
 
 /** Clamp a backend's native uniform binding limit to the portable [16384, 65536] range, multiple of 16.

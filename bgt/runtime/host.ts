@@ -733,6 +733,11 @@ export class GameHost {
       peakReservedBytes: gpu.peakBytes, largestAllocationBytes: gpu.largestAllocation } : null;
   }
 
+  /** K64: decoder reservation by kind; `buffers` bytes are also held as decoder JS shadows. */
+  get gpuReservedByKind(): { buffers: number; textures: number; shaders: number } | null {
+    return this.gpu?.reservedByKind() ?? null;
+  }
+
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
   /** K51: the uniform range this host reports at §13.6 offset 52, or null without a GPU namespace. */
   get gpuUniformRange(): number | null { return this.gpu?.uniformRange ?? null; }
