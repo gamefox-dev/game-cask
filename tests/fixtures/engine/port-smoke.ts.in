@@ -1,11 +1,14 @@
 // CC0-1.0. Copied only into an isolated engine port by the dispatcher regression.
 import { test, expect } from '@playwright/test';
-import { openEngineProfile, engineKey, observeEngineFrames, engineTiming } from '../../tests/support/engine-profile';
+import { openEngineProfile, engineKey, observeEngineFrames, engineTiming, installEnginePerf, measureEngine } from '../../tests/support/engine-profile';
 import { captureEngineErrors } from '../../tools/engine/capture.mjs';
 import { runtimeById } from '../../tools/engine/runtime.mjs';
+import { webgl2Gpu } from '../../tests/e2e/browser-options';
 test('standard port dispatcher boots the engine and preserves input/pixels/timing', async ({ page, baseURL }, info) => {
   info.annotations.push({ type: 'catches', description: 'Engine ports must not invoke BGT slice/lift setup; the served engine build must draw and receive DOM input.' });
-  const capture = await captureEngineErrors(page, runtimeById('godot-3.5.3').fileHashes);
+  // K59: the pack is checked against the served build manifest like the wasm.
+  const capture = await captureEngineErrors(page, runtimeById('godot-3.5.3').fileHashes, { build: '.engine-private/builds/cc0-engine' });
+  await installEnginePerf(page);
   await openEngineProfile(page, baseURL!); await observeEngineFrames(page, 20);
   const before = await page.screenshot();
   await engineKey(page, 'Enter');
@@ -14,7 +17,12 @@ test('standard port dispatcher boots the engine and preserves input/pixels/timin
   await info.attach('before.png', { body: before, contentType: 'image/png' });
   await info.attach('after.png', { body: after, contentType: 'image/png' });
   expect((await engineTiming(page)).samples).toBeGreaterThan(0);
+  const perf = await measureEngine(page, { ms: 500 });
+  await info.attach('perf.json', { body: JSON.stringify(perf), contentType: 'application/json' });
+  // BGT_WEBGL2_GPU=1 puts the port-engine project on the native GPU; the default is SwiftShader.
+  expect(perf.software).toBe(!webgl2Gpu);
   const network = await capture.finish();
   await info.attach('network.json', { body: JSON.stringify(network), contentType: 'application/json' });
   expect(network.errors).toEqual([]);
+  expect(network.bodies.map((b: any) => new URL(b.url).pathname).sort()).toEqual(['/game.pck', '/godot.wasm']);
 });

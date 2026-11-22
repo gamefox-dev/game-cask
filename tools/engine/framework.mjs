@@ -9,6 +9,7 @@ import * as godot from './godot.mjs';
 import { PRIVATE, hash, runtimeById, selectRuntime, verifyRuntime, runtimes } from './runtime.mjs';
 import { generateShell } from './shell.mjs';
 import { staticHeaders, headersFile } from './headers.mjs';
+import { allowPatternProblem } from './browser-adapter.js';
 
 const sha256 = godot.sha256;
 const godotAdapter = major => ({ engine: 'godot', major, parsePack: godot.parsePack, identifyRunner: godot.identifyRunner, analyzePack: godot.analyzePack, generateShell });
@@ -31,7 +32,74 @@ export function validateConfig(cfg) {
   if (!(p.renderer === runtime.requirements.renderer || (p.adapter === 'godot3' && p.renderer === 'webgl'))) throw new Error('unsupported renderer ' + p.renderer);
   if (!p.pack || !['embedded-trailer', 'embedded-section', 'adjacent', 'explicit'].includes(p.pack.location) || !/^[a-f0-9]{64}$/.test(p.pack.sha256) || !/^[a-f0-9]{64}$/.test(p.runnerSha256)) throw new Error('pack and runner SHA-256 are required');
   for (const n of ['width', 'height']) if (p[n] !== undefined && (!Number.isInteger(p[n]) || p[n] < 1 || p[n] > 4096)) throw new Error('invalid shell ' + n);
+  if (p.allowedErrors !== undefined) validateAllowedErrors(p.allowedErrors);
+  if (p.engineArgs !== undefined) validateEngineArgs(p.adapter, p.engineArgs);
+  if (p.engineArgs?.length && runtime.shell === 'godot-legacy') throw new Error('engineProfile.engineArgs need the Engine config API (Godot 3.3+/4.x); the 3.2 legacy shell passes no arguments');
   return { profile: p, runtime, adapter: adapters[p.adapter] };
+}
+
+// K59 Q7: recorded official engine command-line options, per adapter. Godot 3.x/4.x parse these in main.cpp on every
+// platform (the web runtime gets them through the Engine config `args`). Timing options only: --fixed-fps disables
+// real-time synchronization (one fixed step per main-loop iteration), which makes scripted replays reproducible.
+const int = (min, max) => v => /^\d+$/.test(v) && Number(v) >= min && Number(v) <= max;
+const num = (min, max) => v => /^\d+(\.\d+)?$/.test(v) && Number(v) >= min && Number(v) <= max;
+const GODOT_ARGS = { '--fixed-fps': int(1, 1000), '--time-scale': num(0.01, 100), '--frame-delay': int(0, 100), '--print-fps': null };
+export const ENGINE_ARGS = Object.freeze({ godot3: GODOT_ARGS, godot4: GODOT_ARGS });
+export function validateEngineArgs(adapter, args) {
+  const allowed = ENGINE_ARGS[adapter];
+  if (!allowed) throw new Error('no engine argument allowlist for adapter ' + adapter);
+  if (!Array.isArray(args) || args.length > 16 || args.some(a => typeof a !== 'string')) throw new Error('engineProfile.engineArgs must be an array of at most 16 strings');
+  const seen = new Set();
+  for (let i = 0; i < args.length; i++) {
+    const name = args[i];
+    if (!Object.hasOwn(allowed, name)) throw new Error(`engineProfile.engineArgs: ${JSON.stringify(name)} is not an allowlisted ${adapter} option (${Object.keys(allowed).join(', ')})`);
+    if (seen.has(name)) throw new Error('engineProfile.engineArgs: duplicate ' + name);
+    seen.add(name);
+    const check = allowed[name];
+    if (check) {
+      const value = args[++i];
+      if (value === undefined || !check(value)) throw new Error(`engineProfile.engineArgs: ${name} needs a valid value (got ${JSON.stringify(value)})`);
+    }
+  }
+  return args;
+}
+
+// K59: engine ERROR lines proven to come from the game itself (e.g. a scene connecting one signal twice) may be
+// recorded in engineProfile.allowedErrors. Only engine stderr lines with an ERROR prefix can match (never aborts,
+// traps, page errors or context-free stderr), each entry matches whole lines, and over-broad patterns are refused.
+const ERROR_LINE = /^(USER |SCRIPT )?ERROR: \S/;
+const BROAD_SENTINELS = ['ERROR: x', 'ERROR: Condition "p_index < 0 || p_index >= size" is true.', 'ERROR: Index p_index = 3 is out of bounds (size() = 0).',
+  'SCRIPT ERROR: Invalid call. Nonexistent function \'f\' in base \'Nil\'.', 'USER ERROR: x', 'ERROR: Aborted(RuntimeError: unreachable)',
+  'ERROR: Failed loading resource: res://a.tscn.', 'ERROR: Signal \'x\' is already connected to given method \'y\' in that object.'];
+export function allowedErrorMatcher(entry) {
+  if (typeof entry.message === 'string') return line => line === entry.message;
+  const re = new RegExp('^(?:' + entry.pattern + ')$', 'u');
+  return line => re.test(line);
+}
+export function validateAllowedErrors(list) {
+  if (!Array.isArray(list) || list.length > 32) throw new Error('engineProfile.allowedErrors must be an array of at most 32 entries');
+  list.forEach((e, i) => {
+    const where = `engineProfile.allowedErrors[${i}]`;
+    if (!e || typeof e !== 'object' || Array.isArray(e)) throw new Error(where + ' must be an object');
+    const extra = Object.keys(e).filter(k => !['message', 'pattern', 'justification', 'evidence'].includes(k));
+    if (extra.length) throw new Error(where + ': unknown field ' + extra.join(', '));
+    if ((e.message === undefined) === (e.pattern === undefined)) throw new Error(where + ' needs exactly one of message (exact line) or pattern (whole-line regex)');
+    const text = e.message ?? e.pattern;
+    if (typeof text !== 'string' || !text || text.length > 500) throw new Error(where + ': message/pattern must be a non-empty string of at most 500 characters');
+    if (e.message !== undefined && !ERROR_LINE.test(e.message)) throw new Error(where + ': only engine ERROR lines ("ERROR: …", "USER ERROR: …", "SCRIPT ERROR: …") can be allowlisted');
+    if (e.pattern !== undefined) {
+      const problem = allowPatternProblem(e.pattern);
+      if (problem) throw new Error(where + ': invalid pattern: ' + problem);
+      let match;
+      try { match = allowedErrorMatcher(e); } catch (err) { throw new Error(where + ': invalid pattern: ' + err.message); }
+      if (match('') || BROAD_SENTINELS.some(line => match(line))) throw new Error(where + ': pattern is too broad (matches generic engine errors); allowlist the exact message');
+      if (!/^\^?(USER |SCRIPT )?ERROR: /.test(e.pattern)) throw new Error(where + ': pattern must start with a literal ERROR prefix');
+      if (e.pattern.replace(/\\./g, '').replace(/[.*+?^${}()|[\]\\]/g, '').length < 24) throw new Error(where + ': pattern needs at least 24 literal characters');
+    }
+    if (typeof e.justification !== 'string' || e.justification.trim().length < 20 || e.justification.length > 1000) throw new Error(where + ': justification (20..1000 characters: why the game itself produces this line) is required');
+    if (typeof e.evidence !== 'string' || !e.evidence || isAbsolute(e.evidence) || e.evidence.length > 300) throw new Error(where + ': evidence must be a relative path (from the game.json directory) to the recorded proof');
+  });
+  return list;
 }
 function safeInput(root, name) {
   if (typeof name !== 'string' || !name || isAbsolute(name)) throw new Error('input path must be relative to inputRoot');
@@ -130,6 +198,16 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   if (p.pack.location.startsWith('embedded') && detection.location !== p.pack.location) throw new Error('expected ' + p.pack.location + ' pack, found ' + detection.location);
   if (!p.pack.location.startsWith('embedded') && detection.location !== 'standalone') throw new Error('expected standalone side pack');
   if (p.pack.location === 'adjacent' && dirname(resolve(root, p.pack.from)) !== dirname(resolve(root, p.runner))) throw new Error('adjacent pack must be beside runner');
+  // K59: every allowlisted error points at recorded evidence; its hash goes into the manifest.
+  const allowedErrors = (p.allowedErrors ?? []).map((e, i) => {
+    const file = resolve(gameDir, e.evidence);
+    if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile()) throw new Error(`engineProfile.allowedErrors[${i}].evidence not found (or not a regular file): ${e.evidence}`);
+    // vK59: evidence lives in the game directory (port/) or the sibling reports/ tree, never elsewhere.
+    const real = realpathSync(file), roots = [gameDir, resolve(gameDir, '..', 'reports')].filter(existsSync).map(r => realpathSync(r));
+    if (!roots.some(r => real.startsWith(r + sep))) throw new Error(`engineProfile.allowedErrors[${i}].evidence must be inside the game directory or ../reports: ${e.evidence}`);
+    return { id: 'E' + (i + 1), ...e, evidenceSha256: sha256(readFileSync(file)) };
+  });
+  const engineArgs = p.engineArgs ?? [];
   const provisioned = verifyRuntime(runtime.id, { store });
   requireVerifiedOrOptIn(p, provisioned.verification);
   const parent = resolve(outRoot); mkdirSync(parent, { recursive: true });
@@ -140,7 +218,7 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
     engineProfile: { ...publicDetection(detection), choice: { by: 'game.json engineProfile.allowed', reason: p.choice ?? null },
       runtime: { id: runtime.id, variant: runtime.variant, version: runtime.version, build: runtime.build, sha256: provisioned.receipt.archiveSha256,
         verification: provisioned.verification, verified: provisioned.verified, archive: runtime.archive, files: provisioned.files },
-      allowUnverifiedRuntime: p.allowUnverifiedRuntime === true,
+      allowUnverifiedRuntime: p.allowUnverifiedRuntime === true, allowedErrors, engineArgs,
       requirements: runtime.requirements, notices: runtime.notices, scan: 'Known unsupported patterns only; not a complete platform feature proof.' },
     headers, files: {}, metrics: null };
   try {
@@ -148,8 +226,11 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
     writeFileSync(join(staging, 'game.pck'), detection._parsed.pack);
     cpSync(new URL('browser-adapter.js', import.meta.url), join(staging, 'browser-adapter.js'));
     const wasm = runtimeFiles.find(n => n.endsWith('.wasm'));
+    // K59 Q7: an option must be one this exact official build parses (its literal is in the runtime wasm).
+    const wasmBytes = readFileSync(join(staging, wasm));
+    for (const name of engineArgs.filter(a => a.startsWith('--'))) if (!wasmBytes.includes(Buffer.from(name + '\0'))) throw new Error(`engineProfile.engineArgs: ${runtime.id} does not parse ${name}`);
     writeFileSync(join(staging, 'index.html'), adapter.generateShell({ id: cfg.id, name: cfg.name, runtime, packSize: detection._parsed.pack.length,
-      wasmSize: readFileSync(join(staging, wasm)).length, width: p.width, height: p.height, packSha256: detection.packSha256, threads: runtime.requirements.threads }));
+      wasmSize: readFileSync(join(staging, wasm)).length, width: p.width, height: p.height, packSha256: detection.packSha256, threads: runtime.requirements.threads, allowedErrors, engineArgs }));
     writeFileSync(join(staging, '_headers'), headersFile(headers));
     writeFileSync(join(staging, 'headers.json'), JSON.stringify(headers, null, 2) + '\n');
     const served = [...runtimeFiles, ...notices, 'game.pck', 'browser-adapter.js', 'index.html', '_headers', 'headers.json'];
@@ -179,6 +260,8 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
     const m = result.metrics, mb = n => (n / 1048576).toFixed(2) + ' MiB';
     console.log(`engineProfile: ${cfg.id} -> ${out}`);
     console.log(`  runtime ${runtime.id} (${provisioned.verified ? provisioned.verification : 'UNVERIFIED: ' + provisioned.verification + ', no published checksum; allowUnverifiedRuntime recorded'})${runtime.requirements.isolation ? ', threads: COOP/COEP headers in _headers/headers.json' : ''}`);
+    if (engineArgs.length) console.log(`  engine args: ${engineArgs.join(' ')} (official command-line options via the runtime's Engine config args)`);
+    if (allowedErrors.length) console.log(`  allowlisted engine errors: ${allowedErrors.length} (${allowedErrors.map(e => e.id + ' ' + e.evidence).join(', ')})`);
     console.log(`  download ${mb(m.downloadBytes)} (gzip ~${mb(m.downloadGzipBytes)}): pack ${mb(m.packBytes)}, runtime ${mb(m.runtimeBytes)} (wasm ${mb(m.wasmBytes)}); bundle ${m.fileCount} files`);
   }
   return result;
