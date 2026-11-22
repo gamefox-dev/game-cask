@@ -53,8 +53,7 @@ static void flush_pending(void);
  * failed, that call's error preceded the latched one, and glGetError returns it instead (`latch_fix`).
  * Profile regions that save and restore `error` themselves (`latch_local`) keep the K53 flush. `latch_outer`
  * is the error latched before the current API call (the API wrapper clears `error` during a call). */
-static uint32_t latch_outer, latch_local, latch_fix, err_seq_valid;
-static uint64_t err_seq;
+static uint32_t latch_outer, latch_local, latch_fix;
 static int fail_deferred(uint32_t e);
 static void fail(uint32_t e) { if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
 static int eq(const char *a, const char *b) {
@@ -347,6 +346,7 @@ static struct { uint8_t *p; uint32_t n; } pend_retired[4096]; static uint32_t pe
  * took effect, exactly as its per-call list would have); a list rejected whole is replayed per call. */
 static uint32_t replay_failed[2 * 4096];
 static int pend_flushing;
+static uint32_t err_seq_valid; static uint64_t err_seq; /* K60: see fail() */
 /* K60: see fail(). Returns 1 when the error was latched without a flush. */
 static int fail_deferred(uint32_t e) {
     if (!nrecs || pend_flushing || latch_local) return 0;
