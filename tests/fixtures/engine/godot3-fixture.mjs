@@ -35,8 +35,13 @@ export const physicsScript = 'extends Node2D\nvar pos = Vector2(40, 140)\nvar ve
   '    pos += vel * delta\n    if pos.y > 140.0:\n        pos.y = 140.0\n        vel.y = 0.0\n    if pos.x > 300.0:\n        pos.x = 20.0\n' +
   '    print("state ", Engine.get_physics_frames(), " ", pos.x, " ", pos.y)\n    update()\n' +
   'func _draw():\n    draw_rect(Rect2(0, 0, 320, 180), Color(0.1, 0.1, 0.2, 1))\n    draw_rect(Rect2(pos.x - 8, pos.y - 16, 16, 16), Color(1, 0.8, 0, 1))\n';
-export function variantScript({ tone = false, duplicateSignal = false, physics = false } = {}) {
-  if (physics) { if (tone || duplicateSignal) throw new Error('physics fixture variant is exclusive'); return physicsScript; }
+// clock (K59 Q8): a box whose x follows the main-thread clock (OS.get_ticks_usec reads performance.now); prints
+// "clock <frames drawn> <ticks usec>" every frame. With --fixed-fps alone it still depends on wall time.
+export const clockScript = 'extends Node2D\nvar x = 0.0\nfunc _process(_delta):\n    var us = OS.get_ticks_usec()\n' +
+  '    x = fmod(us / 10000.0, 300.0)\n    print("clock ", Engine.get_frames_drawn(), " ", us)\n    update()\n' +
+  'func _draw():\n    draw_rect(Rect2(0, 0, 320, 180), Color(0.1, 0.2, 0.1, 1))\n    draw_rect(Rect2(x, 80, 16, 16), Color(1, 1, 1, 1))\n';
+export function variantScript({ tone = false, duplicateSignal = false, physics = false, clock = false } = {}) {
+  if (physics || clock) { if (tone || duplicateSignal || (physics && clock)) throw new Error('physics/clock fixture variants are exclusive'); return physics ? physicsScript : clockScript; }
   if (!tone && !duplicateSignal) return script;
   const lines = script.split('\n'), ready = lines.indexOf('func _ready():'), process = lines.indexOf('func _process(_delta):');
   const head = ['var playback = null', 'var phase = 0.0'], readyBody = [], processBody = [], extra = [];
@@ -51,8 +56,8 @@ export function variantScript({ tone = false, duplicateSignal = false, physics =
   return out.join('\n').replace(/\n$/, '') + '\n' + (extra.length ? extra.join('\n') + '\n' : '');
 }
 export function fixtureFiles(options = {}) { return { 'project.binary': projectBinary(), 'main.tscn': Buffer.from(scene), 'main.gd': Buffer.from(variantScript(options)) }; }
-export function makePack({ files, version = [3, 5, 3], embeddedBase = 0, tone = false, duplicateSignal = false, physics = false } = {}) {
-  files ??= fixtureFiles({ tone, duplicateSignal, physics });
+export function makePack({ files, version = [3, 5, 3], embeddedBase = 0, tone = false, duplicateSignal = false, physics = false, clock = false } = {}) {
+  files ??= fixtureFiles({ tone, duplicateSignal, physics, clock });
   const header = Buffer.alloc(88); header.write('GDPC'); header.writeUInt32LE(1, 4);
   version.forEach((x, i) => header.writeUInt32LE(x, 8 + i * 4));
   header.writeUInt32LE(Object.keys(files).length, 84);

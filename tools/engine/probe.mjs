@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Same scripted probe facade, official engine runtime instead of the BGT host.
 //
-//   npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS] [--pace FPS]
+//   npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS] [--pace FPS [--virtual-time]]
 //
 // K59: Chromium renders on the native GPU by default (ANGLE Metal on macOS), like `npm run probe` since K51; a probe
 // that lands on a software rasterizer fails unless --software asked for SwiftShader. probe.json records `device`,
@@ -10,6 +10,7 @@
 // Playwright WebKit; reports renderer and errors (no CDP figures). --pace FPS (K59 Q7): the test-only frame pacer;
 // p.step(n) then runs n engine frames, p.inputAt(frame, events) keys inputs to engine frames, p.frameHash(n) hashes
 // the canvas after n frames. Use with engineProfile.engineArgs ["--fixed-fps", "<FPS>"] for reproducible replays.
+// --virtual-time (K59 Q8, needs --pace): performance.now/Date.now/rAF timestamps held constant within each engine frame.
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -21,9 +22,9 @@ import { verifyRuntime } from './runtime.mjs';
 import { chromiumLaunch, engineRenderer, installEnginePerf, measureEngine } from './perf.mjs';
 import { installEngineFramePacer } from './pacer.mjs';
 
-const USAGE = 'usage: npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS] [--pace FPS]';
+const USAGE = 'usage: npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS] [--pace FPS [--virtual-time]]';
 export function parseEngineProbeArgs(argv) {
-  const a = { positional: [], software: false, browser: 'chromium', measure: null, out: null, pace: null };
+  const a = { positional: [], software: false, browser: 'chromium', measure: null, out: null, pace: null, virtualTime: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--software') a.software = true;
@@ -31,6 +32,7 @@ export function parseEngineProbeArgs(argv) {
     else if (k === '--measure') a.measure = Number(argv[++i]);
     else if (k === '--out') a.out = argv[++i];
     else if (k === '--pace') a.pace = Number(argv[++i]);
+    else if (k === '--virtual-time') a.virtualTime = true;
     else if (k.startsWith('--')) throw new Error('unknown argument ' + k + '\n' + USAGE);
     else a.positional.push(k);
   }
@@ -43,7 +45,8 @@ export function parseEngineProbeArgs(argv) {
   if (!script && a.browser === 'chromium') throw new Error('a SCRIPT is required on Chromium (WebKit runs boot-only without one)\n' + USAGE);
   if (a.measure !== null && !(Number.isFinite(a.measure) && a.measure >= 100 && a.measure <= 120000)) throw new Error('--measure must be 100..120000 ms');
   if (a.pace !== null && !(Number.isInteger(a.pace) && a.pace >= 1 && a.pace <= 1000)) throw new Error('--pace must be an integer FPS 1..1000');
-  return { build, script, out, software: a.software, browser: a.browser, measure: a.measure, pace: a.pace };
+  if (a.virtualTime && a.pace === null) throw new Error('--virtual-time needs --pace FPS');
+  return { build, script, out, software: a.software, browser: a.browser, measure: a.measure, pace: a.pace, virtualTime: a.virtualTime };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -63,7 +66,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     page.on('console', m => log.console.push(m.type() + ': ' + m.text()));
     await installEnginePerf(page);
     if (a.pace) {
-      await installEngineFramePacer(page, { fps: a.pace });
+      await installEngineFramePacer(page, { fps: a.pace, virtualTime: a.virtualTime });
       const args = build.engineProfile.engineArgs ?? [], fixed = args.indexOf('--fixed-fps');
       if (fixed < 0) log.notes.push('--pace without engineProfile.engineArgs --fixed-fps: Godot still advances physics by wall time, so replays are not reproducible');
       else if (Number(args[fixed + 1]) !== a.pace) log.notes.push(`--pace ${a.pace} differs from --fixed-fps ${args[fixed + 1]}`);

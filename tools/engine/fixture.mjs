@@ -9,16 +9,16 @@ import { buildEngine } from './framework.mjs';
 
 /**
  * runtimeId: godot-3.5.3-nothreads (default), godot-3.x-threads, godot-4.x-nothreads|threads.
- * K59 (Godot 3 only): tone / duplicateSignal / physics script variants; profile: extra engineProfile fields (e.g. allowedErrors);
+ * K59 (Godot 3 only): tone / duplicateSignal / physics / clock script variants; profile: extra engineProfile fields (e.g. allowedErrors);
  * files: extra files written beside game.json (e.g. allowlist evidence). Variants get their own build id.
  */
-export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds'), tone = false, duplicateSignal = false, physics = false, profile = {}, files = {}, suffix = '' } = {}) {
+export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds'), tone = false, duplicateSignal = false, physics = false, clock = false, profile = {}, files = {}, suffix = '' } = {}) {
   const runtime = runtimeById(runtimeId), major = Number(runtime.version[0]);
-  if (major !== 3 && (tone || duplicateSignal || physics)) throw new Error('fixture variants are Godot 3 only');
-  const variant = [tone && 'tone', duplicateSignal && 'dupsignal', physics && 'physics', suffix].filter(Boolean).join('-');
+  if (major !== 3 && (tone || duplicateSignal || physics || clock)) throw new Error('fixture variants are Godot 3 only');
+  const variant = [tone && 'tone', duplicateSignal && 'dupsignal', physics && 'physics', clock && 'clock', suffix].filter(Boolean).join('-');
   const id = (runtime.id === 'godot-3.5.3-nothreads' ? 'cc0-engine' : 'cc0-' + runtime.id.replace(/\./g, '-')) + (variant ? '-' + variant : '');
   const gameDir = join(PRIVATE, 'cc0-fixtures', id), inputs = join(gameDir, 'inputs'); mkdirSync(inputs, { recursive: true });
-  const source = major === 3 ? godot3Fixture({ version: runtime.version.split('.').map(Number).concat([0, 0]).slice(0, 3), build: runtime.build, tone, duplicateSignal, physics })
+  const source = major === 3 ? godot3Fixture({ version: runtime.version.split('.').map(Number).concat([0, 0]).slice(0, 3), build: runtime.build, tone, duplicateSignal, physics, clock })
     : godot4Fixture({ version: runtime.version, build: runtime.build, relative: !/^4\.[0-2](\.|$)/.test(runtime.version) });
   writeFileSync(join(inputs, 'runner.exe'), source);
   const cfg = { id, name: 'CC0 Godot ' + runtime.version + ' ' + runtime.variant + ' fixture', private: true, engineProfile: {

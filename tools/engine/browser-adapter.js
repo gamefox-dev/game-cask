@@ -131,7 +131,7 @@ export function installEngineTestAdapter(canvas, identity) {
       backendNotes: ['Official engine runtime; BGT backend/suspension selection does not apply'],
       logical: { width: canvas.width, height: canvas.height }, letterbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
       capabilities: { deterministic: false, framePacer: !!pacer, pause: false, peek: false, savestates: false, cpuProfile: false, coverage: false },
-      pacer: pacer ? { fps: pacer.fps, frame: pacer.frame(), pending: pacer.pending() } : null,
+      pacer: pacer ? { fps: pacer.fps, virtualTime: !!pacer.virtualTime, frame: pacer.frame(), pending: pacer.pending() } : null,
       metrics: { engineProfile: identity, raf: timing() } }),
     input, waitFrames, timing, frameHash,
     // Paced: step(n) runs n engine frames; unpaced: it observes n browser frames (no engine control).

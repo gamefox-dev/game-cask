@@ -257,9 +257,22 @@ scripted inputs drift (positions, precise jumps) between runs. Two parts make re
    (`openEngineProfile` does), since Playwright's default rAF polling would wait on the virtual rAF.
 
 With both, the CC0 physics fixture replays identically (frame-indexed state lines and screen hashes), even with
-wall-time jitter between steps; without `--fixed-fps` the same paced run drifts. Limits: `performance.now`/`Date` stay
-real, so game code that reads wall time (OS.get_ticks_msec, Time) stays wall-time dependent; audio runs in real time;
-the RAF timestamps given to callbacks are virtual (`frame * 1000 / fps`).
+wall-time jitter between steps; without `--fixed-fps` the same paced run drifts.
+
+3. **Virtual clock (K59 Q8):** `installEngineFramePacer(page, { fps, virtualTime: true })` (probe: `--pace FPS
+   --virtual-time`) also replaces the main thread's `performance.now()`, `Date.now()` and the rAF timestamps with a
+   clock that is constant within each engine frame and advances exactly one period per frame: frame k reads
+   `1000 + k * 1000 / fps` ms (`Date.now`: `epochMs` (default 2026-01-01T00:00Z) `+ k * period`, floored). It returns
+   the same value however often it is read, so main-thread audio callbacks that read the clock a varying number of
+   times cannot change what the game sees (a clock that ticks per read does not repeat), and its base is a constant,
+   so microsecond rounding repeats too. Engine code that reads wall time (Godot `OS.get_ticks_usec`, particles,
+   timers) then replays: the CC0 clock fixture gives identical frame hashes across runs with wall-time jitter, and
+   different ones on the real clock. Not virtualized: worker threads (threaded runtimes), `AudioContext.currentTime`,
+   `event.timeStamp`, `new Date()`, `performance.timeOrigin`. During boot (before the first paced frame) the clock
+   reads frame 0's time.
+
+Without `virtualTime`, `performance.now`/`Date` stay real, so game code that reads wall time stays wall-time
+dependent; audio always runs in real time; rAF timestamps given to callbacks are virtual (`frame * 1000 / fps`).
 
 **Not supported on this path:** pause, seed replay, peek, savestates, command injection, BGT resource tours, trace
 oracles, guest coverage and BGT CPU profiling (explicit errors/null). Without the frame pacer `step(n)` observes n

@@ -375,3 +375,45 @@ test.describe('Q7: recorded engine options + frame pacer', () => {
     expect(new Set(JSON.parse(runs[0].lines[0])).size).toBe(3);
   });
 });
+
+test.describe('Q8: virtual clock option of the frame pacer', () => {
+  async function clockReplay(browser: Browser, url: string, { virtualTime, jitter = false }: { virtualTime: boolean; jitter?: boolean }) {
+    const page = await browser.newPage();
+    try {
+      await installEngineFramePacer(page, { fps: 60, virtualTime });
+      await openEngineProfile(page, url);
+      const hashes: string[] = [];
+      for (let i = 0; i < 4; i++) { if (jitter) await page.waitForTimeout(150 * i); hashes.push((await engineFrameHash(page, 30)).sha256); }
+      // Constant within a frame however often it is read; exactly base + frame * period.
+      const clock = await page.evaluate(() => { const a = performance.now(), b = performance.now(), d = Date.now(); return { a, b, d, frame: (window as any).__ENGINE_PACER__.frame() }; });
+      const d = await engineDiagnostics(page);
+      expect(d.errors).toEqual([]); expect(d.pacer).toMatchObject({ fps: 60, virtualTime, frame: 120 });
+      return { hashes, clock, lines: d.logs.filter((l: string) => l.startsWith('clock ')) };
+    } finally { await page.close(); }
+  }
+  test('clock fixture: virtualTime + --fixed-fps replays identical frame hashes; the real clock does not', async ({ browser }, info) => {
+    info.annotations.push({ type: 'catches', description: 'Engine replays diverging because game code reads performance.now/Date (particles, timers) even with --fixed-fps + pacer; a per-call or real clock.' });
+    needRuntime();
+    const server = await serveEngine(buildFixture(ID, { clock: true, suffix: 'fixed', profile: { engineArgs: ['--fixed-fps', '60'] } }));
+    let a, b, real;
+    try {
+      a = await clockReplay(browser, server.url, { virtualTime: true });
+      b = await clockReplay(browser, server.url, { virtualTime: true, jitter: true });
+      real = await clockReplay(browser, server.url, { virtualTime: false, jitter: true });
+    } finally { await server.close(); }
+    await info.attach('clock-replays.json', { body: JSON.stringify({ a, b, real }, null, 2), contentType: 'application/json' });
+    expect(a.clock.a).toBe(a.clock.b); expect(a.clock.a).toBeCloseTo(1000 + 120 * 1000 / 60, 9);
+    expect(a.clock.d).toBe(Math.floor(Date.UTC(2026, 0, 1) + 120 * 1000 / 60));
+    expect(b.hashes).toEqual(a.hashes); expect(b.lines).toEqual(a.lines);
+    expect(new Set(a.hashes).size).toBe(4); // the box moves with the (virtual) clock
+    // Ticks seen by the game advance exactly one frame period per engine frame.
+    const ticks = a.lines.map((l: string) => Number(l.split(' ')[2]));
+    expect(ticks.length).toBeGreaterThanOrEqual(100);
+    // The boot iteration (Main::start, before any paced frame) and frame 0 share frame 0's clock.
+    expect(ticks[1]).toBe(ticks[0]);
+    for (let i = 2; i < ticks.length; i++) expect([16666, 16667]).toContain(ticks[i] - ticks[i - 1]);
+    // Negative control: same pacer and --fixed-fps on the real clock -> wall-time jitter reaches the screen.
+    expect(real.hashes).not.toEqual(a.hashes);
+    expect(real.clock.a).not.toBe(a.clock.a);
+  });
+});

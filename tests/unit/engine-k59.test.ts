@@ -70,7 +70,7 @@ describe('K59 Q3: GPU switch and renderer classification', () => {
     expect(chromiumLaunch().args).toContain('--ignore-gpu-blocklist');
   });
   it('engine:probe arguments', () => {
-    expect(parseEngineProbeArgs(['b', 's.mjs'])).toEqual({ build: 'b', script: 's.mjs', out: 'reports/engine-probe', software: false, browser: 'chromium', measure: null, pace: null });
+    expect(parseEngineProbeArgs(['b', 's.mjs'])).toEqual({ build: 'b', script: 's.mjs', out: 'reports/engine-probe', software: false, browser: 'chromium', measure: null, pace: null, virtualTime: false });
     expect(parseEngineProbeArgs(['b', 's.mjs', 'o', '--software', '--measure', '500'])).toMatchObject({ out: 'o', software: true, measure: 500 });
     expect(parseEngineProbeArgs(['b', '--browser', 'webkit', '--out', 'o'])).toMatchObject({ script: undefined, browser: 'webkit', out: 'o' });
     expect(() => parseEngineProbeArgs(['b'])).toThrow(/SCRIPT is required/);
@@ -81,6 +81,8 @@ describe('K59 Q3: GPU switch and renderer classification', () => {
     expect(() => parseEngineProbeArgs(['b', 's.mjs', '--headed'])).toThrow(/unknown argument/);
     expect(parseEngineProbeArgs(['b', 's.mjs', '--pace', '60'])).toMatchObject({ pace: 60 });
     expect(() => parseEngineProbeArgs(['b', 's.mjs', '--pace', '0'])).toThrow(/--pace/);
+    expect(parseEngineProbeArgs(['b', 's.mjs', '--pace', '60', '--virtual-time'])).toMatchObject({ pace: 60, virtualTime: true });
+    expect(() => parseEngineProbeArgs(['b', 's.mjs', '--virtual-time'])).toThrow(/needs --pace/);
   });
 });
 
