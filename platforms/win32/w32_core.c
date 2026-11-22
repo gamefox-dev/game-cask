@@ -850,6 +850,7 @@ static void wait_host(void) {
     x86_account_idle(1,bgt_time_us());
     w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
     x86_profile_idle_begin();
+    x86_check_suspendable(); /* K65: never unwind through an uninstrumented native step */
     bgt_yield();
     x86_profile_idle_end();
     w32_gl_host_yield(1);

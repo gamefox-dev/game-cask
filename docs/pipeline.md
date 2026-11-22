@@ -180,7 +180,8 @@ and coverage counters are not reset or artificially incremented.
 
 Named profiling no longer passes **`-g` through Binaryen**. The build captures `--print-function-map` after all
 optimization/Asyncify passes, caches the final index/name sidecar with its wasm, then appends only the standard
-function-name subsection in a lightweight byte pass. No local-variable/DWARF metadata is emitted by wasm-opt.
+function-name subsection in a lightweight byte pass. Since K65 every Asyncify artifact carries that name section
+(whole and partitioned); `BGT_PROFILE_NAMES=1` additionally writes `profile-map.json`. No local-variable/DWARF metadata is emitted by wasm-opt.
 `profile-map.json` is also saved next to the wasm; function indices are post-transform, not an incorrect linker-index
 mapping. Cache publication, missing-sidecar rebuild, lease accounting and pruning include the sidecar. A 1.6M-insn,
 39 MiB named scale build completed with 13,900 final mapped functions and only 186,370 name-section bytes; the named
@@ -317,6 +318,11 @@ analysis for A/B. i386, dispatcher, shared semantics, scheduler, callbacks and h
 A synthetic normally lifted Win64 override really yields twice; the regression verifies it resumes and returns the
 known answer. It also exposed/fixes the pre-existing AMD64 `--skip` duplicate-symbol bug (overrides have an exact-entry
 registry record, never a duplicate native body or an invented interior range).
+
+K65: the exclusion list is now a set of *cut points* for an exact suspension set computed from the linked
+wasm (direct calls plus signature-matched table calls); Binaryen instruments exactly that set (onlylist), the
+published artifact is re-verified, and the runtime faults if `bgt_yield` is reached with a native step live.
+See [suspension policy](suspension.md#exact-suspension-set-k65-default).
 
 An entirely overridden selection has no native steps and therefore uses an empty exclusion list. An all-inlined
 step set may also have no surviving linked names; neither case broadens exclusions to suspending wrappers.

@@ -196,6 +196,11 @@ typedef void (*x86_native_fn)(uint32_t);
  * function's primary entry has end=addr+1, to distinguish function counts from continuations. */
 typedef struct { uint32_t addr; x86_lifted_fn fn; uint32_t end; x86_native_fn native; } x86_lifted_entry_t;
 void x86_run_native(x86_native_fn step);
+/* K65: generated native steps (N_*) are Asyncify cut points (never instrumented). Count live
+ * step frames; a profile calls x86_check_suspendable() right before bgt_yield, which faults
+ * instead of unwinding through uninstrumented frames (that would corrupt state on resume). */
+extern unsigned x86_native_live;
+void x86_check_suspendable(void);
 /* Bounded non-suspending generated calls. A false entry leaves dispatch to the flat
  * driver; a false resume propagates the already-spilled state out of all native frames. */
 #define X86_NATIVE_FAST_VERSION 1

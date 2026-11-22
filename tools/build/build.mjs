@@ -22,7 +22,7 @@ import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
 import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
-import { functionNames, stripDwarf, encodeFunctionNames } from './wasm-names.mjs';
+import { functionNames, stripDwarf } from './wasm-names.mjs';
 import { buildEngine, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
@@ -50,10 +50,10 @@ export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=104857
 
 // Complete post-link identity: thresholds/local passes live in asyncify.mjs; both
 // binary and name parsers can change partition assembly or exact native exclusions.
-export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],asyncifyPartitionBytes=null,root=ROOT}={}) {
+export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],asyncifyPartitionBytes=null,asyncifyAnalysis='precise',root=ROOT}={}) {
   return sha256(Buffer.concat([wasm,Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),
-    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/command.py','tools/build/node-args.mjs'].map(p=>readFileSync(join(root,p))),
-    Buffer.from(JSON.stringify({version:'bounded-asyncify/v1',profileNames,asyncifyRemove,asyncifyPartitionBytes}))]));
+    ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/wasm-callgraph.mjs','tools/build/command.py','tools/build/node-args.mjs'].map(p=>readFileSync(join(root,p))),
+    Buffer.from(JSON.stringify({version:'bounded-asyncify/v2',profileNames,asyncifyRemove,asyncifyPartitionBytes,asyncifyAnalysis}))]));
 }
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
@@ -213,7 +213,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const jspiMs = performance.now() - jspiStarted;
   const linkedMs = performance.now() - buildStarted;
   if(onLinkedWasm)onLinkedWasm(wasmPath);
-  let asyncifyCached = false;
+  let asyncifyCached = false, asyncifyStats = null;
+  const asyncifyAnalysis = process.env.BGT_ASYNCIFY_ANALYSIS || 'precise';
+  if (!['precise','binaryen'].includes(asyncifyAnalysis)) throw new Error('BGT_ASYNCIFY_ANALYSIS must be precise or binaryen');
   const asyncifyStarted = performance.now();
   const profileMap=[];
   if (cfg.asyncify && !jspiOnly) {
@@ -229,15 +231,15 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     // reach bgt.yield are instrumented; indirect calls are assumed to possibly reach it.
     const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
     if (!existsSync(wasmOpt)) throw new Error('asyncify needs binaryen: run npm ci');
-    const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove,asyncifyPartitionBytes});
+    const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove,asyncifyPartitionBytes,asyncifyAnalysis});
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
     try {
       // The same atomic per-key writer protocol is used for objects and whole-module
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
       const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
-        phase: 'wasm-opt', cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, ...(profileNames ? {stdout:cached+'.names'} : {}), args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
-          ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
+        phase: 'wasm-opt', cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, stdout:cached+'.names', args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
+          ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '--bgt-analysis='+asyncifyAnalysis,
           ...(asyncifyPartitionBytes === null ? [] : ['--bgt-partition-bytes='+asyncifyPartitionBytes]),
           ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
           ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
@@ -245,19 +247,22 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       }));
       asyncifyCached = post.objects_cached === 1;
       cpSync(cached, wasmPath);
+      const sidecar=readFileSync(cached+'.names','utf8').split('\n');
+      const stats=sidecar.find(l=>l.startsWith('#bgt-asyncify '));
+      if(!stats)throw new Error('Asyncify transform reported no verification statistics');
+      asyncifyStats=JSON.parse(stats.slice(14));
+      // K65: the Asyncify artifact always carries the standard name section (asyncify.mjs).
       if(profileNames) {
-        for(const line of readFileSync(cached+'.names','utf8').split('\n')) {
+        for(const line of sidecar) {
           const m=/^(\d+):(.*)$/.exec(line);if(m)profileMap.push({index:Number(m[1]),name:m[2]});
         }
         if(!profileMap.length)throw new Error('wasm-opt emitted no final function map');
-        const names=encodeFunctionNames(profileMap);
-        writeFileSync(wasmPath,Buffer.concat([readFileSync(wasmPath),names]));
         writeFileSync(join(outDir,'profile-map.json'),JSON.stringify({schema:'game-cask/wasm-functions/1',functions:profileMap})+'\n');
       }
     } catch (error) {
       throw new Error(`Asyncify failed for ${cfg.id} (${preAsyncifyBytes} linked bytes; bounded Binaryen wasm32 transform). See Binaryen diagnostic above. A single function >16 MiB or incompatible partition index spaces cannot be partitioned; split generated functions or use suspensionBuild: "jspi" (requires browser JSPI, no Asyncify fallback). Cause: ${error.message}`);
     } finally { releasePost(); }
-    touchCache([cached,...(profileNames?[cached+'.names']:[])]);
+    touchCache([cached,cached+'.names']);
     pruneCache(postDir,Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576);
   }
   const asyncifyMs = performance.now()-asyncifyStarted;
@@ -374,7 +379,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
       ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
       phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
-      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:jspiOnly?'none-jspi-only':asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))), pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
+      asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:jspiOnly?'none-jspi-only':asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))),
+      asyncify_analysis:asyncifyStats?.analysis ?? null, asyncify_functions:asyncifyStats?.functions ?? null, asyncify_suspending:asyncifyStats?.suspending ?? null,
+      asyncify_instrumented:asyncifyStats?.instrumented ?? null, asyncify_partitions:asyncifyStats?.partitions ?? null, pre_asyncify_bytes:preAsyncifyBytes, build_ms: Math.round((performance.now()-buildStarted)*1000)/1000,
       wasm_bytes: wasm.length, lifted_insns: instructions, wasm_bytes_per_insn: instructions ? wasm.length/instructions : null,
       wasm_bytes_per_insn_scope:'total module including profile/asyncify; not marginal lifted-code cost' };
     if (!quiet) console.log(`scale: ${instructions} lifted insns, ${wasm.length} wasm bytes (${instructions ? (wasm.length/instructions).toFixed(2) : 'n/a'} B/insn total), build ${manifest.pipeline.metrics.build_ms} ms, peak child RSS ${compileMetrics?.peak_child_rss_bytes ?? 'unknown'} B; objects ${compileMetrics.objects_compiled} compiled/${compileMetrics.objects_cached} cached/${compileMetrics.objects_uncacheable} uncacheable, compile ${compileMetrics.compile_ms} ms, link ${compileMetrics.link_ms} ms, phases analysis wall/lift wall/Cgen CPU ${pipe.report.timings?.analysis_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.lift_ms?.toFixed(1) ?? 0}/${pipe.report.timings?.c_generation_cpu_ms?.toFixed(1) ?? 0} ms, wasm-opt ${asyncifyMs.toFixed(1)} ms (${asyncifyCached ? 'cached' : 'cold'}), cache misses ${compileMetrics.object_cache_decisions?.filter((o) => !o.hit).length ?? compileMetrics.objects_compiled}`);
