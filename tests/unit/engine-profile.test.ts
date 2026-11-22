@@ -88,7 +88,9 @@ describe('Godot 3 static pack adapter', () => {
     expect(identifyRunner(makeRunner(), r).blockers).toEqual([]);
     expect(identifyRunner(Buffer.from('Godot 3.5.2'), r).blockers).toContain('runner-exact-version/build-unverified');
     // K55: a threaded runner is no blocker (threaded web runtimes exist); Mono still is.
-    expect(identifyRunner(makeRunner('GodotSharp PThread'), r).blockers).toEqual(['Mono/C#-runner']);
+    // K58: only a ".mono." signature marks a Mono runner; the bare GodotSharp string is in every official build.
+    expect(identifyRunner(makeRunner('GodotSharp PThread'), r).blockers).toEqual([]);
+    expect(identifyRunner(makeRunner('PThread', { mono: true }), r).blockers).toEqual(['Mono/C#-runner']);
     expect(identifyRunner(makeRunner('', { version: '3.5.3', build: '0'.repeat(40) }), r).blockers).toEqual(['runner-exact-version/build-unverified']);
   });
 });

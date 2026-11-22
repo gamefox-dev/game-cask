@@ -40,9 +40,10 @@ export function makePack({ files = fixtureFiles(), version = [3, 5, 3], embedded
   }
   return Buffer.concat([header, ...directory, ...contents]);
 }
-export function makeRunner(extra = '', { version = '3.5.3', build = '6c814135b69d4e703956bacc2073b4b179ff5a00' } = {}) {
+/** mono: a Mono build's signature ("<version>.stable.mono.official"). */
+export function makeRunner(extra = '', { version = '3.5.3', build = '6c814135b69d4e703956bacc2073b4b179ff5a00', mono = false } = {}) {
   const b = Buffer.alloc(512); b.write('MZ'); b.writeUInt32LE(128, 60); b.write('PE\0\0', 128);
-  b.write('Godot Engine\0' + version + '.stable.official\0' + build + '\0' + extra, 160);
+  b.write('Godot Engine\0' + version + (mono ? '.stable.mono.official\0' : '.stable.official\0') + build + '\0' + extra, 160);
   return b;
 }
 /** options.version: [3, x, y]; options.build: release commit for the runner signature. */
