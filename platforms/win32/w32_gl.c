@@ -1302,23 +1302,27 @@ const w32_api_t w32_api_gl[] = {
 #undef API
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
-/* K61 error census: {"entry": calls that raised a GL error, ...}, in table order, nonzero entries only. */
-static uint32_t census_put(char *s, uint32_t n, uint32_t cap, const char *name, uint32_t count) {
-    char digits[12]; uint32_t d = 0, len = w32_slen(name);
-    do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
-    if (n + len + d + 6 >= cap) return n;
-    if (n > 1) s[n++] = ',';
-    s[n++] = '"'; copy(s + n, name, len); n += len; s[n++] = '"'; s[n++] = ':';
-    while (d) s[n++] = digits[--d];
-    return n;
-}
-const char *w32_gl_error_calls_json(void) {
-    static char s[4096]; uint32_t n = 0; s[n++] = '{';
-#define API(name, fn, nargs, mutates) if (errs_##fn) n = census_put(s, n, sizeof s - 2, name, errs_##fn);
+/* K61 error census: {"entry": calls that raised a GL error, ...}, in table order, nonzero entries only.
+ * One loop over a {name, counter} table: a call per entry would inline into a ~200 KiB function, which the
+ * whole-module Binaryen -O2/Asyncify transform must then optimize (K61 review: Linux CI wasm-opt failure). */
+static const struct { const char *name; const uint32_t *count; } census[] = {
+#define API(name, fn, nargs, mutates) {name, &errs_##fn},
 #define GLSTUB API
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
+};
+const char *w32_gl_error_calls_json(void) {
+    static char s[4096]; uint32_t n = 0, cap = sizeof s - 2; s[n++] = '{';
+    for (uint32_t e = 0; e < sizeof census / sizeof census[0]; e++) {
+        uint32_t count = *census[e].count; if (!count) continue;
+        char digits[12]; uint32_t d = 0, len = w32_slen(census[e].name);
+        do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
+        if (n + len + d + 6 >= cap) break;
+        if (n > 1) s[n++] = ',';
+        s[n++] = '"'; copy(s + n, census[e].name, len); n += len; s[n++] = '"'; s[n++] = ':';
+        while (d) s[n++] = digits[--d];
+    }
     s[n++] = '}'; s[n] = 0; return s;
 }
 #if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
