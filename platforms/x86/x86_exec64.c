@@ -49,7 +49,8 @@ void x86_exec64(const x86_insn_t *in) {
     case XO_LAHF:x64_set(16,1,(X.flags&0xd5)|2);return;
     case XO_CWDE:x64_set(EAX,in->osz,x64_sext(x64_reg(EAX,in->osz/2),in->osz/2));return;
     case XO_CDQ:x64_set(EDX,in->osz,(X.r[EAX]&(1ull<<(in->osz*8-1)))?x64_mask(in->osz):0);return;
-    case XO_CMOVCC:{uint64_t v=x64_read(b);if(xs_cond(in->cc))x64_write(a,v);return;}
+    /* A 32-bit CMOVcc zero-extends its destination even when the condition is false. */
+    case XO_CMOVCC:{uint64_t v=x64_read(b);if(xs_cond(in->cc))x64_write(a,v);else if(a->kind==XK_REG&&a->reg<16&&n==4)X.r[a->reg]=(uint32_t)X.r[a->reg];return;}
     case XO_SETCC:x64_write(a,(uint64_t)xs_cond(in->cc));return;
     case XO_BSWAP:x64_write(a,n==8?__builtin_bswap64(x64_read(a)):__builtin_bswap32((uint32_t)x64_read(a)));return;
     case XO_BT:case XO_BTS:case XO_BTR:case XO_BTC:{uint64_t bit=x64_read(b);x86_opnd_t m=*a;if(a->kind==XK_MEM && b->kind==XK_REG)m.disp+=(int32_t)(((int64_t)bit>>(n==8?6:5))*n);uint64_t v=x64_read(&m),mask=1ull<<(bit&(n*8-1));xs_setf(F_CF,!!(v&mask));if(in->op!=XO_BT){v=in->op==XO_BTS?v|mask:in->op==XO_BTR?v&~mask:v^mask;x64_write(&m,v);}return;}

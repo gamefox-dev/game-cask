@@ -17,7 +17,7 @@ static uint8_t memory[2u<<20];
 static uint8_t host[64u<<20];
 static uint32_t top, submissions, rejected_size, request_pending, request_result;
 static uint32_t live_modules[N], live_textures[N], live_buffers[65536], live_samplers[N], module_creates;
-static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws;
+static uint32_t reject_transport, reject_opcode, invalid_sampler_bindings, native_draws, reject_creates, reject_textures; /* K57: reject the next N BUFFER_CREATEs / TEXTURE_CREATE_EXs */
 static uint8_t device_buffers[256][256];
 static uint32_t device_sizes[256], device_readback, heap_live, heap_oom, reject_update, reject_readback, reject_delete, fail_readback;
 /* Bounded guest staging adapter, one live mapping in these focused tests. */
@@ -69,6 +69,15 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
         for(uint32_t off=16;off<n;){const uint32_t *c=w+off/4;uint32_t code=c[0]&65535u,bytes=c[1];
             if(code==0x56&&bytes>=12&&(!c[4]||c[4]>GPU_MAX||!live_samplers[c[4]]))invalid_sampler_bindings++;
             if(code==0x57||code==0x58)native_draws++;
+            /* K57: a buffer reallocation with headroom is one CREATE(capacity) + UPDATE(size) list. */
+            const uint32_t *a=c+2;
+            if(code==0x40){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||live_buffers[a[0]])abort();live_buffers[a[0]]=1;}
+            if(code==0x42){if(!a[0]||a[0]>=buffer_wire_slots||a[0]>=65536||!live_buffers[a[0]])abort();live_buffers[a[0]]=0;}
+            if((code==0x40||code==0x41)&&a[0]<256) {
+                uint32_t size=code==0x40?a[2]:a[3],dest=code==0x40?0:a[1],ptr=code==0x40?a[3]:a[2];
+                if(code==0x40)device_sizes[a[0]]=size;
+                if(size&&ptr&&dest+size<=256)memcpy(device_buffers[a[0]]+dest,host+(uint32_t)(ptr-(uint32_t)(uintptr_t)host),size);
+            }
             off+=8+bytes;}
         if(invalid_sampler_bindings)abort();
         submissions++;return 0;
@@ -76,6 +85,8 @@ int32_t bgt_submit_commands(const void *p,uint32_t n) {
     submissions++;
     uint32_t code=w[4]&65535u; const uint32_t *a=w+6;
     if((reject_transport&&code==0x48)||code==reject_opcode)return -3;
+    if(code==0x40&&reject_creates){reject_creates--;return -3;}
+    if(code==0x59&&reject_textures){reject_textures--;return -3;}
     if(code==0x41&&reject_update)return -3;
     if(code==0x63&&reject_readback)return -3;
     if(code==0x42&&reject_delete)return -3;
@@ -230,6 +241,21 @@ static void buffer_respec(void) {
     call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4); CHECK(!error&&buffers[1].size==4&&w32_gl_buffer_respec_shrank==1);
     call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==4);
     CHECK(w32_gl_buffer_respec_reused==3&&w32_gl_buffer_respec_resized==2);
+    /* K57: growth to exactly 1.5x (8 -> 12) needs no headroom; the shrink fit the capacity in place. Sizes within the
+     * capacity are one UPDATE each and keep the exact logical size; growth beyond it reallocates once with headroom
+     * (12 -> 1.5x = 18 -> 32 bytes, 16-byte rounded). */
+    CHECK(buffers[1].gpu==grown&&buffers[1].cap==12&&w32_gl_buffer_capacity_reused==1&&w32_gl_buffer_capacity_grown==1);
+    CHECK(device_buffers[grown][0]==33&&device_buffers[grown][3]==36);
+    before=submissions; for (uint32_t i=0;i<17;i++) memory[8192+i]=(uint8_t)(i+50);
+    call(api_BufferData,ARRAY_BUFFER,12,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].size==12&&buffers[1].cap==12);
+    call(api_BufferSubData,ARRAY_BUFFER,8,8,8192); CHECK(error==BAD_VALUE); error=0;
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,16,8192,0x88e4);
+    CHECK(!error&&submissions==before+2&&buffers[1].size==16&&buffers[1].cap==32&&w32_gl_buffer_capacity_grown==2);
+    CHECK(device_buffers[buffers[1].gpu][15]==65);
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,17,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].cap==32);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0); CHECK(x86_rd32(4096)==17&&device_buffers[buffers[1].gpu][16]==66);
+    before=submissions; call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4); CHECK(!error&&submissions==before+1&&buffers[1].cap==32);
+    CHECK(w32_gl_buffer_capacity_reused==4&&w32_gl_buffer_capacity_grown==2);
     /* Transform-feedback binding is rejected before any reuse submission. */
     tf_active=1; tf_bound[0]=1; before=submissions; call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4);
     CHECK(error==BAD_OP&&submissions==before); error=0; tf_bound[0]=0; tf_active=0;
@@ -264,6 +290,48 @@ static void buffer_respec_failures(void) {
         x86_wr32(4096,1);call(api_DeleteBuffers,1,4096,0,0);CHECK(!error&&w32_gl_frontend_bytes==0);
     }
     puts("buffer rejected reuse reproduces original delete/create stages and first-error latch OK");
+}
+/* K57: retained capacity is budgeted and released; budget rejections retry exact, then reclaim slack. */
+static void buffer_capacity_budget(void) {
+    for(uint32_t i=0;i<4;i++)memory[8192+i]=(uint8_t)(i+7);
+    call(api_BindBuffer,ARRAY_BUFFER,1,0,0);
+    call(api_BufferData,ARRAY_BUFFER,1u<<20,0,0x88e4);CHECK(!error&&buffers[1].cap==1u<<20&&buffer_slack==0);
+    call(api_BufferData,ARRAY_BUFFER,600u<<10,0,0x88e4);CHECK(!error&&buffers[1].cap==1u<<20&&buffer_slack==(424u<<10));
+    /* Logical size below a quarter of a large capacity: exact-size reallocation releases it. */
+    uint32_t before=submissions;call(api_BufferData,ARRAY_BUFFER,100u<<10,0,0x88e4);
+    CHECK(!error&&submissions==before+2&&buffers[1].cap==100u<<10&&buffer_slack==0&&w32_gl_buffer_capacity_released==1);
+    /* Headroom rejected by the budget: retried at the exact size, no GL error. */
+    reject_creates=1;call(api_BufferData,ARRAY_BUFFER,120u<<10,8192,0x88e4);
+    CHECK(!error&&buffers[1].cap==120u<<10&&buffers[1].size==120u<<10&&buffers[1].data[3]==10&&!reject_creates);
+    /* Slack retained by store 1 (shrunk in place), then a rejected allocation of store 2: reclaim, then retry. */
+    call(api_BufferData,ARRAY_BUFFER,64u<<10,8192,0x88e4);CHECK(!error&&buffers[1].cap==120u<<10&&buffer_slack==(56u<<10));
+    call(api_BindBuffer,ARRAY_BUFFER,2,0,0);reject_creates=1;call(api_BufferData,ARRAY_BUFFER,32,8192,0x88e4);
+    CHECK(!error&&buffers[2].gpu&&buffers[2].size==32&&buffers[1].cap==64u<<10&&buffers[1].size==64u<<10&&buffer_slack==0);
+    CHECK(w32_gl_buffer_capacity_released==2&&buffers[1].data[0]==7&&live_buffers[buffers[1].gpu]);
+    /* K57 review: any allocation (here a texture) rejected while slack is retained reclaims it and is retried once. */
+    call(api_BindBuffer,ARRAY_BUFFER,1,0,0);call(api_BufferData,ARRAY_BUFFER,40u<<10,8192,0x88e4);
+    CHECK(!error&&buffers[1].cap==64u<<10&&buffer_slack>=(24u<<10));uint32_t keep=buffers[1].gpu;
+    uint64_t slack0=buffer_slack,retries0=w32_gl_reclaim_retries,released0=w32_gl_buffer_capacity_released;
+    Texture tex;zero(&tex,sizeof tex);reject_textures=1;CHECK(gpu_create(&tex,600,0,4,4,1,0)&&!error&&tex.gpu);
+    CHECK(w32_gl_reclaim_retries==retries0+1&&buffer_slack<slack0&&buffers[1].cap==40u<<10&&buffers[1].gpu==keep&&live_buffers[keep]);
+    CHECK(live_buffers[buffers[1].gpu]&&buffers[1].data[0]==7&&w32_gl_buffer_capacity_released==released0+1);gpu_destroy(&tex);
+    /* A reclaim whose exact CREATE is rejected recreates the old store (contents kept); the allocation then fails truthfully. */
+    call(api_BufferData,ARRAY_BUFFER,32u<<10,8192,0x88e4);keep=buffers[1].gpu;uint8_t *shadow=buffers[1].data;
+    CHECK(!error&&buffers[1].cap==40u<<10);zero(&tex,sizeof tex);reject_textures=2;reject_creates=1; /* the exact CREATE: the old store is recreated */
+    CHECK(!gpu_create(&tex,601,0,4,4,1,0)&&error==OOM&&!tex.gpu);error=0;
+    CHECK(buffers[1].gpu==keep&&live_buffers[keep]&&buffers[1].data==shadow&&buffers[1].cap==40u<<10&&buffers[1].size==32u<<10);
+    CHECK(!reject_textures&&!reject_creates&&w32_gl_reclaim_retries==retries0+2);
+    call(api_BufferData,ARRAY_BUFFER,64u<<10,8192,0x88e4);CHECK(!error);call(api_BindBuffer,ARRAY_BUFFER,2,0,0);
+    /* A genuine rejection (no slack left) is GL_OUT_OF_MEMORY with an empty store. */
+    reject_creates=1;call(api_BufferData,ARRAY_BUFFER,48,8192,0x88e4);CHECK(error==OOM&&!buffers[2].gpu&&!buffers[2].size);error=0;
+    /* A generated store with spare capacity rewritten from the CPU becomes an exact store (upload = logical size). */
+    call(api_BindBuffer,ARRAY_BUFFER,3,0,0);call(api_BufferData,ARRAY_BUFFER,16,8192,0x88e4);call(api_BufferData,ARRAY_BUFFER,12,8192,0x88e4);
+    CHECK(!error&&buffers[3].cap==16&&buffers[3].size==12);buffers[3].generated=1;
+    call(api_BufferSubData,ARRAY_BUFFER,0,12,8192);CHECK(!error&&!buffers[3].generated&&buffers[3].cap==12&&device_sizes[buffers[3].gpu]==12);
+    call(api_BufferData,ARRAY_BUFFER,16,8192,0x88e4);call(api_BufferData,ARRAY_BUFFER,8,8192,0x88e4);buffers[3].generated=1;
+    call(api_BufferData,ARRAY_BUFFER,4,8192,0x88e4);CHECK(!error&&!buffers[3].generated&&buffers[3].cap==4&&device_sizes[buffers[3].gpu]==4);
+    x86_wr32(4096,1);x86_wr32(4100,2);x86_wr32(4104,3);call(api_DeleteBuffers,3,4096,0,0);CHECK(!error&&buffer_slack==0&&w32_gl_frontend_bytes==0);
+    puts("buffer capacity budget/release/exact retry/reclaim/generated exact store OK");
 }
 static void buffer_memory(void) {
     call(api_BindBuffer,ARRAY_BUFFER,1,0,0);
@@ -443,7 +511,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
     else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
     else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();else if(!strcmp(argv[1],"respec"))buffer_respec();else if(!strcmp(argv[1],"respec-failures"))buffer_respec_failures();
-    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
+    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"capacity-budget"))buffer_capacity_budget();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
 }

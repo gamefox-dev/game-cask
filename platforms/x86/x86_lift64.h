@@ -160,6 +160,57 @@ static inline __attribute__((always_inline)) uint64_t xl_imul(uint64_t a, uint64
     *flags = (*flags & ~(F_CF | F_OF)) | (ov ? F_CF | F_OF : 0);
     return r;
 }
+/* ---- K52 fast mode (pipeline.liftMode "fast"): performance-first helpers. ----
+ * Guest memory is the flat window. A fast access checks only the committed range (one compare
+ * against a function-local bound); holes and page protections inside it are not enforced. The
+ * cold path re-reads the live bound (memory may have grown since the local copy) and otherwise
+ * stops with the usual diagnostic. Never a host pointer outside the guest window. */
+#ifdef X86_FLAT_GUEST
+static __attribute__((noinline, cold)) uint8_t *xf_ptr_slow(uint64_t a, unsigned n, uint32_t pc) {
+    if (a <= x86_guest_committed && n <= x86_guest_committed - a) return x86_flat + (uint32_t)a;
+    X.eip = pc;
+    x86_fault("unmapped flat guest memory", (uint32_t)a);
+}
+/* Mask form (liftFast.memory "mask"): no compare at all. The address is wrapped into the next
+ * power of two of the window, so a wild guest pointer aliases guest memory or traps past the
+ * committed end; it can never reach host memory below the window. */
+#define XF_MASK ((uint32_t)((1ull << (64 - __builtin_clzll((uint64_t)(X86_FLAT_BYTES) - 1))) - 1))
+/* Range form with a pure pointer: the cold path only refreshes the bound (memory grew since the
+ * function loaded it) or stops, so the host pointer never merges with a slow-path result and
+ * store-to-load forwarding through guest memory keeps working. */
+static __attribute__((noinline, cold)) uint64_t xf_bound_slow(uint64_t a, unsigned n, uint32_t pc) {
+    if (a <= x86_guest_committed && n <= x86_guest_committed - a) return x86_guest_committed;
+    X.eip = pc;
+    x86_fault("unmapped flat guest memory", (uint32_t)a);
+}
+#define XF_RANGE(a, n, pc) do { if (__builtin_expect((a) > xf_lim - (n), 0)) xf_lim = xf_bound_slow((a), (n), (pc)); } while (0)
+static inline __attribute__((always_inline)) uint8_t *xf_ptr(uint64_t a, unsigned n, uint32_t pc,
+        uint64_t lim, uint8_t *base) {
+    if (__builtin_expect(a <= lim - n, 1)) return base + (uint32_t)a;
+    return xf_ptr_slow(a, n, pc);
+}
+#endif
+/* A direct callee left abnormally (deferred import, generic/interior exit, quantum yield, thread
+ * transfer): its state is already published and every native frame must return. */
+static inline __attribute__((always_inline)) int xf_busy(void) {
+    return X.transfer | (x86_lift_pending != 0) | (x86_lift_count != 0) | (int)x86_fast_yield |
+        (x86_pending_import != 0);
+}
+static inline __attribute__((always_inline)) x86_native_fn xf_lookup(x86_fast_site_t *s, uint32_t t) {
+    if (__builtin_expect(s->target == t && s->generation == x86_lifted_generation, 1)) return s->fn;
+    return x86_fast_lookup(s, t);
+}
+/* Flag-free shift result (flags dead after it); identical result to xl_shift. */
+static inline __attribute__((always_inline)) uint64_t xf_shift(int op, uint64_t a, uint32_t c, int n) {
+    unsigned bits = (unsigned)n * 8;
+    uint64_t m = x64_mask(n);
+    a &= m; c &= n == 8 ? 63 : 31;
+    if (!c) return a;
+    if (op == XO_SHL || op == XO_SAL) return c >= bits ? 0 : (a << c) & m;
+    if (op == XO_SHR) return c >= bits ? 0 : a >> c;
+    unsigned k = c >= bits ? bits - 1 : c;
+    return (uint64_t)((int64_t)x64_sext(a, n) >> k) & m;
+}
 static inline __attribute__((always_inline)) int xl_cond(unsigned cc, uint32_t f) {
     int cf = !!(f & F_CF), zf = !!(f & F_ZF), sf = !!(f & F_SF), of = !!(f & F_OF);
     switch (cc) {
@@ -169,5 +220,27 @@ static inline __attribute__((always_inline)) int xl_cond(unsigned cc, uint32_t f
     case 12: return sf != of; case 13: return sf == of;
     case 14: return zf || sf != of; default: return !zf && sf == of;
     }
+}
+/* K52 fused predicate: the condition `cc` right after an ADD/SUB(CMP,DEC)/logic producer with
+ * operands a,b and result r, evaluated directly instead of through materialized EFLAGS. Callers
+ * only fuse when cc reads no flag the producer leaves unchanged (INC/DEC keep CF). */
+static inline __attribute__((always_inline)) int xf_cond(int op, uint64_t a, uint64_t b, uint64_t r, int n, unsigned cc) {
+    uint64_t m = x64_mask(n), s = 1ull << (n * 8 - 1);
+    a &= m; b &= m; r &= m;
+    if (op == XO_SUB) {
+        int64_t sa = (int64_t)x64_sext(a, n), sb = (int64_t)x64_sext(b, n);
+        switch (cc) {
+        case 2: return a < b; case 3: return a >= b; case 4: return a == b; case 5: return a != b;
+        case 6: return a <= b; case 7: return a > b; case 12: return sa < sb; case 13: return sa >= sb;
+        case 14: return sa <= sb; case 15: return sa > sb; default: break;
+        }
+    }
+    uint32_t f = 0;
+    if (op == XO_SUB) { if (a < b) f |= F_CF; if ((a ^ b) & (a ^ r) & s) f |= F_OF; }
+    else if (op == XO_ADD) { if (r < a) f |= F_CF; if ((a ^ r) & (b ^ r) & s) f |= F_OF; }
+    if (!r) f |= F_ZF;
+    if (r & s) f |= F_SF;
+    if (xl_parity((uint32_t)r)) f |= F_PF;
+    return xl_cond(cc, f);
 }
 #endif

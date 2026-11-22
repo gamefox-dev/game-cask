@@ -15,7 +15,8 @@ it('per-program std140 sizes, exact mapped ranges, counted zero-tail approximati
  expect(failures).toEqual(['MRT absent zero preserved','MRT one written','MRT absent two preserved','MRT three written','MRT color mask intersected','MRT blue mask','MRT absent mask preserved','empty fragment keeps color','80 base bytes','176 base bytes','192 base bytes','odd range zero tail','offset exact linked bytes','relinked range','two blocks independent slots','two blocks independent slots','3000 exact audit words','ping pong final word','generated odd-byte copy','generated undersized UBO prefix and zero tail']);
  const summary=h.logs.find(l=>l.includes('x64-gl-ranges PASS'));expect(summary).toMatch(/x64-gl-ranges PASS failures=20 checks=\d+/);
  console.info(summary,`peak continuation submissions=${max}`);
- expect(h.host.commandErrorCount).toBe(0);expect(max).toBeGreaterThan(6000);
+ // K57 contract change: feedback draws batch (K53: >6000 per-call lists in this update); order is still exact (browser spec).
+ expect(h.host.commandErrorCount).toBe(0);expect(max).toBeLessThan(64);
  const ranges=stream.items.filter(i=>i.op===O.UNIFORM_BUFFER&&i.words[0]===1).map(i=>i.words.slice(2));
  expect(ranges).toContainEqual([0,80]);expect(ranges).toContainEqual([0,176]);expect(ranges).toContainEqual([0,192]);expect(ranges).toContainEqual([256,192]);
  expect(ranges.some(w=>w[1]===191||w[1]===193||w[1]===800)).toBe(false);
@@ -25,7 +26,7 @@ it('per-program std140 sizes, exact mapped ranges, counted zero-tail approximati
  expect(h.logs.filter(l=>l.includes('GL undefined uniform block range zero-filled:')).length).toBe(2);
 },120000);
 it.each(['upload','wire','uniform'])('partial materialization %s limit retires generated private buffers before source removal',async mode=>{
- buildGame('examples/x64-gl-ranges',{quiet:true});const stream=glStream();let injected=false;
+ buildGame('examples/x64-gl-ranges',{quiet:true});const stream=glStream();let injected=false,residentOffset=0;
  const h:Awaited<ReturnType<typeof loadHeadless>>=await loadHeadless('x64-gl-ranges',{...stream,onLog:message=>{
    if(message.includes('inject partial materialization limit')){
      injected=true;if(mode==='upload')h.host.frame.gpuUploadBytes=GPU_LIMITS.budget-64;
@@ -35,6 +36,10 @@ it.each(['upload','wire','uniform'])('partial materialization %s limit retires g
    if(message.includes('inject rejected full upload'))h.host.frame.gpuUploadBytes=GPU_LIMITS.budget;
    if(message.includes('inject upload headroom'))h.host.frame.gpuUploadBytes=GPU_LIMITS.budget-15;
    if(message.includes('restore materialization budget')){h.host.frame.gpuUploadBytes=0;h.host.frame.commandBytes=0;}
+   // K57 review: resident-budget room (decoder GpuState.bytes), restored by offset so real accounting continues.
+   const g=(h.host as unknown as {gpu:{bytes:number;budget:number}}).gpu,room=/inject resident room (\d+)/.exec(message);
+   if(room){residentOffset=g.budget-Number(room[1])-g.bytes;g.bytes+=residentOffset;}
+   if(message.includes('restore resident budget')){g.bytes-=residentOffset;residentOffset=0;}
  }});h.key('F9',true);
  for(let i=0;i<180&&!h.logs.some(l=>l.includes('failure case done'));i++)await h.stepAsync(1);
  expect(injected).toBe(true);expect(h.logs.some(l=>l.includes('failure case done'))).toBe(true);
@@ -43,6 +48,12 @@ it.each(['upload','wire','uniform'])('partial materialization %s limit retires g
  expect(h.logs.some(l=>l.includes('ok headroom whole upload rejected'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok materialization limit surfaced'))).toBe(true);
  expect(h.logs.some(l=>l.includes('ok generated app source deleted'))).toBe(true);
+ // K57: rejected deferred reallocation / feedback draw inside a batch (replayed per call).
+ for(const note of ['deferred growth limit surfaced','rejected growth leaves an empty store','growth recovery exact bytes',
+   'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
+   'rejected capture counts no primitives','headroom growth near the resident limit retried exact','exact retry keeps the bytes',
+   'slack reclaimed before GL_OUT_OF_MEMORY','reclaimed store keeps its bytes','wide stores deleted',
+   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup'])expect(h.logs.some(l=>l.includes('ok '+note))).toBe(true);
  // One retirement per generated-source TF draw: three, plus the K53 headroom case's draw.
  expect(stream.items.filter(i=>i.op===O.BUFFER_DELETE&&i.words[0]===1000)).toHaveLength(4);
  expect(h.host.commandErrorCount).toBeGreaterThan(0);

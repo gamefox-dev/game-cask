@@ -939,6 +939,33 @@ int main(int argc, char **argv) {
             if (strcmp(argv[i + 1], "fast") && strcmp(argv[i + 1], "size")) die("--lift-preset must be fast or size");
             lift_inline_memory = lift_inline_alu = lift_affine_counting = lift_optimize_small = !strcmp(argv[i + 1], "fast");
         }
+        else if (!strcmp(argv[i], "--lift-mode")) {
+            if (strcmp(argv[i + 1], "fast") && strcmp(argv[i + 1], "exact")) die("--lift-mode must be fast or exact");
+            lift_fast = !strcmp(argv[i + 1], "fast");
+        }
+        else if (!strcmp(argv[i], "--fast-resume")) lift_fast_resume = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--fast-fuse")) lift_fast_fuse = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--fast-memory")) {
+            if (!strcmp(argv[i + 1], "range")) l64_fast_memory = 1;
+            else if (!strcmp(argv[i + 1], "mask")) l64_fast_memory = 2;
+            else if (!strcmp(argv[i + 1], "off")) l64_fast_memory = 0;
+            else if (!strcmp(argv[i + 1], "select")) l64_fast_memory = 3; /* measurement: pointer merges with the slow path */
+            else die("--fast-memory must be range, mask, select or off");
+        }
+        else if (!strcmp(argv[i], "--fast-stack")) l64_fast_stack = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--fast-inline")) {
+            char *end; unsigned long v = strtoul(argv[i + 1], &end, 10);
+            if (*end || v > 256) die("--fast-inline must be 0..256");
+            lift_fast_inline = (uint32_t)v;
+        }
+        else if (!strcmp(argv[i], "--fast-entries")) {
+            if (strcmp(argv[i + 1], "all") && strcmp(argv[i + 1], "restricted")) die("--fast-entries must be all or restricted");
+            lift_fast_all_entries = !strcmp(argv[i + 1], "all");
+        }
+        else if (!strcmp(argv[i], "--fast-quantum")) {
+            if (strcmp(argv[i + 1], "block") && strcmp(argv[i + 1], "sparse")) die("--fast-quantum must be block or sparse");
+            lift_fast_block_quantum = !strcmp(argv[i + 1], "block");
+        }
         else if (!strcmp(argv[i], "--lift-inline-memory")) lift_inline_memory = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--lift-inline-alu")) lift_inline_alu = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--lift-affine-counting")) lift_affine_counting = on_off(argv[i], argv[i + 1]);
@@ -999,9 +1026,11 @@ int main(int argc, char **argv) {
             /* LANE-C: distinguish resumable registry entries from source functions. */
             fprintf(sf, "{\"functions\": %u, \"dataSeeds\": %u, \"overridden\": %u, \"specialized\": %u, "
                     "\"generic\": %u, \"jumpTables\": %u, \"unresolvedJumps\": %u, "
-                    "\"flagsElided\": %u, \"entries\": %u, \"analysis_cpu_ms\": %.3f, \"c_generation_cpu_ms\": %.3f}\n",
+                    "\"flagsElided\": %u, \"entries\": %u, ",
                     emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved,
-                    st.flags_elided, pe.mode64 ? emitted : st.entries, analysis_ms, generation_ms);
+                    st.flags_elided, pe.mode64 ? emitted : st.entries);
+            if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, ", lift_fast_functions, lift_fast_inlined); /* K52: fast mode only */
+            fprintf(sf, "\"analysis_cpu_ms\": %.3f, \"c_generation_cpu_ms\": %.3f}\n", analysis_ms, generation_ms);
             fclose(sf);
         }
         return 0;

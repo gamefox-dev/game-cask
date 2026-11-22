@@ -4,6 +4,14 @@
 static uint32_t l64_used, l64_written;
 static int lift_inline_memory, lift_inline_alu, lift_affine_counting, lift_optimize_small;
 static int l64_dirty_boundary;
+/* K52 fast-mode operand form (lift64_fast.h). l64_fast_memory: 2 mask (default), 1 committed-range
+ * check, 3 range check whose pointer merges with the slow path (measurement), 0 page-table checks. */
+static int l64_fast, l64_fast_memory = 2; static uint32_t l64_fast_pc;
+/* Static RSP delta of the current r[4] value (relative to the owner entry, plus the inline offset);
+ * L64F_UNK when unknown. Stack slots then address xf_sp + delta + L64F_BIAS (an offset immediate). */
+#define L64F_UNK INT64_MIN
+#define L64F_BIAS 1048576
+static int64_t l64_fast_sp = L64F_UNK; static int l64_fast_stack = 1;
 static void l64_sync(FILE *o, int load) {
     for (int i = 0; i < 16; i++) if ((load ? l64_used : l64_written) & (1u << i)) {
         if (load) fprintf(o, "r[%d]=X.r[%d];", i, i);
@@ -58,6 +66,22 @@ static void l64_pointer(FILE *o, const char *ea, int n, uint32_t next, int writi
      * operands still validate full-width effective addresses through l64_ea. */
     if (!strcmp(ea, "r[4]")) ea = "(uint32_t)r[4]";
     if (l64_guarded) { fprintf(o, "p=x86_flat+(uint32_t)%s;\n", ea); return; }
+    if (l64_fast && l64_fast_memory && l64_fast_stack && l64_fast_sp != L64F_UNK) {
+        /* Stack slots relative to a known RSP delta (implicit push/pop/call/ret or explicit [rsp+disp]). */
+        unsigned long long disp = 0; int used = 0; int64_t off = INT64_MIN;
+        if (!strcmp(ea, "(uint32_t)r[4]")) off = 0;
+        else if (sscanf(ea, "(((r[4]+0x%llxull)))%n", &disp, &used) == 1 && !ea[used]) off = (int64_t)disp;
+        if (off != INT64_MIN && off > -(1 << 20) && off < (1 << 20) && l64_fast_sp + off + L64F_BIAS >= 0 &&
+            l64_fast_sp + off + L64F_BIAS < (1ll << 30)) {
+            fprintf(o, "p=xf_sp+%lldu;\n", (long long)(l64_fast_sp + off + L64F_BIAS)); return;
+        }
+    }
+    if (l64_fast && l64_fast_memory == 2) { fprintf(o, "address=%s;p=xf_base+((uint32_t)address&XF_MASK);\n", ea); (void)n; return; }
+    if (l64_fast && l64_fast_memory == 3) { fprintf(o, "address=%s;p=xf_ptr(address,%d,0x%08xu,xf_lim,xf_base);\n", ea, n, l64_fast_pc); return; }
+    if (l64_fast && l64_fast_memory) { fprintf(o, "address=%s;XF_RANGE(address,%d,0x%08xu);p=xf_base+(uint32_t)address;\n", ea, n, l64_fast_pc); return; }
+    if (l64_fast) { /* ablation: checked page-table access, cold stop on failure */
+        fprintf(o, "address=%s;p=xl_pointer_access(address,%d,%u);if(!p){fault=0x%llxull;goto memory_fault;}\n", ea, n,
+            writing == 1 || writing == 2 ? 2u : 1u, (unsigned long long)l64_fast_pc << 32); (void)value; return; }
     /* Fault-replay discriminators are not access bits: 0=scalar read, 1=scalar store,
      * 2=vector store, 3=vector read. A vector read must never demand WRITE permission. */
     unsigned access = writing == 1 || writing == 2 ? 2 : 1;
@@ -284,7 +308,8 @@ static void l64_atomic_emit(FILE *o, const x86_insn_t *in, uint32_t next) {
         fprintf(o, "address=%s;", ea);
         if (bitop && b->kind == XK_REG) fprintf(o, "address=xa_bit_address(address,u,%d,%d,%s);", n, !!(a->pad & 1), a->seg_fs ? (a->seg_fs == 2 ? "X.gs_base" : "X.fs_base") : "0");
         uint64_t meta = ((uint64_t)next << 32) | ((uint64_t)l64_position << 8) | (4 << 5) | n;
-        fprintf(o, "p=%s(address,%u,3);if(!p%s){",
+        if (l64_fast) fprintf(o, "p=xf_ptr(address,%u,0x%08xu,xf_lim,xf_base);if(%s){", n, l64_fast_pc, n == 16 ? "address&15" : "0");
+        else fprintf(o, "p=%s(address,%u,3);if(!p%s){",
             lift_inline_memory ? "xl_pointer_access" : "xl_pointer_checked", n, n == 16 ? "||(address&15)" : "");
         l64_replay_flags(o);
         fprintf(o, "fault=0x%llxull;goto memory_fault;}xa_fence();", (unsigned long long)meta);
@@ -426,6 +451,7 @@ static int l64_specialized(const x86_insn_t *in) {
 }
 #include "lift64_guard.h"
 #include "lift64_imports.h"
+#include "lift64_fast.h"
 typedef struct { uint32_t addr, end; } l64_entry_t;
 static int l64_entry_cmp(const void *a, const void *b) {
     uint32_t x = ((const l64_entry_t *)a)->addr, y = ((const l64_entry_t *)b)->addr;
@@ -444,6 +470,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             uint32_t target=a->f[i].calls.v[j];
             if(!lift_selected(target)&&!vhas(&skip,target)&&func_index(a,target)>=0)vpush(&weak,target);
         }
+    if(lift_fast)l64f_declare_tails(o,a,&weak);
     vsort_uniq(&weak);
     for(uint32_t i=0;i<weak.n;i++)fprintf(o,"__attribute__((weak)) void N_%08x(uint32_t);\n",weak.v[i]);
     free(weak.v);
@@ -454,6 +481,13 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
         if (vhas(&skip,original->addr)) {
             fprintf(o,"extern void F_%08x(void); /* measured override, no native body */\n",original->addr);
             vpush(&order,original->addr);vpush(&ends,original->addr+1);continue;
+        }
+        /* Fast form needs the entry to be the first listed instruction (code laid out below the
+         * entry, e.g. split cold blocks, keeps the exact emitter; both interoperate via the registry). */
+        if (lift_fast && original->insns.n && original->insns.n <= L64F_MAX_INSNS && original->insns.v[0] == original->addr) {
+            l64f_lift(o, a, original, st);
+            vpush(&order, original->addr); vpush(&ends, original->end);
+            continue;
         }
         uint32_t *import_hints=l64_import_hints(a->pe,original);
         for (uint32_t begin = 0; begin < original->insns.n; begin += 256) {
@@ -656,7 +690,10 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
                 l64_write(o, aa, "t", next); break;
             case XO_CMOVCC:
                 l64_read(o, bb, "t", next); fprintf(o, "if(xl_cond(%u,flags)){", in->cc);
-                l64_write(o, aa, "t", next); fprintf(o, "}"); break;
+                l64_write(o, aa, "t", next); fprintf(o, "}");
+                /* AMD64: a 32-bit CMOVcc zero-extends its destination even when the condition is false. */
+                if (aa->kind == XK_REG && aa->reg < 16 && n == 4) fprintf(o, "else r[%u]=(uint32_t)r[%u];", aa->reg, aa->reg);
+                break;
             case XO_SETCC:
                 fprintf(o, "t=xl_cond(%u,flags);", in->cc); l64_write(o, aa, "t", next); break;
             case XO_SIMD: l64_simd(o, in, next); break;

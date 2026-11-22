@@ -34,12 +34,14 @@ extract (installer/archive)  ->  analyze (imports, call graph)  ->  lift machine
 ->  platform profile maps the OS/hardware API onto BGT by meaning  ->  oracle + browser tests
 ```
 
-- The pipeline is the default. A trial/user may explicitly authorize the separate **engine-profile** path;
-  the operator authorizes it with `trial:brief --allow-engine-profile` or an operator policy outside `port/`.
-  The porter must not create/edit that authorization. Only then select `engineProfile.allowed: true`
-  (mutually exclusive with `pipeline`). It pairs an unmodified
-  pack with an allowlisted, exact-build official web runtime, not the BGT ABI. See [engine profiles](docs/engine-profiles.md).
-  Never choose it silently or substitute it as a workaround in a pipeline-only trial.
+- **Detect the engine first.** `npm run inspect` reports known engines (Godot 3.2–3.6 / 4.0–4.4: exact version,
+  release build, pack location, blockers such as GDNative/GDExtension, Mono/C#, encrypted packs, thread needs) and a
+  `RECOMMENDED PATH`. When it recommends `engineProfile`, that is the default fast path: the unmodified pack runs on
+  the official web runtime of that exact version, not the BGT ABI. Select it in `port/game.json`
+  (`engineProfile.allowed: true` plus a one-line `choice`, mutually exclusive with `pipeline`); no operator
+  authorization is needed. See [engine profiles](docs/engine-profiles.md). Never claim a level from detection alone.
+- Otherwise (no known engine, no adapter, or blocked) the **pipeline** is the path. A blocked or unsupported engine is
+  worth an iteration request (an engine adapter/runtime can be far cheaper than lifting); keep lifting meanwhile.
 - **Exceptions** are the "minimal" part. They're hand-written C overrides of individual lifted functions
   (`overrides/`), each justified and counted. Example: a function the lifter provably cannot handle.
 - Never rewrite game logic from genre knowledge. Never replace the pipeline with a hand-written emulator or
@@ -84,7 +86,8 @@ The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` be
 
 | step | do | skill |
 |---|---|---|
-| 1 | `npm run inspect`: inventory, formats, platform, tools | `inspect-game` |
+| 1 | `npm run inspect`: inventory, formats, platform, tools and **engine detection first** (recommended path) | `inspect-game` |
+| 1b | Engine path (if recommended): `npm run engine -- fetch <runtime>`, copy `engines.recommendation.profile` from `reports/inventory.json` into `port/game.json` `"engineProfile"`, `npm run build:port` (bundle + size metrics), `npm run test:port`; then steps 7–10 (no lifting, oracle or BGT backend matrix) | `inspect-game`, [engine profiles](docs/engine-profiles.md) |
 | 2 | Unpack installers/archives: `npm run extract -- original/X out/` (static, never executes) | `inspect-game` |
 | 3 | `npm run analyze -- FILE`: imports, functions, call graph, jump tables, data seeds, unsupported/FPU instructions. Use REA only if actually callable | `use-rea` |
 | 4 | Write `port/game.json` with a `"pipeline"` section (platform, modules) | `implement-port` |
@@ -98,7 +101,7 @@ The skill column names paths under `.claude/skills/`: read `<skill>/SKILL.md` be
 Non-x86 / non-Win32 games (DOS real mode, consoles) have no profile yet. **Win64 baseline execution is implemented**
 for the four Task 1 fixtures (docs/pipeline.md → AMD64 execution); do not mistake that for universal Win64 compatibility.
 OpenGL, threads and broader APIs remain gaps. Unsupported instructions/APIs become iteration requests; never substitute
-a per-game interpreter or engine runtime in a pipeline trial. The explicit engine-profile opt-in above is a separate path.
+a per-game interpreter in a pipeline port. The engine-runtime path (step 1b) is a separate, recorded choice.
 
 ## Hard rules
 - `original/` is read-only, private and never committed. `npm run leakcheck` must pass.
@@ -119,6 +122,7 @@ a per-game interpreter or engine runtime in a pipeline trial. The explicit engin
 | command | purpose |
 |---|---|
 | `npm run inspect` | read-only inventory of `original/`; `-- --strings FILE` (ASCII + UTF-16, PE resource text; stdout only) |
+| `npm run engine -- detect\|runtimes\|fetch ID\|doctor ID\|serve DIR` | engine path: detection JSON, pinned official web runtimes, download+verify into `$BGT_ENGINE_CACHE`, local serving with the bundle's headers |
 | `npm run extract -- IN OUTDIR` | static unpacking (zip, RCDATA-embedded PEs, Inno Setup 5.x) |
 | `npm run analyze -- FILE [--disasm] [--func HEX]` | x86 PE analysis JSON / listing |
 | `npm run build:port` | pipeline build of `port/` (prints conversion/scale metrics) |

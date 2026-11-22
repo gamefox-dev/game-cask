@@ -19,6 +19,9 @@
 #define BGT_CMD_VERSION 1u
 /* §13.12 GPU-only continuation. Existing per-submit/upload/vertex/resource limits still apply. */
 #define BGT_CMD_GPU_CONTINUATION 1u
+/* K57 (additive v0.3): command-prefix flag (continuation lists only): run this command only if the most recent
+ * unflagged command of the same list took effect; otherwise it is skipped with E_STATE. */
+#define BGT_CMD_FLAG_IF_HEAD 1u
 #define BGT_GPU_CONTINUATION_BYTES 67108864u
 #define BGT_GPU_CONTINUATION_COMMANDS 1048576u
 #define BGT_CMD_HEADER_SIZE 16u

@@ -246,6 +246,7 @@ export class GameHost {
   private ioPtr = 0;
   private initialized = false;
   private decodeTime = 0;
+  private lastDecode?: DecodeResult;
   private asyncState = AsyncState.Normal;
   private asyncBuf = 0;
   private inUpdate = false;
@@ -472,8 +473,20 @@ export class GameHost {
           const t0 = s.now();
           const res = decodeCommands(this.mem(), ptr, len, this.decodeContext());
           this.decodeTime += s.now() - t0;
-          this.recordDecode(res);
+          this.recordDecode(res); this.lastDecode = res;
           return res.status;
+        },
+        // K57: which commands of the last submission failed (an execution-pass error skips only its command).
+        submit_failures: (dst: number, cap: number) => {
+          const r = this.lastDecode;
+          if (!r || r.status === BGT_OK) return 0;
+          if (r.whole) return -1;
+          const failed = r.errors;
+          const n = Math.min(failed.length, cap >>> 0); dst >>>= 0;
+          if (n && dst + n * 8 > this.mem().byteLength) return E_BOUNDS;
+          const dv = new DataView(this.mem().buffer, this.mem().byteOffset);
+          for (let i = 0; i < n; i++) { dv.setUint32(dst + i * 8, failed[i].offset, true); dv.setUint32(dst + i * 8 + 4, failed[i].code >>> 0, true); }
+          return failed.length;
         },
         slice_missing: (kind: number,addr: number) => {
           kind >>>= 0;addr >>>= 0;

@@ -410,6 +410,50 @@ opt-in/default-off and counted separately from timings. No game speedup, resolut
 self-modifying-code support or pure wasm-call latency is claimed. Exact timing, driver-step counts,
 mutation proof, review boundary and Tier1 evidence: [K32 handoff](handoff/K32.md).
 
+### Fast lifting mode (K52, opt-in)
+
+`pipeline.liftMode: "fast"` (or `BGT_LIFT_MODE=fast` for every pipeline build that does not set `liftMode`)
+selects a performance-first AMD64 emitter (`tools/x86/lift64_fast.h`). The default (`"exact"`, or no key) is
+unchanged: the lift policy object, cache keys and generated C stay byte-identical. i386 modules ignore the mode.
+Functions above 4096 instructions keep the exact emitter; both kinds share the registry and call each other.
+
+- **Whole-function form.** One C function per guest function; GPRs, flags and the instruction clock are C locals,
+  published to `X` only at calls, returns, generic instructions and exits.
+- **Entry restriction.** Entries are the function start, loop headers (targets of DFS retreating edges, where
+  quantum yields resume) and post-call return sites. Any other PC takes the slow path: one interpreted
+  instruction, then re-entry (the interpreter re-enters lifted code at the next entry).
+- **Flags.** Liveness treats calls, returns and tail calls as Win64 ABI boundaries (flags dead); compare/test/
+  arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
+- **Memory.** `liftFast.memory: "mask"` (default) addresses `x86_flat + (addr & window mask)`: no compare,
+  never a host address outside the guest window; a wild pointer aliases guest memory or traps past the committed
+  end. `"range"` adds one compare against the committed bound and stops with the usual diagnostic. `"off"` keeps
+  page-table/protection checks (measurement). Stack slots with a static RSP delta use one base pointer plus a
+  constant (`liftFast.stack`), re-derived from the real RSP at every entry, call return and generic instruction.
+- **Calls.** Direct calls and tail calls to lifted functions are plain C calls (depth cap 128, then the flat
+  driver); indirect calls/jumps use a one-entry exact-PC cache. Small direct callees (`liftFast.inline`, default
+  48 instructions, depth 2) are inlined at emission and run on the caller's locals; their RET continues inline
+  only when it pops the pushed return address. After a non-inlined call only volatile registers and RSP reload.
+- **Generic instructions** execute inline (`x86_fast_exec`) with cooperation deferred; **quantum** polls only
+  at function entries and loop headers. A poll runs the scheduler inline when the profile's probe
+  (`x86_set_quantum_probe`, Win32: one thread and the frame cap not reached) proves it cannot suspend or
+  transfer; otherwise all native frames unwind (`x86_fast_yield`) and the driver cooperates.
+- **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
+  the fast emitter as guarded switch candidates; the real computed target is always compared.
+
+**ABI assumption (accepted).** Fast mode assumes Win64 calling-convention behaviour: EFLAGS are not read
+across calls/returns, and callees preserve RBX, RBP, RSI, RDI and R12-R15 (only volatile registers and RSP are
+reloaded after a call). Compiler output satisfies this. Use `liftMode: "exact"` for a module whose hand-written
+assembly passes values in flags or clobbers callee-saved registers, and whenever exact fault behaviour is needed:
+`memory: "mask"` turns a wild guest pointer into an aliased guest access instead of an access-violation stop,
+and `memory: "range"` is the checked option. The pipeline default stays `exact` until the game measurement.
+
+Dropped on purpose (STRATEGY-UNRESTRICTED): exact fault order and faulting state, per-instruction entries,
+page holes/protections inside the window, coverage beyond function entries, the exact quantum position, flags
+observed across calls/returns and callee-saved registers clobbered against the ABI. Guest-visible results
+(outputs, API traces, guest instruction clock) match the exact mode on the K52 fixtures and pipeline examples.
+Ablation knobs (`liftFast.{resume,fuse,memory,entries,quantum,stack,inline}`) exist for measurement only.
+Measurements, per-change gains and the go/no-go input: [K52 handoff](handoff/K52.md).
+
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)
 
 AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance

@@ -8,6 +8,7 @@ void w32_thread_init(void);
 void w32_thread_schedule(void);
 void w32_thread_return(uint32_t code);
 void w32_thread_quantum(void);
+int w32_thread_quantum_probe(void); /* K52 */
 void w32_thread_yield(void);
 int w32_thread_pending(void);
 /* Non-consuming eligibility check for the non-suspending import envelope. */

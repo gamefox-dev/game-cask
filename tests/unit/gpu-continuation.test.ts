@@ -45,3 +45,19 @@ it('legacy allowance is independent and cannot be reset by continuation, nor can
  expect(submit(c,new CommandEncoder().finish()).status).toBe(A.E_LIMIT);
  const b=list(A.GPU_OP.PASS_BEGIN,[1,0,0,0,0,0x3f800000,0,0,0,0,0,0,0,0]);expect(submit(c,b).status).toBe(A.E_STATE);expect(c.gpu!.pass).toBeUndefined();
 });
+it('K57: IF_HEAD commands run only after a successful unflagged head; per-command failures report offsets, whole rejections do not',()=>{
+ const c=ctx(),O=A.GPU_OP;
+ // Encoded lists: [head, flagged, flagged]; flag the 2nd and 3rd command prefixes (u16 at prefix+2).
+ const flagged=(enc:CommandEncoder,cont=true)=>{const b=enc.finish(cont?A.CMD_GPU_CONTINUATION:0),dv=new DataView(b.buffer);
+  let off=16;for(let i=0;off<b.length;i++){const n=dv.getUint32(off+4,true);if(i)dv.setUint16(off+2,A.CMD_FLAG_IF_HEAD,true);off+=8+n;}return b;};
+ // Failed head (unknown handle): both dependents are skipped, reported as failures at their offsets.
+ const r=submit(c,flagged(new CommandEncoder().gpu(O.BUFFER_UPDATE,[9,0,0,4]).gpu(O.BUFFER_CREATE,[1,1,16,0,0]).gpu(O.BUFFER_DELETE,[1])));
+ expect(r.whole).toBeUndefined();expect(r.executed).toBe(0);expect(r.errors.map(e=>e.code)).toEqual([A.E_NOT_FOUND,A.E_STATE,A.E_STATE]);
+ expect(r.errors.map(e=>e.offset)).toEqual([16,40,68]);expect(c.gpu!.buffers.size).toBe(0);
+ // Successful head: dependents run; a failing dependent does not affect the next one (same head).
+ const ok=submit(c,flagged(new CommandEncoder().gpu(O.BUFFER_CREATE,[1,1,16,0,0]).gpu(O.BUFFER_UPDATE,[1,0,0,64]).gpu(O.BUFFER_UPDATE,[1,0,0,4])));
+ expect(ok.executed).toBe(2);expect(ok.errors.map(e=>e.code)).toEqual([A.E_BOUNDS]);expect(c.gpu!.buffers.has(1)).toBe(true);
+ // The flag is unsupported outside continuation lists; framing failures are whole rejections.
+ expect(submit(c,flagged(new CommandEncoder().clear(0).clear(0),false)).errors.map(e=>e.code)).toEqual([A.E_UNSUPPORTED]);
+ expect(submit(c,new CommandEncoder().gpu(O.BUFFER_CREATE,[2,1,16,0,0]).clear(0).finish(1)).whole).toBe(true);
+});

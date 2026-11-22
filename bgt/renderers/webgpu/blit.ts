@@ -20,11 +20,13 @@ export class WebGPUBlit {
     }
     return p;
   }
-  execute(w: readonly number[], source: BlitImage, dest: BlitImage): void {
-    const d = this.device, e = d.createCommandEncoder(), garbage: (GPUTexture | GPUBuffer)[] = [];
+  /** Encodes the transfer. Without `into`, it is submitted at once (one native submit per blit); with the
+   * frame encoder (K57), nothing is submitted and the caller destroys the returned temporaries after its submit. */
+  execute(w: readonly number[], source: BlitImage, dest: BlitImage, into?: GPUCommandEncoder): (GPUTexture | GPUBuffer)[] {
+    const d = this.device, e = into ?? d.createCommandEncoder(), garbage: (GPUTexture | GPUBuffer)[] = [];
     const size = (im: BlitImage) => [Math.max(1, im.texture.width >> im.mip),Math.max(1, im.texture.height >> im.mip)];
     const [sw,sh] = size(source), [dw,dh] = size(dest), rect = w.slice(4,12).map(n=>n|0), mask=w[12];
-    if (!w[16] || !w[17] || rect[0]===rect[2] || rect[1]===rect[3] || rect[4]===rect[6] || rect[5]===rect[7]) return;
+    if (!w[16] || !w[17] || rect[0]===rect[2] || rect[1]===rect[3] || rect[4]===rect[6] || rect[5]===rect[7]) return garbage;
     const view = (im: BlitImage, aspect: GPUTextureAspect='all') => im.texture.createView({baseMipLevel:im.mip,mipLevelCount:1,aspect});
     // Copy only if formats, extents, orientation and clipping permit an exact native transfer.
     const x=rect[0],y=rect[1],dx=rect[4],dy=rect[5],width=rect[2]-x,height=rect[3]-y;
@@ -34,7 +36,8 @@ export class WebGPUBlit {
       x+width<=sw&&y+height<=sh&&dx+width<=dw&&dy+height<=dh&&dx+width<=w[14]+w[16]&&dy+height<=w[15]+w[17]) {
       e.copyTextureToTexture({texture:source.texture,mipLevel:source.mip,origin:[x,y]},
         {texture:dest.texture,mipLevel:dest.mip,origin:[dx,dy]},[width,height]);
-      d.queue.submit([e.finish()]);return;
+      if (!into) d.queue.submit([e.finish()]);
+      return garbage;
     }
     if (source.texture===dest.texture) {
       const t=d.createTexture({size:[sw,sh],format:source.format,usage:GPUTextureUsage.COPY_DST|GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.RENDER_ATTACHMENT});
@@ -82,6 +85,8 @@ if(textureLoad(src,vec2i(floor(q)),0).x!=${value}u){discard;}}`;
         render(p,plane.createView(),value?bit:0);
       }
     }
+    if (into) return garbage;
     d.queue.submit([e.finish()]);for(const obj of garbage)obj.destroy();
+    return [];
   }
 }
