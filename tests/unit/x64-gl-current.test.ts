@@ -25,14 +25,22 @@ it('current float attributes and swizzles lower to owned per-draw data, with rea
   const m = h.host.metrics() as Record<string, any>;
   expect(m.interp_insns).toBe(0); expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
   expect(m.gl_approximations).toBe(0);
-  const current = stream.items.filter(i => i.op === O.BUFFER_UPDATE && i.words[0] === 1023);
-  const values = current.map(i => Array.from(new Float32Array(i.data!.buffer, i.data!.byteOffset, i.data!.length / 4)));
-  expect(values.some(v => v.slice(12, 16).join() === '0,0,0,1')).toBe(true);
-  expect(values.some(v => v.slice(12, 16).join() === '0.25,0,0,1')).toBe(true);
-  expect(values.some(v => v.slice(12, 16).join() === '0.25,0.5,0.75,0.5')).toBe(true); // Win64 fifth argument
-  expect(values.some(v => v.length === 192 && [0, 64, 128].every(at => v.slice(at + 12, at + 16).join() === '0.5,1,0.25,1'))).toBe(true);
+  // K60: single-instance draws carry the 256-byte current-attribute block as the tail of their program's uniform
+  // upload (bound as the constant vertex slot); instanced draws keep the private per-instance buffer 1023.
+  const f32 = (d: Uint8Array) => Array.from(new Float32Array(d.buffer, d.byteOffset, d.length / 4));
+  const constantSlots = new Set<string>();
+  for (const i of stream.items) if (i.op === O.VERTEX_BUFFER && i.words[1] !== 1023 && i.words[3] === 256) constantSlots.add(`${i.words[1]}:${i.words[2]}`);
+  const tails = stream.items.filter(i => i.op === O.BUFFER_UPDATE && i.words[0] !== 1023 &&
+    constantSlots.has(`${i.words[0]}:${i.words[1] + i.data!.length - 256}`)).map(i => f32(i.data!).slice(-64));
+  const instanced = stream.items.filter(i => i.op === O.BUFFER_UPDATE && i.words[0] === 1023).map(i => f32(i.data!));
+  expect(tails.some(v => v.slice(12, 16).join() === '0,0,0,1')).toBe(true);
+  expect(tails.some(v => v.slice(12, 16).join() === '0.25,0,0,1')).toBe(true);
+  expect(tails.some(v => v.slice(12, 16).join() === '0.25,0.5,0.75,0.5')).toBe(true); // Win64 fifth argument
+  expect(instanced.some(v => v.length === 192 && [0, 64, 128].every(at => v.slice(at + 12, at + 16).join() === '0.5,1,0.25,1'))).toBe(true);
+  expect(instanced.every(v => v.length > 64)).toBe(true); // no single-instance current-attribute uploads remain
   const shaders = stream.items.filter(i => i.op === O.SHADER_CREATE).map(i => i.source ?? '').join('\n');
   for (const fn of ['texture(', 'textureLod(', 'textureGrad(', 'texelFetch(']) expect(shaders).toContain(`bgt_gl_sw0(${fn}`);
   const uniforms = stream.items.filter(i => i.op === O.BUFFER_UPDATE && i.words[0] !== 1023);
-  expect(uniforms.some(i => Array.from(new Int32Array(i.data!.buffer, i.data!.byteOffset, i.data!.length / 4)).slice(-4).join() === '4,0,5,1')).toBe(true);
+  const ints = (d: Uint8Array) => Array.from(new Int32Array(d.buffer, d.byteOffset, d.length / 4));
+  expect(uniforms.some(i => { const v = ints(i.data!); return v.slice(-4).join() === '4,0,5,1' || v.slice(-68, -64).join() === '4,0,5,1'; })).toBe(true);
 }, 120000);

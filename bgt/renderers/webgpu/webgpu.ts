@@ -514,6 +514,7 @@ export class WebGPURenderer implements Renderer {
     this.timing?.endFrame();
     Object.assign(this.stats, { nativePasses: gpu.batch.nativePasses + this.stats.passes - frameGpuPasses(frame),
       nativeSubmits: this.nativeSubmits, mergedPasses: gpu.batch.mergedPasses, bufferRenames: gpu.batch.bufferRenames,
+      renameBytes: gpu.batch.renameBytes, captureTranslations: gpu.batch.captureTranslations, captureLowerings: gpu.batch.captureLowerings,
       gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     if (readbacks.length) return Promise.all(readbacks).then(() => pending);
