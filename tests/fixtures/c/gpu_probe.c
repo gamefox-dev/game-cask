@@ -21,7 +21,7 @@ static const uint32_t layouts[] = {
     offsetof(bgt_gpu_limits_v3_t, shader_languages),
     offsetof(bgt_gpu_limits_v3_t, max_mip_levels),
     offsetof(bgt_gpu_limits_v3_t, max_instances),
-    offsetof(bgt_gpu_limits_v3_t, reserved),
+    offsetof(bgt_gpu_limits_v3_t, max_varying_components),
     sizeof(bgt_gpu_buffer_create_t),
     offsetof(bgt_gpu_buffer_create_t, handle),
     offsetof(bgt_gpu_buffer_create_t, usage),

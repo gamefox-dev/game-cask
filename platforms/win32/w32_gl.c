@@ -55,7 +55,9 @@ static void flush_pending(void);
  * is the error latched before the current API call (the API wrapper clears `error` during a call). */
 static uint32_t latch_outer, latch_local, latch_fix;
 static int fail_deferred(uint32_t e);
-static void fail(uint32_t e) { if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
+/* K61: every raised error is counted (gl_errors_raised) and attributed to the running entry point (gl_error_calls). */
+uint64_t w32_gl_errors_raised;
+static void fail(uint32_t e) { w32_gl_errors_raised++; if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
 static int eq(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; } return *a == *b;
 }
@@ -651,9 +653,13 @@ static uint32_t current_attribute(uint32_t n, int vector) {
 CURRENT_ATTR(1) CURRENT_ATTR(2) CURRENT_ATTR(3) CURRENT_ATTR(4)
 #undef CURRENT_ATTR
 static Shader shaders[N]; static Program programs[N];
-static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
+/* K62: GL 3.3 minimums: 36 uniform-buffer binding points, 48 combined texture image units (profile state; a program
+ * still maps at most 7 blocks and 8 sampler slots onto §13's 8 + 8 per-pipeline slots). */
+#define GL_UBO_BINDINGS 36
+#define GL_TEXTURE_UNITS 48
+static uint32_t vao, array, uniform, ubo[GL_UBO_BINDINGS], ubo_offset[GL_UBO_BINDINGS], ubo_size[GL_UBO_BINDINGS], active_unit, samp[GL_TEXTURE_UNITS];
 static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
-static uint32_t ubo_whole[8], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
+static uint32_t ubo_whole[GL_UBO_BINDINGS], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
 /* Retire generated private temporaries even when materialization or a later submission fails.
  * If the aggregate wire budget is exhausted, retry before the next public submission: a source
  * cannot be successfully deleted/reuploaded while an inaccessible generated temporary remains. */
@@ -685,6 +691,9 @@ static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
 static uint32_t stencil_compare = 7, stencil_read = 255, stencil_write = 255, stencil_ref;
 static uint32_t stencil_fail, stencil_zfail, stencil_pass, color_mask = 15, color_masks[4] = {15, 15, 15, 15};
+/* K61: back-face stencil state (glStencil*Separate). Compare/ops are per face in §13 pipelines; reference and
+ * masks have one value per pipeline/pass, so a back value that differs from the front one is an approximation. */
+static uint32_t back_compare = 7, back_fail, back_zfail, back_pass, back_read = 255, back_write = 255, back_ref;
 static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t clear_stencil;
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
@@ -1051,7 +1060,7 @@ static uint32_t api_DeleteBuffers(void) {
             if (vaos[j].element == id) { vaos[j].element = 0; buffer_unref(id); }
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffer_unref(id); }
         }
-        for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
+        for (uint32_t j = 0; j < GL_UBO_BINDINGS; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
         if (copy_read == id) copy_read = 0;
         if (copy_write == id) copy_write = 0;
@@ -1072,7 +1081,7 @@ static uint32_t api_BindBufferBase(void) {
         tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    if (ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
+    if (ARG(1) >= GL_UBO_BINDINGS) { fail(BAD_VALUE); return 0; }
     uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= BN) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
 
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
@@ -1088,7 +1097,7 @@ static uint32_t api_BindBufferRange(void) {
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
-    if (s >= 8 || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
+    if (s >= GL_UBO_BINDINGS || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
         (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }
@@ -1259,9 +1268,11 @@ static const char *entry_objects(const char *name) {
     OBJECTS(programs); return "programs";
 }
 #define API(name, fn, nargs, mutates) \
+    static uint32_t errs_##fn; \
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
+        uint64_t raised = w32_gl_errors_raised; \
         uint32_t pending = error, exhaustion_before = gl_exhaustion_events, outer = latch_outer; error = 0; \
         latch_outer = pending; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
@@ -1272,12 +1283,14 @@ static const char *entry_objects(const char *name) {
         if (error == OOM && exhaustion_before == gl_exhaustion_events) \
             object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
+        if (w32_gl_errors_raised != raised) errs_##fn++; \
         if (pending) error = pending; \
         latch_outer = outer; \
         return result; \
     }
 #define GLSTUB(name, fn, nargs, mutates) \
-    static uint32_t call_##fn(void) { w32_gl_calls++; missing(name); fail(BAD_OP); return 0; }
+    static uint32_t errs_##fn; \
+    static uint32_t call_##fn(void) { w32_gl_calls++; errs_##fn++; missing(name); fail(BAD_OP); return 0; }
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
@@ -1289,6 +1302,29 @@ const w32_api_t w32_api_gl[] = {
 #undef API
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
+/* K61 error census: {"entry": calls that raised a GL error, ...}, in table order, nonzero entries only.
+ * One loop over a {name, counter} table: a call per entry would inline into a ~200 KiB function, which the
+ * whole-module Binaryen -O2/Asyncify transform must then optimize (K61 review: Linux CI wasm-opt failure). */
+static const struct { const char *name; const uint32_t *count; } census[] = {
+#define API(name, fn, nargs, mutates) {name, &errs_##fn},
+#define GLSTUB API
+#include "w32_gl_api.h"
+#undef API
+#undef GLSTUB
+};
+const char *w32_gl_error_calls_json(void) {
+    static char s[4096]; uint32_t n = 0, cap = sizeof s - 2; s[n++] = '{';
+    for (uint32_t e = 0; e < sizeof census / sizeof census[0]; e++) {
+        uint32_t count = *census[e].count; if (!count) continue;
+        char digits[12]; uint32_t d = 0, len = w32_slen(census[e].name);
+        do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
+        if (n + len + d + 6 >= cap) break;
+        if (n > 1) s[n++] = ',';
+        s[n++] = '"'; copy(s + n, census[e].name, len); n += len; s[n++] = '"'; s[n++] = ':';
+        while (d) s[n++] = digits[--d];
+    }
+    s[n++] = '}'; s[n] = 0; return s;
+}
 #if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
 /* Journal effects for a replayed batch (see replay). Undo runs newest-first over every record and
  * restores the pre-batch profile state; redo runs oldest-first over the accepted records; reject

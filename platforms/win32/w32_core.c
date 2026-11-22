@@ -1184,6 +1184,12 @@ const char *w32_metrics_json(void) {
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);
+    /* K61: GL errors raised by the profile (validation or synchronous host rejection), and per entry point the
+     * number of calls that raised one; expanded primitive-mode draws and scissored/masked clears. */
+    jkv("gl_errors_raised", w32_gl_errors_raised);
+    jput("\"gl_error_calls\":"); jput(w32_gl_error_calls_json()); jput(",");
+    jkv("gl_expanded_draws", w32_gl_expanded_draws);
+    jkv("gl_partial_clears", w32_gl_partial_clears);
     jput("\"gl_objects\":"); jput(w32_gl_objects_json()); jput(",");
     jkv("host_bytes", x86_host_used);
     jkv("host_peak", x86_host_peak);

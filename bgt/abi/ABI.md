@@ -894,7 +894,20 @@ is forbidden. Legacy readback cannot read GPU-namespace textures; a profile rend
 it needs the existing screen READBACK interface. No new readback alias is implied.
 
 Viewport/scissor use attachment pixels, top-left, +y down; screen coordinates are logical and letterbox-scaled.
-Viewport finite x,y>=0, width,height>0, fits attachment, depth range 0<=min<=max<=1. Scissor unsigned, fits attachment;
+Viewport finite x,y>=0, width,height>0, fits attachment, depth range 0<=min<=max<=1. **K62, capability
+`BGT_CAP_GPU_GL_RASTER` / `CAP_GPU_GL_RASTER = 1 << 15` (additive v0.3; advertised by both maintained backends, absent
+for a backend that does not implement it, in which case the rule above stands):** |x|,|y|<=32768, 0<width,height<=32768,
+and the rectangle may extend past the
+attachment (GL semantics: the viewport transform is unchanged and rasterization is clipped to the attachment; a
+viewport that misses it rasterizes nothing, transform feedback still captures). WebGL 2 applies the viewport in its
+vertex transform over the whole attachment; WebGPU clamps the native viewport and maps the clip volume onto the clamped
+rectangle with a per-draw clip-space transform (group 2, renderer-internal), so window coordinates are identical. An
+off-attachment viewport needs a GLSL vertex stage on WebGPU (WGSL pipelines: E_IO). **Provoking vertex (K62):** GLSL
+`flat` varyings take the value of the **last** vertex of each line/triangle (GL's default convention) on both backends
+(WebGPU draws such pipelines last-vertex-first, rotating triangles cyclically so the winding is kept); WGSL keeps
+WGSL's `@interpolate(flat)` semantics. This is part of the same capability and a **behaviour change against dev.36**:
+WebGPU GLSL flat varyings used to take the first vertex (WebGPU's native rule), now GL's last vertex as on WebGL 2.
+Scissor unsigned, fits attachment;
 zero area is legal and suppresses rasterization. Blend constant components finite [0,1]. GPU NDC is +x right, +y up,
 z in [0,w]; front-face winding is measured in this NDC xy plane **before** top-left viewport conversion. Profiles
 translating legacy GL [-w,w] depth convert z to (z+w)/2. Backends translating to GL clip space convert z to 2z-w;
@@ -1029,7 +1042,7 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
 | 68 | max_mip_levels | 13 |
 | 72 | max_instances | 65535 |
-| 76 | reserved | 0 |
+| 76 | max_varying_components | K62 (with CAP_GPU_GL_RASTER): GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend, for any topology and with transform feedback: WebGPU 4 x (maxInterStageShaderVariables - 1) - 6 (packed vec4 interface; the translated fragment stage's front_facing input or a point-list topology costs one location; the adapter's limit is requested; vertex outputs the fragment stage does not read occupy none), WebGL 2 3 x (MAX_VARYING_VECTORS - 2) (one row for the renderer's clip coordinates, one for a captured gl_Position); 60 if a backend does not state it; 0 without CAP_GPU. Formerly `reserved` (0); `bgt_gpu_limits_v3_t.reserved` remains a source-compatible alias |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
 supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
@@ -1420,7 +1433,7 @@ order is unchanged). Profile regions that save and restore the error themselves 
 reclaim, buffer reallocation) keep the flush. Every GL 3.3 core glEnable capability is tracked state (no
 GL_INVALID_ENUM): DITHER and MULTISAMPLE (initially enabled) never change §13 rendering; enabling any other
 capability the profile does not render (logic op, depth clamp, framebuffer sRGB, smoothing, polygon offset,
-primitive restart, program point size, sample coverage/mask, seamless cube maps, clip distances) is a counted
+primitive restart (rendered since K61), program point size, sample coverage/mask, seamless cube maps, clip distances) is a counted
 approximation (`gl_approximations`; rendering stays as with it disabled). Each program's private uniform buffer
 (usage uniform|vertex) is a ring of 256-aligned slots of the uniform values plus a 256-byte tail (at most 16
 slots, 32 KiB): a draw uploads into the next slot and binds that slot; a single-instance draw that reads generic
@@ -1432,6 +1445,41 @@ or split as before. Transform-feedback capture draws cache their GLSL translatio
 sampler specialization, and their compute pipeline per draw shape (dropped with the pipeline, on FEEDBACK_VARYINGS
 and when the shader handle names a different shader); `lastFrame.captureTranslations`/`captureLowerings` count
 misses and `renameBytes` the bytes renames rewrote.
+
+**K61 (profile only; no wire change).** glClear honours the GL scissor box and the colour (per draw buffer), depth
+and stencil write masks: masks remove what the clear touches; a clear that still covers every touched buffer whole
+is a PASS_BEGIN load clear of exactly those attachments, otherwise one pass of §13.9 CLEAR_BUFFER operations after
+SCISSOR (both batched; metric `gl_partial_clears`). GL_LINE_LOOP, GL_TRIANGLE_FAN, the four adjacency modes
+(adjacent vertices ignored, as GL without a geometry shader) and indexed draws that meet the enabled primitive restart
+index are expanded by the profile into the equivalent u32 point/line/triangle list (GL primitive and vertex order)
+and drawn with DRAW_INDEXED from private index buffers: glDrawArrays fans use prefixes of one static fan list with
+`base_vertex = first`; other expansions upload their list into a private index ring inside the draw's own batched
+list (metric `gl_expanded_draws`). The wire keeps no restart semantics (above); GL_PRIMITIVE_RESTART is therefore no
+longer an approximation. Also implemented: glDrawRangeElements[BaseVertex], glMultiDraw{Arrays,Elements[BaseVertex]},
+glStencil{Func,Op,Mask}Separate (back compare/ops are the pipeline's back-face words; a back reference/mask that
+differs from the front one is a counted approximation), glLineWidth/glPointSize (clamped to the reported [1,1]
+ranges, so width-1 rendering is exact), glHint, glPolygonOffset (state), glPolygonMode (non-FILL is a counted
+approximation), glPrimitiveRestartIndex, sync objects (fences are signaled at creation: the stream is ordered and
+every guest-visible result is produced in stream order), glGetInteger64v/64i_v, glGetBufferParameteri64v,
+glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_calls` maps each GL entry point to the
+number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census.
+
+**K62 (VIEWPORT relaxation, §13.6 offset 76, WebGPU varying packing).** The WGL profile sends the GL viewport
+unchanged (top-left origin, origin clamped to +-32768; width/height clamped to GL_MAX_VIEWPORT_DIMS = 16384 at
+glViewport; an empty viewport is a 1x1 rectangle at (-32768, -32768)). glDepthRange(n > f) is legal: it is sent as
+(f, n) and the vertex epilogue flips z through the profile's meta word, so window depth is GL's. GL_UNSIGNED_BYTE
+element data is widened into the expansion ring (u32). glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) expands draws of
+programs with flat fragment inputs into lists with each primitive's first-convention provoking vertex (GL 3.3 Table
+2.14) last; a rasterizing transform-feedback draw is split into a capture-only draw of the GL-order list
+(FEEDBACK_CAPTURE discard word 1) and a raster-only draw of the rotated list. The off-target viewport is used only when
+the host advertises `BGT_CAP_GPU_GL_RASTER` (otherwise the K61 GL_INVALID_VALUE stands). A nonzero polygon offset with
+GL_POLYGON_OFFSET_FILL is a counted approximation per draw (zero offsets are exact). The WebGPU executor packs the
+fragment stage's GLSL varyings into vec4 locations (perspective, linear and flat-as-u32 classes; values unchanged;
+vertex outputs the fragment stage does not read get no location), requests the adapter's
+maxInterStageShaderVariables and keeps rotated/strip index lists in one append-only index ring keyed by a per-store
+serial and contents version; offset 76 reports the capacity and the profile fails links above it
+(`GL_MAX_VARYING_COMPONENTS` info log). GLSL identifiers spelled like a WGSL reserved word, keyword, predeclared type or
+builtin function that GLSL does not share (`f32`, `select`, `textureSample`, `target`, ...) are renamed.
 
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 

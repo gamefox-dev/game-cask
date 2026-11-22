@@ -59,6 +59,7 @@ extern "C" {
 #define BGT_CAP_READBACK       (1u << 10) /* v0.3: batched RGBA8 screen/target readback */
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
 #define BGT_CAP_GPU_BUFFER_HANDLES (1u << 14) /* v0.3: opt-in full-u32 buffer IDs */
+#define BGT_CAP_GPU_GL_RASTER  (1u << 15) /* K62 (additive v0.3): VIEWPORT past the attachment, GLSL flat = last vertex, limits offset 76 */
 #define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
 #define BGT_CAP_ENTROPY        (1u << 13) /* LANE-K1: host entropy, not simulation PRNG */
 
@@ -236,7 +237,9 @@ typedef struct bgt_gpu_limits_v3 {
     uint32_t gpu_supported, max_gpu_handles, gpu_budget_bytes, max_buffer_bytes;
     uint32_t max_vertex_buffers, max_attributes, max_binding_slots, max_color_attachments;
     uint32_t uniform_offset_alignment, max_uniform_range, max_vertex_stride, max_shader_bytes;
-    uint32_t shader_languages, max_mip_levels, max_instances, reserved;
+    uint32_t shader_languages, max_mip_levels, max_instances;
+    /* K62: offset 76, formerly `reserved` (0); the old name stays an alias for source compatibility. */
+    union { uint32_t max_varying_components; uint32_t reserved; };
 } bgt_gpu_limits_v3_t; /* 80 bytes; cap >= 80 queries this extension */
 BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
 /* Explicit per-host opt-in; no effect on other namespaces or byte budgets. Idempotent. */

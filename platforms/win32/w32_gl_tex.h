@@ -15,7 +15,7 @@ typedef struct { uint32_t used; Params p; } Sampler;
 typedef struct { uint32_t align, row_length, skip_rows, skip_pixels, image_height, skip_images, swap, lsb; } Pix;
 static Pix unpack_st = {4, 0, 0, 0, 0, 0, 0, 0}, pack_st = {4, 0, 0, 0, 0, 0, 0, 0};
 static Texture textures[N]; static Sampler samplers[N];
-static uint32_t tex_bind[3][8];
+static uint32_t tex_bind[3][GL_TEXTURE_UNITS];
 static Level proxy_level[3];
 static void params_init(Params *p) {
     zero(p, sizeof *p); p->min = 0x2702; p->mag = 0x2601; p->ws = p->wt = p->wr = 0x2901; p->cmp_func = 0x203;
@@ -58,7 +58,7 @@ static uint32_t api_GenTextures(void) {
     } return 0;
 }
 static uint32_t api_ActiveTexture(void) {
-    if (ARG(0) < 0x84c0 || ARG(0) >= 0x84c8) fail(BAD_ENUM); else active_unit = ARG(0) - 0x84c0; return 0;
+    if (ARG(0) < 0x84c0 || ARG(0) >= 0x84c0 + GL_TEXTURE_UNITS) fail(BAD_ENUM); else active_unit = ARG(0) - 0x84c0; return 0;
 }
 static uint32_t api_BindTexture(void) {
     int proxy; uint32_t dim = dim_of(ARG(0), &proxy), id = ARG(1);
@@ -391,7 +391,7 @@ static uint32_t api_GenSamplers(void) {
 }
 static uint32_t api_BindSampler(void) {
     uint32_t id = SLOT(samplers, ARG(1));
-    if (ARG(0) >= 8) fail(BAD_VALUE);
+    if (ARG(0) >= GL_TEXTURE_UNITS) fail(BAD_VALUE);
     else if (id >= N) fail(BAD_OP); else samp[ARG(0)] = id;
     return 0;
 }
@@ -421,7 +421,7 @@ static uint32_t api_DeleteSamplers(void) {
     if ((int32_t)ARG(0) < 0) { fail(BAD_VALUE); return 0; }
     for (uint32_t i = 0; i < ARG(0); i++) { uint32_t id = SLOT(samplers, x86_rd32(ARG(1) + i * 4));
         if (id && id < N) { samplers[id].used = 0;
-            for (uint32_t j = 0; j < 8; j++) if (samp[j] == id) samp[j] = 0; } } return 0;
+            for (uint32_t j = 0; j < GL_TEXTURE_UNITS; j++) if (samp[j] == id) samp[j] = 0; } } return 0;
 }
 /* Read any parameter as floats (n values); returns 0 on invalid pname. */
 static uint32_t param_get(const Params *p, const Texture *t, uint32_t pname, float *o, int sampler) {

@@ -80,6 +80,11 @@ export interface GpuBackend {
   /** K51: largest UNIFORM_BUFFER range (and std140 block) the native device accepts, bytes. Absent means the
    * portable 65536 ceiling. Hosts clamp it to [16384, 65536], multiple of 16, and report it at §13.6 offset 52. */
   readonly maxUniformRange?: number;
+  /** K62: GLSL user varying components (vertex outputs = fragment inputs, gl_Position excluded) that every program
+   * of at most this many components links with on this device; reported at §13.6 offset 76. Absent means 60. */
+  readonly maxVaryingComponents?: number;
+  /** K62: implements CAP_GPU_GL_RASTER (VIEWPORT past the attachment, GLSL flat = last vertex). */
+  readonly glRaster?: boolean;
   /** K51 diagnostics only: native renderer/adapter identity captured at init (never a per-frame query). */
   readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */

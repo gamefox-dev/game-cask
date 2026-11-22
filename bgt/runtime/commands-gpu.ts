@@ -1,7 +1,7 @@
 // v0.3 GPU validation. No browser/GPU objects and no guest-memory references survive submission.
 import {
   BGT_OK, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_UNSUPPORTED,
-  GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN,
+  GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN, GPU_VARYING_COMPONENTS_DEFAULT, GPU_VIEWPORT_BOUND,
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
@@ -44,9 +44,13 @@ export class GpuState {
   pass?: Pass;
   /** K51: the backend's actual UNIFORM_BUFFER range limit (§13.6 offset 52), fixed for this namespace. */
   readonly uniformRange: number;
+  /** K62: the backend's guaranteed GLSL varying components (§13.6 offset 76). */
+  readonly varyingComponents: number;
   constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
     this.budget = budget;
     this.uniformRange = backendUniformRange(backend);
+    const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
+    this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
   }
 }
 
@@ -461,9 +465,12 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       pass.pipeline = pipeline; return emit();
     }
     case GPU_OP.VIEWPORT: {
-      const v = w.map(float);
-      if (v.some((a) => !Number.isFinite(a)) || v[0] < 0 || v[1] < 0 || v[2] <= 0 || v[3] <= 0
-        || v[0] + v[2] > pass.width || v[1] + v[3] > pass.height || v[4] < 0 || v[5] > 1 || v[4] > v[5]) {
+      // K62: the rectangle may extend past the attachment (GL semantics: rasterization is clipped to it).
+      // Without CAP_GPU_GL_RASTER (backend.glRaster) the rectangle must fit the attachment, as before K62.
+      const v = w.map(float), b = GPU_VIEWPORT_BOUND, fit = !g.backend.glRaster;
+      if (v.some((a) => !Number.isFinite(a)) || Math.abs(v[0]) > b || Math.abs(v[1]) > b || v[2] <= 0 || v[3] <= 0
+        || v[2] > b || v[3] > b || v[4] < 0 || v[5] > 1 || v[4] > v[5]
+        || (fit && (v[0] < 0 || v[1] < 0 || v[0] + v[2] > pass.width || v[1] + v[3] > pass.height))) {
         return E_INVALID;
       }
       return emit();

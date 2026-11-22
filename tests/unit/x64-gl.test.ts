@@ -69,7 +69,8 @@ it('x64-gl: seven lifted scenes produce valid §13 ops, cached state and portabl
   // Real WebGPU rejects the old #define-based lowering. Both backends accept ordinary GLSL.
   expect(sources.every(s => !s?.includes('#define'))).toBe(true);
   expect(sources.some(s => s?.includes('texture(bgt_t0,bgt_gl_uv(coords()))'))).toBe(true);
-  expect(sources.some((s) => s?.includes('gl_Position.z=(gl_Position.z+gl_Position.w)*0.5'))).toBe(true);
+  // GL [-w,w] depth -> BGT [0,w]; K62: meta.y flips it for a reversed glDepthRange.
+  expect(sources.some((s) => s?.includes('gl_Position.z=(bgt_gl_meta.y!=0.0?gl_Position.w-gl_Position.z:gl_Position.z+gl_Position.w)*0.5'))).toBe(true);
   expect(importStatus('wglCreateContext', 'opengl32.dll').status).toBe('implemented');
   expect(importStatus('glDrawElements', 'opengl32.dll').status).toBe('implemented');
   expect(importStatus('glTexBuffer', 'opengl32.dll').status).toBe('stub');
