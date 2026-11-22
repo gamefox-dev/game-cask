@@ -1420,7 +1420,7 @@ order is unchanged). Profile regions that save and restore the error themselves 
 reclaim, buffer reallocation) keep the flush. Every GL 3.3 core glEnable capability is tracked state (no
 GL_INVALID_ENUM): DITHER and MULTISAMPLE (initially enabled) never change §13 rendering; enabling any other
 capability the profile does not render (logic op, depth clamp, framebuffer sRGB, smoothing, polygon offset,
-primitive restart, program point size, sample coverage/mask, seamless cube maps, clip distances) is a counted
+primitive restart (rendered since K61), program point size, sample coverage/mask, seamless cube maps, clip distances) is a counted
 approximation (`gl_approximations`; rendering stays as with it disabled). Each program's private uniform buffer
 (usage uniform|vertex) is a ring of 256-aligned slots of the uniform values plus a 256-byte tail (at most 16
 slots, 32 KiB): a draw uploads into the next slot and binds that slot; a single-instance draw that reads generic
@@ -1432,6 +1432,24 @@ or split as before. Transform-feedback capture draws cache their GLSL translatio
 sampler specialization, and their compute pipeline per draw shape (dropped with the pipeline, on FEEDBACK_VARYINGS
 and when the shader handle names a different shader); `lastFrame.captureTranslations`/`captureLowerings` count
 misses and `renameBytes` the bytes renames rewrote.
+
+**K61 (profile only; no wire change).** glClear honours the GL scissor box and the colour (per draw buffer), depth
+and stencil write masks: masks remove what the clear touches; a clear that still covers every touched buffer whole
+is a PASS_BEGIN load clear of exactly those attachments, otherwise one pass of §13.9 CLEAR_BUFFER operations after
+SCISSOR (both batched; metric `gl_partial_clears`). GL_LINE_LOOP, GL_TRIANGLE_FAN, the four adjacency modes
+(adjacent vertices ignored, as GL without a geometry shader) and indexed draws that meet the enabled primitive restart
+index are expanded by the profile into the equivalent u32 point/line/triangle list (GL primitive and vertex order)
+and drawn with DRAW_INDEXED from private index buffers: glDrawArrays fans use prefixes of one static fan list with
+`base_vertex = first`; other expansions upload their list into a private index ring inside the draw's own batched
+list (metric `gl_expanded_draws`). The wire keeps no restart semantics (above); GL_PRIMITIVE_RESTART is therefore no
+longer an approximation. Also implemented: glDrawRangeElements[BaseVertex], glMultiDraw{Arrays,Elements[BaseVertex]},
+glStencil{Func,Op,Mask}Separate (back compare/ops are the pipeline's back-face words; a back reference/mask that
+differs from the front one is a counted approximation), glLineWidth/glPointSize (clamped to the reported [1,1]
+ranges, so width-1 rendering is exact), glHint, glPolygonOffset (state), glPolygonMode (non-FILL is a counted
+approximation), glPrimitiveRestartIndex, sync objects (fences are signaled at creation: the stream is ordered and
+every guest-visible result is produced in stream order), glGetInteger64v/64i_v, glGetBufferParameteri64v,
+glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_calls` maps each GL entry point to the
+number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census.
 
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 

@@ -63,7 +63,7 @@ it('scissored/masked clears, expanded primitive modes and restart: no profile er
   expect(frame.filter(i => i.op === O.PASS_BEGIN).length).toBe(1 + 3 + 7);
   // Expanded draws are triangle/line lists drawn indexed from private u32 index buffers. glDrawArrays fans share one
   // static fan list (base_vertex = first, no upload); the others upload their list into the ring in their own list.
-  let index: number[] | undefined, upload: { handle: number; offset: number; n: number } | undefined;
+  let index: readonly number[] | undefined, upload: { handle: number; offset: number; n: number } | undefined;
   const fanHandles = new Set<number>(), ringHandles = new Set<number>(), ringOffsets: number[] = [];
   for (const it of frame) {
     if (it.op === O.BUFFER_UPDATE) upload = { handle: it.words[0], offset: it.words[1], n: it.data!.length };

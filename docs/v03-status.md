@@ -808,9 +808,10 @@ The shader frontend uses pooled storage (1 MiB source/expansion, 512 uniforms, 1
 validated pixel-store conversion, nonzero mips, renderbuffers and multiple draw buffers. No cube/1D/rectangle/MSAA,
 layered/3D attachment, depth transfer or integer/SNORM/compressed-format support is claimed. Array-shadow/integer
 samplers, dynamic sampler indexing/parameters, row-major/block-array/interface-block translation remain unsupported. K9a adds all 2..4-column/row matrix forms to the WG frontend, including padded std140 two-row matrices;
-the separate GL profile's existing non-square limitations are unchanged. Mapping/query/sync APIs, conversions outside
-float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1, scissored/masked clears, reversed depth ranges
-and constant-alpha combinations are unsupported or visibly rejected. Legal border wrap and LOD bias parameters
+the separate GL profile's existing non-square limitations are unchanged. Occlusion/timer queries, conversions outside
+float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1, reversed depth ranges and constant-alpha
+combinations are unsupported or visibly rejected (K61 added scissored/masked clears, fans/loops/adjacency/restart by
+expansion, sync objects and the error census; see ABI §13 K61 and [K61](handoff/K61.md)). Legal border wrap and LOD bias parameters
 remain queryable counted approximations. See [K6a](handoff/K6a.md), [K6b](handoff/K6b.md) and the superseding
 [I5 integration](handoff/integration-i5.md) limits. I2 compiles/rasterizes `x64-gl` on both actual
 backends, with per-tile goldens, side-effecting UV evaluation, colored ordered readback and cross-image comparisons.
