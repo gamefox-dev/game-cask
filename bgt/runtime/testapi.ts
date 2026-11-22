@@ -39,6 +39,8 @@ export interface BGTTestAPI {
   resume(): void;
   /** K51: run the page's own rAF loop and measure a fixed wall window (no step()). */
   measurePage(windowMs: number, warmupMs?: number): Promise<import('./page-fps').PageWindowSummary>;
+  /** K66: page-loop counters since load: ticks that ran updates, updates, transport-burst updates, max per tick. */
+  pageLoop(): BGTRuntime['pageLoopStats'];
   failed(): boolean;
   readPixels(): Promise<BGTPixels | null>;
   debugState(): unknown;
@@ -91,6 +93,7 @@ export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
     pause: () => rt.pause(),
     resume: () => rt.resume(),
     measurePage: (windowMs, warmupMs) => rt.measurePage(windowMs, warmupMs),
+    pageLoop: () => ({ ...rt.pageLoopStats }),
     failed: () => rt.failed,
     step: (frames) => rt.step(Math.max(0, Math.floor(frames))),
     input: (events) => rt.injectInput(events),

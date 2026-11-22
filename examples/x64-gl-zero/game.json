@@ -1,0 +1,16 @@
+{
+  "id": "x64-gl-zero",
+  "name": "2D GL batching that orphans with zero-size glBufferData (CC0)",
+  "private": false,
+  "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true, "sources": ["gl.c"], "out": "gl.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32"]
+    },
+    "modules": [{ "from": "./build/gl.exe", "name": "gl.exe", "main": true }],
+    "width": 32, "height": 32
+  },
+  "touch": { "dpad": false, "buttons": [] }
+}

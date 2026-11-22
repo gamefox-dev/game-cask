@@ -71,6 +71,18 @@ frame) and drop older backlog instead of multiplying guest-frame work. Under the
 The Win32 profile defines its deterministic [guest time model](../../platforms/win32/THREADS.md#guest-time-model-k50-version-1)
 independently of `io.frame`; this does not change native BGT fixed-step semantics.
 
+Transport bursts (K66): a pipeline update that ends suspended in a **time-neutral transport wait** (optional export
+`u32 bgt_yield_kind(void)` returns 1 while the game is suspended in such a yield: the update has neither presented nor
+crossed a guest-time boundary, and is waiting for a request result, a streamed/eager file range or a full host-frame
+budget) is rendered and followed by further updates in the same animation frame, until an update presents or advances
+guest time across a boundary, the tick's wall budget (12 ms; `?ioburst=N` ms, `?ioburst=0` disables) is spent, or the
+burst carried one frame period (16667 µs) of instruction time. Each update keeps its own render, request-visibility
+boundary and input snapshot, exactly as back-to-back `step()`: the update sequence, guest time and every guest-visible
+result are unchanged; only how many updates share a display tick changes. Without the export (older/native artifacts)
+the result is 0 and pacing is as before. The Win32 profile reports 1 for `w32_wait_transport` yields (ReadFile range
+waits, GL readback/shader/budget waits, GDI record overflow) of an update that has not presented, snapped a frame
+boundary or skipped time in Sleep/idle; metric `guest_time.neutral_yields` counts them.
+
 Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
 microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
 host wall time. Deterministic harness time/audio services use it when present; without it they retain
@@ -257,6 +269,8 @@ interface BGTTestAPI {
   debugState(): unknown; injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(): Promise<void>;
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
+  measurePage(windowMs: number, warmupMs?: number): Promise<PageWindowSummary>; // K51 real-page window
+  pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick }; // K66: page-loop counters since load
 }
 type BGTTestInputEvent =
   | { type: 'key'; code: string /* KeyboardEvent.code */; down: boolean }
@@ -1462,7 +1476,18 @@ ranges, so width-1 rendering is exact), glHint, glPolygonOffset (state), glPolyg
 approximation), glPrimitiveRestartIndex, sync objects (fences are signaled at creation: the stream is ordered and
 every guest-visible result is produced in stream order), glGetInteger64v/64i_v, glGetBufferParameteri64v,
 glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_calls` maps each GL entry point to the
-number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census.
+number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census. K66 adds the
+backward-compatible sibling `gl_error_codes`, the same census split by the first GL error code each counted call
+raised: `{"glBufferData":{"0x501":n},...}` (keys `"0x500"`..`"0x506"`, `"other"`); per entry the counts sum to its
+`gl_error_calls` value.
+
+**K66 (zero-size glBufferData, profile-only).** `glBufferData(target, 0, data, usage)` is valid (GL 3.3 §2.9.2; only
+a negative size is GL_INVALID_VALUE): the buffer gets a zero-size store (GL_BUFFER_SIZE 0; sub-data, mapping, binding
+ranges and draws that read it are out of range exactly as for a buffer without a store). It emits no command: a live
+CPU-authoritative store keeps its native store as retained capacity within the K57 slack budget, and the next
+glBufferData rewrites it in place (one BUFFER_UPDATE, no DELETE/CREATE); a feedback-written store, or one whose
+capacity does not fit the slack budget, is released with one DELETE, and slack reclaim releases retained zero-size
+stores. Metric `gl_buffer_zero_stores` counts these calls. No wire format changes.
 
 **K62 (VIEWPORT relaxation, §13.6 offset 76, WebGPU varying packing).** The WGL profile sends the GL viewport
 unchanged (top-left origin, origin clamped to +-32768; width/height clamped to GL_MAX_VIEWPORT_DIMS = 16384 at

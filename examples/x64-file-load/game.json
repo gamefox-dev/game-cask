@@ -1,0 +1,18 @@
+{
+  "id": "x64-file-load",
+  "name": "Blocking stage load in many small ReadFile calls (CC0)",
+  "private": false,
+  "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true, "sources": ["load.c"], "out": "load.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32"],
+      "patternFiles": [{ "name": "stage.dat", "bytes": 4194304, "multiplier": 31, "increment": 7, "xorShift": 13 }]
+    },
+    "modules": [{ "from": "./build/load.exe", "name": "load.exe", "main": true }],
+    "width": 64, "height": 64
+  },
+  "streams": [{ "from": "./build/stage.dat", "path": "stage.dat", "chunkSize": 262144 }],
+  "touch": { "dpad": false, "buttons": [] }
+}

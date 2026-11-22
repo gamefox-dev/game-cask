@@ -333,6 +333,42 @@ static void buffer_capacity_budget(void) {
     x86_wr32(4096,1);x86_wr32(4100,2);x86_wr32(4104,3);call(api_DeleteBuffers,3,4096,0,0);CHECK(!error&&buffer_slack==0&&w32_gl_frontend_bytes==0);
     puts("buffer capacity budget/release/exact retry/reclaim/generated exact store OK");
 }
+/* K66 (Q120): glBufferData(size 0) is a zero-size store (GL 3.3 §2.9.2), not GL_INVALID_VALUE. A live
+ * CPU-authoritative store keeps its native store as budgeted slack with no command; the next upload rewrites it
+ * in place; the zero-size store is out of range for sub-data/mapping/drawing like an unspecified buffer; a
+ * feedback-written store and slack reclaim release it. */
+static void buffer_zero_size(void) {
+    call(api_BindBuffer,ARRAY_BUFFER,4,0,0);
+    for(uint32_t i=0;i<64;i++)memory[8192+i]=(uint8_t)(i+1);
+    uint32_t before=submissions;call(api_BufferData,ARRAY_BUFFER,0,0,0x88e0);
+    CHECK(!error&&!buffers[4].gpu&&!buffers[4].size&&!buffers[4].cap&&submissions==before);
+    call(api_BufferData,ARRAY_BUFFER,64,8192,0x88e0);CHECK(!error&&buffers[4].gpu&&buffers[4].size==64);
+    uint32_t gpu=buffers[4].gpu;uint64_t slack0=buffer_slack,shrank0=w32_gl_buffer_respec_shrank;
+    before=submissions;call(api_BufferData,ARRAY_BUFFER,0,8192,0x88e0);
+    CHECK(!error&&submissions==before&&buffers[4].gpu==gpu&&live_buffers[gpu]&&!buffers[4].size&&buffers[4].cap==64);
+    CHECK(buffer_slack==slack0+64&&w32_gl_buffer_respec_shrank==shrank0+1&&w32_gl_buffer_zero_stores==2);
+    call(api_GetBufferParameteriv,ARRAY_BUFFER,0x8764,4096,0);CHECK(x86_rd32(4096)==0);
+    call(api_BufferSubData,ARRAY_BUFFER,0,4,8192);CHECK(error==BAD_VALUE);error=0;
+    call(api_BufferSubData,ARRAY_BUFFER,0,0,8192);CHECK(!error);
+    CHECK(!call(api_MapBufferRange,ARRAY_BUFFER,0,0,2)&&error);error=0;
+    CHECK(!call(api_MapBuffer,ARRAY_BUFFER,0x88b9,0,0)&&error&&!heap_live);error=0;
+    call(api_GetBufferSubData,ARRAY_BUFFER,0,1,12288);CHECK(error==BAD_VALUE);error=0;
+    for(uint32_t i=0;i<48;i++)memory[8192+i]=(uint8_t)(i+100);
+    before=submissions;call(api_BufferData,ARRAY_BUFFER,48,8192,0x88e0);
+    CHECK(!error&&submissions==before+1&&buffers[4].gpu==gpu&&buffers[4].size==48&&buffers[4].cap==64&&buffer_slack==slack0+16);
+    CHECK(device_buffers[gpu][0]==100&&device_buffers[gpu][47]==147);
+    /* A feedback-written store's contents are native-only: zero size releases it (one DELETE). */
+    buffers[4].generated=1;before=submissions;call(api_BufferData,ARRAY_BUFFER,0,0,0x88e0);
+    CHECK(!error&&submissions==before+1&&!buffers[4].gpu&&!live_buffers[gpu]&&!buffers[4].cap&&!buffers[4].data&&buffer_slack==slack0);
+    /* Slack reclaim releases a retained zero-size store entirely. */
+    call(api_BufferData,ARRAY_BUFFER,40,8192,0x88e0);gpu=buffers[4].gpu;call(api_BufferData,ARRAY_BUFFER,0,0,0x88e0);
+    CHECK(!error&&buffers[4].gpu==gpu&&buffers[4].cap==40);reclaim_slack();
+    CHECK(!error&&!buffers[4].gpu&&!live_buffers[gpu]&&!buffers[4].cap&&buffer_slack==slack0);
+    /* Only a negative size is GL_INVALID_VALUE (32-bit GLsizeiptr -1). */
+    before=submissions;call(api_BufferData,ARRAY_BUFFER,0xffffffffu,0,0x88e0);CHECK(error==BAD_VALUE&&submissions==before);error=0;
+    x86_wr32(4096,4);call(api_DeleteBuffers,1,4096,0,0);CHECK(!error&&w32_gl_frontend_bytes==0);
+    puts("buffer zero-size store: no command, retained capacity, out-of-range uses, release, reclaim OK");
+}
 static void buffer_memory(void) {
     call(api_BindBuffer,ARRAY_BUFFER,1,0,0);
     for(uint32_t i=0;i<600;i++) {
@@ -511,7 +547,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"sampler-churn"))sampler_churn();
     else if(!strncmp(argv[1],"batch-",6))batch_framing(argv[1]);
     else if(!strcmp(argv[1],"stress"))stress();else if(!strcmp(argv[1],"lifecycle"))lifecycle();else if(!strcmp(argv[1],"respec"))buffer_respec();else if(!strcmp(argv[1],"respec-failures"))buffer_respec_failures();
-    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"capacity-budget"))buffer_capacity_budget();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
+    else if(!strcmp(argv[1],"exhaustion"))exhaustion();else if(!strcmp(argv[1],"allocator"))allocator();else if(!strcmp(argv[1],"backend-failure"))backend_failure();else if(!strcmp(argv[1],"buffers"))buffer_memory();else if(!strcmp(argv[1],"zero-size"))buffer_zero_size();else if(!strcmp(argv[1],"capacity-budget"))buffer_capacity_budget();else if(!strcmp(argv[1],"consumers"))consumers();else if(!strcmp(argv[1],"vao"))buffer_vao();else if(!strcmp(argv[1],"mapping"))buffer_mapping();else if(!strcmp(argv[1],"capacity-names"))capacity_names();else if(!strcmp(argv[1],"capacity-storage"))capacity_storage();else if(!strcmp(argv[1],"capacity-shaders"))capacity_shaders();else if(!strcmp(argv[1],"capacity-failures"))capacity_failures();else return 2;
     CHECK(!request_pending); for(uint32_t i=0;i<1024;i++)CHECK(!live_modules[i]);
     return 0;
 }

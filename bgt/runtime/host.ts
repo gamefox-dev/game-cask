@@ -173,6 +173,7 @@ interface GameExports {
   bgt_interpreter_coverage?(): number;
   bgt_guest_presentations?(): number;
   bgt_guest_time_us?(): number;
+  bgt_yield_kind?(): number;
   bgt_profile_reset?():void;
   bgt_profile_abort?(nowUs:number):void;
   bgt_slice_policy?(entries:number,ranges:number):number;
@@ -911,6 +912,12 @@ export class GameHost {
   interpreterCoverage() {
     const ptr=this.exports.bgt_interpreter_coverage?.() ?? 0;
     return ptr?readInterpreterCoverage(this.exports.memory.buffer,ptr):null;
+  }
+
+  /** K66: the last update ended suspended in a time-neutral transport wait (no guest present, no guest-time
+   * boundary): the page loop may run the next update in the same display tick. Pacing only, never guest state. */
+  transportYield(): boolean {
+    return this.asyncState === AsyncState.Suspended && !this.inUpdate && (this.exports.bgt_yield_kind?.() ?? 0) === 1;
   }
 
   /** Optional read-only profile clock. Never used for wall-dependent scheduling. */

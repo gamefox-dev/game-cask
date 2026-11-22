@@ -50,6 +50,7 @@ void w32_update(void);
 void w32_render(void);
 void w32_guest_present(int swap);
 const void *w32_guest_presentations(void);
+uint32_t w32_yield_kind(void); /* K66: 1 = the pending yield is a time-neutral transport wait */
 /* JSON metrics for bgt_metrics (combines x86 and win32 counters) */
 const char *w32_metrics_json(void);
 uint32_t w32_state_hash(void);

@@ -57,6 +57,9 @@ export interface RuntimeOptions {
   startPaused?: boolean;
   /** Opt-in JSPI; both manifest and runtime request must opt in. */
   suspension?: 'asyncify' | 'jspi';
+  /** K66: wall budget (ms) per display tick for updates that continue after a time-neutral transport yield;
+   * 0 restores one update per tick (A/B). Default TRANSPORT_BURST_MS. */
+  ioBurstMs?: number;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -88,7 +91,7 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
-import { retainedAccumulator } from './page-pacing';
+import { retainedAccumulator, continueTransport, TRANSPORT_BURST_MS } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 
 export interface BGTDiagnostics {
@@ -741,6 +744,8 @@ export class BGTRuntime {
   }
 
   private updateBusy = false;
+  /** K66: settles when the running page-loop tick (including a transport burst) has finished its updates. */
+  private tickTail: Promise<void> = Promise.resolve();
   private loop(): void {
     const tick = async (t: number) => {
       this.raf = requestAnimationFrame(tick);
@@ -757,7 +762,9 @@ export class BGTRuntime {
         return;
       }
       if (this.pageLog) pageLogPush(this.pageLog, 0, t);
+      const tickStart = performance.now();
       this.updateBusy = true;
+      let tickDone!: () => void; this.tickTail = new Promise<void>((resolve) => { tickDone = resolve; });
       try {
       let n = 0;
       // A pipeline update is already a bounded guest frame; never multiply its
@@ -770,6 +777,7 @@ export class BGTRuntime {
         n++;
       }
       this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog, keep the sub-step remainder
+      if (n > 0 && this.manifest?.pipeline) n = await this.transportBurst(n, tickStart);
       if (n > 0) {
         const before = this.presentsCompleted, updates = n, log = this.pageLog;
         if (log) void this.renderFrame(false).then(() => {
@@ -777,9 +785,47 @@ export class BGTRuntime {
         }, () => {});
         else void this.renderFrame(false);
       }
-      } finally { this.updateBusy = false; }
+      } finally { this.updateBusy = false; tickDone(); }
     };
     this.raf = requestAnimationFrame(tick);
+  }
+
+  /** K66: page-loop counters (test API pageLoop()). */
+  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0 };
+
+  /**
+   * K66: a guest blocked in a synchronous transport wait (ReadFile, a request result, a full host-frame budget)
+   * neither presents nor advances guest time, so capping it at one update per display tick only stretches
+   * loading (60 reads/s). After such a yield, render that update and run the next one in the same tick, until
+   * an update presents or crosses a guest-time boundary, the tick's wall budget is spent, or the continuation
+   * carried one frame period of instruction time. Each update keeps its own render and request boundary, exactly
+   * as back-to-back step(): the guest timeline and every guest-visible result are unchanged.
+   * Returns the updates of this tick whose render is still to be issued (0 or 1).
+   */
+  private async transportBurst(n: number, tickStart: number): Promise<number> {
+    const host = this.host!, stats = this.pageLoopStats, budget = this.opts.ioBurstMs ?? TRANSPORT_BURST_MS;
+    stats.ticks++; stats.updates += n;
+    const guest0 = host.guestTimeUs();
+    let tick = n;
+    for (;;) {
+      if (!continueTransport(host.transportYield(), performance.now() - tickStart, budget, guest0, host.guestTimeUs())) break;
+      await this.renderPresent(n); n = 0;
+      if (host.ioPending) await host.settleRequests();
+      if (performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
+        ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) break;
+      await this.stepGuarded();
+      if (this.failed || this.outsideSlice) { n = 0; break; }
+      n = 1; tick++; stats.updates++; stats.transportUpdates++;
+      if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
+    }
+    if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
+    return n;
+  }
+
+  private async renderPresent(updates: number): Promise<void> {
+    const before = this.presentsCompleted, log = this.pageLog;
+    await this.renderFrame(false).catch(() => null);
+    if (log && this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
   }
 
   // ------------------------------------------------------------ test hooks
@@ -820,7 +866,7 @@ export class BGTRuntime {
       // Presents complete asynchronously; let a submitted frame finish before reducing the window.
       await this.renderTail;
       return summarizePageWindow(log, start, end, g0 !== null && g1 !== null ? g1 - g0 : null);
-    } finally { this.pause(); await this.renderTail; this.pageLog = null; }
+    } finally { this.pause(); await this.tickTail; await this.renderTail; this.pageLog = null; }
   }
 
   async step(frames: number): Promise<void> {
@@ -829,6 +875,7 @@ export class BGTRuntime {
     this.stepping = true;
     this.pause();
     try {
+    await this.tickTail; // K66: a page-loop transport burst never overlaps a test step
     for (let i = 0; i < frames; i++) {
       if (this.failed || this.outsideSlice) break;
       await this.renderTail;
