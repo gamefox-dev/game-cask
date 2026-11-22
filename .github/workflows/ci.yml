@@ -175,7 +175,7 @@ jobs:
       # Collect every shard result even when one fails; gate requires the matrix aggregate.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     env:
       BGT_CI_LIGHT: '1'
     steps:
@@ -191,8 +191,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Wasm sample build
         run: npm run build:examples
-      - name: Browser E2E (WebGL 2 fallback, software rendering) — shard ${{ matrix.shard }}/3
-        run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/3
+      - name: Browser E2E (WebGL 2 fallback, software rendering) — shard ${{ matrix.shard }}/4
+        run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/4
       - if: always()
         uses: actions/upload-artifact@v4
         with:

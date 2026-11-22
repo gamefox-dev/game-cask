@@ -11,13 +11,13 @@ const workflow=readFileSync(join(ROOT,'.github/workflows/ci.yml'),'utf8');
 const e2e=workflow.slice(workflow.indexOf('\n  e2e:'),workflow.indexOf('\n  scale:'));
 const gate=workflow.slice(workflow.indexOf('\n  gate:'),workflow.indexOf('\n  webgpu:'));
 
-it('runs all three Playwright shards without cancelling siblings or changing coverage',()=>{
+it('runs all four Playwright shards without cancelling siblings or changing coverage',()=>{
   expect(e2e).toMatch(/fail-fast: false/);
-  expect(e2e).toMatch(/shard: \[1, 2, 3\]/);
+  expect(e2e).toMatch(/shard: \[1, 2, 3, 4\]/);
   expect(e2e).not.toMatch(/continue-on-error|max-parallel/);
   expect(e2e).toContain('run: npm run build:examples');
   const command=e2e.split('\n').find(line=>line.includes('npx playwright test'))?.trim();
-  expect(command).toBe('run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/3');
+  expect(command).toBe('run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/4');
 });
 
 it('uploads uniquely prefixed JSON, HTML and failure evidence even after a shard failure',()=>{
