@@ -3,7 +3,7 @@ import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
 import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
 import { glslVaryingDecls, glslVaryings, linkedVaryings, packVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { clampViewport, ViewTransforms } from './view';
-import { RotatedSequences, rotateList } from './provoking';
+import { RotatedIndexRing, RotatedSequences, rotateList } from './provoking';
 import { lowerDepthSampling, type DepthSampling } from './depth';
 import { fragmentOutputs } from './outputs';
 import { WebGPUBufferCopy } from './buffer-copy';
@@ -38,7 +38,8 @@ const vertexFormats: GPUVertexFormat[] = [
   'sint32x4', 'uint32', 'uint32x2', 'uint32x3', 'uint32x4',
 ];
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
-interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number }
+/** `serial` (K62, vK62): unique per store for this executor's life, so a reused handle never matches an old store. */
+interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number }
 interface TextureResource {
   native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
@@ -104,7 +105,9 @@ export class WebGPUCommands implements GpuBackend {
   private viewEmpty = false;
   private viewIdentity = true;
   private rotations?: RotatedSequences;
-  private rotatedIndices = new Map<string, GPUBuffer>();
+  /** K62: rotated index copies (indexed flat draws); exposed for tests. */
+  rotatedIndices?: RotatedIndexRing;
+  private bufferSerial = 0;
   private blendConstant = [0,0,0,0];
   /** K53 frame batching: one command encoder spans the frame's passes and is submitted at a sync point
    * (frame end, readback/blit/copy/mip generation, or a queue write to a resource the encoder uses).
@@ -134,13 +137,16 @@ export class WebGPUCommands implements GpuBackend {
   readonly maxUniformRange: number;
   /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
   readonly maxVaryingComponents: number;
+  readonly glRaster = true;
   readonly device: GpuDeviceInfo;
   constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
     // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
     const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
-    // K62: packed varyings (shaders.ts packVaryings) need at most ceil(N/4) + 2 locations for N components.
-    this.maxVaryingComponents = 4 * (gpuDevice.limits?.maxInterStageShaderVariables ?? 16) - 6;
+    // K62: packed varyings (shaders.ts packVaryings) need at most ceil(N/4) + 2 locations for N components; vK62:
+    // every translated fragment stage reads @builtin(front_facing), which (like a point-list topology, not both)
+    // costs one inter-stage location (measured: 28 -> 27 on M4), so 4 x (L - 1) - 6.
+    this.maxVaryingComponents = 4 * ((gpuDevice.limits?.maxInterStageShaderVariables ?? 16) - 1) - 6;
     this.device = { renderer: adapter, software: softwareRenderer(adapter), nativeMaxUniformRange: native };
   }
 
@@ -242,7 +248,7 @@ export class WebGPUCommands implements GpuBackend {
     this.pass = undefined;
     this.encoder = undefined;
     this.lingering = false; this.passKey = ''; this.used.clear(); this.usedRanges.clear();
-    this.views = undefined; this.rotations = undefined; this.rotatedIndices.clear();
+    this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
     this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0;
     this.timing = undefined;
     this.screen = undefined;
@@ -261,7 +267,7 @@ export class WebGPUCommands implements GpuBackend {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
     if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
     this.gpuDevice = device;
-    this.opaqueScreen = undefined; this.views = undefined; this.rotations = undefined; this.rotatedIndices.clear();
+    this.opaqueScreen = undefined; this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
     this.framebufferBlit = undefined; this.bufferCopy = undefined; this.feedbackPipelines.clear();
     this.inactive = false;
     const buffers = [...this.buffers], textures = [...this.textures], samplers = [...this.samplers];
@@ -379,7 +385,7 @@ export class WebGPUCommands implements GpuBackend {
           usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
         const shadow = new Uint8Array(w[2]);
         if (item.data) shadow.set(item.data);
-        this.buffers.set(h, { native, words: w, shadow });
+        this.buffers.set(h, { native, words: w, shadow, serial: ++this.bufferSerial });
         this.writeBuffer(native, 0, shadow);
         break;
       }
@@ -610,7 +616,8 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   /** K62: lists drawn last-vertex-first (see provoking.ts). Non-indexed draws use a static rotated sequence with
-   * base_vertex = first; indexed draws a rotated copy of the index range, cached per buffer contents version. */
+   * base_vertex = first; indexed draws a rotated copy of the index range in an index ring, cached per store and
+   * contents version. */
   private rotated(item: GpuItem, n: 2 | 3): void {
     const w = item.words, count = w[0] - w[0] % n;
     if (!count) return;
@@ -619,28 +626,21 @@ export class WebGPUCommands implements GpuBackend {
       this.pass!.setIndexBuffer(this.rotations.get(n, count / n), 'uint32');
       this.pass!.drawIndexed(count, w[1], 0, w[2], w[3]);
     } else {
-      let native: GPUBuffer | undefined, key = '';
-      if (item.op === OP.DRAW) native = this.scratchIndex(rotateList(Uint32Array.from({ length: count }, (_, i) => w[2] + i), n));
-      else {
-        const ib = this.index!, b = this.buffers.get(ib[0])!, size = ib[1] ? 4 : 2;
-        key = `${ib[0]}:${b.version ?? 0}:${ib[1]}:${ib[2] + w[2] * size}:${count}`;
-        native = this.rotatedIndices.get(key);
-        if (!native) {
-          const at = b.shadow.byteOffset + ib[2] + w[2] * size, values = size === 4 ?
-            new Uint32Array(b.shadow.buffer.slice(at, at + count * 4)) : new Uint16Array(b.shadow.buffer.slice(at, at + count * 2));
-          const data = rotateList(values, n);
-          native = this.gpuDevice.createBuffer({ size: data.byteLength, usage: GPUBufferUsage.INDEX, mappedAtCreation: true });
-          new Uint32Array(native.getMappedRange()).set(data); native.unmap();
-          if (this.rotatedIndices.size >= 64) {
-            const [oldest, buffer] = this.rotatedIndices.entries().next().value!;
-            this.rotatedIndices.delete(oldest); this.retiredDestroy.push(buffer);
-          }
-          this.rotatedIndices.set(key, native);
-        }
+      if (item.op === OP.DRAW) {
+        this.pass!.setIndexBuffer(this.scratchIndex(rotateList(Uint32Array.from({ length: count }, (_, i) => w[2] + i), n)), 'uint32');
+        this.pass!.drawIndexed(count, w[1], 0, 0, w[3]);
+      } else {
+        // vK62: keyed by the store's serial (a deleted and re-created handle is a different store) and contents version.
+        const ib = this.index!, b = this.buffers.get(ib[0])!, size = ib[1] ? 4 : 2, start = ib[2] + w[2] * size;
+        this.rotatedIndices ??= new RotatedIndexRing(this.gpuDevice, r => this.retiredDestroy.push(r));
+        const r = this.rotatedIndices.get(`${b.serial}:${b.version ?? 0}:${size}:${start}:${count}:${n}`, () => {
+          const at = b.shadow.byteOffset + start;
+          return rotateList(size === 4 ? new Uint32Array(b.shadow.buffer.slice(at, at + count * 4)) :
+            new Uint16Array(b.shadow.buffer.slice(at, at + count * 2)), n);
+        });
+        this.pass!.setIndexBuffer(r.buffer, 'uint32', r.offset, r.bytes);
+        this.pass!.drawIndexed(count, w[1], 0, w[3] | 0, w[4]);
       }
-      this.pass!.setIndexBuffer(native, 'uint32');
-      if (item.op === OP.DRAW) this.pass!.drawIndexed(count, w[1], 0, 0, w[3]);
-      else this.pass!.drawIndexed(count, w[1], 0, w[3] | 0, w[4]);
     }
     if (this.index) this.pass!.setIndexBuffer(this.buffers.get(this.index[0])!.native,
       this.index[1] ? 'uint32' : 'uint16', this.index[2], this.index[3]);
@@ -1194,25 +1194,32 @@ struct VO { @builtin(position) pos: vec4f };
 
   private strip(item: GpuItem, flat = false): void {
     // Expand strips to lists: native indexed strips reserve all-ones as restart; BGT explicitly does not.
-    const w = item.words, triangle = this.current!.words[3] === 4, result: number[] = [];
+    // vK62: the list lives in the rotated-index ring, cached per store serial + contents version (or per first/count
+    // for non-indexed strips), so a steady strip draw costs no buffer creation and no re-expansion.
+    const w = item.words, triangle = this.current!.words[3] === 4;
     const indexed = item.op === OP.DRAW_INDEXED, b = indexed ? this.buffers.get(this.index![0])! : undefined;
-    const view = b ? new DataView(b.shadow.buffer) : undefined, size = this.index?.[1] ? 4 : 2;
-    const at = (i: number) => !view ? w[2] + i : size === 4 ?
-      view.getUint32(this.index![2] + (w[2] + i) * size, true) :
-      view.getUint16(this.index![2] + (w[2] + i) * size, true);
-    for (let i = 0; i < w[0] - (triangle ? 2 : 1); i++) {
-      // K62: with flat inputs the GL provoking vertex (the last, i + 2 / i + 1) is drawn first.
-      if (triangle) { if (flat) result.push(at(i + 2), at(i + (i % 2)), at(i + 1 - (i % 2)));
-        else result.push(at(i + (i % 2)), at(i + 1 - (i % 2)), at(i + 2)); }
-      else if (flat) result.push(at(i + 1), at(i));
-      else result.push(at(i), at(i + 1));
-    }
-    if (!result.length) return;
-    const native = this.gpuDevice.createBuffer({ size: result.length * 4, usage: GPUBufferUsage.INDEX,
-      mappedAtCreation: true });
-    new Uint32Array(native.getMappedRange()).set(result); native.unmap(); this.scratch.push(native);
-    this.pass!.setIndexBuffer(native, 'uint32');
-    this.pass!.drawIndexed(result.length, w[1], 0, indexed ? w[3] | 0 : 0, indexed ? w[4] : w[3]);
+    const size = this.index?.[1] ? 4 : 2, n = Math.max(0, w[0] - (triangle ? 2 : 1)) * (triangle ? 3 : 2);
+    if (!n) return;
+    const key = `strip:${indexed ? `${b!.serial}:${b!.version ?? 0}:${size}:${this.index![2] + w[2] * size}` : `-:${w[2]}`}:${w[0]}:${+triangle}:${+flat}`;
+    this.rotatedIndices ??= new RotatedIndexRing(this.gpuDevice, r => this.retiredDestroy.push(r));
+    const ring = this.rotatedIndices.get(key, () => {
+      const view = b ? new DataView(b.shadow.buffer, b.shadow.byteOffset) : undefined, result = new Uint32Array(n);
+      const at = (i: number) => !view ? w[2] + i : size === 4 ?
+        view.getUint32(this.index![2] + (w[2] + i) * size, true) :
+        view.getUint16(this.index![2] + (w[2] + i) * size, true);
+      let k = 0;
+      for (let i = 0; i < w[0] - (triangle ? 2 : 1); i++) {
+        // K62: with flat inputs the GL provoking vertex (the last, i + 2 / i + 1) is drawn first.
+        if (triangle) {
+          const t = flat ? [at(i + 2), at(i + (i % 2)), at(i + 1 - (i % 2))] : [at(i + (i % 2)), at(i + 1 - (i % 2)), at(i + 2)];
+          result[k++] = t[0]; result[k++] = t[1]; result[k++] = t[2];
+        } else if (flat) { result[k++] = at(i + 1); result[k++] = at(i); }
+        else { result[k++] = at(i); result[k++] = at(i + 1); }
+      }
+      return result;
+    });
+    this.pass!.setIndexBuffer(ring.buffer, 'uint32', ring.offset, ring.bytes);
+    this.pass!.drawIndexed(n, w[1], 0, indexed ? w[3] | 0 : 0, indexed ? w[4] : w[3]);
     if (this.index) this.pass!.setIndexBuffer(this.buffers.get(this.index[0])!.native,
       this.index[1] ? 'uint32' : 'uint16', this.index[2], this.index[3]);
   }

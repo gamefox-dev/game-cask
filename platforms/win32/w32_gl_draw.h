@@ -47,7 +47,8 @@ static uint32_t enable(int enabled) {
     uint32_t cap = ARG(0); int bit = other_capability(cap);
     if (bit >= 0) {
         other_caps = enabled ? other_caps | (1u << bit) : other_caps & ~(1u << bit);
-        if (enabled && bit >= 2 && bit != 10) approximate_hex("glEnable capability not rendered", cap); /* K61: RESTART is rendered */
+        /* K61: RESTART is rendered; vK62: polygon offsets are judged per draw (offset_factor/units) */
+        if (enabled && bit >= 2 && bit != 10 && (bit < 6 || bit > 8)) approximate_hex("glEnable capability not rendered", cap);
         return 0;
     }
     uint32_t *v = capability(cap); if (!v) fail(BAD_ENUM); else *v = (uint32_t)enabled; return 0;
@@ -593,14 +594,19 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * uploads into the index ring (an invalid range or GPU-written element buffer fails validation below). */
     if (index_type == U8 && edata && !expand) { expand = 1; topo = list_topology(topo); }
     /* K62: GL_FIRST_VERTEX_CONVENTION for a program with flat varyings: expand to lists with each primitive's
-     * first-convention provoking vertex drawn last (expand_run). Transform feedback records GL's order, so a rasterizing capture keeps the
-     * last-vertex convention (counted approximation); a discarding capture rasterizes nothing. */
-    int rotate = 0;
+     * first-convention provoking vertex drawn last (expand_run). vK62: transform feedback records GL's vertex order,
+     * so a rasterizing capture is split into a capture-only draw of the GL-order list (FEEDBACK_CAPTURE discard) and
+     * a raster-only draw of the rotated list (`split`); a discarding capture rasterizes nothing. */
+    int rotate = 0, split = 0;
     if (provoking_first && topo != 0 && programs[program].info->flat_inputs && !(rasterizer_discard && tf_active)) {
-        if (tf_active) approximate("glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) with transform feedback (last vertex used)");
-        else if (index_type && !edata) approximate("glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) with GPU-written indices (last vertex used)");
-        else { rotate = 1; if (!expand) { expand = 1; topo = list_topology(topo); } }
+        if (index_type && !edata) approximate("glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) with GPU-written indices (last vertex used)");
+        else { rotate = 1; split = tf_active; if (!expand) { expand = 1; topo = list_topology(topo); } }
     }
+    /* vK62: polygon offset has no §13 depth-bias state: GL_POLYGON_OFFSET_FILL with a zero factor and units is exact,
+     * a nonzero one is counted where it would change a filled draw. (LINE/POINT offsets apply to non-FILL polygon
+     * modes, which are approximated themselves.) */
+    if (((other_caps >> 6) & 1) && topo >= 3 && (offset_factor != 0 || offset_units != 0) && !(rasterizer_discard && tf_active))
+        approximate("polygon offset (GL_POLYGON_OFFSET_FILL, nonzero factor/units) not rendered");
     uint64_t xcount64 = expand ? expand_draw(mode, edata, esize, (uint32_t)count, restart, 0) : 0;
     if (xcount64 > 0xffffffffu) { fail(OOM); return 0; }
     uint32_t xcount = (uint32_t)xcount64, vcount = expand ? xcount : (uint32_t)count;
@@ -623,6 +629,9 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * attachment and both backends clip exactly. Origins are clamped to +-32768 (any viewport that can reach a
      * target <= 16384 keeps its exact origin); an empty viewport becomes a 1x1 rectangle far outside the target,
      * which rasterizes nothing while transform feedback still captures. Top-left origin for §13. */
+    /* vK62: the relaxed rectangle is the additive BGT_CAP_GPU_GL_RASTER contract; without it the K61 rule stands. */
+    if (!(w32_io->caps & BGT_CAP_GPU_GL_RASTER) && (viewport[0] < 0 || viewport[1] < 0 || viewport[2] <= 0 || viewport[3] <= 0 ||
+        (uint64_t)viewport[0] + viewport[2] > tg.w || (uint64_t)viewport[1] + viewport[3] > tg.h)) { fail(BAD_VALUE); return 0; }
     float view[4] = {-32768, -32768, 1, 1};
     if (viewport[2] > 0 && viewport[3] > 0) {
         int64_t x = viewport[0], y = (int64_t)tg.h - viewport[1] - viewport[3];
@@ -778,9 +787,10 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             if (!fan_buffer(xcount / 3)) return 0;
             xbuf = fan_gpu; xbytes = xcount * 4;
         } else {
-            if (!(xlist = expand_scratch(xcount))) return 0;
+            if (!(xlist = expand_scratch((uint64_t)xcount * (split ? 2 : 1)))) return 0;
             expand_first = rotate; expand_draw(mode, edata, esize, (uint32_t)count, restart, xlist); expand_first = 0;
-            if (!ring_reserve(xcount * 4)) return 0;
+            if (split) expand_draw(mode, edata, esize, (uint32_t)count, restart, xlist + xcount); /* GL order, captured */
+            if (!ring_reserve(xcount * 4 * (split ? 2u : 1u))) return 0;
             xbuf = xring_gpu; xoff = xring_at; xbytes = xcount * 4;
         }
     }
@@ -810,7 +820,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
     begin();
-    if (xlist) { uint32_t up[] = {xbuf, xoff, PTR(xlist), xbytes}; op(0x41, up, 4); }
+    if (xlist) { uint32_t up[] = {xbuf, xoff, PTR(xlist), xbytes * (split ? 2u : 1u)}; op(0x41, up, 4); }
     op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
     uint32_t vp[] = {bits(view[0]), bits(view[1]), bits(view[2]), bits(view[3]),
         bits(flip ? range_max : range_min), bits(flip ? range_min : range_max)}; op(0x4f, vp, 6);
@@ -835,7 +845,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     for (uint32_t slot = 0; slot < p->nslots; slot++) {
         uint32_t t[] = {slot, bound[slot], sampler_ids[slot]}; op(0x56, t, 3);
     }
-    if (expand) {
+    if (split) {
+        uint32_t c[] = {xbuf, 1, xoff + xbytes, xbytes}; op(0x54, c, 4);
+        capture_words[0] = 1; op(0x62, capture_words, 13);
+        uint32_t d[] = {xcount, (uint32_t)instances, 0, (uint32_t)xbase, 0}; op(0x58, d, 5);
+        uint32_t b[] = {xbuf, 1, xoff, xbytes}; op(0x54, b, 4); op(0x58, d, 5);
+    } else if (expand) {
         uint32_t b[] = {xbuf, 1, xoff, xbytes}; op(0x54, b, 4);
         if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {xcount, (uint32_t)instances, 0, (uint32_t)xbase, 0}; op(0x58, d, 5);
@@ -864,7 +879,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             if (tf_query) gl_queries[tf_query].result += prims;
         }
         w32_gl_draws++;
-        if (expand) { w32_gl_expanded_draws++; if (xlist) xring_at += xbytes; }
+        if (expand) { w32_gl_expanded_draws++; if (xlist) xring_at += xbytes * (split ? 2u : 1u); }
     }
     /* A private temporary must not leave recovery poisoned after its application source is deleted.
      * Uploaded prefixes remain recoverable; generated prefixes are needed only through this pass. */

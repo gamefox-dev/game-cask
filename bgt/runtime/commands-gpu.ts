@@ -466,9 +466,11 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
     }
     case GPU_OP.VIEWPORT: {
       // K62: the rectangle may extend past the attachment (GL semantics: rasterization is clipped to it).
-      const v = w.map(float), b = GPU_VIEWPORT_BOUND;
+      // Without CAP_GPU_GL_RASTER (backend.glRaster) the rectangle must fit the attachment, as before K62.
+      const v = w.map(float), b = GPU_VIEWPORT_BOUND, fit = !g.backend.glRaster;
       if (v.some((a) => !Number.isFinite(a)) || Math.abs(v[0]) > b || Math.abs(v[1]) > b || v[2] <= 0 || v[3] <= 0
-        || v[2] > b || v[3] > b || v[4] < 0 || v[5] > 1 || v[4] > v[5]) {
+        || v[2] > b || v[3] > b || v[4] < 0 || v[5] > 1 || v[4] > v[5]
+        || (fit && (v[0] < 0 || v[1] < 0 || v[0] + v[2] > pass.width || v[1] + v[3] > pass.height))) {
         return E_INVALID;
       }
       return emit();

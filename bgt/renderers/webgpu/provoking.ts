@@ -33,3 +33,31 @@ export class RotatedSequences {
   }
   destroy(): void { for (const l of this.lists.values()) l.buffer.destroy(); this.lists.clear(); }
 }
+
+/** K62 (vK62): rotated copies of indexed draws, appended to an index ring by queue writes (a fresh region no encoded
+ * command reads, so the write is ordered before every use). Entries are keyed by the caller (globally unique store
+ * identity + contents version + range), reused while the ring lives; a full ring is retired (destroyed after the
+ * pending submit) and a new one started, so a buffer rewritten every frame costs a queue write, not a GPU buffer. */
+export class RotatedIndexRing {
+  private buffer?: GPUBuffer; private size = 0; private at = 0;
+  private entries = new Map<string, { offset: number; bytes: number }>();
+  /** Buffers created (census for tests). */
+  created = 0;
+  constructor(private device: GPUDevice, private retire: (b: GPUBuffer) => void) {}
+  get(key: string, make: () => Uint32Array<ArrayBuffer>): { buffer: GPUBuffer; offset: number; bytes: number } {
+    const hit = this.entries.get(key);
+    if (hit && this.buffer) return { buffer: this.buffer, ...hit };
+    const data = make(), bytes = Math.max(4, data.byteLength);
+    if (!this.buffer || this.at + bytes > this.size) {
+      if (this.buffer) this.retire(this.buffer);
+      let size = 1 << 20; while (size < bytes) size *= 2;
+      this.buffer = this.device.createBuffer({ size, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+      this.size = size; this.at = 0; this.entries.clear(); this.created++;
+    }
+    const entry = { offset: this.at, bytes };
+    if (data.byteLength) this.device.queue.writeBuffer(this.buffer, this.at, data);
+    this.at += bytes; this.entries.set(key, entry);
+    return { buffer: this.buffer, ...entry };
+  }
+  destroy(): void { this.buffer?.destroy(); this.buffer = undefined; this.entries.clear(); }
+}

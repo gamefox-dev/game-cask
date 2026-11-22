@@ -23,7 +23,7 @@ function setup() {
   const requests = new Requests();
   const ctx: DecodeContext = {
     state: defaultState(64, 64), frame, textures: new TextureTable(), linearFilter: true, triangles: true,
-    gpu: new GpuState({ languages: 7, execute: () => 0 }),
+    gpu: new GpuState({ languages: 7, glRaster: true, execute: () => 0 }),
     gpuRequest: (id) => {
       const token = requests.reserve(id);
       return typeof token === 'number' ? token : (data, error) => requests.complete(token, data, error);
@@ -318,6 +318,15 @@ describe('GPU command validation', () => {
   ])('rejects invalid pass op %i', (op, words, error) => {
     const t = setup(); t.resources();
     expect(t.inPass(op, words).status).toBe(error);
+  });
+
+  // vK62: the relaxed viewport is the additive CAP_GPU_GL_RASTER contract; a backend without it keeps the old rule.
+  it('VIEWPORT past the attachment needs a CAP_GPU_GL_RASTER backend', () => {
+    for (const glRaster of [true, false]) {
+      const t = setup(); t.ctx.gpu = new GpuState({ languages: 7, glRaster, execute: () => 0 }); t.resources();
+      expect(t.inPass(O.VIEWPORT, [F(-16), 0, F(65), F(8), 0, F(1)]).status).toBe(glRaster ? 0 : A.E_INVALID);
+      expect(t.inPass(O.VIEWPORT, [0, 0, F(64), F(64), 0, F(1)]).status).toBe(0);
+    }
   });
 
   // K51: would catch a validator that keeps the fixed 65536 ceiling on a 16384-byte (ANGLE Metal) device.

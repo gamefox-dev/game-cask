@@ -83,6 +83,8 @@ export interface GpuBackend {
   /** K62: GLSL user varying components (vertex outputs = fragment inputs, gl_Position excluded) that every program
    * of at most this many components links with on this device; reported at §13.6 offset 76. Absent means 60. */
   readonly maxVaryingComponents?: number;
+  /** K62: implements CAP_GPU_GL_RASTER (VIEWPORT past the attachment, GLSL flat = last vertex). */
+  readonly glRaster?: boolean;
   /** K51 diagnostics only: native renderer/adapter identity captured at init (never a per-frame query). */
   readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */

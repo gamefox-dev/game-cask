@@ -46,7 +46,7 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 import type { captureHost } from './savestate-host';
@@ -280,6 +280,7 @@ export class GameHost {
     else config.caps &= ~CAP_GPU;
     if (this.gpu?.backend.bufferHandles) config.caps |= CAP_GPU_BUFFER_HANDLES;
     else config.caps &= ~CAP_GPU_BUFFER_HANDLES;
+    if (this.gpu?.backend.glRaster) config.caps |= CAP_GPU_GL_RASTER; else config.caps &= ~CAP_GPU_GL_RASTER;
   }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
@@ -316,7 +317,7 @@ export class GameHost {
     if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
     const v = host.exports.bgt_abi_version() >>> 0;
     host.abiVersion = v;
-    if (v < 0x000300) host.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
+    if (v < 0x000300) host.config.caps &= ~(CAP_GPU_BUFFER_HANDLES | CAP_GPU_GL_RASTER);
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
@@ -746,6 +747,8 @@ export class GameHost {
     else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
     if (this.abiVersion >= 0x000300 && this.gpu?.backend.bufferHandles) this.config.caps |= CAP_GPU_BUFFER_HANDLES;
     else this.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
+    if (this.abiVersion >= 0x000300 && this.gpu?.backend.glRaster) this.config.caps |= CAP_GPU_GL_RASTER;
+    else this.config.caps &= ~CAP_GPU_GL_RASTER;
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
   }

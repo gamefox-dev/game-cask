@@ -32,9 +32,9 @@ test('x64-gl-raster: off-target viewports, depth range, provoking vertex, byte i
   expect(logs.filter(l => /x64-gl-raster (FAIL|glerror) /.test(l)), logs.filter(l => /error/i.test(l)).join('\n').slice(0, 4000)).toEqual([]);
   const summary = logs.find(l => /x64-gl-raster PASS failures=/.test(l));
   expect(summary, JSON.stringify(logs.slice(-8))).toMatch(/PASS failures=0 checks=\d+ glerrors=0/);
-  expect(Number(/checks=(\d+)/.exec(summary!)![1])).toBe(87);
+  expect(Number(/checks=(\d+)/.exec(summary!)![1])).toBe(105);
   expect(m.interp_insns).toBe(0); expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
-  expect(m.gl_approximations).toBe(0);
+  expect(m.gl_approximation_kinds).toEqual(['polygon offset (GL_POLYGON_OFFSET_FILL, nonzero factor/units) not rendered']);
   expect(m.gl_error_calls).toEqual({ glViewport: 1, glGetIntegerv: 8, glProvokingVertex: 1 });
   // Device-derived limits: the varying capacity of this backend (WebGPU: 4 * inter-stage locations - 6; WebGL 2:
   // 3 * (MAX_VARYING_VECTORS - 1)) and the uniform block size, then the whole GL 3.3 table.

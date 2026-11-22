@@ -64,6 +64,7 @@ export class WebGL2Gpu implements GpuBackend {
   readonly maxUniformRange: number;
   /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
   readonly maxVaryingComponents: number;
+  readonly glRaster = true;
   readonly device: GpuDeviceInfo;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };
@@ -130,9 +131,10 @@ export class WebGL2Gpu implements GpuBackend {
     const uniformBlock = gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE) as number;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, uniformBlock - uniformBlock % 16);
     // K62: GLSL ES 3.00 packs varyings into MAX_VARYING_VECTORS rows; one row holds the renderer's own clip
-    // vec3 (+ the noperspective w), and a row may waste one column (a vec3 beside no float), so 3*(rows-1)
+    // vec3 (+ the noperspective w), one the profile's captured gl_Position (vK62: transform feedback; a captured
+    // gl_PointSize fits a spare column), and a row may waste one column (a vec3 beside no float), so 3*(rows-2)
     // user components always link.
-    this.maxVaryingComponents = 3 * ((gl.getParameter(gl.MAX_VARYING_VECTORS) as number) - 1);
+    this.maxVaryingComponents = 3 * ((gl.getParameter(gl.MAX_VARYING_VECTORS) as number) - 2);
     const info = gl.getExtension('WEBGL_debug_renderer_info');
     const renderer = (gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) as string | null) ?? null;
     this.device = { renderer, software: softwareRenderer(renderer), nativeMaxUniformRange: uniformBlock };

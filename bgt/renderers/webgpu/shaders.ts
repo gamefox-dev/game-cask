@@ -23,11 +23,35 @@ const scalar = (t: string) => t === 'bool' || /^vec[234]<bool>$/.test(t) ? 'bool
 const vector = (n: number, t: string) => n === 1 ? scalar(t) :
   scalar(t) === 'bool' ? `vec${n}<bool>` : `vec${n}${scalar(t)[0]}`;
 const reserved = /\bbgt_internal_\w*/;
-// K62: WGSL predeclared type names (f32, vec4f, mat3x3f, array, ...) are legal GLSL identifiers too; a module-scope
-// `var<private> f32: f32` would be a cyclic declaration, so they are renamed like WGSL keywords.
-const wgslTypeName = /^(?:[fiu]32|f16|vec[234][fiuh]|mat[234]x[234][fh]|array|atomic|sampler|sampler_comparison)$/;
-export const glslName = (text: string) => ['ref', 'ptr', 'var', 'let', 'fn', 'alias', 'override', 'enable', 'requires', 'const_assert', 'bitcast', 'shared'].includes(text) ||
-  wgslTypeName.test(text) ? `bgt_internal_glsl_${text}` : text;
+// K62 (vK62): every WGSL reserved word, keyword, predeclared type and builtin function that is a legal GLSL 330/ES 300
+// identifier (`f32`, `select`, `textureSample`, `target`, ...) is renamed at token level, like `ref`/`var`: a guest
+// `float textureSample;` would otherwise shadow or collide (`var<private> f32: f32` is a cyclic declaration). GLSL
+// syntax words and GLSL builtin functions with the same spelling (`abs`, `mix`, `mod`, `max`, ...) keep their meaning.
+const wgslTypeName = /^(?:[fiu]32|f16|vec[234][fiuh]|mat[234]x[234][fh]|texture_\w+|sampler_comparison)$/;
+const wgslWords = new Set(`alias const_assert continuing diagnostic enable fn let loop override requires var array atomic
+ptr sampler bitcast NULL Self abstract active alignas alignof as asm asm_fragment async auto await become binding_array
+cast catch class co_await co_return co_yield coherent column_major common compile compile_fragment concept const_cast
+consteval constexpr constinit crate debugger decltype delete demote demote_to_helper dynamic_cast enum explicit export
+extends extern external fallthrough filter final finally friend from fxgroup get goto groupshared impl implements import
+inline instanceof interface macro macro_rules match meta module move mut mutable namespace new nil noexcept noinline
+nointerpolation non_coherent noncoherent null nullptr of operator package packoffset partition pass patch pixelfragment
+precise premerge priv protected pub public readonly ref regardless register reinterpret_cast require resource restrict
+self set shared sizeof snorm static static_assert static_cast std subroutine super target template this thread_local
+throw trait try type typedef typeid typename typeof union unless unorm unsafe unsized use using virtual volatile wgsl
+where with writeonly yield
+atan2 countLeadingZeros countOneBits countTrailingZeros dot4U8Packed dot4I8Packed extractBits faceForward firstLeadingBit
+firstTrailingBit insertBits inverseSqrt quantizeToF16 reverseBits saturate select arrayLength dpdx dpdxCoarse dpdxFine dpdy
+dpdyCoarse dpdyFine fwidthCoarse fwidthFine textureDimensions textureGather textureGatherCompare textureLoad
+textureNumLayers textureNumLevels textureNumSamples textureSample textureSampleBias textureSampleCompare
+textureSampleCompareLevel textureSampleGrad textureSampleLevel textureSampleBaseClampToEdge textureStore atomicLoad
+atomicStore atomicAdd atomicSub atomicMax atomicMin atomicAnd atomicOr atomicXor atomicExchange atomicCompareExchangeWeak
+pack4x8snorm pack4x8unorm pack4xI8 pack4xU8 pack4xI8Clamp pack4xU8Clamp pack2x16snorm pack2x16unorm pack2x16float
+unpack4x8snorm unpack4x8unorm unpack4xI8 unpack4xU8 unpack2x16snorm unpack2x16unorm unpack2x16float storageBarrier
+textureBarrier workgroupBarrier workgroupUniformLoad subgroupAdd subgroupAll subgroupAnd subgroupAny subgroupBallot
+subgroupBroadcast subgroupBroadcastFirst subgroupElect subgroupMax subgroupMin subgroupMul subgroupOr subgroupShuffle
+subgroupShuffleDown subgroupShuffleUp subgroupShuffleXor subgroupXor subgroupExclusiveAdd subgroupExclusiveMul
+subgroupInclusiveAdd subgroupInclusiveMul quadBroadcast quadSwapDiagonal quadSwapX quadSwapY`.split(/\s+/));
+export const glslName = (text: string) => wgslWords.has(text) || wgslTypeName.test(text) ? `bgt_internal_glsl_${text}` : text;
 
 function lex(source: string): Token[] {
   const result: Token[] = [];
@@ -158,6 +182,13 @@ class GLSL {
         if (varying && this.options.packing) {
           // K62: packed interface. The value lives in a private variable; the entry point copies its
           // components to/from the shared vec4 locations (flat values as u32 bit patterns).
+          // vK62: a vertex output the fragment stage does not read (e.g. the profile's captured gl_Position) is not
+          // part of the render interface: it stays a private variable (capture lowering translates without packing).
+          if (!packed && direction === 'out') {
+            this.declarations.push(`var<private> ${name}: ${type};`);
+            this.variables.set(name, { code: name, type, place: name });
+            continue;
+          }
           if (!packed) this.fail(`varying '${name}' is missing from the linked interface`);
           if (explicit !== undefined) this.fail('GLSL330 varying locations are not supported; link by name');
           this.declarations.push(`var<private> ${name}: ${type};`);
@@ -910,11 +941,10 @@ export function packVaryings(decls: readonly VaryingDecl[]): VaryingPacking {
   }
   return { slots, at };
 }
-/** Merge both stages' declarations by name (the GL profile has checked that types and qualifiers match). */
-export function linkedVaryings(vertex: string, fragment: string): VaryingDecl[] {
-  const all = new Map<string, VaryingDecl>();
-  for (const d of [...glslVaryingDecls(vertex, 1), ...glslVaryingDecls(fragment, 2)]) if (!all.has(d.name)) all.set(d.name, d);
-  return [...all.values()];
+/** The linked render interface: the fragment stage's inputs (the GL profile has checked that each has a vertex output
+ * of the same type and qualifiers). Vertex outputs the fragment stage does not read occupy no location (vK62). */
+export function linkedVaryings(_vertex: string, fragment: string): VaryingDecl[] {
+  return glslVaryingDecls(fragment, 2);
 }
 export interface TranslateOptions { packing?: VaryingPacking; viewTransform?: boolean }
 export function translateGLSL(source: string, stage: number, language: number, varyingNames?: string[],

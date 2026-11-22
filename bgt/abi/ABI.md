@@ -894,7 +894,10 @@ is forbidden. Legacy readback cannot read GPU-namespace textures; a profile rend
 it needs the existing screen READBACK interface. No new readback alias is implied.
 
 Viewport/scissor use attachment pixels, top-left, +y down; screen coordinates are logical and letterbox-scaled.
-Viewport finite, |x|,|y|<=32768, 0<width,height<=32768, depth range 0<=min<=max<=1; **K62:** it may extend past the
+Viewport finite x,y>=0, width,height>0, fits attachment, depth range 0<=min<=max<=1. **K62, capability
+`BGT_CAP_GPU_GL_RASTER` / `CAP_GPU_GL_RASTER = 1 << 15` (additive v0.3; advertised by both maintained backends, absent
+for a backend that does not implement it, in which case the rule above stands):** |x|,|y|<=32768, 0<width,height<=32768,
+and the rectangle may extend past the
 attachment (GL semantics: the viewport transform is unchanged and rasterization is clipped to the attachment; a
 viewport that misses it rasterizes nothing, transform feedback still captures). WebGL 2 applies the viewport in its
 vertex transform over the whole attachment; WebGPU clamps the native viewport and maps the clip volume onto the clamped
@@ -902,7 +905,9 @@ rectangle with a per-draw clip-space transform (group 2, renderer-internal), so 
 off-attachment viewport needs a GLSL vertex stage on WebGPU (WGSL pipelines: E_IO). **Provoking vertex (K62):** GLSL
 `flat` varyings take the value of the **last** vertex of each line/triangle (GL's default convention) on both backends
 (WebGPU draws such pipelines last-vertex-first, rotating triangles cyclically so the winding is kept); WGSL keeps
-WGSL's `@interpolate(flat)` semantics. Scissor unsigned, fits attachment;
+WGSL's `@interpolate(flat)` semantics. This is part of the same capability and a **behaviour change against dev.36**:
+WebGPU GLSL flat varyings used to take the first vertex (WebGPU's native rule), now GL's last vertex as on WebGL 2.
+Scissor unsigned, fits attachment;
 zero area is legal and suppresses rasterization. Blend constant components finite [0,1]. GPU NDC is +x right, +y up,
 z in [0,w]; front-face winding is measured in this NDC xy plane **before** top-left viewport conversion. Profiles
 translating legacy GL [-w,w] depth convert z to (z+w)/2. Backends translating to GL clip space convert z to 2z-w;
@@ -1037,7 +1042,7 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
 | 68 | max_mip_levels | 13 |
 | 72 | max_instances | 65535 |
-| 76 | max_varying_components | K62: GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend: WebGPU 4 x maxInterStageShaderVariables - 6 (packed vec4 interface, the adapter's limit is requested), WebGL 2 3 x (MAX_VARYING_VECTORS - 1); 60 if a backend does not state it; 0 without CAP_GPU (was reserved 0) |
+| 76 | max_varying_components | K62 (with CAP_GPU_GL_RASTER): GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend, for any topology and with transform feedback: WebGPU 4 x (maxInterStageShaderVariables - 1) - 6 (packed vec4 interface; the translated fragment stage's front_facing input or a point-list topology costs one location; the adapter's limit is requested; vertex outputs the fragment stage does not read occupy none), WebGL 2 3 x (MAX_VARYING_VECTORS - 2) (one row for the renderer's clip coordinates, one for a captured gl_Position); 60 if a backend does not state it; 0 without CAP_GPU. Formerly `reserved` (0); `bgt_gpu_limits_v3_t.reserved` remains a source-compatible alias |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
 supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
@@ -1465,10 +1470,16 @@ glViewport; an empty viewport is a 1x1 rectangle at (-32768, -32768)). glDepthRa
 (f, n) and the vertex epilogue flips z through the profile's meta word, so window depth is GL's. GL_UNSIGNED_BYTE
 element data is widened into the expansion ring (u32). glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) expands draws of
 programs with flat fragment inputs into lists with each primitive's first-convention provoking vertex (GL 3.3 Table
-2.14) last; a rasterizing transform-feedback draw keeps the last vertex (counted approximation). The WebGPU executor
-packs linked GLSL varyings into vec4 locations (perspective, linear and flat-as-u32 classes; values unchanged) and
-requests the adapter's maxInterStageShaderVariables; offset 76 reports the resulting capacity and the profile fails
-links above it (`GL_MAX_VARYING_COMPONENTS` info log).
+2.14) last; a rasterizing transform-feedback draw is split into a capture-only draw of the GL-order list
+(FEEDBACK_CAPTURE discard word 1) and a raster-only draw of the rotated list. The off-target viewport is used only when
+the host advertises `BGT_CAP_GPU_GL_RASTER` (otherwise the K61 GL_INVALID_VALUE stands). A nonzero polygon offset with
+GL_POLYGON_OFFSET_FILL is a counted approximation per draw (zero offsets are exact). The WebGPU executor packs the
+fragment stage's GLSL varyings into vec4 locations (perspective, linear and flat-as-u32 classes; values unchanged;
+vertex outputs the fragment stage does not read get no location), requests the adapter's
+maxInterStageShaderVariables and keeps rotated/strip index lists in one append-only index ring keyed by a per-store
+serial and contents version; offset 76 reports the capacity and the profile fails links above it
+(`GL_MAX_VARYING_COMPONENTS` info log). GLSL identifiers spelled like a WGSL reserved word, keyword, predeclared type or
+builtin function that GLSL does not share (`f32`, `select`, `textureSample`, `target`, ...) are renamed.
 
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 

@@ -50,19 +50,36 @@ describe('K62 packed varyings', () => {
     expect(v).toContain('@group(2) @binding(0) var<uniform> bgt_internal_view');
     expect(shaderBindings(v).some(b => b.group === 2)).toBe(false);
   });
-  it('fits 106 float varyings into 27 locations (the 28-location adapter) where unpacked needs 106', () => {
-    const decls = Array.from({ length: 106 }, (_, i) => ({ name: `f${i}`, type: 'float', interpolation: 'smooth' as const }));
-    expect(packVaryings(decls).slots).toHaveLength(27);
-    // Worst case of the reported capacity 4L - 6: two classes of one component each plus the rest.
-    const worst = [...decls.slice(0, 4 * 16 - 6 - 2), { name: 'l', type: 'float', interpolation: 'linear' as const },
+  it('fits 102 float varyings into 26 locations (a 28-location adapter less front_facing) where unpacked needs 102', () => {
+    const decls = Array.from({ length: 102 }, (_, i) => ({ name: `f${i}`, type: 'float', interpolation: 'smooth' as const }));
+    expect(packVaryings(decls).slots).toHaveLength(26);
+    // Worst case of the reported capacity 4(L-1) - 6 (L = 16): two classes of one component each plus the rest.
+    const worst = [...decls.slice(0, 4 * 15 - 6 - 2), { name: 'l', type: 'float', interpolation: 'linear' as const },
       { name: 'i', type: 'int', interpolation: 'flat' as const }];
-    expect(packVaryings(worst).slots.length).toBeLessThanOrEqual(16);
+    expect(packVaryings(worst).slots.length).toBeLessThanOrEqual(15);
   });
 });
 describe('K62 WGSL type names as GLSL identifiers', () => {
   it('renames f32/vec4f/array-like GLSL names (a varying named f32 was a cyclic WGSL declaration)', () => {
     const v = translateGLSL('#version 330 core\nlayout(location=0) in vec2 p;out float f32;out vec2 vec4f;void main(){f32=1.0;vec4f=p;gl_Position=vec4(p,0.0,1.0);}', 1, 1);
     expect(v).toContain('var<private> bgt_internal_glsl_f32: f32;'); expect(v).toContain('bgt_internal_glsl_vec4f: vec2f');
+  });
+});
+describe('vK62 render interface and WGSL builtin names', () => {
+  it('gives vertex outputs the fragment stage does not read no location (the captured gl_Position costs none)', () => {
+    const vs = '#version 330 core\nlayout(location=0) in vec2 p;out vec4 bgt_tf_position;out float a;void main(){a=1.0;gl_Position=vec4(p,0.0,1.0);bgt_tf_position=gl_Position;}';
+    const fs = '#version 330 core\nin float a;layout(location=0) out vec4 o;void main(){o=vec4(a);}';
+    const p = packVaryings(linkedVaryings(vs, fs));
+    expect(p.slots).toEqual([{ location: 0, interpolation: 'smooth' }]);
+    const v = translateGLSL(vs, 1, 1, undefined, undefined, undefined, { packing: p });
+    expect(v).toContain('var<private> bgt_tf_position: vec4f;'); expect(v).not.toMatch(/@location\(\d+\)[^,]*bgt_tf_position/);
+  });
+  it('renames GLSL identifiers spelled like WGSL builtin functions/reserved words, keeps shared GLSL builtins', () => {
+    // Breakage caught: `float textureSample;` shadowed the WGSL builtin the translation itself calls.
+    const f = translateGLSL('#version 330 core\nuniform sampler2D bgt_t0;layout(location=0) out vec4 o;void main(){float textureSample=1.0;' +
+      'float select=0.5;vec2 target=vec2(textureSample,select);o=texture(bgt_t0,target)*mix(1.0,2.0,0.0)*abs(-1.0);}', 2, 1);
+    for (const n of ['textureSample', 'select', 'target']) expect(f).toContain(`bgt_internal_glsl_${n}`);
+    expect(f).toContain('textureSample(bgt_t0'); expect(f).not.toContain('bgt_internal_glsl_mix'); expect(f).not.toContain('bgt_internal_glsl_abs');
   });
 });
 describe('K62 provoking vertex rotation', () => {

@@ -65,8 +65,8 @@ export function gl33Exceptions(o: { varyings: number }): Record<number, { value:
     0x88fc: { value: '0', why: 'no dual-source blending in §13' },
     ...Object.fromEntries([0x8a2c, 0x9123, 0x9124, 0x8de0, 0x8de1, 0x8c29, 0x8ddf, 0x8a32].map(e => [e, { value: 'error 0x500', why: GEOMETRY }])),
   };
-  // A WebGPU adapter with only 16 inter-stage locations guarantees 58 packed components (4 * 16 - 6).
-  if (o.varyings < 60) result[0x8b4b] = { value: String(o.varyings), why: 'device inter-stage locations below 17' };
+  // A WebGPU adapter with only 16 inter-stage locations guarantees 54 packed components (4 * (16 - 1) - 6).
+  if (o.varyings < 60) result[0x8b4b] = { value: String(o.varyings), why: 'device inter-stage locations below 18' };
   return result;
 }
 /** Problems with the logged values (`limit 0x.... <values>` -> map), [] when all meet GL 3.3 or match an exception. */

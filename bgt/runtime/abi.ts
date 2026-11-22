@@ -172,6 +172,8 @@ export function errorName(code: number): string {
 // ---- v0.3 GPU layer (§13); all offsets and lengths are bytes.
 export const CAP_GPU = 1 << 12;
 export const CAP_GPU_BUFFER_HANDLES = 1 << 14; // additive v0.3, explicit gpu_buffer_handles opt-in
+/** K62 (additive v0.3): VIEWPORT may extend past the attachment, GLSL flat varyings take the last vertex, §13.6 offset 76. */
+export const CAP_GPU_GL_RASTER = 1 << 15;
 export const CAP_ENTROPY = 1 << 13; /* LANE-K1 */
 export const GPU_OP = {
   BUFFER_CREATE: 0x40,

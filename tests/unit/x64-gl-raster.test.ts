@@ -18,18 +18,21 @@ it('x64-gl-raster: off-target viewports, depth range, provoking vertex and byte 
   // Breakage caught: K61 rejected every draw whose viewport left the target (GL_INVALID_VALUE), raised
   // GL_INVALID_ENUM for GL_UNSIGNED_BYTE indices and GL_INVALID_VALUE for glDepthRange(n > f); glProvokingVertex was a stub.
   expect(h.logs.filter(l => l.includes('x64-gl-raster glerror ')), h.logs.join('\n')).toEqual([]);
-  expect(summary).toMatch(/checks=87 glerrors=0$/);
+  expect(summary).toMatch(/checks=105 glerrors=0$/);
   // The recorder neither rasterizes nor runs shaders: only colour checks may fail here.
-  for (const l of h.logs.filter(l => /x64-gl-raster FAIL /.test(l))) expect(l).toMatch(/ at \d+,\d+ got | values$/);
+  for (const l of h.logs.filter(l => /x64-gl-raster FAIL /.test(l))) expect(l).toMatch(/ at \d+,\d+ got | values$|keeps coverage and colour$|captured (gl_Position|positions in GL order)$/);
   for (const label of ['reversed depth range query', 'viewport size clamped to MAX_VIEWPORT_DIMS, origin kept', 'MAX_VIEWPORT_DIMS 16384',
     'negative viewport width is GL_INVALID_VALUE', 'provoking vertex query (initial last)', 'provoking vertex query (first)',
-    'bad provoking vertex mode is GL_INVALID_ENUM', '46-component varying interface links iff within MAX_VARYING_COMPONENTS', 'MAX_VARYING_COMPONENTS float varyings link',
+    'bad provoking vertex mode is GL_INVALID_ENUM', '46-component varying interface links iff within MAX_VARYING_COMPONENTS', 'MAX_VARYING_COMPONENTS varyings link',
+    'MAX_VARYING_COMPONENTS varyings + captured gl_Position link',
     'one varying component over the limit fails to link with an info log'])
     expect(h.logs.some(l => l.includes(`x64-gl-raster ok ${label}`)), label).toBe(true);
   expect(h.logs).toContain('guest: x64-gl-raster varying-limit=60'); // no backend capacity stated: GL 3.3's 60
   const m = h.host.metrics() as Record<string, any>;
   expect(m.interp_insns).toBe(0); expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
-  expect(m.gl_approximations).toBe(0); expect(h.host.commandErrorCount).toBe(0);
+  // The one documented gap the fixture exercises: a nonzero polygon offset (no §13 depth bias).
+  expect(m.gl_approximation_kinds).toEqual(['polygon offset (GL_POLYGON_OFFSET_FILL, nonzero factor/units) not rendered']);
+  expect(h.host.commandErrorCount).toBe(0);
   // Profile census: the deliberate invalid calls plus the eight geometry-shader limit queries (no geometry stage).
   expect(m.gl_error_calls).toEqual({ glViewport: 1, glGetIntegerv: 8, glProvokingVertex: 1 });
 
@@ -60,6 +63,12 @@ it('x64-gl-raster: off-target viewports, depth range, provoking vertex and byte 
     ['u8 triangles (last)', '2,0,1,5,3,4'], ['u8 fan (last)', '3,2,1,3,1,0'],
     ['triangles (first)', '1,2,0,4,5,3'], ['strip (first): even (b,c,a), odd (c,a,b)', '1,2,0,3,2,1'],
     ['fan (first): (c,a,b)', '2,0,1,3,0,2'], ['u16 indexed (first)', '2,0,1,5,3,4'], ['u8 indexed (first)', '0,1,2,3,4,5'],
-    ['u8 fan (first)', '1,3,2,0,3,1'], ['line (first)', '1,0'], ['line strip from first=2 (first; base_vertex 2)', '1,0,2,1'],
+    ['u8 fan (first)', '1,3,2,0,3,1'], ['line (first)', '1,0'],
+    // vK62: first convention while capturing: rotated raster list + GL-order capture list in one upload.
+    ['strip (first) with transform feedback: raster then capture list', '1,2,0,3,2,1,0,1,2,2,1,3'], ['line strip from first=2 (first; base_vertex 2)', '1,0,2,1'],
   ] as const) expect(uploads, what).toContain(list);
+  // The split draw: a capture-only DRAW_INDEXED (FEEDBACK_CAPTURE discard word 1) then a raster-only one.
+  const split = stream.items.findIndex(i => i.op === O.FEEDBACK_CAPTURE && i.words[0] === 1);
+  expect(split).toBeGreaterThan(0);
+  expect(stream.items.slice(split + 1, split + 4).map(i => i.op)).toEqual([O.DRAW_INDEXED, O.INDEX_BUFFER, O.DRAW_INDEXED]);
 });

@@ -29,7 +29,10 @@
  X(PFNGLCLEARDEPTHPROC,glClearDepth) X(PFNGLCLEARPROC,glClear) X(PFNGLDEPTHFUNCPROC,glDepthFunc) X(PFNGLENABLEPROC,glEnable) \
  X(PFNGLDISABLEPROC,glDisable) X(PFNGLDRAWARRAYSPROC,glDrawArrays) X(PFNGLDRAWELEMENTSPROC,glDrawElements) \
  X(PFNGLPROVOKINGVERTEXPROC,glProvokingVertex) X(PFNGLREADPIXELSPROC,glReadPixels) X(PFNGLGETERRORPROC,glGetError) \
- X(PFNGLGETINTEGERVPROC,glGetIntegerv) X(PFNGLGETFLOATVPROC,glGetFloatv) X(PFNGLGETINTEGER64VPROC,glGetInteger64v)
+ X(PFNGLGETINTEGERVPROC,glGetIntegerv) X(PFNGLGETFLOATVPROC,glGetFloatv) X(PFNGLGETINTEGER64VPROC,glGetInteger64v) \
+ X(PFNGLTRANSFORMFEEDBACKVARYINGSPROC,glTransformFeedbackVaryings) X(PFNGLBEGINTRANSFORMFEEDBACKPROC,glBeginTransformFeedback) \
+ X(PFNGLENDTRANSFORMFEEDBACKPROC,glEndTransformFeedback) X(PFNGLBINDBUFFERBASEPROC,glBindBufferBase) \
+ X(PFNGLGETBUFFERSUBDATAPROC,glGetBufferSubData) X(PFNGLPOLYGONOFFSETPROC,glPolygonOffset)
 #define X(t,n) static t n;
 FUNCTIONS
 #undef X
@@ -39,8 +42,15 @@ static void glok(const char *entry){if(quiet)return;GLenum e=glGetError();if(e){
 static char logbuf[4096];
 static GLuint shader(GLenum stage,const char *s){GLuint a=glCreateShader(stage);GLint ok=0;glShaderSource(a,1,&s,0);glCompileShader(a);glGetShaderiv(a,GL_COMPILE_STATUS,&ok);
  if(!ok){glGetShaderInfoLog(a,sizeof logbuf,0,logbuf);OutputDebugStringA(logbuf);}note("shader compiled",ok);return a;}
-static GLuint program(const char *vs,const char *fs,int want){GLuint p=glCreateProgram();GLint ok=0;glAttachShader(p,shader(GL_VERTEX_SHADER,vs));glAttachShader(p,shader(GL_FRAGMENT_SHADER,fs));
- glLinkProgram(p);glGetProgramiv(p,GL_LINK_STATUS,&ok);logbuf[0]=0;if(!ok)glGetProgramInfoLog(p,sizeof logbuf,0,logbuf);if(want&&!ok)OutputDebugStringA(logbuf);glok("glLinkProgram");return ok?p:0;}
+/* `tf`: one transform-feedback varying name captured interleaved, or 0. */
+static GLuint program_tf(const char *vs,const char *fs,int want,const char *tf){GLuint p=glCreateProgram();GLint ok=0;glAttachShader(p,shader(GL_VERTEX_SHADER,vs));glAttachShader(p,shader(GL_FRAGMENT_SHADER,fs));
+ if(tf)glTransformFeedbackVaryings(p,1,&tf,GL_INTERLEAVED_ATTRIBS);glLinkProgram(p);glGetProgramiv(p,GL_LINK_STATUS,&ok);logbuf[0]=0;if(!ok)glGetProgramInfoLog(p,sizeof logbuf,0,logbuf);if(want&&!ok)OutputDebugStringA(logbuf);glok("glLinkProgram");return ok?p:0;}
+static GLuint program(const char *vs,const char *fs,int want){return program_tf(vs,fs,want,0);}
+/* Transform feedback into tf_buffer (32 floats), rasterizing. */
+static GLuint tf_buffer;
+static void tf_begin(GLenum prim){static const float zero[32]={0};glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER,tf_buffer);glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER,sizeof zero,zero,GL_DYNAMIC_READ);
+ glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,tf_buffer);glBeginTransformFeedback(prim);glok("glBeginTransformFeedback");}
+static void tf_end(float *got){glEndTransformFeedback();glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER,tf_buffer);glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER,0,32*4,got);glok("glEndTransformFeedback");}
 /* Vertex k: position (attribute 0) and colour (attribute 1) = (17k, 255 - 17k, 51) / 255, so red tells k. */
 static GLuint vbo,ebo;static float vb[16*5];
 static void vtx(int k,float x,float y){vb[k*5]=x;vb[k*5+1]=y;vb[k*5+2]=(float)(17*k)/255.0f;vb[k*5+3]=(float)(255-17*k)/255.0f;vb[k*5+4]=0.2f;}
@@ -91,6 +101,22 @@ static void viewports(void){
  expect_grad(0,0,-128,-80,512,320,0.6,"window: viewport larger than the window, first pixel");expect_grad(255,159,-128,-80,512,320,0.6,"window: last pixel");
  expect_grad(100,50,-128,-80,512,320,0.6,"window: inner pixel");
 }
+/* vK62: gl_FragCoord.xy under an off-target viewport is the window position (not viewport-relative); the shader's
+ * identifiers are WGSL builtin names (textureSample, select, target, atomicAdd) that must not collide. */
+static GLuint fcp;
+static void fragcoord(void){
+ target();glViewport(-16,-8,48,40);glUseProgram(fcp);full_quad();
+ expect_rgb(0,0,0.5/32,0.5/32,0,"gl_FragCoord.xy under an off-target viewport, first pixel");expect_rgb(31,31,31.5/32,31.5/32,0,"gl_FragCoord.xy, last pixel");
+ expect_rgb(10,20,10.5/32,20.5/32,0,"gl_FragCoord.xy, inner pixel");
+}
+/* vK62: polygon offset. Zero factor/units is exact (with an off-target viewport); a nonzero offset is not rendered
+ * (counted approximation; coverage and colour unchanged, so only red/green are checked there). */
+static void polygon_offset(void){
+ glUseProgram(grad);glUniform1f(grad_z,0.2f);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(0,0);glok("glPolygonOffset");
+ target();glViewport(-16,-8,48,40);full_quad();expect_grad(10,20,-16,-8,48,40,0.6,"zero polygon offset with an off-target viewport");
+ glPolygonOffset(1,1);target();full_quad();{unsigned char p[4];readpx(10,20,p);note("nonzero polygon offset keeps coverage and colour",near1(p[0],26.5/48)&&near1(p[1],28.5/40));}
+ glDisable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(0,0);
+}
 /* Provoking vertex: red = 17 * the vertex whose colour a flat-shaded primitive takes. */
 static void expect_vertex(int x,int y,int k,const char *s){unsigned char p[4];readpx(x,y,p);int ok=p[0]==17*k&&p[1]==255-17*k;
  if(!ok){char m[200];snprintf(m,sizeof m,"%s at %d,%d got vertex %.2f (%u,%u) want %d",s,x,y,p[0]/17.0,p[0],p[1],k);note(m,0);}else note(s,1);}
@@ -127,12 +153,24 @@ static void provoking(int first){
   readpx(27,23,p);snprintf(n,sizeof n,"%s at 27,23 got %u",CASE("integer flat varying, odd strip triangle"),p[0]);note(n,p[0]==(first?7:9));}
 #undef CASE
 }
-/* N float varyings, each 1/255: red = N. */
-static GLuint many(int n,int want){static char vs[16384],fs[16384];int a=snprintf(vs,sizeof vs,"#version 330 core\nlayout(location=0) in vec2 p;"),b=snprintf(fs,sizeof fs,"#version 330 core\nout vec4 o;");
- for(int i=0;i<n;i++){a+=snprintf(vs+a,sizeof vs-a,"out float f%d;",i);b+=snprintf(fs+b,sizeof fs-b,"in float f%d;",i);}
- a+=snprintf(vs+a,sizeof vs-a,"void main(){");b+=snprintf(fs+b,sizeof fs-b,"void main(){float s=0.0;");
- for(int i=0;i<n;i++){a+=snprintf(vs+a,sizeof vs-a,"f%d=1.0/255.0;",i);b+=snprintf(fs+b,sizeof fs-b,"s+=f%d;",i);}
- snprintf(vs+a,sizeof vs-a,"gl_Position=vec4(p,0.0,1.0);}");snprintf(fs+b,sizeof fs-b,"o=vec4(s,0.0,0.0,1.0);}");return program(vs,fs,want);}
+/* vK62: GL_FIRST_VERTEX_CONVENTION while transform feedback records and rasterizes: flat colours from the first vertex,
+ * captured positions in GL's order (strip triangles (0,1,2), (2,1,3)). */
+static GLuint flat_tf;
+static void tf_first(void){
+ float got[32];target();glViewport(0,0,32,32);glUseProgram(flat_tf);vtx(0,-1,-1);vtx(1,1,-1);vtx(2,-1,1);vtx(3,1,1);upload();
+ tf_begin(GL_TRIANGLES);glDrawArrays(GL_TRIANGLE_STRIP,0,4);tf_end(got);
+ expect_vertex(4,8,0,"first + transform feedback: even strip triangle");expect_vertex(27,23,1,"first + transform feedback: odd strip triangle");
+ static const float want[12]={-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1};int ok=1;for(int i=0;i<6;i++)ok&=got[i*4]==want[i*2]&&got[i*4+1]==want[i*2+1]&&got[i*4+3]==1;
+ note("first + transform feedback: captured positions in GL order",ok);
+}
+/* N varying components, the worst packing case of the three classes: N-2 smooth floats, one noperspective float and
+ * one flat int, each worth 1/255 of red: red = N. `tf` also captures gl_Position (the profile adds a vertex output). */
+static GLuint many(int n,int want,int tf){static char vs[16384],fs[16384];
+ int a=snprintf(vs,sizeof vs,"#version 330 core\nlayout(location=0) in vec2 p;noperspective out float np;flat out int k;"),b=snprintf(fs,sizeof fs,"#version 330 core\nnoperspective in float np;flat in int k;out vec4 o;");
+ for(int i=0;i<n-2;i++){a+=snprintf(vs+a,sizeof vs-a,"out float f%d;",i);b+=snprintf(fs+b,sizeof fs-b,"in float f%d;",i);}
+ a+=snprintf(vs+a,sizeof vs-a,"void main(){np=1.0/255.0;k=1;");b+=snprintf(fs+b,sizeof fs-b,"void main(){float s=np+float(k)/255.0;");
+ for(int i=0;i<n-2;i++){a+=snprintf(vs+a,sizeof vs-a,"f%d=1.0/255.0;",i);b+=snprintf(fs+b,sizeof fs-b,"s+=f%d;",i);}
+ snprintf(vs+a,sizeof vs-a,"gl_Position=vec4(p,0.0,1.0);}");snprintf(fs+b,sizeof fs-b,"o=vec4(s,0.0,0.0,1.0);}");return program_tf(vs,fs,want,tf?"gl_Position":0);}
 static void varyings(void){
  /* 40 smooth floats + vec3 + noperspective float + flat ivec2: 46 components in 13 packed locations (unpacked: 43). */
  static char vs[8192],fs[8192];int a=snprintf(vs,sizeof vs,"#version 330 core\nlayout(location=0) in vec2 p;out vec3 c3;noperspective out float np;flat out ivec2 iv;"),
@@ -148,9 +186,17 @@ static void varyings(void){
   note("46-component varying interface values",near1(px[0],40/255.0)&&near1(px[1],0.4)&&near1(px[2],0.6)&&near1(px[3],0.8));}
  else note("46-component varying interface values (not linked on this device)",1);
  {char m[80];snprintf(m,sizeof m,"x64-gl-raster varying-limit=%d",limit);OutputDebugStringA(m);}
- GLuint at=many(limit>255?255:limit,1);note("MAX_VARYING_COMPONENTS float varyings link",at!=0);
- if(at){target();glViewport(0,0,32,32);glUseProgram(at);full_quad();unsigned char px[4];readpx(20,20,px);note("MAX_VARYING_COMPONENTS float varyings values",near1(px[0],(limit>255?255:limit)/255.0));}
- GLuint over=many(limit+1,0);note("one varying component over the limit fails to link with an info log",!over&&strstr(logbuf,"GL_MAX_VARYING_COMPONENTS")!=0);
+  /* Exactly MAX_VARYING_COMPONENTS (worst class mix) links and draws as triangles, as points and with transform feedback
+  * of gl_Position while rasterizing (vK62: the reported value is what every program of that size gets). */
+ int n=limit>255?255:limit;char m[120];unsigned char px[4];
+ GLuint at=many(n,1,0);note("MAX_VARYING_COMPONENTS varyings link",at!=0);
+ if(at){target();glViewport(0,0,32,32);glUseProgram(at);full_quad();readpx(20,20,px);snprintf(m,sizeof m,"MAX_VARYING_COMPONENTS varyings, triangles at 20,20 got %u",px[0]);note(m,near1(px[0],n/255.0));
+  target();vtx(0,0.03125f,0.03125f);upload();glDrawArrays(GL_POINTS,0,1);glok("glDrawArrays");readpx(16,16,px);snprintf(m,sizeof m,"MAX_VARYING_COMPONENTS varyings, point at 16,16 got %u",px[0]);note(m,near1(px[0],n/255.0));}
+ GLuint tf=many(n,1,1);note("MAX_VARYING_COMPONENTS varyings + captured gl_Position link",tf!=0);
+ if(tf){float got[32];target();glUseProgram(tf);vtx(0,-1,-1);vtx(1,1,-1);vtx(2,1,1);upload();tf_begin(GL_TRIANGLES);glDrawArrays(GL_TRIANGLES,0,3);tf_end(got);
+  readpx(28,4,px);snprintf(m,sizeof m,"MAX_VARYING_COMPONENTS varyings with transform feedback at 28,4 got %u",px[0]);note(m,near1(px[0],n/255.0));
+  note("MAX_VARYING_COMPONENTS varyings with transform feedback captured gl_Position",got[0]==-1&&got[1]==-1&&got[3]==1&&got[4]==1&&got[5]==-1&&got[8]==1&&got[9]==1&&got[12]==0);}
+ GLuint over=many(limit+1,0,0);note("one varying component over the limit fails to link with an info log",!over&&strstr(logbuf,"GL_MAX_VARYING_COMPONENTS")!=0);
 }
 /* Every GL 3.3 implementation-dependent value (Tables 6.38-6.47) as "x64-gl-raster limit 0x.... v [v]" or "... error 0x...". */
 static void limits(void){
@@ -196,13 +242,19 @@ int main(void){
  flatp=program("#version 330 core\nlayout(location=0) in vec2 p;layout(location=1) in vec3 col;flat out vec3 c;flat out int id;void main(){c=col;id=gl_VertexID;gl_Position=vec4(p,0.0,1.0);}",
   "#version 330 core\nflat in vec3 c;flat in int id;uniform int show;layout(location=0) out vec4 o;void main(){o=show!=0?vec4(float(id)/255.0,0.0,0.0,1.0):vec4(c,1.0);}",1);
  flat_show=glGetUniformLocation(flatp,"show");
+ flat_tf=program_tf("#version 330 core\nlayout(location=0) in vec2 p;layout(location=1) in vec3 col;flat out vec3 c;void main(){c=col;gl_Position=vec4(p,0.0,1.0);}",
+  "#version 330 core\nflat in vec3 c;layout(location=0) out vec4 o;void main(){o=vec4(c,1.0);}",1,"gl_Position");
+ fcp=program("#version 330 core\nlayout(location=0) in vec2 p;out float atomicAdd;void main(){atomicAdd=0.0;gl_Position=vec4(p,0.0,1.0);}",
+  "#version 330 core\nin float atomicAdd;layout(location=0) out vec4 o;void main(){float textureSample=gl_FragCoord.x/32.0;float select=gl_FragCoord.y/32.0;"
+  "vec2 target=vec2(textureSample,select);o=vec4(target,atomicAdd,1.0);}",1);
+ glGenBuffers(1,&tf_buffer);
  glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);glGenTextures(1,&tex);glBindTexture(GL_TEXTURE_2D,tex);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
  glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,32,32,0,GL_RGBA,GL_UNSIGNED_BYTE,0);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,tex,0);
  glGenRenderbuffers(1,&rbo);glBindRenderbuffer(GL_RENDERBUFFER,rbo);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH24_STENCIL8,32,32);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_STENCIL_ATTACHMENT,GL_RENDERBUFFER,rbo);
  GLenum one[1]={GL_COLOR_ATTACHMENT0};glDrawBuffers(1,one);glok("setup");
- limits();viewports();provoking(0);glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);glok("glProvokingVertex");
+ limits();viewports();fragcoord();polygon_offset();provoking(0);glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);glok("glProvokingVertex");
  {GLint pv=0;glGetIntegerv(GL_PROVOKING_VERTEX,&pv);note("provoking vertex query (first)",pv==GL_FIRST_VERTEX_CONVENTION);}
- provoking(1);glProvokingVertex(GL_LAST_VERTEX_CONVENTION);varyings();screen();
+ provoking(1);tf_first();glProvokingVertex(GL_LAST_VERTEX_CONVENTION);varyings();screen();
  /* Screen readback: gradient (viewport -128,-80,512,320) and the fan tile (viewport 192,96,96,64). */
  expect_grad(10,10,-128,-80,512,320,0.6,"screen gradient");expect_grad(150,130,-128,-80,512,320,0.6,"screen gradient top");
  expect_vertex(250,100,2,"screen fan first triangle");expect_vertex(200,150,3,"screen fan second triangle");
