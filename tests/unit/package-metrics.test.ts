@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 // @ts-expect-error untyped kit tool module
-import { artifactSizes, classifyServing, compressedSizes, kindOf, precompress, summarizeArtifacts } from '../../tools/report/package-metrics.mjs';
+import { artifactSizes, classifyServing, compressedSizes, displayPath, kindOf, precompress, summarizeArtifacts } from '../../tools/report/package-metrics.mjs';
 
 describe('package metrics', () => {
   it('classifies artifacts by kind', () => {
@@ -29,6 +29,11 @@ describe('package metrics', () => {
     const s = compressedSizes(bytes, { gzip: 6, brotli: 5 });
     expect(s.raw).toBe(65536);
     expect(s.gzip).toBeLessThan(1024); expect(s.brotli).toBeLessThan(1024);
+  });
+  it('display paths are repo-relative inside the root and a basename outside it', () => {
+    expect(displayPath('/r/web/public/games/x', '/r')).toBe('web/public/games/x');
+    expect(displayPath('/elsewhere/bundle', '/r')).toBe('bundle');
+    expect(displayPath('/r', '/r')).toBe('r');
   });
   it('serving: MIME decides streaming compilation, Content-Encoding decides compression', () => {
     expect(classifyServing({ 'content-type': 'application/wasm', 'content-encoding': 'br', 'content-length': '10' })).toMatchObject({
@@ -53,6 +58,11 @@ describe('package metrics', () => {
       expect(gunzipSync(readFileSync(join(dir, 'game.wasm.gz')))).toEqual(readFileSync(join(dir, 'game.wasm')));
       expect(existsSync(join(dir, 'chunks', 'r.bin.br'))).toBe(false); // incompressible: no copy
       const a = artifactSizes(dir, { brotli: 5, gzip: 6 });
+      // vK64: the report never carries a local absolute path (outside the repo: basename only).
+      const text = JSON.stringify(a);
+      expect(text).not.toContain(dir); expect(text).not.toContain(tmpdir());
+      expect(a.dir).toBe(dir.split('/').pop());
+      expect(JSON.stringify(artifactSizes(dir, { brotli: 5, gzip: 6 }, tmpdir()))).not.toMatch(/"\//);
       expect(a.total.files).toBe(3);
       expect(a.kinds.wasm.raw).toBe(8192);
       expect(a.kinds.data.raw).toBe(4096);

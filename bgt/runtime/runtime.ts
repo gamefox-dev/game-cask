@@ -220,6 +220,8 @@ export class BGTRuntime {
   private linearAtInstantiate = 0;
   private memoryBudget: { bytes: number; source: MemoryBudgetSource } = resolveMemoryBudget();
   private memoryPeaks = { linear: 0, total: 0 };
+  /** Load-time buffers the runtime still holds, for the milestone peak samples (vK64). */
+  private loadBuffers = 0;
   private frameTimes: number[] = [];
   private gpuWallMs = 0;
   private gpuSubmitTotalMs = 0;
@@ -444,6 +446,8 @@ export class BGTRuntime {
       this.loadMarks.wasmMs = performance.now() - this.loadStarted;
       this.wasmEvidence = { url: wasmUrl, bytes: variant.artifact.size, streamingReason: result.streamingReason,
         contentType: result.contentType, contentEncoding: result.contentEncoding, memoryLimits: result.memoryLimits };
+      // Load-peak sample: the verified download buffer was live until compilation finished.
+      this.loadBuffers = variant.artifact.size; this.samplePeak(); this.loadBuffers = 0;
       return result.module;
     }).catch((e: unknown) => { throw new RuntimeFailure('asset', `game.wasm: ${(e as Error).message}`); });
     // Chunked preload with bounded concurrency.
@@ -517,9 +521,11 @@ export class BGTRuntime {
       this.host = await GameHost.create(wasm,actualServices,config);
       this.linearAtInstantiate = this.host.memoryBytes;
       this.loadMarks.instantiateMs = this.host.instantiateMs;
+      this.samplePeak();
       const initStart = performance.now();
       this.host.init();
       this.loadMarks.initMs = performance.now() - initStart;
+      this.samplePeak();
     } catch (e) {
       throw new RuntimeFailure(e instanceof Error && e.name === 'GameAbort' ? 'abort' : 'init', e instanceof Error ? e.message : String(e));
     }
@@ -533,6 +539,7 @@ export class BGTRuntime {
     if (this.opts.startPaused) this.paused = true;
     this.ready = true;
     this.loadMarks.readyMs = performance.now() - this.loadStarted;
+    this.samplePeak();
     this.canvas.focus({ preventScroll: true });
   }
 
@@ -712,7 +719,7 @@ export class BGTRuntime {
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
     await host.update();
-    if (this.loadMarks.firstUpdateMs === null && this.ready) this.loadMarks.firstUpdateMs = performance.now() - this.loadStarted;
+    if (this.loadMarks && this.loadMarks.firstUpdateMs === null && this.ready) this.loadMarks.firstUpdateMs = performance.now() - this.loadStarted;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHarness?.updated();
     if (host.sizeChanged) {
       host.sizeChanged = false;
@@ -782,8 +789,8 @@ export class BGTRuntime {
     host.consume();
     this.presentsCompleted++;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) await this.testHarness?.afterFrame?.();
-    if(this.firstFrameMs===null)this.firstFrameMs=this.loadMarks.firstFrameMs=performance.now()-this.loadStarted;
-    if(this.presentsCompleted%30===1)this.sampleMemory();
+    if(this.firstFrameMs===null){this.firstFrameMs=performance.now()-this.loadStarted;if(this.loadMarks)this.loadMarks.firstFrameMs=this.firstFrameMs;this.samplePeak();}
+    else if(this.presentsCompleted%30===0)this.samplePeak();
     this.frameTimes.push(performance.now()-started);if(this.frameTimes.length>10000)this.frameTimes.shift();
     return out;
   }
@@ -969,9 +976,17 @@ export class BGTRuntime {
         gpuDecoderShadowBytes: reserved?.buffers ?? 0,
         // Scheduled AudioBuffers hold float32 per channel; stereo is the upper bound.
         audioQueuedBytes: this.audio.queued() * 2 * 4,
+        loadBuffersBytes: this.loadBuffers,
         heapUsedBytes: typeof heap === 'number' ? heap : null },
       budget: this.memoryBudget,
     };
+  }
+
+  /** Frame-path peak sample: diagnostics never fail a frame, and a runtime built without its K64 bookkeeping
+   * (tests use Object.create(BGTRuntime.prototype)) simply has no peak to track. */
+  private samplePeak(): void {
+    if (!this.loadMarks || !this.memoryPeaks) return;
+    try { this.sampleMemory(); } catch (e) { this.record('js', `memory sample failed: ${(e as Error).message}`); }
   }
 
   /** Peak tracking without the profile's metrics serialization (guest bytes live inside linear memory anyway). */

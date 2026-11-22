@@ -7,6 +7,9 @@
 export const MEMORY_BUDGET_DEFAULT = 1536 * 1024 * 1024;
 export const MEMORY_BUDGET_MIN = 16 * 1024 * 1024;
 export const MEMORY_BUDGET_MAX = 64 * 1024 * 1024 * 1024;
+/** When the runtime samples the estimate for `peakTotalBytes` (vK64). Spikes between samples are not seen. */
+export const PEAK_SAMPLING = 'sampled at load milestones (game.wasm compiled, with its download buffer; instantiated; ' +
+  'initialized; ready; first frame), every 30 presents and on every memory()/diagnostics() read';
 /** Canvas backing store estimate: drawing buffer + one presented/swap buffer of RGBA8. */
 export const CANVAS_BUFFERS = 2;
 
@@ -51,6 +54,8 @@ export interface MemoryInputs {
   legacyTextureBytes: number;
   canvas: { width: number; height: number };
   js: { assetBytes: number; streamCacheBytes: number; gpuDecoderShadowBytes: number; audioQueuedBytes: number;
+    /** Load-time buffers still held (the verified game.wasm bytes until compilation finishes); 0 after load. */
+    loadBuffersBytes: number;
     heapUsedBytes: number | null };
   budget: { bytes: number; source: MemoryBudgetSource };
 }
@@ -67,7 +72,9 @@ export interface MemoryDiagnostics {
     canvasBytesEstimate: number }) | null;
   js: MemoryInputs['js'] & { gpuRecoveryShadowBytes: number; legacyTextureShadowBytes: number; heldBytes: number };
   estimate: {
-    totalBytes: number; peakTotalBytes: number;
+    totalBytes: number;
+    /** Sampled high-water mark: the maximum over samples, not a continuous measurement (see PEAK_SAMPLING). */
+    peakTotalBytes: number; peakSampling: string;
     components: { wasmLinear: number; wasmModule: number; gpuNative: number; jsHeld: number };
     budgetBytes: number; budgetSource: MemoryBudgetSource; overBudget: boolean; status: 'ok' | 'over-budget';
     scope: string;
@@ -135,7 +142,7 @@ export function memoryBreakdown(input: MemoryInputs, peaks: { linear: number; to
   const gpuRecoveryShadowBytes = native ? native.shadows.bufferBytes + native.shadows.textureBytes : 0;
   const legacyTextureShadowBytes = input.legacyTextureBytes;
   const js = input.js;
-  const heldBytes = js.assetBytes + js.streamCacheBytes + js.gpuDecoderShadowBytes + js.audioQueuedBytes
+  const heldBytes = js.assetBytes + js.streamCacheBytes + js.gpuDecoderShadowBytes + js.audioQueuedBytes + js.loadBuffersBytes
     + gpuRecoveryShadowBytes + legacyTextureShadowBytes;
   const components = { wasmLinear: input.wasm.linearBytes, wasmModule: input.wasm.moduleBytes, gpuNative, jsHeld: heldBytes };
   const totalBytes = components.wasmLinear + components.wasmModule + components.gpuNative + components.jsHeld;
@@ -149,7 +156,7 @@ export function memoryBreakdown(input: MemoryInputs, peaks: { linear: number; to
       native, legacyTextureBytes: input.legacyTextureBytes, canvasBytesEstimate } : null,
     js: { ...js, gpuRecoveryShadowBytes, legacyTextureShadowBytes, heldBytes },
     estimate: {
-      totalBytes, peakTotalBytes: Math.max(peaks.total, totalBytes), components,
+      totalBytes, peakTotalBytes: Math.max(peaks.total, totalBytes), peakSampling: PEAK_SAMPLING, components,
       budgetBytes: input.budget.bytes, budgetSource: input.budget.source, overBudget,
       status: overBudget ? 'over-budget' : 'ok',
       scope: 'runtime-owned bytes (wasm linear memory, module bytes, native GPU objects, JS-held copies); excludes compiled ' +

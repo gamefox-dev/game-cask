@@ -20,7 +20,7 @@ const inputs = (patch: Partial<MemoryInputs> = {}): MemoryInputs => ({
     shadows: { bufferBytes: 4 * MiB, textureBytes: 2 * MiB } },
   legacyTextureBytes: 0,
   canvas: { width: 1024, height: 512 },
-  js: { assetBytes: 10 * MiB, streamCacheBytes: 3 * MiB, gpuDecoderShadowBytes: 4 * MiB, audioQueuedBytes: 1000, heapUsedBytes: null },
+  js: { assetBytes: 10 * MiB, streamCacheBytes: 3 * MiB, gpuDecoderShadowBytes: 4 * MiB, audioQueuedBytes: 1000, loadBuffersBytes: 0, heapUsedBytes: null },
   budget: { bytes: MEMORY_BUDGET_DEFAULT, source: 'default' },
   ...patch,
 });
@@ -47,6 +47,15 @@ describe('memory breakdown', () => {
     expect(later.wasm.peakLinearBytes).toBe(300 * MiB);
     expect(later.estimate.peakTotalBytes).toBe(over.estimate.totalBytes + 5);
     expect(later.estimate.totalBytes).toBeLessThan(later.estimate.peakTotalBytes);
+  });
+  it('a load-milestone sample with the download buffer sets the peak that later samples keep (vK64)', () => {
+    const base = inputs();
+    const load = memoryBreakdown({ ...base, js: { ...base.js, loadBuffersBytes: 30 * MiB } }, { linear: 0, total: 0 });
+    const steady = memoryBreakdown(base, { linear: load.wasm.peakLinearBytes, total: load.estimate.peakTotalBytes });
+    expect(load.estimate.totalBytes - steady.estimate.totalBytes).toBe(30 * MiB);
+    expect(load.js.heldBytes - steady.js.heldBytes).toBe(30 * MiB);
+    expect(steady.estimate.peakTotalBytes).toBe(load.estimate.totalBytes);
+    expect(steady.estimate.peakSampling).toMatch(/load milestones.*every 30 presents/);
   });
   it('a game without GPU or guest metrics has null sections, still a total', () => {
     const m = memoryBreakdown(inputs({ gpu: null, native: null, canvas: { width: 0, height: 0 } }), { linear: 0, total: 0 });

@@ -12,7 +12,7 @@
 // Starts its own Vite server on $BGT_E2E_PORT (never 5173). Output is private by default (reports/).
 import { brotliCompressSync, gzipSync, constants as zc } from 'node:zlib';
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const PRECOMPRESSED = /\.(br|gz)$/;
@@ -59,11 +59,17 @@ export function summarizeArtifacts(files) {
     files: [...files].sort((a, b) => b.raw - a.raw || a.path.localeCompare(b.path)) };
 }
 
-export function artifactSizes(dir, quality = {}) {
+/** A name for `dir` that never leaks a local path: repo-relative inside `root`, else the basename (vK64). */
+export function displayPath(dir, root) {
+  const rel = root ? relative(root, dir) : '';
+  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : basename(dir);
+}
+
+export function artifactSizes(dir, quality = {}, root = null) {
   const start = performance.now();
   const files = walkFiles(dir).map((p) => ({ path: relative(dir, p).split(sep).join('/'), kind: kindOf(relative(dir, p)),
     ...compressedSizes(readFileSync(p), quality) }));
-  return { dir, quality: { gzip: quality.gzip ?? 9, brotli: quality.brotli ?? 9 }, ...summarizeArtifacts(files),
+  return { dir: displayPath(dir, root), quality: { gzip: quality.gzip ?? 9, brotli: quality.brotli ?? 9 }, ...summarizeArtifacts(files),
     elapsedMs: performance.now() - start };
 }
 
@@ -157,8 +163,8 @@ async function main() {
   const dir = resolve(a.dir ?? join(ROOT, 'web', 'public', 'games', a.game));
   const id = a.game ?? dir.split(sep).pop();
   const report = { schema: 'game-cask/package-metrics/1', game: id, generated: new Date().toISOString(),
-    artifacts: artifactSizes(dir, { gzip: a.gzip, brotli: a.brotli }) };
-  console.log(`artifacts ${dir}: ${report.artifacts.total.files} files, raw ${report.artifacts.total.raw} B, gzip ${report.artifacts.total.gzip} B, brotli(q${a.brotli}) ${report.artifacts.total.brotli} B`);
+    artifacts: artifactSizes(dir, { gzip: a.gzip, brotli: a.brotli }, ROOT) };
+  console.log(`artifacts ${report.artifacts.dir}: ${report.artifacts.total.files} files, raw ${report.artifacts.total.raw} B, gzip ${report.artifacts.total.gzip} B, brotli(q${a.brotli}) ${report.artifacts.total.brotli} B`);
   for (const [k, v] of Object.entries(report.artifacts.kinds)) console.log(`  ${k}: raw ${v.raw} gzip ${v.gzip} brotli ${v.brotli} (${(v.brotliRatio * 100).toFixed(1)}%)`);
   let server = null, base = a.url ?? null;
   try {
@@ -188,7 +194,7 @@ async function main() {
   const out = resolve(a.out ?? join(ROOT, 'reports', `package-metrics-${id}.json`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(report, null, 2) + '\n');
-  console.log(`wrote ${out}`);
+  console.log(`wrote ${displayPath(out, ROOT)}`);
   if (report.browser?.failed) process.exitCode = 1;
 }
 

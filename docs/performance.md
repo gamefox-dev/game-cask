@@ -132,7 +132,7 @@ that per-present frame totals equal the exact accounting deltas. Measured overhe
 | `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (allocated levels; depth/stencil part), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
 | `gpu.canvasBytesEstimate` | canvas drawing buffer + one swap buffer, RGBA8 |
 | `js` | JS-heap copies: preloaded assets, stream chunk cache, decoder buffer shadows (`gpuDecoderShadowBytes`), executor recovery shadows (`gpuRecoveryShadowBytes`), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
-| `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), its peak, the budget and `status` |
+| `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), the budget and `status`. `peakTotalBytes` is a **sampled** high-water mark (`peakSampling`): the maximum over samples at load milestones (game.wasm compiled, counting its still-held download buffer as `js.loadBuffersBytes`; instantiated; initialized; ready; first frame), every 30 presents and every read. Spikes between samples, and engine-internal compile buffers, are not seen |
 
 The **budget** defaults to 1.5 GiB (iPhone-class tab). Override with game.json `"memoryBudget": {"bytes": N}` (copied to
 the manifest), `?memorybudget=1536m|1.5g|BYTES` or `RuntimeOptions.memoryBudgetBytes`. `status: "over-budget"` is a
