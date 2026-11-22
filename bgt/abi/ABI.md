@@ -894,7 +894,15 @@ is forbidden. Legacy readback cannot read GPU-namespace textures; a profile rend
 it needs the existing screen READBACK interface. No new readback alias is implied.
 
 Viewport/scissor use attachment pixels, top-left, +y down; screen coordinates are logical and letterbox-scaled.
-Viewport finite x,y>=0, width,height>0, fits attachment, depth range 0<=min<=max<=1. Scissor unsigned, fits attachment;
+Viewport finite, |x|,|y|<=32768, 0<width,height<=32768, depth range 0<=min<=max<=1; **K62:** it may extend past the
+attachment (GL semantics: the viewport transform is unchanged and rasterization is clipped to the attachment; a
+viewport that misses it rasterizes nothing, transform feedback still captures). WebGL 2 applies the viewport in its
+vertex transform over the whole attachment; WebGPU clamps the native viewport and maps the clip volume onto the clamped
+rectangle with a per-draw clip-space transform (group 2, renderer-internal), so window coordinates are identical. An
+off-attachment viewport needs a GLSL vertex stage on WebGPU (WGSL pipelines: E_IO). **Provoking vertex (K62):** GLSL
+`flat` varyings take the value of the **last** vertex of each line/triangle (GL's default convention) on both backends
+(WebGPU draws such pipelines last-vertex-first, rotating triangles cyclically so the winding is kept); WGSL keeps
+WGSL's `@interpolate(flat)` semantics. Scissor unsigned, fits attachment;
 zero area is legal and suppresses rasterization. Blend constant components finite [0,1]. GPU NDC is +x right, +y up,
 z in [0,w]; front-face winding is measured in this NDC xy plane **before** top-left viewport conversion. Profiles
 translating legacy GL [-w,w] depth convert z to (z+w)/2. Backends translating to GL clip space convert z to 2z-w;
@@ -1029,7 +1037,7 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
 | 68 | max_mip_levels | 13 |
 | 72 | max_instances | 65535 |
-| 76 | reserved | 0 |
+| 76 | max_varying_components | K62: GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend: WebGPU 4 x maxInterStageShaderVariables - 6 (packed vec4 interface, the adapter's limit is requested), WebGL 2 3 x (MAX_VARYING_VECTORS - 1); 60 if a backend does not state it; 0 without CAP_GPU (was reserved 0) |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
 supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
@@ -1450,6 +1458,17 @@ approximation), glPrimitiveRestartIndex, sync objects (fences are signaled at cr
 every guest-visible result is produced in stream order), glGetInteger64v/64i_v, glGetBufferParameteri64v,
 glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_calls` maps each GL entry point to the
 number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census.
+
+**K62 (VIEWPORT relaxation, §13.6 offset 76, WebGPU varying packing).** The WGL profile sends the GL viewport
+unchanged (top-left origin, origin clamped to +-32768; width/height clamped to GL_MAX_VIEWPORT_DIMS = 16384 at
+glViewport; an empty viewport is a 1x1 rectangle at (-32768, -32768)). glDepthRange(n > f) is legal: it is sent as
+(f, n) and the vertex epilogue flips z through the profile's meta word, so window depth is GL's. GL_UNSIGNED_BYTE
+element data is widened into the expansion ring (u32). glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) expands draws of
+programs with flat fragment inputs into lists with each primitive's first-convention provoking vertex (GL 3.3 Table
+2.14) last; a rasterizing transform-feedback draw keeps the last vertex (counted approximation). The WebGPU executor
+packs linked GLSL varyings into vec4 locations (perspective, linear and flat-as-u32 classes; values unchanged) and
+requests the adapter's maxInterStageShaderVariables; offset 76 reports the resulting capacity and the profile fails
+links above it (`GL_MAX_VARYING_COMPONENTS` info log).
 
 ### 13.13 Ordered buffer copy (additive v0.3, opcode 0x64)
 

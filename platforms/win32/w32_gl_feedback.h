@@ -96,7 +96,7 @@ static int indexed_query(uint32_t *value) {
         if (i >= 4) { fail(BAD_VALUE); return 0; }
         *value = key == 0x8c8f ? NAME(buffers, tf_bound[i]) : key == 0x8c84 ? tf_offset[i] : tf_whole[i] ? 0 : tf_size[i];
     } else if (key == 0x8a28 || key == 0x8a29 || key == 0x8a2a) {
-        if (i >= 8) { fail(BAD_VALUE); return 0; }
+        if (i >= GL_UBO_BINDINGS) { fail(BAD_VALUE); return 0; }
         *value = key == 0x8a28 ? NAME(buffers, ubo[i]) : key == 0x8a29 ? ubo_offset[i] : ubo_whole[i] ? 0 : ubo_size[i];
     } else { fail(BAD_ENUM); return 0; }
     return 1;

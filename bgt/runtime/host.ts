@@ -526,7 +526,7 @@ export class GameHost {
             this.gpu ? 1 : 0, GPU_LIMITS.handles, this.config.gpuBudgetBytes ?? GPU_LIMITS.budget, GPU_LIMITS.bufferSize,
             GPU_LIMITS.vertexBuffers, GPU_LIMITS.attributes, GPU_LIMITS.slots, GPU_LIMITS.colorAttachments,
             GPU_LIMITS.uniformAlignment, this.gpu?.uniformRange ?? GPU_LIMITS.uniformRange, GPU_LIMITS.stride, GPU_LIMITS.shaderBytes,
-            this.gpu?.backend.languages ?? 0, 13, 65535, 0,
+            this.gpu?.backend.languages ?? 0, 13, 65535, this.gpu?.varyingComponents ?? 0,
           );
           values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
           return 0;

@@ -200,6 +200,7 @@ describe('GPU command validation', () => {
     expect(t.send(O.BUFFER_CREATE,[3,8,4096,0,0]).status).toBe(0);
     expect(t.send(O.FEEDBACK_VARYINGS,[1,0,1,20000,8]).status).toBe(0);
     expect(t.run(t.bound().gpu(O.VIEWPORT, [0, 0, F(64), F(64), 0, F(1)])
+      .gpu(O.VIEWPORT, [F(-16), F(-8), F(128), F(96), 0, F(1)]).gpu(O.VIEWPORT, [F(100), F(70.5), F(32768), F(4), 0, F(1)])
       .gpu(O.SCISSOR, [0, 0, 64, 64]).gpu(O.CLEAR_BUFFER, [0xf0, 0, F(.25), F(.5), F(.75), F(1)]).gpu(O.STENCIL_REF, [42])
       .gpu(O.BLEND_CONSTANT, [F(0.25), F(0.5), F(0.75), F(1)])
       .gpu(O.FEEDBACK_CAPTURE,[1,3,0,4096,0,0,0,0,0,0,0,0,0]).gpu(O.DRAW, [3, 2, 0, 1]).gpu(O.DRAW_INDEXED, [3, 2, 0, 1, 2])
@@ -295,7 +296,11 @@ describe('GPU command validation', () => {
   });
 
   it.each([
-    [O.VIEWPORT, [0, 0, F(65), F(1), 0, F(1)], A.E_INVALID],
+    // K62: a viewport may extend past the 64x64 attachment (GL clips rasterization), but not past ±32768.
+    [O.VIEWPORT, [0, 0, F(32769), F(1), 0, F(1)], A.E_INVALID],
+    [O.VIEWPORT, [F(-32769), 0, F(1), F(1), 0, F(1)], A.E_INVALID],
+    [O.VIEWPORT, [0, 0, F(0), F(1), 0, F(1)], A.E_INVALID],
+    [O.VIEWPORT, [0, 0, F(1), F(1), F(1), F(0)], A.E_INVALID],
     [O.VIEWPORT, [0, 0, F(1), F(1), F(NaN), F(1)], A.E_INVALID],
     [O.SCISSOR, [64, 0, 1, 1], A.E_BOUNDS],
     [O.STENCIL_REF, [256], A.E_INVALID],

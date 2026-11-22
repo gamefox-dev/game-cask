@@ -236,7 +236,7 @@ typedef struct bgt_gpu_limits_v3 {
     uint32_t gpu_supported, max_gpu_handles, gpu_budget_bytes, max_buffer_bytes;
     uint32_t max_vertex_buffers, max_attributes, max_binding_slots, max_color_attachments;
     uint32_t uniform_offset_alignment, max_uniform_range, max_vertex_stride, max_shader_bytes;
-    uint32_t shader_languages, max_mip_levels, max_instances, reserved;
+    uint32_t shader_languages, max_mip_levels, max_instances, max_varying_components; /* K62: was reserved (0) */
 } bgt_gpu_limits_v3_t; /* 80 bytes; cap >= 80 queries this extension */
 BGT_IMPORT(gpu_limits) int32_t bgt_gpu_limits(bgt_gpu_limits_t *dst, uint32_t cap);
 /* Explicit per-host opt-in; no effect on other namespaces or byte budgets. Idempotent. */

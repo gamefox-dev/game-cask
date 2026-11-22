@@ -25,7 +25,9 @@ static uint32_t query(uint32_t key, int32_t *v) {
     switch (key) {
     case 0x821b: v[0] = 3; break; case 0x821c: v[0] = 3; break; case 0x821d: v[0] = 3; break;
     case 0x9126: v[0] = 1; break; case 0xd33: v[0] = 4096; break; case 0x8869: v[0] = 16; break;
-    case 0x8b4d: case 0x8872: case 0x8a2f: v[0] = 8; break;
+    case 0x8872: v[0] = 8; break;                       /* MAX_TEXTURE_IMAGE_UNITS: §13 sampler slots per pipeline */
+    case 0x8b4d: v[0] = GL_TEXTURE_UNITS; break;        /* K62: MAX_COMBINED_TEXTURE_IMAGE_UNITS (glActiveTexture units) */
+    case 0x8a2f: v[0] = GL_UBO_BINDINGS; break;         /* K62: MAX_UNIFORM_BUFFER_BINDINGS (binding points) */
     case 0x8a34: v[0] = 256; break; case 0x8a30: v[0] = (int32_t)gl_uniform_limit(); break;
     case 0x8cdf: case 0x8824: v[0] = 4; break;
     case 0x8073: case 0x88ff: v[0] = 256; break; case 0x84e8: v[0] = 4096; break;
@@ -102,15 +104,28 @@ static uint32_t query(uint32_t key, int32_t *v) {
     case 0x8f9e: v[0] = (int32_t)restart_index; break;
     case 0x846e: case 0xb22: case 0xb12: v[0] = v[1] = 1; return 2; /* ALIASED/SMOOTH_LINE_WIDTH_RANGE, POINT_SIZE_RANGE */
     case 0xb23: case 0xb13: v[0] = 0; break;                       /* line width / point size granularity */
-    case 0xd3a: v[0] = v[1] = 4096; return 2;                       /* MAX_VIEWPORT_DIMS = attachment limit */
-    case 0x851c: case 0x84f8: v[0] = 4096; break;                   /* MAX_CUBE_MAP_TEXTURE_SIZE, MAX_RECTANGLE_TEXTURE_SIZE */
+    /* K62: viewports may exceed the target (both backends clip exactly); glViewport clamps to this. */
+    case 0xd3a: v[0] = v[1] = GL_MAX_VIEWPORT; return 2;            /* MAX_VIEWPORT_DIMS */
+    /* K62: cube-map and rectangle targets are not implemented (glBindTexture/glTexImage2D raise GL_INVALID_ENUM),
+     * so no size is supported: 0, below GL 3.3's 1024 (documented gap, see docs/handoff/K62.md). */
+    case 0x851c: case 0x84f8: v[0] = 0; break;                      /* MAX_CUBE_MAP_TEXTURE_SIZE, MAX_RECTANGLE_TEXTURE_SIZE */
     case 0x8514: v[0] = 0; break;                                    /* TEXTURE_BINDING_CUBE_MAP (no cube maps bound) */
     case 0x80e8: case 0x80e9: v[0] = 1 << 20; break;                /* MAX_ELEMENTS_VERTICES/INDICES (advisory) */
     case 0x8b4a: case 0x8b49: v[0] = (int32_t)(gl_uniform_limit() / 4); break; /* MAX_*_UNIFORM_COMPONENTS */
     case 0x8dfb: case 0x8dfd: v[0] = (int32_t)(gl_uniform_limit() / 16); break; /* MAX_*_UNIFORM_VECTORS */
     case 0x8a2b: case 0x8a2d: v[0] = 7; break; case 0x8a2e: v[0] = 7; break; /* MAX_VERTEX/FRAGMENT/COMBINED_UNIFORM_BLOCKS */
     case 0x8b4c: v[0] = 8; break;                                    /* MAX_VERTEX_TEXTURE_IMAGE_UNITS */
-    case 0x8b4b: case 0x9122: case 0x9125: v[0] = 60; break;         /* varying components: WebGL 2's 15 vectors */
+    /* K62: the backend's guaranteed varying capacity (packed on WebGPU, GLSL ES rows on WebGL 2); the vertex outputs
+     * and fragment inputs add gl_Position / gl_FragCoord. Links above it fail with an info log. */
+    case 0x8b4b: v[0] = (int32_t)gl_varying_limit(); break;          /* MAX_VARYING_COMPONENTS */
+    case 0x9122: case 0x9125: v[0] = (int32_t)gl_varying_limit() + 4; break; /* MAX_VERTEX_OUTPUT / FRAGMENT_INPUT_COMPONENTS */
+    case 0x8a31: case 0x8a33:                                         /* MAX_COMBINED_VERTEX/FRAGMENT_UNIFORM_COMPONENTS */
+        v[0] = (int32_t)(2 * gl_uniform_limit()); break;              /* 7 blocks x limit/4 + limit/4 default */
+    case 0xd50: v[0] = 4; break;                                     /* SUBPIXEL_BITS: the floor of every backend */
+    case 0x8c2b: v[0] = 0; break;                                    /* MAX_TEXTURE_BUFFER_SIZE: no buffer textures */
+    case 0x8e59: v[0] = 0; break;                                    /* MAX_SAMPLE_MASK_WORDS: single-sampled */
+    case 0x8904: case 0x8905: v[0] = 0; break;                       /* MIN/MAX_PROGRAM_TEXEL_OFFSET: offset lookups untranslated */
+    case 0x8e4f: v[0] = provoking_first ? 0x8e4d : 0x8e4e; break;    /* K62: PROVOKING_VERTEX */
     case 0xd32: v[0] = 8; break;                                     /* MAX_CLIP_DISTANCES (enabling one is a counted approximation) */
     case 0x88fc: v[0] = 0; break;                                    /* MAX_DUAL_SOURCE_DRAW_BUFFERS */
     case 0x86a2: v[0] = 0; break;                                    /* NUM_COMPRESSED_TEXTURE_FORMATS */

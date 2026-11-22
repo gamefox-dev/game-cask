@@ -57,7 +57,8 @@ it('census includes every runtime registry, with width/precedence and genuinely 
     for (const name of ['glMapBuffer', 'glMapBufferRange', 'glFlushMappedBufferRange', 'glUnmapBuffer', 'glGetBufferPointerv'])
       expect(importStatus(name, 'opengl32.dll', machine).status, `${machine} ${name}`).toBe('implemented');
     expect(importStatus('glFenceSync', 'opengl32.dll', machine).status).toBe('implemented'); // K61
-    expect(importStatus('glProvokingVertex', 'opengl32.dll', machine).status).toBe('stub');
+    expect(importStatus('glProvokingVertex', 'opengl32.dll', machine).status).toBe('implemented'); // K62
+    expect(importStatus('glLogicOp', 'opengl32.dll', machine).status).toBe('stub');
     expect(importStatus('ThisNameDoesNotExist', 'user32.dll', machine).status).toBe('unknown');
     expect(importStatus('Sleep', 'absent-dll.dll', machine).status).toBe('unknown');
   }

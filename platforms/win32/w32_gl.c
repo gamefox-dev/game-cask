@@ -653,9 +653,13 @@ static uint32_t current_attribute(uint32_t n, int vector) {
 CURRENT_ATTR(1) CURRENT_ATTR(2) CURRENT_ATTR(3) CURRENT_ATTR(4)
 #undef CURRENT_ATTR
 static Shader shaders[N]; static Program programs[N];
-static uint32_t vao, array, uniform, ubo[8], ubo_offset[8], ubo_size[8], active_unit, samp[8];
+/* K62: GL 3.3 minimums: 36 uniform-buffer binding points, 48 combined texture image units (profile state; a program
+ * still maps at most 7 blocks and 8 sampler slots onto §13's 8 + 8 per-pipeline slots). */
+#define GL_UBO_BINDINGS 36
+#define GL_TEXTURE_UNITS 48
+static uint32_t vao, array, uniform, ubo[GL_UBO_BINDINGS], ubo_offset[GL_UBO_BINDINGS], ubo_size[GL_UBO_BINDINGS], active_unit, samp[GL_TEXTURE_UNITS];
 static uint32_t current_gpu, current_capacity; static uint32_t *current_data;
-static uint32_t ubo_whole[8], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
+static uint32_t ubo_whole[GL_UBO_BINDINGS], padded_ubo[7], padded_ubo_size[7], padded_generated[7], padded_cleanup[7];
 /* Retire generated private temporaries even when materialization or a later submission fails.
  * If the aggregate wire budget is exhausted, retry before the next public submission: a source
  * cannot be successfully deleted/reuploaded while an inaccessible generated temporary remains. */
@@ -1056,7 +1060,7 @@ static uint32_t api_DeleteBuffers(void) {
             if (vaos[j].element == id) { vaos[j].element = 0; buffer_unref(id); }
             for (uint32_t a = 0; a < 16; a++) if (vaos[j].a[a].buffer == id) { vaos[j].a[a].buffer = 0; buffer_unref(id); }
         }
-        for (uint32_t j = 0; j < 8; j++) if (ubo[j] == id) ubo[j] = 0;
+        for (uint32_t j = 0; j < GL_UBO_BINDINGS; j++) if (ubo[j] == id) ubo[j] = 0;
         if (tf_buffer == id) tf_buffer = 0;
         if (copy_read == id) copy_read = 0;
         if (copy_write == id) copy_write = 0;
@@ -1077,7 +1081,7 @@ static uint32_t api_BindBufferBase(void) {
         tf_buffer = tf_bound[s] = id; tf_offset[s] = 0; tf_whole[s] = 1; tf_size[s] = buffers[id].size; return 0;
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
-    if (ARG(1) >= 8) { fail(BAD_VALUE); return 0; }
+    if (ARG(1) >= GL_UBO_BINDINGS) { fail(BAD_VALUE); return 0; }
     uint32_t s = ARG(1), id = BIND(buffers, ARG(2)); if (id >= BN) return 0; if (id) buffers[id].bound = 1; uniform = id; ubo[s] = id; ubo_offset[s] = 0;
 
     ubo_whole[s] = 1; ubo_size[s] = buffers[id].size; return 0;
@@ -1093,7 +1097,7 @@ static uint32_t api_BindBufferRange(void) {
     }
     if (ARG(0) != UNIFORM_BUFFER) { fail(BAD_ENUM); return 0; }
     uint32_t s = ARG(1), id = SLOT(buffers, ARG(2)); int64_t off = (int64_t)ARG64(3), size = (int64_t)ARG64(4);
-    if (s >= 8 || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
+    if (s >= GL_UBO_BINDINGS || id >= BN || (id && (off < 0 || size <= 0 || (off & 255) ||
         (uint64_t)off > buffers[id].size || (uint64_t)size > buffers[id].size - (uint64_t)off))) {
         fail(BAD_VALUE); return 0;
     }

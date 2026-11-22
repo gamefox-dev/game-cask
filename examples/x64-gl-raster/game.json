@@ -1,0 +1,13 @@
+{
+  "id": "x64-gl-raster",
+  "name": "GL viewports past the target, depth range, provoking vertex, byte indices, packed varyings, GL 3.3 limits (CC0)",
+  "private": false,
+  "license": "CC0-1.0",
+  "pipeline": {
+    "platform": "win32",
+    "fixture": {"target": "x86_64-windows-gnu", "crt": true, "sources": ["gl.c"], "out": "gl.exe",
+      "libs": ["kernel32", "user32", "gdi32", "opengl32"]},
+    "modules": [{"from": "./build/gl.exe", "name": "gl.exe", "main": true}], "width": 256, "height": 160
+  },
+  "touch": {"dpad": false, "buttons": []}
+}

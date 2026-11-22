@@ -287,7 +287,7 @@ static uint32_t api_DeleteTextures(void) {
     for (uint32_t i = 0; i < ARG(0); i++) {
         uint32_t id = SLOT(textures, x86_rd32(ARG(1) + i * 4)); if (!id || id >= N) continue;
         retire_name(OBJECTS(textures), id);
-        for (uint32_t d = 0; d < 3; d++) for (uint32_t u = 0; u < 8; u++) if (tex_bind[d][u] == id) tex_bind[d][u] = 0;
+        for (uint32_t d = 0; d < 3; d++) for (uint32_t u = 0; u < GL_TEXTURE_UNITS; u++) if (tex_bind[d][u] == id) tex_bind[d][u] = 0;
         uint32_t bound[2] = {fbo, fbo_read};
         for (uint32_t b = 0; b < 2; b++) if (bound[b]) { Fbo *f = &fbos[bound[b]];
             for (uint32_t k = 0; k < 4; k++) if (f->color[k].type == 1 && f->color[k].name == id) zero(&f->color[k], sizeof(Attach));

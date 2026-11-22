@@ -413,6 +413,10 @@ export const GPU_LIMITS = {
 } as const;
 /** K51: §13.6 offset 52 reports min(uniformRange, native device limit); WebGL2/GL 3.3 guarantee 16384. */
 export const GPU_UNIFORM_RANGE_MIN = 16384;
+/** K62: §13.6 offset 76 when a backend does not state its varying capacity (GL 3.3's MAX_VARYING_COMPONENTS). */
+export const GPU_VARYING_COMPONENTS_DEFAULT = 60;
+/** K62: §13.4 VIEWPORT x, y within [-bound, bound] and width, height in (0, bound]; it may exceed the attachment. */
+export const GPU_VIEWPORT_BOUND = 32768;
 /** A reservation/accounting limit, never a claim about measured physical VRAM. */
 export const GPU_BUDGET_MIN = 16 * 1024 * 1024;
 export const GPU_BUDGET_MAX = 0xffffffff;
@@ -428,5 +432,5 @@ export const GPU_LIMITS_OFFSETS = {
   gpu_supported: 16, max_gpu_handles: 20, gpu_budget_bytes: 24, max_buffer_bytes: 28,
   max_vertex_buffers: 32, max_attributes: 36, max_binding_slots: 40, max_color_attachments: 44,
   uniform_offset_alignment: 48, max_uniform_range: 52, max_vertex_stride: 56, max_shader_bytes: 60,
-  shader_languages: 64, max_mip_levels: 68, max_instances: 72, reserved: 76,
+  shader_languages: 64, max_mip_levels: 68, max_instances: 72, max_varying_components: 76,
 } as const;

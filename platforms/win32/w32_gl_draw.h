@@ -75,9 +75,11 @@ static float finite_f(float f) { return f != f ? 0 : f > 3e38f ? 3e38f : f < -3e
 static uint32_t api_BlendColor(void) { for (uint32_t i = 0; i < 4; i++) blend_color[i] = clamp(argf(i)); return 0; }
 static uint32_t api_DepthFunc(void) { uint32_t v = compare(ARG(0)); if (!error) depth_compare = v; return 0; }
 static uint32_t api_DepthMask(void) { depth_write = !!(ARG(0) & 255); return 0; }
+/* GL 3.3 §2.13.1: n and f are clamped to [0, 1]; n > f is legal (reversed depth). §13 VIEWPORT needs min <= max,
+ * so a reversed range is sent as (f, n) and the vertex epilogue flips z (meta.y, see w32_glsl.h): window depth is
+ * f + (n - f)(1 - zd)/2 = (f - n)/2 zd + (n + f)/2, GL's value. */
 static uint32_t api_DepthRange(void) {
-    float a = clamp((float)argd(0)), b = clamp((float)argd(W32_64 ? 1 : 2));
-    if (a > b) fail(BAD_VALUE); else { range_min = a; range_max = b; } return 0;
+    range_min = clamp((float)argd(0)); range_max = clamp((float)argd(W32_64 ? 1 : 2)); return 0;
 }
 static uint32_t api_ColorMask(void) {
     color_mask = (!!(ARG(0) & 255)) | ((!!(ARG(1) & 255)) << 1) | ((!!(ARG(2) & 255)) << 2) | ((!!(ARG(3) & 255)) << 3);
@@ -149,9 +151,17 @@ static uint32_t api_PolygonMode(void) {
     return 0;
 }
 static uint32_t api_PrimitiveRestartIndex(void) { restart_index = ARG(0); return 0; }
+/* K62: width and height are clamped to GL_MAX_VIEWPORT_DIMS when specified (GL 3.3 §2.13.1); the origin is kept. */
+#define GL_MAX_VIEWPORT 16384
 static uint32_t api_Viewport(void) {
     if ((int32_t)ARG(2) < 0 || (int32_t)ARG(3) < 0) fail(BAD_VALUE);
-    else for (uint32_t i = 0; i < 4; i++) viewport[i] = (int32_t)ARG(i);
+    else for (uint32_t i = 0; i < 4; i++) viewport[i] = i < 2 || (int32_t)ARG(i) <= GL_MAX_VIEWPORT ? (int32_t)ARG(i) : GL_MAX_VIEWPORT;
+    return 0;
+}
+/* K62: glProvokingVertex. §13 flat inputs take the last vertex (GL's default); FIRST is drawn by rotated lists. */
+static uint32_t provoking_first;
+static uint32_t api_ProvokingVertex(void) {
+    if (ARG(0) != 0x8e4d && ARG(0) != 0x8e4e) fail(BAD_ENUM); else provoking_first = ARG(0) == 0x8e4d;
     return 0;
 }
 static uint32_t api_Scissor(void) {
@@ -315,39 +325,47 @@ static uint32_t topology(uint32_t mode, int *expand) {
 }
 static uint32_t list_topology(uint32_t topo) { return topo == 2 ? 1 : topo == 4 ? 3 : topo; }
 static uint32_t index_at(const uint8_t *d, uint32_t size, uint32_t i) {
-    return size == 2 ? (uint32_t)d[i * 2] | (uint32_t)d[i * 2 + 1] << 8 :
+    return size == 1 ? d[i] : size == 2 ? (uint32_t)d[i * 2] | (uint32_t)d[i * 2 + 1] << 8 :
         (uint32_t)d[i * 4] | (uint32_t)d[i * 4 + 1] << 8 | (uint32_t)d[i * 4 + 2] << 16 | (uint32_t)d[i * 4 + 3] << 24;
 }
-/* List indices of one restart-free run of m vertices starting at s: vertex k is index k of `d` (u16/u32 element
+/* List indices of one restart-free run of m vertices starting at s: vertex k is index k of `d` (u8/u16/u32 element
  * data) or, without element data, s + k. Writes them to `out` when given; returns how many there are. */
+/* K62: with GL_FIRST_VERTEX_CONVENTION each primitive is emitted with GL's first-convention provoking vertex (GL 3.3
+ * Table 2.14) last, by a cyclic rotation (winding kept): every list/loop/strip/adjacency line (b, a); triangles and
+ * even strip triangles (b, c, a); odd strip, fan and odd strip-adjacency triangles, whose provoking vertex is GL's
+ * second, (c, a, b). §13 then takes the last vertex as for GL's default convention. */
+static int expand_first;
 static uint64_t expand_run(uint32_t mode, const uint8_t *d, uint32_t size, uint32_t s, uint32_t m, uint32_t *out) {
     uint64_t n = 0;
 #define XV(k) (d ? index_at(d, size, s + (k)) : s + (k))
 #define XP(k) do { if (out) out[n] = XV(k); n++; } while (0)
+#define XL(a, b) do { if (expand_first) { XP(b); XP(a); } else { XP(a); XP(b); } } while (0)
+#define XT(a, b, c, p) do { if (!expand_first) { XP(a); XP(b); XP(c); } else if ((p) == 0) { XP(b); XP(c); XP(a); } \
+    else { XP(c); XP(a); XP(b); } } while (0)
     switch (mode) {
     case 0: for (uint32_t i = 0; i < m; i++) XP(i); break;
-    case 1: for (uint32_t i = 0; i + 1 < m; i += 2) { XP(i); XP(i + 1); } break;
-    case 2: if (m >= 2) { for (uint32_t i = 0; i + 1 < m; i++) { XP(i); XP(i + 1); } XP(m - 1); XP(0); } break;
-    case 3: for (uint32_t i = 0; i + 1 < m; i++) { XP(i); XP(i + 1); } break;
-    case 4: for (uint32_t i = 0; i + 2 < m; i += 3) { XP(i); XP(i + 1); XP(i + 2); } break;
+    case 1: for (uint32_t i = 0; i + 1 < m; i += 2) XL(i, i + 1); break;
+    case 2: if (m >= 2) { for (uint32_t i = 0; i + 1 < m; i++) XL(i, i + 1); XL(m - 1, 0); } break;
+    case 3: for (uint32_t i = 0; i + 1 < m; i++) XL(i, i + 1); break;
+    case 4: for (uint32_t i = 0; i + 2 < m; i += 3) XT(i, i + 1, i + 2, 0); break;
     case 5:
         for (uint32_t i = 0; i + 2 < m; i++) {
-            if (i & 1) { XP(i + 1); XP(i); } else { XP(i); XP(i + 1); }
-            XP(i + 2);
+            if (i & 1) XT(i + 1, i, i + 2, 1); else XT(i, i + 1, i + 2, 0);
         }
         break;
-    case 6: for (uint32_t i = 0; i + 2 < m; i++) { XP(0); XP(i + 1); XP(i + 2); } break;
-    case 0xa: for (uint32_t i = 0; i + 3 < m; i += 4) { XP(i + 1); XP(i + 2); } break;
-    case 0xb: for (uint32_t i = 1; i + 2 < m; i++) { XP(i); XP(i + 1); } break;
-    case 0xc: for (uint32_t i = 0; i + 5 < m; i += 6) { XP(i); XP(i + 2); XP(i + 4); } break;
+    case 6: for (uint32_t i = 0; i + 2 < m; i++) XT(0, i + 1, i + 2, 1); break;
+    case 0xa: for (uint32_t i = 0; i + 3 < m; i += 4) XL(i + 1, i + 2); break;
+    case 0xb: for (uint32_t i = 1; i + 2 < m; i++) XL(i, i + 1); break;
+    case 0xc: for (uint32_t i = 0; i + 5 < m; i += 6) XT(i, i + 2, i + 4, 0); break;
     case 0xd:
         for (uint32_t j = 0; m >= 6 && j < (m - 4) / 2; j++) {
-            if (j & 1) { XP(2 * j + 2); XP(2 * j); } else { XP(2 * j); XP(2 * j + 2); }
-            XP(2 * j + 4);
+            if (j & 1) XT(2 * j + 2, 2 * j, 2 * j + 4, 1); else XT(2 * j, 2 * j + 2, 2 * j + 4, 0);
         }
         break;
     default: break;
     }
+#undef XT
+#undef XL
 #undef XP
 #undef XV
     return n;
@@ -562,13 +580,26 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (feedback_program->vertex_only && !rasterizer_discard) { fail(BAD_OP); return 0; }
     /* K61: element data that meets the enabled restart index is expanded (any mode). The data is only read when
      * the range is valid; an invalid range fails index validation below. */
-    Buffer *eb = &buffers[vaos[vao].element]; uint32_t esize = index_type == U16 ? 2 : 4;
-    const uint8_t *edata = index_type && (index_type == U16 || index_type == U32) && eb->gpu && eb->data && !eb->generated &&
+    if (index_type && index_type != U8 && index_type != U16 && index_type != U32) { fail(BAD_ENUM); return 0; }
+    Buffer *eb = &buffers[vaos[vao].element]; uint32_t esize = index_type == U16 ? 2 : index_type == U8 ? 1 : 4;
+    const uint8_t *edata = index_type && eb->gpu && eb->data && !eb->generated &&
         index_offset % esize == 0 && (uint64_t)index_offset + (uint64_t)(uint32_t)count * esize <= eb->size ? eb->data + index_offset : 0;
-    int restart = edata && ((other_caps >> 10) & 1) && (index_type == U32 || restart_index <= 0xffff);
+    int restart = edata && ((other_caps >> 10) & 1) && (index_type == U32 || restart_index <= (index_type == U16 ? 0xffffu : 0xffu));
     if (restart && !expand) {
         uint32_t i = 0; while (i < (uint32_t)count && index_at(edata, esize, i) != restart_index) i++;
         if (i < (uint32_t)count) { expand = 1; topo = list_topology(topo); }
+    }
+    /* K62: GL_UNSIGNED_BYTE element data has no §13 index format: it is widened into the u32 list the expansion
+     * uploads into the index ring (an invalid range or GPU-written element buffer fails validation below). */
+    if (index_type == U8 && edata && !expand) { expand = 1; topo = list_topology(topo); }
+    /* K62: GL_FIRST_VERTEX_CONVENTION for a program with flat varyings: expand to lists with each primitive's
+     * first-convention provoking vertex drawn last (expand_run). Transform feedback records GL's order, so a rasterizing capture keeps the
+     * last-vertex convention (counted approximation); a discarding capture rasterizes nothing. */
+    int rotate = 0;
+    if (provoking_first && topo != 0 && programs[program].info->flat_inputs && !(rasterizer_discard && tf_active)) {
+        if (tf_active) approximate("glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) with transform feedback (last vertex used)");
+        else if (index_type && !edata) approximate("glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) with GPU-written indices (last vertex used)");
+        else { rotate = 1; if (!expand) { expand = 1; topo = list_topology(topo); } }
     }
     uint64_t xcount64 = expand ? expand_draw(mode, edata, esize, (uint32_t)count, restart, 0) : 0;
     if (xcount64 > 0xffffffffu) { fail(OOM); return 0; }
@@ -588,10 +619,17 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         capture_words[3 + i * 3] = size - tf_cursor[i];
     }
     Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
-    if (index_type && index_type != U16 && index_type != U32) { fail(BAD_ENUM); return 0; }
-    if (viewport[0] < 0 || viewport[1] < 0 || viewport[2] <= 0 || viewport[3] <= 0 ||
-        (uint64_t)viewport[0] + viewport[2] > tg.w ||
-        (uint64_t)viewport[1] + viewport[3] > tg.h) { fail(BAD_VALUE); return 0; }
+    /* K62: GL accepts any viewport and clips rasterization to the target; §13 VIEWPORT may extend past the
+     * attachment and both backends clip exactly. Origins are clamped to +-32768 (any viewport that can reach a
+     * target <= 16384 keeps its exact origin); an empty viewport becomes a 1x1 rectangle far outside the target,
+     * which rasterizes nothing while transform feedback still captures. Top-left origin for §13. */
+    float view[4] = {-32768, -32768, 1, 1};
+    if (viewport[2] > 0 && viewport[3] > 0) {
+        int64_t x = viewport[0], y = (int64_t)tg.h - viewport[1] - viewport[3];
+        view[0] = (float)(x < -32768 ? -32768 : x > 32768 ? 32768 : x);
+        view[1] = (float)(y < -32768 ? -32768 : y > 32768 ? 32768 : y);
+        view[2] = (float)viewport[2]; view[3] = (float)viewport[3];
+    }
     /* Colour outputs the shader declares but the pass lacks (e.g. depth-only FBOs) go to a scratch target
      * with writes disabled, because §13 rejects outputs without an attachment. */
     if (programs[program].nout > 4) { fail(BAD_OP); return 0; }
@@ -708,7 +746,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         w32_gl_pipelines++;
     }
     uint32_t max_index = first + (uint32_t)count - 1;
-    Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : 4;
+    Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : index_type == U8 ? 1 : 4;
     if (index_type) {
         if (ib->generated) { fail(BAD_OP); return 0; }
         if (!ib->gpu || index_offset % index_size || (uint64_t)index_offset + (uint32_t)count * index_size > ib->size) {
@@ -736,18 +774,19 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * other expansion is generated here and uploaded into the index ring by this draw's own list. */
     uint32_t xbuf = 0, xoff = 0, xbytes = 0, *xlist = 0; int32_t xbase = index_type ? base_vertex : (int32_t)first;
     if (expand) {
-        if (mode == 6 && !index_type) {
+        if (mode == 6 && !index_type && !rotate) {
             if (!fan_buffer(xcount / 3)) return 0;
             xbuf = fan_gpu; xbytes = xcount * 4;
         } else {
             if (!(xlist = expand_scratch(xcount))) return 0;
-            expand_draw(mode, edata, esize, (uint32_t)count, restart, xlist);
+            expand_first = rotate; expand_draw(mode, edata, esize, (uint32_t)count, restart, xlist); expand_first = 0;
             if (!ring_reserve(xcount * 4)) return 0;
             xbuf = xring_gpu; xoff = xring_at; xbytes = xcount * 4;
         }
     }
     if (!uniform_ranges(p, block_handles, block_offsets, 1)) return 0;
-    float h = (float)tg.h; copy(p->values + p->info->meta_off, &h, 4);
+    float h = (float)tg.h, flip = range_min > range_max ? 1.0f : 0.0f;
+    copy(p->values + p->info->meta_off, &h, 4); copy(p->values + p->info->meta_off + 4, &flip, 4); /* K62 meta.y */
     uint32_t swz_base = p->info->split ? p->info->meta_off + 16 : p->usize - p->info->nslots * 16;
     for (uint32_t slot = 0; slot < p->info->nslots; slot++) {
         uint32_t unit = p->slot_unit[slot], id = tex_bind[p->info->slot_dim[slot]][unit];
@@ -773,8 +812,8 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     begin();
     if (xlist) { uint32_t up[] = {xbuf, xoff, PTR(xlist), xbytes}; op(0x41, up, 4); }
     op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
-    uint32_t vp[] = {bits((float)viewport[0]), bits(h - viewport[1] - viewport[3]), bits((float)viewport[2]),
-        bits((float)viewport[3]), bits(range_min), bits(range_max)}; op(0x4f, vp, 6);
+    uint32_t vp[] = {bits(view[0]), bits(view[1]), bits(view[2]), bits(view[3]),
+        bits(flip ? range_max : range_min), bits(flip ? range_min : range_max)}; op(0x4f, vp, 6);
     if (scissor_enabled) { uint32_t sc[4]; scissor_rect(&tg, sc); op(0x50, sc, 4); }
     uint32_t sr[] = {stencil_ref}; op(0x51, sr, 1);
     uint32_t bc[] = {bits(blend_color[0]), bits(blend_color[1]), bits(blend_color[2]), bits(blend_color[3])};
