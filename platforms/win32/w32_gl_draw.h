@@ -20,12 +20,37 @@ static uint32_t stencil_op(uint32_t v) {
         case 0x1e02: return 3; case 0x1e03: return 4; case 0x150a: return 5;
         case 0x8507: return 6; case 0x8508: return 7; default: fail(BAD_ENUM); return 0; }
 }
+/* K60: every other GL 3.3 core glEnable capability is tracked state (glIsEnabled/glGet report it; no
+ * INVALID_ENUM, as in GL). DITHER (initially enabled; dithering is implementation-defined) and MULTISAMPLE
+ * (initially enabled) never change §13 rendering. The others are not rendered when enabled: enabling one is
+ * a counted approximation (rendering stays as with the capability disabled, which is what K53-K57 rendered
+ * after rejecting the call with GL_INVALID_ENUM). */
+static uint32_t other_caps = 3u; /* bit 0 DITHER, bit 1 MULTISAMPLE: initially enabled */
+static int other_capability(uint32_t cap) {
+    switch (cap) {
+    case 0x0bd0: return 0; case 0x809d: return 1; /* DITHER, MULTISAMPLE */
+    case 0x0bf2: return 2; case 0x864f: return 3; case 0x8db9: return 4; case 0x0b20: return 5; /* LOGIC_OP, DEPTH_CLAMP, FB_SRGB, LINE_SMOOTH */
+    case 0x8037: return 6; case 0x2a02: return 7; case 0x2a01: return 8; case 0x0b41: return 9; /* POLYGON_OFFSET_*, POLYGON_SMOOTH */
+    case 0x8f9d: return 10; case 0x8642: return 11; case 0x809e: return 12; case 0x809f: return 13; /* RESTART, POINT_SIZE, A2C, A2ONE */
+    case 0x80a0: return 14; case 0x8e51: return 15; case 0x884f: return 16; /* SAMPLE_COVERAGE, SAMPLE_MASK, CUBE_MAP_SEAMLESS */
+    default: return cap >= 0x3000 && cap <= 0x3007 ? (int)(17 + cap - 0x3000) : -1; /* CLIP_DISTANCE0..7 */
+    }
+}
+static uint32_t other_flag;
 static uint32_t *capability(uint32_t cap) {
     switch (cap) { case 0xbe2: return &blend; case 0xb71: return &depth; case 0xb90: return &stencil;
-        case 0xb44: return &cull; case 0xc11: return &scissor_enabled; case 0x8c89: return &rasterizer_discard; default: return 0; }
+        case 0xb44: return &cull; case 0xc11: return &scissor_enabled; case 0x8c89: return &rasterizer_discard; default: break; }
+    int bit = other_capability(cap); if (bit < 0) return 0;
+    other_flag = (other_caps >> bit) & 1; return &other_flag;
 }
 static uint32_t enable(int enabled) {
-    uint32_t *v = capability(ARG(0)); if (!v) fail(BAD_ENUM); else *v = (uint32_t)enabled; return 0;
+    uint32_t cap = ARG(0); int bit = other_capability(cap);
+    if (bit >= 0) {
+        other_caps = enabled ? other_caps | (1u << bit) : other_caps & ~(1u << bit);
+        if (enabled && bit >= 2) approximate_hex("glEnable capability not rendered", cap);
+        return 0;
+    }
+    uint32_t *v = capability(cap); if (!v) fail(BAD_ENUM); else *v = (uint32_t)enabled; return 0;
 }
 static uint32_t api_Enable(void) { return enable(1); }
 static uint32_t api_Disable(void) { return enable(0); }
@@ -435,9 +460,11 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
         attr_slots[i] = s; nattrs++;
     }
+    /* K60: single-instance constants ride in the program's uniform upload (see GL_UBO_TAIL). */
+    int tail_constants = disabled && instances == 1 && !(p->usize & 15);
     if (disabled) {
         if (nslots == 8) { fail(BAD_OP); return 0; }
-        ensure_current_buffer((uint32_t)instances); if (error) return 0;
+        if (!tail_constants) { ensure_current_buffer((uint32_t)instances); if (error) return 0; }
         constant_slot = nslots++; w[26 + constant_slot * 2] = 256; w[27 + constant_slot * 2] = 1;
         for (uint32_t i = 0; i < 16; i++) if (disabled & (1u << i)) {
             if (!attr_components[i]) { fail(BAD_OP); return 0; }
@@ -514,9 +541,15 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             put32(p->values + swz_base + slot * 16 + c * 4, v == 0 ? 4 : v == 1 ? 5 : v - 0x1903u);
         }
     }
-    uint32_t upload[] = {p->ubuf, 0, PTR(p->values), p->usize};
+    if (tail_constants) {
+        init_current_attr();
+        for (uint32_t i = 0; i < 16; i++) for (uint32_t j = 0; j < 4; j++) put32(p->values + p->usize + i * 16 + j * 4, bits(current_attr[i][j]));
+    }
+    uint32_t ring = p->ubo_slots ? p->ubo_next % p->ubo_slots * ubo_stride(p->usize) : 0;
+    uint32_t upload[] = {p->ubuf, ring, PTR(p->values), p->usize + (tail_constants ? GL_UBO_TAIL : 0)};
     if (!send_deferred(0x41, upload, 4)) { retire_generated_ubos(); return 0; }
     PendRec *ubo = pend_last; /* deferred: a replayed rejection re-marks the values dirty and skips the draw */
+    p->ubo_next++;
     if (ubo) { ubo->kind = PR_UBO; ubo->obj = (uint32_t)(p - programs); }
     p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
@@ -534,13 +567,16 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     uint32_t bc[] = {bits(blend_color[0]), bits(blend_color[1]), bits(blend_color[2]), bits(blend_color[3])};
     op(0x52, bc, 4);
     for (uint32_t s = 0; s < nslots; s++) {
-        if (s == constant_slot) { uint32_t vb[] = {s, current_gpu, 0, (uint32_t)instances * 256u}; op(0x53, vb, 4); continue; }
+        if (s == constant_slot) {
+            uint32_t vb[] = {s, tail_constants ? p->ubuf : current_gpu, tail_constants ? ring + p->usize : 0, (uint32_t)instances * 256u};
+            op(0x53, vb, 4); continue;
+        }
         Attribute *a = &vaos[vao].a[slots[s]]; Buffer *b = &buffers[a->buffer];
         uint32_t offset = a->offset - a->offset % a->stride;
         uint32_t vb[] = {s, b->gpu, offset, b->size - offset}; op(0x53, vb, 4);
     }
-    uint32_t ub[] = {0, p->ubuf, 0, p->info->ubytes}; op(0x55, ub, 4);
-    if (p->info->split) { uint32_t mb[] = {p->info->meta_slot, p->ubuf, p->info->meta_off, 16 + 16 * p->info->nslots}; op(0x55, mb, 4); }
+    uint32_t ub[] = {0, p->ubuf, ring, p->info->ubytes}; op(0x55, ub, 4);
+    if (p->info->split) { uint32_t mb[] = {p->info->meta_slot, p->ubuf, ring + p->info->meta_off, 16 + 16 * p->info->nslots}; op(0x55, mb, 4); }
     for (uint32_t i = 0; i < p->nb; i++) {
         uint32_t b[] = {i + 1, block_handles[i], block_offsets[i], p->info->b[i].size}; op(0x55, b, 4);
     }

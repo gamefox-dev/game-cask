@@ -57,5 +57,6 @@ test('partial two-block materialization retires generated private UBOs after upl
      'capacity reuse keeps the exact logical size','logical bounds after capacity reuse','deferred capture limit surfaced',
      'rejected capture counts no primitives','headroom growth near the resident limit retried exact','exact retry keeps the bytes',
      'slack reclaimed before GL_OUT_OF_MEMORY','reclaimed store keeps its bytes','wide stores deleted',
-   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup'])expect(r.logs.some(s=>s.includes('ok '+note))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
+   'texture fits after slack reclaim','texture reclaim keeps the store bytes','texture reclaim cleanup',
+   'deferred failure before validation error is first','first-error latch cleared','validation error before deferred failure is first','second latch cleared'])expect(r.logs.some(s=>s.includes('ok '+note))).toBe(true);expect(r.logs.filter(s=>s.includes('x64-gl-ranges FAIL'))).toEqual([]);}
 });

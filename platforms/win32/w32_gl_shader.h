@@ -208,7 +208,7 @@ static void invalidate_pipelines(void) {
 }
 static void program_free_link(Program *p) {
     if (p->info) { glp_free(p->info, sizeof(Gp)); p->info = 0; }
-    if (p->values) { glp_free(p->values, p->usize); p->values = 0; }
+    if (p->values) { glp_free(p->values, p->usize + GL_UBO_TAIL); p->values = 0; }
     p->nb = p->nslots = p->ndef = 0;
 }
 static uint32_t link_program_build(void) {
@@ -242,14 +242,15 @@ static uint32_t link_program_build(void) {
         glp_free(g, sizeof(Gp)); if (!log.errors) gs_put(&log, "error: program failed to link\n"); return 0;
     }
     if (!p->fs) glp_free(fs, sizeof(GsUnit));
-    p->values = glp_alloc(g->usize); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
+    p->values = glp_alloc(g->usize + GL_UBO_TAIL); if (!p->values) { glp_free(g, sizeof(Gp)); fail(OOM); return 0; }
     if (p->ubuf && p->usize != g->usize) { release_wire(0x42, p->ubuf, "programs"); p->ubuf = 0; }
     p->usize = g->usize;
     if (!p->ubuf) {
         for (uint32_t h = 256; h < 700 && !p->ubuf; h++) if (!gpu_buffer[h]) p->ubuf = h;
         if (!p->ubuf) p->ubuf = buffer_handle(0, "programs");
         if (!p->ubuf) { glp_free(g, sizeof(Gp)); gs_put(&log, "error: out of GPU uniform buffer handles\n"); fail(OOM); return 0; }
-        uint32_t payload[] = {p->ubuf, 4, p->usize, 0, 0};
+        p->ubo_slots = ubo_ring_slots(p->usize); p->ubo_next = 0;
+        uint32_t payload[] = {p->ubuf, 5, p->ubo_slots * ubo_stride(p->usize), 0, 0}; /* K60: ring of uniform + constant-attribute slots */
         if (!send(0x40, payload, 5)) { p->ubuf = 0; if (error == OOM) object_exhaustion("programs", "GPU byte/submission budget", 1);
             glp_free(g, sizeof(Gp)); gs_put(&log, error == OOM ? "error: uniform buffer submission out of memory\n" : "error: uniform buffer submission failed\n"); return 0;
         }

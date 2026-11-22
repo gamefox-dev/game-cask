@@ -43,6 +43,10 @@ export interface GpuStats {
   /** §13 passes continued in the previous native pass / WebGPU copy-on-write buffer renames. */
   mergedPasses?: number;
   bufferRenames?: number;
+  /** K60 WebGPU: bytes rewritten by renames; transform-feedback GLSL translations / compute lowerings this frame (cache misses). */
+  renameBytes?: number;
+  captureTranslations?: number;
+  captureLowerings?: number;
   /** WebGL 2: redundant program/VAO/viewport/scissor/depth-range/blend-color calls skipped by the state shadow. */
   skippedBinds?: number;
   /** Opt-in GPU time (ms) of a recently completed frame's §13 passes; null when unavailable/pending. */

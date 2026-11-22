@@ -1,5 +1,6 @@
 /* Queries and WGL. SPDX-License-Identifier: MIT — LANE-GL */
-static uint32_t api_GetError(void) { flush_pending(); uint32_t e = error; error = 0; return e; }
+/* K60: latch_fix is a deferred call's error that preceded the latched validation error (see fail()). */
+static uint32_t api_GetError(void) { flush_pending(); uint32_t e = latch_fix ? latch_fix : error; error = latch_fix = 0; return e; }
 static uint32_t string_guest(const char *s) {
     uint32_t n = w32_slen(s) + 1, p = w32_misc_alloc(n);
     for (uint32_t i = 0; i < n; i++) x86_wr8(p + i, (uint8_t)s[i]);
