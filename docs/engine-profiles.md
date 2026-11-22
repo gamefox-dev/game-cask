@@ -96,8 +96,11 @@ template's service worker (Godot 4's `ensureCrossOriginIsolationHeaders` is off:
 Threaded shells fail loudly when the page is not cross-origin isolated.
 
 **Blockers** (fail-closed, structural): `native-extension/GDNative` / `native-extension/GDExtension` (`.dll/.so/
-.dylib/.gdnlib/.gdns/.gdextension`, `extension_list.cfg`, GDNative singletons), `Mono/C#` (`.cs`, assemblies,
-`data_*` dirs, `C#` feature, `.mono.` runner), `encrypted-pack`, `encrypted-content`, `encrypted-script`,
+.dylib/.gdnlib/.gdns/.gdextension`, `extension_list.cfg`, GDNative singletons; the Direct3D 12/DXIL/ANGLE DLLs of
+official 4.x Windows exports are not extensions), `Mono/C#` (`.cs`/`.csproj`/`.sln`, `res://*.cs` script references,
+CLR assemblies, `GodotSharp`/`GodotPlugins`/Mono runtime DLLs, assemblies in `data_*` dirs, `data_*/Assemblies|Mono/`,
+`.mono/`, the `C#` feature or assembly-name settings, and a `.mono.` runner version signature — never symbol strings
+such as `GodotSharp`, which every official build contains), `encrypted-pack`, `encrypted-content`, `encrypted-script`,
 `patch-pack` (4.4 removal entries), `additional-packs`, `platform-code/OS.execute`, runner `custom_build`/prerelease/
 unknown build, `no-official-web-runtime-for-version`, `threads-required-but-no-threaded-web-runtime` (3.2),
 `runtime-version-mismatch`, `uninspected-files`. **Requirements/warnings** (never block): thread use (selects the
