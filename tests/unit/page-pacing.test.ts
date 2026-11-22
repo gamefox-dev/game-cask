@@ -20,3 +20,15 @@ it('pipeline pacing: one update per ~60 Hz rAF tick with jitter, backlog still d
   expect(retainedAccumulator(80, 4, 4, step)).toBe(0); // native BGT catch-up unchanged
   expect(retainedAccumulator(5, 0, 1, step)).toBe(5);
 });
+// K66 (Q123). Breakage caught: a burst after a normal (presenting/time-advancing) update, a burst without a wall
+// budget or without the one-period guest-time cap, and ?ioburst=0 not restoring one update per tick.
+it('transport bursts continue only after time-neutral transport yields, within budget and one guest period', async () => {
+  const { continueTransport, TRANSPORT_BURST_MS, TRANSPORT_BURST_GUEST_US } = await import('../../bgt/runtime/page-pacing');
+  expect(TRANSPORT_BURST_MS).toBe(12); expect(TRANSPORT_BURST_GUEST_US).toBe(16667);
+  expect(continueTransport(true, 3, 12, 100, 200)).toBe(true);
+  expect(continueTransport(false, 3, 12, 100, 200)).toBe(false); // a normal frame: one update per tick
+  expect(continueTransport(true, 12, 12, 100, 200)).toBe(false); // wall budget spent
+  expect(continueTransport(true, 3, 0, 100, 200)).toBe(false); // ?ioburst=0
+  expect(continueTransport(true, 3, 12, 100, 100 + 16667)).toBe(false); // one frame period of instruction time
+  expect(continueTransport(true, 3, 12, null, null)).toBe(true); // no guest clock export: budget only
+});

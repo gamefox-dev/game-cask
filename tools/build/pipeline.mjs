@@ -403,6 +403,7 @@ BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();
 BGT_EXPORT(bgt_interpreter_coverage) uint32_t bgt_interpreter_coverage(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}
 BGT_EXPORT(bgt_guest_time_us) double bgt_guest_time_us(void) {return w32_guest_time_us();}
 BGT_EXPORT(bgt_guest_presentations) uint32_t bgt_guest_presentations(void) {return (uint32_t)(uintptr_t)w32_guest_presentations();}
+BGT_EXPORT(bgt_yield_kind) uint32_t bgt_yield_kind(void) {return w32_yield_kind();}
 BGT_EXPORT(bgt_debug_state) uint32_t bgt_debug_state(void) { return (uint32_t)(uintptr_t)w32_debug_json(); }
 BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) { return (uint32_t)(uintptr_t)x86_debug_peek(addr, len); }
 `);

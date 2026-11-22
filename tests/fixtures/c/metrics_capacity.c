@@ -24,6 +24,7 @@ void x86_coverage_flush(void){}
 uint64_t w32_gl_calls,w32_gl_draws,w32_gl_state_changes,w32_gl_pipelines,w32_gl_unimplemented,w32_gl_approximations;
 uint64_t w32_gl_buffer_respec_reused,w32_gl_buffer_respec_resized,w32_gl_buffer_respec_grew,w32_gl_buffer_respec_shrank;
 uint64_t w32_gl_buffer_capacity_reused,w32_gl_buffer_capacity_grown,w32_gl_buffer_capacity_released,w32_gl_reclaim_retries; /* K57 capacity counters */
+uint64_t w32_gl_buffer_zero_stores; /* K66 */
 uint64_t w32_gl_batched_lists,w32_gl_batch_flushes,w32_gl_sync_submits,w32_gl_batch_replays; /* K53 batching counters (I17 merge) */
 const char *w32_gl_stubs_json(void){return "[]";}
 /* Idle GL metric provider only; object behavior is exercised by x64-gl-capacity. */
@@ -31,6 +32,7 @@ const char *w32_gl_objects_json(void){return "{}";}
 const char *w32_gl_approximations_json(void){return "[]";}
 uint64_t w32_gl_errors_raised,w32_gl_expanded_draws,w32_gl_partial_clears; /* K61 census counters */
 const char *w32_gl_error_calls_json(void){return "{}";}
+const char *w32_gl_error_codes_json(void){return "{}";}
 int w32_rp_enabled(void){return 0;}
 /* K50 guest-time metric providers: idle CPU state and zero scheduler/audio diagnostics. */
 x86_cpu_t X;

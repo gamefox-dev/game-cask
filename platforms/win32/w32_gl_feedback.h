@@ -82,7 +82,7 @@ static uint32_t api_BeginTransformFeedback(void) {
     Program *p = &programs[program]; uint32_t slots = p->tf_link_separate ? p->tf_link_count : 1;
     for (uint32_t i = 0; i < slots; i++) {
         uint32_t id = tf_bound[i];
-        if (!id || !buffers[id].gpu || !(tf_whole[i] ? buffers[id].size : tf_size[i])) { fail(BAD_OP); return 0; }
+        if (!id || !HAS_STORE(id) || !(tf_whole[i] ? buffers[id].size : tf_size[i])) { fail(BAD_OP); return 0; }
         for (uint32_t j = 0; j < i; j++) if (tf_bound[j] == id) { fail(BAD_OP); return 0; }
     }
     zero(tf_cursor, sizeof tf_cursor); tf_mode = mode; tf_active = 1; return 0;

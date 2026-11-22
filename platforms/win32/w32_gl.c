@@ -57,7 +57,20 @@ static uint32_t latch_outer, latch_local, latch_fix;
 static int fail_deferred(uint32_t e);
 /* K61: every raised error is counted (gl_errors_raised) and attributed to the running entry point (gl_error_calls). */
 uint64_t w32_gl_errors_raised;
-static void fail(uint32_t e) { w32_gl_errors_raised++; if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
+/* K66: the first error code raised by the running entry point (gl_error_codes census). It is the call's OWN first
+ * error (every fail() during the call), not what glGetError returns: an error already latched by an earlier call is
+ * still reported first by glGetError, and a flush can correct the reported order (latch_fix, see replay_first). A
+ * deferred call's rejection found later by a batch replay (replay_whole/replay) sets the latch directly and is not
+ * attributed to any entry (neither gl_error_calls nor gl_error_codes nor gl_errors_raised). */
+static uint32_t call_error;
+static void fail(uint32_t e) {
+    w32_gl_errors_raised++; if (!call_error) call_error = e;
+    if (fail_deferred(e)) return;
+    flush_pending(); if (!error) error = e;
+}
+/* Census slot of a GL error code: 0x500..0x506 -> 0..6, anything else -> 7. */
+#define GL_ERROR_SLOTS 8u
+static uint32_t error_slot(uint32_t e) { return e >= 0x500u && e <= 0x506u ? e - 0x500u : 7u; }
 static int eq(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; } return *a == *b;
 }
@@ -325,6 +338,7 @@ static int fail_deferred(uint32_t e) { (void)e; return 0; }
 void w32_gl_flush(void) {}
 static void retire_block(uint8_t *p, uint32_t n) { if (p) glp_free(p, n); }
 static int submit_deferred_x(uint32_t reserve) { (void)reserve; pend_last = 0; return submit(); }
+static void pend_resize(uint32_t obj, uint8_t *dst, uint32_t size_old, uint32_t size_new) { (void)obj; (void)dst; (void)size_old; (void)size_new; }
 #else
 /* Journal effects for a replayed batch, after the Buffer/Program types: undo (newest-first, back to the
  * pre-batch state), redo (oldest-first, accepted calls only), reject (rejected calls), fixup (after both). */
@@ -505,6 +519,15 @@ static int submit_deferred_x(uint32_t reserve) {
     if (reserve) { r->old = pend_data + pend_used; pend_used += (reserve + 15u) & ~15u; }
     bgt_cmd_reset(&cmd); w32_gl_batched_lists++; pend_last = r;
     return 1;
+}
+/* K66: a command-free journal record of a logical size change the profile made while deferred calls are
+ * pending (zero-size glBufferData keeps its capacity): undo/redo restore the size like a PR_BYTES resize. */
+static void pend_resize(uint32_t obj, uint8_t *dst, uint32_t size_old, uint32_t size_new) {
+    if (nrecs >= sizeof recs / sizeof recs[0]) flush_pending();
+    if (!nrecs) return; /* nothing pending: the change is final */
+    PendRec *r = &recs[nrecs++];
+    *r = (PendRec){.seq = ++pend_seq, .start = pend.len, .end = pend.len, .kind = PR_BYTES, .obj = obj,
+        .old = dst, .src = dst, .dst = dst, .size_old = size_old, .size_new = size_new, .resize = 1};
 }
 #endif
 static int submit_deferred(void) { return submit_deferred_x(0); }
@@ -829,6 +852,10 @@ static uint32_t api_BindBuffer(void) {
 #define BUFFER_SLACK_MAX (16u << 20)
 #define BUFFER_RELEASE_MIN (64u << 10)
 uint64_t w32_gl_buffer_capacity_reused, w32_gl_buffer_capacity_grown, w32_gl_buffer_capacity_released;
+uint64_t w32_gl_buffer_zero_stores; /* K66: glBufferData(size 0) calls that took effect */
+/* K66: a buffer has a data store with bytes. A zero-size store may keep its native store as capacity (gpu != 0),
+ * but behaves exactly like a buffer without a store wherever a store is required. */
+#define HAS_STORE(id) (buffers[id].gpu && buffers[id].size)
 static uint64_t slack_max(void) { uint64_t m = upload_budget / 16; return m < BUFFER_SLACK_MAX ? m : BUFFER_SLACK_MAX; }
 /* Every change of a buffer's logical size or capacity goes through here (slack accounting). */
 static void store_size(Buffer *b, uint32_t size, uint32_t cap) {
@@ -869,7 +896,17 @@ static void reclaim_slack(void) {
     flush_pending(); reclaiming = 1; latch_local++;
     for (uint32_t s = 1; s < BN && buffer_slack; s++) {
         Buffer *o = &buffers[s];
-        if (!o->used || !o->gpu || !o->size || o->cap <= o->size || o->generated) continue;
+        if (!o->used || !o->gpu || o->cap <= o->size || o->generated) continue;
+        if (!o->size) { /* K66: a zero-size store's whole capacity is slack: release it (no store, as GL's) */
+            gpu_usage_t d = {16 + 8 + 4, 1, 0, 0, 0}; host_frame_sync(); if (!fits(&frame_use, &d)) continue;
+            uint32_t pending = error, h = o->gpu; error = 0;
+            if (send(0x42, &h, 1)) {
+                if (h < buffer_wire_slots) { gpu_buffer[h] = 0; if (h < buffer_next_free) buffer_next_free = h; }
+                unmap_storage(o); retire_block(o->data, o->cap); o->data = 0; store_size(o, 0, 0); o->gpu = 0;
+                w32_gl_buffer_capacity_released++;
+            }
+            error = pending; continue;
+        }
         gpu_usage_t u = {3 * (16 + 8) + 4 + 2 * 20, 3, 0, (uint64_t)o->size + o->cap, 0}; /* DELETE, CREATE, fallback */
         host_frame_sync(); if (!fits(&frame_use, &u)) continue;
         uint8_t *exact = glp_alloc(o->size); if (!exact) break;
@@ -895,18 +932,26 @@ static void reclaim_slack(void) {
  * contents then a zero tail), as DELETE + one CREATE (a single command takes effect whole or not at all).
  * keep_map keeps a guest mapping (sub-data replacements); glBufferData resets it. 1 = done; 0 = the
  * DELETE was rejected (old store kept) or the CREATE was (store left empty, GL_OUT_OF_MEMORY latched). */
-static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int keep_map) {
+/* Release b's native store (deferred DELETE) and leave it empty (no store, size 0). 1 = done; 0 = the DELETE
+ * was rejected (old store kept). *release_seq: the DELETE's journal record, 0 when synchronous/no store. */
+static int buffer_release(Buffer *b, int keep_map, uint64_t *release_seq) {
     uint32_t slot = (uint32_t)(b - buffers), id = b->gpu;
     if (id) {
-        if (!send_deferred(0x42, &id, 1)) { glp_free(block, cap); return 0; }
+        if (!send_deferred(0x42, &id, 1)) return 0;
         PendRec *r = pend_last;
         if (r) { r->kind = PR_RELEASE; r->obj = slot; r->handle = id; }
         if (id < buffer_wire_slots) { gpu_buffer[id] = 0; if (id < buffer_next_free) buffer_next_free = id; }
     }
-    uint64_t release_seq = id && pend_last ? pend_last->seq : 0;
+    *release_seq = id && pend_last ? pend_last->seq : 0;
     if (!keep_map) { unmap_storage(b); b->map_access = 0x88ba; }
     retire_block(b->data, b->cap); b->data = 0;
     store_size(b, 0, 0); b->gpu = 0; b->generated = 0;
+    return 1;
+}
+static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int keep_map) {
+    uint32_t slot = (uint32_t)(b - buffers), id;
+    uint64_t release_seq;
+    if (!buffer_release(b, keep_map, &release_seq)) { glp_free(block, cap); return 0; }
     id = buffer_handle(slot < 256 ? slot : 0, "buffers");
     if (!id) { glp_free(block, cap); return 0; }
     /* Reserve the handle across the CREATE: a slack reclaim inside submit() allocates handles too. */
@@ -942,11 +987,35 @@ static int buffer_store(Buffer *b, uint8_t *block, uint32_t n, uint32_t cap, int
     b->gpu = id; b->data = block; store_size(b, n, cap);
     return 1;
 }
+/* K66 (Q120): glBufferData(target, 0, data, usage) is valid GL 3.3 (§2.9.2: only a negative size is
+ * GL_INVALID_VALUE). The buffer gets a zero-size store: queries report 0 and every draw/map/sub-data range on it
+ * is out of range, exactly as for a never-specified buffer (HAS_STORE). Engines orphan with it before every
+ * batch upload, so it is cheap: a CPU-authoritative store keeps its native store as retained capacity (budgeted
+ * slack, no command at all) and the next glBufferData rewrites it in place; a feedback-written store, or one
+ * whose capacity would exceed the slack budget, is released (one deferred DELETE). Earlier draws are unaffected:
+ * the transport owns their bytes in order. While deferred calls are pending, the logical size change is journaled
+ * as a command-free record so a replayed rejection of an earlier call restores the right size. */
+static int buffer_zero(Buffer *b) {
+    uint32_t old_size = b->size; uint64_t seq;
+    if (!b->gpu) { unmap_storage(b); b->map_access = 0x88ba; w32_gl_buffer_zero_stores++; return 1; }
+    if (b->generated || buffer_slack - (b->cap - b->size) + b->cap > slack_max()) {
+        if (!buffer_release(b, 0, &seq)) return 0;
+        w32_gl_buffer_capacity_released++;
+    } else {
+        pend_resize((uint32_t)(b - buffers), b->data, old_size, 0);
+        unmap_storage(b); b->map_access = 0x88ba; store_size(b, 0, b->cap);
+    }
+    /* vK66: an orphan-then-upload pair is one re-specification: the zero-size call counts only in
+     * gl_buffer_zero_stores, and the following in-place upload counts once (respec_resized/grew, capacity_reused). */
+    w32_gl_buffer_zero_stores++;
+    return 1;
+}
 static uint32_t api_BufferData(void) {
     Buffer *b = bound_buffer(ARG(0)); int64_t size = (int64_t)ARG64(1);
     if (!b) return 0;
-    if (size <= 0 || size > BUFFER_MAX) { fail(BAD_VALUE); return 0; }
+    if (size < 0 || size > BUFFER_MAX) { fail(BAD_VALUE); return 0; }
     if (tf_active) for (uint32_t i = 0; i < 4; i++) if (tf_bound[i] == (uint32_t)(b - buffers)) { fail(BAD_OP); return 0; }
+    if (!size) { if (buffer_zero(b)) default_element_compat(ARG(0), "core VAO 0 element-buffer data upload"); return 0; }
     uint32_t n = (uint32_t)size, id = b->gpu, old_size = b->size;
     uint8_t *data = guest(ARG(2), n); if (!data) return 0;
     int fallback = 0, release = 0;
@@ -1268,11 +1337,11 @@ static const char *entry_objects(const char *name) {
     OBJECTS(programs); return "programs";
 }
 #define API(name, fn, nargs, mutates) \
-    static uint32_t errs_##fn; \
+    static uint32_t errs_##fn[GL_ERROR_SLOTS]; \
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
-        uint64_t raised = w32_gl_errors_raised; \
+        uint64_t raised = w32_gl_errors_raised; call_error = 0; \
         uint32_t pending = error, exhaustion_before = gl_exhaustion_events, outer = latch_outer; error = 0; \
         latch_outer = pending; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
@@ -1283,14 +1352,14 @@ static const char *entry_objects(const char *name) {
         if (error == OOM && exhaustion_before == gl_exhaustion_events) \
             object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
-        if (w32_gl_errors_raised != raised) errs_##fn++; \
+        if (w32_gl_errors_raised != raised) errs_##fn[error_slot(call_error)]++; \
         if (pending) error = pending; \
         latch_outer = outer; \
         return result; \
     }
 #define GLSTUB(name, fn, nargs, mutates) \
-    static uint32_t errs_##fn; \
-    static uint32_t call_##fn(void) { w32_gl_calls++; errs_##fn++; missing(name); fail(BAD_OP); return 0; }
+    static uint32_t errs_##fn[GL_ERROR_SLOTS]; \
+    static uint32_t call_##fn(void) { w32_gl_calls++; errs_##fn[error_slot(BAD_OP)]++; missing(name); fail(BAD_OP); return 0; }
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
@@ -1306,22 +1375,53 @@ const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
  * One loop over a {name, counter} table: a call per entry would inline into a ~200 KiB function, which the
  * whole-module Binaryen -O2/Asyncify transform must then optimize (K61 review: Linux CI wasm-opt failure). */
 static const struct { const char *name; const uint32_t *count; } census[] = {
-#define API(name, fn, nargs, mutates) {name, &errs_##fn},
+#define API(name, fn, nargs, mutates) {name, errs_##fn},
 #define GLSTUB API
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
 };
+static uint32_t census_digits(uint32_t v, char *digits) {
+    uint32_t d = 0; do { digits[d++] = (char)('0' + v % 10); v /= 10; } while (v); return d;
+}
 const char *w32_gl_error_calls_json(void) {
     static char s[4096]; uint32_t n = 0, cap = sizeof s - 2; s[n++] = '{';
     for (uint32_t e = 0; e < sizeof census / sizeof census[0]; e++) {
-        uint32_t count = *census[e].count; if (!count) continue;
-        char digits[12]; uint32_t d = 0, len = w32_slen(census[e].name);
-        do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
+        uint32_t count = 0; for (uint32_t k = 0; k < GL_ERROR_SLOTS; k++) count += census[e].count[k];
+        if (!count) continue;
+        char digits[12]; uint32_t d = census_digits(count, digits), len = w32_slen(census[e].name);
         if (n + len + d + 6 >= cap) break;
         if (n > 1) s[n++] = ',';
         s[n++] = '"'; copy(s + n, census[e].name, len); n += len; s[n++] = '"'; s[n++] = ':';
         while (d) s[n++] = digits[--d];
+    }
+    s[n++] = '}'; s[n] = 0; return s;
+}
+/* K66: the same census split by the first GL error code each counted call raised itself (call_error above: not the
+ * glGetError order, and replayed batch rejections are not attributed):
+ * {"glBufferData":{"0x501":n},...}; codes outside 0x500..0x506 are "other". Per entry the counts sum to
+ * its gl_error_calls value. */
+const char *w32_gl_error_codes_json(void) {
+    static char s[16384]; uint32_t n = 0, cap = sizeof s - 3; s[n++] = '{';
+    for (uint32_t e = 0; e < sizeof census / sizeof census[0]; e++) {
+        uint32_t any = 0; for (uint32_t k = 0; k < GL_ERROR_SLOTS; k++) any |= census[e].count[k];
+        if (!any) continue;
+        uint32_t len = w32_slen(census[e].name);
+        if (n + len + 8 + GL_ERROR_SLOTS * 22 >= cap) break;
+        if (n > 1) s[n++] = ',';
+        s[n++] = '"'; copy(s + n, census[e].name, len); n += len; s[n++] = '"'; s[n++] = ':'; s[n++] = '{';
+        uint32_t first = 1;
+        for (uint32_t k = 0; k < GL_ERROR_SLOTS; k++) {
+            uint32_t count = census[e].count[k]; if (!count) continue;
+            if (!first) s[n++] = ',';
+            first = 0;
+            if (k < 7) { copy(s + n, "\"0x50", 5); n += 5; s[n++] = (char)('0' + k); s[n++] = '"'; }
+            else { copy(s + n, "\"other\"", 7); n += 7; }
+            s[n++] = ':';
+            char digits[12]; uint32_t d = census_digits(count, digits);
+            while (d) s[n++] = digits[--d];
+        }
+        s[n++] = '}';
     }
     s[n++] = '}'; s[n] = 0; return s;
 }

@@ -34,7 +34,8 @@ allocated only while `measurePage` runs, so production pages pay a null check pe
 
 Launch flags: Playwright's default headless shell renders WebGL2 with **SwiftShader**. Use `--use-angle=metal`
 (macOS) or a headed browser to get the GPU. `BGT_WEBGL2_GPU=1` runs the `chromium-webgl2` e2e project on the
-native GPU; without it, that project stays the software CI gate. `npm run probe` and `npm run bench:page` use
+native GPU (K66: and the `port-webgl2` port project, with the same launch); without it, those projects stay the
+software CI gate. `npm run probe` and `npm run bench:page` use
 the native GPU for both backends. Their `--software` flag forces SwiftShader for an A/B comparison.
 
 ## 2. Real-page frame rate: `npm run bench:page`
@@ -57,6 +58,8 @@ warmupMs)` does the run: it resumes the loop, warms up, measures one fixed wall 
 | `updates_per_present` | host updates per canvas present (pipeline games: at most 1) |
 | `guest_presents_per_second`, `guest_presents_per_page_present` | native SwapBuffers/GDI presents over the same window |
 | `raf_per_second`, `busy_ticks` | the loop's ceiling, and ticks skipped because work was still running |
+| `transport_updates`, `max_updates_per_tick` | K66: updates a tick ran after a time-neutral transport yield, and the most updates in one tick |
+| `burst_renders` | vK66: intermediate renders inside such bursts; never counted as presents (a burst tick has one present carrying all its updates) |
 
 The tool writes `<out>/<game>.json`. Each run row holds the summary, the renderer/adapter string, the actual
 backend and suspension mode, and errors. It also records the machine's resources at start and end. A run that
@@ -69,6 +72,15 @@ reset the accumulator to zero after every update. A 60 Hz rAF delivers ticks of 
 16.667 ms step, so updates happened only on every other tick. x64-smoke reached 34 presents/s on both
 backends. `retainedAccumulator` (`bgt/runtime/page-pacing.ts`, shared with K50) now keeps up to one step of remainder, so a stall still drops
 its backlog, and the result is 60 presents/s. Native BGT catch-up is unchanged.
+
+**Transport bursts (K66).** A blocking load (Win32 ReadFile in <= 64 KiB range requests, GL readbacks, shader
+results) yields to the host once per request, without presenting or advancing guest time. One update per rAF tick
+capped such a load at 60 requests/s (Mega Man X8's stage load: 108 s on the page, 14 s back-to-back). The page loop
+now renders such an update and runs the next one in the same tick, up to a 12 ms wall budget (`?ioburst=N` sets it,
+`?ioburst=0` restores one update per tick for A/B), stopping at the first update that presents or crosses a
+guest-time boundary. The guest sees exactly the update sequence of back-to-back `step()`; normal frames keep one
+update per tick. `__BGT_TEST__.pageLoop()` returns `{ticks, updates, transportUpdates, maxUpdatesPerTick}` since load.
+Fixture: `examples/x64-file-load` (768 small reads of a streamed 4 MiB file), spec `tests/e2e/file-load.spec.ts`.
 
 ## 3. Performance builds without coverage
 
