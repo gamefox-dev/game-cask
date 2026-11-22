@@ -1479,7 +1479,9 @@ glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_cal
 number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census. K66 adds the
 backward-compatible sibling `gl_error_codes`, the same census split by the first GL error code each counted call
 raised: `{"glBufferData":{"0x501":n},...}` (keys `"0x500"`..`"0x506"`, `"other"`); per entry the counts sum to its
-`gl_error_calls` value.
+`gl_error_calls` value. The code is the call's own first error, not what glGetError returns (an error latched by an
+earlier call is reported first; a flush may correct the order). Rejections of deferred calls found by a later batch
+replay are not attributed to any entry (as in K61).
 
 **K66 (zero-size glBufferData, profile-only).** `glBufferData(target, 0, data, usage)` is valid (GL 3.3 §2.9.2; only
 a negative size is GL_INVALID_VALUE): the buffer gets a zero-size store (GL_BUFFER_SIZE 0; sub-data, mapping, binding
@@ -1487,7 +1489,9 @@ ranges and draws that read it are out of range exactly as for a buffer without a
 CPU-authoritative store keeps its native store as retained capacity within the K57 slack budget, and the next
 glBufferData rewrites it in place (one BUFFER_UPDATE, no DELETE/CREATE); a feedback-written store, or one whose
 capacity does not fit the slack budget, is released with one DELETE, and slack reclaim releases retained zero-size
-stores. Metric `gl_buffer_zero_stores` counts these calls. No wire format changes.
+stores. Metric `gl_buffer_zero_stores` counts these calls; an orphan-then-upload pair counts as one re-specification
+(the upload's in-place resize). A draw, uniform-block draw or feedback capture that needs the zero-size store raises
+GL_INVALID_OPERATION, as for a buffer without a store. No wire format changes.
 
 **K62 (VIEWPORT relaxation, §13.6 offset 76, WebGPU varying packing).** The WGL profile sends the GL viewport
 unchanged (top-left origin, origin clamped to +-32768; width/height clamped to GL_MAX_VIEWPORT_DIMS = 16384 at

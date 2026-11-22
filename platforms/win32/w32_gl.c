@@ -57,7 +57,11 @@ static uint32_t latch_outer, latch_local, latch_fix;
 static int fail_deferred(uint32_t e);
 /* K61: every raised error is counted (gl_errors_raised) and attributed to the running entry point (gl_error_calls). */
 uint64_t w32_gl_errors_raised;
-/* K66: the first error code raised by the running entry point (gl_error_codes census). */
+/* K66: the first error code raised by the running entry point (gl_error_codes census). It is the call's OWN first
+ * error (every fail() during the call), not what glGetError returns: an error already latched by an earlier call is
+ * still reported first by glGetError, and a flush can correct the reported order (latch_fix, see replay_first). A
+ * deferred call's rejection found later by a batch replay (replay_whole/replay) sets the latch directly and is not
+ * attributed to any entry (neither gl_error_calls nor gl_error_codes nor gl_errors_raised). */
 static uint32_t call_error;
 static void fail(uint32_t e) {
     w32_gl_errors_raised++; if (!call_error) call_error = e;
@@ -1001,7 +1005,8 @@ static int buffer_zero(Buffer *b) {
         pend_resize((uint32_t)(b - buffers), b->data, old_size, 0);
         unmap_storage(b); b->map_access = 0x88ba; store_size(b, 0, b->cap);
     }
-    if (old_size) { w32_gl_buffer_respec_resized++; w32_gl_buffer_respec_shrank++; }
+    /* vK66: an orphan-then-upload pair is one re-specification: the zero-size call counts only in
+     * gl_buffer_zero_stores, and the following in-place upload counts once (respec_resized/grew, capacity_reused). */
     w32_gl_buffer_zero_stores++;
     return 1;
 }
@@ -1392,7 +1397,8 @@ const char *w32_gl_error_calls_json(void) {
     }
     s[n++] = '}'; s[n] = 0; return s;
 }
-/* K66: the same census split by the first GL error code each counted call raised:
+/* K66: the same census split by the first GL error code each counted call raised itself (call_error above: not the
+ * glGetError order, and replayed batch rejections are not attributed):
  * {"glBufferData":{"0x501":n},...}; codes outside 0x500..0x506 are "other". Per entry the counts sum to
  * its gl_error_calls value. */
 const char *w32_gl_error_codes_json(void) {

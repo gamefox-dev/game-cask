@@ -59,6 +59,7 @@ warmupMs)` does the run: it resumes the loop, warms up, measures one fixed wall 
 | `guest_presents_per_second`, `guest_presents_per_page_present` | native SwapBuffers/GDI presents over the same window |
 | `raf_per_second`, `busy_ticks` | the loop's ceiling, and ticks skipped because work was still running |
 | `transport_updates`, `max_updates_per_tick` | K66: updates a tick ran after a time-neutral transport yield, and the most updates in one tick |
+| `burst_renders` | vK66: intermediate renders inside such bursts; never counted as presents (a burst tick has one present carrying all its updates) |
 
 The tool writes `<out>/<game>.json`. Each run row holds the summary, the renderer/adapter string, the actual
 backend and suspension mode, and errors. It also records the machine's resources at start and end. A run that

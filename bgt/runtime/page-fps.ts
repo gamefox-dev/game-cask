@@ -5,12 +5,13 @@
 
 /** One loop observation. kind: 0 rAF tick, 1 busy tick (previous update/render still running),
  * 2 canvas present completed (n = host updates that preceded it in its tick), 3 (K66) an extra update the
- * tick ran after a time-neutral transport yield (its own present follows as kind 2). */
+ * tick ran after a time-neutral transport yield, 4 (vK66) an intermediate render inside such a burst. A tick logs
+ * at most one kind-2 present (its last render, carrying all its updates); burst renders are never presents. */
 export interface PageLoopLog { t: Float64Array; kind: Uint8Array; n: Uint16Array; length: number; dropped: number }
 export const PAGE_LOG_CAPACITY = 1 << 16;
 export const newPageLog = (): PageLoopLog => ({ t: new Float64Array(PAGE_LOG_CAPACITY), kind: new Uint8Array(PAGE_LOG_CAPACITY),
   n: new Uint16Array(PAGE_LOG_CAPACITY), length: 0, dropped: 0 });
-export function pageLogPush(log: PageLoopLog, kind: 0 | 1 | 2 | 3, t: number, n = 0): void {
+export function pageLogPush(log: PageLoopLog, kind: 0 | 1 | 2 | 3 | 4, t: number, n = 0): void {
   if (log.length === PAGE_LOG_CAPACITY) { log.dropped++; return; }
   log.t[log.length] = t; log.kind[log.length] = kind; log.n[log.length] = Math.min(n, 65535); log.length++;
 }
@@ -25,6 +26,8 @@ export interface PageWindowSummary {
   updates: number; updates_per_present: number | null;
   /** K66: updates run after a time-neutral transport yield in the same tick, and the most updates one tick ran. */
   transport_updates: number; max_updates_per_tick: number;
+  /** vK66: renders inside transport bursts (not counted as presents or frame intervals). */
+  burst_renders: number;
   guest_presents: number | null; guest_presents_per_second: number | null; guest_presents_per_page_present: number | null;
   log_dropped: number;
 }
@@ -32,11 +35,12 @@ const pct = (sorted: number[], q: number) => sorted.length ? sorted[Math.min(sor
 
 /** Reduce log entries with start <= t < end. guestPresents is the native guest present delta over the same window. */
 export function summarizePageWindow(log: PageLoopLog, start: number, end: number, guestPresents: number | null = null): PageWindowSummary {
-  const presents: number[] = []; let ticks = 0, busy = 0, updates = 0, transport = 0, tick = 0, maxTick = 0;
+  const presents: number[] = []; let ticks = 0, busy = 0, updates = 0, transport = 0, tick = 0, maxTick = 0, burst = 0;
   for (let i = 0; i < log.length; i++) {
     const t = log.t[i]; if (t < start || t >= end) continue;
     if (log.kind[i] === 0) { ticks++; tick = 1; } else if (log.kind[i] === 1) { ticks++; busy++; tick = 0; }
     else if (log.kind[i] === 3) { transport++; tick++; }
+    else if (log.kind[i] === 4) burst++;
     else { presents.push(t); updates += log.n[i]; }
     if (tick > maxTick) maxTick = tick;
   }
@@ -49,7 +53,7 @@ export function summarizePageWindow(log: PageLoopLog, start: number, end: number
     frame_ms: { mean: intervals.length ? intervals.reduce((a, b) => a + b, 0) / intervals.length : null,
       p50: pct(intervals, 0.5), p95: pct(intervals, 0.95), max: intervals.length ? intervals[intervals.length - 1] : null, samples: intervals.length },
     updates, updates_per_present: presents.length ? updates / presents.length : null,
-    transport_updates: transport, max_updates_per_tick: maxTick,
+    transport_updates: transport, max_updates_per_tick: maxTick, burst_renders: burst,
     guest_presents: guestPresents, guest_presents_per_second: guestPresents === null ? null : per(guestPresents),
     guest_presents_per_page_present: guestPresents === null || !presents.length ? null : guestPresents / presents.length,
     log_dropped: log.dropped,

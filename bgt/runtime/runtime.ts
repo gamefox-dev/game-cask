@@ -777,9 +777,11 @@ export class BGTRuntime {
         n++;
       }
       this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog, keep the sub-step remainder
-      if (n > 0 && this.manifest?.pipeline) n = await this.transportBurst(n, tickStart);
+      // vK66: `updates` = every update of this tick, carried by the tick's one counted canvas present.
+      let updates = n;
+      if (n > 0 && this.manifest?.pipeline) ({ pending: n, updates } = await this.transportBurst(n, tickStart));
       if (n > 0) {
-        const before = this.presentsCompleted, updates = n, log = this.pageLog;
+        const before = this.presentsCompleted, log = this.pageLog;
         if (log) void this.renderFrame(false).then(() => {
           if (this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
         }, () => {});
@@ -800,32 +802,35 @@ export class BGTRuntime {
    * an update presents or crosses a guest-time boundary, the tick's wall budget is spent, or the continuation
    * carried one frame period of instruction time. Each update keeps its own render and request boundary, exactly
    * as back-to-back step(): the guest timeline and every guest-visible result are unchanged.
-   * Returns the updates of this tick whose render is still to be issued (0 or 1).
+   * Page-fps honesty (vK66): renders inside a burst are logged as burst renders (kind 4), never as presents; the
+   * tick's last render is its one counted present (kind 2) and carries all of the tick's updates.
+   * Returns whether the last update's render is still to be issued (pending 0/1) and the tick's update count.
    */
-  private async transportBurst(n: number, tickStart: number): Promise<number> {
+  private async transportBurst(n: number, tickStart: number): Promise<{ pending: number; updates: number }> {
     const host = this.host!, stats = this.pageLoopStats, budget = this.opts.ioBurstMs ?? TRANSPORT_BURST_MS;
     stats.ticks++; stats.updates += n;
     const guest0 = host.guestTimeUs();
     let tick = n;
     for (;;) {
       if (!continueTransport(host.transportYield(), performance.now() - tickStart, budget, guest0, host.guestTimeUs())) break;
-      await this.renderPresent(n); n = 0;
+      const before = this.presentsCompleted;
+      await this.renderFrame(false).catch(() => null); n = 0;
+      const rendered = this.presentsCompleted > before, renderedAt = performance.now();
       if (host.ioPending) await host.settleRequests();
       if (performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
-        ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) break;
+        ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) {
+        // The burst ends on an update already rendered: that render is the tick's present.
+        if (rendered && this.pageLog) pageLogPush(this.pageLog, 2, renderedAt, tick);
+        break;
+      }
+      if (rendered && this.pageLog) pageLogPush(this.pageLog, 4, renderedAt); // an intermediate burst render
       await this.stepGuarded();
       if (this.failed || this.outsideSlice) { n = 0; break; }
       n = 1; tick++; stats.updates++; stats.transportUpdates++;
       if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
     }
     if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
-    return n;
-  }
-
-  private async renderPresent(updates: number): Promise<void> {
-    const before = this.presentsCompleted, log = this.pageLog;
-    await this.renderFrame(false).catch(() => null);
-    if (log && this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
+    return { pending: n, updates: tick };
   }
 
   // ------------------------------------------------------------ test hooks
