@@ -108,6 +108,64 @@
     "allowUnverifiedRuntime": {
       "type": "boolean",
       "description": "Recorded opt-in to build/serve with a runtime whose release publishes no checksum (verification manifest-crc32)."
+    },
+    "allowedErrors": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "K59: engine ERROR lines proven (binary/pack evidence) to come from the game itself. Only ERROR-prefixed engine stderr lines and their indented 'at:' continuations can match; each match is counted in diagnostics().allowlisted / probe.json, never hidden. Unmatched errors still fail.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "justification",
+          "evidence"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "message"
+            ]
+          },
+          {
+            "required": [
+              "pattern"
+            ]
+          }
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "pattern": "^(USER |SCRIPT )?ERROR: \\S",
+            "description": "The exact engine stderr line."
+          },
+          "pattern": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Whole-line JavaScript regex (anchored implicitly), starting with the literal ERROR prefix, at least 24 literal characters; generic patterns are refused."
+          },
+          "justification": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 1000,
+            "description": "Why the original game itself produces this line."
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "Relative path (from the game.json directory) to the recorded proof; its SHA-256 goes into the build manifest."
+          }
+        }
+      }
+    },
+    "engineArgs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string"
+      },
+      "description": "K59: recorded official engine command-line options, passed through the runtime's Engine config args. Godot 3/4 allowlist: --fixed-fps <1..1000>, --time-scale <0.01..100>, --frame-delay <0..100>, --print-fps; each at most once; the build refuses an option the runtime wasm does not parse. Not available on the 3.2 legacy shell."
     }
   },
   "$comment": "Runtime manifest supplies renderer/thread/header requirements and pinned official archive/member/notice hashes. Build validates exact pairing."

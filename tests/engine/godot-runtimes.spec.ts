@@ -24,7 +24,8 @@ for (const id of IDS) {
     const runtime = verifyRuntime(id), build = buildFixture(id), server = await serveEngine(build);
     const manifest = JSON.parse(readFileSync(join(build, 'manifest.json'), 'utf8'));
     try {
-      const capture = await captureEngineErrors(page, runtime.files);
+      // K59: the pack is delivery-checked against the build manifest (hash + length) like the wasm.
+      const capture = await captureEngineErrors(page, runtime.files, { build });
       const response = await page.goto(server.url);
       const threads = runtime.runtime.requirements.threads;
       expect(response!.headers()['cross-origin-embedder-policy']).toBe(threads ? 'require-corp' : undefined);
@@ -51,6 +52,7 @@ for (const id of IDS) {
       await info.attach('network.json', { body: JSON.stringify(network), contentType: 'application/json' });
       await info.attach('bundle-metrics.json', { body: JSON.stringify(manifest.metrics), contentType: 'application/json' });
       expect(d.errors).toEqual([]); expect(network.errors).toEqual([]);
+      expect(network.bodies.some((b: any) => new URL(b.url).pathname === '/game.pck' && b.sha256 === manifest.files['game.pck'])).toBe(true);
     } finally { await server.close(); }
   });
 }

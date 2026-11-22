@@ -2,19 +2,22 @@
 //   godot-config (3.3+ and 4.x): new Engine(config).startGame()
 //   godot-legacy (3.2.x):        new Engine(); setCanvas(); startGame(executable, pack)
 // The runtime and the pack are unchanged; the page only adds the observation-only test adapter.
-export function generateShell({ id, name, runtime, packSize, wasmSize, width = 640, height = 360, packSha256 }) {
+export function generateShell({ id, name, runtime, packSize, wasmSize, width = 640, height = 360, packSha256, allowedErrors = [], engineArgs = [] }) {
   const json = value => JSON.stringify(value).replaceAll('<', '\\u003c');
   const title = String(name).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
   const major = Number(runtime.version.split('.')[0]), threads = !!runtime.requirements.threads;
-  const identity = { path: 'engineProfile', game: id, runtimeId: runtime.id, archiveSha256: runtime.sha256, packSha256, renderer: runtime.requirements.renderer, threads };
-  const print = 'x=>{console.log(x);test.log(x);}', printErr = 'x=>{(test.engineStderr(x)==="warning"?console.warn:console.error)(x);}';
+  const identity = { path: 'engineProfile', game: id, runtimeId: runtime.id, archiveSha256: runtime.sha256, packSha256, renderer: runtime.requirements.renderer, threads, engineArgs: [...engineArgs],
+    // K59: recorded game-originated engine errors (observation: counted, not failed); see engineProfile.allowedErrors.
+    ...(allowedErrors.length ? { allowedErrors: allowedErrors.map(({ id, message, pattern, justification, evidence, evidenceSha256 }) => ({ id, message, pattern, justification, evidence, evidenceSha256 })) } : {}) };
+  const print = 'x=>{console.log(x);test.log(x);}', printErr = 'x=>{(test.engineStderr(x)==="error"?console.error:console.warn)(x);}';
   let start;
   if ((runtime.shell ?? 'godot-config') === 'godot-legacy') {
+    if (engineArgs.length) throw new Error('engine arguments need the Engine config API (Godot 3.3+/4.x)');
     start = 'const engine = new Engine();\n' +
       `engine.setCanvas(canvas); engine.setCanvasResizedOnStart(false); engine.setStdoutFunc(${print}); engine.setStderrFunc(${printErr}); engine.setOnExit(code=>test.error("exit",code));\n` +
       'const started = engine.startGame("godot","game.pck");\n';
   } else {
-    const config = { executable: 'godot', mainPack: 'game.pck', canvasResizePolicy: 0, focusCanvas: true, serviceWorker: '', args: [],
+    const config = { executable: 'godot', mainPack: 'game.pck', canvasResizePolicy: 0, focusCanvas: true, serviceWorker: '', args: [...engineArgs],
       fileSizes: { 'godot.wasm': wasmSize, 'game.pck': packSize },
       // 4.x: the page is served with COOP/COEP itself; never fall back to the template's header service worker.
       ...(major >= 4 ? { ensureCrossOriginIsolationHeaders: false, experimentalVK: false, gdextensionLibs: [] } : {}) };

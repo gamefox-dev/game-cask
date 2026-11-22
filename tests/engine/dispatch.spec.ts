@@ -10,6 +10,7 @@ import { verifyRuntime, ENGINE_ROOT } from '../../tools/engine/runtime.mjs';
 import { embeddedFixture } from '../fixtures/engine/godot3-fixture.mjs';
 // @ts-expect-error static adapter
 import { parsePack, sha256 } from '../../tools/engine/godot3.mjs';
+import { webgl2Gpu } from '../e2e/browser-options';
 
 test('engine public port and probe dispatch stay separate from the lifting toolchain', async ({ browserName }, info) => {
   expect(browserName).toBe('chromium');
@@ -48,9 +49,11 @@ test('engine public port and probe dispatch stay separate from the lifting toolc
   expect(manifest.engineProfile.choice.reason).toBe('CC0 dispatch regression'); expect(manifest.metrics.downloadBytes).toBeGreaterThan(manifest.metrics.packBytes);
   expect(run(['test:port'])).toContain('1 passed');
   writeFileSync(join(root, 'explore.mjs'),     'export default async p => { await p.step(20); await p.screenshot("before"); await p.key("Enter"); await p.step(5); await p.screenshot("after"); p.log("engine-profile workflow"); };\n');
-  run(['engine:probe', '--', '.engine-private/builds/cc0-engine', 'explore.mjs']);
+  // K59: the probe renders on the native GPU by default (K51 convention); --software where the project runs SwiftShader.
+  run(['engine:probe', '--', '.engine-private/builds/cc0-engine', 'explore.mjs', '--measure', '300', ...(webgl2Gpu ? [] : ['--software'])]);
   const probe = JSON.parse(readFileSync(join(root, 'reports/engine-probe/probe.json'), 'utf8'));
   expect(probe.path).toBe('engineProfile'); expect(probe.errors).toEqual([]);
+  expect(probe.software).toBe(!webgl2Gpu); expect(probe.measurements[0].window.frames).toBeGreaterThan(0); expect(probe.allowlisted).toEqual([]);
   expect(probe.engineProfile.runtime.id).toBe(r.id); expect(probe.diagnostics.metrics.raf.samples).toBeGreaterThan(0);
   expect(readFileSync(join(root, 'reports/engine-probe/before.png')).equals(readFileSync(join(root, 'reports/engine-probe/after.png')))).toBe(false);
   await info.attach('public-engine-workflow.json', { body: JSON.stringify({ root, probe }), contentType: 'application/json' });

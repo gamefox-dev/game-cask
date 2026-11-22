@@ -7,12 +7,18 @@ import { parsePack, sha256 } from './godot.mjs';
 import { PRIVATE, runtimeById, verifyRuntime } from './runtime.mjs';
 import { buildEngine } from './framework.mjs';
 
-/** runtimeId: godot-3.5.3-nothreads (default), godot-3.x-threads, godot-4.x-nothreads|threads. */
-export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds') } = {}) {
+/**
+ * runtimeId: godot-3.5.3-nothreads (default), godot-3.x-threads, godot-4.x-nothreads|threads.
+ * K59 (Godot 3 only): tone / duplicateSignal / physics script variants; profile: extra engineProfile fields (e.g. allowedErrors);
+ * files: extra files written beside game.json (e.g. allowlist evidence). Variants get their own build id.
+ */
+export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds'), tone = false, duplicateSignal = false, physics = false, profile = {}, files = {}, suffix = '' } = {}) {
   const runtime = runtimeById(runtimeId), major = Number(runtime.version[0]);
-  const id = runtime.id === 'godot-3.5.3-nothreads' ? 'cc0-engine' : 'cc0-' + runtime.id.replace(/\./g, '-');
+  if (major !== 3 && (tone || duplicateSignal || physics)) throw new Error('fixture variants are Godot 3 only');
+  const variant = [tone && 'tone', duplicateSignal && 'dupsignal', physics && 'physics', suffix].filter(Boolean).join('-');
+  const id = (runtime.id === 'godot-3.5.3-nothreads' ? 'cc0-engine' : 'cc0-' + runtime.id.replace(/\./g, '-')) + (variant ? '-' + variant : '');
   const gameDir = join(PRIVATE, 'cc0-fixtures', id), inputs = join(gameDir, 'inputs'); mkdirSync(inputs, { recursive: true });
-  const source = major === 3 ? godot3Fixture({ version: runtime.version.split('.').map(Number).concat([0, 0]).slice(0, 3), build: runtime.build })
+  const source = major === 3 ? godot3Fixture({ version: runtime.version.split('.').map(Number).concat([0, 0]).slice(0, 3), build: runtime.build, tone, duplicateSignal, physics })
     : godot4Fixture({ version: runtime.version, build: runtime.build, relative: !/^4\.[0-2](\.|$)/.test(runtime.version) });
   writeFileSync(join(inputs, 'runner.exe'), source);
   const cfg = { id, name: 'CC0 Godot ' + runtime.version + ' ' + runtime.variant + ' fixture', private: true, engineProfile: {
@@ -20,7 +26,8 @@ export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = jo
     version: runtime.version, build: runtime.build, inputRoot: 'inputs', runner: 'runner.exe', runnerSha256: sha256(source),
     pack: { location: 'embedded-trailer', sha256: parsePack(source).packSha256 }, renderer: 'webgl2', threads: runtime.requirements.threads, width: 320, height: 180,
     // Unverified (no published checksum) runtimes need the recorded opt-in, exactly like a port.
-    ...(verifyRuntime(runtime.id).verified ? {} : { allowUnverifiedRuntime: true }) } };
+    ...(verifyRuntime(runtime.id).verified ? {} : { allowUnverifiedRuntime: true }), ...profile } };
+  for (const [name, data] of Object.entries(files)) writeFileSync(join(gameDir, name), data);
   writeFileSync(join(gameDir, 'game.json'), JSON.stringify(cfg, null, 2) + '\n');
   buildEngine(gameDir, cfg, { quiet: true, outRoot });
   return join(outRoot, cfg.id);

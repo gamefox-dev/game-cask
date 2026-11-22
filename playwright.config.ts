@@ -85,7 +85,8 @@ export default defineConfig({
     // Private, game-specific tests written by the porter (port/ is git-ignored).
     ...(process.env.BGT_PORT_TESTS === '1' && existsSync('port/tests')
       ? enginePort ? [
-          { name: 'port-engine', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], launchOptions: { args: webglArgs }, backendParam: 'webgl2' } as never },
+          // K59: BGT_WEBGL2_GPU=1 renders engine port tests on the native GPU (SwiftShader stays the default gate).
+          { name: 'port-engine', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], launchOptions: { args: webgl2Gpu ? webglGpuArgs : webglArgs }, backendParam: 'webgl2' } as never },
         ] : [
           { name: 'port-webgl2', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, backendParam: 'webgl2' } as never },
           {
