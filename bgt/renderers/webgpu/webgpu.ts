@@ -500,8 +500,9 @@ export class WebGPURenderer implements Renderer {
         usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
     }
     // K53: presentation and the retained snapshot copy join the frame's last GPUQueue.submit (K67: as a
-    // separate short command buffer, see WebGPUCommands.flush). At most one of the §13 frame encoder and an
-    // open 2D pass holds work here (2D draws flush §13 work first).
+    // separate short command buffer, see WebGPUCommands.flush; a frame without a §13 screen pass draws its 2D passes
+    // into the canvas texture itself, as before). At most one of the §13 frame encoder and an open 2D pass holds work
+    // here (2D draws flush §13 work first).
     const snapshot = gpuFrame || this.snapshot ? this.snapshot! : undefined;
     if (snapshot) this.snapshotLB = { ...outputLB };
     const tail = (e: GPUCommandEncoder) => {
@@ -520,7 +521,7 @@ export class WebGPURenderer implements Renderer {
     Object.assign(this.stats, { nativePasses: gpu.batch.nativePasses + this.stats.passes - frameGpuPasses(frame),
       nativeSubmits: this.nativeSubmits, mergedPasses: gpu.batch.mergedPasses, bufferRenames: gpu.batch.bufferRenames,
       renameBytes: gpu.batch.renameBytes, captureTranslations: gpu.batch.captureTranslations, captureLowerings: gpu.batch.captureLowerings,
-      commandBuffers: gpu.batch.commandBuffers, buffersCreated: this.buffersCreated,
+      commandBuffers: gpu.batch.commandBuffers, buffersCreated: this.buffersCreated, poolBytes: gpu.pooledBytes,
       gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     if (readbacks.length) return Promise.all(readbacks).then(() => pending);

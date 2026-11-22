@@ -60,6 +60,7 @@ extern "C" {
 #define BGT_CAP_STREAM_FILES   (1u << 11) /* v0.3: asynchronous asset range requests */
 #define BGT_CAP_GPU_BUFFER_HANDLES (1u << 14) /* v0.3: opt-in full-u32 buffer IDs */
 #define BGT_CAP_GPU_GL_RASTER  (1u << 15) /* K62 (additive v0.3): VIEWPORT past the attachment, GLSL flat = last vertex, limits offset 76 */
+#define BGT_CAP_GPU_CONST_ATTRIB (1u << 16) /* K67 (additive v0.3): stride-0 vertex buffer slots (§13.3) */
 #define BGT_CAP_GPU            (1u << 12) /* v0.3: §13 GPU command layer */
 #define BGT_CAP_ENTROPY        (1u << 13) /* LANE-K1: host entropy, not simulation PRNG */
 

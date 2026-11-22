@@ -23,7 +23,7 @@ function setup() {
   const requests = new Requests();
   const ctx: DecodeContext = {
     state: defaultState(64, 64), frame, textures: new TextureTable(), linearFilter: true, triangles: true,
-    gpu: new GpuState({ languages: 7, glRaster: true, execute: () => 0 }),
+    gpu: new GpuState({ languages: 7, glRaster: true, constAttrib: true, execute: () => 0 }),
     gpuRequest: (id) => {
       const token = requests.reserve(id);
       return typeof token === 'number' ? token : (data, error) => requests.complete(token, data, error);
@@ -383,7 +383,10 @@ describe('GPU command validation', () => {
         .gpu(O.UNIFORM_BUFFER, [0, 1, 0, 256]).gpu(O.TEXTURE, [0, 1, 1]).gpu(O.DRAW, words).gpu(O.PASS_END, [])).status).toBe(0);
     // The bound range must still hold the element itself.
     expect(t.run(new CommandEncoder().gpu(O.PASS_BEGIN, begin).gpu(O.PIPELINE, [2]).gpu(O.VERTEX_BUFFER, [0, 1, 0, 2040])
-      .gpu(O.UNIFORM_BUFFER, [0, 1, 0, 256]).gpu(O.TEXTURE, [0, 1, 1]).gpu(O.DRAW, [3, 2, 0, 0]).gpu(O.PASS_END, [])).status).toBe(A.E_BOUNDS);
+      .gpu(O.UNIFORM_BUFFER, [0, 1, 0, 256]).gpu(O.TEXTURE, [0, 1, 1]).gpu(O.DRAW, [3, 2, 0, 0]).gpu(O.PASS_END, [])).status).toBe(A.E_BOUNDS);    // vK67: only a CAP_GPU_CONST_ATTRIB backend accepts stride 0; elsewhere it stays E_INVALID (the pre-K67 rule).
+    const old = setup(); old.ctx.gpu = new GpuState({ languages: 7, glRaster: true, execute: () => 0 }); old.resources();
+    expect(old.send(O.PIPELINE_CREATE, pipeline({ 0: 2 }, [0, 1], [0, 0, 0, 3])).status).toBe(A.E_INVALID);
+    expect(old.send(O.PIPELINE_CREATE, pipeline({ 0: 2 }, [256, 1], [0, 0, 0, 3])).status).toBe(0);
   });
 
   it('rejects feedback, mismatched attachments/formats, and 2D interruption without corrupting pass state', () => {

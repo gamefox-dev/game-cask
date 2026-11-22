@@ -174,6 +174,8 @@ export const CAP_GPU = 1 << 12;
 export const CAP_GPU_BUFFER_HANDLES = 1 << 14; // additive v0.3, explicit gpu_buffer_handles opt-in
 /** K62 (additive v0.3): VIEWPORT may extend past the attachment, GLSL flat varyings take the last vertex, §13.6 offset 76. */
 export const CAP_GPU_GL_RASTER = 1 << 15;
+/** K67 (additive v0.3): a pipeline vertex layout may have stride 0 (one element for every vertex and instance, §13.3). */
+export const CAP_GPU_CONST_ATTRIB = 1 << 16;
 export const CAP_ENTROPY = 1 << 13; /* LANE-K1 */
 export const GPU_OP = {
   BUFFER_CREATE: 0x40,

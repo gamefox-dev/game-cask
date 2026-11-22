@@ -45,6 +45,14 @@ interface TextureResource {
   generated?: { base: number; source: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
+/** K67 recycle pool: 32 MiB cap; entries unused for 600 flushes (~10 s at 60 Hz) are released. */
+const POOL_CAP = 32 << 20, POOL_AGE = 600;
+/** Pool size classes: 256 B minimum, then four steps per power of two (at most 25 % slack), 256-byte multiples. */
+export function sizeClass(n: number): number {
+  if (n <= 256) return 256;
+  const p = 2 ** Math.floor(Math.log2(n - 1)), step = Math.max(256, p / 4);
+  return Math.ceil(n / step) * step;
+}
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
 /** K60 (Q117): a translated transform-feedback capture. `code` is the vertex stage translated for one sampler
  * specialization; `pipelines` holds the compute pipelines lowered from it per draw shape (inputs, counts). */
@@ -121,9 +129,13 @@ export class WebGPUCommands implements GpuBackend {
   private usedRanges = new Map<GPUBuffer, number[]>();
   private retiredDestroy: Array<GPUBuffer | GPUTexture> = [];
   private retiredPool: GPUBuffer[] = [];
-  /** Recycled buffers by `usage:size` (rename targets, K67: transform-feedback capture temporaries). */
-  private pool = new Map<string, GPUBuffer[]>();
+  /** Recycled buffers by `usage:size class` (rename targets, K67: transform-feedback capture temporaries), each with
+   * the flush count at which it was recycled; LIFO reuse, oldest-first eviction above POOL_CAP or after POOL_AGE flushes. */
+  private pool = new Map<string, { b: GPUBuffer; at: number }[]>();
   private poolBytes = 0;
+  private flushes = 0;
+  /** K67: bytes held by the recycle pool (reported as lastFrame.poolBytes; not guest-visible memory). */
+  get pooledBytes(): number { return this.poolBytes; }
   private ids = new WeakMap<GPUTexture, number>();
   private nextId = 1;
   /** Per-frame native work census (reset by the renderer at frame start). */
@@ -139,6 +151,7 @@ export class WebGPUCommands implements GpuBackend {
   /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
   readonly maxVaryingComponents: number;
   readonly glRaster = true;
+  readonly constAttrib = true;
   readonly device: GpuDeviceInfo;
   constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
     // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
@@ -166,7 +179,7 @@ export class WebGPUCommands implements GpuBackend {
   /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder.
    * `tail` records the renderer's frame-end work (presentation, snapshot copy) into a second, short command
    * buffer of the same GPUQueue.submit, so a batched frame still costs one submit.
-   * K67 (Q116): only that tail may use the canvas texture. WebKit paces a WebGPU canvas from the GPU execution
+   * K67 (Q116): in a §13 screen frame only that tail uses the canvas texture. WebKit paces a WebGPU canvas from the GPU execution
    * window (GPUEndTime - GPUStartTime) of the command buffers that use the canvas texture (WebGPUFramePacer).
    * With the presentation inside the merged frame's command buffer, a long window plus a few backed-up presents
    * stepped requestAnimationFrame down the display's divisor ladder (85 Hz display: 85 -> 17 -> 5 Hz) and, as
@@ -184,6 +197,7 @@ export class WebGPUCommands implements GpuBackend {
     for (const b of this.retiredPool.splice(0)) this.recycle(b);
     this.scratch.splice(0).forEach(b => b.destroy());
     this.used.clear(); this.usedRanges.clear();
+    if (++this.flushes % 64 === 0) this.evictPool(this.flushes - POOL_AGE);
   }
 
   /** K60: mark bytes [offset, offset + size) of `b` as used by the pending encoder (ranges merged; more than 16
@@ -235,17 +249,37 @@ export class WebGPUCommands implements GpuBackend {
     if (this.used.has(r) || this.usedRanges.has(r as GPUBuffer)) this.retiredDestroy.push(r); else r.destroy();
   }
 
+  /** Only buffers of a pool size class are kept (an exact-size guest store dies on its first rename). */
   private recycle(b: GPUBuffer): void {
-    if (this.poolBytes + b.size > 32 << 20) { b.destroy(); return; }
-    const key = `${b.usage}:${b.size}`, list = this.pool.get(key) ?? []; list.push(b); this.pool.set(key, list); this.poolBytes += b.size;
+    if (b.size > POOL_CAP || sizeClass(b.size) !== b.size) { b.destroy(); return; }
+    const key = `${b.usage}:${b.size}`, list = this.pool.get(key) ?? [];
+    list.push({ b, at: this.flushes }); this.pool.set(key, list); this.poolBytes += b.size;
+    if (this.poolBytes > POOL_CAP) this.evictPool(Infinity, POOL_CAP);
   }
 
-  /** A recycled buffer of exactly this size and usage (submitted work that used it is ordered before any later
-   * queue write or submit), else a new one. */
+  /** Destroy pooled buffers recycled before flush `before`, then oldest-first until at most `budget` bytes remain. */
+  private evictPool(before: number, budget = POOL_CAP): void {
+    for (const [key, list] of this.pool) {
+      let n = 0; while (n < list.length && list[n].at < before && Number.isFinite(before)) { list[n].b.destroy(); this.poolBytes -= list[n].b.size; n++; }
+      if (n) list.splice(0, n);
+      if (!list.length) this.pool.delete(key);
+    }
+    while (this.poolBytes > budget) {
+      let oldest: { b: GPUBuffer; at: number }[] | undefined, key = '';
+      for (const [k, list] of this.pool) if (!oldest || list[0].at < oldest[0].at) { oldest = list; key = k; }
+      if (!oldest) break;
+      const e = oldest.shift()!; e.b.destroy(); this.poolBytes -= e.b.size;
+      if (!oldest.length) this.pool.delete(key);
+    }
+  }
+
+  /** A recycled buffer of this usage and size class (submitted work that used it is ordered before any later queue
+   * write or submit), else a new one of the class size. Every binding of these buffers names an explicit range or is
+   * sized by its contents, so the class tail is never read. */
   private pooled(size: number, usage: number): GPUBuffer {
-    const native = this.pool.get(`${usage}:${size}`)?.pop();
-    if (native) { this.poolBytes -= size; return native; }
-    return this.gpuDevice.createBuffer({ size, usage });
+    const cls = sizeClass(size), e = this.pool.get(`${usage}:${cls}`)?.pop();
+    if (e) { this.poolBytes -= cls; return e.b; }
+    return this.gpuDevice.createBuffer({ size: cls, usage });
   }
 
   /** Copy-on-write for a CPU-authoritative buffer referenced by the pending encoder: earlier encoded
@@ -253,7 +287,7 @@ export class WebGPUCommands implements GpuBackend {
   private rename(b: BufferResource): void {
     const native = this.pooled(b.native.size, b.native.usage);
     this.writeBuffer(native, 0, b.shadow);
-    this.retiredPool.push(b.native); b.native = native; this.batch.bufferRenames++; this.batch.renameBytes += native.size;
+    this.retiredPool.push(b.native); b.native = native; this.batch.bufferRenames++; this.batch.renameBytes += Math.ceil(b.shadow.length / 4) * 4;
   }
 
   lost(): void {
@@ -262,7 +296,7 @@ export class WebGPUCommands implements GpuBackend {
     this.encoder = undefined;
     this.lingering = false; this.passKey = ''; this.used.clear(); this.usedRanges.clear();
     this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
-    this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0;
+    this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0; this.flushes = 0;
     this.timing = undefined;
     this.screen = undefined;
     this.vertices.clear(); this.uniforms.clear(); this.sampled.clear(); this.index = undefined;

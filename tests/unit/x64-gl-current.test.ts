@@ -52,3 +52,24 @@ it('current float attributes and swizzles lower to owned per-draw data, with rea
   const ints = (d: Uint8Array) => Array.from(new Int32Array(d.buffer, d.byteOffset, d.length / 4));
   expect(uniforms.some(i => { const v = ints(i.data!); return v.slice(-4).join() === '4,0,5,1' || v.slice(-68, -64).join() === '4,0,5,1'; })).toBe(true);
 }, 120000);
+
+// vK67: stride-0 slots are the additive CAP_GPU_CONST_ATTRIB contract. A host without it (pre-K67 runtimes reject
+// stride 0 with E_INVALID) must get the K60 wire: no stride-0 layout, single-instance constants in the uniform tail
+// with stride 256, instanced constants as one copy per instance in private buffer 1023. Would catch an ungated profile.
+it('without CAP_GPU_CONST_ATTRIB the profile falls back to stride-256 tails and buffer 1023 for instanced draws', async () => {
+  buildGame('examples/x64-gl-current', { quiet: true });
+  const stream = glStream();
+  stream.gpuBackend = { ...stream.gpuBackend!, constAttrib: false };
+  const h = await loadHeadless('x64-gl-current', stream);
+  for (let i = 0; i < 120 && !h.logs.some(l => /x64-gl-current (PASS|FAIL) failures=/.test(l)); i++) await h.stepAsync(1);
+  await h.stepAsync(3);
+  expect(h.host.commandErrorCount).toBe(0);
+  expect(h.logs.filter(l => /x64-gl-current ok /.test(l)).length).toBeGreaterThanOrEqual(7);
+  const layouts = stream.items.filter(i => i.op === O.PIPELINE_CREATE).map(i => i.words);
+  expect(layouts.length).toBeGreaterThan(0);
+  for (const w of layouts) for (let k = 0; k < w[23]; k++) expect(w[26 + k * 2]).not.toBe(0);
+  const f32 = (d: Uint8Array) => Array.from(new Float32Array(d.buffer, d.byteOffset, d.length / 4));
+  const instanced = stream.items.filter(i => i.op === O.BUFFER_UPDATE && i.words[0] === 1023).map(i => f32(i.data!));
+  expect(instanced.some(v => v.length === 192 && [0, 64, 128].every(at => v.slice(at + 12, at + 16).join() === '0.5,1,0.25,1'))).toBe(true);
+  expect(instanced.every(v => v.length > 64)).toBe(true); // single-instance constants still ride in the uniform tail
+}, 120000);

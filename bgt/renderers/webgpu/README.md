@@ -15,9 +15,11 @@ snapshot preserves update-driven guests during empty paused captures; resize cro
 new one rather than stretching bars or clearing the image. Device loss invalidates these attachment snapshots. There is no second canvas or guest texture-namespace alias.
 
 A merged frame (K53) is one `GPUQueue.submit` of two command buffers (K67): the frame's §13 work, then a short one
-with the presentation and snapshot copy. Only that second command buffer uses the canvas texture, because WebKit paces
-a WebGPU canvas from the GPU execution window of the command buffers that use it (`WebGPUFramePacer`): with the whole
-frame in that window, backed-up presents stepped `requestAnimationFrame` down the display's divisor ladder (Q116).
+with the presentation and snapshot copy. In a frame with a §13 screen pass only that second command buffer uses the
+canvas texture, because WebKit paces a WebGPU canvas from the GPU execution window of the command buffers that use it
+(`WebGPUFramePacer`): with the whole frame in that window, backed-up presents stepped `requestAnimationFrame` down the
+display's divisor ladder (Q116). Frames without a §13 screen pass keep the physical-pixel 2D path, whose (short,
+per-pass) 2D command buffers draw into the canvas texture directly.
 
 `gpu.ts` consumes owned decoder snapshots; no browser operation reads guest upload pointers. It implements
 strip-to-list expansion (all-ones indices are not restart), signed base vertex and first instance, and repacks

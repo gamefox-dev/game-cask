@@ -363,8 +363,9 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const buffers = Array.from({ length: w[23] }, () => { const a = w.slice(pos, pos + 2); pos += 2; return a; });
       const attrs = Array.from({ length: w[24] }, () => { const a = w.slice(pos, pos + 4); pos += 4; return a; });
       const colors = Array.from({ length: w[25] }, () => { const a = w.slice(pos, pos + 9); pos += 9; return a; });
-      // K67: stride 0 (additive) makes every vertex and instance of the slot fetch the element at the binding offset.
-      if (buffers.some(([stride, step]) => stride % 4 || step > 1)) return E_INVALID;
+      // K67: stride 0 (additive, CAP_GPU_CONST_ATTRIB backends only) makes every vertex and instance of the slot fetch
+      // the element at the binding offset; without the capability it stays E_INVALID as before.
+      if (buffers.some(([stride, step]) => (!stride && !g.backend.constAttrib) || stride % 4 || step > 1)) return E_INVALID;
       if (buffers.some(([stride]) => stride > GPU_LIMITS.stride)) return E_LIMIT;
       const locations = new Set<number>();
       for (const [location, buffer, offset, format] of attrs) {

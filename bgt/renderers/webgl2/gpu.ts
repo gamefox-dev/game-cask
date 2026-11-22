@@ -65,6 +65,7 @@ export class WebGL2Gpu implements GpuBackend {
   /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
   readonly maxVaryingComponents: number;
   readonly glRaster = true;
+  readonly constAttrib = true;
   readonly device: GpuDeviceInfo;
   readonly bufferHandles = true;
   readonly nativeSyncQueries = { getError: 0, checkFramebufferStatus: 0, generatedBufferReadbacks: 0 };

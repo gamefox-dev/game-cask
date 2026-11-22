@@ -813,7 +813,8 @@ float1..4/normalized-u8x4/i32/u32 attributes, divisors other than 0/1 and consta
 combinations are unsupported or visibly rejected (K61 added scissored/masked clears, fans/loops/adjacency/restart by
 expansion, sync objects and the error census; see ABI §13 K61 and [K61](handoff/K61.md); K62 added viewports past the
 target, reversed depth ranges, glProvokingVertex, GL_UNSIGNED_BYTE indices, packed WebGPU varyings and the GL 3.3
-limit table, see [K62](handoff/K62.md)). Legal border wrap and LOD bias parameters
+limit table, see [K62](handoff/K62.md); K67 added the capability-gated stride-0 vertex slot `CAP_GPU_CONST_ATTRIB` (1 << 16)
+that carries generic current attributes of instanced draws in the batched uniform upload, see [K67](handoff/K67.md)). Legal border wrap and LOD bias parameters
 remain queryable counted approximations. See [K6a](handoff/K6a.md), [K6b](handoff/K6b.md) and the superseding
 [I5 integration](handoff/integration-i5.md) limits. I2 compiles/rasterizes `x64-gl` on both actual
 backends, with per-tile goldens, side-effecting UV evaluation, colored ordered readback and cross-image comparisons.
