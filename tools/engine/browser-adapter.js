@@ -1,5 +1,38 @@
 /* global requestAnimationFrame, KeyboardEvent, MouseEvent, HTMLCanvasElement */
 // Host-side observation only. Never patches the official runtime or game pack.
+
+/**
+ * vK59: structural check of an engineProfile.allowedErrors pattern (shared by the build validator and this adapter).
+ * The pattern must compile on its own (no group break-out such as "x)|(?!"), have no top-level alternation, no
+ * lookaround, no backreference, no negated class and no escape that can match a line break (only \d \w \S \b \B and
+ * escaped punctuation); control/line-separator characters are refused. Returns an error string or null.
+ */
+export function allowPatternProblem(pattern) {
+  if (typeof pattern !== 'string' || !pattern) return 'pattern must be a non-empty string';
+  if ([...pattern].some(ch => { const c = ch.codePointAt(0); return c < 0x20 || c === 0x7f || c === 0x2028 || c === 0x2029; })) return 'pattern contains a control or line-separator character';
+  try { new RegExp(pattern, 'u'); } catch (e) { return 'pattern does not compile on its own: ' + e.message; }
+  let depth = 0, inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\') {
+      const n = pattern[i + 1] ?? '';
+      if (/[A-Za-z0-9]/.test(n) && !'dwSbB'.includes(n)) return 'escape \\' + n + ' is not allowed (only \\d \\w \\S \\b \\B and escaped punctuation)';
+      i++; continue;
+    }
+    if (inClass) { if (c === ']') inClass = false; continue; }
+    if (c === '[') { if (pattern[i + 1] === '^') return 'negated character classes are not allowed'; inClass = true; continue; }
+    if (c === '(') {
+      if (/^\(\?<?[=!]/.test(pattern.slice(i))) return 'lookarounds are not allowed';
+      depth++; continue;
+    }
+    if (c === ')') { if (--depth < 0) return 'unbalanced parenthesis'; continue; }
+    if (c === '|' && depth === 0) return 'top-level alternation is not allowed (one entry per line)';
+  }
+  return depth === 0 && !inClass ? null : 'unbalanced pattern';
+}
+/** Engine stderr may carry several lines in one call; each is classified on its own (vK59). */
+export const stderrLines = message => { const lines = String(message).split(/\r\n|[\r\n\u2028\u2029]/u); if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop(); return lines; };
+
 export function installEngineTestAdapter(canvas, identity) {
   const errors = [], logs = []; let ready = false, frame = 0;
   const unsupported = feature => { throw new Error('engineProfile does not support BGT ' + feature); };
@@ -15,16 +48,21 @@ export function installEngineTestAdapter(canvas, identity) {
   // justification + evidence). A matching line and its indented "at:" continuations are 'allowed': counted per entry
   // in diagnostics().allowlisted, never hidden. Unmatched errors still fail.
   const allowlist = (identity.allowedErrors ?? []).map(entry => {
-    let match;
-    try {
-      const re = typeof entry.message === 'string' ? null : new RegExp('^(?:' + entry.pattern + ')$', 'u');
-      match = re ? line => re.test(line) : line => line === entry.message;
-    } catch (e) { error('allowlist', 'invalid allowedErrors pattern ' + entry.id + ': ' + e.message); match = () => false; }
+    let match = () => false;
+    if (typeof entry.message === 'string') match = line => line === entry.message;
+    else {
+      // Defense in depth: the build validated it, but never wrap an unchecked pattern.
+      const problem = allowPatternProblem(entry.pattern);
+      if (problem) error('allowlist', 'invalid allowedErrors pattern ' + entry.id + ': ' + problem);
+      else { const re = new RegExp('^(?:' + entry.pattern + ')$', 'u'); match = line => re.test(line); }
+    }
     return { entry, match, count: 0, continuations: 0 };
   });
   let lastSeverity = null, lastAllowed = null;
-  const engineStderr = message => {
-    const text = String(message), errorLine = /^(USER |SCRIPT )?ERROR:/.test(text);
+  const SEVERITY = { error: 3, allowed: 2, warning: 1 };
+  const engineStderr = message => stderrLines(message).map(stderrLine).reduce((a, b) => SEVERITY[b] > SEVERITY[a] ? b : a);
+  const stderrLine = text => {
+    const errorLine = /^(USER |SCRIPT )?ERROR:/.test(text);
     let severity = errorLine ? 'error' : /^(USER )?WARNING:/.test(text) || BENIGN.some(re => re.test(text)) ? 'warning'
       : /^\s+at:\s/.test(text) && lastSeverity ? lastSeverity : 'error';
     if (errorLine) {

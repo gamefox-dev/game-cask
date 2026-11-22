@@ -79,7 +79,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     log.device = await engineRenderer(page); log.software = log.device.software;
     console.log(`engine:probe: ${a.browser} renderer "${log.device.renderer}"${log.software ? ' (SOFTWARE)' : ''}; boot ${log.bootMs} ms`);
     // K51 convention: a native-GPU probe that silently lands on a software rasterizer gives invalid performance numbers.
-    if (log.software && !a.software) throw new Error(`requested the native GPU but got software renderer "${log.device.renderer}"; pass --software to accept it`);
+    // vK59: fail closed when the renderer cannot be read (engineRenderer reports software: true, rendererUnknown: true).
+    if (log.device.rendererUnknown && !a.software) throw new Error('requested the native GPU but the WebGL renderer could not be read; pass --software to accept an unverified renderer');
+    if (log.software !== false && !a.software) throw new Error(`requested the native GPU but got software renderer "${log.device.renderer}"; pass --software to accept it`);
     if (a.script) {
       const script = await import(pathToFileURL(resolve(a.script)).href);
       if (typeof script.default !== 'function') throw new Error(a.script + ' must default-export async function (p)');

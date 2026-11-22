@@ -129,6 +129,37 @@ test.describe('Q5: recorded engine error allowlist', () => {
     } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); }
   });
 
+  test('vK59: unchecked patterns are refused in the page and multi-line stderr is classified per line', async ({ page }, info) => {
+    info.annotations.push({ type: 'catches', description: 'Review vK59: a pattern that breaks out of the whole-line group or alternates at top level must not allow anything; an allowed line must not carry an abort on a following line.' });
+    const adapter = readFileSync(new URL('../../tools/engine/browser-adapter.js', import.meta.url));
+    const identity = { renderer: 'webgl2', allowedErrors: [
+      // Both review examples, injected directly (bypassing the build validator, which refuses them too).
+      { id: 'E1', pattern: 'ERROR: Signal foo is already connected to)|(?!', justification: 'j', evidence: 'e' },
+      { id: 'E2', pattern: 'ERROR: ' + 'a'.repeat(40) + '|USER ERROR: ..+', justification: 'j', evidence: 'e' },
+      { id: 'E3', message: 'ERROR: game line A.', justification: 'j', evidence: 'e' } ] };
+    const server = createServer((req, res) => {
+      if (req.url === '/browser-adapter.js') { res.writeHead(200, { 'Content-Type': 'application/javascript' }); res.end(adapter); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<canvas id="c"></canvas><script type="module">import { installEngineTestAdapter } from "./browser-adapter.js"; window.t = installEngineTestAdapter(document.getElementById("c"), ' + JSON.stringify(identity) + ');</script>');
+    });
+    await new Promise<void>(resolve => server.listen(PORT, '127.0.0.1', resolve));
+    try {
+      await page.goto(`http://127.0.0.1:${PORT}/`); await page.waitForFunction(() => (window as any).t);
+      const r = await page.evaluate(() => {
+        const t = (window as any).t;
+        const s = ['ERROR: Signal foo is already connected to anything at all', 'USER ERROR: anything', 'ERROR: game line A.\nAborted(RuntimeError: unreachable)',
+          'ERROR: game line A.\n   at: f (a.cpp:1)\n'].map(x => t.engineStderr(x));
+        return { s, d: (window as any).__BGT_TEST__.diagnostics() };
+      });
+      expect(r.s).toEqual(['error', 'error', 'error', 'allowed']);
+      expect(r.d.errors.filter((e: any) => e.kind === 'allowlist').map((e: any) => e.message)).toEqual([
+        expect.stringMatching(/E1: pattern does not compile on its own/), expect.stringMatching(/E2: top-level alternation/)]);
+      expect(r.d.errors.map((e: any) => e.message)).toEqual(expect.arrayContaining(['Aborted(RuntimeError: unreachable)', 'USER ERROR: anything']));
+      expect(r.d.allowlisted.map((e: any) => [e.id, e.count, e.continuations])).toEqual([['E1', 0, 0], ['E2', 0, 0], ['E3', 2, 1]]);
+      await info.attach('vk59-allowlist.json', { body: JSON.stringify(r), contentType: 'application/json' });
+    } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); }
+  });
+
   test('real runtime: a game-originated duplicate-signal ERROR fails without, and is counted with, a recorded allowlist entry', async ({ browser }, info) => {
     info.annotations.push({ type: 'catches', description: 'Engine ERROR lines fail boots by default; a recorded entry (justification + evidence) lets exactly that line pass and reports its count in diagnostics, network capture and probe.json.' });
     needRuntime();

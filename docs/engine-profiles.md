@@ -186,7 +186,8 @@ lengths (`buildAssets(manifest)`); `{ assets: { name: sha256 | { sha256, bytes }
 applies to the engine path too: `BGT_WEBGL2_GPU=1 npm run test:engine` / `npm run test:port` (the `port-engine`
 project) use the native GPU (ANGLE Metal on macOS); `BGT_SOFTWARE_RENDERER=1` or `BGT_E2E_NO_WEBGPU=1` keep
 SwiftShader. `npm run engine:probe` defaults to the native GPU, like `npm run probe`, and fails when the page lands
-on a software rasterizer unless `--software` was given. probe.json records `device` (renderer, vendor, context) and
+on a software rasterizer unless `--software` was given; a renderer string that cannot be read counts as software
+(`rendererUnknown: true`), so it fails closed too. probe.json records `device` (renderer, vendor, context) and
 `software`, with the same classification as BGT (`softwareRenderer`, bgt/renderers/types.ts).
 
 **Performance helpers** (`tools/engine/perf.mjs`, re-exported by tests/support/engine-profile.ts).
@@ -221,7 +222,11 @@ in `port/game.json`:
 Each entry has exactly one of `message` (the exact line) or `pattern` (a whole-line JavaScript regex that starts with
 the literal ERROR prefix, has at least 24 literal characters and does not match generic engine errors), a
 `justification` (20–1000 characters) and an `evidence` path relative to game.json, which must exist at build time
-(its SHA-256 goes into the manifest, entries get ids `E1`, `E2`, …). Only engine stderr lines that start with
+inside the game directory or the sibling `reports/` tree (its SHA-256 goes into the manifest, entries get ids `E1`,
+`E2`, …). A `pattern` must compile on its own and may not use top-level alternation (`a|b`; use one entry per line),
+lookarounds, backreferences, negated classes, control/line-separator characters or escapes other than `\d \w \S \b
+\B` and escaped punctuation (vK59). Stderr messages are split into lines and each line is classified on its own, so
+an allowed line never carries an abort on the next line. Only engine stderr lines that start with
 `ERROR:`/`USER ERROR:`/`SCRIPT ERROR:` can match. A matching line and the indented `at:` continuation lines right
 after it are logged as warnings and counted. Aborts, traps, page errors, context-free stderr and every unmatched error
 still fail. `diagnostics().allowlisted` (`engineAllowlisted(page)` in specs) and probe.json `allowlisted` list

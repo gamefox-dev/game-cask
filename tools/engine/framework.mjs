@@ -9,6 +9,7 @@ import * as godot from './godot.mjs';
 import { PRIVATE, hash, runtimeById, selectRuntime, verifyRuntime, runtimes } from './runtime.mjs';
 import { generateShell } from './shell.mjs';
 import { staticHeaders, headersFile } from './headers.mjs';
+import { allowPatternProblem } from './browser-adapter.js';
 
 const sha256 = godot.sha256;
 const godotAdapter = major => ({ engine: 'godot', major, parsePack: godot.parsePack, identifyRunner: godot.identifyRunner, analyzePack: godot.analyzePack, generateShell });
@@ -87,6 +88,8 @@ export function validateAllowedErrors(list) {
     if (typeof text !== 'string' || !text || text.length > 500) throw new Error(where + ': message/pattern must be a non-empty string of at most 500 characters');
     if (e.message !== undefined && !ERROR_LINE.test(e.message)) throw new Error(where + ': only engine ERROR lines ("ERROR: …", "USER ERROR: …", "SCRIPT ERROR: …") can be allowlisted');
     if (e.pattern !== undefined) {
+      const problem = allowPatternProblem(e.pattern);
+      if (problem) throw new Error(where + ': invalid pattern: ' + problem);
       let match;
       try { match = allowedErrorMatcher(e); } catch (err) { throw new Error(where + ': invalid pattern: ' + err.message); }
       if (match('') || BROAD_SENTINELS.some(line => match(line))) throw new Error(where + ': pattern is too broad (matches generic engine errors); allowlist the exact message');
@@ -199,6 +202,9 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   const allowedErrors = (p.allowedErrors ?? []).map((e, i) => {
     const file = resolve(gameDir, e.evidence);
     if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile()) throw new Error(`engineProfile.allowedErrors[${i}].evidence not found (or not a regular file): ${e.evidence}`);
+    // vK59: evidence lives in the game directory (port/) or the sibling reports/ tree, never elsewhere.
+    const real = realpathSync(file), roots = [gameDir, resolve(gameDir, '..', 'reports')].filter(existsSync).map(r => realpathSync(r));
+    if (!roots.some(r => real.startsWith(r + sep))) throw new Error(`engineProfile.allowedErrors[${i}].evidence must be inside the game directory or ../reports: ${e.evidence}`);
     return { id: 'E' + (i + 1), ...e, evidenceSha256: sha256(readFileSync(file)) };
   });
   const engineArgs = p.engineArgs ?? [];

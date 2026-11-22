@@ -6,7 +6,7 @@ import { join } from 'node:path';
 // @ts-expect-error plain ESM capture
 import { buildAssets, classifyCancellation, expectedBodies } from '../../tools/engine/capture.mjs';
 // @ts-expect-error plain ESM perf helpers
-import { SOFTWARE_RENDERER, softwareRenderer, chromiumLaunch, chromiumSoftwareArgs } from '../../tools/engine/perf.mjs';
+import { SOFTWARE_RENDERER, softwareRenderer, chromiumLaunch, chromiumSoftwareArgs, engineRenderer } from '../../tools/engine/perf.mjs';
 // @ts-expect-error plain ESM probe CLI
 import { parseEngineProbeArgs } from '../../tools/engine/probe.mjs';
 // @ts-expect-error plain ESM orchestration
@@ -185,5 +185,45 @@ describe('K59 Q7: recorded engine command-line options', () => {
   it('physics fixture variant is exclusive and prints frame-indexed state', () => {
     expect(variantScript({ physics: true })).toContain('print("state ", Engine.get_physics_frames()');
     expect(() => variantScript({ physics: true, tone: true })).toThrow(/exclusive/);
+  });
+});
+
+describe('vK59 review fixes', () => {
+  const ok = { justification: 'main.gd of the game prints this line itself (pack offset evidence)', evidence: 'evidence/dup.txt' };
+  it.each([
+    ['group break-out (review example 1)', 'ERROR: Signal foo is already connected to)|(?!', /does not compile on its own/],
+    ['top-level alternation (review example 2)', 'ERROR: ' + 'a'.repeat(40) + '|USER ERROR: ..+', /top-level alternation/],
+    ['lookahead', "ERROR: Signal 'tree_entered' is already connected(?=.*)", /lookarounds/],
+    ['lookbehind', "ERROR: Signal 'tree_entered' is already (?<!x)connected", /lookarounds/],
+    ['negated class', "ERROR: Signal 'tree_entered' is already connected[^.]*", /negated/],
+    ['whitespace escape (matches newlines)', "ERROR: Signal 'tree_entered' is already\\s+connected", /escape \\s/],
+    ['unicode escape', "ERROR: Signal 'tree_entered' is already connected\\u000a", /escape \\u/],
+    ['backreference', "ERROR: Signal '(tree_entered)' is already connected \\1", /escape \\1/],
+    ['literal newline', "ERROR: Signal 'tree_entered' is already connected\nAborted", /control or line-separator/],
+  ])('refuses %s', (_name, pattern, error) => {
+    expect(() => validateAllowedErrors([{ ...ok, pattern }])).toThrow(error);
+  });
+  it('still accepts grouped alternation and escaped punctuation', () => {
+    expect(validateAllowedErrors([{ ...ok, pattern: "ERROR: Signal 'tree_entered' is already connected to given method '_(noop|idle)' in that object\\." }])).toHaveLength(1);
+  });
+  it('an unreadable renderer fails closed (software: true, rendererUnknown)', async () => {
+    const page = { evaluate: async () => ({ context: null, renderer: null, vendor: null, version: null }) };
+    expect(await engineRenderer(page)).toMatchObject({ software: true, rendererUnknown: true });
+    const gpu = { evaluate: async () => ({ context: 'webgl2', renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)', vendor: 'x', version: 'y' }) };
+    expect(await engineRenderer(gpu)).toMatchObject({ software: false, rendererUnknown: false });
+  });
+  it('evidence must stay inside the game directory or the sibling reports tree', () => {
+    const base = mkdtempSync(join(tmpdir(), 'k59-evidence-')), port = join(base, 'port'), inputs = join(port, 'inputs');
+    mkdirSync(inputs, { recursive: true }); mkdirSync(join(base, 'reports')); mkdirSync(join(base, 'elsewhere'));
+    writeFileSync(join(base, 'reports', 'proof.txt'), 'proof'); writeFileSync(join(base, 'elsewhere', 'proof.txt'), 'proof');
+    const source = embeddedFixture({ duplicateSignal: true }); writeFileSync(join(inputs, 'runner.exe'), source);
+    const runtime = runtimeById('godot-3.5.3');
+    const cfg = (evidence: string) => ({ id: 'cc0-k59', name: 'CC0', private: true, engineProfile: { schema: 'game-cask/engine-profile/2', allowed: true, adapter: 'godot3', runtime: runtime.id,
+      version: runtime.version, build: runtime.build, renderer: 'webgl2', threads: false, inputRoot: 'inputs', runner: 'runner.exe', runnerSha256: sha256(source),
+      pack: { location: 'embedded-trailer', sha256: sha256(makePack({ duplicateSignal: true })) }, allowedErrors: [{ ...ok, message: DUPLICATE_SIGNAL_ERROR, evidence }] } });
+    const build = (evidence: string) => () => buildEngine(port, cfg(evidence), { store: join(base, 'no-store'), outRoot: join(base, 'out'), quiet: true });
+    expect(build('../elsewhere/proof.txt')).toThrow(/inside the game directory or \.\.\/reports/);
+    expect(build('inputs/../../elsewhere/proof.txt')).toThrow(/inside the game directory/);
+    expect(build('../reports/proof.txt')).toThrow(/not provisioned/); // accepted: the build reaches runtime verification
   });
 });

@@ -78,7 +78,8 @@ export function engineRenderer(page) {
       return result;
     }
     return { context: null, renderer: null, vendor: null, version: null };
-  }).then(r => ({ ...r, software: r.renderer ? softwareRenderer(r.renderer) : null }));
+  // vK59: fail closed. An unreadable renderer cannot prove a GPU, so it counts as software (rendererUnknown says why).
+  }).then(r => ({ ...r, software: r.renderer ? softwareRenderer(r.renderer) : true, rendererUnknown: !r.renderer }));
 }
 
 const metricsOf = async session => Object.fromEntries((await session.send('Performance.getMetrics')).metrics.map(m => [m.name, m.value]));
