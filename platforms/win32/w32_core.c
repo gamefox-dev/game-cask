@@ -192,6 +192,8 @@ static uint32_t heap_end = W32_HEAP_LO;
 typedef struct { uint32_t lo, hi, skip, live, prot; } virtual_range_t;
 static virtual_range_t virtual_ranges[256];
 static uint32_t virtual_n;
+/* K64 metrics: bytes of live VirtualAlloc ranges (mapped = committed here) and their high-water mark. */
+static uint64_t virtual_live, virtual_peak;
 uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot) {
     uint64_t end = ((uint64_t)addr + size + 4095u) & ~4095ull;
     uint64_t limit=0xffff0000ull;
@@ -212,6 +214,7 @@ uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot) {
     __builtin_memset(x86_host(addr),0,(uint32_t)end-addr);
     if(reuse>=0){virtual_ranges[reuse].live=1;virtual_ranges[reuse].prot=prot;}
     else virtual_ranges[virtual_n++] = (virtual_range_t){addr, (uint32_t)end, addr,1,prot};
+    virtual_live += (uint32_t)end - addr; if (virtual_live > virtual_peak) virtual_peak = virtual_live;
     return addr;
 }
 uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot) {
@@ -224,7 +227,7 @@ uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot) {
 }
 int w32_virtual_release(uint32_t addr) {
     for(uint32_t i=0;i<virtual_n;i++){virtual_range_t *r=&virtual_ranges[i];if(r->live&&r->lo==addr){
-        for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;return 1;
+        for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;virtual_live-=r->hi-r->lo;return 1;
     }}return 0;
 }
 static uint32_t heap_skip(uint32_t p) {
@@ -1249,6 +1252,8 @@ const char *w32_metrics_json(void) {
     jkv("targets_lost", w32_m.targets_lost);
     jkv("exited", (uint64_t)w32_exited);
     jkv("heap_bytes", heap_end - W32_HEAP_LO);
+    jkv("virtual_live_bytes", virtual_live);
+    jkv("virtual_peak_bytes", virtual_peak);
 #ifdef X86_FLAT_GUEST
     jkv("guest_committed_bytes", x86_guest_committed);
 #endif

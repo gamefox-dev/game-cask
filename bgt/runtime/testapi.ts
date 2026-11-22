@@ -33,6 +33,10 @@ export interface BGTTestAPI {
   input(events: BGTTestInputEvent[]): void;
   screenshot(): Promise<Blob>;
   diagnostics(): BGTDiagnostics;
+  /** K64: memory attribution and estimated total vs the configured budget (same as diagnostics().memory). */
+  memory(): BGTDiagnostics['memory'];
+  /** K64: load phases and wasm delivery evidence (same as diagnostics().load). */
+  loadMetrics(): BGTDiagnostics['load'];
   stateHash(): string | null;
   backend(): 'webgpu' | 'webgl2' | 'unavailable';
   // ---- extensions (documented in bgt/abi/ABI.md §Test API)
@@ -110,6 +114,8 @@ export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
       return new Blob([unb64(cv.toDataURL('image/png').split(',')[1])], { type: 'image/png' });
     },
     diagnostics: () => rt.diagnostics(),
+    memory: () => rt.memory(),
+    loadMetrics: () => rt.loadMetrics(),
     stateHash: () => rt.host?.stateHash() ?? null,
     backend: () => rt.renderer?.kind ?? 'unavailable',
     async readPixels() {

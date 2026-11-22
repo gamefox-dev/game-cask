@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // Static production bundle containing only selected games, for hosting.
 //
-//   node tools/build/bundle.mjs --game <id> [--game <id2>] [--out DIR]
+//   node tools/build/bundle.mjs --game <id> [--game <id2>] [--out DIR] [--precompress]
+//
+// --precompress (K64) writes .br (quality 11) and .gz beside the wasm/js/data files, for static hosts that
+// serve precompressed files (nginx brotli_static/gzip_static, Caddy `precompressed`). Hosts that compress
+// on the fly ignore them. Check what a host actually sends with `npm run package:metrics -- --url ...`.
 //
 // The first --game becomes the default page (no ?game= needed). The output has
 // no test API. Ports are private by default: hosting a port publicly
@@ -16,6 +20,7 @@ const argv = process.argv.slice(2);
 const games = argv.flatMap((a, i) => (a === '--game' && argv[i + 1] ? [argv[i + 1]] : []));
 const oi = argv.indexOf('--out');
 const out = resolve(oi >= 0 ? argv[oi + 1] : join(ROOT, 'dist-bundle'));
+const precompressing = argv.includes('--precompress');
 if (!games.length) {
   console.error('usage: bundle.mjs --game <id> [--game <id2>] [--out DIR]');
   process.exit(1);
@@ -45,5 +50,11 @@ for (const g of games) {
 }
 writeFileSync(join(out, 'games', 'index.json'), JSON.stringify({ games: index }, null, 2) + '\n');
 const priv = index.filter((g) => g.private).map((g) => g.id);
+if (precompressing) {
+  const { precompress } = await import('../report/package-metrics.mjs');
+  const written = precompress(out);
+  console.log(`bundle: precompressed ${written.length} file(s): ${written.reduce((n, w) => n + w.raw, 0)} B -> ` +
+    `${written.filter((w) => w.path.endsWith('.br')).reduce((n, w) => n + w.bytes, 0)} B brotli`);
+}
 console.log(`bundle: ${out} (games: ${games.join(', ')}; default ${games[0]})`);
 if (priv.length) console.warn(`bundle: WARNING ${priv.join(', ')} marked private — serve behind access control unless you hold the rights.`);

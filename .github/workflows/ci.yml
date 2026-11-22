@@ -178,6 +178,11 @@ jobs:
         shard: [1, 2, 3, 4]
     env:
       BGT_CI_LIGHT: '1'
+      # K64: content-addressed object + Asyncify payload cache (docs/build-cache.md), outside node_modules (npm ci
+      # removes it). A cold build:examples spent ~14 min compiling and ~35 min in Asyncify per shard (84ee4a2:
+      # 54 min, cancelled at the 60-min ceiling); restored payloads skip both. Keys only select what to restore:
+      # every payload is verified by its own content key, so a stale restore can only miss, never be wrong.
+      BGT_SHARED_CACHE: /home/runner/.cache/bgt-shared
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -189,6 +194,13 @@ jobs:
           version: 0.13.0
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Restore build cache (objects, Asyncify payloads)
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/bgt-shared
+          key: bgt-e2e-${{ runner.os }}-zig0.13.0-${{ hashFiles('platforms/**', 'bgt/include/**', 'bgt/sdk/**', 'tools/build/**', 'tools/x86/**', 'examples/**', 'package-lock.json') }}
+          restore-keys: |
+            bgt-e2e-${{ runner.os }}-zig0.13.0-
       - name: Wasm sample build
         run: npm run build:examples
       - name: Browser E2E (WebGL 2 fallback, software rendering) — shard ${{ matrix.shard }}/4

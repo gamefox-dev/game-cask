@@ -3,6 +3,7 @@
 // backends only translate draws, clips and texture ops.
 
 import type { Frame, Rect, TextureTable, ReadbackItem } from '../runtime/commands';
+import type { GpuNativeMemory } from '../runtime/memory';
 
 export type BackendKind = 'webgpu' | 'webgl2';
 
@@ -89,6 +90,8 @@ export interface GpuBackend {
   readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */
   execute(item: GpuItem): number;
+  /** K64 diagnostics: native objects and recovery shadows this executor holds, from its own tables (no GPU queries). */
+  memory?(): GpuNativeMemory;
 }
 export interface GpuDeviceInfo {
   /** WebGL2: UNMASKED_RENDERER_WEBGL (else RENDERER); WebGPU: adapter vendor/architecture/description. */

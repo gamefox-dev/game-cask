@@ -358,6 +358,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     ...(cfg.suspension === 'jspi-preferred' ? { preferredSuspension: 'jspi' } : {}),
     ...(pipe?.report.memory ? { memory: pipe.report.memory } : {}),
     ...(cfg.gpu ? { gpu: cfg.gpu } : {}),
+    ...(cfg.memoryBudget ? { memoryBudget: cfg.memoryBudget } : {}),
     packaging,
     ...(slice ? {slice} : {}),
     ...(streams.length ? {streams} : {}),
