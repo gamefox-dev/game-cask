@@ -94,8 +94,12 @@ can reach `bgt.yield`:
   (all element segments, every `ref.func`, and, if a table is imported/exported, every exported and
   imported function);
 - removelisted generated native steps (`N_*`) are cut points, exactly as before (they neither suspend nor
-  propagate). The runtime now checks that invariant: `x86_check_suspendable()` faults at the single
-  `bgt_yield` site (`wait_host`) if any native step frame is live, instead of unwinding through it.
+  propagate). The runtime now checks that invariant at the single `bgt_yield` site (`wait_host`):
+  `x86_check_suspendable()` counts a yield with a native step frame live (`native_step_suspensions`) and,
+  in the Asyncify artifact only, faults instead of unwinding through it. JSPI suspends any stack
+  correctly, so there the event is only counted: an analysis miss still shows up when testing a dual
+  build under JSPI. The artifact is identified by a 16-byte marker in `x86_rt.c` data that
+  `asyncify.mjs` rewrites (`...JSPI` -> `...ASYN`) in the Asyncify output only (`asyncify_artifact` metric).
 
 The set goes to every Binaryen run as an exact `asyncify-onlylist` response file (canonical per-index
 identities; Binaryen forbids combining it with a removelist). Whole-module mode computes it before `-O2`;

@@ -1162,6 +1162,8 @@ const char *w32_metrics_json(void) {
     jkv("thunk_dispatches",x86_metrics.thunk_dispatches);
     jkv("direct_import_calls",x86_metrics.direct_import_calls);
     jkv("leaf_import_calls",x86_metrics.leaf_import_calls);
+    jkv("native_step_suspensions",x86_metrics.native_step_suspensions);
+    jkv("asyncify_artifact",(uint64_t)x86_asyncify_artifact());
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
     /* LANE-GL */

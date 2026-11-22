@@ -48,6 +48,16 @@ function precisePlan(bytes,cutNames) {
  const names=()=>only.map(i=>{const n=nameOf.get(i);if(n===undefined)throw new Error('suspending function '+i+' has no name for the Asyncify onlylist');return n;});
  return {only,names,cut:cut.size,functions:info.functions.length-imports};
 }
+// K65: x86_rt.c's artifact marker; only the Asyncify artifact says "ASYN" (the guard faults there).
+const MARKER=Buffer.from('BGT-K65-SUSPJSPI');
+export function markAsyncifyArtifact(bytes) {
+ let found=0;const out=Buffer.from(bytes);
+ for(let p=8;p<out.length;){const id=out[p++];let n=0,shift=0,b;do{b=out[p++];n+=(b&127)*2**shift;shift+=7;}while(b&128);
+  if(id===11)for(let i=out.indexOf(MARKER,p);i>=0&&i<p+n;i=out.indexOf(MARKER,i+1)){out.write('ASYN',i+12,'latin1');found++;}
+  p+=n;}
+ if(found>1)throw new Error('Asyncify artifact marker occurs '+found+' times; refusing to publish');
+ return {bytes:out,marked:found===1};
+}
 function namedOutput(bytes,map,originalNames,identities) {
  // Always ship standard function names (profiles show names, not wasm-function[N]).
  const back=new Map(identities.map(n=>[n.name,originalNames.get(n.index)]));
@@ -93,13 +103,13 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
  // An empty onlylist means "no list" to Binaryen; a never-matching identity keeps it exact.
  const writeOnly=names=>writeFileSync(onlyFile,(names.length?names:['p-none']).join('\n')+'\n');
  const finish=(bytes,map,extra)=>{
-  const named=namedOutput(bytes,map,originalNames,identities);
+  const named=namedOutput(bytes,map,originalNames,identities),marked=markAsyncifyArtifact(named.bytes);named.bytes=marked.bytes;
   if(!WebAssembly.validate(named.bytes))throw new Error('assembled Asyncify module failed WebAssembly validation; refusing to publish');
   const verified=yieldFn===null||!args.includes('--asyncify')?null:verifyAsyncify(named.bytes,{cutNames});
   writeFileSync(output,named.bytes);
   if(args.includes('--print-function-map'))process.stdout.write(named.names.map(n=>n.index+':'+n.name).join('\n')+'\n');
   const stats={...extra,analysis:plan?'precise':'binaryen',functions:plan?.functions??bodies.length,onlylist:plan?plan.only.length:null,cut:plan?plan.cut:cutNames.size,
-   suspending:verified?.suspending??0,instrumented:verified?.instrumented??0,bytes:named.bytes.length};
+   suspending:verified?.suspending??0,instrumented:verified?.instrumented??0,marked:marked.marked,bytes:named.bytes.length};
   process.stdout.write('#bgt-asyncify '+JSON.stringify(stats)+'\n');
   return stats;
  };

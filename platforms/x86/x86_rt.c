@@ -536,8 +536,17 @@ int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
  * before suspension; the depth cap routes recursion/tail cycles back here. Legacy/override entries
  * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
 unsigned x86_native_live;
+/* K65: artifact marker. The same linked module ships as the JSPI artifact; tools/build/asyncify.mjs
+ * rewrites the last four bytes ("JSPI" -> "ASYN") in the Asyncify artifact only. volatile: never folded. */
+static volatile const unsigned char suspension_marker[16] =
+    {'B','G','T','-','K','6','5','-','S','U','S','P','J','S','P','I'};
+int x86_asyncify_artifact(void) { return suspension_marker[12] == 'A'; }
 void x86_check_suspendable(void) {
-    if (x86_native_live) x86_fault("suspension requested inside a generated native step (Asyncify cut point)", X.eip);
+    if (!x86_native_live) return;
+    /* Asyncify cannot unwind uninstrumented frames: fault before corrupting state. JSPI suspends any
+     * stack correctly; there an analysis miss is only counted (metrics: native_step_suspensions). */
+    x86_metrics.native_step_suspensions++;
+    if (x86_asyncify_artifact()) x86_fault("suspension requested inside a generated native step (Asyncify cut point)", X.eip);
 }
 void x86_run_native(x86_native_fn step) {
     const unsigned live = x86_native_live;

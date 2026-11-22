@@ -321,7 +321,8 @@ registry record, never a duplicate native body or an invented interior range).
 
 K65: the exclusion list is now a set of *cut points* for an exact suspension set computed from the linked
 wasm (direct calls plus signature-matched table calls); Binaryen instruments exactly that set (onlylist), the
-published artifact is re-verified, and the runtime faults if `bgt_yield` is reached with a native step live.
+published artifact is re-verified, and reaching `bgt_yield` with a native step live faults in the Asyncify artifact
+(counted only under JSPI: `native_step_suspensions`).
 See [suspension policy](suspension.md#exact-suspension-set-k65-default).
 
 An entirely overridden selection has no native steps and therefore uses an empty exclusion list. An all-inlined
