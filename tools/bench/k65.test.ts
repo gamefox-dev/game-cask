@@ -22,7 +22,7 @@ const root = process.env.BGT_K65_OUT ?? '';
 const FIXTURES: Record<string, Record<string, unknown>> = {
   'k65-fast': { liftMode: 'fast' },
   'k65-exact': { liftMode: 'exact' },
-  // Counts/sizes at scale (12,078 functions, 1.6M lifted insns, natural >32 MiB partitioning); no timing.
+  // Counts/sizes at scale (12,078 guest functions, 1.6M lifted insns, production 8 MiB partitions); no timing.
   'x64-scale-fast': { example: 'x64-scale', liftMode: 'fast' },
 };
 const fixtures = (process.env.BGT_K65_FIXTURES ?? Object.keys(FIXTURES).join(',')).split(',');
@@ -70,7 +70,8 @@ it('K65 Asyncify precision benchmark step', async () => {
           const t0 = performance.now();
           stats = transform(linked, join(out, 'game.wasm'), [...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
             ...(remove.length ? ['--pass-arg=asyncify-removelist@' + remove.join(',')] : [])],
-          shape === 'part' ? { analysis, wholeLimit: example ? undefined : 0, partitionBytes: example ? undefined : partitionBytes } : { analysis, wholeLimit: example ? Infinity : undefined });
+          // Partitioned = the >32 MiB code path, forced; the scale example uses the production 8 MiB batches.
+          shape === 'part' ? { analysis, wholeLimit: 0, partitionBytes: example ? undefined : partitionBytes } : { analysis, wholeLimit: Infinity });
           ms = performance.now() - t0;
           const bytes = readFileSync(join(out, 'game.wasm'));
           const manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
