@@ -20,4 +20,6 @@ extern uint64_t w32_gl_batched_lists, w32_gl_batch_flushes, w32_gl_sync_submits,
 const char *w32_gl_stubs_json(void);
 const char *w32_gl_objects_json(void);
 const char *w32_gl_approximations_json(void);
+const char *w32_gl_error_calls_json(void); /* K61 */
+extern uint64_t w32_gl_errors_raised, w32_gl_expanded_draws, w32_gl_partial_clears;
 #endif

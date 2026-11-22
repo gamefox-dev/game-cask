@@ -29,6 +29,8 @@ const char *w32_gl_stubs_json(void){return "[]";}
 /* Idle GL metric provider only; object behavior is exercised by x64-gl-capacity. */
 const char *w32_gl_objects_json(void){return "{}";}
 const char *w32_gl_approximations_json(void){return "[]";}
+uint64_t w32_gl_errors_raised,w32_gl_expanded_draws,w32_gl_partial_clears; /* K61 census counters */
+const char *w32_gl_error_calls_json(void){return "{}";}
 int w32_rp_enabled(void){return 0;}
 /* K50 guest-time metric providers: idle CPU state and zero scheduler/audio diagnostics. */
 x86_cpu_t X;

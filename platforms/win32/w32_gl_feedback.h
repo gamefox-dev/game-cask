@@ -90,17 +90,19 @@ static uint32_t api_BeginTransformFeedback(void) {
 static uint32_t api_EndTransformFeedback(void) {
     if (!tf_active) fail(BAD_OP); else tf_active = 0; return 0;
 }
-static uint32_t api_GetIntegeri_v(void) {
-    uint32_t key = ARG(0), i = ARG(1), value;
+static int indexed_query(uint32_t *value) {
+    uint32_t key = ARG(0), i = ARG(1);
     if (key == 0x8c8f || key == 0x8c84 || key == 0x8c85) {
         if (i >= 4) { fail(BAD_VALUE); return 0; }
-        value = key == 0x8c8f ? NAME(buffers, tf_bound[i]) : key == 0x8c84 ? tf_offset[i] : tf_whole[i] ? 0 : tf_size[i];
+        *value = key == 0x8c8f ? NAME(buffers, tf_bound[i]) : key == 0x8c84 ? tf_offset[i] : tf_whole[i] ? 0 : tf_size[i];
     } else if (key == 0x8a28 || key == 0x8a29 || key == 0x8a2a) {
         if (i >= 8) { fail(BAD_VALUE); return 0; }
-        value = key == 0x8a28 ? NAME(buffers, ubo[i]) : key == 0x8a29 ? ubo_offset[i] : ubo_whole[i] ? 0 : ubo_size[i];
+        *value = key == 0x8a28 ? NAME(buffers, ubo[i]) : key == 0x8a29 ? ubo_offset[i] : ubo_whole[i] ? 0 : ubo_size[i];
     } else { fail(BAD_ENUM); return 0; }
-    x86_wr32(ARG(2), value); return 0;
+    return 1;
 }
+static uint32_t api_GetIntegeri_v(void) { uint32_t v; if (indexed_query(&v)) x86_wr32(ARG(2), v); return 0; }
+static uint32_t api_GetInteger64i_v(void) { uint32_t v; if (indexed_query(&v)) x86_wr64(ARG(2), v); return 0; } /* K61 */
 static uint32_t api_GenQueries(void) {
     GEN_CHECK(gl_queries);
     for (uint32_t i = 0; i < ARG(0); i++) x86_wr32(ARG(1) + 4 * i, NAME(gl_queries, alloc_name(gl_queries, sizeof(GlQuery))));
@@ -128,12 +130,15 @@ static uint32_t api_GetQueryiv(void) {
     if (ARG(1) != 0x8864 && ARG(1) != 0x8865) { fail(BAD_ENUM); return 0; }
     x86_wr32(ARG(2), ARG(1) == 0x8864 ? 32 : NAME(gl_queries, tf_query)); return 0;
 }
-static uint32_t api_GetQueryObjectuiv(void) {
+static int query_object(uint32_t *v) {
     uint32_t id = SLOT(gl_queries, ARG(0)), key = ARG(1);
     if (!id || id >= N || !gl_queries[id].target || gl_queries[id].active) { fail(BAD_OP); return 0; }
     if (key != 0x8866 && key != 0x8867) { fail(BAD_ENUM); return 0; }
-    x86_wr32(ARG(2), key == 0x8867 ? 1 : gl_queries[id].result); return 0;
+    *v = key == 0x8867 ? 1 : gl_queries[id].result; return 1;
 }
+static uint32_t api_GetQueryObjectuiv(void) { uint32_t v; if (query_object(&v)) x86_wr32(ARG(2), v); return 0; }
+static uint32_t api_GetQueryObjectui64v(void) { uint32_t v; if (query_object(&v)) x86_wr64(ARG(2), v); return 0; } /* K61 */
+static uint32_t api_GetQueryObjecti64v(void) { return api_GetQueryObjectui64v(); }
 static uint32_t api_GetQueryObjectiv(void) { return api_GetQueryObjectuiv(); }
 /* Declare the linked capture interface on a newly materialized immutable pipeline. */
 static void tf_pipeline(Program *p, uint32_t pipe) {

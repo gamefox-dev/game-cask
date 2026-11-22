@@ -55,7 +55,9 @@ static void flush_pending(void);
  * is the error latched before the current API call (the API wrapper clears `error` during a call). */
 static uint32_t latch_outer, latch_local, latch_fix;
 static int fail_deferred(uint32_t e);
-static void fail(uint32_t e) { if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
+/* K61: every raised error is counted (gl_errors_raised) and attributed to the running entry point (gl_error_calls). */
+uint64_t w32_gl_errors_raised;
+static void fail(uint32_t e) { w32_gl_errors_raised++; if (fail_deferred(e)) return; flush_pending(); if (!error) error = e; }
 static int eq(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; } return *a == *b;
 }
@@ -685,6 +687,9 @@ static uint32_t cull_face = 2, front_face, depth_write = 1, depth_compare = 1;
 static uint32_t src_rgb = 1, dst_rgb, src_alpha = 1, dst_alpha, blend_op_rgb, blend_op_alpha;
 static uint32_t stencil_compare = 7, stencil_read = 255, stencil_write = 255, stencil_ref;
 static uint32_t stencil_fail, stencil_zfail, stencil_pass, color_mask = 15, color_masks[4] = {15, 15, 15, 15};
+/* K61: back-face stencil state (glStencil*Separate). Compare/ops are per face in §13 pipelines; reference and
+ * masks have one value per pipeline/pass, so a back value that differs from the front one is an approximation. */
+static uint32_t back_compare = 7, back_fail, back_zfail, back_pass, back_read = 255, back_write = 255, back_ref;
 static float clear_color[4], clear_depth = 1, blend_color[4]; static uint32_t clear_stencil;
 static int32_t viewport[4], scissor[4]; static float range_min, range_max = 1;
 typedef struct { uint32_t used, n, words[200], id, hash; } Pipeline;
@@ -1259,9 +1264,11 @@ static const char *entry_objects(const char *name) {
     OBJECTS(programs); return "programs";
 }
 #define API(name, fn, nargs, mutates) \
+    static uint32_t errs_##fn; \
     static uint32_t call_##fn(void) { \
         w32_gl_calls++; \
         if (eq(name, "glGetError")) return api_##fn(); \
+        uint64_t raised = w32_gl_errors_raised; \
         uint32_t pending = error, exhaustion_before = gl_exhaustion_events, outer = latch_outer; error = 0; \
         latch_outer = pending; \
         int protects_source = eq(name, "glBufferData") || eq(name, "glBufferSubData") || \
@@ -1272,12 +1279,14 @@ static const char *entry_objects(const char *name) {
         if (error == OOM && exhaustion_before == gl_exhaustion_events) \
             object_exhaustion(entry_objects(name), "host/GPU byte or submission budget", 1); \
         if (!error) w32_gl_state_changes += mutates; \
+        if (w32_gl_errors_raised != raised) errs_##fn++; \
         if (pending) error = pending; \
         latch_outer = outer; \
         return result; \
     }
 #define GLSTUB(name, fn, nargs, mutates) \
-    static uint32_t call_##fn(void) { w32_gl_calls++; missing(name); fail(BAD_OP); return 0; }
+    static uint32_t errs_##fn; \
+    static uint32_t call_##fn(void) { w32_gl_calls++; errs_##fn++; missing(name); fail(BAD_OP); return 0; }
 #include "w32_gl_api.h"
 #undef API
 #undef GLSTUB
@@ -1289,6 +1298,25 @@ const w32_api_t w32_api_gl[] = {
 #undef API
 #undef GLSTUB
 const uint32_t w32_api_gl_n = sizeof w32_api_gl / sizeof w32_api_gl[0];
+/* K61 error census: {"entry": calls that raised a GL error, ...}, in table order, nonzero entries only. */
+static uint32_t census_put(char *s, uint32_t n, uint32_t cap, const char *name, uint32_t count) {
+    char digits[12]; uint32_t d = 0, len = w32_slen(name);
+    do { digits[d++] = (char)('0' + count % 10); count /= 10; } while (count);
+    if (n + len + d + 6 >= cap) return n;
+    if (n > 1) s[n++] = ',';
+    s[n++] = '"'; copy(s + n, name, len); n += len; s[n++] = '"'; s[n++] = ':';
+    while (d) s[n++] = digits[--d];
+    return n;
+}
+const char *w32_gl_error_calls_json(void) {
+    static char s[4096]; uint32_t n = 0; s[n++] = '{';
+#define API(name, fn, nargs, mutates) if (errs_##fn) n = census_put(s, n, sizeof s - 2, name, errs_##fn);
+#define GLSTUB API
+#include "w32_gl_api.h"
+#undef API
+#undef GLSTUB
+    s[n++] = '}'; s[n] = 0; return s;
+}
 #if !(UINTPTR_MAX > 0xffffffffu || W32_GL_SYNC_SUBMIT)
 /* Journal effects for a replayed batch (see replay). Undo runs newest-first over every record and
  * restores the pre-batch profile state; redo runs oldest-first over the accepted records; reject

@@ -47,7 +47,7 @@ static uint32_t enable(int enabled) {
     uint32_t cap = ARG(0); int bit = other_capability(cap);
     if (bit >= 0) {
         other_caps = enabled ? other_caps | (1u << bit) : other_caps & ~(1u << bit);
-        if (enabled && bit >= 2) approximate_hex("glEnable capability not rendered", cap);
+        if (enabled && bit >= 2 && bit != 10) approximate_hex("glEnable capability not rendered", cap); /* K61: RESTART is rendered */
         return 0;
     }
     uint32_t *v = capability(cap); if (!v) fail(BAD_ENUM); else *v = (uint32_t)enabled; return 0;
@@ -71,6 +71,7 @@ static uint32_t api_BlendEquationSeparate(void) {
     return 0;
 }
 static float clamp(float f) { return f != f || f < 0 ? 0 : f > 1 ? 1 : f; }
+static float finite_f(float f) { return f != f ? 0 : f > 3e38f ? 3e38f : f < -3e38f ? -3e38f : f; }
 static uint32_t api_BlendColor(void) { for (uint32_t i = 0; i < 4; i++) blend_color[i] = clamp(argf(i)); return 0; }
 static uint32_t api_DepthFunc(void) { uint32_t v = compare(ARG(0)); if (!error) depth_compare = v; return 0; }
 static uint32_t api_DepthMask(void) { depth_write = !!(ARG(0) & 255); return 0; }
@@ -96,15 +97,58 @@ static uint32_t api_CullFace(void) {
 static uint32_t api_FrontFace(void) {
     if (ARG(0) == 0x900 || ARG(0) == 0x901) front_face = ARG(0) == 0x900; else fail(BAD_ENUM); return 0;
 }
-static uint32_t api_StencilFunc(void) {
-    uint32_t v = compare(ARG(0)); if (!error) { stencil_compare = v; stencil_ref = ARG(1) & 255;
-        stencil_read = ARG(2) & 255; } return 0;
+/* K61: the non-separate calls set both faces (GL 3.3 §4.1.4). */
+static int stencil_faces(uint32_t face, int *front, int *back) {
+    *front = face == 0x404 || face == 0x408; *back = face == 0x405 || face == 0x408;
+    if (!*front && !*back) { fail(BAD_ENUM); return 0; } return 1;
 }
-static uint32_t api_StencilMask(void) { stencil_write = ARG(0) & 255; return 0; }
-static uint32_t api_StencilOp(void) {
-    uint32_t a = stencil_op(ARG(0)), b = stencil_op(ARG(1)), c = stencil_op(ARG(2));
-    if (!error) { stencil_fail = a; stencil_zfail = b; stencil_pass = c; } return 0;
+static void stencil_func(int front, int back, uint32_t func, uint32_t ref, uint32_t mask) {
+    uint32_t v = compare(func); if (error) return;
+    if (front) { stencil_compare = v; stencil_ref = ref & 255; stencil_read = mask & 255; }
+    if (back) { back_compare = v; back_ref = ref & 255; back_read = mask & 255; }
 }
+static void stencil_ops(int front, int back, uint32_t sfail, uint32_t zfail, uint32_t zpass) {
+    uint32_t a = stencil_op(sfail), b = stencil_op(zfail), c = stencil_op(zpass); if (error) return;
+    if (front) { stencil_fail = a; stencil_zfail = b; stencil_pass = c; }
+    if (back) { back_fail = a; back_zfail = b; back_pass = c; }
+}
+static uint32_t api_StencilFunc(void) { stencil_func(1, 1, ARG(0), ARG(1), ARG(2)); return 0; }
+static uint32_t api_StencilMask(void) { stencil_write = back_write = ARG(0) & 255; return 0; }
+static uint32_t api_StencilOp(void) { stencil_ops(1, 1, ARG(0), ARG(1), ARG(2)); return 0; }
+static uint32_t api_StencilFuncSeparate(void) {
+    int f, b; if (stencil_faces(ARG(0), &f, &b)) stencil_func(f, b, ARG(1), ARG(2), ARG(3)); return 0;
+}
+static uint32_t api_StencilOpSeparate(void) {
+    int f, b; if (stencil_faces(ARG(0), &f, &b)) stencil_ops(f, b, ARG(1), ARG(2), ARG(3)); return 0;
+}
+static uint32_t api_StencilMaskSeparate(void) {
+    int f, b; if (!stencil_faces(ARG(0), &f, &b)) return 0;
+    if (f) stencil_write = ARG(1) & 255;
+    if (b) back_write = ARG(1) & 255;
+    return 0;
+}
+/* K61: rasterization state with no §13 rendering effect beyond the reported limits. Line width and point size are
+ * clamped to ALIASED_LINE_WIDTH_RANGE / POINT_SIZE_RANGE = [1, 1] (GL 3.3 §3.4/§3.5), so width-1 rendering is exact;
+ * hints are advisory. Non-FILL polygon modes are not rendered (counted approximation). */
+static float line_width = 1, point_size = 1, offset_factor, offset_units;
+static uint32_t hints[4] = {0x1100, 0x1100, 0x1100, 0x1100}, polygon_mode = 0x1b02, restart_index;
+static uint32_t api_LineWidth(void) { float v = argf(0); if (!(v > 0)) fail(BAD_VALUE); else line_width = v; return 0; }
+static uint32_t api_PointSize(void) { float v = argf(0); if (!(v > 0)) fail(BAD_VALUE); else point_size = v; return 0; }
+static int hint_slot(uint32_t target) {
+    switch (target) { case 0xc52: return 0; case 0xc53: return 1; case 0x84ef: return 2; case 0x8b8b: return 3; default: return -1; }
+}
+static uint32_t api_Hint(void) {
+    int slot = hint_slot(ARG(0)); uint32_t mode = ARG(1);
+    if (slot < 0 || mode < 0x1100 || mode > 0x1102) fail(BAD_ENUM); else hints[slot] = mode;
+    return 0;
+}
+static uint32_t api_PolygonOffset(void) { offset_factor = finite_f(argf(0)); offset_units = finite_f(argf(1)); return 0; }
+static uint32_t api_PolygonMode(void) {
+    if (ARG(0) != 0x408 || ARG(1) < 0x1b00 || ARG(1) > 0x1b02) { fail(BAD_ENUM); return 0; }
+    polygon_mode = ARG(1); if (polygon_mode != 0x1b02) approximate("glPolygonMode POINT/LINE not rendered (filled)");
+    return 0;
+}
+static uint32_t api_PrimitiveRestartIndex(void) { restart_index = ARG(0); return 0; }
 static uint32_t api_Viewport(void) {
     if ((int32_t)ARG(2) < 0 || (int32_t)ARG(3) < 0) fail(BAD_VALUE);
     else for (uint32_t i = 0; i < 4; i++) viewport[i] = (int32_t)ARG(i);
@@ -116,7 +160,6 @@ static uint32_t api_Scissor(void) {
     return 0;
 }
 /* Float colour buffers keep values outside [0,1]; fixed-point targets clamp when written (§13 PASS_BEGIN). */
-static float finite_f(float f) { return f != f ? 0 : f > 3e38f ? 3e38f : f < -3e38f ? -3e38f : f; }
 static uint32_t api_ClearColor(void) { for (uint32_t i = 0; i < 4; i++) clear_color[i] = finite_f(argf(i)); return 0; }
 static uint32_t api_ClearDepth(void) { clear_depth = clamp((float)argd(0)); return 0; }
 static uint32_t api_ClearStencil(void) { clear_stencil = ARG(0) & 255; return 0; }
@@ -148,6 +191,19 @@ static uint32_t pass_words(const Target *tg, uint32_t clear, uint32_t *w) {
         if (rgb_only(tg->color[i].fmt)) w[j + 6] = bits(1);
     }
     return 7 + tg->ncolor * 7;
+}
+/* The GL scissor box (bottom-left origin) clipped to the target, as a §13 SCISSOR rectangle (top-left origin).
+ * Returns nonzero when the clipped box covers the whole target. */
+static int scissor_rect(const Target *tg, uint32_t sc[4]) {
+    int64_t x0 = scissor[0] < 0 ? 0 : scissor[0], y0 = scissor[1] < 0 ? 0 : scissor[1];
+    int64_t x1 = (int64_t)scissor[0] + scissor[2], y1 = (int64_t)scissor[1] + scissor[3];
+    if (x0 > tg->w) x0 = tg->w;
+    if (y0 > tg->h) y0 = tg->h;
+    if (x1 > tg->w) x1 = tg->w;
+    if (y1 > tg->h) y1 = tg->h;
+    uint32_t w = x1 > x0 ? (uint32_t)(x1 - x0) : 0, h = y1 > y0 ? (uint32_t)(y1 - y0) : 0;
+    sc[0] = (uint32_t)x0; sc[1] = tg->h - (uint32_t)y0 - h; sc[2] = w; sc[3] = h;
+    return !x0 && !y0 && w == tg->w && h == tg->h;
 }
 static uint32_t clear_buffer(uint32_t cls) {
     uint32_t buffer = ARG(0), index = ARG(1), kind;
@@ -182,13 +238,7 @@ static uint32_t clear_buffer(uint32_t cls) {
     if ((kind == 0 && !color_masks[index]) || (kind != 0 && !masks)) return 0;
     uint32_t pw[35], pn = pass_words(&selected, 0, pw);
     begin(); op(0x4c, pw, pn);
-    if (scissor_enabled) {
-        int32_t x = imin((int32_t)tg.w, imax(0, scissor[0])), y = imin((int32_t)tg.h, imax(0, scissor[1]));
-        int64_t right = (int64_t)scissor[0] + scissor[2], top = (int64_t)scissor[1] + scissor[3];
-        int32_t rx = right > tg.w ? (int32_t)tg.w : (int32_t)right, ty = top > tg.h ? (int32_t)tg.h : (int32_t)top;
-        uint32_t sw = (uint32_t)imax(0, rx - x), sh = (uint32_t)imax(0, ty - y);
-        uint32_t sc[] = {(uint32_t)x, tg.h - (uint32_t)y - sh, sw, sh}; op(0x50, sc, 4);
-    }
+    if (scissor_enabled) { uint32_t sc[4]; scissor_rect(&tg, sc); op(0x50, sc, 4); }
     uint32_t cw[] = {kind | (cls << 2) | masks, 0, values[0], values[1], values[2], values[3]};
     op(0x5f, cw, 6); op(0x4d, 0, 0); submit_deferred(); return 0;
 }
@@ -196,22 +246,159 @@ static uint32_t api_ClearBufferfv(void) { return clear_buffer(0); }
 static uint32_t api_ClearBufferiv(void) { return clear_buffer(1); }
 static uint32_t api_ClearBufferuiv(void) { return clear_buffer(2); }
 static uint32_t api_ClearBufferfi(void) { return clear_buffer(3); }
+/* K61: glClear honours the scissor box and the colour (per draw buffer), depth and stencil write masks
+ * (GL 3.3 §4.2.3). Masks remove what the clear may touch; a clear that still covers every touched buffer whole
+ * (no scissor or a box covering the target, full or empty masks) is a §13 PASS_BEGIN load clear of exactly those
+ * attachments. Otherwise the pass loads and runs §13.9 CLEAR_BUFFER operations, which honour SCISSOR and write
+ * masks on both backends. Either form is one batched pass list (no flush). Integer colour buffers have undefined
+ * contents after glClear in GL; they receive the truncated clear colour. */
+uint64_t w32_gl_partial_clears;
 static uint32_t api_Clear(void) {
     uint32_t mask = ARG(0);
     if (mask & ~(0x4000u | 0x100u | 0x400u)) { fail(BAD_VALUE); return 0; }
     Target tg; if (resolve_fbo(fbo, 0, &tg) != 0x8cd5) { fail(0x506); return 0; }
     if (!mask) return 0;
-    /* §13 load clears are whole attachment. Partial/masked clears are not silently approximated. */
-    if (scissor_enabled || color_masks[0] != 15 || color_masks[1] != 15 || color_masks[2] != 15 || color_masks[3] != 15 || ((mask & 0x100) && !depth_write) ||
-        ((mask & 0x400) && stencil_write != 255)) { fail(BAD_OP); return 0; }
     if (!fbo && dfb_draw == 0) mask &= ~0x4000u;
     if (!tg.ncolor && !tg.has_depth && !tg.has_stencil) return 0;
-    if (!mask) return 0;
-    uint32_t w[35]; uint32_t n = pass_words(&tg, mask, w); begin(); op(0x4c, w, n); op(0x4d, 0, 0); submit_deferred(); return 0;
+    uint32_t colors = 0, color_bits[4] = {0}, stencil_bits = (mask & 0x400) && tg.has_stencil && tg.ds.bgt == 5 ? stencil_write : 0;
+    int depth_clear = (mask & 0x100) && tg.has_depth && depth_write, whole = 1;
+    if (mask & 0x4000) for (uint32_t i = 0; i < tg.ncolor; i++) if (!tg.gap[i]) {
+        uint32_t full = rgb_only(tg.color[i].fmt) ? 7u : 15u; color_bits[i] = color_masks[i] & full;
+        if (color_bits[i]) colors |= 1u << i;
+        if (color_bits[i] && color_bits[i] != full) whole = 0;
+    }
+    if (!colors && !depth_clear && !stencil_bits) return 0;
+    if (stencil_bits && stencil_bits != 255) whole = 0;
+    uint32_t sc[4] = {0, 0, tg.w, tg.h};
+    if (scissor_enabled && !scissor_rect(&tg, sc)) whole = 0;
+    if (!sc[2] || !sc[3]) return 0; /* empty scissor box: nothing is written */
+    uint32_t w[35], n;
+    if (whole) {
+        n = pass_words(&tg, (colors ? 0x4000u : 0u) | (depth_clear ? 0x100u : 0u) | (stencil_bits ? 0x400u : 0u), w);
+        for (uint32_t i = 0; i < tg.ncolor; i++) w[7 + i * 7 + 2] = (colors >> i) & 1;
+        begin(); op(0x4c, w, n); op(0x4d, 0, 0); submit_deferred(); return 0;
+    }
+    n = pass_words(&tg, 0, w); begin(); op(0x4c, w, n);
+    if (scissor_enabled) op(0x50, sc, 4);
+    for (uint32_t i = 0; i < tg.ncolor; i++) if (colors & (1u << i)) {
+        const Fmt *fmt = tg.color[i].fmt; uint32_t cls = !integer_internal(fmt) ? 0 : integer_unsigned(fmt) ? 2 : 1, v[4];
+        for (uint32_t c = 0; c < 4; c++) {
+            float f = clear_color[c];
+            v[c] = cls == 0 ? bits(f) : cls == 2 ? (f <= 0 ? 0u : f >= 4294967295.0f ? 0xffffffffu : (uint32_t)f) :
+                (uint32_t)(f <= -2147483648.0f ? INT32_MIN : f >= 2147483647.0f ? INT32_MAX : (int32_t)f);
+        }
+        if (rgb_only(fmt)) v[3] = bits(1);
+        uint32_t cw[] = {cls << 2 | color_bits[i] << 4, i, v[0], v[1], v[2], v[3]}; op(0x5f, cw, 6);
+    }
+    if (depth_clear && stencil_bits) {
+        uint32_t cw[] = {3u | 3u << 2 | 16u | stencil_bits << 8, 0, bits(clear_depth), clear_stencil, 0, 0}; op(0x5f, cw, 6);
+    } else if (depth_clear) {
+        uint32_t cw[] = {1u | 16u, 0, bits(clear_depth), 0, 0, 0}; op(0x5f, cw, 6);
+    } else if (stencil_bits) {
+        uint32_t cw[] = {2u | 1u << 2 | stencil_bits << 8, 0, clear_stencil, 0, 0, 0}; op(0x5f, cw, 6);
+    }
+    op(0x4d, 0, 0); submit_deferred(); w32_gl_partial_clears++; return 0;
 }
-static uint32_t topology(uint32_t mode) {
+/* K61: GL 3.3 primitive modes. POINTS, LINES, LINE_STRIP, TRIANGLES and TRIANGLE_STRIP are native §13
+ * topologies. LINE_LOOP, TRIANGLE_FAN and the four adjacency modes (without a geometry shader the adjacent
+ * vertices are ignored, GL 3.3 §2.6.1), and any indexed draw that meets the enabled primitive restart index
+ * (§2.8.1), are expanded on the profile side into the equivalent u32 list: the same primitives in the same order,
+ * each with GL's vertex order (provoking vertex last). The list is drawn indexed from a private index buffer, so
+ * the guest's buffers, bindings and transform-feedback output are what GL produces. `*list` gets the list
+ * topology when the mode needs expansion. */
+static uint32_t topology(uint32_t mode, int *expand) {
+    *expand = 0;
     switch (mode) { case 0: return 0; case 1: return 1; case 3: return 2; case 4: return 3; case 5: return 4;
+        case 2: case 0xa: case 0xb: *expand = 1; return 1;
+        case 6: case 0xc: case 0xd: *expand = 1; return 3;
         default: fail(BAD_ENUM); return 0xffffffffu; }
+}
+static uint32_t list_topology(uint32_t topo) { return topo == 2 ? 1 : topo == 4 ? 3 : topo; }
+static uint32_t index_at(const uint8_t *d, uint32_t size, uint32_t i) {
+    return size == 2 ? (uint32_t)d[i * 2] | (uint32_t)d[i * 2 + 1] << 8 :
+        (uint32_t)d[i * 4] | (uint32_t)d[i * 4 + 1] << 8 | (uint32_t)d[i * 4 + 2] << 16 | (uint32_t)d[i * 4 + 3] << 24;
+}
+/* List indices of one restart-free run of m vertices starting at s: vertex k is index k of `d` (u16/u32 element
+ * data) or, without element data, s + k. Writes them to `out` when given; returns how many there are. */
+static uint64_t expand_run(uint32_t mode, const uint8_t *d, uint32_t size, uint32_t s, uint32_t m, uint32_t *out) {
+    uint64_t n = 0;
+#define XV(k) (d ? index_at(d, size, s + (k)) : s + (k))
+#define XP(k) do { if (out) out[n] = XV(k); n++; } while (0)
+    switch (mode) {
+    case 0: for (uint32_t i = 0; i < m; i++) XP(i); break;
+    case 1: for (uint32_t i = 0; i + 1 < m; i += 2) { XP(i); XP(i + 1); } break;
+    case 2: if (m >= 2) { for (uint32_t i = 0; i + 1 < m; i++) { XP(i); XP(i + 1); } XP(m - 1); XP(0); } break;
+    case 3: for (uint32_t i = 0; i + 1 < m; i++) { XP(i); XP(i + 1); } break;
+    case 4: for (uint32_t i = 0; i + 2 < m; i += 3) { XP(i); XP(i + 1); XP(i + 2); } break;
+    case 5:
+        for (uint32_t i = 0; i + 2 < m; i++) {
+            if (i & 1) { XP(i + 1); XP(i); } else { XP(i); XP(i + 1); }
+            XP(i + 2);
+        }
+        break;
+    case 6: for (uint32_t i = 0; i + 2 < m; i++) { XP(0); XP(i + 1); XP(i + 2); } break;
+    case 0xa: for (uint32_t i = 0; i + 3 < m; i += 4) { XP(i + 1); XP(i + 2); } break;
+    case 0xb: for (uint32_t i = 1; i + 2 < m; i++) { XP(i); XP(i + 1); } break;
+    case 0xc: for (uint32_t i = 0; i + 5 < m; i += 6) { XP(i); XP(i + 2); XP(i + 4); } break;
+    case 0xd:
+        for (uint32_t j = 0; m >= 6 && j < (m - 4) / 2; j++) {
+            if (j & 1) { XP(2 * j + 2); XP(2 * j); } else { XP(2 * j); XP(2 * j + 2); }
+            XP(2 * j + 4);
+        }
+        break;
+    default: break;
+    }
+#undef XP
+#undef XV
+    return n;
+}
+/* The whole draw: runs split at the restart index (element data only; the restart index itself is no vertex). */
+static uint64_t expand_draw(uint32_t mode, const uint8_t *d, uint32_t size, uint32_t count, int restart, uint32_t *out) {
+    if (!d || !restart) return expand_run(mode, d, size, 0, count, out);
+    uint64_t n = 0;
+    for (uint32_t i = 0, s = 0; i <= count; i++) if (i == count || index_at(d, size, i) == restart_index) {
+        n += expand_run(mode, d, size, s, i - s, out ? out + n : 0); s = i + 1;
+    }
+    return n;
+}
+/* Private index buffers (lazily created wire handles outside the guest's buffer objects): a ring that each expanded
+ * draw uploads its indices into, inside its own batched draw list (disjoint ranges until the ring wraps), and a
+ * static TRIANGLE_FAN list {0,i+1,i+2} whose prefixes serve every glDrawArrays fan via base_vertex = first. */
+uint64_t w32_gl_expanded_draws;
+static uint32_t xring_gpu, xring_cap, xring_at, fan_gpu, fan_tris, *xdata, xdata_cap;
+static uint32_t *expand_scratch(uint64_t n) {
+    if (n > (64u << 20) / 4) { fail(OOM); return 0; }
+    if (n > xdata_cap) {
+        uint32_t cap = 1024; while (cap < n) cap *= 2;
+        uint32_t *p = (uint32_t *)glp_alloc(cap * 4); if (!p) { fail(OOM); return 0; }
+        glp_free(xdata, xdata_cap * 4); xdata = p; xdata_cap = cap;
+    }
+    return xdata;
+}
+static int private_index(uint32_t *gpu, uint32_t bytes, const void *data) {
+    if (*gpu) { uint32_t h = *gpu; *gpu = 0; if (!send(0x42, &h, 1)) return 0; }
+    uint32_t h = buffer_handle(0, "buffers"); if (!h) return 0;
+    uint32_t w[] = {h, 2, bytes, data ? PTR(data) : 0, data ? bytes : 0};
+    if (!send(0x40, w, 5)) return 0;
+    *gpu = h; return 1;
+}
+static int fan_buffer(uint32_t tris) {
+    if (tris <= fan_tris) return 1;
+    uint32_t cap = 256; while (cap < tris) cap *= 2;
+    uint32_t *d = expand_scratch((uint64_t)cap * 3); if (!d) return 0;
+    for (uint32_t i = 0; i < cap; i++) { d[i * 3] = 0; d[i * 3 + 1] = i + 1; d[i * 3 + 2] = i + 2; }
+    fan_tris = 0;
+    if (!private_index(&fan_gpu, cap * 12, d)) return 0;
+    fan_tris = cap; return 1;
+}
+static int ring_reserve(uint32_t bytes) {
+    if (bytes > xring_cap) {
+        uint32_t cap = 256u << 10; while (cap < bytes) cap *= 2;
+        xring_cap = 0; if (!private_index(&xring_gpu, cap, 0)) return 0;
+        xring_cap = cap; xring_at = 0;
+    }
+    if (xring_at + bytes > xring_cap) xring_at = 0;
+    return 1;
 }
 /* Immutable wire states are a bounded, evictable cache, not guest sampler objects.
  * Reuse remains wire-identical until pressure. Ordered SAMPLER_DELETE releases a descriptor
@@ -360,7 +547,7 @@ materialize_error:
 }
 static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t first, uint32_t index_type,
         uint32_t index_offset, int32_t base_vertex) {
-    uint32_t topo = topology(mode); if (topo == 0xffffffffu) return 0;
+    int expand; uint32_t topo = topology(mode, &expand); if (topo == 0xffffffffu) return 0;
     if (count < 0 || instances < 0 || instances > 65535) { fail(BAD_VALUE); return 0; }
     if (!count || !instances) return 0;
     if (!vao || !program || !programs[program].info) { fail(BAD_OP); return 0; }
@@ -373,9 +560,22 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (tf_active && tf_mode != primitive) { fail(BAD_OP); return 0; }
     Program *feedback_program = &programs[program];
     if (feedback_program->vertex_only && !rasterizer_discard) { fail(BAD_OP); return 0; }
-    uint32_t tf_vertices = topo == 0 ? (uint32_t)count : topo == 1 ? (uint32_t)count / 2 * 2 :
-        topo == 2 ? ((uint32_t)count > 1 ? ((uint32_t)count - 1) * 2 : 0) :
-        topo == 3 ? (uint32_t)count / 3 * 3 : ((uint32_t)count > 2 ? ((uint32_t)count - 2) * 3 : 0);
+    /* K61: element data that meets the enabled restart index is expanded (any mode). The data is only read when
+     * the range is valid; an invalid range fails index validation below. */
+    Buffer *eb = &buffers[vaos[vao].element]; uint32_t esize = index_type == U16 ? 2 : 4;
+    const uint8_t *edata = index_type && (index_type == U16 || index_type == U32) && eb->gpu && eb->data && !eb->generated &&
+        index_offset % esize == 0 && (uint64_t)index_offset + (uint64_t)(uint32_t)count * esize <= eb->size ? eb->data + index_offset : 0;
+    int restart = edata && ((other_caps >> 10) & 1) && (index_type == U32 || restart_index <= 0xffff);
+    if (restart && !expand) {
+        uint32_t i = 0; while (i < (uint32_t)count && index_at(edata, esize, i) != restart_index) i++;
+        if (i < (uint32_t)count) { expand = 1; topo = list_topology(topo); }
+    }
+    uint64_t xcount64 = expand ? expand_draw(mode, edata, esize, (uint32_t)count, restart, 0) : 0;
+    if (xcount64 > 0xffffffffu) { fail(OOM); return 0; }
+    uint32_t xcount = (uint32_t)xcount64, vcount = expand ? xcount : (uint32_t)count;
+    uint32_t tf_vertices = topo == 0 ? vcount : topo == 1 ? vcount / 2 * 2 :
+        topo == 2 ? (vcount > 1 ? (vcount - 1) * 2 : 0) :
+        topo == 3 ? vcount / 3 * 3 : (vcount > 2 ? (vcount - 2) * 3 : 0);
     uint32_t capture_words[13] = {rasterizer_discard};
     if (tf_active) for (uint32_t i = 0; i < (feedback_program->tf_link_separate ? feedback_program->tf_link_count : 1); i++) {
         uint32_t id = tf_bound[i], size = tf_whole[i] ? buffers[id].size : tf_size[i];
@@ -432,8 +632,10 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     uint32_t w[200] = {0, p->vgpu, p->fgpu, topo, cull ? cull_face : 0, front_face,
         depth_format, depth && tg.has_depth, depth && tg.has_depth && depth_write, depth_compare,
         stencil && tg.has_stencil, stencil_read, stencil_write,
-        stencil_compare, stencil_fail, stencil_zfail, stencil_pass, stencil_compare, stencil_fail, stencil_zfail,
-        stencil_pass, umask, smask, 0, 0, tg.ncolor};
+        stencil_compare, stencil_fail, stencil_zfail, stencil_pass, back_compare, back_fail, back_zfail,
+        back_pass, umask, smask, 0, 0, tg.ncolor};
+    if (stencil && tg.has_stencil && (back_ref != stencil_ref || back_read != stencil_read || back_write != stencil_write))
+        approximate("separate back-face stencil reference/masks (front values used)");
     uint32_t slots[8], attr_slots[16], nslots = 0, nattrs = 0, constant_slot = 8;
     uint32_t active_attrs = 0, attr_components[16] = {0};
     for (uint32_t i = 0; i < p->info->na; i++) {
@@ -515,6 +717,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         max_index = 0;
         for (uint32_t i = 0; i < (uint32_t)count; i++) {
             uint32_t index = 0; copy(&index, ib->data + index_offset + i * index_size, index_size);
+            if (restart && index == restart_index) continue; /* not a vertex (GL 3.3 §2.8.1) */
             int64_t v = (int64_t)index + base_vertex;
             if (v < 0 || v > 0xffffffffu) { fail(BAD_OP); return 0; }
             if ((uint32_t)v > max_index) max_index = (uint32_t)v;
@@ -528,7 +731,21 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     }
     /* Discard suppresses rasterization, never argument/fetch validation. Complete primitives only:
      * a zero-output capture must not write, advance cursors or change buffer authority. */
-    if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices)) return 0;
+    if ((rasterizer_discard && !tf_active) || (tf_active && !tf_vertices) || (expand && !xcount)) return 0;
+    /* K61: the expanded list. glDrawArrays fans use a prefix of the static fan list (base_vertex = first); every
+     * other expansion is generated here and uploaded into the index ring by this draw's own list. */
+    uint32_t xbuf = 0, xoff = 0, xbytes = 0, *xlist = 0; int32_t xbase = index_type ? base_vertex : (int32_t)first;
+    if (expand) {
+        if (mode == 6 && !index_type) {
+            if (!fan_buffer(xcount / 3)) return 0;
+            xbuf = fan_gpu; xbytes = xcount * 4;
+        } else {
+            if (!(xlist = expand_scratch(xcount))) return 0;
+            expand_draw(mode, edata, esize, (uint32_t)count, restart, xlist);
+            if (!ring_reserve(xcount * 4)) return 0;
+            xbuf = xring_gpu; xoff = xring_at; xbytes = xcount * 4;
+        }
+    }
     if (!uniform_ranges(p, block_handles, block_offsets, 1)) return 0;
     float h = (float)tg.h; copy(p->values + p->info->meta_off, &h, 4);
     uint32_t swz_base = p->info->split ? p->info->meta_off + 16 : p->usize - p->info->nslots * 16;
@@ -553,16 +770,12 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (ubo) { ubo->kind = PR_UBO; ubo->obj = (uint32_t)(p - programs); }
     p->dirty = 0;
     uint32_t pass_w[35]; uint32_t pass_n = pass_words(&tg, 0, pass_w);
-    begin(); op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
+    begin();
+    if (xlist) { uint32_t up[] = {xbuf, xoff, PTR(xlist), xbytes}; op(0x41, up, 4); }
+    op(0x4c, pass_w, pass_n); uint32_t pw[] = {pipe}; op(0x4e, pw, 1);
     uint32_t vp[] = {bits((float)viewport[0]), bits(h - viewport[1] - viewport[3]), bits((float)viewport[2]),
         bits((float)viewport[3]), bits(range_min), bits(range_max)}; op(0x4f, vp, 6);
-    if (scissor_enabled) {
-        int32_t x = imin((int32_t)tg.w, imax(0, scissor[0]));
-        int32_t y = imin((int32_t)tg.h, imax(0, scissor[1]));
-        uint32_t sw = (uint32_t)imax(0, imin(scissor[0] + scissor[2], (int32_t)tg.w) - x);
-        uint32_t sh = (uint32_t)imax(0, imin(scissor[1] + scissor[3], (int32_t)tg.h) - y);
-        uint32_t sc[] = {(uint32_t)x, tg.h - (uint32_t)y - sh, sw, sh}; op(0x50, sc, 4);
-    }
+    if (scissor_enabled) { uint32_t sc[4]; scissor_rect(&tg, sc); op(0x50, sc, 4); }
     uint32_t sr[] = {stencil_ref}; op(0x51, sr, 1);
     uint32_t bc[] = {bits(blend_color[0]), bits(blend_color[1]), bits(blend_color[2]), bits(blend_color[3])};
     op(0x52, bc, 4);
@@ -583,7 +796,11 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     for (uint32_t slot = 0; slot < p->nslots; slot++) {
         uint32_t t[] = {slot, bound[slot], sampler_ids[slot]}; op(0x56, t, 3);
     }
-    if (index_type) {
+    if (expand) {
+        uint32_t b[] = {xbuf, 1, xoff, xbytes}; op(0x54, b, 4);
+        if (tf_active) op(0x62, capture_words, 13);
+        uint32_t d[] = {xcount, (uint32_t)instances, 0, (uint32_t)xbase, 0}; op(0x58, d, 5);
+    } else if (index_type) {
         uint32_t b[] = {ib->gpu, index_type == U32, 0, ib->size}; op(0x54, b, 4);
         if (tf_active) op(0x62, capture_words, 13);
         uint32_t d[] = {(uint32_t)count, (uint32_t)instances, index_offset / index_size, (uint32_t)base_vertex, 0};
@@ -608,6 +825,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
             if (tf_query) gl_queries[tf_query].result += prims;
         }
         w32_gl_draws++;
+        if (expand) { w32_gl_expanded_draws++; if (xlist) xring_at += xbytes; }
     }
     /* A private temporary must not leave recovery poisoned after its application source is deleted.
      * Uploaded prefixes remain recoverable; generated prefixes are needed only through this pass. */
@@ -632,6 +850,41 @@ static uint32_t api_DrawElementsBaseVertex(void) {
 static uint32_t api_DrawElementsInstancedBaseVertex(void) {
     return draw(ARG(0), (int32_t)ARG(1), (int32_t)ARG(4), 0, ARG(2), ARG(3), (int32_t)ARG(5));
 }
+/* K61: range hints (indices outside [start, end] are undefined in GL; the profile draws them as given) and
+ * multi-draws (GL 3.3 §2.8.3: equivalent to the corresponding draws in order, each validated on its own). */
+static uint32_t api_DrawRangeElements(void) {
+    if (ARG(2) < ARG(1)) { fail(BAD_VALUE); return 0; }
+    return draw(ARG(0), (int32_t)ARG(3), 1, 0, ARG(4), ARG(5), 0);
+}
+static uint32_t api_DrawRangeElementsBaseVertex(void) {
+    if (ARG(2) < ARG(1)) { fail(BAD_VALUE); return 0; }
+    return draw(ARG(0), (int32_t)ARG(3), 1, 0, ARG(4), ARG(5), (int32_t)ARG(6));
+}
+static uint32_t api_MultiDrawArrays(void) {
+    uint32_t mode = ARG(0), firsts = ARG(1), counts = ARG(2); int32_t n = (int32_t)ARG(3);
+    if (n < 0) { fail(BAD_VALUE); return 0; }
+    for (int32_t i = 0; i < n; i++) {
+        int32_t f = (int32_t)x86_rd32(firsts + 4u * (uint32_t)i), c = (int32_t)x86_rd32(counts + 4u * (uint32_t)i);
+        uint32_t e = error; error = 0;
+        if (f < 0) fail(BAD_VALUE); else draw(mode, c, 1, (uint32_t)f, 0, 0, 0);
+        if (e) error = e; /* the first error is kept; each draw runs as if alone */
+    }
+    return 0;
+}
+static uint32_t multi_elements(int base) {
+    uint32_t mode = ARG(0), counts = ARG(1), type = ARG(2), offsets = ARG(3), bases = base ? ARG(5) : 0;
+    int32_t n = (int32_t)ARG(4);
+    if (n < 0) { fail(BAD_VALUE); return 0; }
+    for (int32_t i = 0; i < n; i++) {
+        int32_t c = (int32_t)x86_rd32(counts + 4u * (uint32_t)i);
+        uint32_t off = (uint32_t)w32_rdptr(offsets + w32_ptr_size() * (uint32_t)i), e = error; error = 0;
+        draw(mode, c, 1, 0, type, off, base ? (int32_t)x86_rd32(bases + 4u * (uint32_t)i) : 0);
+        if (e) error = e;
+    }
+    return 0;
+}
+static uint32_t api_MultiDrawElements(void) { return multi_elements(0); }
+static uint32_t api_MultiDrawElementsBaseVertex(void) { return multi_elements(1); }
 static uint32_t api_ReadPixels(void) {
     if (pixel_pack) { fail(BAD_OP); return 0; }
     int32_t x = (int32_t)ARG(0), y = (int32_t)ARG(1), w = (int32_t)ARG(2), h = (int32_t)ARG(3);
