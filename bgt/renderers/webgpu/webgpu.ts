@@ -108,6 +108,7 @@ export class WebGPURenderer implements Renderer {
   readonly stats: GpuStats = { drawCalls: 0, passes: 0, vertexBytes: 0, submitMs: 0, nativePasses: 0, nativeSubmits: 0,
     mergedPasses: 0, bufferRenames: 0, gpuMs: null, gpuTiming: 'off' };
   private nativeSubmits = 0;
+  private buffersCreated = 0;
   private timing?: WebGPUTiming;
   lost = false;
   maxTextureSize = 4096;
@@ -246,6 +247,9 @@ export class WebGPURenderer implements Renderer {
     // K53 census: count every later native GPUQueue.submit of this device (renderer, §13 executor, helpers).
     // Installed only on a healthy device, after the startup probe's own submissions.
     queue.submit = (buffers: Iterable<GPUCommandBuffer>) => { this.nativeSubmits++; return rawSubmit(buffers); };
+    // K67 census: GPUBuffers created on this device while a frame is drawn (renames, scratch, temporaries).
+    const rawCreate = device.createBuffer.bind(device);
+    device.createBuffer = (desc: GPUBufferDescriptor) => { this.buffersCreated++; return rawCreate(desc); };
     void device.lost.then((info) => this.handleLost(info));
   }
 
@@ -333,7 +337,7 @@ export class WebGPURenderer implements Renderer {
     const q = device.queue;
     this.stats.drawCalls = 0;
     this.stats.passes = 0;
-    this.nativeSubmits = 0;
+    this.nativeSubmits = 0; this.buffersCreated = 0;
 
     q.writeBuffer(this.o.uniform, 0, new Float32Array([frame.logicalW, frame.logicalH, 0, 0]));
     const bytes = frame.vertexBytes();
@@ -495,8 +499,9 @@ export class WebGPURenderer implements Renderer {
       this.snapshot = device.createTexture({ size: [output.width, output.height], format: this.format,
         usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
     }
-    // K53: presentation and the retained snapshot copy join the frame's last command buffer. At most one
-    // of the §13 frame encoder and an open 2D pass holds work here (2D draws flush §13 work first).
+    // K53: presentation and the retained snapshot copy join the frame's last GPUQueue.submit (K67: as a
+    // separate short command buffer, see WebGPUCommands.flush). At most one of the §13 frame encoder and an
+    // open 2D pass holds work here (2D draws flush §13 work first).
     const snapshot = gpuFrame || this.snapshot ? this.snapshot! : undefined;
     if (snapshot) this.snapshotLB = { ...outputLB };
     const tail = (e: GPUCommandEncoder) => {
@@ -506,8 +511,8 @@ export class WebGPURenderer implements Renderer {
     if (pass && encoder) {
       gpu.flush(); // no-op by the invariant above; keeps §13-before-2D order if it ever changes
       (pass as GPURenderPassEncoder).end(); pass = null;
-      const e = encoder as GPUCommandEncoder; encoder = null;
-      tail(e); q.submit([e.finish()]);
+      const e = encoder as GPUCommandEncoder, t = device.createCommandEncoder(); encoder = null;
+      tail(t); q.submit([e.finish(), t.finish()]); gpu.batch.commandBuffers += 2; // K67: presentation in its own command buffer (see gpu.flush)
     } else gpu.flush(gpuFrame || snapshot ? tail : undefined);
     let pending: Promise<Pixels> | null = null;
     if (readback) pending = this.readback(output, this.format === 'bgra8unorm');
@@ -515,6 +520,7 @@ export class WebGPURenderer implements Renderer {
     Object.assign(this.stats, { nativePasses: gpu.batch.nativePasses + this.stats.passes - frameGpuPasses(frame),
       nativeSubmits: this.nativeSubmits, mergedPasses: gpu.batch.mergedPasses, bufferRenames: gpu.batch.bufferRenames,
       renameBytes: gpu.batch.renameBytes, captureTranslations: gpu.batch.captureTranslations, captureLowerings: gpu.batch.captureLowerings,
+      commandBuffers: gpu.batch.commandBuffers, buffersCreated: this.buffersCreated,
       gpuMs: this.timing ? this.timing.lastMs : null });
     this.stats.submitMs = performance.now() - t0;
     if (readbacks.length) return Promise.all(readbacks).then(() => pending);

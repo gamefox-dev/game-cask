@@ -130,6 +130,8 @@ export interface BGTDiagnostics {
     gpuMs: number | null; gpuTiming: string;
     /** K60 WebGPU only (0 elsewhere): rename bytes, transform-feedback translation/lowering cache misses. */
     renameBytes: number; captureTranslations: number; captureLowerings: number;
+    /** K67 WebGPU only (0 elsewhere): command buffers submitted for the frame, GPUBuffers created while encoding it. */
+    commandBuffers: number; buffersCreated: number;
     nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null;
     nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }> | null };
   commandErrors: { count: number; recent: CommandError[] };
@@ -241,7 +243,7 @@ export class BGTRuntime {
   private deviceResets = 0;
   private resizeObs: ResizeObserver | null = null;
   private lastFrameStats = { nativePasses: 0, nativeSubmits: 0, mergedPasses: 0, bufferRenames: 0, skippedBinds: 0,
-    renameBytes: 0, captureTranslations: 0, captureLowerings: 0,
+    renameBytes: 0, captureTranslations: 0, captureLowerings: 0, commandBuffers: 0, buffersCreated: 0,
     gpuMs: null as number | null, gpuTiming: 'off', drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
     commandCount: 0, continuationSubmits: 0, continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes as number,
     continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands as number };
@@ -730,6 +732,7 @@ export class BGTRuntime {
       nativePasses: r.stats.nativePasses ?? 0, nativeSubmits: r.stats.nativeSubmits ?? 0,
       mergedPasses: r.stats.mergedPasses ?? 0, bufferRenames: r.stats.bufferRenames ?? 0, skippedBinds: r.stats.skippedBinds ?? 0,
       renameBytes: r.stats.renameBytes ?? 0, captureTranslations: r.stats.captureTranslations ?? 0, captureLowerings: r.stats.captureLowerings ?? 0,
+      commandBuffers: r.stats.commandBuffers ?? 0, buffersCreated: r.stats.buffersCreated ?? 0,
       gpuMs: r.stats.gpuMs ?? null, gpuTiming: r.stats.gpuTiming ?? 'off',
     };
     host.consume();

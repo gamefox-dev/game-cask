@@ -4,7 +4,9 @@
  * draws 48 canvas items, each with its own uniforms (rect, modulate) and a generic current colour
  * (glVertexAttrib4f on a disabled array), alternating a flat and a textured program; 8 polygon batches that
  * re-specify a stream buffer (capacity reuse); 4 particle emitters advanced by 2 transform-feedback captures
- * each and drawn instanced; a mid-frame screen copy (blit), a composite and an inset blit. One deliberately
+ * each and drawn instanced, each instanced draw also reading a generic current "glow" colour (K67, Q115: a
+ * disabled array set with glVertexAttrib4f per emitter); a mid-frame screen copy (blit), a composite and an
+ * inset blit. One deliberately
  * invalid call per frame (glBlendEquation(GL_ZERO)) must surface as GL_INVALID_ENUM at the frame's single
  * glGetError, after every draw of the frame. Everything depends only on the SwapBuffers count. */
 #include <windows.h>
@@ -71,8 +73,8 @@ int main(void){
   "float field(vec2 p){float n=0.0;n+=sin(p.x*1.0+p.y*1.0+force.z*0.0)*cos(p.y*1.0-p.x*1.0)*0.50000;n+=sin(p.x*8.0+p.y*12.0+force.z*1.0)*cos(p.y*12.0-p.x*8.0)*0.33333;n+=sin(p.x*2.0+p.y*6.0+force.z*2.0)*cos(p.y*6.0-p.x*2.0)*0.25000;n+=sin(p.x*9.0+p.y*17.0+force.z*3.0)*cos(p.y*17.0-p.x*9.0)*0.20000;n+=sin(p.x*3.0+p.y*11.0+force.z*4.0)*cos(p.y*11.0-p.x*3.0)*0.16667;n+=sin(p.x*10.0+p.y*5.0+force.z*5.0)*cos(p.y*5.0-p.x*10.0)*0.14286;n+=sin(p.x*4.0+p.y*16.0+force.z*6.0)*cos(p.y*16.0-p.x*4.0)*0.12500;n+=sin(p.x*11.0+p.y*10.0+force.z*7.0)*cos(p.y*10.0-p.x*11.0)*0.11111;n+=sin(p.x*5.0+p.y*4.0+force.z*8.0)*cos(p.y*4.0-p.x*5.0)*0.10000;n+=sin(p.x*12.0+p.y*15.0+force.z*9.0)*cos(p.y*15.0-p.x*12.0)*0.09091;n+=sin(p.x*6.0+p.y*9.0+force.z*10.0)*cos(p.y*9.0-p.x*6.0)*0.08333;n+=sin(p.x*13.0+p.y*3.0+force.z*11.0)*cos(p.y*3.0-p.x*13.0)*0.07692;n+=sin(p.x*7.0+p.y*14.0+force.z*12.0)*cos(p.y*14.0-p.x*7.0)*0.07143;n+=sin(p.x*1.0+p.y*8.0+force.z*13.0)*cos(p.y*8.0-p.x*1.0)*0.06667;n+=sin(p.x*8.0+p.y*2.0+force.z*14.0)*cos(p.y*2.0-p.x*8.0)*0.06250;n+=sin(p.x*2.0+p.y*13.0+force.z*15.0)*cos(p.y*13.0-p.x*2.0)*0.05882;n+=sin(p.x*9.0+p.y*7.0+force.z*16.0)*cos(p.y*7.0-p.x*9.0)*0.05556;n+=sin(p.x*3.0+p.y*1.0+force.z*17.0)*cos(p.y*1.0-p.x*3.0)*0.05263;n+=sin(p.x*10.0+p.y*12.0+force.z*18.0)*cos(p.y*12.0-p.x*10.0)*0.05000;n+=sin(p.x*4.0+p.y*6.0+force.z*19.0)*cos(p.y*6.0-p.x*4.0)*0.04762;n+=sin(p.x*11.0+p.y*17.0+force.z*20.0)*cos(p.y*17.0-p.x*11.0)*0.04545;n+=sin(p.x*5.0+p.y*11.0+force.z*21.0)*cos(p.y*11.0-p.x*5.0)*0.04348;n+=sin(p.x*12.0+p.y*5.0+force.z*22.0)*cos(p.y*5.0-p.x*12.0)*0.04167;n+=sin(p.x*6.0+p.y*16.0+force.z*23.0)*cos(p.y*16.0-p.x*6.0)*0.04000;return n;}"
   "void main(){vec2 v=s.zw*0.98+force.xy+vec2(field(s.xy),-field(s.yx))*0.00002;vec2 p=s.xy+v;p=mod(p+1.0,2.0)-1.0;state=vec4(p,v);gl_Position=vec4(p,0.0,1.0);}",
   "#version 330 core\nlayout(location=0) out vec4 color;void main(){color=vec4(1.0);}","state");
- GLuint sprite=program("#version 330 core\nlayout(location=0) in vec2 corner;layout(location=1) in vec4 s;uniform vec4 hue;out vec4 tint;"
-  "void main(){tint=vec4(hue.rgb*(0.5+0.5*abs(s.z)*40.0),0.8);gl_Position=vec4(s.xy+corner*0.03,0.0,1.0);}",tinted,0);
+ GLuint sprite=program("#version 330 core\nlayout(location=0) in vec2 corner;layout(location=1) in vec4 s;layout(location=2) in vec4 glow;uniform vec4 hue;out vec4 tint;"
+  "void main(){tint=vec4(hue.rgb*(0.5+0.5*abs(s.z)*40.0)*glow.rgb,0.8*glow.a);gl_Position=vec4(s.xy+corner*0.03,0.0,1.0);}",tinted,0);
  GLuint quad=program("#version 330 core\nlayout(location=0) in vec2 corner;uniform vec4 rect;out vec2 uv;"
   "void main(){uv=corner;gl_Position=vec4(rect.xy+corner*rect.zw,0.0,1.0);}",
   "#version 330 core\nin vec2 uv;uniform sampler2D src;layout(location=0) out vec4 color;void main(){color=vec4(texture(src,uv).rgb,1.0);}",0);
@@ -150,7 +152,9 @@ int main(void){
   glUseProgram(sprite);glBindVertexArray(vao[2]);
   for(unsigned e=0;e<EMITTERS;e++){
    glBindBuffer(GL_ARRAY_BUFFER,part[e][0]);glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,16,0);
-   glUniform4f(hue,(float)(e%3)/2.0f,(float)((e+1)%3)/2.0f,(float)((e+2)%3)/2.0f,1);glDrawArraysInstanced(GL_TRIANGLES,0,6,PARTICLES);
+   glUniform4f(hue,(float)(e%3)/2.0f,(float)((e+1)%3)/2.0f,(float)((e+2)%3)/2.0f,1);
+   glVertexAttrib4f(2,0.75f+0.25f*(float)(e&1),0.6f+0.2f*(float)(e%3),1.0f-0.15f*(float)e,1.0f); /* current, array 2 disabled */
+   glDrawArraysInstanced(GL_TRIANGLES,0,6,PARTICLES);
   }
   glDisable(GL_BLEND);
   /* Composite to the default framebuffer, then an inset of the mid-frame copy (blit). */

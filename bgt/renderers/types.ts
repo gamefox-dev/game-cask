@@ -47,6 +47,9 @@ export interface GpuStats {
   renameBytes?: number;
   captureTranslations?: number;
   captureLowerings?: number;
+  /** K67 WebGPU: command buffers in the frame's GPUQueue submits; GPUBuffers created while encoding the frame. */
+  commandBuffers?: number;
+  buffersCreated?: number;
   /** WebGL 2: redundant program/VAO/viewport/scissor/depth-range/blend-color calls skipped by the state shadow. */
   skippedBinds?: number;
   /** Opt-in GPU time (ms) of a recently completed frame's §13 passes; null when unavailable/pending. */

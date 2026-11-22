@@ -1029,7 +1029,7 @@ export class WebGL2Gpu implements GpuBackend {
       const buffer = this.buffers.get(binding[1])!;
       g.bindBuffer(g.ARRAY_BUFFER, buffer.object);
       const components = format <= 3 ? format+1 : format === 4 ? 4 : format <= 8 ? format-4 : format-8;
-      if (stride > 255 || (ids && !step)) {
+      if (stride && (stride > 255 || (ids && !step))) {
         // WebGL caps vertexAttribPointer stride at 255; §13 allows 2048. Pack each active
         // attribute from owned upload shadows. No guest reads or geometry reinterpretation.
         let source=buffer.data;
@@ -1050,7 +1050,9 @@ export class WebGL2Gpu implements GpuBackend {
       if (format <= 4) g.vertexAttribPointer(pw[a], components, format === 4 ? g.UNSIGNED_BYTE : g.FLOAT,
         format === 4, nativeStride, offset);
       else g.vertexAttribIPointer(pw[a], components, format <= 8 ? g.INT : g.UNSIGNED_INT, nativeStride, offset);
-      g.vertexAttribDivisor(pw[a], step);
+      // K67: stride 0 = one element for every vertex and instance. GL reads stride 0 as tightly packed, so the
+      // element is held with a divisor no instance count reaches (an instanced attribute never advances per vertex).
+      g.vertexAttribDivisor(pw[a], stride ? step : 0x7fffffff);
     }
     for (const [slot, b] of this.uniforms) {
       g.bindBufferRange(g.UNIFORM_BUFFER, slot, this.buffers.get(b[1])!.object, b[2], b[3]);

@@ -363,12 +363,13 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const buffers = Array.from({ length: w[23] }, () => { const a = w.slice(pos, pos + 2); pos += 2; return a; });
       const attrs = Array.from({ length: w[24] }, () => { const a = w.slice(pos, pos + 4); pos += 4; return a; });
       const colors = Array.from({ length: w[25] }, () => { const a = w.slice(pos, pos + 9); pos += 9; return a; });
-      if (buffers.some(([stride, step]) => !stride || stride % 4 || step > 1)) return E_INVALID;
+      // K67: stride 0 (additive) makes every vertex and instance of the slot fetch the element at the binding offset.
+      if (buffers.some(([stride, step]) => stride % 4 || step > 1)) return E_INVALID;
       if (buffers.some(([stride]) => stride > GPU_LIMITS.stride)) return E_LIMIT;
       const locations = new Set<number>();
       for (const [location, buffer, offset, format] of attrs) {
         if (location >= 16 || locations.has(location) || buffer >= buffers.length || format > 12) return E_INVALID;
-        if (offset % (format === 4 ? 1 : 4) || offset + vertexSizes[format] > buffers[buffer][0]) return E_INVALID;
+        if (offset % (format === 4 ? 1 : 4) || offset + vertexSizes[format] > (buffers[buffer][0] || GPU_LIMITS.stride)) return E_INVALID;
         locations.add(location);
       }
       for (const c of colors) {

@@ -15,7 +15,7 @@ import { noWebGPU, webgl2Gpu, webgpuArgs, webglArgs, webglGpuArgs } from './test
 // the prefix (test:e2e -> e2e, test:port -> e2e-port). A direct `npx playwright test` without
 // BGT_RESULTS_PREFIX writes e2e-adhoc-* so it never overwrites the kit's or the port's results.
 //   webkit / firefox opt-in with BGT_ALL_BROWSERS=1 (desktop engines only; this is
-//                    NOT iPhone Safari verification)
+//                    NOT iPhone Safari verification). webkit-webgpu runs only gl-page-fps.spec.ts (K67)
 const PORT = Number(process.env.BGT_E2E_PORT ?? 5179);
 const PREFIX = process.env.BGT_RESULTS_PREFIX ?? 'e2e-adhoc';
 const portConfig = process.env.BGT_PORT_TESTS === '1' && existsSync('port/game.json') ? JSON.parse(readFileSync('port/game.json', 'utf8')) : null;
@@ -99,6 +99,11 @@ export default defineConfig({
     ...(process.env.BGT_ALL_BROWSERS
       ? [
           { name: 'webkit-webgl2', use: { ...devices['Desktop Safari'], backendParam: 'webgl2' } as never },
+          // K67: WebKit's WebGPU (Metal) backend, limited to the specs written for it (real-page frame pacing).
+          // Tracing/screenshots are off: Playwright's WebKit screencast drives its own compositing cadence, which hides
+          // the display-linked rAF pacing these specs measure.
+          { name: 'webkit-webgpu', testMatch: /gl-page-fps\.spec\.ts/, use: { browserName: 'webkit', viewport: { width: 960, height: 540 },
+            trace: 'off', screenshot: 'off', backendParam: 'webgpu' } as never },
           { name: 'firefox-webgl2', use: { ...devices['Desktop Firefox'], backendParam: 'webgl2' } as never },
         ]
       : []),
