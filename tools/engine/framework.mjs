@@ -2,7 +2,6 @@
 // Engine-specific pack/shell semantics stay in adapters. The choice is the porter's, recorded in port/game.json
 // (engineProfile.allowed + choice) and echoed into the build manifest and trial record.
 import { readFileSync, writeFileSync, readdirSync, lstatSync, realpathSync, mkdirSync, cpSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
-import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { inventory } from '../inspect/inspect.mjs';
 import * as godot from './godot.mjs';
@@ -10,6 +9,7 @@ import { PRIVATE, hash, runtimeById, selectRuntime, verifyRuntime, runtimes } fr
 import { generateShell } from './shell.mjs';
 import { staticHeaders, headersFile } from './headers.mjs';
 import { allowPatternProblem } from './browser-adapter.js';
+import { bundleMetrics, compressedOutputs, compressedSizes, keepCompressed, precompressible } from './sizes.mjs';
 
 const sha256 = godot.sha256;
 const godotAdapter = major => ({ engine: 'godot', major, parsePack: godot.parsePack, identifyRunner: godot.identifyRunner, analyzePack: godot.analyzePack, generateShell });
@@ -35,7 +35,115 @@ export function validateConfig(cfg) {
   if (p.allowedErrors !== undefined) validateAllowedErrors(p.allowedErrors);
   if (p.engineArgs !== undefined) validateEngineArgs(p.adapter, p.engineArgs);
   if (p.engineArgs?.length && runtime.shell === 'godot-legacy') throw new Error('engineProfile.engineArgs need the Engine config API (Godot 3.3+/4.x); the 3.2 legacy shell passes no arguments');
+  if (p.precompress !== undefined && typeof p.precompress !== 'boolean') throw new Error('engineProfile.precompress must be boolean');
+  if (p.variants !== undefined) validateVariants(cfg, runtime);
   return { profile: p, runtime, adapter: adapters[p.adapter] };
+}
+
+// K68 Q11: build variants of ONE engineProfile (e.g. a deploy bundle without the replay-only --fixed-fps). A variant
+// overrides only delivery/shell options; the game identity (runtime, runner, pack, hashes), the recorded choice and
+// the error allowlist (with its evidence, resolved from the game.json directory) are shared by every variant.
+// Variant builds go to .engine-private/builds/<id>-<variant>; the base profile stays .engine-private/builds/<id>.
+export const VARIANT_FIELDS = Object.freeze(['engineArgs', 'width', 'height', 'precompress', 'note']);
+const VARIANT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/, GAME_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+export function validateVariants(cfg, runtime = runtimeById(cfg.engineProfile.runtime)) {
+  const variants = cfg.engineProfile.variants;
+  if (!variants || typeof variants !== 'object' || Array.isArray(variants)) throw new Error('engineProfile.variants must be an object { name: { overrides } }');
+  const names = Object.keys(variants);
+  if (!names.length || names.length > 8) throw new Error('engineProfile.variants needs 1..8 entries');
+  for (const name of names) {
+    const where = `engineProfile.variants.${name}`, v = variants[name];
+    if (!VARIANT_NAME.test(name) || ['base', 'all'].includes(name)) throw new Error(`${where}: variant names match [a-z0-9][a-z0-9-]{0,31} and are not "base" or "all"`);
+    if (!GAME_ID.test(`${cfg.id}-${name}`)) throw new Error(`${where}: build id ${cfg.id}-${name} is longer than 64 characters`);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(where + ' must be an object');
+    const extra = Object.keys(v).filter(k => !VARIANT_FIELDS.includes(k));
+    if (extra.length) throw new Error(`${where}: ${extra.join(', ')} cannot differ between variants (only ${VARIANT_FIELDS.join(', ')}; identity, choice and allowedErrors are shared)`);
+    if (v.engineArgs !== undefined) validateEngineArgs(cfg.engineProfile.adapter, v.engineArgs);
+    if (v.engineArgs?.length && runtime.shell === 'godot-legacy') throw new Error(where + '.engineArgs need the Engine config API (Godot 3.3+/4.x)');
+    for (const n of ['width', 'height']) if (v[n] !== undefined && (!Number.isInteger(v[n]) || v[n] < 1 || v[n] > 4096)) throw new Error(`${where}: invalid shell ${n}`);
+    if (v.precompress !== undefined && typeof v.precompress !== 'boolean') throw new Error(where + '.precompress must be boolean');
+    if (v.note !== undefined && (typeof v.note !== 'string' || v.note.length > 300)) throw new Error(where + '.note must be a string of at most 300 characters');
+  }
+  return variants;
+}
+/** Variant selector -> names, null = the base profile. selector: undefined/'base' | 'all' | 'name[,name...]' (base allowed in the list). */
+export function selectVariants(cfg, selector) {
+  const defined = Object.keys(cfg.engineProfile?.variants ?? {});
+  if (selector === undefined || selector === null || selector === 'base') return [null];
+  if (selector === 'all') return [null, ...defined];
+  if (typeof selector !== 'string' || !selector) throw new Error('variant selector must be base, all or a comma-separated list of variant names');
+  const names = [...new Set(selector.split(','))];
+  for (const n of names) if (n !== 'base' && !defined.includes(n)) throw new Error(`unknown engineProfile variant ${JSON.stringify(n)} (defined: ${defined.length ? defined.join(', ') : 'none'})`);
+  return names.map(n => n === 'base' ? null : n);
+}
+/** Effective config of one variant: base profile + that variant's overrides, build id <id>-<variant>. */
+export function resolveVariant(cfg, name = null) {
+  const { variants, ...base } = cfg.engineProfile;
+  if (name === null) return { cfg: { ...cfg, engineProfile: base }, variant: null };
+  const overrides = variants?.[name];
+  if (!overrides) throw new Error('unknown engineProfile variant ' + JSON.stringify(name));
+  const { note, ...fields } = overrides;
+  return { cfg: { ...cfg, id: `${cfg.id}-${name}`, engineProfile: { ...base, ...fields } },
+    variant: { name, of: cfg.id, overrides: { ...fields }, note: note ?? null } };
+}
+
+/**
+ * vK68: may a build of { id, variant } replace the existing output whose manifest is `existing`? Returns null or the
+ * reason to refuse. A variant id <id>-<variant> can equal another game's id (a game named foo-deploy): an output is
+ * replaced only by the same lineage (base build of the same id, or the same variant of the same base game).
+ */
+export function outputConflict(existing, { id, variant = null }) {
+  if (existing?.path !== 'engineProfile') return 'not an engine build';
+  if (existing.id !== id) return `it is the build of ${JSON.stringify(existing.id)}`;
+  const was = existing.variant ?? null;
+  if (!variant && was) return `it is variant ${JSON.stringify(was.name)} of ${JSON.stringify(was.of)}, not the base build of ${JSON.stringify(id)}`;
+  if (variant && !was) return `it is the base build of game ${JSON.stringify(id)}, not variant ${JSON.stringify(variant.name)} of ${JSON.stringify(variant.of)}`;
+  if (variant && (was.name !== variant.name || was.of !== variant.of)) return `it is variant ${JSON.stringify(was.name)} of ${JSON.stringify(was.of)}`;
+  return null;
+}
+
+/**
+ * vK68: is a built variant manifest still a build of this game.json's variant? Compares the variant identity with the
+ * config and the base build (pack, runner, runtime, runtime files, allowlist evidence) and the variant's effective
+ * engine args with game.json. Returns { status: 'built' | 'stale' | 'missing' | 'unverified', mismatches }.
+ */
+export function variantStatus(cfg, name, baseManifest, variantManifest) {
+  if (!variantManifest) return { status: 'missing', mismatches: [] };
+  const mismatches = [], v = variantManifest, ve = v.engineProfile ?? {};
+  if (v.path !== 'engineProfile') mismatches.push('not an engine build');
+  if (v.id !== `${cfg.id}-${name}`) mismatches.push('id');
+  if (v.variant?.name !== name || v.variant?.of !== cfg.id) mismatches.push('variant identity');
+  let want = null;
+  try { want = resolveVariant(cfg, name).cfg.engineProfile; } catch { mismatches.push('variant no longer declared'); }
+  if (want) {
+    if (JSON.stringify(ve.engineArgs ?? []) !== JSON.stringify(want.engineArgs ?? [])) mismatches.push('engineArgs');
+    if (ve.packSha256 !== want.pack?.sha256) mismatches.push('packSha256 (game.json)');
+    if (ve.runnerSha256 !== want.runnerSha256) mismatches.push('runnerSha256 (game.json)');
+    if (ve.runtime?.id !== runtimeById(want.runtime).id) mismatches.push('runtime (game.json)');
+  }
+  if (!baseManifest) return { status: mismatches.length ? 'stale' : 'unverified', mismatches: mismatches.length ? mismatches : ['no base build to compare'] };
+  const be = baseManifest.engineProfile ?? {}, same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if (ve.packSha256 !== be.packSha256) mismatches.push('packSha256');
+  if (ve.runnerSha256 !== be.runnerSha256) mismatches.push('runnerSha256');
+  if (ve.runtime?.id !== be.runtime?.id || ve.runtime?.sha256 !== be.runtime?.sha256) mismatches.push('runtime');
+  if (!same(ve.runtime?.files, be.runtime?.files)) mismatches.push('runtime files');
+  if (v.files?.['game.pck'] !== baseManifest.files?.['game.pck']) mismatches.push('game.pck');
+  if (!same(ve.allowedErrors?.map(e => [e.id, e.message ?? e.pattern, e.evidence, e.evidenceSha256]), be.allowedErrors?.map(e => [e.id, e.message ?? e.pattern, e.evidence, e.evidenceSha256]))) mismatches.push('allowedErrors evidence');
+  return { status: mismatches.length ? 'stale' : 'built', mismatches };
+}
+
+/**
+ * K59 evidence of allowlisted errors, resolved from the game.json directory (the port root) for the base profile and
+ * every variant alike. vK59: the file lives in the game directory or the sibling reports/ tree, never elsewhere.
+ */
+export function resolveEvidence(gameDir, allowedErrors = []) {
+  return allowedErrors.map((e, i) => {
+    const file = resolve(gameDir, e.evidence);
+    if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile()) throw new Error(`engineProfile.allowedErrors[${i}].evidence not found (or not a regular file): ${e.evidence}`);
+    const real = realpathSync(file), roots = [gameDir, resolve(gameDir, '..', 'reports')].filter(existsSync).map(r => realpathSync(r));
+    if (!roots.some(r => real.startsWith(r + sep))) throw new Error(`engineProfile.allowedErrors[${i}].evidence must be inside the game directory or ../reports: ${e.evidence}`);
+    return { id: 'E' + (i + 1), ...e, evidenceSha256: sha256(readFileSync(file)) };
+  });
 }
 
 // K59 Q7: recorded official engine command-line options, per adapter. Godot 3.x/4.x parse these in main.cpp on every
@@ -188,8 +296,19 @@ export function requireVerifiedOrOptIn(profile, verification) {
 /** Files of the official template a page actually loads (no HTML templates, service workers, PWA files). */
 export const bundledRuntimeFiles = names => names.filter(n => /\.(js|wasm)$/.test(n) && !/service\.worker\.js$/.test(n));
 
-export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), store, check = false, quiet = false } = {}) {
+/** K68: build the selected variants of one game.json (selector as selectVariants); returns their manifests in order. */
+export function buildEngineVariants(gameDir, cfg, { variants: selector, ...options } = {}) {
+  validateConfig(cfg);
+  return selectVariants(cfg, selector).map(variant => buildEngine(gameDir, cfg, { ...options, variant }));
+}
+
+export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), store, check = false, quiet = false, variant: variantName = null, precompress, sizeCache = join(PRIVATE, 'compress-cache') } = {}) {
+  validateConfig(cfg);
+  const resolved = resolveVariant(cfg, variantName), variant = resolved.variant;
+  const base = cfg;
+  cfg = resolved.cfg;
   const { profile: p, runtime, adapter } = validateConfig(cfg);
+  const packCompressed = precompress ?? p.precompress === true;
   const root = resolve(gameDir, p.inputRoot ?? '../original');
   // Inspect fresh every build: directory/extension inventory is part of refusal policy.
   const inv = inventory(root), detection = detectProfile(inv, { root, runner: p.runner, pack: p.pack.from ?? p.runner, runtimeId: runtime.id });
@@ -198,15 +317,8 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   if (p.pack.location.startsWith('embedded') && detection.location !== p.pack.location) throw new Error('expected ' + p.pack.location + ' pack, found ' + detection.location);
   if (!p.pack.location.startsWith('embedded') && detection.location !== 'standalone') throw new Error('expected standalone side pack');
   if (p.pack.location === 'adjacent' && dirname(resolve(root, p.pack.from)) !== dirname(resolve(root, p.runner))) throw new Error('adjacent pack must be beside runner');
-  // K59: every allowlisted error points at recorded evidence; its hash goes into the manifest.
-  const allowedErrors = (p.allowedErrors ?? []).map((e, i) => {
-    const file = resolve(gameDir, e.evidence);
-    if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile()) throw new Error(`engineProfile.allowedErrors[${i}].evidence not found (or not a regular file): ${e.evidence}`);
-    // vK59: evidence lives in the game directory (port/) or the sibling reports/ tree, never elsewhere.
-    const real = realpathSync(file), roots = [gameDir, resolve(gameDir, '..', 'reports')].filter(existsSync).map(r => realpathSync(r));
-    if (!roots.some(r => real.startsWith(r + sep))) throw new Error(`engineProfile.allowedErrors[${i}].evidence must be inside the game directory or ../reports: ${e.evidence}`);
-    return { id: 'E' + (i + 1), ...e, evidenceSha256: sha256(readFileSync(file)) };
-  });
+  // K59: every allowlisted error points at recorded evidence; its hash goes into the manifest (shared by all variants).
+  const allowedErrors = resolveEvidence(gameDir, p.allowedErrors ?? []);
   const engineArgs = p.engineArgs ?? [];
   const provisioned = verifyRuntime(runtime.id, { store });
   requireVerifiedOrOptIn(p, provisioned.verification);
@@ -215,6 +327,8 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   const runtimeFiles = bundledRuntimeFiles(provisioned.runtimeFiles), notices = runtime.notices.map(n => n.file);
   const headers = staticHeaders({ isolation: runtime.requirements.isolation });
   const result = { schema: 'game-cask/engine-build/2', id: cfg.id, name: cfg.name, private: true, path: 'engineProfile',
+    // K68: null for the base profile; else { name, of: <base id>, overrides, note } (variants: their declared names).
+    variant, variants: Object.keys(base.engineProfile.variants ?? {}),
     engineProfile: { ...publicDetection(detection), choice: { by: 'game.json engineProfile.allowed', reason: p.choice ?? null },
       runtime: { id: runtime.id, variant: runtime.variant, version: runtime.version, build: runtime.build, sha256: provisioned.receipt.archiveSha256,
         verification: provisioned.verification, verified: provisioned.verified, archive: runtime.archive, files: provisioned.files },
@@ -235,22 +349,34 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
     writeFileSync(join(staging, 'headers.json'), JSON.stringify(headers, null, 2) + '\n');
     const served = [...runtimeFiles, ...notices, 'game.pck', 'browser-adapter.js', 'index.html', '_headers', 'headers.json'];
     const sizes = {};
+    // K68 Q12: raw, gzip -9 and brotli q11/lgwin 24 per file (sizes cached by SHA-256). With precompress, the
+    // compressed bytes are also written beside the file (<name>.br / <name>.gz) when they shrink it by >= 5%.
+    if (packCompressed) result.precompressed = {};
     for (const name of served) {
-      const data = readFileSync(join(staging, name));
-      result.files[name] = sha256(data);
-      sizes[name] = { bytes: data.length, gzipBytes: gzipSync(data, { level: 9 }).length };
+      const data = readFileSync(join(staging, name)), digest = sha256(data);
+      result.files[name] = digest;
+      if (packCompressed && precompressible(name)) {
+        const out = compressedOutputs(data, { cacheDir: sizeCache, hash: digest }), kept = {};
+        sizes[name] = out.sizes;
+        for (const [encoding, bytes] of [['br', out.br], ['gz', out.gz]]) if (keepCompressed(data.length, bytes.length)) {
+          writeFileSync(join(staging, `${name}.${encoding}`), bytes, { flag: 'wx' });
+          kept[encoding] = { sha256: sha256(bytes), bytes: bytes.length };
+        }
+        if (Object.keys(kept).length) result.precompressed[name] = kept;
+      } else sizes[name] = compressedSizes(data, { cacheDir: sizeCache, hash: digest });
     }
-    const boot = [...runtimeFiles, 'game.pck', 'browser-adapter.js', 'index.html'], sum = (names, k) => names.reduce((n, x) => n + sizes[x][k], 0);
-    result.metrics = { schema: 'game-cask/engine-bundle-metrics/1', packBytes: sizes['game.pck'].bytes, runtimeBytes: sum(runtimeFiles, 'bytes'),
-      wasmBytes: sizes[wasm].bytes, downloadBytes: sum(boot, 'bytes'), downloadGzipBytes: sum(boot, 'gzipBytes'), bundleBytes: sum(served, 'bytes'),
-      fileCount: served.length + 1, files: sizes,
-      note: 'downloadBytes: every file the page may fetch (runtime JS/wasm/worklets/workers, pack, shell); gzip estimated at level 9' };
+    const boot = [...runtimeFiles, 'game.pck', 'browser-adapter.js', 'index.html'];
+    result.metrics = bundleMetrics(sizes, { runtimeFiles, wasm, boot, served });
+    if (result.precompressed) result.metrics.precompressedSiblingBytes = Object.values(result.precompressed).flatMap(e => Object.values(e)).reduce((n, x) => n + x.bytes, 0);
     for (const name of [...runtimeFiles, ...notices]) if (result.files[name] !== provisioned.files[name]) throw new Error('bundled runtime file differs from the verified runtime: ' + name);
     writeFileSync(join(staging, 'manifest.json'), JSON.stringify(result, null, 2) + '\n');
     if (!check) {
       // Refuse unrelated output/symlinks. A previous engine build can be replaced.
       if (existsSync(out)) {
-        if (lstatSync(out).isSymbolicLink() || JSON.parse(readFileSync(join(out, 'manifest.json'))).path !== 'engineProfile') throw new Error('refusing to replace non-engine output');
+        if (lstatSync(out).isSymbolicLink() || !existsSync(join(out, 'manifest.json'))) throw new Error('refusing to replace non-engine output');
+        const conflict = outputConflict(JSON.parse(readFileSync(join(out, 'manifest.json'))), { id: cfg.id, variant });
+        if (conflict === 'not an engine build') throw new Error('refusing to replace non-engine output');
+        if (conflict) throw new Error(`refusing to replace ${out}: ${conflict} (build id collision; rename the game or the variant, or delete that output)`);
         rmSync(out, { recursive: true });
       }
       renameSync(staging, out);
@@ -258,11 +384,14 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
   } finally { if (existsSync(staging)) rmSync(staging, { recursive: true, force: true }); }
   if (!quiet) {
     const m = result.metrics, mb = n => (n / 1048576).toFixed(2) + ' MiB';
-    console.log(`engineProfile: ${cfg.id} -> ${out}`);
+    console.log(`engineProfile: ${cfg.id}${variant ? ` (variant ${variant.name} of ${variant.of})` : ''} -> ${out}`);
     console.log(`  runtime ${runtime.id} (${provisioned.verified ? provisioned.verification : 'UNVERIFIED: ' + provisioned.verification + ', no published checksum; allowUnverifiedRuntime recorded'})${runtime.requirements.isolation ? ', threads: COOP/COEP headers in _headers/headers.json' : ''}`);
     if (engineArgs.length) console.log(`  engine args: ${engineArgs.join(' ')} (official command-line options via the runtime's Engine config args)`);
     if (allowedErrors.length) console.log(`  allowlisted engine errors: ${allowedErrors.length} (${allowedErrors.map(e => e.id + ' ' + e.evidence).join(', ')})`);
-    console.log(`  download ${mb(m.downloadBytes)} (gzip ~${mb(m.downloadGzipBytes)}): pack ${mb(m.packBytes)}, runtime ${mb(m.runtimeBytes)} (wasm ${mb(m.wasmBytes)}); bundle ${m.fileCount} files`);
+    console.log(`  download ${mb(m.downloadBytes)} (gzip -9 ${mb(m.downloadGzipBytes)}, brotli q11 ${mb(m.downloadBrotliBytes)}): pack ${mb(m.packBytes)}, runtime ${mb(m.runtimeBytes)} (wasm ${mb(m.wasmBytes)}); bundle ${m.fileCount} files`);
+    if (result.precompressed) console.log(`  precompressed siblings: ${Object.entries(result.precompressed).map(([n, e]) => n + ' (' + Object.keys(e).join('+') + ')').join(', ') || 'none'} (serve with npm run engine -- serve DIR --precompressed)`);
+    const others = result.variants.filter(n => n !== variant?.name);
+    if (!variant && others.length) console.log(`  variants: ${others.join(', ')} (build with npm run build:port -- --variant NAME|all)`);
   }
   return result;
 }

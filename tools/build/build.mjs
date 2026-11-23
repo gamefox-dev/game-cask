@@ -23,7 +23,7 @@ import { buildLock } from './lock.mjs';
 import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
 import { functionNames, stripDwarf } from './wasm-names.mjs';
-import { buildEngine, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
+import { buildEngineVariants, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -88,7 +88,7 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null, coverage = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null, coverage = null, variant = null, precompress = null } = {}) {
   if (asyncifyPartitionBytes !== null && (!Number.isInteger(asyncifyPartitionBytes) || asyncifyPartitionBytes < 1024 || asyncifyPartitionBytes > 16 * 1048576))
     throw new Error('asyncifyPartitionBytes must be null or an integer in 1024..16777216');
   const buildStarted = performance.now();
@@ -96,8 +96,11 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const cfg = loadGameConfig(gameDir);
   if (cfg.engineProfile) {
     if (interpretOnly || sliceCoverage || selection || onLinkedWasm || asyncifyPartitionBytes !== null || coverage !== null) throw new Error('BGT-only build options are unsupported for engineProfile');
-    return buildEngine(gameDir, cfg, { ...(outRoot === OUT_ROOT ? {} : { outRoot }), check, quiet });
+    // K68 Q11: variant = base (default) | all | name[,name]; returns the first selected build's manifest.
+    return buildEngineVariants(gameDir, cfg, { ...(outRoot === OUT_ROOT ? {} : { outRoot }), check, quiet, variants: variant ?? undefined,
+      ...(precompress ? { precompress: true } : {}) })[0];
   }
+  if (variant !== null || precompress) throw new Error('--variant/--precompress apply to engineProfile builds only');
   cfg.coverageGameId=cfg.id;
   if(coverage!==null){if(coverage!=='on'&&coverage!=='off')throw new Error('coverage must be on or off');cfg.coverageRecording=coverage;}
   if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
@@ -434,6 +437,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const examples = argv.includes('--examples');
   const interpretOnly = argv.includes('--interpret-only');
   const coverage = argv.includes('--no-coverage') ? 'off' : null; // K51 performance builds
+  const precompress = argv.includes('--precompress'); // K68: engine bundles: .br/.gz siblings
+  const vi=argv.indexOf('--variant');
+  const variant=vi>=0?argv[vi+1]:null;
+  if(vi>=0&&(!variant||variant.startsWith('--')))throw new Error('--variant needs base, all or variant name(s)');
+  if(vi>=0)argv.splice(vi,2);
   const mi=argv.indexOf('--selection');
   const selection=mi>=0?argv[mi+1]:null;
   if(mi>=0 && !['all','coverage'].includes(selection))throw new Error('--selection needs all or coverage');
@@ -443,13 +451,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if(si>=0&&!sliceCoverage.length)throw new Error('--slice needs coverage file(s), last on the command line');
   const targets = all || examples ? selectExampleDirs(allGameDirs({ includePort: all }), { check }) : (si>=0?argv.slice(0,si):argv).filter((a) => !a.startsWith('--'));
   if (!targets.length) {
-    console.error('usage: build.mjs <gameDir...> | --all | --examples [--check]');
+    console.error('usage: build.mjs <gameDir...> | --all | --examples [--check] [--variant base|all|NAME[,NAME]] [--precompress]');
     process.exit(1);
   }
   let failed = false;
   for (const t of targets) {
     try {
-      buildGame(t, { check, interpretOnly, selection, coverage, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
+      buildGame(t, { check, interpretOnly, selection, coverage, variant, precompress, sliceCoverage: sliceCoverage?.map((p)=>relative(resolve(ROOT,t),resolve(ROOT,p))) });
     } catch (e) {
       failed = true;
       console.error(`error: ${e.message}`);

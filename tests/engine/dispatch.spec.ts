@@ -44,7 +44,7 @@ test('engine public port and probe dispatch stay separate from the lifting toolc
   writeFileSync(join(root, 'port/game.json'), JSON.stringify(cfg));
   cpSync(join(root, 'tests/fixtures/engine/port-smoke.ts.in'), join(root, 'port/tests/engine.spec.ts'));
   const built = run(['build:port']);
-  expect(built).toContain('engineProfile: cc0-engine'); expect(built).toMatch(/download [\d.]+ MiB \(gzip ~[\d.]+ MiB\): pack/);
+  expect(built).toContain('engineProfile: cc0-engine'); expect(built).toMatch(/download [\d.]+ MiB \(gzip -9 [\d.]+ MiB, brotli q11 [\d.]+ MiB\): pack/);
   const manifest = JSON.parse(readFileSync(join(root, '.engine-private/builds/cc0-engine/manifest.json'), 'utf8'));
   expect(manifest.engineProfile.choice.reason).toBe('CC0 dispatch regression'); expect(manifest.metrics.downloadBytes).toBeGreaterThan(manifest.metrics.packBytes);
   expect(run(['test:port'])).toContain('1 passed');
