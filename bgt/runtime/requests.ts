@@ -9,7 +9,8 @@ export class Requests {
   private next = 1;
   /** K70: the request the last status() poll found unresolved (0) in the current update; pacing only, never state. */
   private polled: RequestToken | null = null;
-  private waiters = new Map<RequestToken, Array<() => void>>();
+  /** vK70: at most one waiter per pending request (deduplicated; a timed-out burst wait reuses it, never adds one). */
+  private waiters = new Map<RequestToken, { done: Promise<void>; resolve: () => void }>();
   declare checkpoint: () => ReturnType<typeof captureRequests>;
   declare restoreCheckpoint: (s: ReturnType<typeof captureRequests>) => void;
   advance(): void { this.epoch++; this.polled = null; }
@@ -19,6 +20,8 @@ export class Requests {
     if (!Number.isInteger(id) || id < 1 || id > 0x7fffffff) return E_INVALID;
     if (this.entries.has(id)) return E_STATE;
     const token = { id, issued: this.epoch, done: false };
+    // vK70: a request issued after the poll is the newer cause of the next yield; never wait on the older poll.
+    this.polled = null;
     this.entries.set(id, token); return token;
   }
   complete(token: RequestToken, data?: Uint8Array<ArrayBuffer>, error = E_IO): void {
@@ -56,16 +59,20 @@ export class Requests {
     const t = this.polled;
     return t && !t.done && this.entries.get(t.id) === t ? t : null;
   }
-  /** Settles when `token` completes or is closed (never rejects). Unrelated to guest-visible timing. */
+  /** Settles when `token` completes or is closed (never rejects). Unrelated to guest-visible timing.
+   * One shared promise per pending request: repeated (timed-out) waits do not accumulate waiters. */
   whenDone(token: RequestToken): Promise<void> {
     if (token.done || this.entries.get(token.id) !== token) return Promise.resolve();
-    return new Promise<void>((resolve) => {
-      const list = this.waiters.get(token);
-      if (list) list.push(resolve); else this.waiters.set(token, [resolve]);
-    });
+    let w = this.waiters.get(token);
+    if (!w) { let resolve!: () => void; const done = new Promise<void>((r) => { resolve = r; }); w = { done, resolve }; this.waiters.set(token, w); }
+    return w.done;
   }
+  /** Pending waiters (tests: bounded by the pending requests, never by the number of waits). */
+  get waiting(): number { return this.waiters.size; }
   private wake(token: RequestToken): void {
-    const list = this.waiters.get(token); if (!list) return;
-    this.waiters.delete(token); for (const resolve of list) resolve();
+    const w = this.waiters.get(token); if (!w) return;
+    this.waiters.delete(token); w.resolve();
   }
+  /** vK70: a checkpoint restore replaces every entry; release waiters of the replaced ones. */
+  wakeAll(): void { const all = [...this.waiters.values()]; this.waiters.clear(); this.polled = null; for (const w of all) w.resolve(); }
 }

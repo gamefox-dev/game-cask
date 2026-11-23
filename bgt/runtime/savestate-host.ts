@@ -57,6 +57,6 @@ export function captureRequests(this: Requests) {
     if ([...this['entries'].values()].some(t => !t.done)) throw new Error('Checkpoint has pending requests');
     return cloneCheckpoint({entries: this['entries'], epoch: this['epoch'], bytes: this['bytes'], next: this['next']});
   }
-export function restoreRequests(this: Requests,s: ReturnType<typeof captureRequests>): void { Object.assign(this, cloneCheckpoint(s)); }
+export function restoreRequests(this: Requests,s: ReturnType<typeof captureRequests>): void { this.wakeAll(); Object.assign(this, cloneCheckpoint(s)); }
 
 Requests.prototype.checkpoint=captureRequests;Requests.prototype.restoreCheckpoint=restoreRequests;

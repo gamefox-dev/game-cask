@@ -13,7 +13,7 @@ import { jspiApi } from '../../bgt/runtime/jspi';
 // @ts-expect-error ESM build orchestration
 import { transform } from '../../tools/build/asyncify.mjs';
 // @ts-expect-error ESM build orchestration
-import { asyncifyCacheKey, WASM_OPT_FEATURES } from '../../tools/build/build.mjs';
+import { asyncifyCacheKey, assertJspiArtifact, WASM_OPT_FEATURES } from '../../tools/build/build.mjs';
 // @ts-expect-error ESM metadata
 import { functionNames } from '../../tools/build/wasm-names.mjs';
 
@@ -72,6 +72,13 @@ it.each([['whole', {}], ['partitioned', { wholeLimit: 0, partitionBytes: 1024 }]
   const got = await results(bytes), ref = await results(raw);
   expect(got).toEqual(ref);
   expect(got.plain).toEqual(Array.from({ length: 16 }, (_, f) => expected(f)));
+  // vK70: the build's publish check inspects the bytes: this artifact passes, an Asyncify one is refused.
+  expect(() => assertJspiArtifact(bytes)).not.toThrow();
+  if (shape === 'whole') {
+    const asy = join(dir, 'asyncified.wasm');
+    transform(input, asy, [...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield']);
+    expect(() => assertJspiArtifact(readFileSync(asy))).toThrow(/asyncify_|Asyncify marker/);
+  }
 });
 
 it('the JSPI cache key is its own and leaves the Asyncify key unchanged', () => {

@@ -95,7 +95,8 @@ the same bounded Binaryen pass as the Asyncify artifact without `--asyncify` (`t
 -O2 up to 32 MiB of code, function-local passes over 8 MiB partitions above), the name section kept and no Asyncify
 marker. Content-keyed cache `jspi-opt` (key: `asyncifyCacheKey(..., {variant: 'jspi-O2'})`); manifest metric
 `pipeline.metrics.jspi_opt` = `{linked_bytes, ms, cached, mode, partitions}`. `BGT_JSPI_WASM_OPT=0` ships the raw
-link output (A/B).
+link output (A/B). Dual builds run the Asyncify and JSPI passes sequentially (peak Binaryen memory of one pass, up
+to 4 GiB each for 273 MB modules on 16 GB machines); cache keys hash the exact transform arguments.
 
 ## 3. Performance builds without coverage
 

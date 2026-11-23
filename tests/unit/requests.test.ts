@@ -57,3 +57,40 @@ it('requests expose the unresolved result the last poll found, and settle waiter
  const v=q.reserve(8); if(typeof v==='number') throw new Error('reserve failed');
  q.advance(); expect(q.status(8)).toBe(0); q.advance(); expect(q.awaited()).toBeNull();
 });
+
+// vK70 review. Breakage caught: a timed-out wait leaking one waiter per tick, a wait on a request polled before a newer
+// request (the yield's real cause, e.g. a file read), a checkpoint restore stranding waiters, and a slow polled GPU
+// result throttling a file-read loop (each update would wait out the tick budget: ~1 read per tick instead of K66's burst).
+it('waiters are deduplicated, released on restore, and never outlive a newer cause',async()=>{
+ const q=new Requests(), gpu=q.reserve(40); if(typeof gpu==='number') throw new Error('reserve failed');
+ q.advance(); expect(q.status(40)).toBe(0);
+ const a=q.whenDone(gpu), b=q.whenDone(gpu); expect(a).toBe(b); for(let i=0;i<100;i++) q.whenDone(gpu); expect(q.waiting).toBe(1);
+ // A request issued after the poll is the newer cause: the older GPU poll is not awaited.
+ const file=q.reserve(41); if(typeof file==='number') throw new Error('reserve failed'); expect(q.awaited()).toBeNull();
+ q.wakeAll(); await a; expect(q.waiting).toBe(0);
+});
+it('a slow pending GPU result never makes a file-read loop wait (decision of the real GameHost.transportWait)',async()=>{
+ const q=new Requests(), io=new Set<Promise<void>>();
+ const host={requests:q,ioWork:io,settleRequests:()=>Promise.all([...io]).then(()=>{})};
+ const wait=()=>(GameHost.prototype as unknown as {transportWait:(this:typeof host)=>Promise<void>|null}).transportWait.call(host);
+ const gpu=q.reserve(1); if(typeof gpu==='number') throw new Error('reserve failed');
+ q.advance(); expect(q.status(1)).toBe(0); // polled without blocking, never resolves
+ let waits=0;
+ for(let read=0;read<200;read++){
+  // The guest polls the slow GPU result without blocking (every 10th update), then issues the next ReadFile chunk:
+  // a resident range completes at once and is visible next update, so the read's yield must not wait (K66 burst).
+  if(read%10===0) expect(q.status(1)).toBe(0);
+  const t=q.reserve(); if(typeof t==='number') throw new Error('reserve failed'); q.complete(t,new Uint8Array(16));
+  expect(q.status(t.id)).toBe(0); if(wait()) waits++;
+  q.advance(); expect(q.status(t.id)).toBe(1); q.close(t.id);
+ }
+ expect(waits).toBe(0);
+ // Polled after the read was issued (and before the yield): that update does wait, bounded by the tick budget.
+ const r=q.reserve(); if(typeof r==='number') throw new Error('reserve failed'); q.complete(r,new Uint8Array(1));
+ expect(q.status(1)).toBe(0); expect(wait()).not.toBeNull(); q.advance(); q.close(r.id);
+ // A pending streamed read races the polled result: the wait ends when the I/O settles.
+ let finish!:()=>void; io.add(new Promise<void>(r=>{finish=r;}));
+ q.advance(); expect(q.status(1)).toBe(0);
+ const w=wait()!; let ended=false; void w.then(()=>{ended=true;});
+ await Promise.resolve(); expect(ended).toBe(false); finish(); await w; expect(ended).toBe(true);
+});

@@ -48,3 +48,28 @@ test('a startup that polls many GL program results waits for them instead of bus
   expect(w.updates_per_present).toBeLessThanOrEqual(1.05);
   expect((await diagnostics(page)).errors).toEqual([]);
 });
+// vK70. Catches: a burst wait that outlives a device loss (a pending shader/readback result the lost renderer never
+// delivers would hold the tick until its budget, every tick, or hang the page) and a tick that overruns its budget.
+test('a device loss while the burst waits for a renderer result ends the wait and the tick within budget', async ({ page, backendParam }, info) => {
+  test.setTimeout(120_000);
+  const lines: string[] = [];
+  page.on('console', (m) => { if (m.text().includes('gl-programs')) lines.push(m.text()); });
+  expect(await openGame(page, backendParam, { game: 'x64-gl-programs' })).toBe('ready');
+  await assertBackend(page, backendParam, info);
+  await page.evaluate(() => (window as any).__BGT_TEST__.resume());
+  await page.waitForTimeout(60); // inside the startup: the guest is polling program results
+  await page.evaluate(() => (window as any).__BGT_TEST__.simulateDeviceLoss());
+  await expect.poll(async () => (await diagnostics(page)).deviceResets, { timeout: 10_000 }).toBe(1);
+  // The guest is never stuck behind a result the lost device cannot deliver: startup finishes (statuses may be failures).
+  await expect.poll(() => !!done(lines), { timeout: 30_000, intervals: [20] }).toBe(true);
+  const ticks0 = (await page.evaluate(() => (window as any).__BGT_TEST__.pageLoop())).ticks;
+  await expect.poll(async () => (await page.evaluate(() => (window as any).__BGT_TEST__.pageLoop())).ticks, { timeout: 5_000 }).toBeGreaterThan(ticks0);
+  await page.evaluate(() => (window as any).__BGT_TEST__.pause());
+  const loop = await page.evaluate(() => (window as any).__BGT_TEST__.pageLoop());
+  console.log('K70 gl-programs loss', JSON.stringify({ backend: backendParam, line: done(lines), loop }));
+  // 12 ms burst budget plus at most one in-flight render and recovery handoff.
+  expect(loop.maxTickMs, JSON.stringify(loop)).toBeLessThan(250);
+  const d = await diagnostics(page);
+  expect(d.failed).toBe(false);
+  expect(d.errors.map((e: { kind: string }) => e.kind)).toContain('device-lost');
+});

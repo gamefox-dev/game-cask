@@ -86,8 +86,10 @@ K70: before running the next update, a burst waits (within the tick's remaining 
 that the yielding update last polled with `bgt_request_status` == 0, when that result has not arrived yet (renderer
 results such as shader compile status and readbacks resolve asynchronously on WebGPU, outside host file I/O). A result
 that arrived but becomes visible only at the next update boundary needs no wait. If the budget runs out first, the
-tick ends and the next tick continues. Re-running the update before the result exists could only poll 0 again; the
-update sequence and guest-visible results are unchanged (`?iowait=0` restores the pre-K70 re-run for A/B).
+tick ends and the next tick continues; the wait also ends when pending host file I/O settles, and a request issued
+after the poll replaces it as the cause. Guest-visible results (request results, guest time, presents) are identical
+with or without the wait; only the number of time-neutral updates that poll 0 before the result arrives differs, and
+that number depends on wall time (`?iowait=0` restores the pre-K70 re-run for A/B).
 
 Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
 microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
@@ -277,7 +279,7 @@ interface BGTTestAPI {
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
   measurePage(windowMs: number, warmupMs?: number): Promise<PageWindowSummary>; // K51 real-page window
   pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick;   // K66: page-loop counters since load
-    requestWaits; requestWaitMs; requestWaitTimeouts };               // K70: burst waits for a polled request result
+    requestWaits; requestWaitMs; requestWaitTimeouts; maxTickMs };    // K70: burst waits for a polled request result
   memory(): MemoryDiagnostics; loadMetrics(): LoadDiagnostics; // K64 runtime metrics, = diagnostics().memory/.load
 }
 type BGTTestInputEvent =

@@ -855,7 +855,9 @@ export class BGTRuntime {
   /** K66: page-loop counters (test API pageLoop()). */
   readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0,
     /** K70: burst waits for an unresolved polled request result, their wall time, and waits that hit the tick budget. */
-    requestWaits: 0, requestWaitMs: 0, requestWaitTimeouts: 0 };
+    requestWaits: 0, requestWaitMs: 0, requestWaitTimeouts: 0,
+    /** vK70: longest wall time of a tick's updates (first update + burst), ms. */
+    maxTickMs: 0 };
 
   /**
    * K66: a guest blocked in a synchronous transport wait (ReadFile, a request result, a full host-frame budget)
@@ -903,6 +905,7 @@ export class BGTRuntime {
       if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
     }
     if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
+    const tickMs = performance.now() - tickStart; if (tickMs > stats.maxTickMs) stats.maxTickMs = tickMs;
     return { pending: n, updates: tick };
   }
 
