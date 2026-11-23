@@ -196,6 +196,13 @@ typedef void (*x86_native_fn)(uint32_t);
  * function's primary entry has end=addr+1, to distinguish function counts from continuations. */
 typedef struct { uint32_t addr; x86_lifted_fn fn; uint32_t end; x86_native_fn native; } x86_lifted_entry_t;
 void x86_run_native(x86_native_fn step);
+/* K65: generated native steps (N_*) are Asyncify cut points (never instrumented). Count live
+ * step frames; a profile calls x86_check_suspendable() right before bgt_yield. In the Asyncify artifact
+ * it faults instead of unwinding through uninstrumented frames (that would corrupt state on resume);
+ * under JSPI it only counts the event (metrics native_step_suspensions). */
+extern unsigned x86_native_live;
+void x86_check_suspendable(void);
+int x86_asyncify_artifact(void); /* K65: 1 in the Asyncify artifact, 0 in the raw/JSPI one */
 /* Bounded non-suspending generated calls. A false entry leaves dispatch to the flat
  * driver; a false resume propagates the already-spilled state out of all native frames. */
 #define X86_NATIVE_FAST_VERSION 1
@@ -339,6 +346,7 @@ typedef struct {
                                        code beyond known functions) */
     uint64_t thunk_dispatches;      /* imports reached through the dynamic thunk dispatcher */
     uint64_t direct_import_calls, leaf_import_calls; /* guarded loader bindings; leaf is call-site subset */
+    uint64_t native_step_suspensions; /* K65: bgt_yield reached with a native step live (JSPI: counted; Asyncify: fault) */
     uint32_t lifted_functions;      /* registered lifted functions */
 } x86_metrics_t;
 extern x86_metrics_t x86_metrics;

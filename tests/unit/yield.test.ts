@@ -13,8 +13,8 @@ import { ROOT } from '../support/headless';
 const cfg = { backend: BACKEND_HEADLESS, caps: 0, seed: 1, displayWidth: 100, displayHeight: 100, arg0: 0, arg1: 0 };
 const services = (logs: string[] = []) => ({ log: (_l: number, m: string) => logs.push(m), vfs: new Vfs(), now: () => 0 });
 
-async function asyncified(): Promise<Uint8Array<ArrayBuffer>> {
-  const plain = await compileC('tests/fixtures/c/yield_game.c');
+async function asyncified(fixture = 'tests/fixtures/c/yield_game.c'): Promise<Uint8Array<ArrayBuffer>> {
+  const plain = await compileC(fixture);
   const d = mkdtempSync(join(tmpdir(), 'bgt-yield-'));
   writeFileSync(join(d, 'in.wasm'), plain);
   execFileSync(process.execPath, [join(ROOT, 'node_modules/binaryen/bin/wasm-opt'), join(d, 'in.wasm'), '--enable-bulk-memory', '--enable-bulk-memory-opt', '--enable-nontrapping-float-to-int', '--enable-sign-ext', '--enable-mutable-globals', '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '-o', join(d, 'out.wasm')]);
@@ -40,6 +40,21 @@ describe('bgt_yield (asyncify)', () => {
     expect(h.yields).toBe(5);
     expect(h.logicalWidth).toBe(128); // changed by the game at frame 2
     expect(h.sizeChanged).toBe(true);
+  });
+
+  // K65: an import whose JS calls back into an export that yields would suspend across a JS frame.
+  // Asyncify would unwind the export, return into the JS caller and resume a corrupt stack; refuse it.
+  it.each([['reenter', 11], ['bgt_update', 2]] as const)('refuses bgt_yield reached through import -> JS -> %s re-entry, without corrupting state', async (target, expected) => {
+    let host: GameHost | null = null; const seen: string[] = [];
+    const ex = () => (host as unknown as { exports: Record<string, (dt?: number) => number> }).exports;
+    const s = { ...services(), log: (_l: number, m: string) => { seen.push(m); if (m === 'reenter') ex()[target](0); } };
+    host = await GameHost.create(await asyncified('tests/fixtures/c/reentrant_yield_game.c'), s, cfg);
+    host.init();
+    expect(() => host!.update()).toThrow(/re-entrant host call \(import -> JS -> export\)/);
+    expect(seen).toEqual(['reenter']);
+    expect(host.yields).toBe(0);
+    // Outer update +1, then reenter +10 or nested bgt_update +1; nothing after the refused yield ran.
+    expect(ex().bgt_state_hash() >>> 0).toBe(expected);
   });
 
   it('a game that yields without an asyncify build gets a clear error', async () => {

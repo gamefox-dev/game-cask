@@ -844,6 +844,9 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     return BGT_OK;
 }
 
+/* K65: metrics-only fallback for builds that compile this serializer without the x86 runtime object
+ * (test fixtures); the runtime's strong definition (x86_rt.c) wins whenever it is linked. */
+__attribute__((weak)) int x86_asyncify_artifact(void) { return 0; }
 static void wait_host(int transport) {
     w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
@@ -862,6 +865,7 @@ static void wait_host(int transport) {
     w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
     yield_kind = transport && update_neutral ? 1u : 0u; neutral_yields += yield_kind;
     x86_profile_idle_begin();
+    x86_check_suspendable(); /* K65: never unwind through an uninstrumented native step */
     bgt_yield();
     x86_profile_idle_end();
     update_neutral = 1; yield_kind = 0;
@@ -1174,6 +1178,8 @@ const char *w32_metrics_json(void) {
     jkv("thunk_dispatches",x86_metrics.thunk_dispatches);
     jkv("direct_import_calls",x86_metrics.direct_import_calls);
     jkv("leaf_import_calls",x86_metrics.leaf_import_calls);
+    jkv("native_step_suspensions",x86_metrics.native_step_suspensions);
+    jkv("asyncify_artifact",(uint64_t)x86_asyncify_artifact());
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
     /* LANE-GL */
