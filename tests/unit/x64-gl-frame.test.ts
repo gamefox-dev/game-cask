@@ -52,6 +52,24 @@ it('per-item current attributes, capability resets and a validation error keep o
     const set=slots.get(upload.handle)??new Set<number>();set.add(upload.offset);slots.set(upload.handle,set);items++;
   }
   expect(items).toBe(48);
+  // K67 (Q115): the 4 instanced sprite draws read a generic current "glow" colour too. Breakage caught: the K60
+  // synchronous per-instance upload to private buffer 1023 (2 ABI submits per instanced draw: 9 submits per frame).
+  // Their constant slot is stride 0 (one 256-byte tail for all 48 instances) and bound to the uniform slot just uploaded.
+  const strides=new Map<number,number[][]>();
+  for(const it of stream.items)if(it.op===O.PIPELINE_CREATE)strides.set(it.words[0],Array.from({length:it.words[23]},(_,k)=>[it.words[26+k*2],it.words[27+k*2]]));
+  let pipe=0;const glows:string[]=[];upload=undefined;vertexBinding.clear();
+  for(const it of frame){
+    if(it.op===O.PIPELINE)pipe=it.words[0];
+    if(it.op===O.BUFFER_UPDATE&&it.words[0]>=256&&it.words[0]<700)upload={handle:it.words[0],offset:it.words[1],bytes:it.data!};
+    if(it.op===O.VERTEX_BUFFER)vertexBinding.set(it.words[0],{handle:it.words[1],offset:it.words[2],size:it.words[3]});
+    if(it.op!==O.DRAW||it.words[1]!==48)continue;
+    const layout=strides.get(pipe)!,slot=layout.findIndex(([stride])=>stride===0);
+    expect(slot).toBeGreaterThanOrEqual(0);expect(layout[slot][1]).toBe(1);
+    const c=vertexBinding.get(slot)!;expect(c.handle).toBe(upload!.handle);expect(c.size).toBe(256);
+    expect(c.offset).toBe(upload!.offset+upload!.bytes.length-256);
+    glows.push(Array.from(new Float32Array(upload!.bytes.slice(upload!.bytes.length-256).buffer).slice(8,12)).map(v=>v.toFixed(3)).join());
+  }
+  expect(glows).toHaveLength(4);expect(new Set(glows).size).toBe(4);
   expect(new Set(colours).size).toBeGreaterThan(24); // per-item glVertexAttrib4f values, not one stale colour
   for(const set of slots.values())expect(set.size).toBeGreaterThan(1);
   const m=metrics();

@@ -33,12 +33,18 @@ export interface BGTTestAPI {
   input(events: BGTTestInputEvent[]): void;
   screenshot(): Promise<Blob>;
   diagnostics(): BGTDiagnostics;
+  /** K64: memory attribution and estimated total vs the configured budget (same as diagnostics().memory). */
+  memory(): BGTDiagnostics['memory'];
+  /** K64: load phases and wasm delivery evidence (same as diagnostics().load). */
+  loadMetrics(): BGTDiagnostics['load'];
   stateHash(): string | null;
   backend(): 'webgpu' | 'webgl2' | 'unavailable';
   // ---- extensions (documented in bgt/abi/ABI.md §Test API)
   resume(): void;
   /** K51: run the page's own rAF loop and measure a fixed wall window (no step()). */
   measurePage(windowMs: number, warmupMs?: number): Promise<import('./page-fps').PageWindowSummary>;
+  /** K66: page-loop counters since load: ticks that ran updates, updates, transport-burst updates, max per tick. */
+  pageLoop(): BGTRuntime['pageLoopStats'];
   failed(): boolean;
   readPixels(): Promise<BGTPixels | null>;
   debugState(): unknown;
@@ -91,6 +97,7 @@ export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
     pause: () => rt.pause(),
     resume: () => rt.resume(),
     measurePage: (windowMs, warmupMs) => rt.measurePage(windowMs, warmupMs),
+    pageLoop: () => ({ ...rt.pageLoopStats }),
     failed: () => rt.failed,
     step: (frames) => rt.step(Math.max(0, Math.floor(frames))),
     input: (events) => rt.injectInput(events),
@@ -107,6 +114,8 @@ export async function installTestAPI(rt: BGTRuntime): Promise<BGTTestAPI> {
       return new Blob([unb64(cv.toDataURL('image/png').split(',')[1])], { type: 'image/png' });
     },
     diagnostics: () => rt.diagnostics(),
+    memory: () => rt.memory(),
+    loadMetrics: () => rt.loadMetrics(),
     stateHash: () => rt.host?.stateHash() ?? null,
     backend: () => rt.renderer?.kind ?? 'unavailable',
     async readPixels() {

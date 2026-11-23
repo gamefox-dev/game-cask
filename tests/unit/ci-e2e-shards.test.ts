@@ -20,6 +20,19 @@ it('runs all four Playwright shards without cancelling siblings or changing cove
   expect(command).toBe('run: BGT_SOFTWARE_RENDERER=1 BGT_RESULTS_PREFIX=e2e-shard-${{ matrix.shard }} npx playwright test --project=chromium-webgl2 --project=chromium-auto --shard=${{ matrix.shard }}/4');
 });
 
+// K64: without a restored build cache every shard compiled and Asyncify-transformed every example cold (40-54 min of
+// the 60-min ceiling); a slow runner then cancelled a passing shard mid-run.
+it('restores the content-addressed build cache before building examples',()=>{
+  expect(e2e).toMatch(/BGT_SHARED_CACHE: (\S+)/);
+  const dir=/BGT_SHARED_CACHE: (\S+)/.exec(e2e)![1];
+  expect(dir.startsWith('/home/runner/') && !dir.includes('node_modules')).toBe(true);
+  const restore=e2e.indexOf('uses: actions/cache@v4'), build=e2e.indexOf('run: npm run build:examples');
+  expect(restore).toBeGreaterThan(e2e.indexOf('run: npm ci'));
+  expect(restore).toBeGreaterThan(0); expect(restore).toBeLessThan(build);
+  expect(e2e.slice(restore,build)).toContain('path: '+dir);
+  expect(e2e.slice(restore,build)).toMatch(/restore-keys:/);
+});
+
 it('uploads uniquely prefixed JSON, HTML and failure evidence even after a shard failure',()=>{
   expect(e2e).toContain('- if: always()\n        uses: actions/upload-artifact@v4');
   expect(e2e).toContain('name: e2e-report-shard-${{ matrix.shard }}');

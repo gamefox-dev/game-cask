@@ -53,10 +53,15 @@ export interface RuntimeOptions {
   ephemeralStorage?: boolean;
   directDraw?: boolean;
   autostart?: boolean;
+  /** K64: estimated-total memory budget (bytes) for the iPhone-class warning; overrides ?memorybudget= and the manifest. */
+  memoryBudgetBytes?: number;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
   startPaused?: boolean;
   /** Opt-in JSPI; both manifest and runtime request must opt in. */
   suspension?: 'asyncify' | 'jspi';
+  /** K66: wall budget (ms) per display tick for updates that continue after a time-neutral transport yield;
+   * 0 restores one update per tick (A/B). Default TRANSPORT_BURST_MS. */
+  ioBurstMs?: number;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -74,6 +79,8 @@ export interface Manifest {
   preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
   suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
   gpu?: { budgetBytes?: number };
+  /** K64: estimated-total memory budget for this game (game.json "memoryBudget"); default 1.5 GiB. */
+  memoryBudget?: { bytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
   touch?: TouchConfig;
   input?: InputConfig;
@@ -88,8 +95,10 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
-import { retainedAccumulator } from './page-pacing';
+import { retainedAccumulator, continueTransport, TRANSPORT_BURST_MS } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
+import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs } from './memory';
+import { loadSummary, type LoadDiagnostics, type LoadMarks, type ResourceTransfer } from './load-metrics';
 
 export interface BGTDiagnostics {
   abi: string;
@@ -130,6 +139,8 @@ export interface BGTDiagnostics {
     gpuMs: number | null; gpuTiming: string;
     /** K60 WebGPU only (0 elsewhere): rename bytes, transform-feedback translation/lowering cache misses. */
     renameBytes: number; captureTranslations: number; captureLowerings: number;
+    /** K67 WebGPU only (0 elsewhere): command buffers submitted for the frame, GPUBuffers created while encoding it. */
+    commandBuffers: number; buffersCreated: number; poolBytes: number;
     nativeSyncQueries?: { getError: number; checkFramebufferStatus: number; generatedBufferReadbacks: number } | null;
     nativeSyncQueryOps?: Record<string, { getError: number; checkFramebufferStatus: number }> | null };
   commandErrors: { count: number; recent: CommandError[] };
@@ -148,6 +159,10 @@ export interface BGTDiagnostics {
   metrics: unknown;
   /** kit coverage: BGT commands executed (by name) and runtime imports called */
   coverage: { ops: Record<string, number>; imports: Record<string, number> };
+  /** K64: memory attribution by component, an estimated total and the iPhone-class budget check. */
+  memory: MemoryDiagnostics;
+  /** K64: load phases (manifest, wasm download/compile/instantiate, init, first frame/update) and transfer evidence. */
+  load: LoadDiagnostics;
 }
 
 export class RuntimeFailure extends Error {
@@ -201,6 +216,17 @@ export class BGTRuntime {
   private wasmLoadMs = 0;
   private wasmStreaming = false;
   private firstFrameMs: number | null = null;
+  /** K64 load/memory bookkeeping. */
+  private loadMarks: LoadMarks = { manifestMs: null, wasmMs: null, assetsMs: null, instantiateMs: null, initMs: null, readyMs: null,
+    firstFrameMs: null, firstUpdateMs: null };
+  private wasmEvidence: { url: string; bytes: number; streamingReason: string; contentType: string | null; contentEncoding: string | null;
+    memoryLimits: { initialBytes: number; maximumBytes: number | null } | null } | null = null;
+  private wasmTransfer: ResourceTransfer | null = null;
+  private linearAtInstantiate = 0;
+  private memoryBudget: { bytes: number; source: MemoryBudgetSource } = resolveMemoryBudget();
+  private memoryPeaks = { linear: 0, total: 0 };
+  /** Load-time buffers the runtime still holds, for the milestone peak samples (vK64). */
+  private loadBuffers = 0;
   private frameTimes: number[] = [];
   private gpuWallMs = 0;
   private gpuSubmitTotalMs = 0;
@@ -241,7 +267,7 @@ export class BGTRuntime {
   private deviceResets = 0;
   private resizeObs: ResizeObserver | null = null;
   private lastFrameStats = { nativePasses: 0, nativeSubmits: 0, mergedPasses: 0, bufferRenames: 0, skippedBinds: 0,
-    renameBytes: 0, captureTranslations: 0, captureLowerings: 0,
+    renameBytes: 0, captureTranslations: 0, captureLowerings: 0, commandBuffers: 0, buffersCreated: 0, poolBytes: 0,
     gpuMs: null as number | null, gpuTiming: 'off', drawCalls: 0, passes: 0, vertices: 0, commandBytes: 0, submits: 0,
     commandCount: 0, continuationSubmits: 0, continuationByteLimit: GPU_CONTINUATION_LIMITS.bytes as number,
     continuationCommandLimit: GPU_CONTINUATION_LIMITS.commands as number };
@@ -333,7 +359,7 @@ export class BGTRuntime {
     if (this.opts.autostart !== false) this.loop();
   }
 
-  private async fetchBytes(url: string, label: string, onBytes: (n: number) => void): Promise<ArrayBuffer> {
+  private async fetchBytes(url: string, label: string, onBytes: (n: number) => void, expectedSize?: number): Promise<ArrayBuffer> {
     let res: Response;
     try {
       res = await fetch(url);
@@ -347,6 +373,21 @@ export class BGTRuntime {
       return b;
     }
     const reader = res.body.getReader();
+    // K64: with a manifest size, read straight into one buffer instead of chunks + a concatenated copy.
+    if (expectedSize !== undefined && Number.isSafeInteger(expectedSize) && expectedSize >= 0) {
+      const out = new Uint8Array(expectedSize);
+      let n = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (n + value.byteLength > expectedSize) throw new RuntimeFailure('asset', `integrity check failed for ${label} (larger than manifest size)`);
+          out.set(value, n); n += value.byteLength; onBytes(value.byteLength);
+        }
+      } catch (e) { void reader.cancel().catch(() => {}); throw e; }
+      if (n !== expectedSize) throw new RuntimeFailure('asset', `integrity check failed for ${label} (size ${n}, manifest ${expectedSize})`);
+      return out.buffer;
+    }
     const chunks: Uint8Array[] = [];
     let total = 0;
     for (;;) {
@@ -383,6 +424,8 @@ export class BGTRuntime {
     const manifest = (await res.json()) as Manifest;
     if (manifest.schema !== 'bgt-manifest/1') throw new RuntimeFailure('asset', `unsupported manifest schema ${manifest.schema}`);
     this.manifest = manifest;
+    this.loadMarks.manifestMs = performance.now() - this.loadStarted;
+    this.memoryBudget = this.resolveBudget(manifest);
     this.rangeFiles = new RangeFiles(base);
     for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
@@ -401,21 +444,28 @@ export class BGTRuntime {
       const got = await sha256Hex(buf);
       if (got && got !== expect) throw new RuntimeFailure('asset', `integrity check failed for ${label}`);
     };
-    const wasmP = fetch(base + variant.artifact.url).then((res) => ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? compileVerifiedWasm(res,variant.artifact,tick,!!this.testHarness) : compileVerifiedWasm(res,variant.artifact,tick))).then((result) => {
+    const wasmUrl = base + variant.artifact.url;
+    const wasmP = fetch(wasmUrl).then((res) => ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? compileVerifiedWasm(res,variant.artifact,tick,!!this.testHarness) : compileVerifiedWasm(res,variant.artifact,tick))).then((result) => {
       this.wasmLoadMs = result.downloadCompileVerifyMs;
       this.wasmStreaming = result.streaming;
+      this.loadMarks.wasmMs = performance.now() - this.loadStarted;
+      this.wasmEvidence = { url: wasmUrl, bytes: variant.artifact.size, streamingReason: result.streamingReason,
+        contentType: result.contentType, contentEncoding: result.contentEncoding, memoryLimits: result.memoryLimits };
+      // Load-peak sample: the verified download buffer was live until compilation finished.
+      this.loadBuffers = variant.artifact.size; this.samplePeak(); this.loadBuffers = 0;
       return result.module;
     }).catch((e: unknown) => { throw new RuntimeFailure('asset', `game.wasm: ${(e as Error).message}`); });
     // Chunked preload with bounded concurrency.
     const queue = [...manifest.assets];
     const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
       for (let a = queue.shift(); a; a = queue.shift()) {
-        const b = await this.fetchBytes(base + a.url, a.path, tick);
+        const b = await this.fetchBytes(base + a.url, a.path, tick, a.size);
         await verify(b, a.sha256, a.path);
         this.vfs.add(a.path, new Uint8Array(b));
       }
     });
-    const [wasm] = await Promise.all([wasmP, ...workers]);
+    const assetsP = Promise.all(workers).then(() => { this.loadMarks.assetsMs = performance.now() - this.loadStarted; });
+    const [wasm] = await Promise.all([wasmP, assetsP]);
 
     this.status('Starting graphics…');
     this.renderer = await this.pickRenderer(this.opts.backend ?? 'auto');
@@ -474,7 +524,13 @@ export class BGTRuntime {
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHostFactory = this.testHarness ? (renderer) => GameHost.create(wasm,actualServices,
         {...config,gpuBackend:renderer.gpu}) : undefined;
       this.host = await GameHost.create(wasm,actualServices,config);
+      this.linearAtInstantiate = this.host.memoryBytes;
+      this.loadMarks.instantiateMs = this.host.instantiateMs;
+      this.samplePeak();
+      const initStart = performance.now();
       this.host.init();
+      this.loadMarks.initMs = performance.now() - initStart;
+      this.samplePeak();
     } catch (e) {
       throw new RuntimeFailure(e instanceof Error && e.name === 'GameAbort' ? 'abort' : 'init', e instanceof Error ? e.message : String(e));
     }
@@ -487,6 +543,8 @@ export class BGTRuntime {
     this.status('');
     if (this.opts.startPaused) this.paused = true;
     this.ready = true;
+    this.loadMarks.readyMs = performance.now() - this.loadStarted;
+    this.samplePeak();
     this.canvas.focus({ preventScroll: true });
   }
 
@@ -666,6 +724,7 @@ export class BGTRuntime {
     this.input.snapshot(this.snap);
     host.writeInput(this.snap);
     await host.update();
+    if (this.loadMarks && this.loadMarks.firstUpdateMs === null && this.ready) this.loadMarks.firstUpdateMs = performance.now() - this.loadStarted;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.testHarness?.updated();
     if (host.sizeChanged) {
       host.sizeChanged = false;
@@ -730,17 +789,21 @@ export class BGTRuntime {
       nativePasses: r.stats.nativePasses ?? 0, nativeSubmits: r.stats.nativeSubmits ?? 0,
       mergedPasses: r.stats.mergedPasses ?? 0, bufferRenames: r.stats.bufferRenames ?? 0, skippedBinds: r.stats.skippedBinds ?? 0,
       renameBytes: r.stats.renameBytes ?? 0, captureTranslations: r.stats.captureTranslations ?? 0, captureLowerings: r.stats.captureLowerings ?? 0,
+      commandBuffers: r.stats.commandBuffers ?? 0, buffersCreated: r.stats.buffersCreated ?? 0, poolBytes: r.stats.poolBytes ?? 0,
       gpuMs: r.stats.gpuMs ?? null, gpuTiming: r.stats.gpuTiming ?? 'off',
     };
     host.consume();
     this.presentsCompleted++;
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) await this.testHarness?.afterFrame?.();
-    if(this.firstFrameMs===null)this.firstFrameMs=performance.now()-this.loadStarted;
+    if(this.firstFrameMs===null){this.firstFrameMs=performance.now()-this.loadStarted;if(this.loadMarks)this.loadMarks.firstFrameMs=this.firstFrameMs;this.samplePeak();}
+    else if(this.presentsCompleted%30===0)this.samplePeak();
     this.frameTimes.push(performance.now()-started);if(this.frameTimes.length>10000)this.frameTimes.shift();
     return out;
   }
 
   private updateBusy = false;
+  /** K66: settles when the running page-loop tick (including a transport burst) has finished its updates. */
+  private tickTail: Promise<void> = Promise.resolve();
   private loop(): void {
     const tick = async (t: number) => {
       this.raf = requestAnimationFrame(tick);
@@ -757,7 +820,9 @@ export class BGTRuntime {
         return;
       }
       if (this.pageLog) pageLogPush(this.pageLog, 0, t);
+      const tickStart = performance.now();
       this.updateBusy = true;
+      let tickDone!: () => void; this.tickTail = new Promise<void>((resolve) => { tickDone = resolve; });
       try {
       let n = 0;
       // A pipeline update is already a bounded guest frame; never multiply its
@@ -770,16 +835,60 @@ export class BGTRuntime {
         n++;
       }
       this.acc = retainedAccumulator(this.acc, n, limit, STEP_MS); // drop backlog, keep the sub-step remainder
+      // vK66: `updates` = every update of this tick, carried by the tick's one counted canvas present.
+      let updates = n;
+      if (n > 0 && this.manifest?.pipeline) ({ pending: n, updates } = await this.transportBurst(n, tickStart));
       if (n > 0) {
-        const before = this.presentsCompleted, updates = n, log = this.pageLog;
+        const before = this.presentsCompleted, log = this.pageLog;
         if (log) void this.renderFrame(false).then(() => {
           if (this.presentsCompleted > before) pageLogPush(log, 2, performance.now(), updates);
         }, () => {});
         else void this.renderFrame(false);
       }
-      } finally { this.updateBusy = false; }
+      } finally { this.updateBusy = false; tickDone(); }
     };
     this.raf = requestAnimationFrame(tick);
+  }
+
+  /** K66: page-loop counters (test API pageLoop()). */
+  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0 };
+
+  /**
+   * K66: a guest blocked in a synchronous transport wait (ReadFile, a request result, a full host-frame budget)
+   * neither presents nor advances guest time, so capping it at one update per display tick only stretches
+   * loading (60 reads/s). After such a yield, render that update and run the next one in the same tick, until
+   * an update presents or crosses a guest-time boundary, the tick's wall budget is spent, or the continuation
+   * carried one frame period of instruction time. Each update keeps its own render and request boundary, exactly
+   * as back-to-back step(): the guest timeline and every guest-visible result are unchanged.
+   * Page-fps honesty (vK66): renders inside a burst are logged as burst renders (kind 4), never as presents; the
+   * tick's last render is its one counted present (kind 2) and carries all of the tick's updates.
+   * Returns whether the last update's render is still to be issued (pending 0/1) and the tick's update count.
+   */
+  private async transportBurst(n: number, tickStart: number): Promise<{ pending: number; updates: number }> {
+    const host = this.host!, stats = this.pageLoopStats, budget = this.opts.ioBurstMs ?? TRANSPORT_BURST_MS;
+    stats.ticks++; stats.updates += n;
+    const guest0 = host.guestTimeUs();
+    let tick = n;
+    for (;;) {
+      if (!continueTransport(host.transportYield(), performance.now() - tickStart, budget, guest0, host.guestTimeUs())) break;
+      const before = this.presentsCompleted;
+      await this.renderFrame(false).catch(() => null); n = 0;
+      const rendered = this.presentsCompleted > before, renderedAt = performance.now();
+      if (host.ioPending) await host.settleRequests();
+      if (performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
+        ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) {
+        // The burst ends on an update already rendered: that render is the tick's present.
+        if (rendered && this.pageLog) pageLogPush(this.pageLog, 2, renderedAt, tick);
+        break;
+      }
+      if (rendered && this.pageLog) pageLogPush(this.pageLog, 4, renderedAt); // an intermediate burst render
+      await this.stepGuarded();
+      if (this.failed || this.outsideSlice) { n = 0; break; }
+      n = 1; tick++; stats.updates++; stats.transportUpdates++;
+      if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
+    }
+    if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
+    return { pending: n, updates: tick };
   }
 
   // ------------------------------------------------------------ test hooks
@@ -820,7 +929,7 @@ export class BGTRuntime {
       // Presents complete asynchronously; let a submitted frame finish before reducing the window.
       await this.renderTail;
       return summarizePageWindow(log, start, end, g0 !== null && g1 !== null ? g1 - g0 : null);
-    } finally { this.pause(); await this.renderTail; this.pageLog = null; }
+    } finally { this.pause(); await this.tickTail; await this.renderTail; this.pageLog = null; }
   }
 
   async step(frames: number): Promise<void> {
@@ -829,6 +938,7 @@ export class BGTRuntime {
     this.stepping = true;
     this.pause();
     try {
+    await this.tickTail; // K66: a page-loop transport burst never overlaps a test step
     for (let i = 0; i < frames; i++) {
       if (this.failed || this.outsideSlice) break;
       await this.renderTail;
@@ -893,10 +1003,79 @@ export class BGTRuntime {
       timing:this.diagnostics().timing};
   }
 
+  private resolveBudget(manifest: Manifest | null): { bytes: number; source: MemoryBudgetSource } {
+    const url = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('memorybudget') : null;
+    try { return resolveMemoryBudget(this.opts.memoryBudgetBytes, url, manifest?.memoryBudget?.bytes); }
+    catch (e) {
+      if (url === null || this.opts.memoryBudgetBytes !== undefined) throw new RuntimeFailure('init', (e as Error).message);
+      // A mistyped URL override must not stop the game: report it and use the configured budget.
+      this.backendNotes.push(`memory: ${(e as Error).message}; ignored`);
+      try { return resolveMemoryBudget(undefined, null, manifest?.memoryBudget?.bytes); }
+      catch (m) { throw new RuntimeFailure('init', (m as Error).message); }
+    }
+  }
+
+  private memoryInputs(metrics: unknown): MemoryInputs {
+    const host = this.host, r = this.renderer, reserved = host?.gpuReservedByKind ?? null, gpu = host?.gpuMetrics ?? null;
+    const heap = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
+    return {
+      wasm: { linearBytes: host?.memoryBytes ?? 0, initialBytes: this.wasmEvidence?.memoryLimits?.initialBytes ?? this.linearAtInstantiate,
+        moduleBytes: this.wasmEvidence?.bytes ?? 0 },
+      guest: guestMemoryFromMetrics(metrics),
+      gpu: gpu ? { budgetBytes: gpu.budgetBytes, reservedBytes: gpu.reservedBytes, peakReservedBytes: gpu.peakReservedBytes,
+        reserved: reserved ?? { buffers: 0, textures: 0, shaders: 0 } } : null,
+      native: r?.gpu?.memory?.() ?? null,
+      legacyTextureBytes: host?.textures.totalBytes ?? 0,
+      canvas: { width: this.canvas.width, height: this.canvas.height },
+      js: { assetBytes: this.vfs.totalBytes, streamCacheBytes: this.rangeFiles?.cacheBytes ?? 0,
+        gpuDecoderShadowBytes: reserved?.buffers ?? 0,
+        // Scheduled AudioBuffers hold float32 per channel; stereo is the upper bound.
+        audioQueuedBytes: this.audio.queued() * 2 * 4,
+        loadBuffersBytes: this.loadBuffers,
+        heapUsedBytes: typeof heap === 'number' ? heap : null },
+      budget: this.memoryBudget,
+    };
+  }
+
+  /** Frame-path peak sample: diagnostics never fail a frame, and a runtime built without its K64 bookkeeping
+   * (tests use Object.create(BGTRuntime.prototype)) simply has no peak to track. */
+  private samplePeak(): void {
+    if (!this.loadMarks || !this.memoryPeaks) return;
+    try { this.sampleMemory(); } catch (e) { this.record('js', `memory sample failed: ${(e as Error).message}`); }
+  }
+
+  /** Peak tracking without the profile's metrics serialization (guest bytes live inside linear memory anyway). */
+  private sampleMemory(): MemoryDiagnostics {
+    const m = memoryBreakdown(this.memoryInputs(null), this.memoryPeaks);
+    this.memoryPeaks = { linear: m.wasm.peakLinearBytes, total: m.estimate.peakTotalBytes };
+    return m;
+  }
+
+  /** K64: memory attribution (also inside diagnostics()). */
+  memory(metrics: unknown = this.executionMetrics()): MemoryDiagnostics {
+    const m = memoryBreakdown(this.memoryInputs(metrics), this.memoryPeaks);
+    this.memoryPeaks = { linear: m.wasm.peakLinearBytes, total: m.estimate.peakTotalBytes };
+    return m;
+  }
+
+  /** K64: load phases and the wasm response evidence (resource timing read once it exists). */
+  loadMetrics(): LoadDiagnostics {
+    if (!this.wasmTransfer && this.wasmEvidence && typeof performance.getEntriesByName === 'function') {
+      const url = new URL(this.wasmEvidence.url, location.href).href;
+      const e = performance.getEntriesByName(url).find((x): x is PerformanceResourceTiming => 'transferSize' in x);
+      if (e) this.wasmTransfer = { transferSize: e.transferSize, encodedBodySize: e.encodedBodySize, decodedBodySize: e.decodedBodySize,
+        durationMs: e.duration };
+    }
+    return loadSummary(this.loadMarks, this.wasmEvidence, this.wasmTransfer, {
+      downloadCompileVerifyMs: this.wasmLoadMs, instantiateMs: this.host?.instantiateMs ?? 0, streaming: this.wasmStreaming,
+      assetBytes: this.manifest?.assets.reduce((n, a) => n + a.size, 0) ?? 0 });
+  }
+
   diagnostics(): BGTDiagnostics {
     const iv = [...this.intervals].sort((a, b) => a - b);
     const host = this.host;
     const r = this.renderer;
+    const metrics = this.executionMetrics();
     return {
       abi: `${ABI_VERSION >> 16}.${(ABI_VERSION >> 8) & 0xff}`,
       suspension: host ? (host.config.suspensionMode ?? 'asyncify') : null,
@@ -953,11 +1132,13 @@ export class BGTRuntime {
       yields: host?.yields ?? 0,
       suspended: host?.suspended ?? false,
       outsideSlice: this.outsideSlice,
-      metrics: this.executionMetrics(),
+      metrics,
       coverage: {
         ops: Object.fromEntries(Object.entries(host?.opCounts ?? {}).map(([k, v]) => [OP_NAMES[Number(k)] ?? k, v])),
         imports: { ...(host?.importCounts ?? {}) },
       },
+      memory: this.memory(metrics),
+      load: this.loadMetrics(),
     };
   }
 

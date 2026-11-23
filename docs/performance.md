@@ -34,7 +34,8 @@ allocated only while `measurePage` runs, so production pages pay a null check pe
 
 Launch flags: Playwright's default headless shell renders WebGL2 with **SwiftShader**. Use `--use-angle=metal`
 (macOS) or a headed browser to get the GPU. `BGT_WEBGL2_GPU=1` runs the `chromium-webgl2` e2e project on the
-native GPU; without it, that project stays the software CI gate. `npm run probe` and `npm run bench:page` use
+native GPU (K66: and the `port-webgl2` port project, with the same launch); without it, those projects stay the
+software CI gate. `npm run probe` and `npm run bench:page` use
 the native GPU for both backends. Their `--software` flag forces SwiftShader for an A/B comparison.
 
 ## 2. Real-page frame rate: `npm run bench:page`
@@ -57,6 +58,8 @@ warmupMs)` does the run: it resumes the loop, warms up, measures one fixed wall 
 | `updates_per_present` | host updates per canvas present (pipeline games: at most 1) |
 | `guest_presents_per_second`, `guest_presents_per_page_present` | native SwapBuffers/GDI presents over the same window |
 | `raf_per_second`, `busy_ticks` | the loop's ceiling, and ticks skipped because work was still running |
+| `transport_updates`, `max_updates_per_tick` | K66: updates a tick ran after a time-neutral transport yield, and the most updates in one tick |
+| `burst_renders` | vK66: intermediate renders inside such bursts; never counted as presents (a burst tick has one present carrying all its updates) |
 
 The tool writes `<out>/<game>.json`. Each run row holds the summary, the renderer/adapter string, the actual
 backend and suspension mode, and errors. It also records the machine's resources at start and end. A run that
@@ -69,6 +72,15 @@ reset the accumulator to zero after every update. A 60 Hz rAF delivers ticks of 
 16.667 ms step, so updates happened only on every other tick. x64-smoke reached 34 presents/s on both
 backends. `retainedAccumulator` (`bgt/runtime/page-pacing.ts`, shared with K50) now keeps up to one step of remainder, so a stall still drops
 its backlog, and the result is 60 presents/s. Native BGT catch-up is unchanged.
+
+**Transport bursts (K66).** A blocking load (Win32 ReadFile in <= 64 KiB range requests, GL readbacks, shader
+results) yields to the host once per request, without presenting or advancing guest time. One update per rAF tick
+capped such a load at 60 requests/s (Mega Man X8's stage load: 108 s on the page, 14 s back-to-back). The page loop
+now renders such an update and runs the next one in the same tick, up to a 12 ms wall budget (`?ioburst=N` sets it,
+`?ioburst=0` restores one update per tick for A/B), stopping at the first update that presents or crosses a
+guest-time boundary. The guest sees exactly the update sequence of back-to-back `step()`; normal frames keep one
+update per tick. `__BGT_TEST__.pageLoop()` returns `{ticks, updates, transportUpdates, maxUpdatesPerTick}` since load.
+Fixture: `examples/x64-file-load` (768 small reads of a streamed 4 MiB file), spec `tests/e2e/file-load.spec.ts`.
 
 ## 3. Performance builds without coverage
 
@@ -118,3 +130,38 @@ of the table total, and a `last_frame` table. OFF builds report `{enabled: 0, cu
 interpreted, and both suspension modes. It also covers a generic CPUID charged to its lifted owner, and checks
 that per-present frame totals equal the exact accounting deltas. Measured overhead is in
 [K51](handoff/K51.md).
+
+## 5. Memory and load (K64)
+
+**Memory attribution.** `diagnostics().memory` (also `__BGT_TEST__.memory()`) splits what the runtime owns:
+
+| field | what it is |
+|---|---|
+| `wasm.linearBytes` / `peakLinearBytes` / `initialBytes` | linear memory now, its high-water mark, and the module's declared initial size |
+| `wasm.moduleBytes` | the selected game.wasm artifact; `compiledBytes` is `null` (engine machine code is not observable) |
+| `guest` | Win32 profile only: `committedBytes` (highest flat-guest address mapped), `heapBytes`, `virtualLiveBytes`/`virtualPeakBytes` (VirtualAlloc; reserve = commit in this profile), `host*` (runtime/GL/CRT/file host arena), `glFrontendBytes` (guest-side GL data copies). All of it lives **inside** linear memory |
+| `gpu.reserved` | the §13 decoder's reservation by kind (buffers/textures/shaders); sums to `reservedBytes` (the budget accounting) |
+| `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (allocated levels; depth/stencil part), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
+| `gpu.canvasBytesEstimate` | canvas drawing buffer + one swap buffer, RGBA8 |
+| `js` | JS-heap copies: preloaded assets, stream chunk cache, decoder buffer shadows (`gpuDecoderShadowBytes`), executor recovery shadows (`gpuRecoveryShadowBytes`), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
+| `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), the budget and `status`. `peakTotalBytes` is a **sampled** high-water mark (`peakSampling`): the maximum over samples at load milestones (game.wasm compiled, counting its still-held download buffer as `js.loadBuffersBytes`; instantiated; initialized; ready; first frame), every 30 presents and every read. Spikes between samples, and engine-internal compile buffers, are not seen |
+
+The **budget** defaults to 1.5 GiB (iPhone-class tab). Override with game.json `"memoryBudget": {"bytes": N}` (copied to
+the manifest), `?memorybudget=1536m|1.5g|BYTES` or `RuntimeOptions.memoryBudgetBytes`. `status: "over-budget"` is a
+warning, never a failure. The estimate is not process RSS: compiled code, browser/driver overhead and the JS engine are
+excluded. **Real-device memory (iPhone Safari WebContent + GPU process) is a hardware gate**: report it separately, e.g.
+from Xcode Instruments / Safari Web Inspector Timelines, next to this estimate; the difference is mostly compiled code.
+
+**Load metrics.** `diagnostics().load` (also `__BGT_TEST__.loadMetrics()`) has the phase marks since load start
+(`manifestMs`, `wasmMs`, `assetsMs`, `readyMs`, `firstFrameMs`, `firstUpdateMs`), spans (`instantiateMs`, `initMs`),
+and for game.wasm: streaming compilation and why not (`streamingReason`: `wrong-content-type`, `no-body`,
+`no-compileStreaming`), Content-Type/Encoding, resource-timing transfer sizes and the compression ratio.
+`timeToFirstInteractiveUpdateMs` is the first completed update once ready (input is live from there); measure without
+`?paused=1`.
+
+**Packaging tool.** `npm run package:metrics -- --game ID [--serve] [--browser] [--url BASE] [--brotli 11]` writes
+`reports/package-metrics-ID.json`: raw/gzip/brotli sizes per artifact kind (wasm, js, data, meta), how the server sends
+game.wasm (MIME → streaming compile, Content-Encoding) and, with `--browser`, a free-running Chromium load with the
+load phases and memory breakdown. The Vite dev server sends `application/wasm` (streaming compile) **uncompressed**.
+`npm run bundle -- --game ID --precompress` writes `.br`/`.gz` next to compressible bundle files for hosts with
+precompressed serving; verify a deployment with `--url`.

@@ -71,6 +71,18 @@ frame) and drop older backlog instead of multiplying guest-frame work. Under the
 The Win32 profile defines its deterministic [guest time model](../../platforms/win32/THREADS.md#guest-time-model-k50-version-1)
 independently of `io.frame`; this does not change native BGT fixed-step semantics.
 
+Transport bursts (K66): a pipeline update that ends suspended in a **time-neutral transport wait** (optional export
+`u32 bgt_yield_kind(void)` returns 1 while the game is suspended in such a yield: the update has neither presented nor
+crossed a guest-time boundary, and is waiting for a request result, a streamed/eager file range or a full host-frame
+budget) is rendered and followed by further updates in the same animation frame, until an update presents or advances
+guest time across a boundary, the tick's wall budget (12 ms; `?ioburst=N` ms, `?ioburst=0` disables) is spent, or the
+burst carried one frame period (16667 µs) of instruction time. Each update keeps its own render, request-visibility
+boundary and input snapshot, exactly as back-to-back `step()`: the update sequence, guest time and every guest-visible
+result are unchanged; only how many updates share a display tick changes. Without the export (older/native artifacts)
+the result is 0 and pacing is as before. The Win32 profile reports 1 for `w32_wait_transport` yields (ReadFile range
+waits, GL readback/shader/budget waits, GDI record overflow) of an update that has not presented, snapped a frame
+boundary or skipped time in Sleep/idle; metric `guest_time.neutral_yields` counts them.
+
 Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
 microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
 host wall time. Deterministic harness time/audio services use it when present; without it they retain
@@ -257,6 +269,9 @@ interface BGTTestAPI {
   debugState(): unknown; injectCommands(base64: string): DecodeResult | null;
   simulateDeviceLoss(): Promise<void>;
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
+  measurePage(windowMs: number, warmupMs?: number): Promise<PageWindowSummary>; // K51 real-page window
+  pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick }; // K66: page-loop counters since load
+  memory(): MemoryDiagnostics; loadMetrics(): LoadDiagnostics; // K64 runtime metrics, = diagnostics().memory/.load
 }
 type BGTTestInputEvent =
   | { type: 'key'; code: string /* KeyboardEvent.code */; down: boolean }
@@ -277,6 +292,9 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
   `bgt_debug_peek` export, or `null` (no export, unmapped, bad length). It exists only where the test API exists
   (dev / `VITE_BGT_TEST=1` builds) and has deliberately **no write counterpart**: tests may observe game state, never
   change it. Calling it does not alter `stateHash()`.
+- `memory()` / `loadMetrics()` (K64) are runtime observations, not ABI: memory attribution by component with an
+  estimated total against a configurable budget, and load phase times plus how `game.wasm` was delivered. See
+  `docs/performance.md` §Memory and load. They change nothing the game can observe.
 - **Determinism:** simulation state is deterministic for identical input/seed (the e2e
   suite checks the browser against the Node host). GPU output is not bit-exact across GPU
   stacks: linear filtering, rasterization edges and blending rounding may differ by a few
@@ -843,9 +861,14 @@ preserving masked-off bits. REPLACE uses dynamic stencil reference. No depth bia
 polygon mode in this version. Point size 1; line width 1; primitives with insufficient final vertices are ignored.
 Primitive restart is disabled, including all-ones index values. No strip-to-list reordering may change winding.
 
-Vertex layout record (8 B): `stride, step`; stride positive multiple of 4, <=2048; step VERTEX=0 or INSTANCE=1.
+Vertex layout record (8 B): `stride, step`; stride a multiple of 4, <=2048; step VERTEX=0 or INSTANCE=1.
+**K67, capability `BGT_CAP_GPU_CONST_ATTRIB` / `CAP_GPU_CONST_ATTRIB = 1 << 16` (additive v0.3; advertised by both
+maintained backends, cleared for v0.2 modules; without it stride 0 stays E_INVALID):** stride 0 makes every vertex and
+every instance of that slot fetch the same element at the bound offset; its attributes must end within 2048 bytes and
+the bound range must hold that element. Profiles must check the capability before emitting stride 0 (the Win32 GL
+profile otherwise keeps per-instance copies for instanced generic current attributes).
 Buffer slot is its index in this array. Attribute (16 B): `location, buffer, offset, format`. Location 0..15 unique;
-buffer must index an existing layout; attribute end must fit stride. No overlapping-location alias; overlapping
+buffer must index an existing layout; attribute end must fit stride (a nonzero one). No overlapping-location alias; overlapping
 byte ranges are legal. Formats and byte sizes: FLOAT=0/4, FLOAT2=1/8, FLOAT3=2/12, FLOAT4=3/16, UNORM8X4=4/4,
 SINT=5/4, SINT2=6/8, SINT3=7/12, SINT4=8/16, UINT=9/4, UINT2=10/8, UINT3=11/12, UINT4=12/16.
 Offsets align to 4 except UNORM8X4 (alignment 1). Integers are signed/unsigned 32-bit per component; UNORM converts
@@ -1462,7 +1485,22 @@ ranges, so width-1 rendering is exact), glHint, glPolygonOffset (state), glPolyg
 approximation), glPrimitiveRestartIndex, sync objects (fences are signaled at creation: the stream is ordered and
 every guest-visible result is produced in stream order), glGetInteger64v/64i_v, glGetBufferParameteri64v,
 glGetQueryObject[u]i64v and more glGet state/limit queries. Metric `gl_error_calls` maps each GL entry point to the
-number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census.
+number of its calls that raised a GL error (`gl_errors_raised` in total): the porter's error census. K66 adds the
+backward-compatible sibling `gl_error_codes`, the same census split by the first GL error code each counted call
+raised: `{"glBufferData":{"0x501":n},...}` (keys `"0x500"`..`"0x506"`, `"other"`); per entry the counts sum to its
+`gl_error_calls` value. The code is the call's own first error, not what glGetError returns (an error latched by an
+earlier call is reported first; a flush may correct the order). Rejections of deferred calls found by a later batch
+replay are not attributed to any entry (as in K61).
+
+**K66 (zero-size glBufferData, profile-only).** `glBufferData(target, 0, data, usage)` is valid (GL 3.3 §2.9.2; only
+a negative size is GL_INVALID_VALUE): the buffer gets a zero-size store (GL_BUFFER_SIZE 0; sub-data, mapping, binding
+ranges and draws that read it are out of range exactly as for a buffer without a store). It emits no command: a live
+CPU-authoritative store keeps its native store as retained capacity within the K57 slack budget, and the next
+glBufferData rewrites it in place (one BUFFER_UPDATE, no DELETE/CREATE); a feedback-written store, or one whose
+capacity does not fit the slack budget, is released with one DELETE, and slack reclaim releases retained zero-size
+stores. Metric `gl_buffer_zero_stores` counts these calls; an orphan-then-upload pair counts as one re-specification
+(the upload's in-place resize). A draw, uniform-block draw or feedback capture that needs the zero-size store raises
+GL_INVALID_OPERATION, as for a buffer without a store. No wire format changes.
 
 **K62 (VIEWPORT relaxation, §13.6 offset 76, WebGPU varying packing).** The WGL profile sends the GL viewport
 unchanged (top-left origin, origin clamped to +-32768; width/height clamped to GL_MAX_VIEWPORT_DIMS = 16384 at

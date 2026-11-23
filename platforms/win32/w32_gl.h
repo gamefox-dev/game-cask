@@ -7,6 +7,7 @@ extern const uint32_t w32_api_gl_n;
 extern uint64_t w32_gl_calls, w32_gl_draws, w32_gl_state_changes, w32_gl_pipelines, w32_gl_unimplemented, w32_gl_approximations;
 extern uint64_t w32_gl_buffer_respec_reused, w32_gl_buffer_respec_resized, w32_gl_buffer_respec_grew, w32_gl_buffer_respec_shrank;
 extern uint64_t w32_gl_buffer_capacity_reused, w32_gl_buffer_capacity_grown, w32_gl_buffer_capacity_released, w32_gl_reclaim_retries;
+extern uint64_t w32_gl_buffer_zero_stores; /* K66 */
 /* Compatibility debug metrics: live/peak are GL charged spans; reserved is cumulative
  * backing requested by GL. All free backing is now reusable by every consumer. */
 #define w32_gl_frontend_bytes (x86_host_stats[XH_GL].used)
@@ -21,5 +22,6 @@ const char *w32_gl_stubs_json(void);
 const char *w32_gl_objects_json(void);
 const char *w32_gl_approximations_json(void);
 const char *w32_gl_error_calls_json(void); /* K61 */
+const char *w32_gl_error_codes_json(void); /* K66: per entry, by first GL error code */
 extern uint64_t w32_gl_errors_raised, w32_gl_expanded_draws, w32_gl_partial_clears;
 #endif

@@ -76,14 +76,68 @@ Raising `--max-old-space-size` cannot raise the Binaryen linear-memory ceiling.
 `tools/build/asyncify.mjs` retains whole-module O2/Asyncify for code sections up to 32 MiB. Above that it
 batches original function bodies into 8 MiB targets (whole functions; one function may exceed the target).
 Each batch retains all declarations/imports/tables/globals/elements/data, preserving index spaces and
-indirect-call signatures. Non-batch bodies are analysis-only yield-then-trap placeholders, **never shipped
-or executed**. They conservatively overapproximate original cross-batch/indirect suspension edges.
+indirect-call signatures. Non-batch bodies are analysis-only placeholders, **never shipped or executed**:
+yield-then-trap for a function in the suspension set, trap otherwise (K65, below).
 No `asyncify-ignore-indirect` shortcut is used.
+
+### Exact suspension set (K65, default)
+
+Before K65 every placeholder yielded, so every caller of a function in another batch, and every function
+with any `call_indirect`, was instrumented: on a CC0 exact-emitter fixture the partitioned artifact
+instrumented 4,768 functions instead of 2,393 (all generated `R_` regions) and ran **3.63x** slower than
+JSPI. Now `tools/build/wasm-callgraph.mjs` scans the whole linked module once (no IR, no instantiation;
+MVP + bulk-memory/sign-ext/sat-conv opcodes, anything else fails closed) and computes the functions that
+can reach `bgt.yield`:
+
+- direct `call`s, propagated backwards to a fixed point;
+- every `call_indirect` whose signature equals that of any suspending function that can be in a table
+  (all element segments, every `ref.func`, and, if a table is imported/exported, every exported and
+  imported function);
+- removelisted generated native steps (`N_*`) are cut points, exactly as before (they neither suspend nor
+  propagate). The runtime now checks that invariant at the single `bgt_yield` site (`wait_host`):
+  `x86_check_suspendable()` counts a yield with a native step frame live (`native_step_suspensions`) and,
+  in the Asyncify artifact only, faults instead of unwinding through it. JSPI suspends any stack
+  correctly, so there the event is only counted: an analysis miss still shows up when testing a dual
+  build under JSPI. The artifact is identified by a 16-byte marker in `x86_rt.c` data that
+  `asyncify.mjs` rewrites (`...JSPI` -> `...ASYN`) in the Asyncify output only (`asyncify_artifact` metric).
+
+The set goes to every Binaryen run as an exact `asyncify-onlylist` response file (canonical per-index
+identities; Binaryen forbids combining it with a removelist). Whole-module mode runs `-O2` first and
+computes the set on the optimized module, then runs Asyncify at `--optimize-level=2` without repeating
+O2 (planning before O2 is unsound: inlining a cut native step moves its calls into its caller). Partitions
+plan once on the raw module (unchanged index space, local passes only). All name lists (onlylist and
+removelist) travel as Binaryen response files (`asyncify-onlylist@@FILE`), never as one argv string
+(Linux limits each to 128 KiB; x64-scale's 12,078 step names are ~133 KB).
+
+A table that can receive values the scan cannot enumerate (`table.set`/`table.grow`/`table.fill`, an
+element expression reading a global such as an imported funcref, or an imported/exported table) is
+**opaque**: every `call_indirect` site is then treated as suspending, as Binaryen does. Tables with an
+initializer expression or a typed reference element type (GC/function-references) are refused outright.
+
+The published artifact is re-analysed (`verifyAsyncify`) twice: (1) every function in the model's set
+must reference the Asyncify state global; (2) an independent local closure check on Binaryen's actual
+instrumentation: no uninstrumented, non-cut function calls the yield import or an instrumented function,
+or `call_indirect`s a signature carried by an instrumented/suspending table entry (any signature if the
+table is opaque). (2) does not use the propagation model; by induction no uninstrumented frame can be
+live at the yield except below a cut point (runtime-guarded). Residual shared trust: the opcode decoder,
+the table-target enumeration, and that a state-global reference means Binaryen instrumented the
+function's call sites. Either failure stops the build with a call chain; nothing is published.
+
+Re-entrancy: a host import whose JS calls back into a wasm export that yields would suspend across a
+JS frame (Asyncify cannot unwind it, JSPI cannot suspend it). The runtime counts every host-to-wasm
+entry through `host.exports` (including `bgt_update` and `bgt_profile_abort`) and allows the yield only
+from the outermost update (one entry under Asyncify, none under JSPI, whose `bgt_update` is the raw
+promising export); otherwise it refuses with a clear error (`GameAbort`). Dev/test `rawExports` are used
+only for the generated checkpoint accessors (no calls), so they cannot re-enter.
+`BGT_ASYNCIFY_ANALYSIS=binaryen` keeps the previous analysis for A/B. Every Asyncify artifact now carries
+the standard function-name section (profiles show names, not `wasm-function[N]`).
+`manifest.pipeline.metrics` records `asyncify_analysis`, `asyncify_functions`, `asyncify_suspending`,
+`asyncify_instrumented` and `asyncify_partitions`. Measurements: [K65 handoff](handoff/K65.md).
 
 Only fixed function-local optimization passes run before/after Asyncify. Interprocedural O2, inlining, DCE
 and propagation across placeholders are forbidden. Exact generated non-suspending native-step exclusions
 are preserved through short canonical per-index identities; duplicate/absent names cannot silently change
-index mapping. Profile sidecars restore original names. Overrides and suspending wrappers stay conservative.
+index mapping. Original names are restored in the shipped name section. Overrides and suspending wrappers stay instrumented.
 The output may be larger/slower than whole-module O2: an explicit resource/optimization tradeoff.
 
 Before publication: every original body must be transformed exactly once; all non-code sections and final
@@ -92,7 +146,7 @@ must validate the assembled wasm. Binaryen's writer must use `--preserve-type-or
 reorder pass, its default usage-frequency type ordering can otherwise differ between shards (caught by the
 I12 convergence fixture). Type/import/function section equality remains mandatory; no mismatch is waived.
 Checks fail closed. One state pair/helper set serves the entire result.
-Cache identity includes Binaryen, wrapper/partition code, features, names policy and exact removelist.
+Cache identity includes Binaryen, wrapper/partition/call-graph code, features, names policy, analysis mode and exact removelist.
 Existing atomic per-key publication and writer leases protect the entire job and child tools.
 
 This bounds body IR per child, not all build memory: metadata/data/tables, output assembly and the largest

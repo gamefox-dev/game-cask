@@ -524,7 +524,7 @@ static int uniform_ranges(Program *p, uint32_t handles[7], uint32_t offsets[7], 
     for (uint32_t i = 0; i < p->nb; i++) {
         uint32_t s = p->block[i].binding, id = ubo[s], offset = ubo_offset[s];
         uint32_t size = ubo_whole[s] ? buffers[id].size : ubo_size[s], required = p->info->b[i].size;
-        if (!id || !buffers[id].gpu) { fail(BAD_OP); return 0; }
+        if (!id || !HAS_STORE(id)) { fail(BAD_OP); return 0; }
         if (offset >= buffers[id].size) size = 0;
         else if (size > buffers[id].size - offset) size = buffers[id].size - offset;
         handles[i] = buffers[id].gpu; offsets[i] = offset;
@@ -583,7 +583,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
      * the range is valid; an invalid range fails index validation below. */
     if (index_type && index_type != U8 && index_type != U16 && index_type != U32) { fail(BAD_ENUM); return 0; }
     Buffer *eb = &buffers[vaos[vao].element]; uint32_t esize = index_type == U16 ? 2 : index_type == U8 ? 1 : 4;
-    const uint8_t *edata = index_type && eb->gpu && eb->data && !eb->generated &&
+    const uint8_t *edata = index_type && HAS_STORE(vaos[vao].element) && eb->data && !eb->generated &&
         index_offset % esize == 0 && (uint64_t)index_offset + (uint64_t)(uint32_t)count * esize <= eb->size ? eb->data + index_offset : 0;
     int restart = edata && ((other_caps >> 10) & 1) && (index_type == U32 || restart_index <= (index_type == U16 ? 0xffffu : 0xffu));
     if (restart && !expand) {
@@ -617,7 +617,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     if (tf_active) for (uint32_t i = 0; i < (feedback_program->tf_link_separate ? feedback_program->tf_link_count : 1); i++) {
         uint32_t id = tf_bound[i], size = tf_whole[i] ? buffers[id].size : tf_size[i];
         uint64_t bytes = (uint64_t)tf_vertices * (uint32_t)instances * feedback_program->tf_stride[i];
-        if (!id || !buffers[id].gpu || tf_cursor[i] > size || bytes > size - tf_cursor[i]) { fail(BAD_OP); return 0; }
+        if (!id || !HAS_STORE(id) || tf_cursor[i] > size || bytes > size - tf_cursor[i]) { fail(BAD_OP); return 0; }
         for (uint32_t a = 0; a < 16; a++) if (vaos[vao].a[a].enabled && vaos[vao].a[a].buffer == id) { fail(BAD_OP); return 0; }
         for (uint32_t b = 0; b < feedback_program->nb; b++) if (ubo[feedback_program->block[b].binding] == id) { fail(BAD_OP); return 0; }
         if (index_type && vaos[vao].element == id) { fail(BAD_OP); return 0; }
@@ -694,7 +694,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) disabled &= ~(1u << i);
     for (uint32_t i = 0; i < 16; i++) if (vaos[vao].a[i].enabled) {
         Attribute *a = &vaos[vao].a[i];
-        if (!a->buffer || !buffers[a->buffer].gpu || !a->stride || (a->stride & 3) ||
+        if (!a->buffer || !HAS_STORE(a->buffer) || !a->stride || (a->stride & 3) ||
             a->offset % a->stride + a->count * (a->type == U8 ? 1 : 4) > a->stride ||
             (a->type != U8 && (a->offset & 3))) { fail(BAD_OP); return 0; }
         uint32_t s;
@@ -709,12 +709,17 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
         attr_slots[i] = s; nattrs++;
     }
-    /* K60: single-instance constants ride in the program's uniform upload (see GL_UBO_TAIL). */
-    int tail_constants = disabled && instances == 1 && !(p->usize & 15);
+    /* K60: constants ride in the program's uniform upload (see GL_UBO_TAIL). K67 (Q115): with BGT_CAP_GPU_CONST_ATTRIB
+     * also for instanced draws: the constant slot has stride 0 (ABI §13.3, every vertex and instance fetches the same
+     * element), so one 256-byte tail serves any instance count. Without the capability (a pre-K67 host rejects stride
+     * 0) the K60 rule stands: single-instance draws use the tail with stride 256, instanced draws the per-instance
+     * private buffer 1023 (one copy per instance, synchronous upload); so does a uniform size that is not 16-aligned. */
+    int const_stride0 = (w32_io->caps & BGT_CAP_GPU_CONST_ATTRIB) != 0;
+    int tail_constants = disabled && !(p->usize & 15) && (const_stride0 || instances == 1);
     if (disabled) {
         if (nslots == 8) { fail(BAD_OP); return 0; }
         if (!tail_constants) { ensure_current_buffer((uint32_t)instances); if (error) return 0; }
-        constant_slot = nslots++; w[26 + constant_slot * 2] = 256; w[27 + constant_slot * 2] = 1;
+        constant_slot = nslots++; w[26 + constant_slot * 2] = tail_constants && const_stride0 ? 0 : 256; w[27 + constant_slot * 2] = 1;
         for (uint32_t i = 0; i < 16; i++) if (disabled & (1u << i)) {
             if (!attr_components[i]) { fail(BAD_OP); return 0; }
             nattrs++;
@@ -758,7 +763,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     Buffer *ib = &buffers[vaos[vao].element]; uint32_t index_size = index_type == U16 ? 2 : index_type == U8 ? 1 : 4;
     if (index_type) {
         if (ib->generated) { fail(BAD_OP); return 0; }
-        if (!ib->gpu || index_offset % index_size || (uint64_t)index_offset + (uint32_t)count * index_size > ib->size) {
+        if (!HAS_STORE(vaos[vao].element) || index_offset % index_size || (uint64_t)index_offset + (uint32_t)count * index_size > ib->size) {
             fail(BAD_OP); return 0;
         }
         max_index = 0;
@@ -830,7 +835,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     op(0x52, bc, 4);
     for (uint32_t s = 0; s < nslots; s++) {
         if (s == constant_slot) {
-            uint32_t vb[] = {s, tail_constants ? p->ubuf : current_gpu, tail_constants ? ring + p->usize : 0, (uint32_t)instances * 256u};
+            uint32_t vb[] = {s, tail_constants ? p->ubuf : current_gpu, tail_constants ? ring + p->usize : 0, tail_constants ? 256u : (uint32_t)instances * 256u};
             op(0x53, vb, 4); continue;
         }
         Attribute *a = &vaos[vao].a[slots[s]]; Buffer *b = &buffers[a->buffer];

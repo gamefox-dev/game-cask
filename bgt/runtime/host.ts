@@ -46,7 +46,7 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, CAP_GPU_CONST_ATTRIB, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 import type { captureHost } from './savestate-host';
@@ -173,6 +173,7 @@ interface GameExports {
   bgt_interpreter_coverage?(): number;
   bgt_guest_presentations?(): number;
   bgt_guest_time_us?(): number;
+  bgt_yield_kind?(): number;
   bgt_profile_reset?():void;
   bgt_profile_abort?(nowUs:number):void;
   bgt_slice_policy?(entries:number,ranges:number):number;
@@ -250,6 +251,7 @@ export class GameHost {
   private asyncState = AsyncState.Normal;
   private asyncBuf = 0;
   private inUpdate = false;
+  private wasmEntries = 0; /* K65: active host->wasm calls through host.exports (re-entry check) */
   private jspiUpdate: ((dt: number) => Promise<void>) | null = null;
   private jspiTask: Promise<void> | null = null;
   private jspiResume: (() => void) | null = null;
@@ -281,6 +283,7 @@ export class GameHost {
     if (this.gpu?.backend.bufferHandles) config.caps |= CAP_GPU_BUFFER_HANDLES;
     else config.caps &= ~CAP_GPU_BUFFER_HANDLES;
     if (this.gpu?.backend.glRaster) config.caps |= CAP_GPU_GL_RASTER; else config.caps &= ~CAP_GPU_GL_RASTER;
+    if (this.gpu?.backend.constAttrib) config.caps |= CAP_GPU_CONST_ATTRIB; else config.caps &= ~CAP_GPU_CONST_ATTRIB;
   }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
@@ -309,15 +312,25 @@ export class GameHost {
     if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) host.rawExports = instance.exports;
     // Every synchronous export boundary can abandon a C span (including init,
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
+    // K65: every host->wasm function entry through host.exports is counted (wasmEntries), including
+    // bgt_update and bgt_profile_abort, which keep their own (no profile-abort) wrapper. The yield
+    // import is legal only from the outermost bgt_update (see yield). rawExports (dev/test) bypass the
+    // count on purpose: savestate-host uses them only for the generated checkpoint accessors and
+    // table/memory/global values (instrumentCheckpointWasm), whose bodies contain no calls, so they
+    // can neither re-enter the game nor reach bgt_yield; table restore needs the real wasm functions.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
-      typeof value === 'function' && name !== 'bgt_profile_abort' && name !== 'bgt_update' ? (...args: unknown[]) => {
-        try { return value(...args); } catch (error) { host.abortProfile(); throw error; }
-      } : value])) as unknown as GameExports;
+      typeof value !== 'function' ? value : name === 'bgt_profile_abort' || name === 'bgt_update' ? (...args: unknown[]) => {
+        host.wasmEntries++;
+        try { return value(...args); } finally { host.wasmEntries--; }
+      } : (...args: unknown[]) => {
+        host.wasmEntries++;
+        try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.wasmEntries--; }
+      }])) as unknown as GameExports;
     // promising requires the actual wasm function, not the synchronous guard.
     if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
     const v = host.exports.bgt_abi_version() >>> 0;
     host.abiVersion = v;
-    if (v < 0x000300) host.config.caps &= ~(CAP_GPU_BUFFER_HANDLES | CAP_GPU_GL_RASTER);
+    if (v < 0x000300) host.config.caps &= ~(CAP_GPU_BUFFER_HANDLES | CAP_GPU_GL_RASTER | CAP_GPU_CONST_ATTRIB);
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
@@ -614,6 +627,13 @@ export class GameHost {
         },
         time_us: () => ((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && s.guestNow ? s.guestNow() : s.now()) * 1000,
         yield: () => {
+          // K65: import -> JS -> export -> bgt_yield would suspend across a JS frame: Asyncify cannot
+          // unwind it (silent state corruption on resume) and JSPI cannot suspend it. Refuse clearly.
+          // (asyncify_* helpers called below are entries too, but only after this check.)
+          // Legal only from the outermost update: Asyncify enters through host.exports.bgt_update (1
+          // entry); JSPI through the raw promising bgt_update (0 entries). Anything more is re-entry.
+          // Outside an update the existing "only valid inside bgt_update" errors apply unchanged.
+          if (this.inUpdate && this.wasmEntries > (this.config.suspensionMode === 'jspi' ? 0 : 1)) throw new GameAbort(-7, 'bgt_yield reached through a re-entrant host call (import -> JS -> export); suspension cannot cross JS frames');
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;
           if (this.asyncState === AsyncState.Rewinding) {
@@ -733,6 +753,11 @@ export class GameHost {
       peakReservedBytes: gpu.peakBytes, largestAllocationBytes: gpu.largestAllocation } : null;
   }
 
+  /** K64: decoder reservation by kind; `buffers` bytes are also held as decoder JS shadows. */
+  get gpuReservedByKind(): { buffers: number; textures: number; shaders: number } | null {
+    return this.gpu?.reservedByKind() ?? null;
+  }
+
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
   /** K51: the uniform range this host reports at §13.6 offset 52, or null without a GPU namespace. */
   get gpuUniformRange(): number | null { return this.gpu?.uniformRange ?? null; }
@@ -749,6 +774,8 @@ export class GameHost {
     else this.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
     if (this.abiVersion >= 0x000300 && this.gpu?.backend.glRaster) this.config.caps |= CAP_GPU_GL_RASTER;
     else this.config.caps &= ~CAP_GPU_GL_RASTER;
+    if (this.abiVersion >= 0x000300 && this.gpu?.backend.constAttrib) this.config.caps |= CAP_GPU_CONST_ATTRIB;
+    else this.config.caps &= ~CAP_GPU_CONST_ATTRIB;
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
   }
@@ -911,6 +938,12 @@ export class GameHost {
   interpreterCoverage() {
     const ptr=this.exports.bgt_interpreter_coverage?.() ?? 0;
     return ptr?readInterpreterCoverage(this.exports.memory.buffer,ptr):null;
+  }
+
+  /** K66: the last update ended suspended in a time-neutral transport wait (no guest present, no guest-time
+   * boundary): the page loop may run the next update in the same display tick. Pacing only, never guest state. */
+  transportYield(): boolean {
+    return this.asyncState === AsyncState.Suspended && !this.inUpdate && (this.exports.bgt_yield_kind?.() ?? 0) === 1;
   }
 
   /** Optional read-only profile clock. Never used for wall-dependent scheduling. */

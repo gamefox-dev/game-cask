@@ -83,6 +83,14 @@ uint32_t w32_misc_alloc(uint32_t n) {
 static uint64_t virtual_units, boundary_us, present_us, frame_units, cap_hits, clock_frames, transport_yields;
 static uint64_t swap_units, swap_us, dropped_presents, budget_ends; /* interval-0 presents in this host frame */
 static int present_pending;
+/* K66: an update is time-neutral while it has neither presented nor crossed a guest-time boundary (frame
+ * snap, Sleep/idle skip); instruction-budget time still accrues. A transport yield (I/O, request result,
+ * bounded host-frame budget) that ends a time-neutral update is reported through bgt_yield_kind, so the page
+ * loop may run the next update in the same display tick. Guest-visible state never depends on it. */
+static int update_neutral = 1;
+static uint32_t yield_kind;
+static uint64_t neutral_yields;
+uint32_t w32_yield_kind(void) { return yield_kind; }
 static uint32_t charged[X86_THREADS];
 static uint32_t clock_debt(uint32_t budget) {
     return budget >= charged[x86_current] ? budget - charged[x86_current] : 0;
@@ -101,7 +109,7 @@ void w32_clock_quantum(uint32_t units) {
 uint64_t w32_now_ms64(void) { return (uint64_t)w32_guest_time_us()/1000u; }
 uint32_t w32_now_ms(void) { return (uint32_t)w32_now_ms64(); }
 static void clock_boundary(uint32_t interval, int present) {
-    w32_clock_sync();
+    w32_clock_sync(); update_neutral = 0;
     uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
     if(interval) {
         uint64_t target=(present?present_us:boundary_us)+(uint64_t)interval*BGT_DT_US;
@@ -135,7 +143,7 @@ void w32_clock_check_cap(void) {
  * Returns whether the host update ended. */
 static uint64_t recent_units[4], recent_us[4];
 int w32_clock_swap0(int budget_full) {
-    w32_clock_sync();
+    w32_clock_sync(); update_neutral = 0;
     uint64_t now=virtual_units/CLOCK_UNITS_PER_US;
     uint64_t target=((boundary_us+BGT_DT_US+BGT_DT_US-1)/BGT_DT_US)*BGT_DT_US;
     for(unsigned i=3;i;i--){recent_units[i]=recent_units[i-1];recent_us[i]=recent_us[i-1];}
@@ -157,7 +165,7 @@ int w32_clock_swap0(int budget_full) {
     return 1;
 }
 void w32_idle_ms(uint32_t ms) {
-    w32_clock_sync();
+    w32_clock_sync(); update_neutral = 0;
     uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
     if(virtual_units>=boundary) { w32_wait_frame();return; }
     uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
@@ -167,7 +175,7 @@ void w32_idle_ms(uint32_t ms) {
 }
 void w32_sleep_ms(uint32_t ms) {
     if (!ms) { w32_wait_frame(); return; }
-    w32_clock_sync();
+    w32_clock_sync(); update_neutral = 0;
     uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
     while(virtual_units<deadline) {
         uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
@@ -184,6 +192,8 @@ static uint32_t heap_end = W32_HEAP_LO;
 typedef struct { uint32_t lo, hi, skip, live, prot; } virtual_range_t;
 static virtual_range_t virtual_ranges[256];
 static uint32_t virtual_n;
+/* K64 metrics: bytes of live VirtualAlloc ranges (mapped = committed here) and their high-water mark. */
+static uint64_t virtual_live, virtual_peak;
 uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot) {
     uint64_t end = ((uint64_t)addr + size + 4095u) & ~4095ull;
     uint64_t limit=0xffff0000ull;
@@ -204,6 +214,7 @@ uint32_t w32_virtual_map(uint32_t addr, uint32_t size, uint32_t prot) {
     __builtin_memset(x86_host(addr),0,(uint32_t)end-addr);
     if(reuse>=0){virtual_ranges[reuse].live=1;virtual_ranges[reuse].prot=prot;}
     else virtual_ranges[virtual_n++] = (virtual_range_t){addr, (uint32_t)end, addr,1,prot};
+    virtual_live += (uint32_t)end - addr; if (virtual_live > virtual_peak) virtual_peak = virtual_live;
     return addr;
 }
 uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot) {
@@ -216,7 +227,7 @@ uint32_t w32_virtual_allocate(uint32_t size, uint32_t prot) {
 }
 int w32_virtual_release(uint32_t addr) {
     for(uint32_t i=0;i<virtual_n;i++){virtual_range_t *r=&virtual_ranges[i];if(r->live&&r->lo==addr){
-        for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;return 1;
+        for(uint32_t p=r->lo>>12;p<r->hi>>12;p++){x86_pages[p]=0;x86_protection[p]=0;}r->live=0;virtual_live-=r->hi-r->lo;return 1;
     }}return 0;
 }
 static uint32_t heap_skip(uint32_t p) {
@@ -833,7 +844,10 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     return BGT_OK;
 }
 
-static void wait_host(void) {
+/* K65: metrics-only fallback for builds that compile this serializer without the x86 runtime object
+ * (test fixtures); the runtime's strong definition (x86_rt.c) wins whenever it is linked. */
+__attribute__((weak)) int x86_asyncify_artifact(void) { return 0; }
+static void wait_host(int transport) {
     w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
     static int accounted_exit;
@@ -849,9 +863,12 @@ static void wait_host(void) {
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(1,bgt_time_us());
     w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
+    yield_kind = transport && update_neutral ? 1u : 0u; neutral_yields += yield_kind;
     x86_profile_idle_begin();
+    x86_check_suspendable(); /* K65: never unwind through an uninstrumented native step */
     bgt_yield();
     x86_profile_idle_end();
+    update_neutral = 1; yield_kind = 0;
     w32_gl_host_yield(1);
     x86_account_observe(bgt_time_us(),w32_now_ms64());
     x86_account_idle(0,bgt_time_us());
@@ -867,9 +884,9 @@ static void wait_host(void) {
 void w32_wait_frame(void) {
     clock_boundary(1,0);
     w32_gdi_present_boundary();
-    wait_host();
+    wait_host(0);
 }
-void w32_wait_transport(void) { transport_yields++;wait_host(); }
+void w32_wait_transport(void) { transport_yields++;wait_host(1); }
 
 #define RET_SENTINEL 0xfffffff4u
 void w32_update(void) {
@@ -929,7 +946,7 @@ static uint64_t account_virtual_now(void) {
 }
 #endif
 void w32_guest_present(int swap) {
-    guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
+    update_neutral = 0; guest_present.count++;if(swap)guest_present.swaps++;else guest_present.gdi++;
 #if X86_OWNER_CENSUS
     x86_census_present(guest_present.count);
 #endif
@@ -1161,6 +1178,8 @@ const char *w32_metrics_json(void) {
     jkv("thunk_dispatches",x86_metrics.thunk_dispatches);
     jkv("direct_import_calls",x86_metrics.direct_import_calls);
     jkv("leaf_import_calls",x86_metrics.leaf_import_calls);
+    jkv("native_step_suspensions",x86_metrics.native_step_suspensions);
+    jkv("asyncify_artifact",(uint64_t)x86_asyncify_artifact());
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);
     /* LANE-GL */
@@ -1181,6 +1200,7 @@ const char *w32_metrics_json(void) {
     jkv("gl_buffer_capacity_grown", w32_gl_buffer_capacity_grown);   /* K57: live store reallocated (headroom) */
     jkv("gl_buffer_capacity_released", w32_gl_buffer_capacity_released); /* K57 review: exact-size release/reclaim */
     jkv("gl_reclaim_retries", w32_gl_reclaim_retries); /* K57 review: allocations retried after a slack reclaim */
+    jkv("gl_buffer_zero_stores", w32_gl_buffer_zero_stores); /* K66: glBufferData(size 0) stores */
     jkv("gl_unimplemented", w32_gl_unimplemented);
     jput("\"gl_stubs\":"); jput(w32_gl_stubs_json()); jput(",");
     jkv("gl_approximations", w32_gl_approximations);
@@ -1188,6 +1208,7 @@ const char *w32_metrics_json(void) {
      * number of calls that raised one; expanded primitive-mode draws and scissored/masked clears. */
     jkv("gl_errors_raised", w32_gl_errors_raised);
     jput("\"gl_error_calls\":"); jput(w32_gl_error_calls_json()); jput(",");
+    jput("\"gl_error_codes\":"); jput(w32_gl_error_codes_json()); jput(",");
     jkv("gl_expanded_draws", w32_gl_expanded_draws);
     jkv("gl_partial_clears", w32_gl_partial_clears);
     jput("\"gl_objects\":"); jput(w32_gl_objects_json()); jput(",");
@@ -1231,12 +1252,14 @@ const char *w32_metrics_json(void) {
     jexactkv("virtual_us",(uint64_t)w32_guest_time_us());jexactkv("clock_frames",clock_frames);
     jexactkv("cap_hits",cap_hits);jexactkv("dropped_presents",dropped_presents);jexactkv("present_budget_ends",budget_ends);jexactkv("torn_frames",w32_gl_torn_frames());jexactkv("deferred_gl_lists",w32_gl_deferred_lists());jexactkv("deferred_gl_rejects",w32_gl_deferred_rejects());jexactkv("deferred_gl_yields",w32_gl_deferred_yields());
     jexactkv("idle_guard_hits",w32_thread_idle_guard_hits());jexactkv("audio_events_coalesced",w32_audio_events_coalesced());
-    jput("\"transport_yields\":");jexact(transport_yields);jput("},");
+    jexactkv("neutral_yields",neutral_yields);jput("\"transport_yields\":");jexact(transport_yields);jput("},");
     jkv("yields", w32_m.yields);
     jkv("peek_yields", w32_m.peek_yields);
     jkv("targets_lost", w32_m.targets_lost);
     jkv("exited", (uint64_t)w32_exited);
     jkv("heap_bytes", heap_end - W32_HEAP_LO);
+    jkv("virtual_live_bytes", virtual_live);
+    jkv("virtual_peak_bytes", virtual_peak);
 #ifdef X86_FLAT_GUEST
     jkv("guest_committed_bytes", x86_guest_committed);
 #endif

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
-import { noWebGPU, webgl2Gpu, webgpuArgs, webglArgs, webglGpuArgs } from './tests/e2e/browser-options';
+import { noWebGPU, webgl2Gpu, webgl2Launch, webgpuArgs, webglArgs, webglGpuArgs } from './tests/e2e/browser-options';
 
 // Projects:
 //   chromium-webgl2  forced WebGL 2 fallback (software-friendly; the CI gate). BGT_WEBGL2_GPU=1 (K51) runs it
@@ -15,7 +15,7 @@ import { noWebGPU, webgl2Gpu, webgpuArgs, webglArgs, webglGpuArgs } from './test
 // the prefix (test:e2e -> e2e, test:port -> e2e-port). A direct `npx playwright test` without
 // BGT_RESULTS_PREFIX writes e2e-adhoc-* so it never overwrites the kit's or the port's results.
 //   webkit / firefox opt-in with BGT_ALL_BROWSERS=1 (desktop engines only; this is
-//                    NOT iPhone Safari verification)
+//                    NOT iPhone Safari verification). webkit-webgpu runs only gl-page-fps.spec.ts (K67)
 const PORT = Number(process.env.BGT_E2E_PORT ?? 5179);
 const PREFIX = process.env.BGT_RESULTS_PREFIX ?? 'e2e-adhoc';
 const portConfig = process.env.BGT_PORT_TESTS === '1' && existsSync('port/game.json') ? JSON.parse(readFileSync('port/game.json', 'utf8')) : null;
@@ -58,10 +58,7 @@ export default defineConfig({
       testDir: 'tests/e2e',
       // Cross-backend comparisons belong to the opt-in, required-device project.
       grepInvert: /@webgpu/,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 },
-        ...(noWebGPU || process.env.BGT_SOFTWARE_RENDERER === '1' ? { launchOptions: { args: webglArgs } } :
-          webgl2Gpu ? { launchOptions: { args: webglGpuArgs } } : {}),
-        backendParam: 'webgl2' } as never,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, ...webgl2Launch(), backendParam: 'webgl2' } as never,
     },
     {
       name: 'chromium-webgpu',
@@ -88,7 +85,8 @@ export default defineConfig({
           // K59: BGT_WEBGL2_GPU=1 renders engine port tests on the native GPU (SwiftShader stays the default gate).
           { name: 'port-engine', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], launchOptions: { args: webgl2Gpu ? webglGpuArgs : webglArgs }, backendParam: 'webgl2' } as never },
         ] : [
-          { name: 'port-webgl2', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, backendParam: 'webgl2' } as never },
+          // K66 (Q121): the same WebGL2 launch as chromium-webgl2, so BGT_WEBGL2_GPU=1 puts port tests on the native GPU.
+          { name: 'port-webgl2', testDir: 'port/tests', use: { ...devices['Desktop Chrome'], viewport: { width: 960, height: 540 }, ...webgl2Launch(), backendParam: 'webgl2' } as never },
           {
             name: 'port-webgpu',
             testDir: 'port/tests',
@@ -99,6 +97,11 @@ export default defineConfig({
     ...(process.env.BGT_ALL_BROWSERS
       ? [
           { name: 'webkit-webgl2', use: { ...devices['Desktop Safari'], backendParam: 'webgl2' } as never },
+          // K67: WebKit's WebGPU (Metal) backend, limited to the specs written for it (real-page frame pacing).
+          // Tracing/screenshots are off: Playwright's WebKit screencast drives its own compositing cadence, which hides
+          // the display-linked rAF pacing these specs measure.
+          { name: 'webkit-webgpu', testMatch: /gl-page-fps\.spec\.ts/, use: { browserName: 'webkit', viewport: { width: 960, height: 540 },
+            trace: 'off', screenshot: 'off', backendParam: 'webgpu' } as never },
           { name: 'firefox-webgl2', use: { ...devices['Desktop Firefox'], backendParam: 'webgl2' } as never },
         ]
       : []),

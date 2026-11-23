@@ -535,7 +535,21 @@ int x86_native_resume(uint32_t next, uint64_t floor, x86_native_fn caller) {
 /* One flat native driver for all owners. Native steps unwind bounded generated calls
  * before suspension; the depth cap routes recursion/tail cycles back here. Legacy/override entries
  * (native=NULL), semantic work and quantum crossings return to the ordinary dispatcher. */
+unsigned x86_native_live;
+/* K65: artifact marker. The same linked module ships as the JSPI artifact; tools/build/asyncify.mjs
+ * rewrites the last four bytes ("JSPI" -> "ASYN") in the Asyncify artifact only. volatile: never folded. */
+static volatile const unsigned char suspension_marker[16] =
+    {'B','G','T','-','K','6','5','-','S','U','S','P','J','S','P','I'};
+int x86_asyncify_artifact(void) { return suspension_marker[12] == 'A'; }
+void x86_check_suspendable(void) {
+    if (!x86_native_live) return;
+    /* Asyncify cannot unwind uninstrumented frames: fault before corrupting state. JSPI suspends any
+     * stack correctly; there an analysis miss is only counted (metrics: native_step_suspensions). */
+    x86_metrics.native_step_suspensions++;
+    if (x86_asyncify_artifact()) x86_fault("suspension requested inside a generated native step (Asyncify cut point)", X.eip);
+}
 void x86_run_native(x86_native_fn step) {
+    const unsigned live = x86_native_live;
 #ifdef X86_FLAT_GUEST
     X86_DISPATCH_COUNT(driver_entries);
     uint32_t stop = native_stop, floor = native_floor; int limit = native_limit;
@@ -546,7 +560,7 @@ void x86_run_native(x86_native_fn step) {
     for (;;) {
         NATIVE_COUNT(driver_steps);
         uint32_t old = X.eip; uint64_t clock = X.tsc;
-        step(X.eip);
+        x86_native_live = live + 1; step(X.eip); x86_native_live = live;
         if (X.transfer) { X86_DRIVER_STOP(transfer); return; }
         if (x86_lift_pending) { X86_DRIVER_STOP(pending); return; }
         if (x86_lift_count) { X86_DRIVER_STOP(block); return; }
@@ -570,7 +584,7 @@ void x86_run_native(x86_native_fn step) {
         x86_metrics.lifted_calls++;
     }
 #else
-    step(X.eip);
+    x86_native_live = live + 1; step(X.eip); x86_native_live = live;
 #endif
 }
 

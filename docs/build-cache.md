@@ -161,3 +161,9 @@ unit files. Check-builds and packages already share objects: the measured CI bul
 uses per-TU compiler dependency caching and bounded jobs. Setup prebuilds it outside the test timer; all checksum
 assertions and the original 120-second deadline remain. Timings and actual CI evidence are recorded in the handoff. The optional
 WebGPU hardware job remains a full run, not a substitute for either required job.
+
+The e2e shards (K64) restore `BGT_SHARED_CACHE` (`/home/runner/.cache/bgt-shared`) with `actions/cache` before
+`npm run build:examples`: key = OS + zig version + hash of the build inputs, with a prefix restore key. Cold, a shard
+spent ~14 min compiling and ~35 min in Asyncify (e54b80c: build + slice setup 40 min; 84ee4a2 on a slower runner:
+54 min, cancelled at 60 min with every completed test passing). Payloads are content-keyed, so a partial restore
+only reduces misses.

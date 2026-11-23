@@ -52,6 +52,14 @@ export class GpuState {
     const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
     this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
   }
+  /** K64: the reservation split by kind (sums to `bytes`). Buffer bytes are also this decoder's JS shadow copies. */
+  reservedByKind(): { buffers: number; textures: number; shaders: number } {
+    let buffers = 0, textures = 0, shaders = 0;
+    for (const b of this.buffers.values()) buffers += b.shadow.length;
+    for (const t of this.textures.values()) textures += t.bytes;
+    for (const s of this.shaders.values()) shaders += s.bytes;
+    return { buffers, textures, shaders };
+  }
 }
 
 /** Clamp a backend's native uniform binding limit to the portable [16384, 65536] range, multiple of 16.
@@ -363,12 +371,14 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const buffers = Array.from({ length: w[23] }, () => { const a = w.slice(pos, pos + 2); pos += 2; return a; });
       const attrs = Array.from({ length: w[24] }, () => { const a = w.slice(pos, pos + 4); pos += 4; return a; });
       const colors = Array.from({ length: w[25] }, () => { const a = w.slice(pos, pos + 9); pos += 9; return a; });
-      if (buffers.some(([stride, step]) => !stride || stride % 4 || step > 1)) return E_INVALID;
+      // K67: stride 0 (additive, CAP_GPU_CONST_ATTRIB backends only) makes every vertex and instance of the slot fetch
+      // the element at the binding offset; without the capability it stays E_INVALID as before.
+      if (buffers.some(([stride, step]) => (!stride && !g.backend.constAttrib) || stride % 4 || step > 1)) return E_INVALID;
       if (buffers.some(([stride]) => stride > GPU_LIMITS.stride)) return E_LIMIT;
       const locations = new Set<number>();
       for (const [location, buffer, offset, format] of attrs) {
         if (location >= 16 || locations.has(location) || buffer >= buffers.length || format > 12) return E_INVALID;
-        if (offset % (format === 4 ? 1 : 4) || offset + vertexSizes[format] > buffers[buffer][0]) return E_INVALID;
+        if (offset % (format === 4 ? 1 : 4) || offset + vertexSizes[format] > (buffers[buffer][0] || GPU_LIMITS.stride)) return E_INVALID;
         locations.add(location);
       }
       for (const c of colors) {

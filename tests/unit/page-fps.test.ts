@@ -49,3 +49,14 @@ it('page-fps CLI arguments', () => {
   expect(() => parsePageFpsArgs(['--game', 'g', '--backends', 'vulkan'])).toThrow(/backends/);
   expect(() => parsePageFpsArgs(['--game', 'g', '--window-ms', '5'])).toThrow(/window/);
 });
+// K66/vK66: transport-burst updates (kind 3) and burst renders (kind 4) are counted separately; a burst tick has one
+// present carrying all its updates, so presents and frame intervals stay real display presents.
+it('counts transport-burst updates and renders without inflating presents', () => {
+  const log = newPageLog();
+  pageLogPush(log, 0, 10); pageLogPush(log, 4, 11); pageLogPush(log, 3, 12); pageLogPush(log, 4, 13); pageLogPush(log, 3, 14); pageLogPush(log, 2, 15, 3);
+  pageLogPush(log, 0, 27); pageLogPush(log, 2, 28, 1);
+  const s = summarizePageWindow(log, 0, 100);
+  expect(s.raf_ticks).toBe(2); expect(s.presents).toBe(2); expect(s.burst_renders).toBe(2); expect(s.updates).toBe(4);
+  expect(s.frame_ms.samples).toBe(1); expect(s.frame_ms.mean).toBe(13);
+  expect(s.transport_updates).toBe(2); expect(s.max_updates_per_tick).toBe(3); expect(s.updates_per_present).toBe(2);
+});
