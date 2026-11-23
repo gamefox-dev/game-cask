@@ -264,15 +264,18 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
   mkdirSync(work, { recursive: true });
+  // vK72: the interpret-only oracle build compiles the fixture in the lifted build's directory, so both load
+  // byte-identical images (lld embeds source/output paths in the PE debug data the guest maps).
+  const fixtureWork = p.interpretOnly && cfg.coverageGameId ? join(CACHE, 'pipeline', cfg.coverageGameId, 'fixture') : join(work, 'fixture');
   const fixtureFiles = {};
   if (p.fixture) {
     for (const data of p.fixture.patternFiles ?? []) {
       if (!/^[a-z0-9-]+\.[a-z0-9]+$/.test(data.name) || !Number.isInteger(data.bytes) || data.bytes < 0 || data.bytes > 512*1024*1024) throw new Error('invalid CC0 pattern fixture');
-      const dir=join(work,'fixture');mkdirSync(dir,{recursive:true});
+      const dir=fixtureWork;mkdirSync(dir,{recursive:true});
       const fd=openSync(join(dir,data.name),'w');
       try {const b=Buffer.alloc(65536);for(let off=0;off<data.bytes;off+=b.length){const n=Math.min(b.length,data.bytes-off);for(let i=0;i<n;i++)b[i]=(((off+i)*(data.multiplier ?? 1)+(data.increment ?? 0))^(data.xorShift ? (off+i)>>>data.xorShift : 0))&255;writeSync(fd,b,0,n);}}finally{closeSync(fd);}
     }
-    const f = buildFixture(gameDir, p.fixture, join(work, 'fixture'));
+    const f = buildFixture(gameDir, p.fixture, fixtureWork);
     fixtureFiles[`./build/${p.fixture.out}`] = f;
   }
   const tool = x86tool();
@@ -440,7 +443,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     ...['avrt', 'bcrypt', 'dinput8', 'dwmapi', 'imm32', 'iphlpapi', 'shlwapi', 'ws2_32', 'wsock32']
       .map((dll) => `platforms/win32/w32_${dll}.c`),
     /* LANE-C: cooperative scheduler and shared thread APIs (both guest widths). */
-    'platforms/win32/w32_x64.c', 'platforms/win32/w32_thread.c', 'platforms/x86/x86_sched.c',
+    'platforms/win32/w32_x64.c', 'platforms/win32/w32_thread.c', 'platforms/x86/x86_sched.c', 'platforms/x86/x86_state.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
     'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
@@ -483,7 +486,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     nativeLiftSymbols,
     streams,
     slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),codeRanges:sliceRanges,ranges:plan.ranges} : null,
-    fixtureDir: p.fixture ? join(work,'fixture') : null,
+    fixtureDir: p.fixture ? fixtureWork : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),

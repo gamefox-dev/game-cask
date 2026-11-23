@@ -497,9 +497,10 @@ The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, p
 flags, and memory; for `liftMode: "fast"` builds: the running thread without flags, and memory, with frames that end
 at the instruction cap, and every frame after a second guest thread was live, comparing memory and the live-thread
 count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). Known fast-mode memory difference: `CONTEXT.EFlags` captured by an API (x64-cpp's C++ throw). The
-report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), the memory stride (large
-guests are hashed every few frames, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
-bytes (fixture builds zero PE timestamps and the CodeView GUID). `examples/x64-compact` builds
+report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), how many frames hashed memory
+(large guests are hashed less often, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
+bytes: the interpret-only build compiles a fixture in the lifted build's directory (lld embeds paths in PE debug
+data), and fixture builds zero PE timestamps and the CodeView GUID. `examples/x64-compact` builds
 the CC0 STL fixture with all of them. Measurements and the decision: [K72 handoff](handoff/K72.md).
 
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)
