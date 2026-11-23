@@ -39,6 +39,12 @@ const trial = {
   executionPath: cfg.engineProfile ? 'engineProfile' : cfg.pipeline ? 'pipeline' : 'bgt',
   engineProfile: manifest?.engineProfile ?? null,
   engineBundle: manifest?.metrics ? { ...manifest.metrics, files: undefined, headers: manifest.headers ?? null } : null,
+  // K68: engineProfile build variants (e.g. a real-time deploy bundle) built from the same game.json.
+  engineVariants: cfg.engineProfile?.variants ? Object.keys(cfg.engineProfile.variants).map((name) => {
+    const m = readJ(join(ROOT, '.engine-private/builds', `${cfg.id}-${name}`, 'manifest.json'));
+    return { name, id: `${cfg.id}-${name}`, built: !!m, engineArgs: m?.engineProfile?.engineArgs ?? null, precompressed: m ? Object.keys(m.precompressed ?? {}) : null,
+      bundle: m?.metrics ? { ...m.metrics, files: undefined } : null };
+  }) : null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
     metrics: manifest.pipeline.metrics ?? null,

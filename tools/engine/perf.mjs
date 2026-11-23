@@ -1,4 +1,4 @@
-/* global AudioNode, AudioDestinationNode, requestAnimationFrame */
+/* global AudioNode, AudioDestinationNode, requestAnimationFrame, Performance, queueMicrotask */
 // K59: performance evidence for engine-runtime pages (tests and engine:probe). Observation only: the wasm memory is
 // read from what the official loader instantiates (the original instantiate/instantiateStreaming still run, so
 // streaming compilation is kept), and audio is observed by fanning each node that feeds the destination into an
@@ -15,8 +15,116 @@ export const chromiumGpuArgs = [...(process.platform === 'darwin' ? ['--use-angl
 /** BGT_WEBGL2_GPU=1 / BGT_SOFTWARE_RENDERER=1 semantics of tests/e2e/browser-options.ts; the probe defaults to the GPU. */
 export const chromiumLaunch = ({ software = false } = {}) => ({ args: software ? chromiumSoftwareArgs : chromiumGpuArgs });
 
+/**
+ * K68 Q12: is one canvas sample (RGBA bytes, e.g. a downscaled readback) still a cleared screen? It is 'blank' when
+ * every pixel has the same color (per channel within `tolerance`) and that color is transparent, black or one of the
+ * colors the page passed to gl.clearColor; anything else (any variation, or a uniform color nobody cleared to, such as
+ * a full-screen rectangle) is 'content'. Runs in the page too (serialized into the init script): no outer references.
+ */
+export function classifyFrameSample(data, clearColors = [], tolerance = 2) {
+  if (!data || data.length < 4) return 'blank';
+  const near = (a, b) => Math.abs(a - b) <= tolerance;
+  const r = data[0], g = data[1], b = data[2], a = data[3];
+  for (let i = 4; i + 3 < data.length; i += 4)
+    if (!near(data[i], r) || !near(data[i + 1], g) || !near(data[i + 2], b) || !near(data[i + 3], a)) return 'content';
+  if (a <= tolerance || (r <= tolerance && g <= tolerance && b <= tolerance)) return 'blank';
+  return clearColors.some(c => near(c[0], r) && near(c[1], g) && near(c[2], b)) ? 'blank' : 'content';
+}
+
+/**
+ * K68 Q12: first frame with non-clear content (installed by installEnginePerf, in the page before any engine code).
+ * Wraps WebGL draw calls (drawArrays/drawElements and their instanced/range variants, blitFramebuffer) to see which
+ * rAF callbacks drew into a canvas's DEFAULT framebuffer, and samples that canvas right after such a callback, in the
+ * same task (the drawing buffer is still the frame being presented). The first sample classifyFrameSample calls
+ * 'content' sets firstFrameMs = performance.now() at that moment, i.e. milliseconds since navigation start (the real
+ * clock, also under the frame pacer's virtual time). Observation only: every wrapper calls the original with the same
+ * arguments, and all wrappers are removed once the frame is found.
+ */
+function firstFrameObserver(classify) {
+  if (window.__ENGINE_FIRST_FRAME__) return;
+  const now = () => Performance.prototype.now.call(performance);
+  const state = window.__ENGINE_FIRST_FRAME__ = { schema: 'game-cask/engine-first-frame/1', firstFrameMs: null, firstDrawMs: null, loadStartMs: null,
+    sinceLoadStartMs: null, drawFrames: 0, sampledFrames: 0, drawCalls: 0, sampleErrors: 0, sample: null, done: false,
+    definition: 'navigation start -> end of the first rAF callback (or other task) that drew (a draw call, not a clear) into the canvas default framebuffer AND left a sample that is not a uniform transparent/black/clearColor screen' };
+  const target = new WeakMap(), clears = [], restore = [];
+  let drew = new Set(), inCallback = 0, queued = false;
+  const patch = (proto, name, wrap) => {
+    const original = proto[name];
+    if (typeof original !== 'function') return;
+    proto[name] = wrap(original);
+    restore.push(() => { proto[name] = original; });
+  };
+  for (const proto of [window.WebGL2RenderingContext?.prototype, window.WebGLRenderingContext?.prototype].filter(Boolean)) {
+    patch(proto, 'bindFramebuffer', original => function (kind, fb) {
+      if (kind === 0x8D40 || kind === 0x8CA9) target.set(this, fb); // FRAMEBUFFER, DRAW_FRAMEBUFFER
+      return original.call(this, kind, fb);
+    });
+    patch(proto, 'clearColor', original => function (r, g, b, a) {
+      const c = [r, g, b].map(x => Math.round(Math.min(1, Math.max(0, Number(x) || 0)) * 255));
+      if (clears.length < 64 && !clears.some(d => d[0] === c[0] && d[1] === c[1] && d[2] === c[2])) clears.push(c);
+      return original.call(this, r, g, b, a);
+    });
+    for (const name of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements', 'blitFramebuffer'])
+      patch(proto, name, original => function (...args) {
+        if (!target.get(this)) {
+          drew.add(this); state.drawCalls++;
+          // A draw outside a rAF callback (e.g. a boot splash drawn during startup) is sampled at the end of its task.
+          if (!inCallback && !queued) { queued = true; queueMicrotask(() => { queued = false; check(); }); }
+        }
+        return original.apply(this, args);
+      });
+  }
+  const realRequest = window.requestAnimationFrame;
+  const loadStart = () => {
+    // The shell's runtime wasm request: the closest engine-path analog of BGTRuntime.load() starting.
+    const wasm = performance.getEntriesByType('resource').find(e => /\.wasm(\?|$)/.test(e.name));
+    return wasm ? wasm.startTime : null;
+  };
+  const check = () => {
+    if (state.done || !drew.size) return;
+    const contexts = drew; drew = new Set();
+    const t = now();
+    state.drawFrames++; state.firstDrawMs ??= t;
+    for (const gl of contexts) {
+      const canvas = gl.canvas;
+      if (!canvas?.width || !canvas.height) continue;
+      try {
+        const w = Math.min(64, canvas.width), h = Math.max(1, Math.round(canvas.height * w / canvas.width));
+        const scratch = document.createElement('canvas'); scratch.width = w; scratch.height = h;
+        const ctx = scratch.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(canvas, 0, 0, w, h);
+        const data = ctx.getImageData(0, 0, w, h).data;
+        state.sampledFrames++;
+        if (classify(data, clears) !== 'content') continue;
+        Object.assign(state, { firstFrameMs: t, done: true, loadStartMs: loadStart(), sample: { width: canvas.width, height: canvas.height, sampleWidth: w, sampleHeight: h,
+          firstPixel: Array.from(data.slice(0, 4)), clearColors: clears.map(c => [...c]) } });
+        if (state.loadStartMs !== null) state.sinceLoadStartMs = t - state.loadStartMs;
+        for (const undo of restore.splice(0)) undo();
+        if (window.requestAnimationFrame === observed) window.requestAnimationFrame = realRequest;
+        return;
+      } catch (e) { state.sampleErrors++; state.lastSampleError = String(e); }
+    }
+  };
+  const observed = function requestAnimationFrame(callback) {
+    if (state.done || typeof callback !== 'function') return realRequest.call(window, callback);
+    return realRequest.call(window, function (time) { inCallback++; try { return callback.call(this, time); } finally { inCallback--; if (!inCallback) check(); } });
+  };
+  window.requestAnimationFrame = observed;
+}
+
+/** Install BEFORE navigation (installEnginePerf does): records the first non-clear frame (see firstFrameObserver). */
+export async function installEngineFirstFrame(page) {
+  await page.addInitScript({ content: `(${firstFrameObserver.toString()})(${classifyFrameSample.toString()});` });
+}
+/** The page's first-frame record (null when installEngineFirstFrame/installEnginePerf was not installed). */
+export const engineFirstFrame = page => page.evaluate(() => {
+  const s = window.__ENGINE_FIRST_FRAME__;
+  return s ? JSON.parse(JSON.stringify(s)) : null;
+});
+
 /** Install BEFORE navigation to observe wasm memories and audio output (measureEngine works without it, with less). */
 export async function installEnginePerf(page) {
+  await installEngineFirstFrame(page);
   await page.addInitScript(() => {
     if (window.__ENGINE_PERF__) return;
     const state = window.__ENGINE_PERF__ = { memories: [], contexts: [], taps: [] };

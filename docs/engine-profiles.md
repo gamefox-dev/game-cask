@@ -1,4 +1,4 @@
-# Engine runtimes (engine profiles, K45 → K55)
+# Engine runtimes (engine profiles, K45 → K68)
 
 Game Cask has **two port paths**:
 
@@ -39,6 +39,7 @@ unchanged by it.
     npm run engine -- fetch godot-4.3-nothreads  # official runtime of that exact version -> $BGT_ENGINE_CACHE
     # copy engines.recommendation.profile from reports/inventory.json into port/game.json as "engineProfile"
     npm run build:port                           # deployable static bundle + size metrics
+    npm run build:port -- --variant all          # K68: also every engineProfile.variants bundle (<id>-<variant>)
     npm run test:port                            # port tests (served with the bundle's own headers)
     npm run engine -- serve .engine-private/builds/<id>
     npm run engine:probe -- .engine-private/builds/<id> ./explore.mjs
@@ -72,6 +73,31 @@ refused, and every file under the input root must be in the inspect inventory (n
 block the build). `pack.sha256` is the **normalized standalone** pack hash; `runnerSha256` the whole runner file.
 `threads` must match the runtime variant (`-threads` / `-nothreads`). Schema `game-cask/engine-profile/1` configs
 still validate.
+
+## Build variants (K68)
+
+One `engineProfile` can describe several bundles. The usual case: the base profile is the reproducible replay build
+(`engineArgs: ["--fixed-fps", "60"]`, used by tests and probes), and a `deploy` variant runs in real time:
+
+    "engineProfile": { …, "engineArgs": ["--fixed-fps", "60"], "allowedErrors": [ … ],
+      "variants": { "deploy": { "engineArgs": [], "precompress": true, "note": "real-time deploy bundle" } } }
+
+    npm run build:port                        # base only: .engine-private/builds/<id> (prints the defined variants)
+    npm run build:port -- --variant deploy    # .engine-private/builds/<id>-deploy
+    npm run build:port -- --variant all       # base + every variant (also base,deploy; npm run engine -- build DIR --variant …)
+
+* A variant may override only `engineArgs` (`[]` = none; same allowlist and runtime-wasm check), `width`, `height`,
+  `precompress` and carry a `note`. Runtime, runner, pack, hashes, `choice`, `allowUnverifiedRuntime` and
+  `allowedErrors` are the base profile's: every variant is the same game on the same runtime.
+* Allowlist **evidence resolves from the game.json directory** (the port root, `port/`) for every variant, so
+  `../reports/evidence/…` works for all of them and all manifests carry the same `evidenceSha256`. (Before K68 a deploy
+  bundle needed a second `port/deploy/game.json`, whose evidence could not reach `../reports` after vK59.)
+* Names match `[a-z0-9][a-z0-9-]{0,31}` (not `base`/`all`), at most 8, and `<id>-<variant>` must be a valid id
+  (at most 64 characters). Unknown fields and unknown `--variant` names are refused. game.json files without
+  `variants` build exactly as before.
+* Each manifest records `variant` (`null` for the base; else `{ name, of, overrides, note }`) and `variants` (the
+  declared names); `engineProfile.engineArgs` is the effective list, and the shell identity carries it too.
+  `trial:record` lists built variants under `engineVariants`.
 
 ## Godot coverage
 
@@ -152,8 +178,24 @@ written from bytes re-hashed against those verified hashes. `npm run engine -- d
   `nosniff`, a same-origin CSP, and for threaded runtimes `Cross-Origin-Opener-Policy: same-origin`,
   `Cross-Origin-Embedder-Policy: require-corp`, `Cross-Origin-Resource-Policy: same-origin` (SharedArrayBuffer);
 * `manifest.json`: detection, choice, runtime (id, variant, verification, archive pins, file hashes), headers,
-  per-file SHA-256 and **metrics**: `downloadBytes` (everything the page may fetch), `downloadGzipBytes` (gzip -9
-  estimate), `packBytes`, `runtimeBytes`, `wasmBytes`, `bundleBytes`, per-file sizes. The build prints them.
+  per-file SHA-256 and **metrics** (`game-cask/engine-bundle-metrics/2`): `downloadBytes` (everything the page may
+  fetch), `downloadGzipBytes` (gzip -9) and `downloadBrotliBytes` (K68: brotli quality 11, lgwin 24), `packBytes`,
+  `runtimeBytes`, `wasmBytes`, `bundleBytes`, `compression` (the codec parameters) and per-file `bytes` /
+  `gzipBytes` / `brotliBytes`. Each file is compressed on its own, as a host sends it with `Content-Encoding`. The
+  build prints them. Brotli q11 is slow (about 20 s for the 13.8 MB Godot 3.5.3 wasm), so sizes are cached by content
+  SHA-256 + codec parameters + zlib/brotli version in `.engine-private/compress-cache` (runtime files and the pack are
+  identical across builds and variants).
+* **Precompressed siblings (K68, opt-in):** `engineProfile.precompress: true` (or per variant, or
+  `build:port -- --precompress`) also writes `<file>.br` (brotli q11/lgwin 24) and `<file>.gz` (gzip -9) beside the
+  `.js`, `.wasm`, `.pck`, `.html` and `.txt` files of at least 1 KiB that shrink by at least 5%, recorded in
+  `manifest.precompressed` (`{ name: { br: { sha256, bytes }, gz: … } }`; `metrics.precompressedSiblingBytes`). They
+  are for hosts with precompressed static serving (nginx `brotli_static`/`gzip_static`, Caddy `precompressed`):
+  such a host must send `Content-Encoding`, the **original** `Content-Type` (`application/wasm` keeps streaming
+  compilation) and `Vary: Accept-Encoding`. Netlify/Cloudflare Pages compress on their own and ignore them.
+  `npm run engine -- serve DIR --precompressed` (`serveEngine(dir, { precompressed: true })`) serves the hash-checked
+  siblings to requests that accept them (br before gzip); without the option the server sends identity bytes only.
+  The delivery evidence (capture) checks the **decoded** body of an encoded response against the manifest length and
+  SHA-256 (the encoded Content-Length is recorded as `encodedLength`).
 
 The local server serves only the manifest's hash-checked files with exactly the bundle's declared headers, binds
 127.0.0.1 on `BGT_E2E_PORT` (never 5173), and refuses a threaded bundle without isolation headers. Run untrusted
@@ -205,8 +247,30 @@ feeding the destination, peak/RMS, `present` = peak above 1e-4). Fields a browse
 
     npm run engine:probe -- BUILD_DIR [SCRIPT.mjs] [OUT_DIR] [--out DIR] [--software] [--browser chromium|webkit] [--measure MS]
 
-probe.json (`game-cask/engine-probe/2`) adds `browser`, `bootMs`, `device`, `software`, `measurements`, `allowlisted`
-and the network evidence. `--browser webkit` runs on Playwright WebKit (desktop engine, **not** iPhone Safari
+probe.json (`game-cask/engine-probe/2`) adds `browser`, `bootMs`, `device`, `software`, `measurements`, `allowlisted`,
+`variant` (K68), `firstFrameMs`/`firstFrame` (K68, below) and the network evidence.
+
+**First frame (K68).** `installEnginePerf(page)` (or `installEngineFirstFrame(page)` alone, before navigation) records
+when the first frame with non-clear content appeared; probe.json and `diagnostics()` get `firstFrameMs` and
+`firstFrame` (`game-cask/engine-first-frame/1`; `engineFirstFrame(page)` reads it in specs). Definition:
+**navigation start → the end of the first rAF callback (or other task) that issued a draw call** (`drawArrays`,
+`drawElements`, their instanced/range variants or `blitFramebuffer`; not `clear`) **into the canvas's default
+framebuffer and left a sample that is not a cleared screen**. The sample is a ≤ 64 px wide readback taken in the same
+task (the drawing buffer is still the frame being presented); it counts as cleared when every pixel has one color
+(±2 per channel) that is transparent, black or a color the page passed to `gl.clearColor`. A uniform color nobody
+cleared to (a full-screen rectangle, the fixture's red screen) is content. The clock is the real
+`performance.now()`, also under `--virtual-time`. `firstFrame` also has `firstDrawMs` (the first default-framebuffer
+draw, whatever it showed), `loadStartMs` (start of the runtime wasm request, from resource timing) and
+`sinceLoadStartMs` = `firstFrameMs - loadStartMs`, plus the sample's first pixel and the clear colors. The wrappers call
+the originals unchanged and are removed once the frame is found; production shells never install them.
+
+Difference from BGT `load_to_first_frame_ms` / `diagnostics().load.marks.firstFrameMs`: BGT counts from
+`BGTRuntime.load()` (after the page's own scripts) to the first completed present, whatever it shows. The engine
+figure counts from navigation start and waits for non-clear content; `sinceLoadStartMs` is the closer analog of BGT's
+origin (the shell starts the engine load with the wasm request) and `firstDrawMs` of BGT's "any present". An engine
+that converts its clear color before showing it (for example a linear→sRGB copy pass) or draws its splash outside a
+WebGL context is seen at its first sampled draw instead. Under `--pace` the engine runs only when the script steps,
+so `firstFrameMs` then includes that wait. `--browser webkit` runs on Playwright WebKit (desktop engine, **not** iPhone Safari
 verification): boot (plus the script, if given), renderer and errors; CPU/heap/process figures are null there.
 
 **Recorded engine error allowlist (K59).** Engine `ERROR:` lines fail boots and probes. When the binary/pack proves a

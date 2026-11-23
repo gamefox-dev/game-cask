@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Game Cask engine profile selection (v1/v2; v2 = K55 recorded choice, Godot 3.x/4.x)",
+  "title": "Game Cask engine profile selection (v1/v2; v2 = K55 recorded choice, Godot 3.x/4.x; K68 build variants)",
   "type": "object",
   "required": [
     "schema",
@@ -166,6 +166,58 @@
         "type": "string"
       },
       "description": "K59: recorded official engine command-line options, passed through the runtime's Engine config args. Godot 3/4 allowlist: --fixed-fps <1..1000>, --time-scale <0.01..100>, --frame-delay <0..100>, --print-fps; each at most once; the build refuses an option the runtime wasm does not parse. Not available on the 3.2 legacy shell."
+    },
+    "precompress": {
+      "type": "boolean",
+      "description": "K68: also write precompressed siblings (<file>.br brotli q11/lgwin 24, <file>.gz gzip -9; kept when >= 5% smaller, files >= 1 KiB) for hosts with precompressed static serving; recorded in manifest.precompressed. npm run engine -- serve DIR --precompressed serves them by Accept-Encoding."
+    },
+    "variants": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 8,
+      "description": "K68: build variants of this one profile, e.g. { \"deploy\": { \"engineArgs\": [] } } for a real-time deploy bundle beside a --fixed-fps replay build. npm run build:port -- --variant NAME|all builds .engine-private/builds/<id>-<variant> (the base profile stays <id>). A variant overrides only delivery/shell options; runtime, runner, pack, hashes, choice and allowedErrors (evidence resolved from the game.json directory) are shared by all variants.",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+        "not": {
+          "enum": [
+            "base",
+            "all"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "engineArgs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the base engineArgs for this variant ([] = none); same allowlist and wasm check."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "precompress": {
+            "type": "boolean",
+            "description": "Replaces the base precompress for this variant."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Why this variant exists (recorded in its manifest)."
+          }
+        }
+      }
     }
   },
   "$comment": "Runtime manifest supplies renderer/thread/header requirements and pinned official archive/member/notice hashes. Build validates exact pairing."

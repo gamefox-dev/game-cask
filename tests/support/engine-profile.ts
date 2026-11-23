@@ -32,6 +32,10 @@ export { buildAssets } from '../../tools/engine/capture.mjs';
 // frame (CDP), JS heap / wasm / process memory, audio output presence. engineRenderer(page) alone gives the renderer.
 // @ts-expect-error shared ESM perf helpers
 export { installEnginePerf, measureEngine, engineRenderer, softwareRenderer } from '../../tools/engine/perf.mjs';
+// K68: first frame with non-clear content (installEnginePerf installs it; installEngineFirstFrame alone also works),
+// ms since navigation start: engineFirstFrame(page) -> game-cask/engine-first-frame/1 or null.
+// @ts-expect-error shared ESM perf helpers
+export { installEngineFirstFrame, engineFirstFrame } from '../../tools/engine/perf.mjs';
 /** K59: engineProfile.allowedErrors occurrence counts ({ id, message|pattern, justification, evidence, count, continuations }). */
 export const engineAllowlisted = (page: Page): Promise<any[]> => page.evaluate(() => (window as any).__BGT_TEST__.diagnostics().allowlisted ?? []);
 // K59 Q7: test-only frame pacer. installEngineFramePacer(page) BEFORE navigation; then engine frames run only on

@@ -11,6 +11,7 @@
 // p.step(n) then runs n engine frames, p.inputAt(frame, events) keys inputs to engine frames, p.frameHash(n) hashes
 // the canvas after n frames. Use with engineProfile.engineArgs ["--fixed-fps", "<FPS>"] for reproducible replays.
 // --virtual-time (K59 Q8, needs --pace): performance.now/Date.now/rAF timestamps held constant within each engine frame.
+// K68 Q12: probe.json `firstFrameMs` (navigation start -> first non-clear canvas frame, real clock) and `firstFrame`.
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -95,6 +96,11 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     log.diagnostics = await p.diagnostics(); log.errors.push(...log.diagnostics.errors.map(e => e.kind + ': ' + e.message));
     log.allowlisted = log.diagnostics.allowlisted ?? [];
     log.engineArgs = build.engineProfile.engineArgs ?? []; log.pacer = log.diagnostics.pacer ?? null;
+    // K68 Q12: first non-clear canvas frame since navigation start (BGT load_to_first_frame_ms counts from load start).
+    log.firstFrameMs = log.diagnostics.firstFrameMs ?? null; log.firstFrame = log.diagnostics.firstFrame ?? null;
+    if (log.firstFrameMs === null) log.notes.push('no non-clear canvas frame observed (firstFrameMs null)');
+    else console.log(`engine:probe: first frame ${log.firstFrameMs.toFixed(1)} ms after navigation start (${log.firstFrame.sinceLoadStartMs?.toFixed(1) ?? 'n/a'} ms after the runtime wasm request; first draw ${log.firstFrame.firstDrawMs?.toFixed(1)} ms)`);
+    log.variant = build.variant ?? null;
     for (const e of log.allowlisted) console.log(`engine:probe: allowlisted ${e.id} x${e.count} (+${e.continuations} continuation lines): ${e.message ?? e.pattern} [${e.evidence}]`);
     for (const m of log.measurements) console.log(`engine:probe: ${m.label ?? 'window'} ${m.window.fps} fps p95 ${m.window.p95Ms} ms; main thread ${m.cpu?.mainThreadMsPerFrame ?? 'n/a'} ms/frame; wasm ${m.memory.wasmBytes ?? 'n/a'} B; audio ${m.audio ? (m.audio.present ? 'present' : 'silent') : 'n/a'}`);
     if (log.errors.length) process.exitCode = 1;

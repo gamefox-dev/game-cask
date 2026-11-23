@@ -5,14 +5,15 @@ import { embeddedFixture as godot3Fixture } from '../../tests/fixtures/engine/go
 import { embeddedFixture as godot4Fixture } from '../../tests/fixtures/engine/godot4-fixture.mjs';
 import { parsePack, sha256 } from './godot.mjs';
 import { PRIVATE, runtimeById, verifyRuntime } from './runtime.mjs';
-import { buildEngine } from './framework.mjs';
+import { buildEngineVariants } from './framework.mjs';
 
 /**
  * runtimeId: godot-3.5.3-nothreads (default), godot-3.x-threads, godot-4.x-nothreads|threads.
  * K59 (Godot 3 only): tone / duplicateSignal / physics / clock script variants; profile: extra engineProfile fields (e.g. allowedErrors);
  * files: extra files written beside game.json (e.g. allowlist evidence). Variants get their own build id.
+ * The fixture's game.json is .engine-private/cc0-fixtures/<build id>/game.json (fixtureDir).
  */
-export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds'), tone = false, duplicateSignal = false, physics = false, clock = false, profile = {}, files = {}, suffix = '' } = {}) {
+export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = join(PRIVATE, 'builds'), tone = false, duplicateSignal = false, physics = false, clock = false, profile = {}, files = {}, suffix = '', variants } = {}) {
   const runtime = runtimeById(runtimeId), major = Number(runtime.version[0]);
   if (major !== 3 && (tone || duplicateSignal || physics || clock)) throw new Error('fixture variants are Godot 3 only');
   const variant = [tone && 'tone', duplicateSignal && 'dupsignal', physics && 'physics', clock && 'clock', suffix].filter(Boolean).join('-');
@@ -29,6 +30,9 @@ export function buildFixture(runtimeId = 'godot-3.5.3-nothreads', { outRoot = jo
     ...(verifyRuntime(runtime.id).verified ? {} : { allowUnverifiedRuntime: true }), ...profile } };
   for (const [name, data] of Object.entries(files)) writeFileSync(join(gameDir, name), data);
   writeFileSync(join(gameDir, 'game.json'), JSON.stringify(cfg, null, 2) + '\n');
-  buildEngine(gameDir, cfg, { quiet: true, outRoot });
+  // K68: variants = base (default) | all | name[,name] of profile.variants; the returned path is the base build's.
+  buildEngineVariants(gameDir, cfg, { quiet: true, outRoot, variants });
   return join(outRoot, cfg.id);
 }
+/** game.json directory of a fixture build (K68: run build.mjs / the engine CLI on it). */
+export const fixtureDir = buildDir => join(PRIVATE, 'cc0-fixtures', buildDir.split(/[\\/]/).pop());
