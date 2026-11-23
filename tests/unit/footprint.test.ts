@@ -124,3 +124,22 @@ describe('K71 footprint tool', () => {
     expect(sweep.points.map((x: { game: string }) => x.game)).toEqual(['a', 'b']);
   });
 });
+
+describe('vK71 footprint sweep', () => {
+  it('reports per-segment slopes in size order and builds generator variants', async () => {
+    const snap = (wasm: number, renderer: number, est: number) => ({ label: 'run', estimate: { wasmModuleBytes: wasm * MB, totalBytes: est * MB },
+      footprint: { pageRendererBytes: renderer * MB, gpuProcessBytes: 0 }, unattributedBytes: (renderer - est) * MB });
+    const s = F.sweepFit([{ game: 'b', snapshots: [snap(11, 150, 60)] }, { game: 'a', snapshots: [snap(1, 100, 50)] }, { game: 'c', snapshots: [snap(21, 250, 70)] }]);
+    expect(s.segments.map((g: { from: string; to: string }) => `${g.from}-${g.to}`)).toEqual(['a-b', 'b-c']);
+    expect(s.segments[0].renderer).toBeCloseTo(5, 10); expect(s.segments[1].renderer).toBeCloseTo(10, 10);
+    expect(s.segments[1].unattributed).toBeCloseTo(9, 10);
+    // @ts-expect-error untyped kit tool module
+    const W = await import('../../tools/report/footprint-sweep.mjs');
+    const base = { id: 'x64-scale', name: 'n', pipeline: { fixture: { generator: 'generate.mjs', generatorArgs: [12000] } } };
+    expect(W.variantConfig(base, 1500)).toMatchObject({ id: 'x64-scale-n1500', pipeline: { fixture: { generatorArgs: [1500] } } });
+    expect(base.pipeline.fixture.generatorArgs).toEqual([12000]);
+    expect(() => W.variantConfig(base, 30000)).toThrow(/8\.\.20000/);
+    expect(W.parseSweepArgs(['--sizes', '8,16', '--engine', 'webkit'])).toMatchObject({ sizes: [8, 16], rest: ['--engine', 'webkit'], build: true });
+    expect(() => W.parseSweepArgs(['--sweep', 'x'])).toThrow(/do not pass/);
+  });
+});

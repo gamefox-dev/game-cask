@@ -33,6 +33,12 @@ A port is mostly configuration. The kit converts the original binary reproducibl
   iteration request.
 - Module `name` must match the import name (case-insensitive).
 - See `docs/pipeline.md` for all options.
+- Optional top-level memory keys (copied to the manifest; validated at build): `"memoryBudget": {"bytes": N}`
+  (K64 estimate budget, default 1.5 GiB) and `"gpu": {"budgetBytes": N, "recoveryShadows": false}`. `budgetBytes` is
+  the §13 reservation budget (16 MiB..0xffffffff, ABI §13); `recoveryShadows: false` drops the CPU copies of uploaded
+  2D/array texture levels kept for GPU-loss recovery (saves their size in JS heap; a GPU loss after a texture upload
+  then stops the game with a `device-lost` error). Unknown `gpu` keys and a non-boolean `recoveryShadows` fail the
+  build. Measure before and after (`memory()`, `npm run bench:footprint`; docs/performance.md §5).
 
 ## 2. Build and read the summary
 `npm run build:port` prints, per module:

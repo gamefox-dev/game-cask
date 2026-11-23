@@ -83,6 +83,23 @@ test('recovery shadows off: uploads keep no texture shadow and the next GPU loss
   expect(on.refused).toBe('');
 });
 
+// vK71 review: WebGPU generates 3D mips on the CPU from the upload shadow. Catches an opt-out that drops that
+// load-bearing shadow (generated levels become 0 instead of the box-filtered base).
+test('recovery shadows off: 3D GENERATE_MIPS still produces the filtered levels', async ({ page, backendParam, collector }, info) => {
+  void collector;
+  expect(await openGame(page, backendParam)).toBe('ready');
+  await assertBackend(page, backendParam, info);
+  for (const shadows of [true, false]) {
+    const r = await page.evaluate(async ({ path, backend, shadows }) => {
+      const { mip3dProbe } = await import(/* @vite-ignore */ path);
+      return mip3dProbe(backend, shadows);
+    }, { path: `/@fs${resolve('tests/e2e/lazy-texture-probe.ts')}`, backend: backendParam, shadows });
+    expect(r.errors, `shadows ${shadows}`).toEqual([]);
+    expect(r.level1, `shadows ${shadows}`).toEqual(level(8, [200, 100, 50, 255]));
+    expect(r.level2, `shadows ${shadows}`).toEqual(level(1, [200, 100, 50, 255]));
+  }
+});
+
 // Catches a manifest/URL opt-out that is not applied to the live executor, not reported, or that lets a loss after
 // uploads continue with blank textures instead of the documented device-lost stop.
 test('runtime: ?recoveryshadows=0 is reported, keeps no texture shadows, and a device loss stops the game', async ({ page, backendParam, collector }, info) => {

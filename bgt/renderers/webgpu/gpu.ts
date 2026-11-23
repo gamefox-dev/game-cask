@@ -503,7 +503,9 @@ export class WebGPUCommands implements GpuBackend {
         else d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
           { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
-        if (!this.recoveryShadows) { t.unshadowed = true; break; }
+        // vK71: 3D levels are the CPU source of TEXTURE_GENERATE_MIPS (generateMips below), so their shadow is
+        // load-bearing for pixels and kept with recovery shadows off; only 2D/array shadows are recovery-only.
+        if (!this.recoveryShadows && t.desc.dimension !== 1) { t.unshadowed = true; break; }
         const level = mipExtent(t.desc, mip);
         let full = t.uploads.find(i => i.words[1] === mip);
         if (!full) {

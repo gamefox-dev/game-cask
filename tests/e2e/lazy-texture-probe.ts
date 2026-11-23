@@ -130,3 +130,39 @@ export async function lazyTextureProbe(backend: string, opts: { lazy: boolean; s
     return { errors, sampled, before, after, recovery, refused, steps, lazyStats: { ...gpu.lazyTextures } };
   } finally { screen?.destroy(); device?.destroy(); gl?.getExtension('WEBGL_lose_context')?.loseContext(); }
 }
+
+/** vK71: 3D TEXTURE_GENERATE_MIPS with recovery shadows on or off. WebGPU box-filters 3D levels on the CPU from the
+ * upload shadow, so that shadow must survive the opt-out; WebGL 2 generates natively. Returns level 1 and 2 texels. */
+export async function mip3dProbe(backend: string, shadows: boolean) {
+  const errors: string[] = [], canvas = document.createElement('canvas');
+  let device: GPUDevice | undefined, gl: WebGL2RenderingContext | undefined, gpu: Executor;
+  if (backend === 'webgpu') {
+    device = await (await navigator.gpu.requestAdapter())!.requestDevice();
+    device.addEventListener('uncapturederror', e => errors.push(e.error.message));
+    gpu = new WebGPUCommands(device, m => errors.push(m));
+  } else {
+    gl = canvas.getContext('webgl2')!;
+    gpu = new WebGL2Gpu(gl, m => errors.push(m));
+  }
+  gpu.recoveryShadows = shadows;
+  const op = (code: number, words: number[], data?: Uint8Array<ArrayBuffer>) => {
+    const r = gpu.execute({ kind: 'gpu', op: code, words, data });
+    if (r) throw new Error(`GPU op 0x${code.toString(16)}: ${r}; ${errors.join('; ')}`);
+  };
+  const read = (mip: number, size: number) => new Promise<number[]>((resolve, reject) => {
+    const code = gpu.execute({ kind: 'gpu', op: O.TEXTURE_READBACK, words: [1, mip, 0, 0, 0, size, size, size, 1],
+      readback: (bytes?: Uint8Array, status = 0) => status || !bytes ? reject(new Error(`readback ${status}`)) : resolve([...bytes]) } as GpuItem);
+    if (code) reject(new Error(`readback opcode ${code}: ${errors.join('; ')}`));
+  });
+  try {
+    // 4x4x4 RGBA8 volume, 3 levels, uniform (200, 100, 50, 255): every box-filtered level is exactly that texel.
+    op(O.TEXTURE_CREATE_EX, [1, 1, 4, 4, 4, 3, 0, 1]);
+    op(O.TEXTURE_ALLOCATE_MIPS, [1, 3]);
+    const base = new Uint8Array(Array.from({ length: 64 }, () => [200, 100, 50, 255]).flat());
+    op(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 4, 4, 4, 0, base.length], base);
+    op(O.TEXTURE_GENERATE_MIPS, [1, 0]);
+    const result = { level1: await read(1, 2), level2: await read(2, 1), errors };
+    if (device) await device.queue.onSubmittedWorkDone();
+    return result;
+  } finally { device?.destroy(); gl?.getExtension('WEBGL_lose_context')?.loseContext(); }
+}

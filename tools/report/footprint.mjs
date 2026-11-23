@@ -230,7 +230,14 @@ export function sweepFit(results, label = 'run') {
     unattributed: (s) => s.unattributedBytes })) {
     try { fits[k] = { ...linearFit(at(f)), unit: 'MB footprint per MB wasm' }; } catch (e) { fits[k] = { error: e.message }; }
   }
-  return { label, points: pts.map(({ r, s }) => ({ game: r.game, wasmMB: s.estimate.wasmModuleBytes / MB,
+  // Per-segment slopes between consecutive sizes: the fit's r² alone hides curvature (e.g. lazy compilation).
+  const sorted = [...pts].sort((p, q) => p.s.estimate.wasmModuleBytes - q.s.estimate.wasmModuleBytes);
+  const segments = sorted.slice(1).map(({ r, s }, i) => {
+    const p = sorted[i].s, dx = (s.estimate.wasmModuleBytes - p.estimate.wasmModuleBytes) / MB;
+    return { from: sorted[i].r.game, to: r.game, wasmMB: dx, renderer: (s.footprint.pageRendererBytes - p.footprint.pageRendererBytes) / MB / dx,
+      unattributed: (s.unattributedBytes - p.unattributedBytes) / MB / dx };
+  });
+  return { label, segments, points: pts.map(({ r, s }) => ({ game: r.game, wasmMB: s.estimate.wasmModuleBytes / MB,
     rendererMB: s.footprint.pageRendererBytes / MB, gpuMB: (s.footprint.gpuProcessBytes ?? 0) / MB,
     estimateMB: s.estimate.totalBytes / MB, unattributedMB: s.unattributedBytes / MB })), fits };
 }
@@ -281,6 +288,8 @@ async function main() {
     engine: a.engine, backend: a.backend, results, ...(results.length > 1 ? { sweep: sweepFit(results) } : {}) };
   if (report.sweep) for (const [k, f] of Object.entries(report.sweep.fits)) console.log(f.error ? `fit ${k}: ${f.error}` :
     `fit ${k}: ${f.slope.toFixed(3)} MB per MB wasm + ${f.intercept.toFixed(1)} MB (r² ${f.r2.toFixed(3)}, n ${f.n})`);
+  if (report.sweep) for (const g of report.sweep.segments) console.log(`segment ${g.from} -> ${g.to} (+${g.wasmMB.toFixed(1)} MB wasm): ` +
+    `renderer ${g.renderer.toFixed(2)} MB/MB, unattributed ${g.unattributed.toFixed(2)} MB/MB`);
   const out = resolve(a.out ?? join(ROOT, 'reports', `footprint-${a.sweep ? 'sweep' : a.game}-${a.engine}-${a.backend}.json`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(report, null, 2) + '\n');
