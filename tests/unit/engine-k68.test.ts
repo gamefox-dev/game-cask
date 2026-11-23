@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { brotliCompressSync, brotliDecompressSync, gzipSync, constants as zc } from 'node:zlib';
 import { createHash } from 'node:crypto';
 // @ts-expect-error plain ESM orchestration
-import { validateConfig, selectVariants, resolveVariant, resolveEvidence, buildEngine, VARIANT_FIELDS } from '../../tools/engine/framework.mjs';
+import { validateConfig, selectVariants, resolveVariant, resolveEvidence, buildEngine, VARIANT_FIELDS, outputConflict, variantStatus } from '../../tools/engine/framework.mjs';
 // @ts-expect-error plain ESM sizes
 import { bundleMetrics, compressedSizes, compressedOutputs, COMPRESSION, keepCompressed } from '../../tools/engine/sizes.mjs';
 // @ts-expect-error plain ESM perf helpers
@@ -82,6 +82,45 @@ describe('K68 Q11: engineProfile build variants', () => {
   });
 });
 
+describe('vK68: build id collisions and stale variant builds', () => {
+  const deployVariant = { name: 'deploy', of: 'foo', overrides: { engineArgs: [] }, note: null };
+  it('an output is replaced only by the same lineage', () => {
+    expect(outputConflict({ path: 'engineProfile', id: 'foo' }, { id: 'foo' })).toBeNull(); // pre-K68 manifest: no variant field
+    expect(outputConflict({ path: 'engineProfile', id: 'foo', variant: null }, { id: 'foo' })).toBeNull();
+    expect(outputConflict({ path: 'engineProfile', id: 'foo-deploy', variant: deployVariant }, { id: 'foo-deploy', variant: deployVariant })).toBeNull();
+    // A game named foo-deploy vs variant deploy of foo, both ways.
+    expect(outputConflict({ path: 'engineProfile', id: 'foo-deploy', variant: null }, { id: 'foo-deploy', variant: deployVariant })).toMatch(/base build of game "foo-deploy"/);
+    expect(outputConflict({ path: 'engineProfile', id: 'foo-deploy', variant: deployVariant }, { id: 'foo-deploy' })).toMatch(/variant "deploy" of "foo"/);
+    // foo-bar + variant baz vs foo + variant bar-baz.
+    expect(outputConflict({ path: 'engineProfile', id: 'foo-bar-baz', variant: { name: 'baz', of: 'foo-bar' } }, { id: 'foo-bar-baz', variant: { name: 'bar-baz', of: 'foo' } })).toMatch(/variant "baz" of "foo-bar"/);
+    expect(outputConflict({ path: 'pipeline', id: 'foo' }, { id: 'foo' })).toBe('not an engine build');
+    expect(outputConflict({ path: 'engineProfile', id: 'other' }, { id: 'foo' })).toMatch(/build of "other"/);
+  });
+  const cfg = config({ variants: { deploy: { engineArgs: [] } } });
+  const ep = { packSha256: H('b'), runnerSha256: H('a'), runtime: { id: runtime.id, sha256: H('c'), files: { 'godot.wasm': H('d') } },
+    allowedErrors: [{ id: 'E1', ...allow, evidenceSha256: H('e') }] };
+  const base = { path: 'engineProfile', id: 'mmx-like', variant: null, files: { 'game.pck': H('f') }, engineProfile: { ...ep, engineArgs: ['--fixed-fps', '60'] } };
+  const built = { path: 'engineProfile', id: 'mmx-like-deploy', variant: { name: 'deploy', of: 'mmx-like', overrides: { engineArgs: [] }, note: null }, files: { 'game.pck': H('f') },
+    engineProfile: { ...ep, engineArgs: [] } };
+  it('a consistent variant build is "built"; missing or without a base it is not', () => {
+    expect(variantStatus(cfg, 'deploy', base, built)).toEqual({ status: 'built', mismatches: [] });
+    expect(variantStatus(cfg, 'deploy', base, null).status).toBe('missing');
+    expect(variantStatus(cfg, 'deploy', null, built)).toEqual({ status: 'unverified', mismatches: ['no base build to compare'] });
+  });
+  it.each([
+    ['another game\'s output (variant.of)', { variant: { ...built.variant, of: 'mmx' } }, 'variant identity'],
+    ['old engine args (game.json changed)', { engineProfile: { ...built.engineProfile, engineArgs: ['--fixed-fps', '60'] } }, 'engineArgs'],
+    ['older pack', { engineProfile: { ...built.engineProfile, packSha256: H('9') } }, 'packSha256'],
+    ['other runtime build', { engineProfile: { ...built.engineProfile, runtime: { ...ep.runtime, sha256: H('8') } } }, 'runtime'],
+    ['other runtime files', { engineProfile: { ...built.engineProfile, runtime: { ...ep.runtime, files: { 'godot.wasm': H('7') } } } }, 'runtime files'],
+    ['other pack bytes', { files: { 'game.pck': H('6') } }, 'game.pck'],
+    ['other evidence', { engineProfile: { ...built.engineProfile, allowedErrors: [{ ...ep.allowedErrors[0], evidenceSha256: H('5') }] } }, 'allowedErrors evidence'],
+  ])('stale: %s', (_name, change, mismatch) => {
+    const r = variantStatus(cfg, 'deploy', base, { ...built, ...change });
+    expect(r.status).toBe('stale'); expect(r.mismatches).toContain(mismatch);
+  });
+});
+
 describe('K68 Q11: allowlist evidence resolves from the port root for every variant', () => {
   const tree = () => {
     const root = mkdtempSync(join(tmpdir(), 'k68-evidence-')), port = join(root, 'port');
@@ -144,12 +183,15 @@ describe('K68 Q12: engine bundle delivery metrics', () => {
   });
   it('bundle totals: download = runtime + pack + adapter + shell; bundle adds notices and header files', () => {
     const f = (bytes: number) => ({ bytes, gzipBytes: Math.round(bytes / 2), brotliBytes: Math.round(bytes / 3) });
-    const sizes = { 'godot.js': f(300), 'godot.wasm': f(6000), 'game.pck': f(900), 'browser-adapter.js': f(30), 'index.html': f(12), 'LICENSE.txt': f(99), '_headers': f(9), 'headers.json': f(15) };
+    const sizes: Record<string, { bytes: number; gzipBytes: number; brotliBytes: number }> = { 'godot.js': f(3000), 'godot.wasm': f(60000),
+      'game.pck': { bytes: 9000, gzipBytes: 8700, brotliBytes: 8000 }, 'browser-adapter.js': f(30), 'index.html': f(1200), 'LICENSE.txt': f(99), '_headers': f(9), 'headers.json': f(15) };
     const m = bundleMetrics(sizes, { runtimeFiles: ['godot.js', 'godot.wasm'], wasm: 'godot.wasm', boot: ['godot.js', 'godot.wasm', 'game.pck', 'browser-adapter.js', 'index.html'],
       served: Object.keys(sizes) });
-    expect(m).toMatchObject({ schema: 'game-cask/engine-bundle-metrics/2', packBytes: 900, runtimeBytes: 6300, wasmBytes: 6000, downloadBytes: 7242,
-      downloadGzipBytes: 150 + 3000 + 450 + 15 + 6, downloadBrotliBytes: 100 + 2000 + 300 + 10 + 4, bundleBytes: 7365, fileCount: 9 });
-    expect(m.files['godot.wasm'].brotliBytes).toBe(2000);
+    // vK68: totals count what is served: the pack's gzip saves < 5% (no .gz sibling) and the 30 B adapter is under 1 KiB,
+    // so both count raw there; the pack's brotli saves 11% and counts compressed.
+    expect(m).toMatchObject({ schema: 'game-cask/engine-bundle-metrics/2', packBytes: 9000, runtimeBytes: 63000, wasmBytes: 60000, downloadBytes: 73230,
+      downloadGzipBytes: 1500 + 30000 + 9000 + 30 + 600, downloadBrotliBytes: 1000 + 20000 + 8000 + 30 + 400, bundleBytes: 73353, fileCount: 9 });
+    expect(m.files['godot.wasm'].brotliBytes).toBe(20000); expect(m.files['game.pck'].gzipBytes).toBe(8700);
     expect(() => bundleMetrics({}, { runtimeFiles: [], wasm: 'x', boot: [], served: ['x'] })).toThrow(/no sizes/);
   });
 });
@@ -179,6 +221,13 @@ describe('K68: precompressed serving negotiation', () => {
     [undefined, { br: 1, gz: 1 }, null],
     ['br', { gz: 1 }, null],
     ['*', { gz: 1 }, 'gz'],
+    ['*, br;q=0', { br: 1, gz: 1 }, 'gz'],
+    ['*;q=0', { br: 1, gz: 1 }, null],
+    ['identity;q=0', { br: 1, gz: 1 }, null],
+    ['br;q=0.1, gzip;q=0.9', { br: 1, gz: 1 }, 'gz'],
+    ['gzip;q=0.5, br;q=0.5', { br: 1, gz: 1 }, 'br'],
+    ['gzip;q=0, *', { br: 1, gz: 1 }, 'br'],
+    ['BR;Q=1', { br: 1, gz: 1 }, 'br'],
   ])('Accept-Encoding %s', (header, available, expected) => {
     expect(acceptedEncoding(header, available)).toBe(expected);
   });

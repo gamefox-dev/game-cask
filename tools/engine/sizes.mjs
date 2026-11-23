@@ -67,10 +67,14 @@ export function compressedOutputs(data, { cacheDir = null, hash = sha256(data) }
 export function bundleMetrics(sizes, { runtimeFiles, wasm, boot, served }) {
   for (const name of served) if (!sizes[name]) throw new Error('bundleMetrics: no sizes for ' + name);
   const sum = (names, k) => names.reduce((n, x) => n + sizes[x][k], 0);
+  // vK68: a file travels encoded only when it gets a precompressed sibling (precompressible, >= 1 KiB, >= 5% smaller);
+  // otherwise it is served as is, so the download totals count its raw bytes. Per-file gzipBytes/brotliBytes stay the
+  // codec output.
+  const delivered = (names, k) => names.reduce((n, x) => n + (precompressible(x) && keepCompressed(sizes[x].bytes, sizes[x][k]) ? sizes[x][k] : sizes[x].bytes), 0);
   return { schema: 'game-cask/engine-bundle-metrics/2', packBytes: sizes['game.pck'].bytes, runtimeBytes: sum(runtimeFiles, 'bytes'),
-    wasmBytes: sizes[wasm].bytes, downloadBytes: sum(boot, 'bytes'), downloadGzipBytes: sum(boot, 'gzipBytes'), downloadBrotliBytes: sum(boot, 'brotliBytes'),
+    wasmBytes: sizes[wasm].bytes, downloadBytes: sum(boot, 'bytes'), downloadGzipBytes: delivered(boot, 'gzipBytes'), downloadBrotliBytes: delivered(boot, 'brotliBytes'),
     bundleBytes: sum(served, 'bytes'), fileCount: served.length + 1, compression: COMPRESSION, files: sizes,
-    note: 'downloadBytes: every file the page may fetch (runtime JS/wasm/worklets/workers, pack, shell); gzip level 9 and brotli quality 11 / lgwin 24, each file compressed on its own (what a static host sends with Content-Encoding)' };
+    note: 'downloadBytes: every file the page may fetch (runtime JS/wasm/worklets/workers, pack, shell); download gzip/brotli: what is sent with Content-Encoding (gzip -9, brotli q11/lgwin 24, each file on its own) for files that get a precompressed sibling (>= 1 KiB, >= 5% smaller), raw bytes for the others' };
 }
 
 /** Which files get precompressed siblings: compressible payloads of at least 1 KiB that shrink by at least 5%. */

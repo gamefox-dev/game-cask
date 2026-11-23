@@ -5,17 +5,25 @@ import { hash } from './runtime.mjs';
 import { validatePort } from '../probe/server.mjs';
 import { headersFor, staticHeaders } from './headers.mjs';
 
-/** K68: encodings a request accepts (q > 0), from its Accept-Encoding header; br is preferred over gzip. */
+/**
+ * K68/vK68: which precompressed sibling to send for an Accept-Encoding header (RFC 9110 12.5.3). Each coding's
+ * weight is its own q value, else the q of "*", else 0 (not acceptable); q=0 always refuses, also "br;q=0" next to
+ * "*". The acceptable sibling with the highest q wins (br on a tie). null = send the identity bytes: also when the
+ * client refuses identity (identity;q=0 / *;q=0) but accepts no sibling we have, since a static bundle has no other
+ * representation (no 406).
+ */
 export function acceptedEncoding(header, available) {
-  const accepted = new Set();
+  const weights = new Map();
   for (const part of String(header ?? '').toLowerCase().split(',')) {
     const [token, ...params] = part.trim().split(';').map(x => x.trim());
-    const q = params.find(x => x.startsWith('q='));
-    if (token && !(q && Number(q.slice(2)) === 0)) accepted.add(token);
+    if (!token) continue;
+    const q = params.find(x => /^q\s*=/.test(x)), value = q ? Number(q.split('=')[1]) : 1;
+    weights.set(token, Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0);
   }
-  if (available.br && (accepted.has('br') || accepted.has('*'))) return 'br';
-  if (available.gz && (accepted.has('gzip') || accepted.has('*'))) return 'gz';
-  return null;
+  const weight = coding => weights.has(coding) ? weights.get(coding) : weights.get('*') ?? 0;
+  const candidates = [['br', 'br'], ['gz', 'gzip']].filter(([key]) => available[key]).map(([key, coding]) => ({ key, q: weight(coding) })).filter(c => c.q > 0);
+  candidates.sort((a, b) => b.q - a.q);
+  return candidates[0]?.key ?? null;
 }
 
 /**

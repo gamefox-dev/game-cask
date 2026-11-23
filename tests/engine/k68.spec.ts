@@ -81,6 +81,9 @@ test('Q12: engine:probe records firstFrameMs (navigation start -> first non-clea
   expect(report.firstFrame.loadStartMs).toBeGreaterThan(0); expect(report.firstFrame.loadStartMs).toBeLessThan(report.firstFrameMs);
   expect(report.firstFrame.sinceLoadStartMs).toBeCloseTo(report.firstFrameMs - report.firstFrame.loadStartMs, 3);
   expect(report.firstFrame.firstDrawMs).toBeLessThanOrEqual(report.firstFrameMs);
+  // vK68: the observer reports its own cost; the fixture shows content on its first drawing frame (nothing skipped).
+  expect(report.firstFrame.skippedDrawFrames).toBe(0); expect(report.firstFrame.overhead.sampleMs).toBeGreaterThan(0);
+  expect(report.firstFrame.overhead.wrappedDrawCalls).toBe(report.firstFrame.drawCalls);
   expect(report.allowlisted[0].count).toBe(1);
 });
 

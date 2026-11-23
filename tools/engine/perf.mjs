@@ -45,6 +45,8 @@ function firstFrameObserver(classify) {
   const now = () => Performance.prototype.now.call(performance);
   const state = window.__ENGINE_FIRST_FRAME__ = { schema: 'game-cask/engine-first-frame/1', firstFrameMs: null, firstDrawMs: null, loadStartMs: null,
     sinceLoadStartMs: null, drawFrames: 0, sampledFrames: 0, drawCalls: 0, sampleErrors: 0, sample: null, done: false,
+    // vK68: the observer's own cost until it removes itself: readback/classification time (total, max per frame).
+    overhead: { sampleMs: 0, maxSampleMs: 0, wrappedDrawCalls: 0 }, previousSampleMs: null, skippedDrawFrames: 0,
     definition: 'navigation start -> end of the first rAF callback (or other task) that drew (a draw call, not a clear) into the canvas default framebuffer AND left a sample that is not a uniform transparent/black/clearColor screen' };
   const target = new WeakMap(), clears = [], restore = [];
   let drew = new Set(), inCallback = 0, queued = false;
@@ -84,19 +86,34 @@ function firstFrameObserver(classify) {
     if (state.done || !drew.size) return;
     const contexts = drew; drew = new Set();
     const t = now();
+    try { sample(contexts, t); } finally {
+      const spent = now() - t;
+      state.overhead.sampleMs += spent; state.overhead.maxSampleMs = Math.max(state.overhead.maxSampleMs, spent); state.overhead.wrappedDrawCalls = state.drawCalls;
+    }
+  };
+  // vK68: a readback costs ~2 ms per frame on a GPU (it synchronizes with the GPU) and ~13 ms on SwiftShader, so the
+  // observer samples every drawing frame only for the first 30, then every 2nd (to 60), 4th (to 120) and then every 8th
+  // drawing frame. firstFrameMs is then an upper bound: the first content frame lies after previousSampleMs
+  // (skippedDrawFrames drawing frames were not sampled in between). One scratch canvas is reused.
+  let scratch = null, ctx = null;
+  const interval = n => n <= 30 ? 1 : n <= 60 ? 2 : n <= 120 ? 4 : 8;
+  let sinceSample = 0;
+  const sample = (contexts, t) => {
     state.drawFrames++; state.firstDrawMs ??= t;
+    if (++sinceSample < interval(state.drawFrames)) return;
+    const skipped = sinceSample - 1; sinceSample = 0;
     for (const gl of contexts) {
       const canvas = gl.canvas;
       if (!canvas?.width || !canvas.height) continue;
       try {
         const w = Math.min(64, canvas.width), h = Math.max(1, Math.round(canvas.height * w / canvas.width));
-        const scratch = document.createElement('canvas'); scratch.width = w; scratch.height = h;
-        const ctx = scratch.getContext('2d', { willReadFrequently: true });
+        if (!scratch) { scratch = document.createElement('canvas'); ctx = scratch.getContext('2d', { willReadFrequently: true }); }
+        if (scratch.width !== w || scratch.height !== h) { scratch.width = w; scratch.height = h; } else ctx.clearRect(0, 0, w, h);
         ctx.drawImage(canvas, 0, 0, w, h);
         const data = ctx.getImageData(0, 0, w, h).data;
         state.sampledFrames++;
-        if (classify(data, clears) !== 'content') continue;
-        Object.assign(state, { firstFrameMs: t, done: true, loadStartMs: loadStart(), sample: { width: canvas.width, height: canvas.height, sampleWidth: w, sampleHeight: h,
+        if (classify(data, clears) !== 'content') { state.previousSampleMs = t; continue; }
+        Object.assign(state, { firstFrameMs: t, done: true, loadStartMs: loadStart(), skippedDrawFrames: skipped, sample: { width: canvas.width, height: canvas.height, sampleWidth: w, sampleHeight: h,
           firstPixel: Array.from(data.slice(0, 4)), clearColors: clears.map(c => [...c]) } });
         if (state.loadStartMs !== null) state.sinceLoadStartMs = t - state.loadStartMs;
         for (const undo of restore.splice(0)) undo();

@@ -88,6 +88,51 @@ export function resolveVariant(cfg, name = null) {
 }
 
 /**
+ * vK68: may a build of { id, variant } replace the existing output whose manifest is `existing`? Returns null or the
+ * reason to refuse. A variant id <id>-<variant> can equal another game's id (a game named foo-deploy): an output is
+ * replaced only by the same lineage (base build of the same id, or the same variant of the same base game).
+ */
+export function outputConflict(existing, { id, variant = null }) {
+  if (existing?.path !== 'engineProfile') return 'not an engine build';
+  if (existing.id !== id) return `it is the build of ${JSON.stringify(existing.id)}`;
+  const was = existing.variant ?? null;
+  if (!variant && was) return `it is variant ${JSON.stringify(was.name)} of ${JSON.stringify(was.of)}, not the base build of ${JSON.stringify(id)}`;
+  if (variant && !was) return `it is the base build of game ${JSON.stringify(id)}, not variant ${JSON.stringify(variant.name)} of ${JSON.stringify(variant.of)}`;
+  if (variant && (was.name !== variant.name || was.of !== variant.of)) return `it is variant ${JSON.stringify(was.name)} of ${JSON.stringify(was.of)}`;
+  return null;
+}
+
+/**
+ * vK68: is a built variant manifest still a build of this game.json's variant? Compares the variant identity with the
+ * config and the base build (pack, runner, runtime, runtime files, allowlist evidence) and the variant's effective
+ * engine args with game.json. Returns { status: 'built' | 'stale' | 'missing' | 'unverified', mismatches }.
+ */
+export function variantStatus(cfg, name, baseManifest, variantManifest) {
+  if (!variantManifest) return { status: 'missing', mismatches: [] };
+  const mismatches = [], v = variantManifest, ve = v.engineProfile ?? {};
+  if (v.path !== 'engineProfile') mismatches.push('not an engine build');
+  if (v.id !== `${cfg.id}-${name}`) mismatches.push('id');
+  if (v.variant?.name !== name || v.variant?.of !== cfg.id) mismatches.push('variant identity');
+  let want = null;
+  try { want = resolveVariant(cfg, name).cfg.engineProfile; } catch { mismatches.push('variant no longer declared'); }
+  if (want) {
+    if (JSON.stringify(ve.engineArgs ?? []) !== JSON.stringify(want.engineArgs ?? [])) mismatches.push('engineArgs');
+    if (ve.packSha256 !== want.pack?.sha256) mismatches.push('packSha256 (game.json)');
+    if (ve.runnerSha256 !== want.runnerSha256) mismatches.push('runnerSha256 (game.json)');
+    if (ve.runtime?.id !== runtimeById(want.runtime).id) mismatches.push('runtime (game.json)');
+  }
+  if (!baseManifest) return { status: mismatches.length ? 'stale' : 'unverified', mismatches: mismatches.length ? mismatches : ['no base build to compare'] };
+  const be = baseManifest.engineProfile ?? {}, same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if (ve.packSha256 !== be.packSha256) mismatches.push('packSha256');
+  if (ve.runnerSha256 !== be.runnerSha256) mismatches.push('runnerSha256');
+  if (ve.runtime?.id !== be.runtime?.id || ve.runtime?.sha256 !== be.runtime?.sha256) mismatches.push('runtime');
+  if (!same(ve.runtime?.files, be.runtime?.files)) mismatches.push('runtime files');
+  if (v.files?.['game.pck'] !== baseManifest.files?.['game.pck']) mismatches.push('game.pck');
+  if (!same(ve.allowedErrors?.map(e => [e.id, e.message ?? e.pattern, e.evidence, e.evidenceSha256]), be.allowedErrors?.map(e => [e.id, e.message ?? e.pattern, e.evidence, e.evidenceSha256]))) mismatches.push('allowedErrors evidence');
+  return { status: mismatches.length ? 'stale' : 'built', mismatches };
+}
+
+/**
  * K59 evidence of allowlisted errors, resolved from the game.json directory (the port root) for the base profile and
  * every variant alike. vK59: the file lives in the game directory or the sibling reports/ tree, never elsewhere.
  */
@@ -328,7 +373,10 @@ export function buildEngine(gameDir, cfg, { outRoot = join(PRIVATE, 'builds'), s
     if (!check) {
       // Refuse unrelated output/symlinks. A previous engine build can be replaced.
       if (existsSync(out)) {
-        if (lstatSync(out).isSymbolicLink() || JSON.parse(readFileSync(join(out, 'manifest.json'))).path !== 'engineProfile') throw new Error('refusing to replace non-engine output');
+        if (lstatSync(out).isSymbolicLink() || !existsSync(join(out, 'manifest.json'))) throw new Error('refusing to replace non-engine output');
+        const conflict = outputConflict(JSON.parse(readFileSync(join(out, 'manifest.json'))), { id: cfg.id, variant });
+        if (conflict === 'not an engine build') throw new Error('refusing to replace non-engine output');
+        if (conflict) throw new Error(`refusing to replace ${out}: ${conflict} (build id collision; rename the game or the variant, or delete that output)`);
         rmSync(out, { recursive: true });
       }
       renameSync(staging, out);

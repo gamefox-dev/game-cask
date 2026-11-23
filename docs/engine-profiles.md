@@ -82,7 +82,7 @@ One `engineProfile` can describe several bundles. The usual case: the base profi
     "engineProfile": { …, "engineArgs": ["--fixed-fps", "60"], "allowedErrors": [ … ],
       "variants": { "deploy": { "engineArgs": [], "precompress": true, "note": "real-time deploy bundle" } } }
 
-    npm run build:port                        # base only: .engine-private/builds/<id> (prints the defined variants)
+    npm run build:port                        # base only (default, coordinator ruling vK68): .engine-private/builds/<id>
     npm run build:port -- --variant deploy    # .engine-private/builds/<id>-deploy
     npm run build:port -- --variant all       # base + every variant (also base,deploy; npm run engine -- build DIR --variant …)
 
@@ -97,7 +97,13 @@ One `engineProfile` can describe several bundles. The usual case: the base profi
   `variants` build exactly as before.
 * Each manifest records `variant` (`null` for the base; else `{ name, of, overrides, note }`) and `variants` (the
   declared names); `engineProfile.engineArgs` is the effective list, and the shell identity carries it too.
-  `trial:record` lists built variants under `engineVariants`.
+  `trial:record` lists variants under `engineVariants` with `status`: `built` only when the variant manifest
+  matches game.json (variant identity, effective `engineArgs`, pack/runner/runtime) and the base build (pack, runner,
+  runtime and its files, `game.pck`, allowlist evidence hashes); otherwise `stale` with `mismatches` and no metrics,
+  `missing`, or `unverified` (no base build to compare).
+* **Build id collisions (vK68):** `<id>-<variant>` may equal another game's id (a game named `foo-deploy`). An existing
+  output is replaced only by the same lineage (the base build of that id, or the same variant of the same base game);
+  anything else is refused with the owner named.
 
 ## Godot coverage
 
@@ -182,7 +188,9 @@ written from bytes re-hashed against those verified hashes. `npm run engine -- d
   fetch), `downloadGzipBytes` (gzip -9) and `downloadBrotliBytes` (K68: brotli quality 11, lgwin 24), `packBytes`,
   `runtimeBytes`, `wasmBytes`, `bundleBytes`, `compression` (the codec parameters) and per-file `bytes` /
   `gzipBytes` / `brotliBytes`. Each file is compressed on its own, as a host sends it with `Content-Encoding`. The
-  build prints them. Brotli q11 is slow (about 20 s for the 13.8 MB Godot 3.5.3 wasm), so sizes are cached by content
+  build prints them. The **download** gzip/brotli totals count what is actually sent with `Content-Encoding`: the
+  compressed size for files that get a precompressed sibling (`.js/.wasm/.pck/.html/.txt`, ≥ 1 KiB, ≥ 5% smaller),
+  the raw size for the others (vK68; per-file `gzipBytes`/`brotliBytes` stay the codec output). Brotli q11 is slow (about 20 s for the 13.8 MB Godot 3.5.3 wasm), so sizes are cached by content
   SHA-256 + codec parameters + zlib/brotli version in `.engine-private/compress-cache` (runtime files and the pack are
   identical across builds and variants).
 * **Precompressed siblings (K68, opt-in):** `engineProfile.precompress: true` (or per variant, or
@@ -193,7 +201,10 @@ written from bytes re-hashed against those verified hashes. `npm run engine -- d
   such a host must send `Content-Encoding`, the **original** `Content-Type` (`application/wasm` keeps streaming
   compilation) and `Vary: Accept-Encoding`. Netlify/Cloudflare Pages compress on their own and ignore them.
   `npm run engine -- serve DIR --precompressed` (`serveEngine(dir, { precompressed: true })`) serves the hash-checked
-  siblings to requests that accept them (br before gzip); without the option the server sends identity bytes only.
+  siblings to requests that accept them; without the option the server sends identity bytes only. Negotiation
+  (vK68, RFC 9110): a coding's weight is its own `q`, else that of `*`, else 0; `q=0` refuses (`*, br;q=0` gets gzip);
+  the highest acceptable weight wins, br on a tie; when no sibling is acceptable the identity bytes are sent, even
+  under `identity;q=0` (a static bundle has no other representation, no 406).
   The delivery evidence (capture) checks the **decoded** body of an encoded response against the manifest length and
   SHA-256 (the encoded Content-Length is recorded as `encodedLength`).
 
@@ -263,6 +274,16 @@ cleared to (a full-screen rectangle, the fixture's red screen) is content. The c
 draw, whatever it showed), `loadStartMs` (start of the runtime wasm request, from resource timing) and
 `sinceLoadStartMs` = `firstFrameMs - loadStartMs`, plus the sample's first pixel and the clear colors. The wrappers call
 the originals unchanged and are removed once the frame is found; production shells never install them.
+
+**Observer cost (vK68, measured on M4 Chromium, 1280x720 WebGL 2 canvas):** the draw-call wrapper adds about 7 ns per
+call (99.5 vs 106.5 ns per `drawArrays`; within noise on a second run) until the first frame is found. A readback
+costs about 2.4 ms per sample on the GPU (it synchronizes with the GPU) and about 16 ms on SwiftShader, so the
+observer samples every drawing frame only for the first 30 drawing frames, then every 2nd (to 60), 4th (to 120) and
+then every 8th: over 300 blank drawing frames 82 samples, 0.66 ms per drawing frame on average (GPU), about 0.3 ms
+in the steady state. With skipped frames `firstFrameMs` is an upper bound: the first content frame lies after
+`previousSampleMs`, and `skippedDrawFrames` says how many drawing frames were not sampled. `firstFrame.overhead`
+records `sampleMs` (total), `maxSampleMs` and `wrappedDrawCalls`; after the first frame nothing is wrapped.
+Measurements taken while the observer is still active (a game that stays blank) include this cost.
 
 Difference from BGT `load_to_first_frame_ms` / `diagnostics().load.marks.firstFrameMs`: BGT counts from
 `BGTRuntime.load()` (after the page's own scripts) to the first completed present, whatever it shows. The engine
