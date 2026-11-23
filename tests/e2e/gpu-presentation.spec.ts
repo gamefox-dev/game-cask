@@ -26,8 +26,9 @@ test('GPU presentation: empty paused captures retain the final mixed 2D/GPU/2D i
     const result=await page.evaluate(s=>(window as any).__BGT_TEST__.injectCommands(s),
       Buffer.from(load).toString('base64'));
     expect(result.status).toBe(0);
-    // K69: device-exact except on exact logical-boundary ties (implementation-defined; see screenRetention). A lost
-    // final legacy draw still changes ~50k non-tie pixels; a tie pixel may only take its neighbour's colour.
+    // K69: device-exact except on exact logical-boundary ties (implementation-defined; see screenRetention). The tie
+    // exception applies in every browser and backend, not only WebKit: it is limited to those lines, so a lost final
+    // legacy draw still changes ~50k non-tie pixels, and a tie pixel may only take a direct neighbour's old colour.
     const kept=screenRetention(a,await readPixels(page),d.letterbox,160,128);
     if (hardwarePixels()) {
       expect(kept.changed,'cross-frame GPU LOAD').toBe(0);
