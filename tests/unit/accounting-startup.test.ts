@@ -11,6 +11,9 @@ import {Vfs} from '../../bgt/runtime/vfs';
 import {testSuspensionModes} from '../support/suspension-modes';
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
+// K70: this test exercises startup accounting, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 for(const wide of [false,true])for(const startup of ['tls','dll'])it('startup '+startup+' host exception freezes accounting '+(wide?'AMD64':'i386'),async()=>{
  const modes=testSuspensionModes();
  const root=join(ROOT,'node_modules/.cache/bgt/accounting-startup');mkdirSync(root,{recursive:true});
@@ -36,7 +39,7 @@ for(const wide of [false,true])for(const startup of ['tls','dll'])it('startup '+
     fixture:{out:'entry.exe',sources:['entry.c'],libs:['kernel32'],target},
     modules:[{from:'./build/entry.exe',main:true},...(startup==='dll'?[{from:'./startup.dll',name:'startup.dll'}]:[])]}}));
   for(const interpreted of [false,true]) {
-   const out=join(dir,interpreted?'interp':'lift'),manifest=buildGame(dir,{outRoot:out,quiet:true,interpretOnly:interpreted}),game=join(out,manifest.id);
+   const out=join(dir,interpreted?'interp':'lift'),manifest=buildGame(dir,{outRoot:out,quiet:true,interpretOnly:interpreted,jspiOptimize:false}),game=join(out,manifest.id);
    for(const mode of modes) {
     const vfs=new Vfs();for(const a of manifest.assets)vfs.add(a.path,new Uint8Array(readFileSync(join(game,'assets',a.path))));
     let us=0,reached=0;const original=new Error('startup import exception'),logs:string[]=[];

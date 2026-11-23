@@ -144,7 +144,7 @@ export function buildGame(gameDirArg, options = {}) {
   try {return withBuildWriters(release.token,()=>buildGameUnlocked(gameDirArg,options));} finally {release();}
 }
 
-function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null, coverage = null, variant = null, precompress = null } = {}) {
+function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpretOnly = false, outRoot = OUT_ROOT, sliceCoverage = null, selection = null, onLinkedWasm = null, asyncifyPartitionBytes = null, coverage = null, variant = null, precompress = null, jspiOptimize = process.env.BGT_JSPI_WASM_OPT !== '0' } = {}) {
   if (asyncifyPartitionBytes !== null && (!Number.isInteger(asyncifyPartitionBytes) || asyncifyPartitionBytes < 1024 || asyncifyPartitionBytes > 16 * 1048576))
     throw new Error('asyncifyPartitionBytes must be null or an integer in 1024..16777216');
   const buildStarted = performance.now();
@@ -264,7 +264,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   const jspiStarted = performance.now();
   let jspiArtifact = null, jspiOpt = null;
   // K70 (Q127): both JSPI artifacts (dual game.jspi.wasm, JSPI-only game.wasm) get bounded wasm-opt -O2.
-  const optimizeJspi = (emitJspi || jspiOnly) && process.env.BGT_JSPI_WASM_OPT !== '0';
+  // `jspiOptimize: false` (build option; env BGT_JSPI_WASM_OPT=0) ships the raw link output: for A/B and for tests
+  // that exercise other build stages (accounting, coverage, Asyncify), never for real builds.
+  const optimizeJspi = (emitJspi || jspiOnly) && jspiOptimize;
   if (optimizeJspi) jspiOpt = { ...optimizeJspiWasm(wasmPath, { asyncifyPartitionBytes }), linked_bytes: preAsyncifyBytes };
   if (emitJspi) {
     // Same compiled/linked program, without whole-module Asyncify. No alternate guest semantics.

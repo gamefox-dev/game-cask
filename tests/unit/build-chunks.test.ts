@@ -112,4 +112,6 @@ it('chunked lift is cached, byte stable, oracle-equivalent, and invalidated by c
     rmSync(dir,{recursive:true,force:true});
     for(const name of [id,id+'-interp']) {rmSync(join(ROOT,'web/public/games',name),{recursive:true,force:true});rmSync(join(ROOT,'node_modules/.cache/bgt/pipeline',name),{recursive:true,force:true});}
   }
-},120_000);
+  // K70: dual builds also run the bounded JSPI -O2 here on purpose (this test keys and caches it): cold M4 56 -> 74 s,
+  // Linux CI scale job timed out at 120 s.
+},300_000);

@@ -10,6 +10,9 @@ import { join, basename } from 'node:path';
 import { ROOT, loadHeadless } from '../support/headless';
 // @ts-expect-error ESM build orchestration
 import { buildGame, WASM_OPT_FEATURES } from '../../tools/build/build.mjs';
+// K70: this test exercises the Asyncify transform, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 // @ts-expect-error ESM partition orchestration
 import { transform } from '../../tools/build/asyncify.mjs';
 // @ts-expect-error ESM metadata
@@ -48,7 +51,7 @@ it.each([['x86-windows-gnu', 'exact'], ['x86_64-windows-gnu', 'fast']] as const)
     writeFileSync(join(dir, 'game.json'), JSON.stringify({ id, name: 'CC0 deep suspension', pipeline: { platform: 'win32', suspensionBuild: 'dual', liftMode,
       fixture: { target, sources: ['guest.c'], out: 'guest.exe', entry: 'entry', libs: ['kernel32', 'user32'] }, modules: [{ from: './build/guest.exe', main: true }] } }));
     const linked = join(dir, 'linked.wasm');
-    const manifest = buildGame(dir, { quiet: true, onLinkedWasm: (p: string) => cpSync(p, linked) });
+    const manifest = buildGame(dir, { quiet: true, jspiOptimize: false, onLinkedWasm: (p: string) => cpSync(p, linked) });
     const metrics = manifest.pipeline.metrics;
     expect(metrics.asyncify_analysis).toBe('precise');
     expect(metrics.asyncify_instrumented).toBe(metrics.asyncify_suspending);
