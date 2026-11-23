@@ -247,16 +247,21 @@ describe('K74 after-init asset release (Q138)', () => {
     v.add('loader/game.exe', image, 'after-init'); v.add('data.bin', data);
     expect(v.totalBytes).toBe(1010);
     const h = v.openFile('loader/game.exe'); expect(h).toBeGreaterThan(0);
-    expect(v.releaseInitAssets()).toBe(0); // still open: kept
+    const h2 = v.openFile('loader/game.exe');
+    expect(v.releaseInitAssets()).toBe(0); // still open: kept until its last handle closes
     const dst = new Uint8Array(4); expect(v.read(h, dst)).toBe(4);
-    expect(v.close(h)).toBe(0);
-    expect(v.releaseInitAssets()).toBe(1000);
-    expect(v.totalBytes).toBe(10); expect(v.releasedBytes).toBe(1000);
+    expect(v.close(h)).toBe(0); expect(v.totalBytes).toBe(1010); // another handle still reads it
+    expect(v.close(h2)).toBe(0); // last close after init: released now (review vK74)
+    expect(v.totalBytes).toBe(10); expect(v.releasedBytes).toBe(1000); expect(v.released.get('loader/game.exe')).toBe(1000);
     expect(v.openFile('loader/game.exe')).toBe(A.E_NOT_FOUND);
     expect([...v.reopened]).toEqual(['loader/game.exe']); expect([...v.missing]).toEqual([]);
     expect(v.fileCount).toBe(2); expect(v.list()).toEqual(['data.bin', 'loader/game.exe']);
-    expect(v.openFile('data.bin')).toBeGreaterThan(0); // ordinary assets stay
+    const d = v.openFile('data.bin'); expect(d).toBeGreaterThan(0); // ordinary assets stay, also after close
+    expect(v.close(d)).toBe(0); expect(v.totalBytes).toBe(10);
     expect(v.releaseInitAssets()).toBe(0);
+    // Before bgt_init returned, closing never releases (the PE loader may reopen during init).
+    const early = new Vfs(); early.add('loader/x.exe', new Uint8Array(8), 'after-init');
+    expect(early.close(early.openFile('loader/x.exe'))).toBe(0); expect(early.totalBytes).toBe(8);
   });
 });
 

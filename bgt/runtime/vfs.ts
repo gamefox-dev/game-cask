@@ -79,6 +79,8 @@ export class Vfs {
   readonly released = new Map<string, number>();
   readonly reopened = new Set<string>();
   releasedBytes = 0;
+  /** Set once bgt_init returned: an init-only asset still open then is released when its last handle closes. */
+  private initDone = false;
 
   add(path: string, data: Uint8Array, release?: 'after-init'): void {
     const p = normalizeAssetPath(path);
@@ -90,19 +92,23 @@ export class Vfs {
     if (release === 'after-init') this.releaseAfterInit.add(p); else this.releaseAfterInit.delete(p);
   }
 
-  /** Drop every `release: "after-init"` asset that no handle still reads. Returns the bytes released. */
+  /** bgt_init returned: drop every `release: "after-init"` asset no handle still reads; one still open is dropped
+   * when its last handle closes. Returns the bytes released now. */
   releaseInitAssets(): number {
+    this.initDone = true;
     let bytes = 0;
-    for (const p of this.releaseAfterInit) {
-      if ([...this.open.values()].some((f) => f.path === p)) continue; // still open: keep (released on a later call)
-      const data = this.files.get(p);
-      if (!data) continue;
-      this.files.delete(p); this.releaseAfterInit.delete(p);
-      this.totalBytes -= data.byteLength; bytes += data.byteLength;
-      this.released.set(p, data.byteLength);
-    }
-    this.releasedBytes += bytes;
+    for (const p of [...this.releaseAfterInit]) bytes += this.releaseIfUnused(p);
     return bytes;
+  }
+
+  private releaseIfUnused(p: string): number {
+    if ([...this.open.values()].some((f) => f.path === p)) return 0; // still open: released on its last close
+    const data = this.files.get(p);
+    if (!data) return 0;
+    this.files.delete(p); this.releaseAfterInit.delete(p);
+    this.totalBytes -= data.byteLength; this.releasedBytes += data.byteLength;
+    this.released.set(p, data.byteLength);
+    return data.byteLength;
   }
 
   get fileCount(): number {
@@ -155,6 +161,10 @@ export class Vfs {
   }
 
   close(handle: number): number {
-    return this.open.delete(handle) ? 0 : E_NOT_FOUND;
+    const f = this.open.get(handle);
+    if (!f) return E_NOT_FOUND;
+    this.open.delete(handle);
+    if (this.initDone && this.releaseAfterInit.has(f.path)) this.releaseIfUnused(f.path);
+    return 0;
   }
 }

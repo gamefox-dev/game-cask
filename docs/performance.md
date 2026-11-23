@@ -218,8 +218,11 @@ neither Chromium nor WebKit (Chromium factors are used). Re-measure with
 `npm run bench:gpu-footprint -- [--engine chromium|webkit] [--api webgl2,webgpu] [--scenarios ...] [--repeat N]`
 (`tools/report/gpu-footprint.mjs`: one tagged browser per scenario, a runtime-free page, two equal allocation steps so
 the marginal factor excludes one-time pools; canvas cost from one context resized in-page). `bench:footprint` snapshots
-now carry `gpuProcess: {measuredBytes, attributedBytes, unattributedBytes}` (attributed = gpuNative + gpuOverhead +
-browserBaseBytes) and `jsHeldBytes`.
+now carry `gpuProcess: {measuredBytes, attributedBytes, baseEstimateBytes, unattributedBytes, unexplainedBytes}`
+(attributed = gpuNative + gpuOverhead, what the runtime accounts; `baseEstimateBytes` = the model's browser base, a rough
+estimate kept separate: Chromium's swings 80-160 MB with idle trimming; unexplained = measured - attributed - base
+estimate) and `jsHeldBytes`. Depth uploads on WebGPU (their float staging image) use the same bands and counter. Test
+checkpoints capture the WebGPU physical image by presenting the retained screen (there is no snapshot to read).
 
 **WebGPU upload bands (K74).** Chromium's WebGPU stages each `writeTexture`/`writeBuffer` call in GPU-process memory
 sized by the call and keeps it afterwards; the executor therefore issues §13 uploads in row bands (texture) or ranges

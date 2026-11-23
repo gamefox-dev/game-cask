@@ -846,7 +846,8 @@ ${fields.length ? `struct O {${fields.join(',')}}; @fragment fn fs()->O {var o:O
     }
     const d = this.gpuDevice, source = d.createTexture({ size: [width, height, 1], format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
-    d.queue.writeTexture({ texture: source }, values, { bytesPerRow: width * 16, rowsPerImage: height }, [width, height, 1]);
+    // K74: the float staging image goes through the same banded, counted upload path as every other write.
+    this.writeTexture(source, 0, 0, 0, 0, width, height, 1, 16, new Uint8Array(values.buffer));
     const encoder = d.createCommandEncoder(), target = t.native.createView({ baseMipLevel: mip, mipLevelCount: 1 });
     const refs = t.desc.format === 5 ? [...stencilValues] : [-1];
     for (const ref of refs) {

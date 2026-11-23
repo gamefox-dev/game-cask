@@ -168,7 +168,8 @@ integrity checks. Reads are then **synchronous** from memory. Paths are relative
 and is listed in `diagnostics().assets.missing`. At most 256 open handles.
 
 **Init-only assets (K74, additive).** A manifest asset entry may carry `"release": "after-init"`: the runtime drops
-its bytes once `bgt_init` returns and no handle is open on it (a handle still open keeps it until a later release).
+its bytes once `bgt_init` returns and no handle is open on it (one still open then is dropped when its last handle
+closes).
 Opening it afterwards returns `BGT_E_NOT_FOUND`, counted in `diagnostics().assets.released.reopened` rather than
 `missing`. The pipeline build marks the Win32 profile's compacted PE images (`loader/<module>`, read only by the PE
 loader inside `bgt_init`; guest file opens of a module name resolve to the streamed `modules/<module>`), so their JS

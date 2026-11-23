@@ -18,7 +18,7 @@ export async function captureWebGL2Renderer(this: WebGL2Renderer,letterbox: Lett
     return {physical:{width,height,data},buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};
   }
 export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces): void {
-    for(const b of s.buffers) {const native=this.gpu['buffers'].get(b.handle)!;native.data=b.shadow.slice();native.generated=b.generated;}
+    for(const b of s.buffers) {const native=this.gpu['buffers'].get(b.handle)!;native.data=b.shadow.slice();native.generated=b.generated;native.shared=false;}
     for(const t of s.textures) {const native=this.gpu['textures'].get(t.handle)!;native.levels=structuredClone(t.levels!);native.generated=t.generated?{base:t.generated.base,data:t.generated.data?.slice(),overridden:new Set(t.generated.overridden)}:undefined;}
     const g = this['gl'], {width,height,data} = s.physical, raw = new Uint8Array(data.length);
     for (let y = 0; y < height; y++) raw.set(data.subarray(y*width*4,(y+1)*width*4),(height-1-y)*width*4);
@@ -37,7 +37,11 @@ export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces
 
   /** Only called by the opt-in test checkpoint controller on a temporary renderer. */
 export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Letterbox): Promise<CheckpointSurfaces> {
-    const physical = await this['readback'](this['snapshot'] ?? this['ctx'].getCurrentTexture(),this['format'] === 'bgra8unorm');
+    // K74: §13 frames keep no full-canvas snapshot; the physical image is the retained screen presented with the
+    // current letterbox (exactly what an empty frame shows), never a possibly fresh getCurrentTexture().
+    let output: GPUTexture | undefined = this['snapshot'];
+    if (!output) { output = this['ctx'].getCurrentTexture(); if (this['screen']) this['presentTexture'](output, this['screen'].createView(), letterbox, [0, 0, 1, 1]); }
+    const physical = await this['readback'](output,this['format'] === 'bgra8unorm');
     const logical = this['screen'] ? await this['readback'](this['screen']) : undefined;
     if([...this.gpu['textures'].values()].some(t=>t.unshadowed))throw new Error(`Checkpoint needs texture upload shadows: ${RECOVERY_SHADOWS_OFF}`);
     const buffers=[...this.gpu.buffers].map(([handle,b])=>({handle,shadow:b.shadow.slice(),generated:!!b.generated}));
@@ -45,7 +49,8 @@ export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Lett
     return {physical,logical,buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};
   }
 export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces): void {
-    for(const b of s.buffers) {const native=this.gpu.buffers.get(b.handle)!;native.shadow=b.shadow.slice();native.generated=b.generated;}
+    // K74: a restored checkpoint copy is private to the executor (the decoder settles its own store).
+    for(const b of s.buffers) {const native=this.gpu.buffers.get(b.handle)!;native.shadow=b.shadow.slice();native.generated=b.generated;native.shared=false;}
     for(const t of s.textures) {const native=this.gpu['textures'].get(t.handle)!;native.uploads=structuredClone(t.uploads!);native.generated=t.generated?{base:t.generated.base,source:structuredClone(t.generated.source!),overridden:new Set(t.generated.overridden)}:undefined;}
     const {device} = this['o'];
     const upload = (p: Pixels, format: GPUTextureFormat, usage: number) => {
