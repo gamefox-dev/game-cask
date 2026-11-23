@@ -179,7 +179,8 @@ export async function footprintSnapshot(page, tag, label) {
   const summary = fp.available ? summarizeFootprint(fp.processes, rows) : null;
   const estimate = memory?.estimate?.totalBytes ?? null;
   return { label, at: new Date().toISOString(), estimate: memory ? { totalBytes: estimate, components: memory.estimate.components,
-    wasmModuleBytes: memory.wasm.moduleBytes, wasmLinearBytes: memory.wasm.linearBytes } : null,
+    wasmModuleBytes: memory.wasm.moduleBytes, wasmLinearBytes: memory.wasm.linearBytes,
+    gpuTextures: memory.gpu?.native?.textures ?? null, recoveryShadowBytes: memory.js.gpuRecoveryShadowBytes } : null,
   footprint: fp.available ? summary : { unavailable: fp.reason },
   // What the estimate cannot see: compiled code, engine/driver overhead, JS engine heap beyond held copies.
   unattributedBytes: summary && estimate !== null ? (summary.pageRendererBytes ?? 0) + (summary.gpuProcessBytes ?? 0) - estimate : null };
