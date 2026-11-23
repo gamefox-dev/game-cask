@@ -63,7 +63,11 @@ test('GPU feedback preserves integer, aggregate, lazy and copy-out expressions',
 });
 
 test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded dispatch and loss contract',async({page,backendParam,collector},info)=>{
-  void collector;expect(await openGame(page,backendParam,{game:'gpu-scenes'})).toBe('ready');await assertBackend(page,backendParam,info);
+  // K69: the two injected beginTransformFeedback(0xffffffff) failures below (strict + production) are deliberate native
+  // errors. WebKit reports WebGL errors as console errors (Chromium as warnings): exactly the injected INVALID_ENUM and,
+  // on the unpolled production path, the then-inactive endTransformFeedback. Anchored to those messages only.
+  collector.allow(/^WebGL: INVALID_ENUM: beginTransformFeedback: invalid transform feedback primitive mode$/,
+    /^WebGL: INVALID_OPERATION: endTransformFeedback: transform feedback is not active$/);expect(await openGame(page,backendParam,{game:'gpu-scenes'})).toBe('ready');await assertBackend(page,backendParam,info);
   const result=await page.evaluate(async ({backend,root})=>{
     const {GPU_OP:O}=await import(root+'/runtime/abi.ts');
     const {WebGL2Gpu}=await import(root+'/renderers/webgl2/gpu.ts');
@@ -153,4 +157,8 @@ test('GPU feedback: odd-byte input, atomic replacement, setup cleanup, expanded 
   expect(result.retryRetained).toBe(true);
   expect(result.nativeReplacements).toEqual(backendParam==='webgl2'?Array.from({length:3},()=>({code:-6,retained:true,deletedOld:false,bytes:expected})):[]);
   expect(result.last).toEqual([...new Uint8Array(new Float32Array([1399998,1399997,1399999]).buffer)]);
+  // The allowance above covers only the two injections: never more native feedback errors than injected.
+  const count=(re:RegExp)=>collector.consoleErrors.filter(m=>re.test(m)).length;
+  expect(count(/beginTransformFeedback/),'only the two injected begin failures').toBeLessThanOrEqual(2);
+  expect(count(/endTransformFeedback/),'only the unpolled production injection').toBeLessThanOrEqual(1);
 });

@@ -35,6 +35,7 @@ for (const cross of [false, true])
   test(`x64-gl-fbo: ${cross ? 'cross-backend images agree @webgpu' : 'GL contracts, completeness and pixels'}`,
     async ({ page, backendParam, collector }, info) => {
       void collector;
+      const mip2s: Record<string, { mip2: number[]; lb: { x: number; y: number; w: number; h: number } }> = {};
       const capture = async (p: Page, backend: string) => {
         const status = await openGame(p, backend, { game: 'x64-gl-fbo' });
         await assertBackend(p, backend, info);
@@ -64,7 +65,7 @@ for (const cross of [false, true])
         // GetTexImage of generated level 2, not a fixed box-filter value.
         const mip2Log = d.logs.map(l => /x64-gl-fbo 3D mip level 2 = (\d+),(\d+),(\d+),/.exec(l.message)).find(Boolean);
         expect(mip2Log, 'guest logs generated 3D mip level 2').toBeTruthy();
-        const mip2 = mip2Log!.slice(1, 4).map(Number);
+        const mip2 = mip2Log!.slice(1, 4).map(Number); mip2s[backend] = { mip2, lb: d.letterbox };
         if (hardwarePixels()) for (const probe of probes) {
           const x = Math.floor(d.letterbox.x + (probe.x + .5) * d.letterbox.w / 320);
           const y = Math.floor(d.letterbox.y + (probe.y + .5) * d.letterbox.h / 200), i = (y * px.width + x) * 4;
@@ -81,6 +82,17 @@ for (const cross of [false, true])
       if (!cross) return;
       const backend = backendParam === 'webgpu' ? 'webgl2' : 'webgpu';
       const b = await otherBackend(backend, info, p => capture(p, backend));
+      // K69: glGenerateMipmap's filter is implementation-defined (fixture comment; ANGLE Metal, i.e. WebKit's WebGL 2,
+      // weights 3D slices ~7/8:1/8, WebGPU/SwiftShader box-filter). Each capture above already checked its bias quad against
+      // its own guest-read level 2. Only when those reads differ is that quad (tile 3, logical x 312..320, y 0..100, +1
+      // device pixel) left out of the cross image comparison; Chromium's backends agree, so nothing is masked there.
+      const own = mip2s[backendParam], other = mip2s[backend];
+      if (own.mip2.some((v, c) => Math.abs(v - other.mip2[c]) > 3)) {
+        info.annotations.push({ type: 'masked', description: `generated 3D mip 2 differs (${own.mip2} vs ${other.mip2}): bias quad excluded` });
+        const lb = own.lb, x0 = Math.floor(lb.x + 312 * lb.w / 320) - 1, y1 = Math.ceil(lb.y + 100 * lb.h / 200) + 1;
+        for (const img of [a, b]) for (let y = Math.max(0, lb.y - 1); y < Math.min(img.height, y1); y++)
+          img.data.fill(0, (y * img.width + x0) * 4, (y * img.width + Math.min(img.width, lb.x + lb.w + 1)) * 4);
+      }
       // Documented tolerance: edge texels and 16-bit float rounding may differ; see docs/handoff/K6a.md.
       const comparison = compareGpuImages(a, b); console.log('GL FBO COMPARISON', comparison);
       expect(comparison.different).toBeLessThanOrEqual(0.015);

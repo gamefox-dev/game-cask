@@ -1,4 +1,5 @@
 import { hardwarePixels } from './fixtures';
+import { screenRetention } from '../support/gpu-image';
 import { CommandEncoder } from '../../bgt/runtime/commands';
 import { GPU_OP } from '../../bgt/runtime/abi';
 import { test, expect, openGame, assertBackend, step, input, diagnostics, debugState, readPixels, diffFraction } from './fixtures';
@@ -25,7 +26,14 @@ test('GPU presentation: empty paused captures retain the final mixed 2D/GPU/2D i
     const result=await page.evaluate(s=>(window as any).__BGT_TEST__.injectCommands(s),
       Buffer.from(load).toString('base64'));
     expect(result.status).toBe(0);
-    if (hardwarePixels()) expect(diffFraction(a,await readPixels(page),0),'cross-frame GPU LOAD').toBe(0);
+    // K69: device-exact except on exact logical-boundary ties (implementation-defined; see screenRetention). The tie
+    // exception applies in every browser and backend, not only WebKit: it is limited to those lines, so a lost final
+    // legacy draw still changes ~50k non-tie pixels, and a tie pixel may only take a direct neighbour's old colour.
+    const kept=screenRetention(a,await readPixels(page),d.letterbox,160,128);
+    if (hardwarePixels()) {
+      expect(kept.changed,'cross-frame GPU LOAD').toBe(0);
+      expect(kept.unexplained,'cross-frame GPU LOAD: tie pixels take only a neighbour colour').toBe(0);
+    }
     await page.setViewportSize({width:800,height:600});
     await page.waitForTimeout(100);
     const resized=await readPixels(page), layout=(await diagnostics(page)).letterbox;

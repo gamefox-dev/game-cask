@@ -72,3 +72,21 @@ test('savestates are opt-in and reject overlapping updates',async({page,backendP
     let error='';try{await t.snapshot();}catch(e){error=String(e);}await pending;return error;
   })).toContain('quiescent');
 });
+
+// K69 breakage caught: every snapshot/compaction replays into a temporary WebGL2 renderer. Its destroy() used to leave
+// the context restorable (webglcontextlost preventDefault), which WebKit keeps allocated in the page's 16-context budget;
+// from the 17th context on WebKit recycles the least recently used one ("too many active WebGL contexts" console
+// errors; in the docs/webkit.md repro an idle live context is the one lost). Chromium never shows it; WebKit does.
+test('idle snapshots keep the live game context',async({page,backendParam,collector},info)=>{
+  void collector;
+  expect(await openGame(page,backendParam,{deterministic:'1'})).toBe('ready');await assertBackend(page,backendParam,info);
+  await step(page,2);
+  const result=await page.evaluate(async()=>{
+    const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__,before=(await t.readPixels())!.base64;
+    for(let i=0;i<20;i++)await t.snapshot(); // paused: the live context is idle between temporaries
+    await new Promise(r=>setTimeout(r,50)); // context loss is delivered as a task
+    const after=await t.readPixels();await t.step(1);
+    return {same:after?.base64===before,stepped:!!(await t.readPixels()),errors:t.diagnostics().errors.map(e=>e.message)};
+  });
+  expect(result.errors).toEqual([]);expect(result.same).toBe(true);expect(result.stepped).toBe(true);
+});

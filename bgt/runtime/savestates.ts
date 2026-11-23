@@ -124,14 +124,21 @@ export class Savestates {
   private async materialize() {
     const temporary = await this.createRenderer();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
-    try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{temporary.destroy();}
+    try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{this.park(temporary);}
     this.gpuBase=compact.base;this.journal=compact.journal;
     this.journalBytes=this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
     return compact;
   }
+  /** K69: one WebGL2 context is recycled through every temporary/replaced renderer (WebGL2Renderer.reuse): WebKit frees a
+   * lost context only on GC, so a new canvas per snapshot, compaction and restore exhausted its 16-context page budget. */
+  private scratch?: HTMLCanvasElement;
+  private park(renderer: Renderer): void { renderer.destroy(); if (renderer.kind==='webgl2') this.scratch=renderer.canvas; }
   private async createRenderer(): Promise<Renderer & CheckpointRenderer> {
-    const canvas=document.createElement('canvas');canvas.width=this.rt.canvas.width;canvas.height=this.rt.canvas.height;
-    const renderer=this.rt.renderer!.kind==='webgl2' ? WebGL2Renderer.create(canvas,{debug:true}) : await WebGPURenderer.create(canvas,{debug:true});
+    const sized=(canvas:HTMLCanvasElement)=>{canvas.width=this.rt.canvas.width;canvas.height=this.rt.canvas.height;return canvas;};
+    const scratch=this.scratch;this.scratch=undefined;
+    const renderer=this.rt.renderer!.kind==='webgl2'
+      ? (scratch&&await WebGL2Renderer.reuse(sized(scratch),{debug:true}))||WebGL2Renderer.create(sized(document.createElement('canvas')),{debug:true})
+      : await WebGPURenderer.create(sized(document.createElement('canvas')),{debug:true});
     if(!renderer)throw new Error('Savestate renderer unavailable');return renderer;
   }
   restore(snapshot: Savestate): Promise<void> {
@@ -153,12 +160,14 @@ export class Savestates {
         await replayGPU(renderer,s.gpuBase,s.journal);
         const host = await rt.testHostFactory!(renderer);
         host.restoreCheckpoint(s.host);
+        const previous = rt.renderer!;
         rt.testReplace(host,renderer,input.letterbox); renderer = null;
+        if (previous.kind === 'webgl2') this.scratch = previous.canvas; // destroyed by testReplace: the next temporary
         Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
         this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
         this.journalBytes = journalBytes; this.journalError = null;
-      } finally { renderer?.destroy(); }
+      } finally { if (renderer) this.park(renderer); }
     }, () => {
       // Capture synchronously, before even finish() can yield to caller mutation.
       s = cloneCheckpoint(snapshot);
