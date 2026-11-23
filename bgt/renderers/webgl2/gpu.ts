@@ -1,6 +1,7 @@
 // §13 execution. GPU attachments use GL row zero as BGT's top row, just like legacy targets.
 import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem, type Letterbox } from '../types';
 import { textureLevelBytes, type GpuNativeMemory } from '../../runtime/memory';
+import { adoptBufferStore, markApplied, restoreBufferItem } from '../../runtime/shared-buffers';
 import { GPU_LIMITS, GPU_OP as OP, GPU_UNIFORM_RANGE_MIN } from '../../runtime/abi';
 import { fragmentOutputs, translateShader } from './shaders';
 import { vertexFormatScalar } from '../vertex-input';
@@ -17,7 +18,8 @@ interface IndexedBlend {
   blendFuncSeparateiOES(index: number, sr: number, dr: number, sa: number, da: number): void;
   colorMaskiOES(index: number, r: boolean, g: boolean, b: boolean, a: boolean): void;
 }
-interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer>; generated?: boolean }
+/** `data` is the decoder's store when `shared` (K74: one CPU copy), else a private copy (replays, restored savestates). */
+interface BufferObject { object: WebGLBuffer; words: number[]; data: Uint8Array<ArrayBuffer>; generated?: boolean; shared?: boolean }
 interface TextureObject {
   /** K64: `levels[mip]` is the upload shadow used for context-loss recovery, allocated on the first upload of that
    * level (like WebGPU's per-level uploads). A never-uploaded level has none: recovery recreates it zeroed, which is
@@ -394,7 +396,7 @@ export class WebGL2Gpu implements GpuBackend {
         const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
         g.bindBuffer(g.COPY_READ_BUFFER, src.object); g.bindBuffer(g.COPY_WRITE_BUFFER, dst.object);
         g.copyBufferSubData(g.COPY_READ_BUFFER, g.COPY_WRITE_BUFFER, w[1], w[3], w[4]);
-        dst.data.set(src.data.slice(w[1], w[1] + w[4]), w[3]);
+        dst.data.set(src.data.slice(w[1], w[1] + w[4]), w[3]); markApplied(item, this, dst.data);
         if (src.generated) dst.generated = true; else if (!w[3] && w[4] === dst.data.length) dst.generated = false;
         break;
       }
@@ -405,20 +407,19 @@ export class WebGL2Gpu implements GpuBackend {
       case OP.BLIT: this.blit(w); break;
       case OP.BUFFER_CREATE: {
         const object = g.createBuffer()!;
-        const data = new Uint8Array(w[2]);
-        if (item.data) data.set(item.data);
-        g.bindBuffer(g.COPY_WRITE_BUFFER, object); g.bufferData(g.COPY_WRITE_BUFFER, data, g.DYNAMIC_DRAW);
-        this.buffers.set(h, { object, words: w, data }); break;
+        const { data, shared } = adoptBufferStore(item, w[2], this);
+        g.bindBuffer(g.COPY_WRITE_BUFFER, object); g.bufferData(g.COPY_WRITE_BUFFER, data, g.DYNAMIC_DRAW); this.noteUpload(data.length);
+        this.buffers.set(h, { object, words: w, data, shared }); break;
       }
       case OP.BUFFER_UPDATE: {
         const b = this.buffers.get(h)!, whole = w[1] === 0 && item.data!.length === b.data.length;
-        b.data.set(item.data!, w[1]); if (whole) b.generated = false;
+        b.data.set(item.data!, w[1]); if (whole) b.generated = false; markApplied(item, this, b.data);
         g.bindBuffer(g.COPY_WRITE_BUFFER, b.object);
         // K60: a partial update of a small CPU-authoritative store (e.g. one slot of a program's uniform ring) is a
         // whole re-specification from the exact shadow: drivers (ANGLE Metal) orphan a fully replaced store instead
         // of synchronizing with or copying around in-flight GPU reads. Same bytes; generated stores keep sub-data.
-        if (!whole && !b.generated && b.data.length <= SMALL_RESPECIFY && this.opts.batch) g.bufferData(g.COPY_WRITE_BUFFER, b.data, g.DYNAMIC_DRAW);
-        else g.bufferSubData(g.COPY_WRITE_BUFFER, w[1], item.data!);
+        if (!whole && !b.generated && b.data.length <= SMALL_RESPECIFY && this.opts.batch) { g.bufferData(g.COPY_WRITE_BUFFER, b.data, g.DYNAMIC_DRAW); this.noteUpload(b.data.length); }
+        else { g.bufferSubData(g.COPY_WRITE_BUFFER, w[1], item.data!); this.noteUpload(item.data!.length); }
         break;
       }
       case OP.BUFFER_DELETE: g.deleteBuffer(this.buffers.get(h)!.object); this.buffers.delete(h); break;
@@ -463,6 +464,7 @@ export class WebGL2Gpu implements GpuBackend {
           else g.texSubImage2D(target, mip, x, y, width, height, g.DEPTH_COMPONENT, g.FLOAT, data);
         } else if (t.desc.dimension === 0) g.texSubImage2D(target, mip, x, y, width, height, format[1], format[2], data);
         else g.texSubImage3D(target, mip, x, y, z, width, height, depth, format[1], format[2], data);
+        this.noteUpload(item.data!.length);
         break;
       }
       case OP.TEXTURE_READBACK: this.readback(item, w); break;
@@ -723,11 +725,15 @@ export class WebGL2Gpu implements GpuBackend {
     } catch (e) { g.deleteVertexArray(vao); g.deleteProgram(object); throw e; }
   }
 
+  /** K74 (Q137): the largest single upload call so far (the browser's staging scales with it; gpu-overhead.ts). */
+  private largestUpload = 0;
+  private noteUpload(bytes: number): void { if (bytes > this.largestUpload) this.largestUpload = bytes; }
+
   /** K64 diagnostics from the executor's own tables (no GL queries). Sizes equal the decoder's reservations. */
   memory(): GpuNativeMemory {
-    let bufferBytes = 0, textureBytes = 0, depthBytes = 0, textureShadows = 0;
+    let bufferBytes = 0, textureBytes = 0, depthBytes = 0, textureShadows = 0, privateBuffers = 0, sharedBuffers = 0;
     const lazy = { count: 0, bytes: 0, depthStencilBytes: 0 };
-    for (const b of this.buffers.values()) bufferBytes += b.data.length;
+    for (const b of this.buffers.values()) { bufferBytes += b.data.length; if (b.shared) sharedBuffers += b.data.length; else privateBuffers += b.data.length; }
     for (const t of this.textures.values()) {
       const bytes = textureLevelBytes(t.desc, t.allocatedMips, TEXEL_BYTES[t.desc.format]);
       if (!t.storage) { lazy.count++; lazy.bytes += bytes; if (isDepthFormat(t.desc.format)) lazy.depthStencilBytes += bytes; }
@@ -741,8 +747,10 @@ export class WebGL2Gpu implements GpuBackend {
       textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes, lazy },
       renderbuffers: { count: 0, bytes: 0 },
       internal: { bytes: screenBytes + scratchBytes, screenBytes, poolBytes: 0, scratchBytes },
-      // Buffer shadows are load-bearing on WebGL 2 (index rebasing, wide-stride repacking), not only recovery.
-      shadows: { bufferBytes, textureBytes: textureShadows } };
+      // Buffer bytes are load-bearing on WebGL 2 (index rebasing, wide-stride repacking), not only recovery. K74: a
+      // store shared with the decoder is counted once, as the decoder's (`sharedBufferBytes` is informational).
+      shadows: { bufferBytes: privateBuffers, textureBytes: textureShadows, sharedBufferBytes: sharedBuffers },
+      uploads: { largestBytes: this.largestUpload } };
   }
 
   /** K71 (Q128): commit native storage on the first use that needs texels: upload, attachment (draw or clear), sampling
@@ -1291,7 +1299,10 @@ export class WebGL2Gpu implements GpuBackend {
     }
     this.screen = null; this.screenSize = [0, 0]; this.enableFloatExtensions();
     const replay = (item: GpuItem) => { if (this.execute(item)) throw new Error('GPU resource restoration failed'); };
-    for (const [, b] of buffers) replay({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data });
+    for (const [h, b] of buffers) {
+      replay(restoreBufferItem({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.data }, b.data, this));
+      this.buffers.get(h)!.shared = b.shared; // K74: the same array, so the same sharing
+    }
     for (const [h, t] of textures) {
       replay({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
       if (t.allocatedMips > 1) replay({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,

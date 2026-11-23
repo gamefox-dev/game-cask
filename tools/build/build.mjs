@@ -352,7 +352,10 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       const rel = relative(join(outDir, 'assets'), file).split(sep).join('/');
       const data = readFileSync(file);
       const hash = sha256(data);
-      assets.push({ path: rel, size: data.byteLength, sha256: hash, url: `assets/${rel}?h=${hash.slice(0, 16)}`, original: true });
+      // K74 (Q138): with streamed modules, loader/<name> (the compacted PE image) is read only by the Win32 PE loader
+      // inside bgt_init (guest file opens of a module resolve to the streamed modules/<name>): the runtime drops it then.
+      assets.push({ path: rel, size: data.byteLength, sha256: hash, url: `assets/${rel}?h=${hash.slice(0, 16)}`, original: true,
+        ...(rel.startsWith('loader/') ? { release: 'after-init' } : {}) });
     }
   }
   if (cfg.assets) {

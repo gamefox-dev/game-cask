@@ -57,6 +57,8 @@ export interface RuntimeOptions {
   memoryBudgetBytes?: number;
   /** K71 (Q128): commit §13 texture storage on first use (default true; `?lazytextures=0` for A/B). */
   lazyTextures?: boolean;
+  /** K74 (Q137): WebGPU largest single texture/buffer queue write (default 1 MiB bands; Infinity = whole writes, A/B). */
+  uploadChunkBytes?: number;
   /** K71 (Q129): keep texture recovery shadows; overrides `?recoveryshadows=` and manifest `gpu.recoveryShadows`. */
   recoveryShadows?: boolean;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
@@ -78,7 +80,8 @@ export interface Manifest {
   abi: string;
   private?: boolean;
   wasm: { url: string; size: number; sha256: string };
-  assets: Array<{ path: string; url: string; size: number; sha256: string }>;
+  /** K74: `release: "after-init"` drops the asset's bytes once bgt_init returns (read only during init). */
+  assets: Array<{ path: string; url: string; size: number; sha256: string; release?: 'after-init' }>;
   streams?: StreamedFile[];
   pipeline?: { modules: {name:string;base:number;sha256:string}[] };
   variants?: { jspi?: {url:string;size:number;sha256:string} };
@@ -104,7 +107,8 @@ import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
 import { retainedAccumulator, continueTransport, settlesWithin, TRANSPORT_BURST_MS } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
-import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
+import { gpuEngine, gpuOverhead } from './gpu-overhead';
+import { CANVAS_BUFFERS, guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
   type RecoveryShadowPolicy } from './memory';
 import { loadSummary, type LoadDiagnostics, type LoadMarks, type ResourceTransfer } from './load-metrics';
 
@@ -128,7 +132,8 @@ export interface BGTDiagnostics {
   wasmMemoryBytes: number;
   textures: { count: number; bytes: number };
   gpu: { budgetBytes: number; reservedBytes: number; peakReservedBytes: number; largestAllocationBytes: number } | null;
-  assets: { count: number; bytes: number; missing: string[] };
+  /** K74: `released` are after-init assets whose bytes were dropped (`reopened`: opened again later, E_NOT_FOUND). */
+  assets: { count: number; bytes: number; missing: string[]; released?: { count: number; bytes: number; reopened: string[] } };
   timing: {
     frameIntervalMs: { last: number; avg: number; p95: number };
     updateMs: number;
@@ -471,7 +476,7 @@ export class BGTRuntime {
       for (let a = queue.shift(); a; a = queue.shift()) {
         const b = await this.fetchBytes(base + a.url, a.path, tick, a.size);
         await verify(b, a.sha256, a.path);
-        this.vfs.add(a.path, new Uint8Array(b));
+        this.vfs.add(a.path, new Uint8Array(b), a.release === 'after-init' ? 'after-init' : undefined);
       }
     });
     const assetsP = Promise.all(workers).then(() => { this.loadMarks.assetsMs = performance.now() - this.loadStarted; });
@@ -542,6 +547,8 @@ export class BGTRuntime {
       this.host.init();
       this.loadMarks.initMs = performance.now() - initStart;
       this.samplePeak();
+      // K74 (Q138): the PE loader has mapped its images into linear memory; drop their JS copies.
+      this.vfs.releaseInitAssets();
     } catch (e) {
       throw new RuntimeFailure(e instanceof Error && e.name === 'GameAbort' ? 'abort' : 'init', e instanceof Error ? e.message : String(e));
     }
@@ -647,7 +654,8 @@ export class BGTRuntime {
         this.backendNotes.push('webgpu: initialization deliberately failed (?backend=webgpu-fail)');
       } else {
         try {
-          const r = await WebGPURenderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch, lazyTextures: this.opts.lazyTextures });
+          const r = await WebGPURenderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch, lazyTextures: this.opts.lazyTextures,
+            uploadChunkBytes: this.opts.uploadChunkBytes });
           if (r) return r;
           this.backendNotes.push(navigator.gpu ? 'webgpu: no adapter available' : 'webgpu: navigator.gpu not present');
         } catch (e) {
@@ -1067,14 +1075,22 @@ export class BGTRuntime {
   private memoryInputs(metrics: unknown): MemoryInputs {
     const host = this.host, r = this.renderer, reserved = host?.gpuReservedByKind ?? null, gpu = host?.gpuMetrics ?? null;
     const heap = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
+    const native = r?.gpu?.memory?.() ?? null, legacyTextureBytes = host?.textures.totalBytes ?? 0;
+    // K74 (Q137): modeled GPU-process overhead beyond the native objects (gpu-overhead.ts).
+    const overhead = r ? gpuOverhead({ engine: typeof navigator !== 'undefined' ? gpuEngine(navigator.userAgent) : null, api: r.kind,
+      canvas: { width: this.canvas.width, height: this.canvas.height },
+      canvasCountedBytes: this.canvas.width * this.canvas.height * 4 * CANVAS_BUFFERS,
+      depthStencilBytes: native?.textures.depthStencilBytes ?? 0,
+      presentationBytes: r.presentationBytes?.() ?? 0, largestUploadBytes: native?.uploads?.largestBytes ?? 0 }) : null;
     return {
+      gpuOverhead: overhead,
       wasm: { linearBytes: host?.memoryBytes ?? 0, initialBytes: this.wasmEvidence?.memoryLimits?.initialBytes ?? this.linearAtInstantiate,
         moduleBytes: this.wasmEvidence?.bytes ?? 0 },
       guest: guestMemoryFromMetrics(metrics),
       gpu: gpu ? { budgetBytes: gpu.budgetBytes, reservedBytes: gpu.reservedBytes, peakReservedBytes: gpu.peakReservedBytes,
         reserved: reserved ?? { buffers: 0, textures: 0, shaders: 0 } } : null,
-      native: r?.gpu?.memory?.() ?? null,
-      legacyTextureBytes: host?.textures.totalBytes ?? 0,
+      native,
+      legacyTextureBytes,
       canvas: { width: this.canvas.width, height: this.canvas.height },
       recoveryShadows: this.recoveryShadows,
       js: { assetBytes: this.vfs.totalBytes, streamCacheBytes: this.rangeFiles?.cacheBytes ?? 0,
@@ -1146,7 +1162,8 @@ export class BGTRuntime {
       wasmMemoryBytes: host?.memoryBytes ?? 0,
       textures: { count: host?.textures.count ?? 0, bytes: host?.textures.totalBytes ?? 0 },
       gpu: host?.gpuMetrics ?? null,
-      assets: { count: this.vfs.fileCount, bytes: this.vfs.totalBytes, missing: [...this.vfs.missing] },
+      assets: { count: this.vfs.fileCount, bytes: this.vfs.totalBytes, missing: [...this.vfs.missing],
+        released: { count: this.vfs.released.size, bytes: this.vfs.releasedBytes, reopened: [...this.vfs.reopened] } },
       timing: {
         frameIntervalMs: {
           last: this.intervals[this.intervals.length - 1] ?? 0,

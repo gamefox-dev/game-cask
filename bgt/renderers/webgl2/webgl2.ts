@@ -157,6 +157,9 @@ export class WebGL2Renderer implements Renderer {
     return new WebGL2Renderer(canvas, parked.gl, opts);
   }
 
+  /** K74 (Q137): the retained full-canvas snapshot (RGBA8), a presentation copy outside the executor. */
+  presentationBytes(): number { return this.snapshot ? this.snapshot.w * this.snapshot.h * 4 : 0; }
+
   static create(canvas: HTMLCanvasElement, opts: WebGL2Options = {}): WebGL2Renderer | null {
     const gl = canvas.getContext('webgl2', {
       alpha: false,

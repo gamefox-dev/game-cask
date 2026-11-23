@@ -185,7 +185,8 @@ describe('GPU command validation', () => {
     ] as [number[],number][]){const before=t.frame.items.length;expect(t.send(O.BUFFER_COPY,words).status).toBe(status);expect(t.frame.items).toHaveLength(before);}
     expect(t.inPass(O.BUFFER_COPY,[3,0,1,0,4]).status).toBe(A.E_STATE);
     const src=t.ctx.gpu!.buffers.get(1)!,dst=t.ctx.gpu!.buffers.get(3)!;src.shadow[1]=123;
-    expect(t.send(O.BUFFER_COPY,[1,1,3,3,7]).status).toBe(0);expect(dst.shadow[3]).toBe(123);expect(dst.shadow[2]).toBe(0);
+    // K74: the decoder's view is the shared store plus this frame's journaled writes (the executor applies them).
+    expect(t.send(O.BUFFER_COPY,[1,1,3,3,7]).status).toBe(0);expect(t.ctx.gpu!.read(dst,0,64)[3]).toBe(123);expect(t.ctx.gpu!.read(dst,0,64)[2]).toBe(0);
     src.generated=true;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(true);
     src.generated=false;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(false);
     t.frame.gpuUploadBytes=t.ctx.gpu!.budget;const before=t.frame.items.length;

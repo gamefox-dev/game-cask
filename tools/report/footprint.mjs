@@ -178,9 +178,16 @@ export async function footprintSnapshot(page, tag, label) {
   const fp = await measureFootprint(pids);
   const summary = fp.available ? summarizeFootprint(fp.processes, rows) : null;
   const estimate = memory?.estimate?.totalBytes ?? null;
+  // K74 (Q137): the GPU process against what the runtime attributes to it: native objects + canvas estimate
+  // (gpuNative), the modeled overhead (gpuOverhead) and the browser's own base (reported by the model, never counted).
+  const o = memory?.gpu?.overhead ?? null, c = memory?.estimate?.components ?? null;
+  const gpuAttributed = c ? c.gpuNative + (c.gpuOverhead ?? 0) + (o?.browserBaseBytes ?? 0) : null;
   return { label, at: new Date().toISOString(), estimate: memory ? { totalBytes: estimate, components: memory.estimate.components,
     wasmModuleBytes: memory.wasm.moduleBytes, wasmLinearBytes: memory.wasm.linearBytes,
-    gpuTextures: memory.gpu?.native?.textures ?? null, recoveryShadowBytes: memory.js.gpuRecoveryShadowBytes } : null,
+    gpuTextures: memory.gpu?.native?.textures ?? null, recoveryShadowBytes: memory.js.gpuRecoveryShadowBytes,
+    jsHeldBytes: memory.js.heldBytes, gpuOverhead: o } : null,
+  gpuProcess: summary && gpuAttributed !== null ? { measuredBytes: summary.gpuProcessBytes, attributedBytes: gpuAttributed,
+    unattributedBytes: summary.gpuProcessBytes === null ? null : summary.gpuProcessBytes - gpuAttributed } : null,
   footprint: fp.available ? summary : { unavailable: fp.reason },
   // What the estimate cannot see: compiled code, engine/driver overhead, JS engine heap beyond held copies.
   unattributedBytes: summary && estimate !== null ? (summary.pageRendererBytes ?? 0) + (summary.gpuProcessBytes ?? 0) - estimate : null };
@@ -281,7 +288,9 @@ async function main() {
       for (const s of r.snapshots) console.log(`${game} ${r.engine}/${r.backend}/${r.suspension} ${s.label}: estimate ${mb(s.estimate?.totalBytes)}, ` +
         (s.footprint.unavailable ? `footprint unavailable (${s.footprint.unavailable})` :
           `page renderer ${mb(s.footprint.pageRendererBytes)}, GPU process ${mb(s.footprint.gpuProcessBytes)}, all owned ${mb(s.footprint.totalBytes)}, ` +
-          `unattributed ${mb(s.unattributedBytes)}`) + ` (wasm ${mb(s.estimate?.wasmModuleBytes)})`);
+          `unattributed ${mb(s.unattributedBytes)}`) + ` (wasm ${mb(s.estimate?.wasmModuleBytes)})` +
+          (s.gpuProcess ? `; GPU process attributed ${mb(s.gpuProcess.attributedBytes)} vs measured ${mb(s.gpuProcess.measuredBytes)}` : '') +
+          (s.estimate ? `; JS held ${mb(s.estimate.jsHeldBytes)}` : ''));
     }
   } finally { await stopServer(server.child); }
   const report = { schema: 'game-cask/footprint/1', generated: new Date().toISOString(), host: { platform: process.platform, arch: process.arch },

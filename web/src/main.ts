@@ -33,6 +33,8 @@ const rt = new BGTRuntime({
   gpuBatch: q.get('gpubatch') !== '0',
   // K71: ?lazytextures=0 allocates §13 texture storage at creation (A/B for Q128).
   lazyTextures: q.get('lazytextures') !== '0',
+  // K74: ?uploadchunk=0 issues each WebGPU texture/buffer write as one call (pre-K74, A/B for Q137); N sets the band size.
+  uploadChunkBytes: q.has('uploadchunk') ? (num('uploadchunk', 0) || Infinity) : undefined,
   // K66: ?ioburst=0 runs one update per display tick even during transport waits (A/B); ?ioburst=N sets the budget (ms).
   ioBurstMs: q.has('ioburst') ? Math.max(0, num('ioburst', 0)) : undefined,
   // K70: ?iowait=0 re-runs burst updates without waiting for a polled renderer result (pre-K70 busy-poll, A/B).

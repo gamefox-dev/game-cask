@@ -31,9 +31,9 @@ describe('memory breakdown', () => {
     const canvas = 1024 * 512 * 4 * 2;
     expect(m.gpu!.canvasBytesEstimate).toBe(canvas);
     expect(m.estimate.components).toEqual({ wasmLinear: 200 * MiB, wasmModule: 30 * MiB,
-      gpuNative: 4 * MiB + 8 * MiB + MiB + canvas, jsHeld: 10 * MiB + 3 * MiB + 4 * MiB + 1000 + 6 * MiB });
+      gpuNative: 4 * MiB + 8 * MiB + MiB + canvas, jsHeld: 10 * MiB + 3 * MiB + 4 * MiB + 1000 + 6 * MiB, gpuOverhead: 0 });
     const c = m.estimate.components;
-    expect(m.estimate.totalBytes).toBe(c.wasmLinear + c.wasmModule + c.gpuNative + c.jsHeld);
+    expect(m.estimate.totalBytes).toBe(c.wasmLinear + c.wasmModule + c.gpuNative + c.jsHeld + c.gpuOverhead);
     expect(m.js.heldBytes).toBe(c.jsHeld);
     expect(m.js.gpuRecoveryShadowBytes).toBe(6 * MiB);
     expect(m.estimate.status).toBe('ok');
@@ -144,7 +144,7 @@ describe('WebGL 2 executor memory', () => {
     expect(m.buffers).toEqual({ count: 1, bytes: 4096, nativeBytes: 4096 });
     // K71: never used, so no native storage yet; the reserved chain is reported as lazy.
     expect(m.textures).toEqual({ count: 1, bytes: 0, depthStencilBytes: 0, lazy: { count: 1, bytes: chain, depthStencilBytes: 0 } });
-    expect(m.shadows).toEqual({ bufferBytes: 4096, textureBytes: 0 }); // eager: 256*256*4 + every grown level
+    expect(m.shadows).toEqual({ bufferBytes: 4096, textureBytes: 0, sharedBufferBytes: 0 }); // no decoder: private (K74); eager: 256*256*4 + every grown level
     ok(O.TEXTURE_GENERATE_MIPS, [1, 0]);
     expect(gpu.memory().shadows.textureBytes).toBe(0); // generated from a zero base: no zero chain
     ok(O.TEXTURE_UPDATE_EX, [1, 0, 0, 0, 0, 16, 16, 1, 0, 16 * 16 * 4], new Uint8Array(16 * 16 * 4).fill(7));

@@ -125,6 +125,8 @@ export interface Renderer {
   drawFrame(frame: Frame, letterbox: Letterbox, readback: boolean): Promise<Pixels | null> | Pixels | null;
   /** Resolve once submitted GPU work has completed. */
   finish(): Promise<void>;
+  /** K74 (Q137): bytes of renderer-owned presentation textures outside the executor (the retained canvas snapshot). */
+  presentationBytes?(): number;
   /** Recreate GPU objects for every texture in the table (after device/context loss). */
   restoreTextures(textures: TextureTable): void;
   /** Debug: provoke a device/context loss; `unrecoverable` makes recovery fail (WebGPU). */

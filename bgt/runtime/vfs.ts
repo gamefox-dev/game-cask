@@ -72,22 +72,45 @@ export class Vfs {
       ranges.set(`${path}:${off}`,{path,offset:off,length:Math.min(65536,size-off)});
   }
   totalBytes = 0;
+  /** K74 (Q138): eager assets the manifest marks `release: "after-init"` (the Win32 profile's compacted PE images under
+   * `loader/`, read only by the PE loader inside bgt_init). Their bytes are dropped once bgt_init returns. */
+  private releaseAfterInit = new Set<string>();
+  /** Released paths and their sizes; an open after the release fails with E_NOT_FOUND and is listed in `reopened`. */
+  readonly released = new Map<string, number>();
+  readonly reopened = new Set<string>();
+  releasedBytes = 0;
 
-  add(path: string, data: Uint8Array): void {
+  add(path: string, data: Uint8Array, release?: 'after-init'): void {
     const p = normalizeAssetPath(path);
     if (!p) throw new Error(`invalid asset path: ${path}`);
     const prev = this.files.get(p);
     if (prev) this.totalBytes -= prev.byteLength;
     this.files.set(p, data);
     this.totalBytes += data.byteLength;
+    if (release === 'after-init') this.releaseAfterInit.add(p); else this.releaseAfterInit.delete(p);
+  }
+
+  /** Drop every `release: "after-init"` asset that no handle still reads. Returns the bytes released. */
+  releaseInitAssets(): number {
+    let bytes = 0;
+    for (const p of this.releaseAfterInit) {
+      if ([...this.open.values()].some((f) => f.path === p)) continue; // still open: keep (released on a later call)
+      const data = this.files.get(p);
+      if (!data) continue;
+      this.files.delete(p); this.releaseAfterInit.delete(p);
+      this.totalBytes -= data.byteLength; bytes += data.byteLength;
+      this.released.set(p, data.byteLength);
+    }
+    this.releasedBytes += bytes;
+    return bytes;
   }
 
   get fileCount(): number {
-    return this.files.size + this.streamed.size;
+    return this.files.size + this.streamed.size + this.released.size;
   }
 
   list(): string[] {
-    return [...this.files.keys(),...this.streamed.keys()].sort();
+    return [...this.files.keys(),...this.streamed.keys(),...this.released.keys()].sort();
   }
 
   openFile(path: string): number {
@@ -95,7 +118,7 @@ export class Vfs {
     if (!p) return E_INVALID;
     const data = this.files.get(p);
     if (!data && !this.streamed.has(p)) {
-      this.missing.add(p);
+      if (this.released.has(p)) this.reopened.add(p); else this.missing.add(p);
       return E_NOT_FOUND;
     }
     if (this.open.size >= LIMITS.assetHandles) return E_LIMIT;

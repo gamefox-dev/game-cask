@@ -41,6 +41,7 @@
     "package:metrics": "node tools/report/package-metrics.mjs",
     "bench:footprint": "node tools/report/footprint.mjs",
     "bench:footprint-sweep": "node tools/report/footprint-sweep.mjs",
+    "bench:gpu-footprint": "node tools/report/gpu-footprint.mjs",
     "leakcheck": "node tools/report/leakcheck.mjs",
     "bench": "npm run build:examples && node tools/bench/bench.mjs",
     "bench:page": "node tools/bench/page-fps.mjs",

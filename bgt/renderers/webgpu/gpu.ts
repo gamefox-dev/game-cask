@@ -1,6 +1,7 @@
 // §13 executor. The decoder owns validation; this class owns native resources and recovery shadows.
 import { E_IO, GPU_LIMITS, GPU_OP as OP } from '../../runtime/abi';
 import { textureLevelBytes, type GpuNativeMemory } from '../../runtime/memory';
+import { adoptBufferStore, markApplied, restoreBufferItem } from '../../runtime/shared-buffers';
 import { softwareRenderer, type GpuBackend, type GpuDeviceInfo, type GpuItem } from '../types';
 import { glslVaryingDecls, glslVaryings, linkedVaryings, packVaryings, shaderBindings, translateGLSL, validateWGSL, type ShaderBinding } from './shaders';
 import { clampViewport, ViewTransforms } from './view';
@@ -16,6 +17,8 @@ import { WebGPUTiming } from './timing';
 import { RECOVERY_SHADOWS_OFF, TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
+/** K74 (Q137): largest single queue write the executor issues (see WebGPUCommands.uploadChunkBytes). */
+export const UPLOAD_CHUNK_BYTES = 1 << 20;
 const formats: GPUTextureFormat[] = [
   'rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'depth24plus-stencil8', 'depth32float',
   'rgb10a2unorm', 'r16float', 'rg16float', 'r32float', 'rg32float', 'rgba32float',
@@ -40,7 +43,8 @@ const vertexFormats: GPUVertexFormat[] = [
 ];
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 /** `serial` (K62, vK62): unique per store for this executor's life, so a reused handle never matches an old store. */
-interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number }
+/** `shadow` is the decoder's store when `shared` (K74: one CPU copy), else a private copy (replays, restored savestates). */
+interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number; shared?: boolean }
 /** K71 (Q128): a §13 texture whose GPUTexture is created on first use (`native`), as drivers commit memory on first
  * use. Until then every level holds its creation value (color 0, depth 1, stencil 0); `live` is undefined. */
 class TextureResource {
@@ -344,7 +348,10 @@ export class WebGPUCommands implements GpuBackend {
     const shaders = [...this.shaders], pipelines = [...this.pipelines].filter(([, p]) => p.failure === undefined);
     this.buffers.clear(); this.textures.clear(); this.samplers.clear(); this.shaders.clear(); this.pipelines.clear();
     this.blits.clear(); this.blitSampler = undefined; this.depthUploadPipelines.clear(); this.clearPipelines.clear();
-    for (const [, b] of buffers) this.execute({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow });
+    for (const [h, b] of buffers) {
+      this.execute(restoreBufferItem({ kind: 'gpu', op: OP.BUFFER_CREATE, words: b.words, data: b.shadow }, b.shadow, this));
+      this.buffers.get(h)!.shared = b.shared; // K74: the same array, so the same sharing
+    }
     for (const [, t] of textures) {
       this.execute({ kind: 'gpu', op: OP.TEXTURE_CREATE_EX, words: t.words });
       if (t.allocatedMips > 1) this.execute({ kind: 'gpu', op: OP.TEXTURE_ALLOCATE_MIPS,
@@ -422,7 +429,7 @@ export class WebGPUCommands implements GpuBackend {
         const src = this.buffers.get(h)!, dst = this.buffers.get(w[2])!;
         this.bufferCopy ??= new WebGPUBufferCopy(d);
         this.bufferCopy.copy(src.native, w[1], dst.native, w[3], w[4]);
-        dst.shadow.set(src.shadow.slice(w[1], w[1] + w[4]), w[3]); dst.version = (dst.version ?? 0) + 1;
+        dst.shadow.set(src.shadow.slice(w[1], w[1] + w[4]), w[3]); dst.version = (dst.version ?? 0) + 1; markApplied(item, this, dst.shadow);
         if (src.generated) dst.generated = true; else if (!w[3] && w[4] === dst.shadow.length) dst.generated = false;
         break;
       }
@@ -454,9 +461,8 @@ export class WebGPUCommands implements GpuBackend {
       case OP.BUFFER_CREATE: {
         const native = d.createBuffer({ size: Math.ceil(w[2] / 4) * 4,
           usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM });
-        const shadow = new Uint8Array(w[2]);
-        if (item.data) shadow.set(item.data);
-        this.buffers.set(h, { native, words: w, shadow, serial: ++this.bufferSerial });
+        const { data: shadow, shared } = adoptBufferStore(item, w[2], this);
+        this.buffers.set(h, { native, words: w, shadow, serial: ++this.bufferSerial, shared });
         this.writeBuffer(native, 0, shadow);
         break;
       }
@@ -471,7 +477,7 @@ export class WebGPUCommands implements GpuBackend {
         if (referenced && (b.generated || b.shadow.length > 256 << 10 || this.batch.renameBytes + b.shadow.length > 4 << 20)) {
           this.batch.splits++; this.flush();
         }
-        b.shadow.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.shadow.length)b.generated=false;
+        b.shadow.set(item.data!, w[1]);if(w[1]===0&&item.data!.length===b.shadow.length)b.generated=false;markApplied(item, this, b.shadow);
         b.version = (b.version ?? 0) + 1;
         if (referenced && this.encoder) { this.rename(b); break; }
         // ABI allows byte updates. WebGPU writeBuffer needs 4-aligned regions.
@@ -500,8 +506,7 @@ export class WebGPUCommands implements GpuBackend {
         const [, mip, x, y, z, width, height, depth] = w;
         t.generated?.overridden.add(mip);
         if (isDepthFormat(t.desc.format)) this.uploadDepth(t, mip, x, y, z, width, height, depth, item.data!);
-        else d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
-          { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
+        else this.writeTexture(t.native, mip, x, y, z, width, height, depth, bpp, item.data!);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
         // vK71: 3D levels are the CPU source of TEXTURE_GENERATE_MIPS (generateMips below), so their shadow is
         // load-bearing for pixels and kept with recovery shadows off; only 2D/array shadows are recovery-only.
@@ -1020,7 +1025,8 @@ struct VO { @builtin(position) pos: vec4f };
   memory(): GpuNativeMemory {
     let bytes = 0, nativeBytes = 0, bufferShadows = 0, textureBytes = 0, depthBytes = 0, textureShadows = 0;
     const lazy = { count: 0, bytes: 0, depthStencilBytes: 0 };
-    for (const b of this.buffers.values()) { bytes += b.shadow.length; nativeBytes += b.native.size; bufferShadows += b.shadow.length; }
+    let sharedBuffers = 0;
+    for (const b of this.buffers.values()) { bytes += b.shadow.length; nativeBytes += b.native.size; if (b.shared) sharedBuffers += b.shadow.length; else bufferShadows += b.shadow.length; }
     for (const t of this.textures.values()) {
       const n = textureLevelBytes(t.desc, t.allocatedMips, TEXEL_BYTES[t.desc.format]);
       if (!t.live) { lazy.count++; lazy.bytes += n; if (isDepthFormat(t.desc.format)) lazy.depthStencilBytes += n; }
@@ -1037,7 +1043,9 @@ struct VO { @builtin(position) pos: vec4f };
       textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes, lazy },
       renderbuffers: { count: 0, bytes: 0 },
       internal: { bytes: screenBytes + poolBytes + scratchBytes, screenBytes, poolBytes, scratchBytes },
-      shadows: { bufferBytes: bufferShadows, textureBytes: textureShadows } };
+      // K74: a buffer store shared with the decoder is counted once, as the decoder's (`sharedBufferBytes` informational).
+      shadows: { bufferBytes: bufferShadows, textureBytes: textureShadows, sharedBufferBytes: sharedBuffers },
+      uploads: { largestBytes: this.largestUpload, chunkBytes: this.uploadChunkBytes } };
   }
 
   /** §13.7 TEXTURE_GENERATE_MIPS. 2D and array levels are box-filtered by render passes; 3D on the CPU
@@ -1166,9 +1174,47 @@ struct VO { @builtin(position) pos: vec4f };
     }).catch(() => finish(undefined, E_IO));
   }
 
+  /** K74 (Q137): queue writes of at most `uploadChunkBytes` each (row bands / buffer ranges; a single row may exceed it).
+   * The browser stages every write call in GPU-process memory it keeps after the copy (Chromium/Dawn: an upload buffer
+   * sized by the call); bands keep that staging at the chunk size. Same bytes, same order, same results. */
+  uploadChunkBytes = UPLOAD_CHUNK_BYTES;
+
   private writeBuffer(buffer: GPUBuffer, offset: number, data: Uint8Array<ArrayBuffer>): void {
     const aligned = new Uint8Array(Math.ceil(data.length / 4) * 4); aligned.set(data);
-    this.gpuDevice.queue.writeBuffer(buffer, offset, aligned);
+    const step = Math.max(4, Math.floor(this.uploadChunkBytes / 4) * 4);
+    for (let at = 0; at < aligned.length; at += step) {
+      const n = Math.min(step, aligned.length - at);
+      this.gpuDevice.queue.writeBuffer(buffer, offset + at, aligned, at, n); this.noteUpload(n);
+    }
+  }
+
+  /** K74 (Q137): the largest single upload call so far (the browser's staging scales with it; gpu-overhead.ts). */
+  private largestUpload = 0;
+  private noteUpload(bytes: number): void { if (bytes > this.largestUpload) this.largestUpload = bytes; }
+
+  /** A tightly packed texture region upload (TEXTURE_UPDATE_EX), in row bands of at most `uploadChunkBytes`. */
+  private writeTexture(texture: GPUTexture, mip: number, x: number, y: number, z: number, width: number, height: number,
+    depth: number, bpp: number, data: Uint8Array<ArrayBuffer>): void {
+    const q = this.gpuDevice.queue, row = width * bpp, slice = row * height;
+    if (data.length <= this.uploadChunkBytes) {
+      q.writeTexture({ texture, mipLevel: mip, origin: [x, y, z] }, data, { bytesPerRow: row, rowsPerImage: height }, [width, height, depth]);
+      this.noteUpload(data.length); return;
+    }
+    if (slice <= this.uploadChunkBytes) { // whole slices per call
+      const slices = Math.max(1, Math.floor(this.uploadChunkBytes / slice));
+      for (let k = 0; k < depth; k += slices) {
+        const n = Math.min(slices, depth - k);
+        q.writeTexture({ texture, mipLevel: mip, origin: [x, y, z + k] }, data, { offset: k * slice, bytesPerRow: row, rowsPerImage: height }, [width, height, n]);
+        this.noteUpload(n * slice);
+      }
+      return;
+    }
+    const rows = Math.max(1, Math.floor(this.uploadChunkBytes / row));
+    for (let k = 0; k < depth; k++) for (let r = 0; r < height; r += rows) {
+      const n = Math.min(rows, height - r);
+      q.writeTexture({ texture, mipLevel: mip, origin: [x, y + r, z + k] }, data, { offset: k * slice + r * row, bytesPerRow: row, rowsPerImage: n }, [width, n, 1]);
+      this.noteUpload(n * row);
+    }
   }
 
   private requirePipeline(handle: number): PipelineResource {
