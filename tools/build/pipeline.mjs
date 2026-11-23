@@ -66,11 +66,31 @@ function zigWinInclude() {
   return join(env.lib_dir, 'libc', 'include', 'any-windows-any');
 }
 
-/** Zero the COFF TimeDateStamp so fixture builds are byte-reproducible. */
-function stripTimestamp(file) {
+/** Zero the COFF TimeDateStamp so fixture builds are byte-reproducible. vK72: also the debug directory entries'
+ * TimeDateStamp and the CodeView (RSDS) GUID, which lld derives from the build's output path: a lifted and an
+ * interpret-only build of one game (different work directories) must load byte-identical images, or the oracle's
+ * guest-memory hash sees a build difference. */
+export function stripTimestamp(file) {
   const b = readFileSync(file);
   const nt = b.readUInt32LE(0x3c);
   b.writeUInt32LE(0, nt + 8);
+  const opt = nt + 24, magic = b.readUInt16LE(opt), dirs = opt + (magic === 0x20b ? 112 : 96);
+  const sections = opt + b.readUInt16LE(nt + 20), count = b.readUInt16LE(nt + 6);
+  const raw = (rva) => {
+    for (let i = 0; i < count; i++) {
+      const s = sections + i * 40, va = b.readUInt32LE(s + 12), size = Math.max(b.readUInt32LE(s + 8), b.readUInt32LE(s + 16));
+      if (rva >= va && rva < va + size) return b.readUInt32LE(s + 20) + rva - va;
+    }
+    return null;
+  };
+  if (b.readUInt32LE(opt + (magic === 0x20b ? 108 : 92)) > 6) {
+    const rva = b.readUInt32LE(dirs + 6 * 8), size = b.readUInt32LE(dirs + 6 * 8 + 4), at = rva ? raw(rva) : null;
+    if (at !== null) for (let e = at; e + 28 <= at + size && e + 28 <= b.length; e += 28) {
+      b.writeUInt32LE(0, e + 4);
+      const data = b.readUInt32LE(e + 24);
+      if (b.readUInt32LE(e + 12) === 2 && data + 24 <= b.length && b.toString('latin1', data, data + 4) === 'RSDS') b.fill(0, data + 4, data + 20);
+    }
+  }
   writeFileSync(file, b);
 }
 

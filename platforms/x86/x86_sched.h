@@ -57,5 +57,7 @@ int x86_sched_next(void);
 #define X86_STATE_CPU 1u
 #define X86_STATE_FLAGS 2u
 #define X86_STATE_MEMORY 4u
+#define X86_STATE_CURRENT 8u /* CPU part: only the running thread, and only while the guest has stayed single-threaded (fast mode
+                              * parks threads at loop headers: with several, the running one and its RIP differ) */
 uint32_t x86_guest_state_hash(uint32_t parts);
 #endif

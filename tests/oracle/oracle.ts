@@ -3,9 +3,12 @@
 // match frame by frame. The first divergent frame localises a lifting bug.
 // vK72: by default each frame also compares a guest-state hash (CPU of every guest thread incl. flags, and every
 // mapped guest page): a wrong lifted result that changes registers or RAM but no API argument diverges here.
-// BGT_ORACLE_STATE=off|cpu|cpu,memory|cpu,flags,memory or the `state` option. Default: cpu and memory, plus flags
-// unless the lifted build uses liftMode "fast" (fast mode keeps EFLAGS dead across calls per the Win64 ABI, so the
-// flags left at a frame boundary inside an API call legitimately differ from the interpreter's).
+// BGT_ORACLE_STATE=off or a list of cpu, flags, current, memory (or the `state` option). Default: every thread's CPU
+// with flags, and memory; for liftMode "fast" builds the running thread's CPU without flags, and memory: fast mode
+// keeps EFLAGS dead across calls (Win64 ABI) and parks other threads only at loop headers/function entries, so
+// flags at a frame boundary and parked threads' RIP/clock legitimately differ from the interpreter's; frames that end at
+// the instruction cap, and every frame after a second guest thread was live, compare memory (and the live-thread count)
+// only: fast mode stops at a loop header, the interpreter at the exact instruction, and thread interleaving follows.
 // @ts-expect-error shared ESM reporting tool
 import { oracleFailure, writeOracleReport } from '../../tools/report/oracle-report.mjs';
 import { loadHeadless, ROOT, Headless } from '../support/headless';
@@ -22,10 +25,10 @@ export function oracleStateParts(spec = process.env.BGT_ORACLE_STATE ?? 'cpu,fla
   if (spec === 'off' || spec === '') return 0;
   let parts = 0;
   for (const p of spec.split(',')) {
-    if (p === 'cpu') parts |= 1; else if (p === 'flags') parts |= 2; else if (p === 'memory') parts |= 4;
-    else throw new Error('BGT_ORACLE_STATE must be off or a list of cpu, flags, memory');
+    if (p === 'cpu') parts |= 1; else if (p === 'flags') parts |= 2; else if (p === 'memory') parts |= 4; else if (p === 'current') parts |= 8;
+    else throw new Error('BGT_ORACLE_STATE must be off or a list of cpu, flags, current, memory');
   }
-  if ((parts & 2) && !(parts & 1)) throw new Error('BGT_ORACLE_STATE flags needs cpu');
+  if ((parts & 10) && !(parts & 1)) throw new Error('BGT_ORACLE_STATE flags/current need cpu');
   return parts;
 }
 const streamOptions = (id: string) => ['x64-time', 'x64-gl-orphan', 'x64-gl-respec', 'x64-gl-frame', 'x64-gl-pacing', 'x64-gl-prims', 'x64-gl-raster', 'x64-gl-zero', 'x64-file-load', 'x64-gl-programs', 'x64-gl', 'x64-gl-scale', 'x64-gl-capacity', 'x64-gl-default-vao', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
@@ -35,7 +38,7 @@ export interface OracleReport {
   game: string;
   /** vK72: guest-state parts compared each frame (0 = API trace only), the first frame and part that differed,
    * and the time spent hashing (both runs). */
-  state?: { parts: number; firstDivergence: { frame: number; parts: string[] } | null; hashMs: { lifted: number; interpreted: number } };
+  state?: { parts: number; memoryStride: number; firstDivergence: { frame: number; parts: string[] } | null; hashMs: { lifted: number; interpreted: number } };
   /** Completed frame pairs; requestedFrames is the requested workload. */
   frames: number;
   comparedFrames: number;
@@ -65,14 +68,27 @@ export function defaultScript(frames: number, w: number, h: number, seed = 7): O
   return out;
 }
 
-async function run(id: string, frames: number, script: OracleStep[], parts = 0): Promise<{
-  hashes: string[]; metrics: unknown; error: string | null; stage: string | null; elapsedMs: number; hashMs: number;
+/** Memory hashing reads every mapped guest page (~1-2 GB/s): budget ~2 ms per frame on average. A guest with a
+ * large committed window (x64-memory: 2 GiB) is hashed every `stride` frames (and on the last frame); the lifted run
+ * picks the stride from its first hash and the interpreted run reuses it, so both compare the same frames. */
+const MEMORY_MS_PER_FRAME = 2;
+async function run(id: string, frames: number, script: OracleStep[], parts = 0, stride = 0): Promise<{
+  hashes: string[]; metrics: unknown; error: string | null; stage: string | null; elapsedMs: number; hashMs: number; stride: number;
 }> {
-  let hashMs = 0;
+  let hashMs = 0, index = 0, capHits = 0;
   const guest = (h: Headless) => {
     if (!parts) return '';
-    const t = performance.now();
-    const cpu = parts & 1 ? h.host.guestStateHash(parts & 3) : null, mem = parts & 4 ? h.host.guestStateHash(4) : null;
+    const t = performance.now(), n = index++;
+    // `current` (fast builds): a frame that ended at the instruction cap stops at a loop header in fast mode but at the
+    // exact instruction in the interpreter, so its CPU is not comparable; such frames record "cap" instead.
+    let capped = false;
+    if (parts & 8) { const hits = Number((h.host.metrics() as { cap_hits?: number }).cap_hits ?? 0); capped = hits !== capHits; capHits = hits; }
+    const cpu = parts & 1 ? capped ? 'cap' : h.host.guestStateHash(parts & 11) : null;
+    let mem: string | null = null;
+    if (parts & 4 && (!stride || n % stride === 0 || n === frames - 1)) {
+      const m0 = performance.now(); mem = h.host.guestStateHash(4);
+      if (!stride) stride = Math.max(1, Math.ceil((performance.now() - m0) / MEMORY_MS_PER_FRAME));
+    } else if (parts & 4) mem = '-';
     hashMs += performance.now() - t;
     if ((parts & 1 && cpu === null) || (parts & 4 && mem === null)) throw new Error('module exports no bgt_guest_state_hash (rebuild)');
     return `|c${cpu ?? ''}|m${mem ?? ''}`;
@@ -115,14 +131,14 @@ async function run(id: string, frames: number, script: OracleStep[], parts = 0):
     stage = 'metrics';
     if (id.replace(/-interp$/, '') === 'x64-gl-scale') assertScaleRecording(h);
     const metrics = h.host.metrics();
-    return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started, hashMs };
+    return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started, hashMs, stride };
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
   // Startup diagnostics remain useful even when the guest never completes a frame.
   let metrics: unknown = null;
   try { metrics = h?.host.metrics() ?? null; } catch { /* preserve the original failure */ }
-  return { hashes, metrics, error, stage, elapsedMs: performance.now()-started, hashMs };
+  return { hashes, metrics, error, stage, elapsedMs: performance.now()-started, hashMs, stride };
 }
 
 /** The oracle's default guest-state parts for a built game (see the header comment). */
@@ -130,12 +146,12 @@ export function defaultStateParts(id: string, env = process.env): number {
   if (env.BGT_ORACLE_STATE !== undefined) return oracleStateParts(env.BGT_ORACLE_STATE);
   let fast = false;
   try { fast = JSON.parse(readFileSync(join(ROOT, 'web', 'public', 'games', id, 'manifest.json'), 'utf8')).pipeline?.liftPolicy?.liftMode === 'fast'; } catch { /* not built yet: the load reports it */ }
-  return fast ? 5 : 7;
+  return fast ? 13 : 7;
 }
 /** Which parts of two per-frame hash strings differ: trace (API/GL stream), cpu, memory. */
 export function divergentParts(a: string | undefined, b: string | undefined): string[] {
   if (a === undefined || b === undefined) return ['missing'];
-  const split = (s: string) => { const m = /^(.*?)(?:\|c([0-9a-f]*)\|m([0-9a-f]*))?$/s.exec(s)!; return [m[1], m[2] ?? '', m[3] ?? '']; };
+  const split = (s: string) => { const m = /^(.*?)(?:\|c([0-9a-z]*)\|m([0-9a-z-]*))?$/s.exec(s)!; return [m[1], m[2] ?? '', m[3] ?? '']; };
   const x = split(a), y = split(b);
   return ['trace', 'cpu', 'memory'].filter((_, i) => x[i] !== y[i]);
 }
@@ -159,7 +175,7 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[], op
     stage = 'lifted-setup';
     const a = await run(id, frames, sc, parts);
     stage = 'interpreted-setup';
-    const b = await run(`${id}-interp`, frames, sc, parts);
+    const b = await run(`${id}-interp`, frames, sc, parts, a.stride);
     let first: number | null = null;
     // Compare every completed pair, retaining the first divergence for localization.
     for (let i = 0; i < Math.max(a.hashes.length, b.hashes.length); i++) {
@@ -177,7 +193,7 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[], op
       exitStatus: identical ? 0 : 1,
       identical,
       elapsedMs: { lifted: a.elapsedMs, interpreted: b.elapsedMs },
-      state: { parts, firstDivergence: first === null ? null : { frame: first, parts: divergentParts(a.hashes[first], b.hashes[first]) },
+      state: { parts, memoryStride: a.stride, firstDivergence: first === null ? null : { frame: first, parts: divergentParts(a.hashes[first], b.hashes[first]) },
         hashMs: { lifted: Math.round(a.hashMs * 10) / 10, interpreted: Math.round(b.hashMs * 10) / 10 } },
       firstDivergence: first,
       hashes: { lifted: a.hashes[a.hashes.length - 1] ?? null, interpreted: b.hashes[b.hashes.length - 1] ?? null,

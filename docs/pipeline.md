@@ -493,8 +493,13 @@ is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash
 The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
 (vK72, default) a guest-state hash from `bgt_guest_state_hash` (`x86_sched.c`): the CPU of every live guest thread
 (GPRs, RIP, flags CF/PF/AF/ZF/SF/OF/DF, fs/gs base, XMM, MXCSR, x87, instruction clock) and every mapped guest page.
-`BGT_ORACLE_STATE=off|cpu|cpu,flags|cpu,flags,memory` (default the last); the report's `state` names the first
-divergent frame and part (`trace`, `cpu`, `memory`) and the hashing time. `examples/x64-compact` builds
+`BGT_ORACLE_STATE=off` or a list of `cpu`, `flags`, `current`, `memory`. Default for exact builds: every thread with
+flags, and memory; for `liftMode: "fast"` builds: the running thread without flags, and memory, with frames that end
+at the instruction cap, and every frame after a second guest thread was live, comparing memory and the live-thread
+count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). Known fast-mode memory difference: `CONTEXT.EFlags` captured by an API (x64-cpp's C++ throw). The
+report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), the memory stride (large
+guests are hashed every few frames, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
+bytes (fixture builds zero PE timestamps and the CodeView GUID). `examples/x64-compact` builds
 the CC0 STL fixture with all of them. Measurements and the decision: [K72 handoff](handoff/K72.md).
 
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)

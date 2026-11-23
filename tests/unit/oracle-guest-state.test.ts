@@ -27,7 +27,7 @@ function fixture(id: string, liftFast: Record<string, string>) {
 
 it('state spec parsing and divergence parts', () => {
   expect(oracleStateParts('off')).toBe(0); expect(oracleStateParts('cpu')).toBe(1); expect(oracleStateParts('cpu,flags,memory')).toBe(7);
-  expect(() => oracleStateParts('flags')).toThrow(/needs cpu/); expect(() => oracleStateParts('ram')).toThrow(/BGT_ORACLE_STATE/);
+  expect(() => oracleStateParts('flags')).toThrow(/need cpu/); expect(oracleStateParts('cpu,current,memory')).toBe(13); expect(() => oracleStateParts('ram')).toThrow(/BGT_ORACLE_STATE/);
   expect(divergentParts('ab|c1|m2', 'ab|c1|m3')).toEqual(['memory']); expect(divergentParts('ab|c1|m2', 'ax|c9|m2')).toEqual(['trace', 'cpu']);
   expect(divergentParts('ab', 'ab')).toEqual([]);
 });
@@ -36,15 +36,15 @@ it('a lifted result that only changes RAM passes the trace-only oracle and fails
   fixture('oracle-state-corrupt', { inline: '0', testCorrupt: 'stack' });
   const traceOnly = await oracle('oracle-state-corrupt', 30, undefined, { state: 0 });
   expect(traceOnly.identical, JSON.stringify(traceOnly.errors)).toBe(true);
-  expect(defaultStateParts('oracle-state-corrupt', {})).toBe(5); // fast mode: CPU without flags, plus memory
-  const full = await oracle('oracle-state-corrupt', 30, undefined, { state: 5 });
+  expect(defaultStateParts('oracle-state-corrupt', {})).toBe(13); // fast mode: running thread's CPU without flags, memory
+  const full = await oracle('oracle-state-corrupt', 30);
   expect(full.identical).toBe(false);
   expect(full.errors).toEqual({ lifted: null, interpreted: null });
   expect(full.state?.firstDivergence).toEqual({ frame: 0, parts: ['memory'] });
   // The same program without the injected fault: identical CPU (flags excluded, below) and memory at every frame.
   fixture('oracle-state-clean', { inline: '0' });
   const clean = await oracle('oracle-state-clean', 30);
-  expect(clean.state?.parts).toBe(5);
+  expect(clean.state?.parts).toBe(13);
   expect(clean.identical, JSON.stringify(clean.state)).toBe(true);
   // Fast mode treats EFLAGS as dead across calls (Win64 ABI): the flags at a frame boundary inside Sleep differ.
   expect((await oracle('oracle-state-clean', 30, undefined, { state: 3 })).state?.firstDivergence?.parts).toEqual(['cpu']);

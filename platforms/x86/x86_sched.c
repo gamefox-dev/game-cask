@@ -76,8 +76,16 @@ static uint64_t state_cpu(uint64_t h, const x86_cpu_t *c, uint32_t parts) {
 }
 uint32_t x86_guest_state_hash(uint32_t parts) {
     uint64_t h = 0x6a09e667f3bcc908ull;
-    if (parts & X86_STATE_CPU) for (uint32_t i = 0; i < X86_THREADS; i++) {
-        if (!x86_tasks[i].live && i != x86_current) continue;
+    uint32_t live = 0;
+    for (uint32_t i = 0; i < X86_THREADS; i++) live += x86_tasks[i].live || i == x86_current;
+    /* CURRENT (fast builds): once a second thread has been live, which thread ran when, where it stopped (loop
+     * headers in fast mode) and the scratch registers blocking APIs leave all depend on quantum positions: from then
+     * on compare the live-thread count only (memory still compares every page). */
+    static int multi;
+    multi |= live > 1;
+    if ((parts & X86_STATE_CPU) && (parts & X86_STATE_CURRENT) && multi) h = state_mix(h, 0x6d74000000000000ull | live);
+    else if (parts & X86_STATE_CPU) for (uint32_t i = 0; i < X86_THREADS; i++) {
+        if ((!x86_tasks[i].live || (parts & X86_STATE_CURRENT)) && i != x86_current) continue;
         h = state_mix(h, i);
         h = state_cpu(h, i == x86_current ? &X : &x86_tasks[i].cpu, parts);
     }
