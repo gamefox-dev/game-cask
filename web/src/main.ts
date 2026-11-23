@@ -31,6 +31,8 @@ const rt = new BGTRuntime({
   debug,
   gpuTiming: q.get('gputiming') === '1',
   gpuBatch: q.get('gpubatch') !== '0',
+  // K71: ?lazytextures=0 allocates §13 texture storage at creation (A/B for Q128).
+  lazyTextures: q.get('lazytextures') !== '0',
   // K66: ?ioburst=0 runs one update per display tick even during transport waits (A/B); ?ioburst=N sets the budget (ms).
   ioBurstMs: q.has('ioburst') ? Math.max(0, num('ioburst', 0)) : undefined,
   seed: num('seed', 1),

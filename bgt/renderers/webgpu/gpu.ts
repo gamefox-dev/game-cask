@@ -13,7 +13,7 @@ import { WebGPUBlit, type BlitImage } from './blit';
 import { lowerFeedback, type FeedbackInput } from './feedback';
 import { feedbackLayout, feedbackVertexCount, type FeedbackLayout } from '../../runtime/feedback';
 import { WebGPUTiming } from './timing';
-import { TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
+import { RECOVERY_SHADOWS_OFF, TEXEL_BYTES, canonicalize, downsampleBox, generatedMipShadows, isDepthFormat, isIntegerFormat, mipExtent, toCanonicalTexture, type CanonicalTexture }
   from '../gpu-texture';
 
 const formats: GPUTextureFormat[] = [
@@ -41,10 +41,21 @@ const vertexFormats: GPUVertexFormat[] = [
 const f = (n: number) => new Float32Array(new Uint32Array([n]).buffer)[0];
 /** `serial` (K62, vK62): unique per store for this executor's life, so a reused handle never matches an old store. */
 interface BufferResource { native: GPUBuffer; words: readonly number[]; shadow: Uint8Array<ArrayBuffer>; generated?: boolean; version?: number; serial: number }
-interface TextureResource {
-  native: GPUTexture; words: readonly number[]; desc: CanonicalTexture; uploads: GpuItem[]; allocatedMips: number;
+/** K71 (Q128): a §13 texture whose GPUTexture is created on first use (`native`), as drivers commit memory on first
+ * use. Until then every level holds its creation value (color 0, depth 1, stencil 0); `live` is undefined. */
+class TextureResource {
+  live?: GPUTexture; uploads: GpuItem[] = [];
   /** `source` absent (K64): 2D/array levels generated from a never-uploaded (zero) base restore as zeros. */
   generated?: { base: number; source?: GpuItem; overridden: Set<number> };
+  /** K71 (Q129): uploaded contents not kept in `uploads` because recovery shadows are disabled; restore refuses. */
+  unshadowed?: boolean;
+  /** K71: per-level values set by a clear-only pass before the texture existed (applied by materialize()). */
+  constants?: ({ color?: number[]; depth?: number; stencil?: number } | undefined)[];
+  constructor(readonly words: readonly number[], readonly desc: CanonicalTexture, public allocatedMips: number,
+    private readonly create: (t: TextureResource) => GPUTexture) {}
+  /** The native texture; reading it materializes storage (upload, attachment, sampling, copy, readback). */
+  get native(): GPUTexture { return this.live ??= this.create(this); }
+  set native(texture: GPUTexture) { this.live = texture; }
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
 /** K67 recycle pool: 32 MiB cap; entries unused for 600 flushes (~10 s at 60 Hz) are released. */
@@ -155,7 +166,15 @@ export class WebGPUCommands implements GpuBackend {
   readonly glRaster = true;
   readonly constAttrib = true;
   readonly device: GpuDeviceInfo;
-  constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
+  /** K71 (Q129): keep CPU copies of uploaded texture levels for device-loss recovery (default). When false, no
+   * texture shadow is kept and a loss after any texture upload is unrecoverable (restore() throws). */
+  recoveryShadows = true;
+  /** K71 (Q128): textures materialized lazily since creation (diagnostics; cumulative for this executor). */
+  readonly lazyTextures = { materialized: 0, deferredPasses: 0 };
+  /** K71: PASS_BEGIN words of an open pass whose attachments all lack storage; realized by any in-pass op. */
+  private virtualPass?: number[];
+  constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null,
+    private readonly opts: { lazyTextures?: boolean } = {}) {
     // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
     const native = gpuDevice.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange;
     this.maxUniformRange = Math.min(GPU_LIMITS.uniformRange, native - native % 16);
@@ -293,7 +312,7 @@ export class WebGPUCommands implements GpuBackend {
   }
 
   lost(): void {
-    this.inactive = true;
+    this.inactive = true; this.virtualPass = undefined;
     this.pass = undefined;
     this.encoder = undefined;
     this.lingering = false; this.passKey = ''; this.used.clear(); this.usedRanges.clear();
@@ -314,6 +333,8 @@ export class WebGPUCommands implements GpuBackend {
 
   async restore(device: GPUDevice): Promise<void> {
     if([...this.buffers.values()].some(b=>b.generated))throw new Error('Cannot restore live transform-feedback buffer contents; full reupload or deletion required before loss');
+    const unshadowed = [...this.textures.values()].filter(t => t.unshadowed).length;
+    if (unshadowed) throw new Error(`${RECOVERY_SHADOWS_OFF}: ${unshadowed} uploaded texture(s) cannot be restored`);
     if ((device.limits?.maxUniformBufferBindingSize ?? GPU_LIMITS.uniformRange) < this.maxUniformRange) throw new Error('GPU uniform binding limit decreased');
     this.gpuDevice = device;
     this.opaqueScreen = undefined; this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
@@ -379,7 +400,7 @@ export class WebGPUCommands implements GpuBackend {
         return;
       case OP.TEXTURE_UPDATE_EX: case OP.TEXTURE_ALLOCATE_MIPS: {
         const t = this.textures.get(w[0]);
-        if (t && this.used.has(t.native)) { this.batch.splits++; this.flush(); }
+        if (t?.live && this.used.has(t.live)) { this.batch.splits++; this.flush(); }
         return;
       }
       // K57: a merged frame encodes blits into its own command encoder (no split, no extra submit).
@@ -390,6 +411,7 @@ export class WebGPUCommands implements GpuBackend {
 
   private run(item: GpuItem): void {
     const { op, words: w } = canonicalize(item.op, item.words), h = w[0], d = this.gpuDevice;
+    if (this.virtualPass && op !== OP.PASS_END) this.realizePass();
     this.prepare(op, w);
     switch (op) {
       case OP.FEEDBACK_VARYINGS:
@@ -458,29 +480,15 @@ export class WebGPUCommands implements GpuBackend {
       }
       case OP.BUFFER_DELETE: this.retire(this.buffers.get(h)!.native); this.buffers.delete(h); break;
       case OP.TEXTURE_CREATE_EX: {
-        const desc = toCanonicalTexture(w), depthFormat = isDepthFormat(desc.format);
+        const desc = toCanonicalTexture(w);
         if (desc.format >= 10 && desc.format <= 12 && !d.features.has('float32-filterable')) {
           throw new Error('32-bit float textures need the float32-filterable WebGPU feature');
         }
-        const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: 1,
-          dimension: desc.dimension === 1 ? '3d' : '2d', format: formats[desc.format],
-          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-            GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC });
-        this.textures.set(h, { native, words: w, desc, uploads: [], allocatedMips: 1 });
-        // WebGPU zero-initializes color/stencil, but BGT initializes depth to one.
-        if (depthFormat) {
-          const encoder = d.createCommandEncoder();
-          for (let mip = 0; mip < 1; mip++) {
-            const a: GPURenderPassDepthStencilAttachment = {
-              view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
-              depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1,
-            };
-            if (desc.format === 5) Object.assign(a, { stencilLoadOp: 'clear', stencilStoreOp: 'store', stencilClearValue: 0 });
-            encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: a }).end();
-          }
-          d.queue.submit([encoder.finish()]);
-        }
+        const t = new TextureResource(w, desc, 1, r => this.materialize(r));
+        this.textures.set(h, t);
         if (item.op === OP.TEXTURE_CREATE && desc.mips > 1) this.growTexture(h, desc.mips);
+        // K71: storage is committed on first use; `?lazytextures=0` (A/B) restores eager allocation at creation.
+        if (this.opts.lazyTextures === false) void t.native;
         break;
       }
       case OP.TEXTURE_ALLOCATE_MIPS: {
@@ -495,6 +503,7 @@ export class WebGPUCommands implements GpuBackend {
         else d.queue.writeTexture({ texture: t.native, mipLevel: mip, origin: [x, y, z] }, item.data!,
           { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height, depth]);
         // Keep a compact full mip shadow, rather than an unbounded history of updates.
+        if (!this.recoveryShadows) { t.unshadowed = true; break; }
         const level = mipExtent(t.desc, mip);
         let full = t.uploads.find(i => i.words[1] === mip);
         if (!full) {
@@ -516,7 +525,7 @@ export class WebGPUCommands implements GpuBackend {
         break;
       }
       case OP.TEXTURE_GENERATE_MIPS: this.generateMips(w[0], w[1]); break;
-      case OP.TEXTURE_DELETE: this.retire(this.textures.get(h)!.native); this.textures.delete(h); break;
+      case OP.TEXTURE_DELETE: { const t = this.textures.get(h)!; if (t.live) this.retire(t.live); this.textures.delete(h); break; }
       case OP.SAMPLER_CREATE_EX: {
         const filter = ['nearest', 'linear'] as const, wrap = ['clamp-to-edge', 'repeat', 'mirror-repeat'] as const;
         // mip_filter NONE reads exactly level floor(min_lod).
@@ -557,61 +566,10 @@ export class WebGPUCommands implements GpuBackend {
         this.pipelines.set(h, this.pipeline(w)); this.failedPipelines.delete(h); break;
       case OP.PIPELINE_DELETE:
         this.pipelines.delete(h); this.failedPipelines.delete(h); this.feedback.delete(h); break;
-      case OP.PASS_BEGIN: {
-        this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
-        this.index = undefined; this.current = undefined; this.capture=undefined;
-        const screenPass = h === 1 && w[7] === 0;
-        let key = `${h}`, loads = w[1] ? w[3] | w[4] : 0;
-        for (let i = 0; i < h; i++) {
-          const j = 7 + i * 7; loads |= w[j + 2];
-          key += `,${w[j] ? this.textureId(this.textures.get(w[j])!.native) : 0}/${w[j + 1]}`;
-        }
-        if (w[1]) key += `;${this.textureId(this.textures.get(w[1])!.native)}/${w[2]}`;
-        if (this.lingering && !screenPass && !loads && key === this.passKey) {
-          // Same attachments, LOAD everywhere: continue the native pass with §13.1 begin-state reset.
-          this.lingering = false; this.batch.mergedPasses++;
-          const [width, height] = this.passSize;
-          this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
-          this.scissor = [0, 0, width, height]; this.blendConstant = [0, 0, 0, 0];
-          this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
-          this.pass!.setScissorRect(0, 0, width, height);
-          this.pass!.setStencilReference(0);
-          this.pass!.setBlendConstant([0, 0, 0, 0]);
-          break;
-        }
-        this.endNative();
-        this.screenPass = screenPass;
-        const colors: GPURenderPassColorAttachment[] = [];
-        this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
-        let width = 0, height = 0;
-        for (let i = 0; i < h; i++) {
-          const j = 7 + i * 7, t = w[j] ? this.textures.get(w[j])!.native : this.screen!;
-          width = Math.max(1, t.width >> w[j + 1]); height = Math.max(1, t.height >> w[j + 1]);
-          this.passFormats.push(w[j] ? this.textures.get(w[j])!.desc.format : 0);
-          colors.push({ view: this.view(t, w[j + 1]),
-            loadOp: w[j + 2] ? 'clear' : 'load', storeOp: 'store', clearValue: w.slice(j + 3, j + 7).map(f) });
-        }
-        let depth: GPURenderPassDepthStencilAttachment | undefined;
-        if (w[1]) {
-          const t = this.textures.get(w[1])!;
-          width = Math.max(1, t.native.width >> w[2]); height = Math.max(1, t.native.height >> w[2]);
-          depth = { view: this.view(t.native, w[2]),
-            depthLoadOp: w[3] ? 'clear' : 'load', depthStoreOp: 'store', depthClearValue: f(w[5]) };
-          if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
-            stencilStoreOp: 'store', stencilClearValue: w[6] });
-        }
-        this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
-        this.passDescriptor={ colorAttachments: colors, depthStencilAttachment: depth };
-        this.scissor=[0,0,width,height]; this.blendConstant=[0,0,0,0];
-        this.beginNative(this.passDescriptor); this.passKey = screenPass ? '' : key;
-        this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
-        this.pass!.setScissorRect(0, 0, width, height);
-        this.pass!.setStencilReference(0);
-        this.pass!.setBlendConstant([0, 0, 0, 0]);
-        break;
-      }
+      case OP.PASS_BEGIN: if (!this.deferPass(w)) this.beginPass(w); break;
       case OP.CLEAR_BUFFER: this.clearBuffer(w); break;
       case OP.PASS_END:
+        if (this.virtualPass) { this.endVirtualPass(); break; }
         // Screen passes end natively: the opaque-alpha store is observable by a following LOAD/BLIT.
         // Other native passes linger until a target change or sync point (see flush/prepare).
         if (!this.merge) this.flush(); else if (this.screenPass) this.endNative(); else this.lingering = true;
@@ -915,11 +873,126 @@ struct VO { @builtin(position) pos: vec4f };
     this.depthUploadPipelines.set(key, pipeline); return pipeline;
   }
 
+  /** K71: a pass whose attachments all lack storage stays virtual until an in-pass op needs it. If it ends first (the
+   * profile's whole-attachment glClear is PASS_BEGIN + PASS_END), its clears become per-level constants and nothing
+   * is allocated; LOAD keeps the current value. The decoder already validated the pass. */
+  private deferPass(w: number[]): boolean {
+    if (this.opts.lazyTextures === false) return false;
+    for (let i = 0; i < w[0]; i++) { const t = this.textures.get(w[7 + i * 7]); if (!t || t.live) return false; }
+    if (w[1]) { const t = this.textures.get(w[1]); if (!t || t.live) return false; }
+    if (!w[0] && !w[1]) return false;
+    this.virtualPass = w; return true;
+  }
+  private realizePass(): void { const w = this.virtualPass!; this.virtualPass = undefined; this.beginPass(w); }
+  private endVirtualPass(): void {
+    const w = this.virtualPass!; this.virtualPass = undefined; this.lazyTextures.deferredPasses++;
+    const level = (t: TextureResource, mip: number) => ((t.constants ??= [])[mip] ??= {});
+    for (let i = 0; i < w[0]; i++) {
+      const j = 7 + i * 7; if (w[j + 2]) level(this.textures.get(w[j])!, w[j + 1]).color = w.slice(j + 3, j + 7);
+    }
+    if (w[1]) {
+      const t = this.textures.get(w[1])!, c = level(t, w[2]);
+      if (w[3]) c.depth = w[5];
+      if (w[4] && t.desc.format === 5) c.stencil = w[6];
+    }
+  }
+
+  private beginPass(w: number[]): void {
+    const h = w[0];
+    this.uniforms.clear(); this.sampled.clear(); this.vertices.clear();
+    this.index = undefined; this.current = undefined; this.capture=undefined;
+    const screenPass = h === 1 && w[7] === 0;
+    let key = `${h}`, loads = w[1] ? w[3] | w[4] : 0;
+    for (let i = 0; i < h; i++) {
+      const j = 7 + i * 7; loads |= w[j + 2];
+      key += `,${w[j] ? this.textureId(this.textures.get(w[j])!.native) : 0}/${w[j + 1]}`;
+    }
+    if (w[1]) key += `;${this.textureId(this.textures.get(w[1])!.native)}/${w[2]}`;
+    if (this.lingering && !screenPass && !loads && key === this.passKey) {
+      // Same attachments, LOAD everywhere: continue the native pass with §13.1 begin-state reset.
+      this.lingering = false; this.batch.mergedPasses++;
+      const [width, height] = this.passSize;
+      this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
+      this.scissor = [0, 0, width, height]; this.blendConstant = [0, 0, 0, 0];
+      this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
+      this.pass!.setScissorRect(0, 0, width, height);
+      this.pass!.setStencilReference(0);
+      this.pass!.setBlendConstant([0, 0, 0, 0]);
+      return;
+    }
+    this.endNative();
+    this.screenPass = screenPass;
+    const colors: GPURenderPassColorAttachment[] = [];
+    this.passFormats = []; this.passDepth = w[1] ? this.textures.get(w[1])!.desc.format : 0xffffffff;
+    let width = 0, height = 0;
+    for (let i = 0; i < h; i++) {
+      const j = 7 + i * 7, t = w[j] ? this.textures.get(w[j])!.native : this.screen!;
+      width = Math.max(1, t.width >> w[j + 1]); height = Math.max(1, t.height >> w[j + 1]);
+      this.passFormats.push(w[j] ? this.textures.get(w[j])!.desc.format : 0);
+      colors.push({ view: this.view(t, w[j + 1]),
+        loadOp: w[j + 2] ? 'clear' : 'load', storeOp: 'store', clearValue: w.slice(j + 3, j + 7).map(f) });
+    }
+    let depth: GPURenderPassDepthStencilAttachment | undefined;
+    if (w[1]) {
+      const t = this.textures.get(w[1])!;
+      width = Math.max(1, t.native.width >> w[2]); height = Math.max(1, t.native.height >> w[2]);
+      depth = { view: this.view(t.native, w[2]),
+        depthLoadOp: w[3] ? 'clear' : 'load', depthStoreOp: 'store', depthClearValue: f(w[5]) };
+      if (t.desc.format === 5) Object.assign(depth, { stencilLoadOp: w[4] ? 'clear' : 'load',
+        stencilStoreOp: 'store', stencilClearValue: w[6] });
+    }
+    this.passSize = [width, height]; this.viewport = [0, 0, width, height, 0, 1]; this.stencilRef = 0;
+    this.passDescriptor={ colorAttachments: colors, depthStencilAttachment: depth };
+    this.scissor=[0,0,width,height]; this.blendConstant=[0,0,0,0];
+    this.beginNative(this.passDescriptor); this.passKey = screenPass ? '' : key;
+    this.pass!.setViewport(0, 0, width, height, 0, 1); this.resetView();
+    this.pass!.setScissorRect(0, 0, width, height);
+    this.pass!.setStencilReference(0);
+    this.pass!.setBlendConstant([0, 0, 0, 0]);
+  }
+
+  /** K71 (Q128): create the GPUTexture with every reserved level on first use. WebGPU zero-initializes color/stencil;
+   * BGT initializes depth to one, cleared by its own submission now (it precedes every later use: queue order, and
+   * no earlier command can reference a texture that did not exist). Pixels and readbacks are unchanged. */
+  private materialize(t: TextureResource): GPUTexture {
+    const d = this.gpuDevice, desc = t.desc;
+    const native = d.createTexture({ size: [desc.width, desc.height, desc.depth], mipLevelCount: t.allocatedMips,
+      dimension: desc.dimension === 1 ? '3d' : '2d', format: formats[desc.format],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC });
+    this.lazyTextures.materialized++;
+    const constants = t.constants; t.constants = undefined;
+    if (isDepthFormat(desc.format)) {
+      const encoder = d.createCommandEncoder();
+      for (let mip = 0; mip < t.allocatedMips; mip++) {
+        const c = constants?.[mip];
+        const a: GPURenderPassDepthStencilAttachment = {
+          view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
+          depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: c?.depth === undefined ? 1 : f(c.depth),
+        };
+        if (desc.format === 5) Object.assign(a, { stencilLoadOp: 'clear', stencilStoreOp: 'store', stencilClearValue: c?.stencil ?? 0 });
+        encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: a }).end();
+      }
+      d.queue.submit([encoder.finish()]);
+    } else if (constants?.some(c => c?.color)) {
+      // Same clear as the deferred PASS_BEGIN would have issued (2D attachments only).
+      const encoder = d.createCommandEncoder();
+      for (let mip = 0; mip < t.allocatedMips; mip++) {
+        const color = constants[mip]?.color;
+        if (color) encoder.beginRenderPass({ colorAttachments: [{ view: native.createView({ baseMipLevel: mip, mipLevelCount: 1 }),
+          loadOp: 'clear', storeOp: 'store', clearValue: color.map(f) }] }).end();
+      }
+      d.queue.submit([encoder.finish()]);
+    }
+    return native;
+  }
+
   /** Grow an immutable WebGPU texture without losing already rendered/uploaded levels. */
   private growTexture(handle: number, allocatedMips: number): void {
     const d = this.gpuDevice, t = this.textures.get(handle)!;
     if (allocatedMips <= t.allocatedMips) return;
     if (allocatedMips > t.desc.mips) throw new Error('Texture mip allocation exceeds descriptor');
+    if (!t.live) { t.allocatedMips = allocatedMips; return; } // K71: materialize() allocates every reserved level
     const next = d.createTexture({ size: [t.desc.width, t.desc.height, t.desc.depth], mipLevelCount: allocatedMips,
       dimension: t.desc.dimension === 1 ? '3d' : '2d', format: formats[t.desc.format],
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
@@ -944,10 +1017,12 @@ struct VO { @builtin(position) pos: vec4f };
   /** K64 diagnostics from the executor's own tables (no GPU queries). `bytes` equal the decoder's reservations. */
   memory(): GpuNativeMemory {
     let bytes = 0, nativeBytes = 0, bufferShadows = 0, textureBytes = 0, depthBytes = 0, textureShadows = 0;
+    const lazy = { count: 0, bytes: 0, depthStencilBytes: 0 };
     for (const b of this.buffers.values()) { bytes += b.shadow.length; nativeBytes += b.native.size; bufferShadows += b.shadow.length; }
     for (const t of this.textures.values()) {
       const n = textureLevelBytes(t.desc, t.allocatedMips, TEXEL_BYTES[t.desc.format]);
-      textureBytes += n; if (isDepthFormat(t.desc.format)) depthBytes += n;
+      if (!t.live) { lazy.count++; lazy.bytes += n; if (isDepthFormat(t.desc.format)) lazy.depthStencilBytes += n; }
+      else { textureBytes += n; if (isDepthFormat(t.desc.format)) depthBytes += n; }
       for (const u of t.uploads) textureShadows += u.data?.length ?? 0;
       textureShadows += t.generated?.source?.data?.length ?? 0;
     }
@@ -957,7 +1032,7 @@ struct VO { @builtin(position) pos: vec4f };
     for (const b of this.scratch) scratchBytes += b.size;
     for (const r of this.retiredDestroy) if ('size' in r && typeof r.size === 'number') scratchBytes += r.size;
     return { backend: 'webgpu', buffers: { count: this.buffers.size, bytes, nativeBytes },
-      textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes },
+      textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes, lazy },
       renderbuffers: { count: 0, bytes: 0 },
       internal: { bytes: screenBytes + poolBytes + scratchBytes, screenBytes, poolBytes, scratchBytes },
       shadows: { bufferBytes: bufferShadows, textureBytes: textureShadows } };
@@ -968,6 +1043,14 @@ struct VO { @builtin(position) pos: vec4f };
   private generateMips(handle: number, base: number): void {
     const d = this.gpuDevice, t = this.textures.get(handle)!, desc = t.desc;
     this.growTexture(handle, desc.mips);
+    if (!t.live && !isDepthFormat(desc.format) && !t.constants?.[base]) {
+      // K71: a never-materialized base holds its creation value (0), so every generated level is 0 too: the levels
+      // stay unallocated (constants above the base are overwritten), exactly as a zero chain reads back (and restores).
+      if (t.constants) for (let mip = base + 1; mip < t.constants.length; mip++) t.constants[mip] = undefined;
+      t.generated = { base, overridden: new Set() };
+      t.uploads = t.uploads.filter(u => u.words[1] <= base);
+      return;
+    }
     const extent = mipExtent(desc, base), old = t.uploads.find(u => u.words[1] === base);
     // K64: a 2D/array base that was never uploaded is zero for recovery purposes, so its generated levels are too:
     // keep no zero source/chain shadows (render targets regenerating mips every frame allocated both per call).

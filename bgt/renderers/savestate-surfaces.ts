@@ -1,6 +1,7 @@
 // Installed only by deterministic test mode. No native checkpoint code in normal bundles.
 import { WebGL2Renderer } from './webgl2/webgl2';
 import { WebGPURenderer } from './webgpu/webgpu';
+import { RECOVERY_SHADOWS_OFF } from './gpu-texture';
 import type { CheckpointSurfaces } from './checkpoint-surfaces';
 import type { Letterbox, Pixels } from './types';
   /** Only called by the opt-in test checkpoint controller on a temporary renderer. */
@@ -11,6 +12,7 @@ export async function captureWebGL2Renderer(this: WebGL2Renderer,letterbox: Lett
     g.readPixels(0, 0, width, height, g.RGBA, g.UNSIGNED_BYTE, raw);
     for (let y = 0; y < height; y++) data.set(raw.subarray((height-1-y)*width*4,(height-y)*width*4),y*width*4);
     g.bindFramebuffer(g.FRAMEBUFFER,null);
+    if([...this.gpu['textures'].values()].some(t=>t.unshadowed))throw new Error(`Checkpoint needs texture upload shadows: ${RECOVERY_SHADOWS_OFF}`);
     const buffers=[...this.gpu['buffers']].map(([handle,b])=>({handle,shadow:b.data.slice(),generated:!!b.generated}));
     const textures=[...this.gpu['textures']].map(([handle,t])=>structuredClone({handle,levels:t.levels,generated:t.generated}));
     return {physical:{width,height,data},buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};
@@ -37,6 +39,7 @@ export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces
 export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Letterbox): Promise<CheckpointSurfaces> {
     const physical = await this['readback'](this['snapshot'] ?? this['ctx'].getCurrentTexture(),this['format'] === 'bgra8unorm');
     const logical = this['screen'] ? await this['readback'](this['screen']) : undefined;
+    if([...this.gpu['textures'].values()].some(t=>t.unshadowed))throw new Error(`Checkpoint needs texture upload shadows: ${RECOVERY_SHADOWS_OFF}`);
     const buffers=[...this.gpu.buffers].map(([handle,b])=>({handle,shadow:b.shadow.slice(),generated:!!b.generated}));
     const textures=[...this.gpu['textures']].map(([handle,t])=>structuredClone({handle,uploads:t.uploads,generated:t.generated}));
     return {physical,logical,buffers,textures,retained:!!this['snapshot'],letterbox:{...letterbox}};

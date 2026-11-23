@@ -18,8 +18,11 @@ export interface GpuNativeMemory {
   backend: 'webgpu' | 'webgl2';
   /** bytes: guest-visible sizes (equal to the decoder's reservation); nativeBytes: allocation incl. padding. */
   buffers: { count: number; bytes: number; nativeBytes: number };
-  /** Allocated mip levels × texel bytes; depthStencilBytes is the part in depth/stencil formats. */
-  textures: { count: number; bytes: number; depthStencilBytes: number };
+  /** Materialized mip levels × texel bytes; depthStencilBytes is the part in depth/stencil formats. `count` is every
+   * live texture. K71 (Q128): `lazy` are reserved levels without native storage yet (created on first use), so
+   * `bytes + lazy.bytes` equals the decoder's texture reservation once every item has executed. */
+  textures: { count: number; bytes: number; depthStencilBytes: number;
+    lazy?: { count: number; bytes: number; depthStencilBytes: number } };
   /** The kit allocates no renderbuffers (depth/stencil attachments are textures); kept explicit. */
   renderbuffers: { count: number; bytes: number };
   /** Renderer-owned objects that are not guest resources (logical screen, copy-on-write pool, scratch). */
@@ -53,6 +56,8 @@ export interface MemoryInputs {
   /** v0.1/v0.2 texture table: one RGBA8 native texture per entry plus its CPU shadow. */
   legacyTextureBytes: number;
   canvas: { width: number; height: number };
+  /** K71: texture recovery shadow policy (absent: default on). */
+  recoveryShadows?: RecoveryShadowPolicy;
   js: { assetBytes: number; streamCacheBytes: number; gpuDecoderShadowBytes: number; audioQueuedBytes: number;
     /** Load-time buffers still held (the verified game.wasm bytes until compilation finishes); 0 after load. */
     loadBuffersBytes: number;
@@ -62,6 +67,24 @@ export interface MemoryInputs {
 
 export type MemoryBudgetSource = 'default' | 'manifest' | 'option' | 'url';
 
+/** K71 (Q129): whether executors keep CPU copies of uploaded texture levels for GPU loss recovery. */
+export interface RecoveryShadowPolicy { enabled: boolean; source: MemoryBudgetSource }
+/** Resolve `gpu.recoveryShadows`: explicit option > `?recoveryshadows=0|1` > manifest > default (on, today's
+ * behaviour). Off: no texture upload shadows; a device/context loss after any texture upload is a reported fatal
+ * error (`device-lost`), never a silent restore with missing texels. Invalid URL values throw (reported, ignored). */
+export function resolveRecoveryShadows(option?: boolean, url?: string | null, manifest?: unknown): RecoveryShadowPolicy {
+  if (option !== undefined) return { enabled: option, source: 'option' };
+  if (url !== null && url !== undefined && url !== '') {
+    if (url !== '0' && url !== '1') throw new RangeError(`invalid ?recoveryshadows=${url} (use 0 or 1)`);
+    return { enabled: url === '1', source: 'url' };
+  }
+  if (manifest !== undefined) {
+    if (typeof manifest !== 'boolean') throw new RangeError('manifest gpu.recoveryShadows must be a boolean');
+    return { enabled: manifest, source: 'manifest' };
+  }
+  return { enabled: true, source: 'default' };
+}
+
 export interface MemoryDiagnostics {
   schema: 'bgt-memory/1';
   wasm: { linearBytes: number; peakLinearBytes: number; initialBytes: number; moduleBytes: number;
@@ -69,7 +92,7 @@ export interface MemoryDiagnostics {
     compiledBytes: null };
   guest: GuestMemory | null;
   gpu: (NonNullable<MemoryInputs['gpu']> & { native: GpuNativeMemory | null; legacyTextureBytes: number;
-    canvasBytesEstimate: number }) | null;
+    canvasBytesEstimate: number; recoveryShadows: RecoveryShadowPolicy }) | null;
   js: MemoryInputs['js'] & { gpuRecoveryShadowBytes: number; legacyTextureShadowBytes: number; heldBytes: number };
   estimate: {
     totalBytes: number;
@@ -153,7 +176,8 @@ export function memoryBreakdown(input: MemoryInputs, peaks: { linear: number; to
     guest: input.guest,
     gpu: input.gpu || native || input.legacyTextureBytes ? {
       ...(input.gpu ?? { budgetBytes: 0, reservedBytes: 0, peakReservedBytes: 0, reserved: { buffers: 0, textures: 0, shaders: 0 } }),
-      native, legacyTextureBytes: input.legacyTextureBytes, canvasBytesEstimate } : null,
+      native, legacyTextureBytes: input.legacyTextureBytes, canvasBytesEstimate,
+      recoveryShadows: input.recoveryShadows ?? { enabled: true, source: 'default' } } : null,
     js: { ...js, gpuRecoveryShadowBytes, legacyTextureShadowBytes, heldBytes },
     estimate: {
       totalBytes, peakTotalBytes: Math.max(peaks.total, totalBytes), peakSampling: PEAK_SAMPLING, components,
