@@ -11,6 +11,9 @@ import { defaultScript } from '../oracle/oracle';
 import { testSuspensionModes } from '../support/suspension-modes';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
+// K70: this test exercises coverage-off builds, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 // @ts-expect-error plain ESM
 import { coverageInstrumentation } from '../../tools/build/pipeline.mjs';
 
@@ -42,9 +45,9 @@ for (const example of ['x64-basics', 'win32-hello'])
     cfg.id = id; cfg.pipeline.suspensionBuild = 'dual';
     writeFileSync(join(root, 'game.json'), JSON.stringify(cfg));
     try {
-      buildGame(root, { quiet: true, outRoot: join(root, 'on') });
-      buildGame(root, { quiet: true, outRoot: join(root, 'off'), coverage: 'off' });
-      buildGame(root, { quiet: true, outRoot: join(root, 'off'), coverage: 'off', interpretOnly: true });
+      buildGame(root, { quiet: true, outRoot: join(root, 'on'), jspiOptimize: false });
+      buildGame(root, { quiet: true, outRoot: join(root, 'off'), coverage: 'off', jspiOptimize: false });
+      buildGame(root, { quiet: true, outRoot: join(root, 'off'), coverage: 'off', interpretOnly: true, jspiOptimize: false });
       const on = join(root, 'on', id), off = join(root, 'off', id), interp = join(root, 'off', id + '-interp');
       const manifest = JSON.parse(readFileSync(join(off, 'manifest.json'), 'utf8'));
       expect(manifest.pipeline.instrumentation.coverage).toBe('off');

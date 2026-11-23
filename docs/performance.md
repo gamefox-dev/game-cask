@@ -82,6 +82,22 @@ guest-time boundary. The guest sees exactly the update sequence of back-to-back 
 update per tick. `__BGT_TEST__.pageLoop()` returns `{ticks, updates, transportUpdates, maxUpdatesPerTick}` since load.
 Fixture: `examples/x64-file-load` (768 small reads of a streamed 4 MiB file), spec `tests/e2e/file-load.spec.ts`.
 
+**Burst waits for renderer results (K70, Q126).** On WebGPU, shader compile status, stage modules and readbacks
+resolve asynchronously in the renderer, not in host file I/O. A burst used to re-run the polling update at once:
+~1000 updates per tick (32k/s), each with its own render and submit, which also flooded the GPU process and delayed
+the result itself (~190 ms per program). The burst now waits, within the tick budget, for the request the last update
+polled unresolved (`Requests.awaited()`); `pageLoop()` adds `requestWaits`, `requestWaitMs`, `requestWaitTimeouts`;
+`?iowait=0` is the A/B switch. Fixture `examples/x64-gl-programs` (24 programs: 2 compiles, 2 link stage modules and
+one glReadPixels each), spec `tests/e2e/gl-programs.spec.ts`.
+
+**JSPI artifact optimization (K70, Q127).** The JSPI artifact (dual `game.jspi.wasm`, JSPI-only `game.wasm`) gets
+the same bounded Binaryen pass as the Asyncify artifact without `--asyncify` (`tools/build/asyncify.mjs`: whole-module
+-O2 up to 32 MiB of code, function-local passes over 8 MiB partitions above), the name section kept and no Asyncify
+marker. Content-keyed cache `jspi-opt` (key: `asyncifyCacheKey(..., {variant: 'jspi-O2'})`); manifest metric
+`pipeline.metrics.jspi_opt` = `{linked_bytes, ms, cached, mode, partitions}`. `BGT_JSPI_WASM_OPT=0` ships the raw
+link output (A/B). Dual builds run the Asyncify and JSPI passes sequentially (peak Binaryen memory of one pass, up
+to 4 GiB each for 273 MB modules on 16 GB machines); cache keys hash the exact transform arguments.
+
 ## 3. Performance builds without coverage
 
 `BGT_COVERAGE=off npm run build:port`, or `node tools/build/build.mjs <dir> --no-coverage`, compiles coverage

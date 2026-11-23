@@ -20,6 +20,9 @@ it('fails closed rather than omitting a required unavailable JSPI mode',()=>{
 });
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
+// K70: this test exercises guest accounting, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 function program(wide:boolean) {
  const text:string[]=['.text',...(!wide?['.def @feat.00; .scl 3; .type 0; .endef','.set @feat.00, 1']:[])],counts=[0,0];let owner=0;
  const ins=(s:string)=>{text.push('  '+s);counts[owner]++;};
@@ -70,7 +73,7 @@ for(const wide of [false,true])it('guest-import exact multithread retirement, Sl
    cflags:['-DX86_ACCOUNTING_ENABLED=1','-DX86_PROFILE_ENABLED=1'],pipeline:{platform:'win32',streamModules:false,suspensionBuild:'dual',
     fixture:{out:'counts.exe',sources:['counts.S','anchor.c'],libs:['kernel32'],target:wide?'x86_64-windows-gnu':'x86-windows-gnu'},modules:[{from:'./build/counts.exe',main:true}]}}));
   for(const interpreted of [false,true]) {
-   const out=join(dir,interpreted?'interpreted':'lifted'),manifest=buildGame(dir,{outRoot:out,interpretOnly:interpreted,quiet:true}),game=join(out,manifest.id);
+   const out=join(dir,interpreted?'interpreted':'lifted'),manifest=buildGame(dir,{outRoot:out,interpretOnly:interpreted,quiet:true,jspiOptimize:false}),game=join(out,manifest.id);
    for(const mode of modes){
     const vfs=new Vfs();for(const a of manifest.assets)vfs.add(a.path,new Uint8Array(readFileSync(join(game,'assets',a.path))));vfs.addStream('known.bin',4);
     let us=0,release!:(b:Uint8Array<ArrayBuffer>)=>void;const logs:string[]=[],reads:unknown[]=[];

@@ -32,3 +32,12 @@ it('transport bursts continue only after time-neutral transport yields, within b
   expect(continueTransport(true, 3, 12, 100, 100 + 16667)).toBe(false); // one frame period of instruction time
   expect(continueTransport(true, 3, 12, null, null)).toBe(true); // no guest clock export: budget only
 });
+// K70 (Q126). Breakage caught: a burst wait that never times out (a lost renderer result would hang the tick) or
+// that reports a timeout for a result that arrived in time.
+it('settlesWithin bounds a burst wait by the remaining tick budget', async () => {
+  const { settlesWithin } = await import('../../bgt/runtime/page-pacing');
+  expect(await settlesWithin(new Promise(() => {}), 5)).toBe(false);
+  expect(await settlesWithin(new Promise((r) => setTimeout(r, 1)), 200)).toBe(true);
+  expect(await settlesWithin(Promise.reject(new Error('x')), 50)).toBe(true);
+  expect(await settlesWithin(Promise.resolve(), 0)).toBe(true);
+});

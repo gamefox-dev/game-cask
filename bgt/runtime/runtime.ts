@@ -66,6 +66,8 @@ export interface RuntimeOptions {
   /** K66: wall budget (ms) per display tick for updates that continue after a time-neutral transport yield;
    * 0 restores one update per tick (A/B). Default TRANSPORT_BURST_MS. */
   ioBurstMs?: number;
+  /** K70: false re-runs a burst update without waiting for the unresolved request result it polled (pre-K70 A/B). */
+  ioWait?: boolean;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -100,7 +102,7 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
-import { retainedAccumulator, continueTransport, TRANSPORT_BURST_MS } from './page-pacing';
+import { retainedAccumulator, continueTransport, settlesWithin, TRANSPORT_BURST_MS } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
   type RecoveryShadowPolicy } from './memory';
@@ -861,7 +863,11 @@ export class BGTRuntime {
   }
 
   /** K66: page-loop counters (test API pageLoop()). */
-  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0 };
+  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0,
+    /** K70: burst waits for an unresolved polled request result, their wall time, and waits that hit the tick budget. */
+    requestWaits: 0, requestWaitMs: 0, requestWaitTimeouts: 0,
+    /** vK70: longest wall time of a tick's updates (first update + burst), ms. */
+    maxTickMs: 0 };
 
   /**
    * K66: a guest blocked in a synchronous transport wait (ReadFile, a request result, a full host-frame budget)
@@ -885,7 +891,18 @@ export class BGTRuntime {
       await this.renderFrame(false).catch(() => null); n = 0;
       const rendered = this.presentsCompleted > before, renderedAt = performance.now();
       if (host.ioPending) await host.settleRequests();
-      if (performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
+      // K70 (Q126): a renderer result (shader compile, pipeline, readback) resolves outside host I/O work. Re-running
+      // the update before it arrives only polls the same 0 again (busy-poll, ~1000 updates per tick on WebGPU), and
+      // floods the GPU process with renders that delay the result itself. Wait for it within the tick's budget.
+      const wait = this.opts.ioWait === false ? null : host.transportWait();
+      let starved = false;
+      if (wait) {
+        const w0 = performance.now(), left = budget - (w0 - tickStart);
+        starved = !(left > 0 && await settlesWithin(wait, left));
+        stats.requestWaits++; stats.requestWaitMs += performance.now() - w0;
+        if (starved) stats.requestWaitTimeouts++;
+      }
+      if (starved || performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
         ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) {
         // The burst ends on an update already rendered: that render is the tick's present.
         if (rendered && this.pageLog) pageLogPush(this.pageLog, 2, renderedAt, tick);
@@ -898,6 +915,7 @@ export class BGTRuntime {
       if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
     }
     if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
+    const tickMs = performance.now() - tickStart; if (tickMs > stats.maxTickMs) stats.maxTickMs = tickMs;
     return { pending: n, updates: tick };
   }
 

@@ -6,7 +6,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 // @ts-expect-error ESM build identity
-import {asyncifyCacheKey} from '../../tools/build/build.mjs';
+import {asyncifyCacheKey,asyncifyArgs,jspiOptArgs} from '../../tools/build/build.mjs';
 it('keys linked coverage selections, partition policy, every parser and exact postprocess options',()=>{
  const root=mkdtempSync(join(tmpdir(),'bgt-post-key-'));
  try{
@@ -25,5 +25,11 @@ it('keys linked coverage selections, partition policy, every parser and exact po
   expect(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:65536})).not.toBe(asyncifyCacheKey(raw,{root,asyncifyPartitionBytes:131072}));
   // K65: precise (exact onlylist) and Binaryen-only analysis produce different artifacts.
   expect(asyncifyCacheKey(raw,{root,asyncifyAnalysis:'binaryen'})).not.toBe(original);
+  // vK70: the exact transform flags are keyed (any flag change misses), for Asyncify and the JSPI variant alike.
+  expect(asyncifyCacheKey(raw,{root,flags:['-O2','--asyncify']})).not.toBe(asyncifyCacheKey(raw,{root,flags:['-O2','--asyncify','--x']}));
+  expect(asyncifyCacheKey(raw,{root,variant:'jspi-O2',flags:['-O2']})).not.toBe(asyncifyCacheKey(raw,{root,variant:'jspi-O2',flags:['-O1']}));
+  expect(asyncifyArgs({asyncifyRemove:['N_1'],removeFile:'/tmp/a'})).toContain('--pass-arg=asyncify-removelist@@/tmp/a');
+  expect(asyncifyArgs({asyncifyRemove:['N_1']})).toContain('--pass-arg=asyncify-removelist@@<removelist>');
+  expect(jspiOptArgs({asyncifyPartitionBytes:4096})).not.toContain('--asyncify');
  }finally{rmSync(root,{recursive:true,force:true});}
 });
