@@ -512,6 +512,10 @@ static uint16_t l64f_live_after(const l64f_fn_t *x, uint32_t k) { return k + 1 <
 /* K72 liftFast.calls "outlined" (--fast-calls outlined): call sites store the registers, then xf_enter (clock,
  * flags, X.eip, depth slot), the plain C call, xf_leave (depth, abnormal-exit check); see x86_guest.h. */
 static int lift_fast_calls_out;
+/* vK72 TEST ONLY (--fast-test-corrupt stack, liftFast.testCorrupt): every lifted RET flips a byte 512 bytes below RSP,
+ * a deliberately wrong lifted result that changes guest RAM but no register and no API argument. The oracle's guest
+ * state hash must catch it (tests/unit/oracle-guest-state.test.ts). Never for real builds. */
+static int lift_fast_test_corrupt;
 static void l64f_spill_regs(FILE *o, const l64f_fn_t *x, uint16_t mask) {
     mask = (lift_fast_sync && x->dirty ? mask : 0xffffu) & l64f_spill_set;
     for (int i = 0; i < 16; i++) if (mask & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
@@ -738,6 +742,7 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             continue;
         }
         case XO_RET:
+            if (lift_fast_test_corrupt) fprintf(o, "{uint8_t*q_=xf_base+(((uint32_t)r[4]-512u)&XF_MASK);q_[0]^=0x5au;}");
             l64_pointer(o, "r[4]", 8, next, 0, "0");
             fprintf(o, "t=xl_load(p,8);r[4]+=%llu;", 8ull + aa->imm);
             if (inlined) fprintf(o, "if(t==0x%08xull)goto %s;", ret_to, ret_label);

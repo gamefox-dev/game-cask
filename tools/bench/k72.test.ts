@@ -64,7 +64,8 @@ function gameDirBase(fixture: string, variant: string) {
 async function trace(id: string, dir: string, suspension: 'jspi' | 'asyncify', updates: number) {
   const h = await loadHeadless(id, { dir, suspension });
   const hashes: (string | null)[] = [];
-  for (let n = 0; n < updates; n++) { await h.stepAsync(1); hashes.push(h.host.stateHash()); }
+  // API trace hash plus the guest-state hash (every thread's CPU without flags (dead across calls in fast mode), every mapped guest page; vK72).
+  for (let n = 0; n < updates; n++) { await h.stepAsync(1); hashes.push(`${h.host.stateHash()}|${h.host.guestStateHash(5)}`); }
   const m = h.host.metrics() as Record<string, unknown>;
   return { logs: h.logs, hashes, interp: m.interp_insns, stubs: m.stubs };
 }

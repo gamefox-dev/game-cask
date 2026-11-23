@@ -36,6 +36,14 @@ it('validates frame ranges and maps native region/function names without inventi
   expect(mapped[1]).toMatchObject({guestAddress:null,wasmFunction:'51'});expect(mapped[2].guestAddress).toBeNull();
   expect(mapped[3]).toMatchObject({guestAddress:0x1003000,regionAddress:null,hitCount:7});
 });
+it('vK72: stripped builds name wasm-function[N] frames from the artifact symbol map',()=>{
+  const symbols=new Map([[51,'N_01004000'],[52,'R_01005000_01005040']]);
+  const mapped=mapProfile({nodes:[{id:1,callFrame:{functionName:'wasm-function[51]'},hitCount:2},
+    {id:2,callFrame:{functionName:'$wasm-function[52]'}},{id:3,callFrame:{functionName:'wasm-function[99]'}}]},symbols);
+  expect(mapped[0]).toMatchObject({functionName:'wasm-function[51]',symbol:'N_01004000',guestAddress:0x1004000,wasmFunction:'51',hitCount:2});
+  expect(mapped[1]).toMatchObject({symbol:'R_01005000_01005040',guestAddress:0x1005000,regionAddress:0x1005040});
+  expect(mapped[2]).toMatchObject({guestAddress:null,wasmFunction:'99'});expect(mapped[2].symbol).toBeUndefined();
+});
 it('takes a best-effort resource snapshot with unavailable observations explicitly null',()=>{
   const r=resourceSnapshot();expect(r.cpuCount).toBeGreaterThan(0);expect(r.totalRamBytes).toBeGreaterThan(0);
   expect(r.loadAverage).toHaveLength(3);expect(Array.isArray(r.errors)).toBe(true);

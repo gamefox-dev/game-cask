@@ -473,6 +473,12 @@ comment markers only (same code, same line numbers). On the CC0 C++ fixture call
 - `liftFast.sync: "minimal"` (default `"full"`): call sites and exits store only registers written since the last
   synchronization with `X` (entry reload, returned call, generic instruction); after a call only live volatile
   registers and RSP reload. Spills count as reads in the liveness. Same Win64 assumptions as the full form.
+  **ABI assumption (same as the full form, now load-bearing for which value is wrong):** callees preserve RBX, RBP,
+  RSI, RDI and R12-R15 and never read EFLAGS left by the caller. A hand-written callee that breaks this gets a
+  different wrong value in the two forms (full reloads none of the callee-saved registers but re-stores every
+  written one at the next call; minimal re-stores only registers written since), so `full` is not a safe reference
+  for such code: use `liftMode: "exact"` for it. Detecting ABI-breaking callees in the profile/analyzer is a
+  follow-up (not implemented).
 - `liftFast.calls: "outlined"` (default `"inline"`): the call protocol (clock/flags publication, `X.eip`, depth slot,
   abnormal-exit check) is `xf_enter`/`xf_leave`/`xf_check` in `x86_rt.c` instead of ~100 inline bytes per site.
 - `liftFast.inline: "16"`: smaller emission-level inlining (existing knob; 48 is the default).
@@ -481,7 +487,14 @@ comment markers only (same code, same line numbers). On the CC0 C++ fixture call
 - `pipeline.wasmNames: "strip"` (or `BGT_WASM_NAMES=strip`): artifacts without the `name` section; each one's
   function map is written beside it (`game.wasm.names.json`, `game.jspi.wasm.names.json`, never fetched).
 
-All default off: the default lift policy, cache keys and generated C are unchanged. `examples/x64-compact` builds
+All default off: the default lift policy, cache keys and generated C are unchanged. `liftFast.testCorrupt: "stack"`
+is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds.
+
+The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
+(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`x86_sched.c`): the CPU of every live guest thread
+(GPRs, RIP, flags CF/PF/AF/ZF/SF/OF/DF, fs/gs base, XMM, MXCSR, x87, instruction clock) and every mapped guest page.
+`BGT_ORACLE_STATE=off|cpu|cpu,flags|cpu,flags,memory` (default the last); the report's `state` names the first
+divergent frame and part (`trace`, `cpu`, `memory`) and the hashing time. `examples/x64-compact` builds
 the CC0 STL fixture with all of them. Measurements and the decision: [K72 handoff](handoff/K72.md).
 
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)

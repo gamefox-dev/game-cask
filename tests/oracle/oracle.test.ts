@@ -21,7 +21,7 @@ test.skipIf(!dir)(`differential oracle: ${dir}`, async () => {
     throw e;
   }
   const r = await oracle(id, Number(process.env.ORACLE_FRAMES ?? 600));
-  console.log(JSON.stringify({ identical: r.identical, firstDivergence: r.firstDivergence, errors: r.errors }, null, 2));
+  console.log(JSON.stringify({ identical: r.identical, firstDivergence: r.firstDivergence, errors: r.errors, state: r.state, elapsedMs: r.elapsedMs }, null, 2));
   expect(r.identical, JSON.stringify(r)).toBe(true);
   expect(r.comparedFrames).toBe(Number(process.env.ORACLE_FRAMES ?? 600));
   expect(r.errors).toEqual({ lifted: null, interpreted: null });

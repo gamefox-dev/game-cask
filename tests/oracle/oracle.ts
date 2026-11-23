@@ -1,6 +1,11 @@
 // Differential oracle: the same game built twice — lifted, and interpret-only — driven by the same
 // deterministic input; the per-frame API-call trace hash (bgt_state_hash of pipeline games) must
 // match frame by frame. The first divergent frame localises a lifting bug.
+// vK72: by default each frame also compares a guest-state hash (CPU of every guest thread incl. flags, and every
+// mapped guest page): a wrong lifted result that changes registers or RAM but no API argument diverges here.
+// BGT_ORACLE_STATE=off|cpu|cpu,memory|cpu,flags,memory or the `state` option. Default: cpu and memory, plus flags
+// unless the lifted build uses liftMode "fast" (fast mode keeps EFLAGS dead across calls per the Win64 ABI, so the
+// flags left at a frame boundary inside an API call legitimately differ from the interpreter's).
 // @ts-expect-error shared ESM reporting tool
 import { oracleFailure, writeOracleReport } from '../../tools/report/oracle-report.mjs';
 import { loadHeadless, ROOT, Headless } from '../support/headless';
@@ -8,12 +13,29 @@ import { loadHeadless, ROOT, Headless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 import { assertGlErrors, assertScaleRecording } from '../support/gl-scale-contract';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 const suspension = process.env.BGT_ORACLE_SUSPENSION === 'jspi' ? 'jspi' : 'asyncify';
+/** Guest-state parts (x86_sched.h X86_STATE_*) from a spec like "cpu,flags,memory" or "off". */
+export function oracleStateParts(spec = process.env.BGT_ORACLE_STATE ?? 'cpu,flags,memory'): number {
+  if (spec === 'default') spec = 'cpu,flags,memory';
+  if (spec === 'off' || spec === '') return 0;
+  let parts = 0;
+  for (const p of spec.split(',')) {
+    if (p === 'cpu') parts |= 1; else if (p === 'flags') parts |= 2; else if (p === 'memory') parts |= 4;
+    else throw new Error('BGT_ORACLE_STATE must be off or a list of cpu, flags, memory');
+  }
+  if ((parts & 2) && !(parts & 1)) throw new Error('BGT_ORACLE_STATE flags needs cpu');
+  return parts;
+}
 const streamOptions = (id: string) => ['x64-time', 'x64-gl-orphan', 'x64-gl-respec', 'x64-gl-frame', 'x64-gl-pacing', 'x64-gl-prims', 'x64-gl-raster', 'x64-gl-zero', 'x64-file-load', 'x64-gl-programs', 'x64-gl', 'x64-gl-scale', 'x64-gl-capacity', 'x64-gl-default-vao', 'x64-gl-fbo', 'x64-gl-current', 'x64-gl-integer', 'x64-gl-blit', 'x64-gl-feedback', 'x64-gl-ranges', 'x64-glsl', 'x64-smoke'].includes(id.replace(/-interp$/, '')) ? glStream() : undefined;
 
 export interface OracleStep { frame: number; pointer?: [number, number, number]; key?: [string, boolean] }
 export interface OracleReport {
   game: string;
+  /** vK72: guest-state parts compared each frame (0 = API trace only), the first frame and part that differed,
+   * and the time spent hashing (both runs). */
+  state?: { parts: number; firstDivergence: { frame: number; parts: string[] } | null; hashMs: { lifted: number; interpreted: number } };
   /** Completed frame pairs; requestedFrames is the requested workload. */
   frames: number;
   comparedFrames: number;
@@ -43,9 +65,18 @@ export function defaultScript(frames: number, w: number, h: number, seed = 7): O
   return out;
 }
 
-async function run(id: string, frames: number, script: OracleStep[]): Promise<{
-  hashes: string[]; metrics: unknown; error: string | null; stage: string | null; elapsedMs: number;
+async function run(id: string, frames: number, script: OracleStep[], parts = 0): Promise<{
+  hashes: string[]; metrics: unknown; error: string | null; stage: string | null; elapsedMs: number; hashMs: number;
 }> {
+  let hashMs = 0;
+  const guest = (h: Headless) => {
+    if (!parts) return '';
+    const t = performance.now();
+    const cpu = parts & 1 ? h.host.guestStateHash(parts & 3) : null, mem = parts & 4 ? h.host.guestStateHash(4) : null;
+    hashMs += performance.now() - t;
+    if ((parts & 1 && cpu === null) || (parts & 4 && mem === null)) throw new Error('module exports no bgt_guest_state_hash (rebuild)');
+    return `|c${cpu ?? ''}|m${mem ?? ''}`;
+  };
   let started = performance.now();
   const stream = streamOptions(id);
   /* LANE-K1: deterministic entropy tape is TEST REPLAY ONLY, never used by real play. */
@@ -67,7 +98,7 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{
     if (id.replace(/-interp$/, '') === 'x64-smoke') for (let f=0;f<20;f++) {
       await h.stepAsync(1);
       if (h.host.commandErrorCount) throw new Error(JSON.stringify(h.host.commandErrors));
-      startup.push((h.host.stateHash() ?? '') + ':' + stream!.frameHash());
+      startup.push((h.host.stateHash() ?? '') + ':' + stream!.frameHash() + guest(h));
     }
     for (let f = 0; f < frames; f++) {
       stage = f === 0 ? 'startup' : 'execution';
@@ -79,22 +110,38 @@ async function run(id: string, frames: number, script: OracleStep[]): Promise<{
       /* LANE-GL: compare semantic GPU bytes too, not just the first four integer API arguments. */
       if (stream) assertGlErrors(id, h.host);
       hashes.push((f === 0 && startup.length ? startup.join('|') + '|' : '') +
-        (h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : ''));
+        (h.host.stateHash() ?? '') + (stream ? ':' + stream.frameHash() : '') + guest(h));
     }
     stage = 'metrics';
     if (id.replace(/-interp$/, '') === 'x64-gl-scale') assertScaleRecording(h);
     const metrics = h.host.metrics();
-    return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started };
+    return { hashes, metrics, error: null, stage: null, elapsedMs: performance.now()-started, hashMs };
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
   // Startup diagnostics remain useful even when the guest never completes a frame.
   let metrics: unknown = null;
   try { metrics = h?.host.metrics() ?? null; } catch { /* preserve the original failure */ }
-  return { hashes, metrics, error, stage, elapsedMs: performance.now()-started };
+  return { hashes, metrics, error, stage, elapsedMs: performance.now()-started, hashMs };
 }
 
-export async function oracle(id: string, frames = 300, script?: OracleStep[]): Promise<OracleReport> {
+/** The oracle's default guest-state parts for a built game (see the header comment). */
+export function defaultStateParts(id: string, env = process.env): number {
+  if (env.BGT_ORACLE_STATE !== undefined) return oracleStateParts(env.BGT_ORACLE_STATE);
+  let fast = false;
+  try { fast = JSON.parse(readFileSync(join(ROOT, 'web', 'public', 'games', id, 'manifest.json'), 'utf8')).pipeline?.liftPolicy?.liftMode === 'fast'; } catch { /* not built yet: the load reports it */ }
+  return fast ? 5 : 7;
+}
+/** Which parts of two per-frame hash strings differ: trace (API/GL stream), cpu, memory. */
+export function divergentParts(a: string | undefined, b: string | undefined): string[] {
+  if (a === undefined || b === undefined) return ['missing'];
+  const split = (s: string) => { const m = /^(.*?)(?:\|c([0-9a-f]*)\|m([0-9a-f]*))?$/s.exec(s)!; return [m[1], m[2] ?? '', m[3] ?? '']; };
+  const x = split(a), y = split(b);
+  return ['trace', 'cpu', 'memory'].filter((_, i) => x[i] !== y[i]);
+}
+
+export async function oracle(id: string, frames = 300, script?: OracleStep[], options: { state?: number } = {}): Promise<OracleReport> {
+  const parts = options.state ?? defaultStateParts(id);
   let stage = 'setup';
   try {
     if (!Number.isSafeInteger(frames) || frames <= 0) throw new Error('oracle frames must be a positive safe integer');
@@ -104,10 +151,15 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[]): P
     await probe.stepAsync(1);
     stage = 'script';
     const sc = script ?? defaultScript(frames, probe.host.logicalWidth, probe.host.logicalHeight);
+    stage = 'module-identity';
+    // Guest memory holds the module images: both builds must have loaded the same bytes (a fixture rebuilt from
+    // another path embeds that path), or the memory part would report a build difference as a lifting bug.
+    const modules = (g: string) => { try { return JSON.stringify(JSON.parse(readFileSync(join(ROOT, 'web', 'public', 'games', g, 'manifest.json'), 'utf8')).pipeline?.modules?.map((m: { name: string; sha256: string }) => [m.name, m.sha256]) ?? null); } catch { return null; } };
+    if (parts & 4 && modules(id) !== modules(`${id}-interp`)) throw new Error(`lifted and interpreted builds of ${id} loaded different module bytes (rebuild both from the same directory)`);
     stage = 'lifted-setup';
-    const a = await run(id, frames, sc);
+    const a = await run(id, frames, sc, parts);
     stage = 'interpreted-setup';
-    const b = await run(`${id}-interp`, frames, sc);
+    const b = await run(`${id}-interp`, frames, sc, parts);
     let first: number | null = null;
     // Compare every completed pair, retaining the first divergence for localization.
     for (let i = 0; i < Math.max(a.hashes.length, b.hashes.length); i++) {
@@ -125,6 +177,8 @@ export async function oracle(id: string, frames = 300, script?: OracleStep[]): P
       exitStatus: identical ? 0 : 1,
       identical,
       elapsedMs: { lifted: a.elapsedMs, interpreted: b.elapsedMs },
+      state: { parts, firstDivergence: first === null ? null : { frame: first, parts: divergentParts(a.hashes[first], b.hashes[first]) },
+        hashMs: { lifted: Math.round(a.hashMs * 10) / 10, interpreted: Math.round(b.hashMs * 10) / 10 } },
       firstDivergence: first,
       hashes: { lifted: a.hashes[a.hashes.length - 1] ?? null, interpreted: b.hashes[b.hashes.length - 1] ?? null,
         liftedTrace: createHash('sha256').update(JSON.stringify(a.hashes)).digest('hex'),

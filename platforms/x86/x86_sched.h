@@ -51,4 +51,11 @@ int x86_sched_set_priority(uint32_t task, int priority);
 int x86_sched_get_priority(uint32_t task);
 /* Round robin within a credit round, starting strictly after current. Returns 0 if no runnable task. */
 int x86_sched_next(void);
+/* vK72: guest-visible state hash for differential checks (lifted vs interpreted), never used by execution.
+ * parts: 1 = CPU of every live guest thread (GPRs, RIP, fs/gs base, XMM, MXCSR, x87, instruction clock),
+ * 2 = flags (CF PF AF ZF SF OF DF) in the CPU part, 4 = every mapped guest page (page number and bytes). */
+#define X86_STATE_CPU 1u
+#define X86_STATE_FLAGS 2u
+#define X86_STATE_MEMORY 4u
+uint32_t x86_guest_state_hash(uint32_t parts);
 #endif

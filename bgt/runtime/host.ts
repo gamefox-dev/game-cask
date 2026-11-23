@@ -167,6 +167,7 @@ interface GameExports {
   bgt_render(): void;
   bgt_shutdown(): void;
   bgt_state_hash?(): number;
+  bgt_guest_state_hash?(parts: number): number;
   bgt_debug_state?(): number;
   bgt_debug_peek?(addr: number, len: number): number;
   bgt_metrics?(): number;
@@ -1035,6 +1036,13 @@ export class GameHost {
   stateHash(): string | null {
     if (!this.exports.bgt_state_hash) return null;
     return (this.exports.bgt_state_hash() >>> 0).toString(16).padStart(8, '0');
+  }
+
+  /** vK72 (tests/oracles only): hash of guest-visible state (x86_sched.h X86_STATE_*: 1 CPU of every guest thread,
+   * 2 include flags, 4 every mapped guest page). Null when the module has no pipeline guest. */
+  guestStateHash(parts: number): string | null {
+    if (!this.exports.bgt_guest_state_hash) return null;
+    return (this.exports.bgt_guest_state_hash(parts >>> 0) >>> 0).toString(16).padStart(8, '0');
   }
 
   debugState(): unknown {
