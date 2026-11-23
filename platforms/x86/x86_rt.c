@@ -165,6 +165,17 @@ int x86_fast_quantum(void) {
     x86_fast_yield = 1;
     return 1;
 }
+__attribute__((noinline)) int xf_enter(uint32_t pc, uint32_t flags, uint64_t clock, uint64_t qbase) {
+    X.flags = flags; X.tsc = clock; X.frame_insns = (uint32_t)(clock - qbase); X.eip = pc;
+    if (x86_fast_depth >= 128u) return 1;
+    x86_fast_depth++;
+    return 0;
+}
+static inline int xf_abnormal(uint32_t next) {
+    return X.eip != next || X.transfer || x86_lift_pending != 0 || x86_lift_count != 0 || x86_fast_yield || x86_pending_import != 0;
+}
+__attribute__((noinline)) int xf_leave(uint32_t next) { x86_fast_depth--; return xf_abnormal(next); }
+__attribute__((noinline)) int xf_check(uint32_t next) { return xf_abnormal(next); }
 void x86_fast_exec(const x86_insn_t *in) {
     x86_fast_inline++;
     x86_exec_one(in);

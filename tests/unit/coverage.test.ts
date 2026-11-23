@@ -134,7 +134,11 @@ it('automatically merges only successful per-game evidence with deterministic pr
   expect(selectionProvenance(analysis,plan,'coverage')).toMatchObject({owners:[100,300],interpreter_owners:[100],static_closure_owners:[300]});
   expect(selectionProvenance(analysis,plan,'all').owners).toEqual([100,300,400]);
   expect(()=>selectionMode({selection:'all'},true)).toThrow(/strict slice/);
-  expect(()=>selectionMode({selection:'unknown'},false)).toThrow(/coverage or all/);
+  expect(()=>selectionMode({selection:'unknown'},false)).toThrow(/coverage, all or recorded/);
+  // K72: "recorded" = owners of recorded entries only (no static call closure); not for strict slices.
+  expect(selectionMode({selection:'recorded'},false)).toBe('recorded');
+  expect(()=>selectionMode({selection:'recorded'},true)).toThrow(/strict slice/);
+  expect(selectionProvenance(analysis,plan,'recorded')).toMatchObject({mode:'recorded',owners:[100],recorded_owners:[100],static_closure_owners:[]});
   for(const metrics of [{errors:1},{outsideSlice:1},{code_entries_dropped:1}])expect(publishCoverage(root,{...snapshot,metrics})).toBeNull();
   expect(publishCoverage(root,{...snapshot,interpreter:{...snapshot.interpreter,dropped:1}})).toBeNull();
   writeFileSync(file,JSON.stringify({...snapshot,interpreter:{...snapshot.interpreter,dropped:1}}));

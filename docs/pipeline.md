@@ -460,6 +460,30 @@ observed across calls/returns and callee-saved registers clobbered against the A
 Ablation knobs (`liftFast.{resume,fuse,memory,entries,quantum,stack,inline}`) exist for measurement only.
 Measurements, per-change gains and the go/no-go input: [K52 handoff](handoff/K52.md).
 
+### Module size (K72, opt-in)
+
+Engine-side compiled-code memory scales with wasm bytes (K71: ~4 MB per MB in Chromium after the code ran, ~4-8 MB
+per MB in WebKit, which compiles at load), so module bytes are the main lever for a phone-sized tab. Where the bytes
+go: `npm run bench:wasm-size -- --wasm FILE [--work node_modules/.cache/bgt/pipeline/ID] [--coverage cov.json]`
+(sections, per-function kinds and distribution, never-entered lifted bytes); per guest instruction class by DWARF
+line attribution: build once with `"cflags": ["-gline-tables-only"]` and `BGT_KEEP_DWARF=1 BGT_JSPI_WASM_OPT=0`, then
+`npm run bench:wasm-lines -- --wasm FILE --work DIR` (needs llvm-dwarfdump). `x86tool lift --fast-mark on` adds
+comment markers only (same code, same line numbers). On the CC0 C++ fixture call sites are ~50% of lifted code.
+
+- `liftFast.sync: "minimal"` (default `"full"`): call sites and exits store only registers written since the last
+  synchronization with `X` (entry reload, returned call, generic instruction); after a call only live volatile
+  registers and RSP reload. Spills count as reads in the liveness. Same Win64 assumptions as the full form.
+- `liftFast.calls: "outlined"` (default `"inline"`): the call protocol (clock/flags publication, `X.eip`, depth slot,
+  abnormal-exit check) is `xf_enter`/`xf_leave`/`xf_check` in `x86_rt.c` instead of ~100 inline bytes per site.
+- `liftFast.inline: "16"`: smaller emission-level inlining (existing knob; 48 is the default).
+- `pipeline.selection: "recorded"`: lift only the owners of recorded entries, without the static call closure;
+  everything else interprets (and is recorded, so the next build includes it). Not for strict slices.
+- `pipeline.wasmNames: "strip"` (or `BGT_WASM_NAMES=strip`): artifacts without the `name` section; each one's
+  function map is written beside it (`game.wasm.names.json`, `game.jspi.wasm.names.json`, never fetched).
+
+All default off: the default lift policy, cache keys and generated C are unchanged. `examples/x64-compact` builds
+the CC0 STL fixture with all of them. Measurements and the decision: [K72 handoff](handoff/K72.md).
+
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)
 
 AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance

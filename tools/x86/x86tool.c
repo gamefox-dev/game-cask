@@ -945,6 +945,15 @@ int main(int argc, char **argv) {
         }
         else if (!strcmp(argv[i], "--fast-resume")) lift_fast_resume = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--fast-fuse")) lift_fast_fuse = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--fast-mark")) lift_fast_mark = on_off(argv[i], argv[i + 1]);
+        else if (!strcmp(argv[i], "--fast-calls")) {
+            if (strcmp(argv[i + 1], "outlined") && strcmp(argv[i + 1], "inline")) die("--fast-calls must be outlined or inline");
+            lift_fast_calls_out = !strcmp(argv[i + 1], "outlined");
+        }
+        else if (!strcmp(argv[i], "--fast-sync")) {
+            if (strcmp(argv[i + 1], "minimal") && strcmp(argv[i + 1], "full")) die("--fast-sync must be minimal or full");
+            lift_fast_sync = !strcmp(argv[i + 1], "minimal");
+        }
         else if (!strcmp(argv[i], "--fast-memory")) {
             if (!strcmp(argv[i + 1], "range")) l64_fast_memory = 1;
             else if (!strcmp(argv[i + 1], "mask")) l64_fast_memory = 2;

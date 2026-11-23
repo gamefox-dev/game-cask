@@ -55,7 +55,8 @@ export function liftPolicy(p = {}, env = process.env) {
     policy.liftMode = 'fast';
     const knobs = p.liftFast ?? {};
     const allowed = { resume: ['on', 'off'], fuse: ['on', 'off'], memory: ['range', 'mask', 'select', 'off'], entries: ['restricted', 'all'],
-      quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'] };
+      quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'],
+      sync: ['full', 'minimal'], calls: ['inline', 'outlined'] };
     for (const [key, value] of Object.entries(knobs)) {
       if (!allowed[key]?.includes(value)) throw new Error(`pipeline.liftFast.${key} must be one of ${allowed[key]?.join('/') ?? '(unknown knob)'}`);
     }

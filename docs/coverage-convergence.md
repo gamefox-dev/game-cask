@@ -12,6 +12,13 @@ No address list or configuration edit is needed to lift a late interpreter owner
 recordings, retain full analyzed lifting, not an empty startup selection. The reviewer chose this default
 rather than imposing all-analysis build/wasm costs on large games.
 
+K72: `pipeline.selection: "recorded"` lifts only the owners of recorded entries (no static call closure), the
+smallest module for a representative recording. Statically reachable but unrecorded callees then interpret and are
+recorded, so the next build (same inbox) lifts them; fast-mode recordings miss callees that ran only as inlined
+copies, which is why the first rebuild can still interpret a few functions (CC0 STL fixture: 160 owners, 27
+functions / 2,583 instructions interpreted; the second build with both recordings: 187 owners, 0 interpreted, lifted
+code 0.64 MB vs 1.25 MB for the default closure selection of the same recording). Measurements: [K72 handoff](handoff/K72.md).
+
 Every nonslice input must name the exact game ID; each individual input (not just their union) must match
 all module names, hashes and load bases. Strict supplied recordings may keep the original recording's game ID
 when packaging under a new ID, but must match the same complete modules. Stale evidence fails: archive/remove

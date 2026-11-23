@@ -234,9 +234,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   const coverage = coverageInstrumentation(cfg);
   const census = ownerCensus();
   const mode=selectionMode(p,!!cfg.slice);
-  const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
+  const recorded=cfg.slice?.coverage ?? (mode!=='all'?p.coverage:null);
   const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
-    ...(!cfg.slice && mode==='coverage'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
+    ...(!cfg.slice && mode!=='all'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
   const plan=files.length ? coveragePlan(files,gameDir) : null;
   if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,plan.modules,{strict:!!cfg.slice});
   const sliceCode=new Set(), sliceRanges=[], codeRanges=[], codeOwners=[];
