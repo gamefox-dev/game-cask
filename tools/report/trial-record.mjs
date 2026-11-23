@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { ROOT } from '../build/toolchain.mjs';
+import { variantStatus } from '../engine/framework.mjs';
 
 const [dirArg, slug] = process.argv.slice(2);
 if (!dirArg || !slug) { console.error('usage: npm run trial:record -- <gameDir> <slug>'); process.exit(1); }
@@ -39,6 +40,15 @@ const trial = {
   executionPath: cfg.engineProfile ? 'engineProfile' : cfg.pipeline ? 'pipeline' : 'bgt',
   engineProfile: manifest?.engineProfile ?? null,
   engineBundle: manifest?.metrics ? { ...manifest.metrics, files: undefined, headers: manifest.headers ?? null } : null,
+  // K68: engineProfile build variants (e.g. a real-time deploy bundle) built from the same game.json.
+  // vK68: a variant manifest counts as built only when it matches game.json and the base build (variantStatus);
+  // a stale one is recorded with its mismatches and without its metrics.
+  engineVariants: cfg.engineProfile?.variants ? Object.keys(cfg.engineProfile.variants).map((name) => {
+    const m = readJ(join(ROOT, '.engine-private/builds', `${cfg.id}-${name}`, 'manifest.json'));
+    const { status, mismatches } = variantStatus(cfg, name, manifest, m), ok = status === 'built';
+    return { name, id: `${cfg.id}-${name}`, status, built: ok, mismatches, engineArgs: ok ? m.engineProfile.engineArgs : null,
+      precompressed: ok ? Object.keys(m.precompressed ?? {}) : null, bundle: ok && m.metrics ? { ...m.metrics, files: undefined } : null };
+  }) : null,
   pipeline: manifest?.pipeline ? {
     loc: manifest.pipeline.loc,
     metrics: manifest.pipeline.metrics ?? null,

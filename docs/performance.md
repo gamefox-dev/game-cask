@@ -82,6 +82,22 @@ guest-time boundary. The guest sees exactly the update sequence of back-to-back 
 update per tick. `__BGT_TEST__.pageLoop()` returns `{ticks, updates, transportUpdates, maxUpdatesPerTick}` since load.
 Fixture: `examples/x64-file-load` (768 small reads of a streamed 4 MiB file), spec `tests/e2e/file-load.spec.ts`.
 
+**Burst waits for renderer results (K70, Q126).** On WebGPU, shader compile status, stage modules and readbacks
+resolve asynchronously in the renderer, not in host file I/O. A burst used to re-run the polling update at once:
+~1000 updates per tick (32k/s), each with its own render and submit, which also flooded the GPU process and delayed
+the result itself (~190 ms per program). The burst now waits, within the tick budget, for the request the last update
+polled unresolved (`Requests.awaited()`); `pageLoop()` adds `requestWaits`, `requestWaitMs`, `requestWaitTimeouts`;
+`?iowait=0` is the A/B switch. Fixture `examples/x64-gl-programs` (24 programs: 2 compiles, 2 link stage modules and
+one glReadPixels each), spec `tests/e2e/gl-programs.spec.ts`.
+
+**JSPI artifact optimization (K70, Q127).** The JSPI artifact (dual `game.jspi.wasm`, JSPI-only `game.wasm`) gets
+the same bounded Binaryen pass as the Asyncify artifact without `--asyncify` (`tools/build/asyncify.mjs`: whole-module
+-O2 up to 32 MiB of code, function-local passes over 8 MiB partitions above), the name section kept and no Asyncify
+marker. Content-keyed cache `jspi-opt` (key: `asyncifyCacheKey(..., {variant: 'jspi-O2'})`); manifest metric
+`pipeline.metrics.jspi_opt` = `{linked_bytes, ms, cached, mode, partitions}`. `BGT_JSPI_WASM_OPT=0` ships the raw
+link output (A/B). Dual builds run the Asyncify and JSPI passes sequentially (peak Binaryen memory of one pass, up
+to 4 GiB each for 273 MB modules on 16 GB machines); cache keys hash the exact transform arguments.
+
 ## 3. Performance builds without coverage
 
 `BGT_COVERAGE=off npm run build:port`, or `node tools/build/build.mjs <dir> --no-coverage`, compiles coverage
@@ -141,7 +157,7 @@ that per-present frame totals equal the exact accounting deltas. Measured overhe
 | `wasm.moduleBytes` | the selected game.wasm artifact; `compiledBytes` is `null` (engine machine code is not observable) |
 | `guest` | Win32 profile only: `committedBytes` (highest flat-guest address mapped), `heapBytes`, `virtualLiveBytes`/`virtualPeakBytes` (VirtualAlloc; reserve = commit in this profile), `host*` (runtime/GL/CRT/file host arena), `glFrontendBytes` (guest-side GL data copies). All of it lives **inside** linear memory |
 | `gpu.reserved` | the §13 decoder's reservation by kind (buffers/textures/shaders); sums to `reservedBytes` (the budget accounting) |
-| `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (allocated levels; depth/stencil part), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
+| `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (materialized levels; depth/stencil part; `lazy`: reserved levels not used yet, K71), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
 | `gpu.canvasBytesEstimate` | canvas drawing buffer + one swap buffer, RGBA8 |
 | `js` | JS-heap copies: preloaded assets, stream chunk cache, decoder buffer shadows (`gpuDecoderShadowBytes`), executor recovery shadows (`gpuRecoveryShadowBytes`), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
 | `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), the budget and `status`. `peakTotalBytes` is a **sampled** high-water mark (`peakSampling`): the maximum over samples at load milestones (game.wasm compiled, counting its still-held download buffer as `js.loadBuffersBytes`; instantiated; initialized; ready; first frame), every 30 presents and every read. Spikes between samples, and engine-internal compile buffers, are not seen |
@@ -151,6 +167,40 @@ the manifest), `?memorybudget=1536m|1.5g|BYTES` or `RuntimeOptions.memoryBudgetB
 warning, never a failure. The estimate is not process RSS: compiled code, browser/driver overhead and the JS engine are
 excluded. **Real-device memory (iPhone Safari WebContent + GPU process) is a hardware gate**: report it separately, e.g.
 from Xcode Instruments / Safari Web Inspector Timelines, next to this estimate; the difference is mostly compiled code.
+
+**Lazy texture storage (K71).** Both executors commit a §13 texture's native storage on its first use, as drivers do:
+an upload, a pass that attaches it (draw or clear), a sampling bind, a blit, a readback, or mip generation from a
+materialized base. TEXTURE_CREATE, ALLOCATE_MIPS and GENERATE_MIPS from a never-used base allocate nothing. Until then
+every level holds its creation value (color 0, depth 1, stencil 0), which the fresh storage reproduces, so pixels,
+readbacks, validation and the decoder's reservation are unchanged. `gpu.native.textures.bytes` counts materialized
+levels; `textures.lazy` the reserved rest (`bytes + lazy.bytes` = `gpu.reserved.textures`). FBO completeness is the
+profile's, from guest state, and never needs storage. Recovery recreates textures lazily (uploads are replayed, so those
+re-materialize). `?lazytextures=0` (`RuntimeOptions.lazyTextures: false`) restores allocation at creation for A/B.
+
+**Texture recovery shadows (K71).** By default each executor keeps a CPU copy of every uploaded texture level so a
+WebGL context loss or WebGPU device loss restores the contents (a lifted guest never re-uploads). game.json
+`"gpu": {"recoveryShadows": false}` (copied to the manifest), `?recoveryshadows=0|1` or `RuntimeOptions.recoveryShadows`
+(precedence option > URL > manifest > default on; `build.mjs` rejects unknown `gpu` keys and a non-boolean value) drops
+upload shadows. Per backend: **WebGL 2** drops them for every texture dimension (mips are generated natively), so a loss
+after any texture upload, 3D included, is the fatal stop below. **WebGPU** drops them for 2D/array textures but keeps
+3D levels' shadows on both settings, because they are its CPU source for 3D mip generation (load-bearing for pixels);
+a WebGPU loss after uploads to 3D textures only therefore still recovers, while any 2D/array upload makes it fatal.
+**Loss semantics when off:** a loss before any texture upload still recovers exactly; a loss after any upload stops the
+game with a `device-lost` error naming `gpu.recoveryShadows: false` (no silent restore with blank textures). The
+setting is listed in `diagnostics().memory.gpu.recoveryShadows` and `backendNotes`. Opt-in test checkpoints need the
+shadows and refuse while they are off. Buffer shadows are unchanged (load-bearing on both backends).
+
+**Real footprint (K71).** `npm run bench:footprint -- --game ID [--engine chromium|webkit] [--backend webgl2|webgpu]
+[--suspension jspi] [--frames N] [--until TEXT]` loads the game (real GPU), and at `ready` and after the run records
+`__BGT_TEST__.memory()` beside macOS `footprint` (phys_footprint: dirty + compressed + GPU-owned memory, unlike ps RSS)
+of the browser processes **this session launched**: the browser runs with `BGT_FOOTPRINT_TAG=<nonce>` and
+`__XPC_BGT_FOOTPRINT_TAG=<nonce>` (launchd passes the latter to WebKit's XPC services), and only processes whose
+environment carries the nonce are measured, so other sessions' browsers never count. The report
+(`reports/footprint-*.json`) has per-process roles (page renderer / WebContent, GPU process, network, browser), the top
+VM categories, and `unattributedBytes` = page renderer + GPU process − estimate (compiled code, engine and driver
+overhead). `--sweep ID,ID,...` fits footprint against module size (MB per MB of wasm). Port probe scripts can import
+`launchTagged()` and `footprintSnapshot(page, tag, label)` from `tools/report/footprint.mjs`. Desktop footprint shows
+the trend; the iPhone number stays a hardware gate.
 
 **Load metrics.** `diagnostics().load` (also `__BGT_TEST__.loadMetrics()`) has the phase marks since load start
 (`manifestMs`, `wasmMs`, `assetsMs`, `readyMs`, `firstFrameMs`, `firstUpdateMs`), spans (`instantiateMs`, `initMs`),

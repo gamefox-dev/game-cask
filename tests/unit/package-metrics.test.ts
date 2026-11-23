@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 // @ts-expect-error untyped kit tool module
-import { artifactSizes, classifyServing, compressedSizes, displayPath, kindOf, precompress, summarizeArtifacts } from '../../tools/report/package-metrics.mjs';
+import { artifactSizes, browserLaunch, classifyServing, compressedSizes, displayPath, kindOf, precompress, summarizeArtifacts } from '../../tools/report/package-metrics.mjs';
 
 describe('package metrics', () => {
   it('classifies artifacts by kind', () => {
@@ -67,5 +67,20 @@ describe('package metrics', () => {
       expect(a.kinds.wasm.raw).toBe(8192);
       expect(a.kinds.data.raw).toBe(4096);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  // K70 (Q130). Breakage caught: --browser --backend webgl2 launching Chromium without GPU args (SwiftShader numbers
+  // reported as GPU load metrics) or diverging from the chromium-webgl2 project's launch.
+  it('launches WebGL2 like the chromium-webgl2 project (BGT_WEBGL2_GPU=1 = native GPU)', async () => {
+    // @ts-expect-error plain ESM launch conventions
+    const { webgl2Launch, webglGpuArgs } = await import('../../tools/build/browser-launch.mjs');
+    const gpu = browserLaunch('webgl2', { BGT_WEBGL2_GPU: '1' });
+    expect(gpu).toEqual({ options: { args: webglGpuArgs }, launch: 'gpu' });
+    expect(gpu.options.args).toContain('--ignore-gpu-blocklist');
+    if (process.platform === 'darwin') expect(gpu.options.args).toContain('--use-angle=metal');
+    expect(gpu.options.args).toEqual(webgl2Launch({ BGT_WEBGL2_GPU: '1' }).launchOptions.args);
+    expect(browserLaunch('webgl2', {})).toEqual({ options: { args: [] }, launch: 'default' });
+    expect(browserLaunch('webgl2', { BGT_WEBGL2_GPU: '1', BGT_SOFTWARE_RENDERER: '1' }).launch).toBe('software');
+    const webgpu = browserLaunch('webgpu', {});
+    expect(webgpu.options.channel).toBe('chromium'); expect(webgpu.options.args).toContain('--enable-unsafe-webgpu');
   });
 });

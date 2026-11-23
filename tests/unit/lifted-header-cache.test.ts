@@ -61,4 +61,6 @@ it('helper-header edits invalidate dependent objects, linked/JSPI wasm and Async
     rmSync(join(ROOT,'web/public/games',id),{recursive:true,force:true});
     rmSync(join(ROOT,'node_modules/.cache/bgt/pipeline',id),{recursive:true,force:true});
   }
-},60_000);
+// K70: dual builds now also run the bounded JSPI wasm-opt -O2 (cold on the first and the changed build: +12 s on
+// M4, 31 -> 43 s; it is a second artifact's optimization, not a duplicate or uncached pass). 60 s timed out on Linux CI.
+},180_000);

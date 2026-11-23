@@ -349,4 +349,6 @@ follow-up supplied it. Those historical commits are not individually self-contai
   devices, minimum-image/lazy-wasm packaging and multi-million-instruction scale: exact bounds in v03-status.md.
 - Physical iPhone, Safari/WebKit/Firefox, physical rumble/listening and device performance, remote Ubuntu/GitHub CI,
   nested sandbox/container provisioning: **not performed by I1**.
+- Desktop WebKit (K69): `npm run test:e2e:webkit` runs the suite in Playwright WebKit as an **informational** run, not a
+  gate and not iPhone verification; WebKit behaviours and their repros are in [webkit.md](webkit.md).
 - No real-game port was attempted or graded; fixture completion does not establish L1/L2/L3 for a game.

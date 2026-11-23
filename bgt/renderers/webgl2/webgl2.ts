@@ -39,6 +39,8 @@ export interface WebGL2Options {
   gpuTiming?: boolean;
   /** K53: keep a pass framebuffer bound for the next same-image pass (default on). */
   batch?: boolean;
+  /** K71 (Q128): commit §13 texture storage on first use (default on); false allocates at creation (A/B). */
+  lazyTextures?: boolean;
 }
 
 /** Whole-drawFrame GPU time via TIME_ELAPSED queries, read without stalling a few frames later. */
@@ -66,6 +68,12 @@ class WebGL2Timing {
   reset(): void { this.pending = []; this.free = []; this.active = undefined; }
 }
 
+/** K69: contexts of destroyed renderers, kept restorable so reuse() can recycle them instead of creating a new one. */
+const parkedContexts = new WeakMap<HTMLCanvasElement, { gl: WebGL2RenderingContext; ext: WEBGL_lose_context; lost: Promise<boolean> }>();
+/** Bounds on reuse(): a synthetic loss event is dispatched in the next task and a permitted restore completes within a
+ * few ms (WebKit/Chromium measured 0-5 ms); a context that is not restorable (e.g. a real loss) falls back fast. */
+export const REUSE_LOST_MS = 100, REUSE_RESTORE_MS = 250;
+
 export class WebGL2Renderer implements Renderer {
   readonly gpu: WebGL2Gpu;
   readonly kind = 'webgl2' as const;
@@ -74,6 +82,9 @@ export class WebGL2Renderer implements Renderer {
   private timing?: WebGL2Timing;
   private nativeCheckDue = false;
   lost = false;
+  private destroyed = false;
+  private released?: (ok: boolean) => void;
+  private readonly listeners = new AbortController();
   maxTextureSize = 4096;
   private gl: WebGL2RenderingContext;
   private program!: WebGLProgram;
@@ -103,13 +114,15 @@ export class WebGL2Renderer implements Renderer {
       this.timing = ext ? new WebGL2Timing(gl, ext) : undefined;
       this.stats.gpuTiming = ext ? 'timer-query' : 'unavailable';
     }
+    const signal = this.listeners.signal;
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
+      if (this.destroyed) { this.listeners.abort(); this.released?.(true); return; } // K69: restorable for reuse()
       this.lost = true;
       this.textures.clear();
       this.targets.clear();
       for (const cb of this.lostCbs) cb('webgl context lost');
-    });
+    }, { signal });
     canvas.addEventListener('webglcontextrestored', () => {
       try {
         this.initResources();
@@ -121,8 +134,27 @@ export class WebGL2Renderer implements Renderer {
       }
       this.lost = false;
       for (const cb of this.restoredCbs) cb();
-    });
+    }, { signal });
     this.initResources();
+  }
+
+  /** K69: a fresh renderer on the canvas of a destroyed one, by restoring that canvas's own context. WebKit frees a
+   * context's place in the page's 16-context budget only when it is garbage-collected, never on loseContext(): one new
+   * canvas per temporary renderer (savestate snapshot/compaction/restore) made WebKit recycle the least recently used
+   * context, which can be a live one (docs/webkit.md). Null (use a new canvas) if the canvas cannot be restored. */
+  static async reuse(canvas: HTMLCanvasElement, opts: WebGL2Options = {}): Promise<WebGL2Renderer | null> {
+    const parked = parkedContexts.get(canvas);
+    parkedContexts.delete(canvas);
+    if (!parked) return null;
+    const within = <T>(p: Promise<T>, fallback: T, ms: number) =>
+      Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+    if (!(await within(parked.lost, false, REUSE_LOST_MS)) || !parked.gl.isContextLost()) return null;
+    // Restoration is allowed only after the loss event's dispatch has finished (not in its microtasks).
+    await new Promise((r) => setTimeout(r, 0));
+    const restored = new Promise<boolean>((r) => canvas.addEventListener('webglcontextrestored', () => r(true), { once: true }));
+    parked.ext.restoreContext();
+    if (!(await within(restored, false, REUSE_RESTORE_MS)) || parked.gl.isContextLost()) return null;
+    return new WebGL2Renderer(canvas, parked.gl, opts);
   }
 
   static create(canvas: HTMLCanvasElement, opts: WebGL2Options = {}): WebGL2Renderer | null {
@@ -461,12 +493,20 @@ export class WebGL2Renderer implements Renderer {
     }
     const ext = this.gl.getExtension('WEBGL_lose_context');
     if (!ext) throw new Error('WEBGL_lose_context unavailable');
-    const restored = new Promise<void>((resolve) => this.restoredCbs.push(() => resolve()));
-    ext.loseContext();
-    await new Promise((r) => setTimeout(r, 30));
-    ext.restoreContext();
-    await restored;
+    const restored = new Promise<void>((resolve, reject) => {
+      this.restoredCbs.push(() => resolve());
+      // K69: destroy() removes the restore listener; settle the pending simulation instead of hanging it.
+      this.cancelSimulatedLoss = () => reject(new Error('WebGL2 renderer destroyed during simulated loss'));
+    });
+    restored.catch(() => {}); // settled by destroy() possibly before it is awaited below
+    try {
+      ext.loseContext();
+      await new Promise((r) => setTimeout(r, 30));
+      if (!this.destroyed) ext.restoreContext();
+      await restored;
+    } finally { this.cancelSimulatedLoss = undefined; }
   }
+  private cancelSimulatedLoss?: () => void;
 
   onLost(cb: (reason: string) => void): void {
     this.lostCbs.push(cb);
@@ -479,6 +519,13 @@ export class WebGL2Renderer implements Renderer {
   }
 
   destroy(): void {
-    this.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.cancelSimulatedLoss?.();
+    const ext = this.gl.getExtension('WEBGL_lose_context');
+    if (!ext || this.gl.isContextLost()) { this.listeners.abort(); return; }
+    // Parked until reuse(): the loss event (preventDefault above) makes the context restorable.
+    parkedContexts.set(this.canvas, { gl: this.gl, ext, lost: new Promise<boolean>((r) => { this.released = r; }) });
+    ext.loseContext();
   }
 }

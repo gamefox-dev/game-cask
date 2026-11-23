@@ -14,6 +14,9 @@ import { testSuspensionModes } from '../support/suspension-modes';
 import { glStream } from '../support/x64-gl-stream';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
+// K70: this test exercises the owner census, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 // @ts-expect-error plain ESM
 import { ownerCensus } from '../../tools/build/pipeline.mjs';
 
@@ -53,7 +56,7 @@ for (const wide of [false, true]) it('exact per-owner retirement, lifted and int
     for (const census of [true, false]) for (const interpreted of [false, true]) {
       if (census) process.env.BGT_OWNER_CENSUS = '1'; else delete process.env.BGT_OWNER_CENSUS;
       const out = join(dir, (census ? 'on-' : 'off-') + (interpreted ? 'interpreted' : 'lifted'));
-      const manifest = buildGame(dir, { outRoot: out, interpretOnly: interpreted, quiet: true }), game = join(out, manifest.id);
+      const manifest = buildGame(dir, { outRoot: out, interpretOnly: interpreted, quiet: true, jspiOptimize: false }), game = join(out, manifest.id);
       expect(manifest.pipeline.instrumentation.ownerCensus).toBe(census);
       for (const mode of testSuspensionModes()) {
         const wasm = mode === 'jspi' ? manifest.variants.jspi.url : manifest.wasm.url, logs: string[] = [];
@@ -91,7 +94,7 @@ it('per-present frame tables equal exact accounting deltas and are deterministic
   const saved = process.env.BGT_OWNER_CENSUS, out = mkdtempSync(join(ROOT, 'node_modules/.cache/bgt/owner-census-frames-'));
   try {
     process.env.BGT_OWNER_CENSUS = '1';
-    const manifest = buildGame(join(ROOT, 'examples/x64-gl-limits'), { outRoot: out, quiet: true });
+    const manifest = buildGame(join(ROOT, 'examples/x64-gl-limits'), { outRoot: out, quiet: true, jspiOptimize: false });
     const runs = [];
     for (let run = 0; run < 2; run++) {
       const h = await loadHeadless('x64-gl-limits', { ...glStream(), dir: join(out, manifest.id) });

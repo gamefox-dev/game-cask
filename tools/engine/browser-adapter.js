@@ -132,6 +132,9 @@ export function installEngineTestAdapter(canvas, identity) {
       logical: { width: canvas.width, height: canvas.height }, letterbox: { x: 0, y: 0, w: canvas.width, h: canvas.height },
       capabilities: { deterministic: false, framePacer: !!pacer, pause: false, peek: false, savestates: false, cpuProfile: false, coverage: false },
       pacer: pacer ? { fps: pacer.fps, virtualTime: !!pacer.virtualTime, frame: pacer.frame(), pending: pacer.pending() } : null,
+      // K68 Q12: first non-clear frame, ms since navigation start (test/probe observer from tools/engine/perf.mjs; null without it).
+      firstFrameMs: window.__ENGINE_FIRST_FRAME__?.firstFrameMs ?? null,
+      firstFrame: window.__ENGINE_FIRST_FRAME__ ? JSON.parse(JSON.stringify(window.__ENGINE_FIRST_FRAME__)) : null,
       metrics: { engineProfile: identity, raf: timing() } }),
     input, waitFrames, timing, frameHash,
     // Paced: step(n) runs n engine frames; unpaced: it observes n browser frames (no engine control).

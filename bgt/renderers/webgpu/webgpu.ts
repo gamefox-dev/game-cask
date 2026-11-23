@@ -77,6 +77,8 @@ export interface WebGPUOptions {
   gpuTiming?: boolean;
   /** K53: frame encoder and pass merging (default on). */
   batch?: boolean;
+  /** K71 (Q128): create §13 textures on first use (default on); false creates them at TEXTURE_CREATE (A/B). */
+  lazyTextures?: boolean;
 }
 
 interface DeviceObjects {
@@ -231,7 +233,8 @@ export class WebGPURenderer implements Renderer {
     this.snapshot = undefined;
     const queue = device.queue, rawSubmit = queue.submit.bind(queue);
     if (this.gpu) await this.gpu.restore(device);
-    else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)), describeAdapter(this.adapter));
+    else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)), describeAdapter(this.adapter),
+      { lazyTextures: this.opts.lazyTextures });
     this.gpu.merge = this.opts.batch !== false;
     this.timing?.destroy();
     this.timing = this.opts.gpuTiming && WebGPUTiming.supported(device) ? new WebGPUTiming(device, b => rawSubmit(b)) : undefined;

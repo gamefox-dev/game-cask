@@ -946,6 +946,17 @@ export class GameHost {
     return this.asyncState === AsyncState.Suspended && !this.inUpdate && (this.exports.bgt_yield_kind?.() ?? 0) === 1;
   }
 
+  /** K70: after a transport yield, the unresolved request result the guest is polling (renderer results resolve
+   * outside host I/O work), as a promise that settles when it arrives; null when the next update can progress. */
+  transportWait(): Promise<void> | null {
+    const t = this.requests.awaited();
+    if (!t) return null;
+    // vK70: whichever comes first, the polled result or any pending host I/O (a streamed read the guest may be
+    // waiting on instead): a slow renderer result must never throttle file loading to one update per tick.
+    const polled = this.requests.whenDone(t);
+    return this.ioWork.size ? Promise.race([polled, this.settleRequests()]) : polled;
+  }
+
   /** Optional read-only profile clock. Never used for wall-dependent scheduling. */
   guestTimeUs(): number | null { return this.exports.bgt_guest_time_us?.() ?? null; }
 

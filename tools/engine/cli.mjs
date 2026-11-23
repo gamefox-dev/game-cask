@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { inventory } from '../inspect/inspect.mjs';
-import { buildEngine, detectProfile, publicDetection } from './framework.mjs';
+import { buildEngineVariants, detectProfile, publicDetection } from './framework.mjs';
 import { detectEngines } from './detect.mjs';
 import { fetchRuntime, isProvisioned, manifest, provision, runtimes, selectRuntime, storeRoot, verifyRuntime } from './runtime.mjs';
 import { serveEngine } from './server.mjs';
@@ -16,7 +16,9 @@ const USAGE = `usage: npm run engine -- <command>
   doctor [ID]                           re-verify a cached runtime
   pin ID                                (kit maintainer) pin member/file SHA-256 from a published-SHA-512-verified install
   extract INPUT_ROOT RUNNER PACK NEW_OUT  write the normalized standalone pack
-  build GAME_DIR | serve BUILD_DIR      engine bundle build / local server with the bundle's headers
+  build GAME_DIR [--variant base|all|NAME[,NAME]] [--precompress]
+                                        engine bundle build (K68: variants -> builds/<id>-<variant>; .br/.gz siblings)
+  serve BUILD_DIR [--precompressed]     local server with the bundle's headers (K68: serve .br/.gz siblings by Accept-Encoding)
   provision ID ZIP [NOTICES_DIR]        offline: pinned web template ZIP + notices`;
 const flag = (args, name) => { const i = args.indexOf(name); if (i < 0) return false; args.splice(i, 1); return true; };
 const option = (args, name) => { const i = args.indexOf(name); if (i < 0) return undefined; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -51,10 +53,12 @@ try {
     writeFileSync(new URL('runtimes.json', import.meta.url), JSON.stringify(manifest, null, 2) + '\n');
     console.log(`pinned ${entry.id}: member ${entry.member.sha256}, ${files.length} files`);
   } else if (command === 'build') {
-    const dir = resolve(args[0] ?? 'port');
-    buildEngine(dir, JSON.parse(readFileSync(join(dir, 'game.json'))));
+    const variants = option(args, '--variant'), precompress = flag(args, '--precompress'), dir = resolve(args[0] ?? 'port');
+    buildEngineVariants(dir, JSON.parse(readFileSync(join(dir, 'game.json'))), { variants, ...(precompress ? { precompress: true } : {}) });
   } else if (command === 'serve') {
-    const serving = await serveEngine(args[0]);
+    const precompressed = flag(args, '--precompressed');
+    const serving = await serveEngine(args[0], { precompressed });
+    if (precompressed) console.error(`engine: serving precompressed siblings for ${serving.precompressed.length} file(s) by Accept-Encoding`);
     if (serving.unverifiedRuntime) console.error('engine: WARNING serving an UNVERIFIED runtime (no published checksum; recorded opt-in)');
     console.log(serving.url);
   } else if (command === 'detect' && args.length <= 1) {

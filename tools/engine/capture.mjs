@@ -73,6 +73,10 @@ export async function captureEngineErrors(page, files, { build, assets } = {}) {
       records.push(record);
       const response = await originalFetch.apply(this, args);
       record.status = response.status; record.length = Number(response.headers.get('Content-Length'));
+      // K68: a precompressed response's Content-Length is the ENCODED size; the body read here is decoded, so it
+      // must equal the manifest's byte length instead (unknown length: 0, which fails the integrity check).
+      const encoding = (response.headers.get('Content-Encoding') ?? '').trim().toLowerCase();
+      if (encoding && encoding !== 'identity') { record.encoding = encoding; record.encodedLength = record.length; record.length = expected[name].bytes ?? 0; }
       if (!response.body) return response;
       const stream = response.body, originalReader = stream.getReader;
       stream.getReader = function (...readerArgs) {
@@ -114,6 +118,8 @@ export async function captureEngineErrors(page, files, { build, assets } = {}) {
         records.push(record);
         this.addEventListener('loadend', () => {
           record.status = this.status; record.length = Number(this.getResponseHeader('Content-Length'));
+          const encoding = (this.getResponseHeader('Content-Encoding') ?? '').trim().toLowerCase();
+          if (encoding && encoding !== 'identity') { record.encoding = encoding; record.encodedLength = record.length; record.length = expected[name].bytes ?? 0; }
           const body = this.responseType === 'arraybuffer' ? this.response : null;
           if (!body) return;
           record.received = body.byteLength; record.done = true;
@@ -156,7 +162,8 @@ export async function captureEngineErrors(page, files, { build, assets } = {}) {
     const bodies = await page.evaluate(async () => {
       const records = window.__ENGINE_REQUEST_EVIDENCE__ ?? [];
       await Promise.all(records.map(r => r.hashing));
-      return records.map(r => ({ token: r.token, url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256, ...(r.hashError ? { hashError: r.hashError } : {}) }));
+      return records.map(r => ({ token: r.token, url: r.url, status: r.status, length: r.length, received: r.received, done: r.done, sha256: r.sha256,
+        ...(r.encoding ? { encoding: r.encoding, encodedLength: r.encodedLength } : {}), ...(r.hashError ? { hashError: r.hashError } : {}) }));
     }).catch(e => { errors.push('runtime evidence unavailable: ' + e.message); return []; });
     for (const name of Object.keys(expected)) if (!bodies.some(r => new URL(r.url).pathname === '/' + name)) errors.push('missing runtime body evidence: ' + name);
     for (const r of bodies) {

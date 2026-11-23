@@ -55,6 +55,10 @@ export interface RuntimeOptions {
   autostart?: boolean;
   /** K64: estimated-total memory budget (bytes) for the iPhone-class warning; overrides ?memorybudget= and the manifest. */
   memoryBudgetBytes?: number;
+  /** K71 (Q128): commit §13 texture storage on first use (default true; `?lazytextures=0` for A/B). */
+  lazyTextures?: boolean;
+  /** K71 (Q129): keep texture recovery shadows; overrides `?recoveryshadows=` and manifest `gpu.recoveryShadows`. */
+  recoveryShadows?: boolean;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
   startPaused?: boolean;
   /** Opt-in JSPI; both manifest and runtime request must opt in. */
@@ -62,6 +66,8 @@ export interface RuntimeOptions {
   /** K66: wall budget (ms) per display tick for updates that continue after a time-neutral transport yield;
    * 0 restores one update per tick (A/B). Default TRANSPORT_BURST_MS. */
   ioBurstMs?: number;
+  /** K70: false re-runs a burst update without waiting for the unresolved request result it polled (pre-K70 A/B). */
+  ioWait?: boolean;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -78,7 +84,8 @@ export interface Manifest {
   variants?: { jspi?: {url:string;size:number;sha256:string} };
   preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
   suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
-  gpu?: { budgetBytes?: number };
+  /** K71: `recoveryShadows: false` drops texture upload shadows (loss after an upload is then fatal; docs/performance.md). */
+  gpu?: { budgetBytes?: number; recoveryShadows?: boolean };
   /** K64: estimated-total memory budget for this game (game.json "memoryBudget"); default 1.5 GiB. */
   memoryBudget?: { bytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
@@ -95,9 +102,10 @@ export interface RuntimeErrorRecord {
 
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
-import { retainedAccumulator, continueTransport, TRANSPORT_BURST_MS } from './page-pacing';
+import { retainedAccumulator, continueTransport, settlesWithin, TRANSPORT_BURST_MS } from './page-pacing';
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
-import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs } from './memory';
+import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
+  type RecoveryShadowPolicy } from './memory';
 import { loadSummary, type LoadDiagnostics, type LoadMarks, type ResourceTransfer } from './load-metrics';
 
 export interface BGTDiagnostics {
@@ -224,6 +232,7 @@ export class BGTRuntime {
   private wasmTransfer: ResourceTransfer | null = null;
   private linearAtInstantiate = 0;
   private memoryBudget: { bytes: number; source: MemoryBudgetSource } = resolveMemoryBudget();
+  private recoveryShadows: RecoveryShadowPolicy = { enabled: true, source: 'default' };
   private memoryPeaks = { linear: 0, total: 0 };
   /** Load-time buffers the runtime still holds, for the milestone peak samples (vK64). */
   private loadBuffers = 0;
@@ -426,6 +435,7 @@ export class BGTRuntime {
     this.manifest = manifest;
     this.loadMarks.manifestMs = performance.now() - this.loadStarted;
     this.memoryBudget = this.resolveBudget(manifest);
+    this.recoveryShadows = this.resolveRecoveryPolicy(manifest);
     this.rangeFiles = new RangeFiles(base);
     for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
@@ -469,6 +479,7 @@ export class BGTRuntime {
 
     this.status('Starting graphics…');
     this.renderer = await this.pickRenderer(this.opts.backend ?? 'auto');
+    this.applyRecoveryPolicy(this.renderer);
     this.input = new InputManager(this.canvas, manifest.input);
     if (!((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testHarness)) this.input.attach();
     if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) this.input.scriptedOnly = !!this.testHarness;
@@ -600,13 +611,14 @@ export class BGTRuntime {
     }
     console.warn(`[bgt] ${reason}; switching to WebGL 2`);
     this.canvas = this.newCanvas();
-    const gl = WebGL2Renderer.create(this.canvas, { debug: !!this.opts.debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
+    const gl = WebGL2Renderer.create(this.canvas, { debug: !!this.opts.debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch, lazyTextures: this.opts.lazyTextures });
     if (!gl) {
       this.fail('device-lost', `WebGPU device lost (${reason}) and WebGL 2 is unavailable`);
       return;
     }
     old.destroy();
     this.renderer = gl;
+    this.applyRecoveryPolicy(gl);
     this.wireRenderer(gl);
     this.input.retarget(this.canvas);
     this.lostSince = 0;
@@ -635,7 +647,7 @@ export class BGTRuntime {
         this.backendNotes.push('webgpu: initialization deliberately failed (?backend=webgpu-fail)');
       } else {
         try {
-          const r = await WebGPURenderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
+          const r = await WebGPURenderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch, lazyTextures: this.opts.lazyTextures });
           if (r) return r;
           this.backendNotes.push(navigator.gpu ? 'webgpu: no adapter available' : 'webgpu: navigator.gpu not present');
         } catch (e) {
@@ -646,7 +658,7 @@ export class BGTRuntime {
       // A canvas that handed out a 'webgpu' context cannot give WebGL; use a fresh one.
       this.canvas = this.newCanvas();
     }
-    const gl = WebGL2Renderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch });
+    const gl = WebGL2Renderer.create(this.canvas, { debug, gpuTiming: !!this.opts.gpuTiming, batch: this.opts.gpuBatch, lazyTextures: this.opts.lazyTextures });
     if (gl) return gl;
     this.backendNotes.push('webgl2: context creation failed');
     throw new RuntimeFailure('init', `Neither WebGPU nor WebGL 2 is available in this browser. (${this.backendNotes.join('; ')})`);
@@ -851,7 +863,11 @@ export class BGTRuntime {
   }
 
   /** K66: page-loop counters (test API pageLoop()). */
-  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0 };
+  readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0,
+    /** K70: burst waits for an unresolved polled request result, their wall time, and waits that hit the tick budget. */
+    requestWaits: 0, requestWaitMs: 0, requestWaitTimeouts: 0,
+    /** vK70: longest wall time of a tick's updates (first update + burst), ms. */
+    maxTickMs: 0 };
 
   /**
    * K66: a guest blocked in a synchronous transport wait (ReadFile, a request result, a full host-frame budget)
@@ -875,7 +891,18 @@ export class BGTRuntime {
       await this.renderFrame(false).catch(() => null); n = 0;
       const rendered = this.presentsCompleted > before, renderedAt = performance.now();
       if (host.ioPending) await host.settleRequests();
-      if (performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
+      // K70 (Q126): a renderer result (shader compile, pipeline, readback) resolves outside host I/O work. Re-running
+      // the update before it arrives only polls the same 0 again (busy-poll, ~1000 updates per tick on WebGPU), and
+      // floods the GPU process with renders that delay the result itself. Wait for it within the tick's budget.
+      const wait = this.opts.ioWait === false ? null : host.transportWait();
+      let starved = false;
+      if (wait) {
+        const w0 = performance.now(), left = budget - (w0 - tickStart);
+        starved = !(left > 0 && await settlesWithin(wait, left));
+        stats.requestWaits++; stats.requestWaitMs += performance.now() - w0;
+        if (starved) stats.requestWaitTimeouts++;
+      }
+      if (starved || performance.now() - tickStart >= budget || this.paused || this.failed || this.outsideSlice || this.renderer?.lost ||
         ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testCheckpointBusy)) {
         // The burst ends on an update already rendered: that render is the tick's present.
         if (rendered && this.pageLog) pageLogPush(this.pageLog, 2, renderedAt, tick);
@@ -888,6 +915,7 @@ export class BGTRuntime {
       if (this.pageLog) pageLogPush(this.pageLog, 3, performance.now());
     }
     if (tick > stats.maxUpdatesPerTick) stats.maxUpdatesPerTick = tick;
+    const tickMs = performance.now() - tickStart; if (tickMs > stats.maxTickMs) stats.maxTickMs = tickMs;
     return { pending: n, updates: tick };
   }
 
@@ -1015,6 +1043,27 @@ export class BGTRuntime {
     }
   }
 
+  private resolveRecoveryPolicy(manifest: Manifest | null): RecoveryShadowPolicy {
+    const url = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('recoveryshadows') : null;
+    let policy: RecoveryShadowPolicy;
+    try { policy = resolveRecoveryShadows(this.opts.recoveryShadows, url, manifest?.gpu?.recoveryShadows); }
+    catch (e) {
+      if (url === null || this.opts.recoveryShadows !== undefined) throw new RuntimeFailure('init', (e as Error).message);
+      this.backendNotes.push(`gpu: ${(e as Error).message}; ignored`);
+      try { policy = resolveRecoveryShadows(undefined, null, manifest?.gpu?.recoveryShadows); }
+      catch (m) { throw new RuntimeFailure('init', (m as Error).message); }
+    }
+    if (!policy.enabled) this.backendNotes.push(`gpu: texture recovery shadows disabled (${policy.source}); ` +
+      'a GPU device/context loss after a texture upload stops the game (device-lost)');
+    return policy;
+  }
+
+  /** K71 (Q129): executors read the policy at each upload; set before the game issues GPU work. */
+  private applyRecoveryPolicy(r: Renderer): void {
+    const gpu = r.gpu as { recoveryShadows?: boolean } | undefined;
+    if (gpu && 'recoveryShadows' in gpu) gpu.recoveryShadows = this.recoveryShadows.enabled;
+  }
+
   private memoryInputs(metrics: unknown): MemoryInputs {
     const host = this.host, r = this.renderer, reserved = host?.gpuReservedByKind ?? null, gpu = host?.gpuMetrics ?? null;
     const heap = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
@@ -1027,6 +1076,7 @@ export class BGTRuntime {
       native: r?.gpu?.memory?.() ?? null,
       legacyTextureBytes: host?.textures.totalBytes ?? 0,
       canvas: { width: this.canvas.width, height: this.canvas.height },
+      recoveryShadows: this.recoveryShadows,
       js: { assetBytes: this.vfs.totalBytes, streamCacheBytes: this.rangeFiles?.cacheBytes ?? 0,
         gpuDecoderShadowBytes: reserved?.buffers ?? 0,
         // Scheduled AudioBuffers hold float32 per channel; stereo is the upper bound.

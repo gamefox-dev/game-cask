@@ -82,6 +82,14 @@ result are unchanged; only how many updates share a display tick changes. Withou
 the result is 0 and pacing is as before. The Win32 profile reports 1 for `w32_wait_transport` yields (ReadFile range
 waits, GL readback/shader/budget waits, GDI record overflow) of an update that has not presented, snapped a frame
 boundary or skipped time in Sleep/idle; metric `guest_time.neutral_yields` counts them.
+K70: before running the next update, a burst waits (within the tick's remaining wall budget) for the request result
+that the yielding update last polled with `bgt_request_status` == 0, when that result has not arrived yet (renderer
+results such as shader compile status and readbacks resolve asynchronously on WebGPU, outside host file I/O). A result
+that arrived but becomes visible only at the next update boundary needs no wait. If the budget runs out first, the
+tick ends and the next tick continues; the wait also ends when pending host file I/O settles, and a request issued
+after the poll replaces it as the cause. Guest-visible results (request results, guest time, presents) are identical
+with or without the wait; only the number of time-neutral updates that poll 0 before the result arrives differs, and
+that number depends on wall time (`?iowait=0` restores the pre-K70 re-run for A/B).
 
 Optional additive profile export (K50): `double bgt_guest_time_us(void)` returns deterministic virtual guest
 microseconds, read-only, including current instruction-budget debt. It must not mutate simulation or use
@@ -270,7 +278,8 @@ interface BGTTestAPI {
   simulateDeviceLoss(): Promise<void>;
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
   measurePage(windowMs: number, warmupMs?: number): Promise<PageWindowSummary>; // K51 real-page window
-  pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick }; // K66: page-loop counters since load
+  pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick;   // K66: page-loop counters since load
+    requestWaits; requestWaitMs; requestWaitTimeouts; maxTickMs };    // K70: burst waits for a polled request result
   memory(): MemoryDiagnostics; loadMetrics(): LoadDiagnostics; // K64 runtime metrics, = diagnostics().memory/.load
 }
 type BGTTestInputEvent =
@@ -1085,7 +1094,10 @@ internal block in the next free uniform slot (offset 256-aligned in the same buf
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
-16 MiB through 0xffffffff. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
+16 MiB through 0xffffffff. The manifest `gpu` object takes only `budgetBytes` and (K71, runtime only, no ABI effect)
+`recoveryShadows` (boolean, default true: keep CPU copies of uploaded texture levels for device-loss recovery;
+false: drop them, except WebGPU 3D levels, which are its CPU mip-generation source; a loss after an upload whose copy was
+dropped is a reported `device-lost` stop, i.e. on WebGL 2 after any texture upload, on WebGPU after a 2D/array upload); `build.mjs` rejects other keys. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
 their separate frozen budgets. Queued GPU upload/source copies additionally total at most 256 MiB per frame;
 exceeding this → E_LIMIT. All existing submit/command/2D frame limits still apply. Resource updates are ordered, not
 coalesced across draws or passes. No backend may reorder a deletion ahead of earlier commands using that resource.

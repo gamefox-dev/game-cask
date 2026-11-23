@@ -48,9 +48,14 @@ test('capture and draw use one atomic size across ResizeObserver delivery', asyn
       errors: rt.diagnostics().errors };
   }, { root: '/@fs' + resolve('bgt'), kind: backendParam });
   expect(result.errors).toEqual([]);
-  expect(result.recorded).toEqual({ width: 320, height: 180, letterbox: { x: 0, y: 0, w: 320, h: 180, scale: 1 } });
+  // K69: canvas pixels are CSS pixels x devicePixelRatio (Desktop Safari emulates DPR 2). The 320x180 logical game
+  // fills the container exactly at any integer DPR, so the pre- and post-resize sizes still differ by 2x.
+  const d = await page.evaluate(() => Math.min(window.devicePixelRatio || 1, 3));
+  expect(Number.isInteger(d), `integer devicePixelRatio expected, got ${d}`).toBe(true);
+  const size = (k: number) => ({ width: 320 * k, height: 180 * k, letterbox: { x: 0, y: 0, w: 320 * k, h: 180 * k, scale: k } });
+  expect(result.recorded).toEqual(size(d));
   expect(result.draws[0]).toEqual(result.recorded);
-  expect(result.draws.at(-1)).toEqual({ width: 640, height: 360, letterbox: { x: 0, y: 0, w: 640, h: 360, scale: 2 } });
+  expect(result.draws.at(-1)).toEqual(size(2 * d));
 });
 
 // Run the documented public CLI and shipped driver, not makeProbe mocks or an

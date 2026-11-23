@@ -7,6 +7,8 @@ export const TEXEL_BYTES = [4, 4, 1, 2, 8, 4, 4, 4, 2, 4, 4, 8, 16,
 /** Components of each color format (depth formats: 1). Used by readback packing. */
 export const TEXEL_COMPONENTS = [4, 4, 1, 2, 4, 1, 1, 4, 1, 2, 1, 2, 4,
   1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4] as const;
+/** K71 (Q129): the reason a restore refuses when texture recovery shadows were disabled. */
+export const RECOVERY_SHADOWS_OFF = 'texture recovery shadows are disabled (gpu.recoveryShadows: false)';
 export const isDepthFormat = (format: number) => format === 5 || format === 6;
 export const isIntegerFormat = (format: number) => format >= 13 && format <= 30;
 export const isUnsignedIntegerFormat = (format: number) => isIntegerFormat(format) && (format & 1) === 1;

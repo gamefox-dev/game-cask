@@ -53,7 +53,7 @@ test('memory breakdown is consistent and the GPU reservation matches the backend
   expect(g.hostBytes!).toBeLessThanOrEqual(g.hostReservedBytes!);
 
   // GPU: reservation by kind sums to the reserved bytes; after step() every item is executed, so the backend's
-  // native buffer/texture bytes equal the reservation exactly (2D textures only in this fixture).
+  // native buffer bytes and materialized + lazy texture bytes equal the reservation exactly (2D textures only here).
   const gpu = m.gpu!, n = gpu.native!;
   expect(n.backend).toBe(d.backend);
   expect(gpu.reserved.buffers + gpu.reserved.textures + gpu.reserved.shaders).toBe(gpu.reservedBytes);
@@ -62,7 +62,8 @@ test('memory breakdown is consistent and the GPU reservation matches the backend
   expect(gpu.reserved.textures).toBeGreaterThan(0);
   expect(n.buffers.bytes).toBe(gpu.reserved.buffers);
   expect(n.buffers.nativeBytes).toBeGreaterThanOrEqual(n.buffers.bytes);
-  expect(n.textures.bytes).toBe(gpu.reserved.textures);
+  // K71: textures not yet used hold no native storage; materialized + lazy bytes equal the reservation exactly.
+  expect(n.textures.bytes + (n.textures.lazy?.bytes ?? 0)).toBe(gpu.reserved.textures);
   expect(n.textures.depthStencilBytes).toBeLessThanOrEqual(n.textures.bytes);
   expect(n.renderbuffers).toEqual({ count: 0, bytes: 0 });
   expect(js.gpuDecoderShadowBytes).toBe(gpu.reserved.buffers);

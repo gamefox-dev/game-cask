@@ -17,6 +17,9 @@ import {Vfs} from '../../bgt/runtime/vfs';
 import {coveragePlan,staticClosure,owningRanges,rangeOwner,publishCoverage,automaticCoverageFiles,selectionMode,selectionProvenance} from '../../tools/build/coverage.mjs';
 // @ts-expect-error plain ESM
 import {buildGame} from '../../tools/build/build.mjs';
+// K70: this test exercises coverage selection, not the JSPI optimizer: its builds skip the bounded JSPI -O2 (jspiOptimize: false =
+// the pre-K70 raw JSPI artifact). The optimized path stays covered by jspi-opt, jspi-only-build, build-chunks,
+// lifted-header-cache and native-suspension-guard (and every dual-build browser spec).
 // @ts-expect-error plain ESM identity migration
 import {adoptCoverage} from '../../tools/build/coverage-adopt.mjs';
 
@@ -176,7 +179,7 @@ it.each(['asyncify','partitioned','jspi-preferred','jspi-only'])('two successive
  let verifiedPartitionBuild=false;
  const build=()=>{
   const raw=join(dir,'linked.wasm');
-  const m=buildGame(dir,{quiet:true,...(variant==='partitioned'?{asyncifyPartitionBytes:PARTITION_BYTES,onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
+  const m=buildGame(dir,{quiet:true,jspiOptimize:false,...(variant==='partitioned'?{asyncifyPartitionBytes:PARTITION_BYTES,onLinkedWasm:(p:string)=>copyFileSync(p,raw)}:{})});
   if(variant==='partitioned'&&!verifiedPartitionBuild){
    // Prove the builder really used >1 partition, rather than merely labelling a
    // whole-module build. Subsequent builds use the same keyed option directly:
