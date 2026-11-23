@@ -28,6 +28,7 @@
     "test:e2e": "npm run build:examples && BGT_RESULTS_PREFIX=e2e playwright test",
     "test:e2e:webgl2": "npm run build:examples && BGT_RESULTS_PREFIX=e2e playwright test --project=chromium-webgl2",
     "test:e2e:webgpu": "npm run build:examples && BGT_RESULTS_PREFIX=e2e BGT_REQUIRE_WEBGPU=1 playwright test --project=chromium-webgpu",
+    "test:e2e:webkit": "npm run build:examples && BGT_RESULTS_PREFIX=e2e-webkit BGT_ALL_BROWSERS=1 playwright test --project=webkit-webgl2 --project=webkit-webgpu --workers=1",
     "test:port": "node tools/engine/test-port.mjs",
     "probe": "node tools/probe/probe.mjs",
     "probe:replay": "node tools/probe/frame-replay.mjs",
