@@ -25,3 +25,13 @@ export function continueTransport(transportYield: boolean, elapsedMs: number, bu
   if (!transportYield || !(budgetMs > 0) || !(elapsedMs < budgetMs)) return false;
   return guestStartUs === null || guestNowUs === null || guestNowUs - guestStartUs < TRANSPORT_BURST_GUEST_US;
 }
+
+/**
+ * K70: true if `work` settles within `ms` of wall time, false on timeout (the timer is cleared either way).
+ * A transport burst waits this way for the request result its last update polled; a timeout ends the tick.
+ */
+export function settlesWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), Math.max(0, ms)); });
+  return Promise.race([work.then(() => true, () => true), timeout]).finally(() => clearTimeout(timer));
+}

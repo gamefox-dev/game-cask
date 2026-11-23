@@ -1,6 +1,7 @@
 // @bgt-examples: none
-// CC0: verifies the production build publishes the raw linked artifact without
-// invoking Asyncify, and the actual host resumes it using the JSPI-only manifest.
+// CC0: verifies the production build publishes the linked artifact without invoking Asyncify (K70: after the
+// bounded wasm-opt -O2 that the Asyncify artifact also gets; was: raw link output), and the actual host resumes it
+// using the JSPI-only manifest.
 import {it,expect} from 'vitest';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {join,basename} from 'node:path';
@@ -15,7 +16,11 @@ it('builds a JSPI-only suspending fixture with no Asyncify exports or fallback c
   writeFileSync(join(dir,'game.json'),JSON.stringify({id,name:'CC0 JSPI only',sources:['game.c'],asyncify:true,suspensionBuild:'jspi'}));
   let linked:Buffer|null=null;const m=buildGame(dir,{quiet:true,onLinkedWasm:(p:string)=>{linked=readFileSync(p);}});
   expect(m.suspension).toBe('jspi');expect(m.toolchain.asyncify).toBe(false);expect(m.variants).toBeUndefined();
-  const bytes=readFileSync(join(ROOT,'web/public/games',id,'game.wasm'));expect(bytes.equals(linked!)).toBe(true);
+  const bytes=readFileSync(join(ROOT,'web/public/games',id,'game.wasm'));
+  // K70 (Q127): optimized, not the raw link output; same exports, never Asyncify-instrumented.
+  expect(bytes.equals(linked!)).toBe(false);expect(bytes.length).toBeLessThan(linked!.length);
+  const exportsOf=(b:Buffer)=>WebAssembly.Module.exports(new WebAssembly.Module(new Uint8Array(b))).map(e=>e.name).sort();
+  expect(exportsOf(bytes)).toEqual(exportsOf(linked!));
   expect(WebAssembly.Module.exports(new WebAssembly.Module(bytes)).map(e=>e.name)).not.toContain('asyncify_start_unwind');
   if(jspiApi()){const h=await loadHeadless(id);await h.stepAsync(300);expect(h.host.yields).toBe(300);expect(h.host.stateHash()).toBe((300000+187).toString(16).padStart(8,'0'));}
   else await expect(loadHeadless(id)).rejects.toThrow(/JSPI-only build requires/);

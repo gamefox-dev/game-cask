@@ -14,6 +14,7 @@ import { brotliCompressSync, gzipSync, constants as zc } from 'node:zlib';
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { webgl2Launch, webgpuGpuArgs } from '../build/browser-launch.mjs';
 
 export const PRECOMPRESSED = /\.(br|gz)$/;
 
@@ -135,10 +136,21 @@ function parseArgs(argv) {
   return a;
 }
 
+/**
+ * K70 (Q130): the Chromium launch for a backend, the kit's project conventions. WebGPU: full Chromium with the GPU
+ * args of the chromium-webgpu project. WebGL2: webgl2Launch(env) of the chromium-webgl2 project (BGT_WEBGL2_GPU=1 =
+ * native GPU, ANGLE Metal on macOS; default headless shell = SwiftShader; BGT_SOFTWARE_RENDERER=1 explicit SwiftShader).
+ */
+export function browserLaunch(backend, env = process.env) {
+  if (backend === 'webgpu') return { options: { channel: 'chromium', args: webgpuGpuArgs }, launch: 'gpu' };
+  const args = webgl2Launch(env).launchOptions?.args ?? [];
+  return { options: { args }, launch: args.includes('--use-angle=swiftshader') ? 'software' : args.length ? 'gpu' : 'default' };
+}
+
 async function browserLoad(base, game, backend, budget, timeout) {
   const { chromium } = await import('@playwright/test');
-  const args = backend === 'webgpu' ? ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU', '--use-angle=metal', '--ignore-gpu-blocklist'] : [];
-  const browser = await chromium.launch(backend === 'webgpu' ? { channel: 'chromium', args } : { args });
+  const { options, launch } = browserLaunch(backend);
+  const browser = await chromium.launch(options);
   try {
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     // Free-running (no ?paused=1): the page's own loop produces the first update and frame.
@@ -152,8 +164,10 @@ async function browserLoad(base, game, backend, budget, timeout) {
     }, null, { timeout, polling: 100 });
     const result = await page.evaluate(() => { const t = window.__BGT_TEST__;
       const d = t.diagnostics();
-      return { failed: t.failed(), backend: t.backend(), suspension: d.suspension, load: d.load, memory: d.memory, errors: d.errors }; });
-    return { ...result, wallMs: Date.now() - started };
+      return { failed: t.failed(), backend: t.backend(), suspension: d.suspension, gpuDevice: d.gpuDevice ?? null, load: d.load, memory: d.memory, errors: d.errors }; });
+    // K70: which renderer produced the load numbers (a SwiftShader WebGL2 run is not a GPU measurement).
+    return { ...result, launch, launchArgs: options.args, renderer: result.gpuDevice?.renderer ?? null,
+      softwareRenderer: result.gpuDevice?.software ?? null, wallMs: Date.now() - started };
   } finally { await browser.close(); }
 }
 
@@ -185,6 +199,8 @@ async function main() {
     if (a.browser) {
       report.browser = await browserLoad(base, id, a.backend, a.budget, a.timeout);
       const l = report.browser.load, m = report.browser.memory;
+      console.log(`renderer: ${report.browser.renderer ?? 'unknown'} (launch ${report.browser.launch}${report.browser.softwareRenderer ? ', software' : ''})`);
+      if (report.browser.softwareRenderer && a.backend !== 'webgpu') console.log('  note: software WebGL2 (SwiftShader); BGT_WEBGL2_GPU=1 measures the native GPU');
       console.log(`load (${report.browser.backend}, ${report.browser.suspension}): manifest ${l.marks.manifestMs?.toFixed(1)} ms, wasm ${l.wasm.downloadCompileVerifyMs.toFixed(1)} ms (streaming ${l.wasm.streaming}/${l.wasm.streamingReason}), instantiate ${l.wasm.instantiateMs.toFixed(1)} ms, ready ${l.marks.readyMs?.toFixed(1)} ms, first frame ${l.timeToFirstFrameMs?.toFixed(1)} ms, first update ${l.timeToFirstInteractiveUpdateMs?.toFixed(1)} ms`);
       console.log(`memory estimate ${m.estimate.totalBytes} B (wasm linear ${m.estimate.components.wasmLinear}, module ${m.estimate.components.wasmModule}, GPU native ${m.estimate.components.gpuNative}, JS held ${m.estimate.components.jsHeld}) vs budget ${m.estimate.budgetBytes} B: ${m.estimate.status}`);
     }

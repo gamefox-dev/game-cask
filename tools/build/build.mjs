@@ -50,10 +50,42 @@ export const LDFLAGS = ['-nostdlib', '-Wl,--no-entry', '-Wl,-z,stack-size=104857
 
 // Complete post-link identity: thresholds/local passes live in asyncify.mjs; both
 // binary and name parsers can change partition assembly or exact native exclusions.
-export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],asyncifyPartitionBytes=null,asyncifyAnalysis='precise',root=ROOT}={}) {
+export function asyncifyCacheKey(wasm, {profileNames=false,asyncifyRemove=[],asyncifyPartitionBytes=null,asyncifyAnalysis='precise',root=ROOT,variant=null}={}) {
   return sha256(Buffer.concat([wasm,Buffer.from(JSON.stringify(WASM_OPT_FEATURES)),
     ...['node_modules/binaryen/bin/wasm-opt','tools/build/asyncify.mjs','tools/build/binaryen-runner.mjs','tools/build/wasm-sections.mjs','tools/build/wasm-names.mjs','tools/build/wasm-callgraph.mjs','tools/build/command.py','tools/build/node-args.mjs'].map(p=>readFileSync(join(root,p))),
-    Buffer.from(JSON.stringify({version:'bounded-asyncify/v2',profileNames,asyncifyRemove,asyncifyPartitionBytes,asyncifyAnalysis}))]));
+    // K70: `variant` keys other bounded wasm-opt products (the JSPI artifact); absent = the Asyncify key, unchanged.
+    Buffer.from(JSON.stringify({version:'bounded-asyncify/v2',profileNames,asyncifyRemove,asyncifyPartitionBytes,asyncifyAnalysis,...(variant?{variant}:{})}))]));
+}
+
+/**
+ * K70 (Q127): the JSPI artifact gets the same bounded Binaryen optimization as the Asyncify one, without
+ * instrumentation: whole-module -O2 up to asyncify.mjs WHOLE_LIMIT, function-local passes over partitions above
+ * it, the standard name section kept, no Asyncify marker. Content-keyed and cached like the Asyncify payload.
+ * Returns the cached optimized module path (never modifies `input`).
+ */
+export function optimizeJspiWasm(input, { asyncifyPartitionBytes = null } = {}) {
+  const wasmOpt = join(ROOT, 'node_modules', 'binaryen', 'bin', 'wasm-opt');
+  if (!existsSync(wasmOpt)) throw new Error('JSPI optimization needs binaryen: run npm ci');
+  const key = asyncifyCacheKey(readFileSync(input), { asyncifyPartitionBytes, variant: 'jspi-O2' });
+  const dir = cacheDirectory('jspi-opt'); mkdirSync(dir, { recursive: true });
+  const out = join(dir, key + '.wasm'), release = leaseCache(dir, [out]);
+  const started = performance.now();
+  try {
+    const post = JSON.parse(execFileSync('python3', ['-I', join(ROOT, 'tools/build/compile.py')], {
+      phase: 'wasm-opt jspi', cwd: ROOT, input: JSON.stringify({ objects: [{ out, stdout: out + '.names', args: [process.execPath,
+        join(ROOT, 'tools/build/asyncify.mjs'), input, ...WASM_OPT_FEATURES, '-O2',
+        ...(asyncifyPartitionBytes === null ? [] : ['--bgt-partition-bytes=' + asyncifyPartitionBytes])] }], jobs: 1 }),
+      encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
+    }));
+    const line = readFileSync(out + '.names', 'utf8').split('\n').find((l) => l.startsWith('#bgt-asyncify '));
+    if (!line) throw new Error('JSPI optimization reported no statistics');
+    const stats = JSON.parse(line.slice(14));
+    if (stats.marked || stats.instrumented) throw new Error('JSPI optimization produced an Asyncify artifact; refusing to publish');
+    touchCache([out, out + '.names']);
+    return { path: out, cached: post.objects_cached === 1, ms: performance.now() - started, mode: stats.mode, partitions: stats.partitions };
+  } catch (error) {
+    throw new Error(`JSPI wasm-opt failed for ${relative(ROOT, input)}: ${error.message}. BGT_JSPI_WASM_OPT=0 ships the unoptimized link output.`, { cause: error });
+  } finally { release(); pruneCache(dir, Number(process.env.BGT_CACHE_MAX_MB ?? 512) * 1048576); }
 }
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
@@ -206,16 +238,21 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   if(pipe)writeFileSync(wasmPath,stripDwarf(readFileSync(wasmPath)));
   const preAsyncifyBytes=statSync(wasmPath).size;
   const jspiStarted = performance.now();
-  let jspiArtifact = null;
+  let jspiArtifact = null, jspiOpt = null;
+  // K70 (Q127): both JSPI artifacts (dual game.jspi.wasm, JSPI-only game.wasm) get bounded wasm-opt -O2.
+  const optimizeJspi = (emitJspi || jspiOnly) && process.env.BGT_JSPI_WASM_OPT !== '0';
+  if (optimizeJspi) jspiOpt = { ...optimizeJspiWasm(wasmPath, { asyncifyPartitionBytes }), linked_bytes: preAsyncifyBytes };
   if (emitJspi) {
     // Same compiled/linked program, without whole-module Asyncify. No alternate guest semantics.
-    const bytes = readFileSync(wasmPath), hash = sha256(bytes);
-    cpSync(wasmPath, join(outDir, 'game.jspi.wasm'));
+    const from = jspiOpt?.path ?? wasmPath, bytes = readFileSync(from), hash = sha256(bytes);
+    cpSync(from, join(outDir, 'game.jspi.wasm'));
     jspiArtifact = { url: 'game.jspi.wasm?h=' + hash.slice(0, 16), size: bytes.length, sha256: hash };
   }
   const jspiMs = performance.now() - jspiStarted;
   const linkedMs = performance.now() - buildStarted;
   if(onLinkedWasm)onLinkedWasm(wasmPath);
+  // Like the Asyncify payload, the JSPI-only artifact replaces the linked module after onLinkedWasm saw it.
+  if (jspiOnly && jspiOpt) cpSync(jspiOpt.path, wasmPath);
   let asyncifyCached = false, asyncifyStats = null;
   const asyncifyAnalysis = process.env.BGT_ASYNCIFY_ANALYSIS || 'precise';
   if (!['precise','binaryen'].includes(asyncifyAnalysis)) throw new Error('BGT_ASYNCIFY_ANALYSIS must be precise or binaryen');
@@ -385,6 +422,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       c_generation_cpu_ms: pipe.report.timings?.c_generation_cpu_ms ?? 0, compile_ms: compileMetrics?.compile_ms ?? 0,
       link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
       ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
+      // K70: JSPI wasm-opt (null = not emitted or BGT_JSPI_WASM_OPT=0).
+      jspi_opt: jspiOpt ? { linked_bytes: jspiOpt.linked_bytes, ms: Math.round(jspiOpt.ms * 1000) / 1000, cached: jspiOpt.cached,
+        mode: jspiOpt.mode, partitions: jspiOpt.partitions } : null,
       phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
       asyncify_cached:asyncifyCached, asyncify_ms:asyncifyMs, asyncify_mode:jspiOnly?'none-jspi-only':asyncifyRestricted?'amd64-native-boundaries':'conservative', asyncify_remove_count:asyncifyRemove.length, asyncify_remove_sha256:sha256(Buffer.from(asyncifyRemove.join(','))),
       asyncify_analysis:asyncifyStats?.analysis ?? null, asyncify_functions:asyncifyStats?.functions ?? null, asyncify_suspending:asyncifyStats?.suspending ?? null,

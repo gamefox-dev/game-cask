@@ -33,3 +33,27 @@ it('readback commands validate capabilities, handles, size and malformed framing
  expect(decodeCommands(commands,0,commands.length,c).status).toBe(0); expect(frame.items[0].kind).toBe('readback');
  expect(decodeCommands(commands,0,commands.length,c).status).toBe(E_STATE);
 });
+
+// K70 (Q126). Breakage caught: a page-loop burst that cannot tell which unresolved result the guest is polling
+// (renderer results resolve outside host I/O work), a waiter that never settles on completion/close, and a result
+// that already arrived (visible at the next update) being reported as still awaited.
+it('requests expose the unresolved result the last poll found, and settle waiters on completion or close',async()=>{
+ const q=new Requests(), t=q.reserve(5), u=q.reserve(6); if(typeof t==='number'||typeof u==='number') throw new Error('reserve failed');
+ q.advance(); expect(q.awaited()).toBeNull();
+ expect(q.status(5)).toBe(0); expect(q.awaited()).toBe(t);
+ let woke=0; const w=q.whenDone(t).then(()=>{woke++;});
+ await Promise.resolve(); expect(woke).toBe(0);
+ q.complete(t,new Uint8Array([1])); await w; expect(woke).toBe(1);
+ expect(q.awaited()).toBeNull(); // arrived: the next update sees it, nothing to wait for
+ q.advance(); expect(q.awaited()).toBeNull(); expect(q.status(5)).toBe(1);
+ // Done in the same update it was polled: visible next update, not awaited.
+ const r=q.reserve(7); if(typeof r==='number') throw new Error('reserve failed'); q.complete(r,new Uint8Array([2]));
+ expect(q.status(7)).toBe(0); expect(q.awaited()).toBeNull();
+ // A closed (cancelled) request releases its waiters and is never awaited.
+ q.advance(); expect(q.status(6)).toBe(0); expect(q.awaited()).toBe(u);
+ const c=q.whenDone(u); q.close(6); await c; expect(q.awaited()).toBeNull();
+ await q.whenDone(u); // stale token: settled at once
+ // advance() clears the poll: a request nobody polled this update is not a reason to wait.
+ const v=q.reserve(8); if(typeof v==='number') throw new Error('reserve failed');
+ q.advance(); expect(q.status(8)).toBe(0); q.advance(); expect(q.awaited()).toBeNull();
+});

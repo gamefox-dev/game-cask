@@ -946,6 +946,13 @@ export class GameHost {
     return this.asyncState === AsyncState.Suspended && !this.inUpdate && (this.exports.bgt_yield_kind?.() ?? 0) === 1;
   }
 
+  /** K70: after a transport yield, the unresolved request result the guest is polling (renderer results resolve
+   * outside host I/O work), as a promise that settles when it arrives; null when the next update can progress. */
+  transportWait(): Promise<void> | null {
+    const t = this.requests.awaited();
+    return t ? this.requests.whenDone(t) : null;
+  }
+
   /** Optional read-only profile clock. Never used for wall-dependent scheduling. */
   guestTimeUs(): number | null { return this.exports.bgt_guest_time_us?.() ?? null; }
 

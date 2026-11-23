@@ -85,7 +85,10 @@ it('chunked lift is cached, byte stable, oracle-equivalent, and invalidated by c
     expect(b.pipeline.metrics.objects_compiled).toBe(0);
     expect(b.wasm.sha256).toBe(a.wasm.sha256);
     expect(b.variants.jspi.sha256).toBeTruthy();
-    expect(b.variants.jspi.size).toBe(b.pipeline.metrics.pre_asyncify_bytes);
+    // K70 (Q127): the JSPI variant is the optimized link output (was: the raw link output, pre_asyncify_bytes).
+    expect(b.pipeline.metrics.jspi_opt.linked_bytes).toBe(b.pipeline.metrics.pre_asyncify_bytes);
+    expect(b.variants.jspi.size).toBeLessThan(b.pipeline.metrics.pre_asyncify_bytes);
+    expect(b.pipeline.metrics.jspi_opt.cached).toBe(true);
     buildGame(dir,{quiet:true,interpretOnly:true});
     const r=await oracle(id,300);expect(r.identical).toBe(true);expect(r.errors).toEqual({lifted:null,interpreted:null});
     const h=await loadHeadless(id);await h.stepAsync(300);expect((h.host.metrics() as any).interp_insns).toBe(0);
