@@ -159,7 +159,8 @@ that per-present frame totals equal the exact accounting deltas. Measured overhe
 | `gpu.reserved` | the §13 decoder's reservation by kind (buffers/textures/shaders); sums to `reservedBytes` (the budget accounting) |
 | `gpu.native` | what the backend executor allocated, from its own tables: buffers (guest and padded sizes), textures (materialized levels; depth/stencil part; `lazy`: reserved levels not used yet, K71), renderbuffers (always 0: attachments are textures), internal (logical screen, WebGPU rename pool, scratch) |
 | `gpu.canvasBytesEstimate` | canvas drawing buffer + one swap buffer, RGBA8 |
-| `js` | JS-heap copies: preloaded assets, stream chunk cache, decoder buffer shadows (`gpuDecoderShadowBytes`), executor recovery shadows (`gpuRecoveryShadowBytes`), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
+| `gpu.overhead` | K74: modeled GPU-process bytes beyond `native` + `canvasBytesEstimate` (see below); `estimate.components.gpuOverhead` |
+| `js` | JS-heap copies: preloaded assets (K74: without the released `after-init` loader images), stream chunk cache, the one CPU copy of each §13 buffer (`gpuDecoderShadowBytes`; K74: shared by decoder and executor), executor recovery shadows (`gpuRecoveryShadowBytes`: texture uploads and only *private* buffer copies), v0.2 texture-table shadows, queued audio, and Chromium's `usedJSHeapSize` when present |
 | `estimate` | `totalBytes` = wasm linear + module bytes + GPU native + JS held (disjoint), the budget and `status`. `peakTotalBytes` is a **sampled** high-water mark (`peakSampling`): the maximum over samples at load milestones (game.wasm compiled, counting its still-held download buffer as `js.loadBuffersBytes`; instantiated; initialized; ready; first frame), every 30 presents and every read. Spikes between samples, and engine-internal compile buffers, are not seen |
 
 The **budget** defaults to 1.5 GiB (iPhone-class tab). Override with game.json `"memoryBudget": {"bytes": N}` (copied to
@@ -201,6 +202,42 @@ VM categories, and `unattributedBytes` = page renderer + GPU process − estimat
 overhead). `--sweep ID,ID,...` fits footprint against module size (MB per MB of wasm). Port probe scripts can import
 `launchTagged()` and `footprintSnapshot(page, tag, label)` from `tools/report/footprint.mjs`. Desktop footprint shows
 the trend; the iPhone number stays a hardware gate.
+
+**GPU-process overhead (K74, Q137).** The GPU process holds more than the native objects: the canvas surfaces (the
+drawing buffer plus the compositor's swap chain), driver padding (Metal stores DEPTH24_STENCIL8 wider than 4 B) and
+the upload staging the browser keeps after write calls (color formats, mip chains and buffers measured 0.93-1.08 GPU
+bytes per byte: no factor). A page cannot
+observe any of it, so `memory().gpu.overhead` models it from factors measured in isolation (`bgt/runtime/gpu-overhead.ts`,
+`GPU_OVERHEAD_FACTORS`, per engine and API): `canvasBytes` (surfaces per canvas pixel beyond the two counted in
+`canvasBytesEstimate`), `presentationBytes` (WebGL 2's retained full-canvas snapshot: real, previously uncounted; its
+screen LOAD reads the physical image, so it stays), `depthStencilBytes` (padding of materialized depth/stencil levels),
+`stagingBytes` (once anything was uploaded: max(fixed, k x `native.uploads.largestBytes`, the largest single upload
+call)), their `totalBytes` (= `estimate.components.gpuOverhead`), and, informational and never
+counted, `browserBaseBytes` (the GPU process of a page with no context). `model.assumed` is true when the user agent is
+neither Chromium nor WebKit (Chromium factors are used). Re-measure with
+`npm run bench:gpu-footprint -- [--engine chromium|webkit] [--api webgl2,webgpu] [--scenarios ...] [--repeat N]`
+(`tools/report/gpu-footprint.mjs`: one tagged browser per scenario, a runtime-free page, two equal allocation steps so
+the marginal factor excludes one-time pools; canvas cost from one context resized in-page). `bench:footprint` snapshots
+now carry `gpuProcess: {measuredBytes, attributedBytes, baseEstimateBytes, unattributedBytes, unexplainedBytes}`
+(attributed = gpuNative + gpuOverhead, what the runtime accounts; `baseEstimateBytes` = the model's browser base, a rough
+estimate kept separate: Chromium's swings 80-160 MB with idle trimming; unexplained = measured - attributed - base
+estimate) and `jsHeldBytes`. Depth uploads on WebGPU (their float staging image) use the same bands and counter. Test
+checkpoints capture the WebGPU physical image by presenting the retained screen (there is no snapshot to read).
+
+**WebGPU upload bands (K74).** Chromium's WebGPU stages each `writeTexture`/`writeBuffer` call in GPU-process memory
+sized by the call and keeps it afterwards; the executor therefore issues §13 uploads in row bands (texture) or ranges
+(buffer) of at most 1 MiB (`WebGPUCommands.uploadChunkBytes`; `?uploadchunk=0` or `RuntimeOptions.uploadChunkBytes:
+Infinity` restores whole writes for A/B). Same bytes in the same queue order, so results are unchanged. A §13 screen
+frame on WebGPU no longer copies the canvas into a retained full-canvas snapshot: a frame without items re-presents
+the retained logical screen, which is exactly what the last screen frame presented.
+
+**One CPU copy per §13 buffer (K74, Q138).** The executor adopts the store the decoder allocated at BUFFER_CREATE and is
+the only writer (in execution order), so its reads (WebGL 2 index rebasing and wide-stride repacking, WebGPU unaligned
+writes, renames, rotated indices, loss recovery) keep their execution-time meaning. The decoder, which runs ahead by the
+frame's not yet executed items, reads `store + journal` (index validation, BUFFER_COPY sources); when the host consumes a
+frame it applies any journaled write no executor applied (replay renderers, restored savestates, dropped frames), so its
+view never depends on the executor. `gpu.native.shadows.sharedBufferBytes` lists the shared bytes (counted once, as
+`js.gpuDecoderShadowBytes`); `shadows.bufferBytes` are private copies only. Loss recovery restores onto the same array.
 
 **Load metrics.** `diagnostics().load` (also `__BGT_TEST__.loadMetrics()`) has the phase marks since load start
 (`manifestMs`, `wasmMs`, `assetsMs`, `readyMs`, `firstFrameMs`, `firstUpdateMs`), spans (`instantiateMs`, `initMs`),

@@ -178,9 +178,18 @@ export async function footprintSnapshot(page, tag, label) {
   const fp = await measureFootprint(pids);
   const summary = fp.available ? summarizeFootprint(fp.processes, rows) : null;
   const estimate = memory?.estimate?.totalBytes ?? null;
+  // K74 (Q137): the GPU process against what the runtime accounts for it: native objects + canvas estimate (gpuNative)
+  // and the measured-factor overhead (gpuOverhead). The browser's own base is a separate, rough ESTIMATE (Chromium
+  // swings 80-160 MB with idle trimming), never part of `attributedBytes`; `unexplainedBytes` subtracts both.
+  const o = memory?.gpu?.overhead ?? null, c = memory?.estimate?.components ?? null;
+  const gpuAttributed = c ? c.gpuNative + (c.gpuOverhead ?? 0) : null, baseEstimate = o?.browserBaseBytes ?? null;
   return { label, at: new Date().toISOString(), estimate: memory ? { totalBytes: estimate, components: memory.estimate.components,
     wasmModuleBytes: memory.wasm.moduleBytes, wasmLinearBytes: memory.wasm.linearBytes,
-    gpuTextures: memory.gpu?.native?.textures ?? null, recoveryShadowBytes: memory.js.gpuRecoveryShadowBytes } : null,
+    gpuTextures: memory.gpu?.native?.textures ?? null, recoveryShadowBytes: memory.js.gpuRecoveryShadowBytes,
+    jsHeldBytes: memory.js.heldBytes, gpuOverhead: o } : null,
+  gpuProcess: summary && gpuAttributed !== null ? { measuredBytes: summary.gpuProcessBytes, attributedBytes: gpuAttributed,
+    baseEstimateBytes: baseEstimate, unattributedBytes: summary.gpuProcessBytes === null ? null : summary.gpuProcessBytes - gpuAttributed,
+    unexplainedBytes: summary.gpuProcessBytes === null || baseEstimate === null ? null : summary.gpuProcessBytes - gpuAttributed - baseEstimate } : null,
   footprint: fp.available ? summary : { unavailable: fp.reason },
   // What the estimate cannot see: compiled code, engine/driver overhead, JS engine heap beyond held copies.
   unattributedBytes: summary && estimate !== null ? (summary.pageRendererBytes ?? 0) + (summary.gpuProcessBytes ?? 0) - estimate : null };
@@ -281,7 +290,10 @@ async function main() {
       for (const s of r.snapshots) console.log(`${game} ${r.engine}/${r.backend}/${r.suspension} ${s.label}: estimate ${mb(s.estimate?.totalBytes)}, ` +
         (s.footprint.unavailable ? `footprint unavailable (${s.footprint.unavailable})` :
           `page renderer ${mb(s.footprint.pageRendererBytes)}, GPU process ${mb(s.footprint.gpuProcessBytes)}, all owned ${mb(s.footprint.totalBytes)}, ` +
-          `unattributed ${mb(s.unattributedBytes)}`) + ` (wasm ${mb(s.estimate?.wasmModuleBytes)})`);
+          `unattributed ${mb(s.unattributedBytes)}`) + ` (wasm ${mb(s.estimate?.wasmModuleBytes)})` +
+          (s.gpuProcess ? `; GPU process measured ${mb(s.gpuProcess.measuredBytes)}: attributed ${mb(s.gpuProcess.attributedBytes)}, ` +
+            `browser base (estimate) ${mb(s.gpuProcess.baseEstimateBytes)}, unexplained ${mb(s.gpuProcess.unexplainedBytes)}` : '') +
+          (s.estimate ? `; JS held ${mb(s.estimate.jsHeldBytes)}` : ''));
     }
   } finally { await stopServer(server.child); }
   const report = { schema: 'game-cask/footprint/1', generated: new Date().toISOString(), host: { platform: process.platform, arch: process.arch },

@@ -1021,6 +1021,8 @@ export class GameHost {
 
   /** Mark the current frame as executed by a backend (or intentionally dropped). */
   consume(): void {
+    // K74 (Q138): the frame's items are gone; journaled buffer writes no executor applied land in the shared store now.
+    this.gpu?.settle();
     this.frame.reset(this.logicalWidth || 1, this.logicalHeight || 1);
     this.state = defaultState(this.frame.logicalW, this.frame.logicalH);
   }

@@ -2,6 +2,7 @@
 // Pure math lives here so it is unit-testable; the runtime and renderers only supply the inputs.
 // Everything is an ESTIMATE from runtime-owned accounting. Real process RSS (WebContent/GPU process on
 // iPhone Safari) is not observable from a page and stays a hardware gate (docs/performance.md §Memory).
+import type { GpuOverhead } from './gpu-overhead';
 
 /** Default iPhone-class tab budget for the estimated total (1.5 GiB). Configurable per game/run. */
 export const MEMORY_BUDGET_DEFAULT = 1536 * 1024 * 1024;
@@ -27,8 +28,13 @@ export interface GpuNativeMemory {
   renderbuffers: { count: number; bytes: number };
   /** Renderer-owned objects that are not guest resources (logical screen, copy-on-write pool, scratch). */
   internal: { bytes: number; screenBytes: number; poolBytes: number; scratchBytes: number };
-  /** CPU (JS heap) copies the executor keeps to restore contents after device/context loss. */
-  shadows: { bufferBytes: number; textureBytes: number };
+  /** K74 (Q137): the largest single upload call (texture or buffer write) issued so far: the browser's staging scales
+   * with it (gpu-overhead.ts). `chunkBytes`: the executor splits larger texture writes into row bands of at most this. */
+  uploads?: { largestBytes: number; chunkBytes?: number };
+  /** CPU (JS heap) copies the executor keeps to restore contents after device/context loss. K74 (Q138): `bufferBytes`
+   * are private buffer copies only; stores shared with the decoder are `sharedBufferBytes`, counted once in
+   * `js.gpuDecoderShadowBytes`. */
+  shadows: { bufferBytes: number; textureBytes: number; sharedBufferBytes?: number };
 }
 
 export interface GuestMemory {
@@ -46,6 +52,8 @@ export interface GuestMemory {
 }
 
 export interface MemoryInputs {
+  /** K74 (Q137): modeled GPU-process overhead beyond `native` (gpu-overhead.ts); absent/null for no GPU renderer. */
+  gpuOverhead?: GpuOverhead | null;
   wasm: { linearBytes: number; initialBytes: number; moduleBytes: number };
   guest: GuestMemory | null;
   gpu: {
@@ -92,13 +100,17 @@ export interface MemoryDiagnostics {
     compiledBytes: null };
   guest: GuestMemory | null;
   gpu: (NonNullable<MemoryInputs['gpu']> & { native: GpuNativeMemory | null; legacyTextureBytes: number;
-    canvasBytesEstimate: number; recoveryShadows: RecoveryShadowPolicy }) | null;
+    canvasBytesEstimate: number; recoveryShadows: RecoveryShadowPolicy;
+    /** K74 (Q137): what the browser's GPU process holds beyond `native` + `canvasBytesEstimate` (modeled). */
+    overhead: GpuOverhead | null }) | null;
   js: MemoryInputs['js'] & { gpuRecoveryShadowBytes: number; legacyTextureShadowBytes: number; heldBytes: number };
   estimate: {
     totalBytes: number;
     /** Sampled high-water mark: the maximum over samples, not a continuous measurement (see PEAK_SAMPLING). */
     peakTotalBytes: number; peakSampling: string;
-    components: { wasmLinear: number; wasmModule: number; gpuNative: number; jsHeld: number };
+    components: { wasmLinear: number; wasmModule: number; gpuNative: number; jsHeld: number;
+      /** K74 (Q137): `gpu.overhead.totalBytes` (canvas surfaces, presentation snapshot, driver, upload staging). */
+      gpuOverhead: number };
     budgetBytes: number; budgetSource: MemoryBudgetSource; overBudget: boolean; status: 'ok' | 'over-budget';
     scope: string;
   };
@@ -167,24 +179,27 @@ export function memoryBreakdown(input: MemoryInputs, peaks: { linear: number; to
   const js = input.js;
   const heldBytes = js.assetBytes + js.streamCacheBytes + js.gpuDecoderShadowBytes + js.audioQueuedBytes + js.loadBuffersBytes
     + gpuRecoveryShadowBytes + legacyTextureShadowBytes;
-  const components = { wasmLinear: input.wasm.linearBytes, wasmModule: input.wasm.moduleBytes, gpuNative, jsHeld: heldBytes };
-  const totalBytes = components.wasmLinear + components.wasmModule + components.gpuNative + components.jsHeld;
+  const overhead = input.gpuOverhead ?? null;
+  const components = { wasmLinear: input.wasm.linearBytes, wasmModule: input.wasm.moduleBytes, gpuNative, jsHeld: heldBytes,
+    gpuOverhead: overhead?.totalBytes ?? 0 };
+  const totalBytes = components.wasmLinear + components.wasmModule + components.gpuNative + components.jsHeld + components.gpuOverhead;
   const overBudget = totalBytes > input.budget.bytes;
   return {
     schema: 'bgt-memory/1',
     wasm: { ...input.wasm, peakLinearBytes: Math.max(peaks.linear, input.wasm.linearBytes), compiledBytes: null },
     guest: input.guest,
-    gpu: input.gpu || native || input.legacyTextureBytes ? {
+    gpu: input.gpu || native || input.legacyTextureBytes || overhead ? {
       ...(input.gpu ?? { budgetBytes: 0, reservedBytes: 0, peakReservedBytes: 0, reserved: { buffers: 0, textures: 0, shaders: 0 } }),
       native, legacyTextureBytes: input.legacyTextureBytes, canvasBytesEstimate,
-      recoveryShadows: input.recoveryShadows ?? { enabled: true, source: 'default' } } : null,
+      recoveryShadows: input.recoveryShadows ?? { enabled: true, source: 'default' }, overhead } : null,
     js: { ...js, gpuRecoveryShadowBytes, legacyTextureShadowBytes, heldBytes },
     estimate: {
       totalBytes, peakTotalBytes: Math.max(peaks.total, totalBytes), peakSampling: PEAK_SAMPLING, components,
       budgetBytes: input.budget.bytes, budgetSource: input.budget.source, overBudget,
       status: overBudget ? 'over-budget' : 'ok',
-      scope: 'runtime-owned bytes (wasm linear memory, module bytes, native GPU objects, JS-held copies); excludes compiled ' +
-        'machine code, browser/driver overhead and the JS engine; not process RSS, which on iPhone Safari is a hardware gate',
+      scope: 'runtime-owned bytes (wasm linear memory, module bytes, native GPU objects, JS-held copies) plus the modeled ' +
+        'GPU-process overhead they cause (canvas surfaces, driver, upload staging; K74); excludes compiled machine code, the ' +
+        'browser\'s own GPU-process base and the JS engine; not process RSS, which on iPhone Safari is a hardware gate',
     },
   };
 }
