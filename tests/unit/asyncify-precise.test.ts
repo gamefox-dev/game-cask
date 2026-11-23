@@ -15,7 +15,7 @@ import { jspiApi } from '../../bgt/runtime/jspi';
 // @ts-expect-error ESM build orchestration
 import { transform } from '../../tools/build/asyncify.mjs';
 // @ts-expect-error ESM analysis
-import { analyzeModule, suspendingSet, verifyAsyncify } from '../../tools/build/wasm-callgraph.mjs';
+import { analyzeModule, suspendingSet, verifyAsyncify, checkLocalClosure } from '../../tools/build/wasm-callgraph.mjs';
 // @ts-expect-error ESM metadata
 import { functionNames } from '../../tools/build/wasm-names.mjs';
 
@@ -153,4 +153,70 @@ it('fails closed on opcodes outside the analysed feature set', () => {
   const m = binaryen.parseText('(module (func (export "f") (drop (v128.const i32x4 1 2 3 4))))');
   m.setFeatures(binaryen.Features.SIMD128);
   try { expect(() => analyzeModule(Buffer.from(m.emitBinary()))).toThrow(/unsupported wasm opcode 0xfd/); } finally { m.dispose(); }
+});
+
+// K65 review 1: a host-supplied funcref (imported global) reaching the table through table.set, or an
+// element expression reading it, makes the table opaque: every call_indirect site must be instrumented.
+it.each([
+  ['table.set', '(func $caller (export "caller") (table.set (i32.const 0) (global.get $g)) (call_indirect (type $v) (i32.const 0)))'],
+  ['element global.get', '(elem (table $t) (i32.const 0) funcref (global.get $g)) (func $caller (export "caller") (call_indirect (type $v) (i32.const 0)))'],
+])('%s from an imported funcref global is opaque and instrumented', (_kind, body) => {
+  const wat = `(module (type $v (func)) (import "bgt" "yield" (func $yield)) (import "env" "f" (global $g funcref))
+    (memory (export "memory") 2) (table $t 2 funcref) (func $s (export "s") (call $yield)) ${body}
+    (func $bgt_async_buffer (export "bgt_async_buffer") (result i32) (i32.const 1024)))`;
+  binaryen.setDebugInfo(true);
+  const m = binaryen.parseText(wat);
+  let bytes: Buffer;
+  try { m.setFeatures(binaryen.Features.MVP | binaryen.Features.ReferenceTypes | binaryen.Features.BulkMemory); bytes = Buffer.from(m.emitBinary()); } finally { m.dispose(); binaryen.setDebugInfo(false); }
+  const info = analyzeModule(bytes);
+  expect(info.opaqueTable).toBe(true);
+  expect(named(bytes, [...suspendingSet(info).set].filter((i) => i >= info.importedFunctions))).toEqual(['caller', 's']);
+  const file = join(dir, 'opaque.wasm'), out = join(dir, 'opaque-out.wasm'); writeFileSync(file, bytes);
+  // Partitioned (no interprocedural passes): both functions instrumented. Whole -O2 may rewrite the
+  // module first (Binaryen 132 turns the element-global call into a trap); the artifact still verifies.
+  const part = transform(file, out, ['--enable-reference-types', '--enable-bulk-memory', ...ARGS], { wholeLimit: 0, partitionBytes: 1024 });
+  expect(part.instrumented).toBe(2); expect(part.suspending).toBe(2);
+  const whole = transform(file, out, ['--enable-reference-types', '--enable-bulk-memory', ...ARGS], {});
+  expect(whole.instrumented).toBe(whole.suspending);
+});
+
+// K65 review 2: the local closure check is independent of the propagation model.
+it('local closure check rejects an uninstrumented caller of instrumented code on its own', () => {
+  const out = join(dir, 'manual-local.wasm');
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../node_modules/binaryen/bin/wasm-opt', import.meta.url)), input, '--asyncify', '--pass-arg=asyncify-imports@bgt.yield',
+    '--pass-arg=asyncify-onlylist@d0,d2,deep_ind,ind_ii,run', '-g', '-o', out]);
+  expect(() => checkLocalClosure(readFileSync(out))).toThrow(/local closure check\), e\.g\. d1 -> d0/);
+  // A correct artifact passes it.
+  const good = join(dir, 'good.wasm'); transform(input, good, ARGS, {});
+  expect(() => checkLocalClosure(readFileSync(good))).not.toThrow();
+});
+
+// K65 review 4: name lists > Linux MAX_ARG_STRLEN (128 KiB) never travel as one argv string.
+it('passes >128 KiB cut lists through response files in every Binaryen and CLI hop', () => {
+  const n = 13000, names = Array.from({ length: n }, (_, i) => 'N_' + i.toString(16).padStart(8, '0'));
+  const wat = `(module (import "bgt" "yield" (func $yield)) (memory (export "memory") 2)
+    (func $s (call $yield)) ${names.map((x, i) => `(func $${x} (export "${x}") (i32.store (i32.const 2048) (i32.const ${i})) (call $s))`).join('')}
+    (func $bgt_async_buffer (export "bgt_async_buffer") (result i32) (i32.const 1024)))`;
+  binaryen.setDebugInfo(true);
+  const m = binaryen.parseText(wat);
+  let bytes: Buffer;
+  try { bytes = Buffer.from(m.emitBinary()); } finally { m.dispose(); binaryen.setDebugInfo(false); }
+  const file = join(dir, 'many.wasm'), list = join(dir, 'many.txt'), out = join(dir, 'many-out.wasm');
+  writeFileSync(file, bytes); writeFileSync(list, names.join('\n'));
+  expect(Buffer.byteLength(names.join(','))).toBeGreaterThan(131072);
+  const run = (exe: string, args: string[], o: object) => {
+    for (const a of args) expect(Buffer.byteLength(a), 'argv string').toBeLessThan(131072);
+    return execFileSync(exe, args, o);
+  };
+  for (const analysis of ['precise', 'binaryen']) for (const options of [{}, { wholeLimit: 0, partitionBytes: 65536 }]) {
+    for (const arg of ['--pass-arg=asyncify-removelist@@' + list, '--pass-arg=asyncify-removelist@' + names.join(',')]) {
+      const stats = transform(file, out, [...ARGS, arg], { ...options, analysis, run });
+      // Every step name arrived (distinct bodies: -O2 cannot merge them); no step is instrumented.
+      expect(stats.cut, analysis + ' ' + JSON.stringify(options)).toBe(n);
+      expect(stats.instrumented).toBe(stats.suspending); expect(stats.instrumented).toBeLessThanOrEqual(1);
+    }
+  }
+  // The CLI takes the response-file form too (what build.mjs passes).
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../tools/build/asyncify.mjs', import.meta.url)), file, ...ARGS, '--pass-arg=asyncify-removelist@@' + list, '-o', out], { stdio: 'pipe' });
+  expect(verifyAsyncify(readFileSync(out), { cutNames: new Set(names) }).instrumented).toBeLessThanOrEqual(1);
 });

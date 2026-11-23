@@ -250,6 +250,7 @@ export class GameHost {
   private asyncState = AsyncState.Normal;
   private asyncBuf = 0;
   private inUpdate = false;
+  private nestedEntries = 0; /* K65: active host->wasm export calls other than bgt_update */
   private jspiUpdate: ((dt: number) => Promise<void>) | null = null;
   private jspiTask: Promise<void> | null = null;
   private jspiResume: (() => void) | null = null;
@@ -311,7 +312,9 @@ export class GameHost {
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
       typeof value === 'function' && name !== 'bgt_profile_abort' && name !== 'bgt_update' ? (...args: unknown[]) => {
-        try { return value(...args); } catch (error) { host.abortProfile(); throw error; }
+        // K65: count host->wasm entries other than bgt_update (see the yield import's re-entry check).
+        host.nestedEntries++;
+        try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.nestedEntries--; }
       } : value])) as unknown as GameExports;
     // promising requires the actual wasm function, not the synchronous guard.
     if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
@@ -614,6 +617,10 @@ export class GameHost {
         },
         time_us: () => ((typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && s.guestNow ? s.guestNow() : s.now()) * 1000,
         yield: () => {
+          // K65: import -> JS -> export -> bgt_yield would suspend across a JS frame: Asyncify cannot
+          // unwind it (silent state corruption on resume) and JSPI cannot suspend it. Refuse clearly.
+          // (asyncify_* helpers called below are entries too, but only after this check.)
+          if (this.nestedEntries > 0) throw new GameAbort(-7, 'bgt_yield reached through a re-entrant host call (import -> JS -> export); suspension cannot cross JS frames');
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;
           if (this.asyncState === AsyncState.Rewinding) {

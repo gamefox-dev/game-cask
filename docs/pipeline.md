@@ -327,8 +327,7 @@ See [suspension policy](suspension.md#exact-suspension-set-k65-default).
 
 An entirely overridden selection has no native steps and therefore uses an empty exclusion list. An all-inlined
 step set may also have no surviving linked names; neither case broadens exclusions to suspending wrappers.
-For very large symbol lists, the command-line ceiling is bounded: above 180,000 list bytes the build keeps the
-conservative analysis rather than an incomplete exclusion. `manifest.pipeline.metrics` records `asyncify_mode`,
+Symbol lists of any size travel as Binaryen response files (K65), not as one argv string. `manifest.pipeline.metrics` records `asyncify_mode`,
 `asyncify_remove_count`, list SHA-256, `pre_asyncify_bytes`, elapsed time and cache state. Named linked wasm is read
 without instantiating/compiling it in JS; only standard function-name metadata is parsed. Toolchain libc DWARF is
 stripped before postprocessing, retaining names for sound exact selection but not shipping private debug paths.

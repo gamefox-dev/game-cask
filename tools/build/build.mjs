@@ -234,6 +234,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
     const postHash=asyncifyCacheKey(readFileSync(wasmPath),{profileNames,asyncifyRemove,asyncifyPartitionBytes,asyncifyAnalysis});
     const postDir=cacheDirectory('asyncify');mkdirSync(postDir,{recursive:true});const cached=join(postDir,postHash+'.wasm');
     const releasePost = leaseCache(postDir,[cached]);
+    // K65 review: exact name lists travel as a response file, never as one argv string (Linux 128 KiB).
+    const listDir = mkdtempSync(join(tmpdir(), 'bgt-asyncify-list-')), removeFile = join(listDir, 'removelist.txt');
+    writeFileSync(removeFile, asyncifyRemove.join('\n') + '\n');
     try {
       // The same atomic per-key writer protocol is used for objects and whole-module
       // Asyncify. Competing clones wait and then reuse the winner, not duplicate it.
@@ -241,7 +244,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
         phase: 'wasm-opt', cwd: ROOT, input: JSON.stringify({ objects: [{ out: cached, stdout:cached+'.names', args: [process.execPath, join(ROOT,'tools/build/asyncify.mjs'), wasmPath,
           ...WASM_OPT_FEATURES, '-O2', '--asyncify', '--pass-arg=asyncify-imports@bgt.yield', '--bgt-analysis='+asyncifyAnalysis,
           ...(asyncifyPartitionBytes === null ? [] : ['--bgt-partition-bytes='+asyncifyPartitionBytes]),
-          ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@${asyncifyRemove.join(',')}`] : []),
+          ...(asyncifyRemove.length ? [`--pass-arg=asyncify-removelist@@${removeFile}`] : []),
           ...(profileNames ? ['--print-function-map'] : [])] }], jobs: 1 }),
         encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'],
       }));
@@ -261,7 +264,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       }
     } catch (error) {
       throw new Error(`Asyncify failed for ${cfg.id} (${preAsyncifyBytes} linked bytes; bounded Binaryen wasm32 transform). See Binaryen diagnostic above. A single function >16 MiB or incompatible partition index spaces cannot be partitioned; split generated functions or use suspensionBuild: "jspi" (requires browser JSPI, no Asyncify fallback). Cause: ${error.message}`);
-    } finally { releasePost(); }
+    } finally { releasePost(); rmSync(listDir, { recursive: true, force: true }); }
     touchCache([cached,cached+'.names']);
     pruneCache(postDir,Number(process.env.BGT_CACHE_MAX_MB ?? 512)*1048576);
   }

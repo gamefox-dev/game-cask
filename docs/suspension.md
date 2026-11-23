@@ -102,10 +102,29 @@ can reach `bgt.yield`:
   `asyncify.mjs` rewrites (`...JSPI` -> `...ASYN`) in the Asyncify output only (`asyncify_artifact` metric).
 
 The set goes to every Binaryen run as an exact `asyncify-onlylist` response file (canonical per-index
-identities; Binaryen forbids combining it with a removelist). Whole-module mode computes it before `-O2`;
-inlining only moves callees into callers, which are in the set whenever the callee is. The published
-artifact is re-analysed (`verifyAsyncify`): every function that can reach the yield must reference the
-Asyncify state global, otherwise the build fails with a call chain and nothing is published.
+identities; Binaryen forbids combining it with a removelist). Whole-module mode runs `-O2` first and
+computes the set on the optimized module, then runs Asyncify at `--optimize-level=2` without repeating
+O2 (planning before O2 is unsound: inlining a cut native step moves its calls into its caller). Partitions
+plan once on the raw module (unchanged index space, local passes only). All name lists (onlylist and
+removelist) travel as Binaryen response files (`asyncify-onlylist@@FILE`), never as one argv string
+(Linux limits each to 128 KiB; x64-scale's 12,078 step names are ~133 KB).
+
+A table that can receive values the scan cannot enumerate (`table.set`/`table.grow`/`table.fill`, an
+element expression reading a global such as an imported funcref, or an imported/exported table) is
+**opaque**: every `call_indirect` site is then treated as suspending, as Binaryen does.
+
+The published artifact is re-analysed (`verifyAsyncify`) twice: (1) every function in the model's set
+must reference the Asyncify state global; (2) an independent local closure check on Binaryen's actual
+instrumentation: no uninstrumented, non-cut function calls the yield import or an instrumented function,
+or `call_indirect`s a signature carried by an instrumented/suspending table entry (any signature if the
+table is opaque). (2) does not use the propagation model; by induction no uninstrumented frame can be
+live at the yield except below a cut point (runtime-guarded). Residual shared trust: the opcode decoder,
+the table-target enumeration, and that a state-global reference means Binaryen instrumented the
+function's call sites. Either failure stops the build with a call chain; nothing is published.
+
+Re-entrancy: a host import whose JS calls back into a wasm export that yields would suspend across a
+JS frame (Asyncify cannot unwind it, JSPI cannot suspend it). The runtime counts host-to-wasm export
+entries other than `bgt_update` and refuses such a yield with a clear error (`GameAbort`).
 `BGT_ASYNCIFY_ANALYSIS=binaryen` keeps the previous analysis for A/B. Every Asyncify artifact now carries
 the standard function-name section (profiles show names, not `wasm-function[N]`).
 `manifest.pipeline.metrics` records `asyncify_analysis`, `asyncify_functions`, `asyncify_suspending`,

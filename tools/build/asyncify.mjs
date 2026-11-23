@@ -85,7 +85,10 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
  const inputSections=[...list.filter(s=>s.id!==0||!isNames(s)),nameSection];
  if(!whole&&yieldFn===null)throw new Error('partitioned Asyncify requires the bgt.yield import; use a non-suspending build instead');
  if(!whole&&bodies.some(b=>b.length>16*1048576))throw new Error('Asyncify function body exceeds the 16 MiB per-function safety limit; split the generated function or use a JSPI-only build');
- const cutNames=new Set(args.filter(a=>a.startsWith(REMOVE)).flatMap(a=>a.slice(REMOVE.length).split(',')).filter(Boolean));
+ // A list is either inline or a response file (`...removelist@@FILE`, Binaryen's form): name lists can
+ // exceed Linux MAX_ARG_STRLEN (128 KiB per argv string), so the build always passes files.
+ const listNames=v=>(v.startsWith('@')?readFileSync(v.slice(1),'utf8'):v).split(/[,\n]/).map(x=>x.trim()).filter(Boolean);
+ const cutNames=new Set(args.filter(a=>a.startsWith(REMOVE)).flatMap(a=>listNames(a.slice(REMOVE.length))));
  const exact=precise&&yieldFn!==null;
  // Partitions keep the original index space: one plan from the raw module. Whole-module mode plans
  // after -O2 (below), because inlining a cut native step moves its calls into its caller.
@@ -96,8 +99,9 @@ export function transform(input,output,args=[],{partitionBytes=PARTITION_BYTES,w
  const listArgs=a=>a.flatMap(x=>{
   if(!x.startsWith(REMOVE))return [x];
   if(exact)return [];
-  const remove=new Set(x.slice(REMOVE.length).split(','));
-  return [REMOVE+identities.filter(n=>remove.has(originalNames.get(n.index))).map(n=>n.name).join(',')];
+  const file=join(work,'removelist.txt');
+  writeFileSync(file,identities.filter(n=>cutNames.has(originalNames.get(n.index))).map(n=>n.name).join('\n')+'\n');
+  return [REMOVE+'@'+file];
  });
  const onlyArgs=exact?['--pass-arg=asyncify-onlylist@@'+onlyFile]:[];
  // An empty onlylist means "no list" to Binaryen; a never-matching identity keeps it exact.

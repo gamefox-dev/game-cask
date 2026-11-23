@@ -833,6 +833,9 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
     return BGT_OK;
 }
 
+/* K65: metrics-only fallback for builds that compile this serializer without the x86 runtime object
+ * (test fixtures); the runtime's strong definition (x86_rt.c) wins whenever it is linked. */
+__attribute__((weak)) int x86_asyncify_artifact(void) { return 0; }
 static void wait_host(void) {
     w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
