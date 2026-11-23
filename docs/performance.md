@@ -165,8 +165,10 @@ re-materialize). `?lazytextures=0` (`RuntimeOptions.lazyTextures: false`) restor
 WebGL context loss or WebGPU device loss restores the contents (a lifted guest never re-uploads). game.json
 `"gpu": {"recoveryShadows": false}` (copied to the manifest), `?recoveryshadows=0|1` or `RuntimeOptions.recoveryShadows`
 (precedence option > URL > manifest > default on; `build.mjs` rejects unknown `gpu` keys and a non-boolean value) drops
-the copies of 2D/array levels. 3D levels keep theirs on both settings: they are WebGPU's CPU source for 3D mip
-generation, so they are load-bearing for pixels (and such textures still recover).
+upload shadows. Per backend: **WebGL 2** drops them for every texture dimension (mips are generated natively), so a loss
+after any texture upload, 3D included, is the fatal stop below. **WebGPU** drops them for 2D/array textures but keeps
+3D levels' shadows on both settings, because they are its CPU source for 3D mip generation (load-bearing for pixels);
+a WebGPU loss after uploads to 3D textures only therefore still recovers, while any 2D/array upload makes it fatal.
 **Loss semantics when off:** a loss before any texture upload still recovers exactly; a loss after any upload stops the
 game with a `device-lost` error naming `gpu.recoveryShadows: false` (no silent restore with blank textures). The
 setting is listed in `diagnostics().memory.gpu.recoveryShadows` and `backendNotes`. Opt-in test checkpoints need the
