@@ -48,6 +48,11 @@ export interface GpuStats {
   renameBytes?: number;
   captureTranslations?: number;
   captureLowerings?: number;
+  /** K67 WebGPU: command buffers in the frame's GPUQueue submits; GPUBuffers created while encoding the frame. */
+  commandBuffers?: number;
+  buffersCreated?: number;
+  /** K67 WebGPU: bytes held by the renderer's buffer recycle pool after the frame (renderer-internal, not guest memory). */
+  poolBytes?: number;
   /** WebGL 2: redundant program/VAO/viewport/scissor/depth-range/blend-color calls skipped by the state shadow. */
   skippedBinds?: number;
   /** Opt-in GPU time (ms) of a recently completed frame's §13 passes; null when unavailable/pending. */
@@ -86,6 +91,8 @@ export interface GpuBackend {
   readonly maxVaryingComponents?: number;
   /** K62: implements CAP_GPU_GL_RASTER (VIEWPORT past the attachment, GLSL flat = last vertex). */
   readonly glRaster?: boolean;
+  /** K67: implements CAP_GPU_CONST_ATTRIB (stride-0 vertex buffer slots). */
+  readonly constAttrib?: boolean;
   /** K51 diagnostics only: native renderer/adapter identity captured at init (never a per-frame query). */
   readonly device?: GpuDeviceInfo;
   /** Return BGT_OK, or a synchronous backend error; compile failures use complete(-6, log). */

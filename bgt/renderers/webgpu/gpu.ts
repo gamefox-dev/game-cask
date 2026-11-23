@@ -47,6 +47,14 @@ interface TextureResource {
   generated?: { base: number; source?: GpuItem; overridden: Set<number> };
 }
 interface ShaderResource { native: GPUShaderModule; item: GpuItem; done: boolean; bindings: ShaderBinding[]; outputs: ReadonlySet<number> }
+/** K67 recycle pool: 32 MiB cap; entries unused for 600 flushes (~10 s at 60 Hz) are released. */
+const POOL_CAP = 32 << 20, POOL_AGE = 600;
+/** Pool size classes: 256 B minimum, then four steps per power of two (at most 25 % slack), 256-byte multiples. */
+export function sizeClass(n: number): number {
+  if (n <= 256) return 256;
+  const p = 2 ** Math.floor(Math.log2(n - 1)), step = Math.max(256, p / 4);
+  return Math.ceil(n / step) * step;
+}
 interface Repack { slot: number; stride: number; attributes: { offset: number; size: number }[] }
 /** K60 (Q117): a translated transform-feedback capture. `code` is the vertex stage translated for one sampler
  * specialization; `pipelines` holds the compute pipelines lowered from it per draw shape (inputs, counts). */
@@ -123,13 +131,18 @@ export class WebGPUCommands implements GpuBackend {
   private usedRanges = new Map<GPUBuffer, number[]>();
   private retiredDestroy: Array<GPUBuffer | GPUTexture> = [];
   private retiredPool: GPUBuffer[] = [];
-  private pool = new Map<number, GPUBuffer[]>();
+  /** Recycled buffers by `usage:size class` (rename targets, K67: transform-feedback capture temporaries), each with
+   * the flush count at which it was recycled; LIFO reuse, oldest-first eviction above POOL_CAP or after POOL_AGE flushes. */
+  private pool = new Map<string, { b: GPUBuffer; at: number }[]>();
   private poolBytes = 0;
+  private flushes = 0;
+  /** K67: bytes held by the recycle pool (reported as lastFrame.poolBytes; not guest-visible memory). */
+  get pooledBytes(): number { return this.poolBytes; }
   private ids = new WeakMap<GPUTexture, number>();
   private nextId = 1;
   /** Per-frame native work census (reset by the renderer at frame start). */
   readonly batch = { nativePasses: 0, mergedPasses: 0, bufferRenames: 0, splits: 0, encoderSubmits: 0, renameBytes: 0,
-    captureTranslations: 0, captureLowerings: 0 };
+    captureTranslations: 0, captureLowerings: 0, commandBuffers: 0 };
   timing?: WebGPUTiming;
   /** True (set by WebGPURenderer): frame encoder + pass merging; the frame loop must call flush() at its sync
    * points. False (standalone executors, gpubatch=0): every native pass is submitted at its PASS_END. */
@@ -140,6 +153,7 @@ export class WebGPUCommands implements GpuBackend {
   /** K62: user varying components every GLSL program of that size links with (§13.6 offset 76). */
   readonly maxVaryingComponents: number;
   readonly glRaster = true;
+  readonly constAttrib = true;
   readonly device: GpuDeviceInfo;
   constructor(private gpuDevice: GPUDevice, private error: (message: string) => void, adapter: string | null = null) {
     // Every GPUDevice has limits; 65536 is WebGPU's guaranteed default (test doubles may omit limits).
@@ -161,23 +175,31 @@ export class WebGPUCommands implements GpuBackend {
     this.screen = screen;
     this.batch.nativePasses = this.batch.mergedPasses = this.batch.bufferRenames = this.batch.splits = this.batch.encoderSubmits = 0;
     this.batch.renameBytes = this.batch.captureTranslations = this.batch.captureLowerings = 0;
+    this.batch.commandBuffers = 0;
   }
 
   /** End the native pass (screen passes store opaque alpha) and submit the pending frame encoder.
-   * `tail` appends the renderer's frame-end work (presentation, snapshot copy) to the same command
-   * buffer, so a batched frame costs one GPUQueue.submit. */
+   * `tail` records the renderer's frame-end work (presentation, snapshot copy) into a second, short command
+   * buffer of the same GPUQueue.submit, so a batched frame still costs one submit.
+   * K67 (Q116): in a §13 screen frame only that tail uses the canvas texture. WebKit paces a WebGPU canvas from the GPU execution
+   * window (GPUEndTime - GPUStartTime) of the command buffers that use the canvas texture (WebGPUFramePacer).
+   * With the presentation inside the merged frame's command buffer, a long window plus a few backed-up presents
+   * stepped requestAnimationFrame down the display's divisor ladder (85 Hz display: 85 -> 17 -> 5 Hz) and, as
+   * every later frame reported the same long window, held it there. */
   flush(tail?: (encoder: GPUCommandEncoder) => void): void {
     this.endNative();
-    if (tail) { this.encoder ??= this.gpuDevice.createCommandEncoder(); tail(this.encoder); }
-    if (this.encoder) {
-      const encoder = this.encoder; this.encoder = undefined;
-      this.gpuDevice.queue.submit([encoder.finish()]); this.batch.encoderSubmits++;
+    const buffers: GPUCommandBuffer[] = [];
+    if (this.encoder) { buffers.push(this.encoder.finish()); this.encoder = undefined; }
+    if (tail) { const encoder = this.gpuDevice.createCommandEncoder(); tail(encoder); buffers.push(encoder.finish()); }
+    if (buffers.length) {
+      this.gpuDevice.queue.submit(buffers); this.batch.encoderSubmits++; this.batch.commandBuffers += buffers.length;
     }
     // Submitted work keeps its resources alive; later queue writes are ordered after it.
     for (const r of this.retiredDestroy.splice(0)) r.destroy();
     for (const b of this.retiredPool.splice(0)) this.recycle(b);
     this.scratch.splice(0).forEach(b => b.destroy());
     this.used.clear(); this.usedRanges.clear();
+    if (++this.flushes % 64 === 0) this.evictPool(this.flushes - POOL_AGE);
   }
 
   /** K60: mark bytes [offset, offset + size) of `b` as used by the pending encoder (ranges merged; more than 16
@@ -229,20 +251,45 @@ export class WebGPUCommands implements GpuBackend {
     if (this.used.has(r) || this.usedRanges.has(r as GPUBuffer)) this.retiredDestroy.push(r); else r.destroy();
   }
 
+  /** Only buffers of a pool size class are kept (an exact-size guest store dies on its first rename). */
   private recycle(b: GPUBuffer): void {
-    if (this.poolBytes + b.size > 32 << 20) { b.destroy(); return; }
-    const list = this.pool.get(b.size) ?? []; list.push(b); this.pool.set(b.size, list); this.poolBytes += b.size;
+    if (b.size > POOL_CAP || sizeClass(b.size) !== b.size) { b.destroy(); return; }
+    const key = `${b.usage}:${b.size}`, list = this.pool.get(key) ?? [];
+    list.push({ b, at: this.flushes }); this.pool.set(key, list); this.poolBytes += b.size;
+    if (this.poolBytes > POOL_CAP) this.evictPool(Infinity, POOL_CAP);
+  }
+
+  /** Destroy pooled buffers recycled before flush `before`, then oldest-first until at most `budget` bytes remain. */
+  private evictPool(before: number, budget = POOL_CAP): void {
+    for (const [key, list] of this.pool) {
+      let n = 0; while (n < list.length && list[n].at < before && Number.isFinite(before)) { list[n].b.destroy(); this.poolBytes -= list[n].b.size; n++; }
+      if (n) list.splice(0, n);
+      if (!list.length) this.pool.delete(key);
+    }
+    while (this.poolBytes > budget) {
+      let oldest: { b: GPUBuffer; at: number }[] | undefined, key = '';
+      for (const [k, list] of this.pool) if (!oldest || list[0].at < oldest[0].at) { oldest = list; key = k; }
+      if (!oldest) break;
+      const e = oldest.shift()!; e.b.destroy(); this.poolBytes -= e.b.size;
+      if (!oldest.length) this.pool.delete(key);
+    }
+  }
+
+  /** A recycled buffer of this usage and size class (submitted work that used it is ordered before any later queue
+   * write or submit), else a new one of the class size. Every binding of these buffers names an explicit range or is
+   * sized by its contents, so the class tail is never read. */
+  private pooled(size: number, usage: number): GPUBuffer {
+    const cls = sizeClass(size), e = this.pool.get(`${usage}:${cls}`)?.pop();
+    if (e) { this.poolBytes -= cls; return e.b; }
+    return this.gpuDevice.createBuffer({ size: cls, usage });
   }
 
   /** Copy-on-write for a CPU-authoritative buffer referenced by the pending encoder: earlier encoded
    * work keeps the old native buffer, later work sees a fresh one holding the complete new contents. */
   private rename(b: BufferResource): void {
-    const size = b.native.size, list = this.pool.get(size);
-    let native = list?.pop();
-    if (native) this.poolBytes -= size;
-    else native = this.gpuDevice.createBuffer({ size, usage: b.native.usage });
+    const native = this.pooled(b.native.size, b.native.usage);
     this.writeBuffer(native, 0, b.shadow);
-    this.retiredPool.push(b.native); b.native = native; this.batch.bufferRenames++; this.batch.renameBytes += size;
+    this.retiredPool.push(b.native); b.native = native; this.batch.bufferRenames++; this.batch.renameBytes += Math.ceil(b.shadow.length / 4) * 4;
   }
 
   lost(): void {
@@ -251,7 +298,7 @@ export class WebGPUCommands implements GpuBackend {
     this.encoder = undefined;
     this.lingering = false; this.passKey = ''; this.used.clear(); this.usedRanges.clear();
     this.views = undefined; this.rotations = undefined; this.rotatedIndices = undefined;
-    this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0;
+    this.retiredDestroy = []; this.retiredPool = []; this.pool.clear(); this.poolBytes = 0; this.flushes = 0;
     this.timing = undefined;
     this.screen = undefined;
     this.vertices.clear(); this.uniforms.clear(); this.sampled.clear(); this.index = undefined;
@@ -714,8 +761,9 @@ export class WebGPUCommands implements GpuBackend {
     }
     const outputBytes=total*layout.strides.reduce((a,b)=>a+b,0);
     if(outputBytes>d.limits.maxStorageBufferBindingSize)throw new Error('Feedback output exceeds storage binding limit');
-    const source=d.createBuffer({size:Math.max(4,bytes),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE});
-    const output=d.createBuffer({size:outputBytes,usage:GPUBufferUsage.COPY_SRC|GPUBufferUsage.STORAGE});
+    // K67: the gather and output temporaries come from the recycle pool (steady captures create no GPUBuffer).
+    const source=this.pooled(Math.max(4,bytes),GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE);
+    const output=this.pooled(outputBytes,GPUBufferUsage.COPY_SRC|GPUBufferUsage.STORAGE);
     this.pass!.end();this.pass=undefined;this.lingering=false;
     // K57: a merged frame keeps one encoder across the capture (gathers, compute, scatter, resumed pass). Every
     // buffer/texture the capture reads or writes is marked used, so a later same-frame queue write to it renames
@@ -736,8 +784,8 @@ export class WebGPUCommands implements GpuBackend {
     pass.dispatchWorkgroups(Math.min(65535,Math.ceil(total/64)),Math.ceil(total/(65535*64)));pass.end();
     let off=0;layout.strides.forEach((stride,i)=>{const b=this.buffers.get(capture[1+i*3])!,n=total*stride;
       encoder.copyBufferToBuffer(output,off,b.native,capture[2+i*3],n);this.useBuffer(b.native,capture[2+i*3],n);b.generated=true;b.version=(b.version??0)+1;b.shadow.fill(0,capture[2+i*3],capture[2+i*3]+n);off+=n;});
-    if(merged)this.retiredDestroy.push(source,output);
-    else {d.queue.submit([encoder.finish()]);source.destroy();output.destroy();}
+    if(merged)this.retiredPool.push(source,output);
+    else {d.queue.submit([encoder.finish()]);this.recycle(source);this.recycle(output);}
     const desc=this.passDescriptor!;
     for(const c of desc.colorAttachments)if(c)c.loadOp='load';
     if(desc.depthStencilAttachment){desc.depthStencilAttachment.depthLoadOp='load';if(this.passDepth===5)desc.depthStencilAttachment.stencilLoadOp='load';}
@@ -1071,7 +1119,7 @@ struct VO { @builtin(position) pos: vec4f };
       buffer.attributes = attrs.map((a, i) => {
         const result = { ...a, offset }; offset += attributes[i].size; return result;
       });
-      buffer.arrayStride = offset;
+      buffer.arrayStride = buffer.arrayStride ? offset : 0; // K67: a stride-0 slot stays one shared element
     });
     const component = (src: number, dst: number, op: number): GPUBlendComponent => ({
       operation: blendOps[op], srcFactor: op >= 3 ? 'one' : factors[src], dstFactor: op >= 3 ? 'one' : factors[dst],
@@ -1184,7 +1232,7 @@ struct VO { @builtin(position) pos: vec4f };
       const w = this.vertices.get(slot)!, b = this.buffers.get(w[1])!;
       const r = p.repack.find(r => r.slot === slot);
       if (!r) { this.useBuffer(b.native, w[2], w[3]); this.pass!.setVertexBuffer(slot, b.native, w[2], w[3]); continue; }
-      const stride = r.attributes.reduce((n, a) => n + a.size, 0), count = Math.ceil(w[3] / r.stride);
+      const stride = r.attributes.reduce((n, a) => n + a.size, 0), count = r.stride ? Math.ceil(w[3] / r.stride) : 1;
       const bytes = new Uint8Array(count * stride);
       for (let i = 0; i < count; i++) {
         let offset = i * stride;

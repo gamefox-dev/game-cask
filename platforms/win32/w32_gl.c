@@ -645,9 +645,10 @@ static uint32_t buffer_slots = N, vao_slots = N;
 #define BN buffer_slots
 #define VN vao_slots
 /* K60: each program's private uniform buffer has GL_UBO_TAIL bytes after its uniform values (usage
- * uniform|vertex). A single-instance draw that reads generic current attributes (disabled arrays) carries
- * them there, in the same batched BUFFER_UPDATE as its uniform values, and binds its constant vertex slot to
- * that tail: no separate (synchronous) current-attribute upload, and the draw depends on one upload. */
+ * uniform|vertex). A draw that reads generic current attributes (disabled arrays) carries them there, in the
+ * same batched BUFFER_UPDATE as its uniform values, and binds its constant vertex slot (stride 0 since K67, so
+ * instanced draws too) to that tail: no separate (synchronous) current-attribute upload, and the draw depends on
+ * one upload. */
 #define GL_UBO_TAIL 256u
 /* K60: the private uniform buffer is a ring of slots (values + tail, 256-aligned); each draw uploads into the
  * next slot and binds it, so consecutive draws of one program write disjoint bytes and a WebGPU frame encoder

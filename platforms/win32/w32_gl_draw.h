@@ -709,12 +709,17 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
         }
         attr_slots[i] = s; nattrs++;
     }
-    /* K60: single-instance constants ride in the program's uniform upload (see GL_UBO_TAIL). */
-    int tail_constants = disabled && instances == 1 && !(p->usize & 15);
+    /* K60: constants ride in the program's uniform upload (see GL_UBO_TAIL). K67 (Q115): with BGT_CAP_GPU_CONST_ATTRIB
+     * also for instanced draws: the constant slot has stride 0 (ABI §13.3, every vertex and instance fetches the same
+     * element), so one 256-byte tail serves any instance count. Without the capability (a pre-K67 host rejects stride
+     * 0) the K60 rule stands: single-instance draws use the tail with stride 256, instanced draws the per-instance
+     * private buffer 1023 (one copy per instance, synchronous upload); so does a uniform size that is not 16-aligned. */
+    int const_stride0 = (w32_io->caps & BGT_CAP_GPU_CONST_ATTRIB) != 0;
+    int tail_constants = disabled && !(p->usize & 15) && (const_stride0 || instances == 1);
     if (disabled) {
         if (nslots == 8) { fail(BAD_OP); return 0; }
         if (!tail_constants) { ensure_current_buffer((uint32_t)instances); if (error) return 0; }
-        constant_slot = nslots++; w[26 + constant_slot * 2] = 256; w[27 + constant_slot * 2] = 1;
+        constant_slot = nslots++; w[26 + constant_slot * 2] = tail_constants && const_stride0 ? 0 : 256; w[27 + constant_slot * 2] = 1;
         for (uint32_t i = 0; i < 16; i++) if (disabled & (1u << i)) {
             if (!attr_components[i]) { fail(BAD_OP); return 0; }
             nattrs++;
@@ -830,7 +835,7 @@ static uint32_t draw(uint32_t mode, int32_t count, int32_t instances, uint32_t f
     op(0x52, bc, 4);
     for (uint32_t s = 0; s < nslots; s++) {
         if (s == constant_slot) {
-            uint32_t vb[] = {s, tail_constants ? p->ubuf : current_gpu, tail_constants ? ring + p->usize : 0, (uint32_t)instances * 256u};
+            uint32_t vb[] = {s, tail_constants ? p->ubuf : current_gpu, tail_constants ? ring + p->usize : 0, tail_constants ? 256u : (uint32_t)instances * 256u};
             op(0x53, vb, 4); continue;
         }
         Attribute *a = &vaos[vao].a[slots[s]]; Buffer *b = &buffers[a->buffer];

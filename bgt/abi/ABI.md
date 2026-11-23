@@ -861,9 +861,14 @@ preserving masked-off bits. REPLACE uses dynamic stencil reference. No depth bia
 polygon mode in this version. Point size 1; line width 1; primitives with insufficient final vertices are ignored.
 Primitive restart is disabled, including all-ones index values. No strip-to-list reordering may change winding.
 
-Vertex layout record (8 B): `stride, step`; stride positive multiple of 4, <=2048; step VERTEX=0 or INSTANCE=1.
+Vertex layout record (8 B): `stride, step`; stride a multiple of 4, <=2048; step VERTEX=0 or INSTANCE=1.
+**K67, capability `BGT_CAP_GPU_CONST_ATTRIB` / `CAP_GPU_CONST_ATTRIB = 1 << 16` (additive v0.3; advertised by both
+maintained backends, cleared for v0.2 modules; without it stride 0 stays E_INVALID):** stride 0 makes every vertex and
+every instance of that slot fetch the same element at the bound offset; its attributes must end within 2048 bytes and
+the bound range must hold that element. Profiles must check the capability before emitting stride 0 (the Win32 GL
+profile otherwise keeps per-instance copies for instanced generic current attributes).
 Buffer slot is its index in this array. Attribute (16 B): `location, buffer, offset, format`. Location 0..15 unique;
-buffer must index an existing layout; attribute end must fit stride. No overlapping-location alias; overlapping
+buffer must index an existing layout; attribute end must fit stride (a nonzero one). No overlapping-location alias; overlapping
 byte ranges are legal. Formats and byte sizes: FLOAT=0/4, FLOAT2=1/8, FLOAT3=2/12, FLOAT4=3/16, UNORM8X4=4/4,
 SINT=5/4, SINT2=6/8, SINT3=7/12, SINT4=8/16, UINT=9/4, UINT2=10/8, UINT3=11/12, UINT4=12/16.
 Offsets align to 4 except UNORM8X4 (alignment 1). Integers are signed/unsigned 32-bit per component; UNORM converts
