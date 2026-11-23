@@ -111,7 +111,8 @@ removelist) travel as Binaryen response files (`asyncify-onlylist@@FILE`), never
 
 A table that can receive values the scan cannot enumerate (`table.set`/`table.grow`/`table.fill`, an
 element expression reading a global such as an imported funcref, or an imported/exported table) is
-**opaque**: every `call_indirect` site is then treated as suspending, as Binaryen does.
+**opaque**: every `call_indirect` site is then treated as suspending, as Binaryen does. Tables with an
+initializer expression or a typed reference element type (GC/function-references) are refused outright.
 
 The published artifact is re-analysed (`verifyAsyncify`) twice: (1) every function in the model's set
 must reference the Asyncify state global; (2) an independent local closure check on Binaryen's actual
@@ -123,8 +124,11 @@ the table-target enumeration, and that a state-global reference means Binaryen i
 function's call sites. Either failure stops the build with a call chain; nothing is published.
 
 Re-entrancy: a host import whose JS calls back into a wasm export that yields would suspend across a
-JS frame (Asyncify cannot unwind it, JSPI cannot suspend it). The runtime counts host-to-wasm export
-entries other than `bgt_update` and refuses such a yield with a clear error (`GameAbort`).
+JS frame (Asyncify cannot unwind it, JSPI cannot suspend it). The runtime counts every host-to-wasm
+entry through `host.exports` (including `bgt_update` and `bgt_profile_abort`) and allows the yield only
+from the outermost update (one entry under Asyncify, none under JSPI, whose `bgt_update` is the raw
+promising export); otherwise it refuses with a clear error (`GameAbort`). Dev/test `rawExports` are used
+only for the generated checkpoint accessors (no calls), so they cannot re-enter.
 `BGT_ASYNCIFY_ANALYSIS=binaryen` keeps the previous analysis for A/B. Every Asyncify artifact now carries
 the standard function-name section (profiles show names, not `wasm-function[N]`).
 `manifest.pipeline.metrics` records `asyncify_analysis`, `asyncify_functions`, `asyncify_suspending`,

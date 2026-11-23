@@ -44,17 +44,17 @@ describe('bgt_yield (asyncify)', () => {
 
   // K65: an import whose JS calls back into an export that yields would suspend across a JS frame.
   // Asyncify would unwind the export, return into the JS caller and resume a corrupt stack; refuse it.
-  it('refuses bgt_yield reached through import -> JS -> export re-entry, without corrupting state', async () => {
+  it.each([['reenter', 11], ['bgt_update', 2]] as const)('refuses bgt_yield reached through import -> JS -> %s re-entry, without corrupting state', async (target, expected) => {
     let host: GameHost | null = null; const seen: string[] = [];
-    const ex = () => (host as unknown as { exports: Record<string, () => number> }).exports;
-    const s = { ...services(), log: (_l: number, m: string) => { seen.push(m); if (m === 'reenter') ex().reenter(); } };
+    const ex = () => (host as unknown as { exports: Record<string, (dt?: number) => number> }).exports;
+    const s = { ...services(), log: (_l: number, m: string) => { seen.push(m); if (m === 'reenter') ex()[target](0); } };
     host = await GameHost.create(await asyncified('tests/fixtures/c/reentrant_yield_game.c'), s, cfg);
     host.init();
     expect(() => host!.update()).toThrow(/re-entrant host call \(import -> JS -> export\)/);
     expect(seen).toEqual(['reenter']);
     expect(host.yields).toBe(0);
-    // update incremented, reenter added 10, nothing after the refused yield ran (no +100, no +1000).
-    expect(ex().bgt_state_hash() >>> 0).toBe(11);
+    // Outer update +1, then reenter +10 or nested bgt_update +1; nothing after the refused yield ran.
+    expect(ex().bgt_state_hash() >>> 0).toBe(expected);
   });
 
   it('a game that yields without an asyncify build gets a clear error', async () => {

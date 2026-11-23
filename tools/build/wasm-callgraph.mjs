@@ -48,11 +48,24 @@ export function analyzeModule(bytes) {
     for (let n = r.uint(); n; n--) {
       const module = str(), name = str(), kind = r.byte();
       if (kind === 0) { const type = r.uint(); imports.push({ module, name, index: importedFunctions++ }); funcType.push(type); }
-      else if (kind === 1) { r.byte(); limits(); tableShared = true; }
+      else if (kind === 1) { tableRefType(r.byte()); limits(); tableShared = true; }
       else if (kind === 2) limits();
       else if (kind === 3) { r.byte(); r.byte(); }
       else if (kind === 4) { r.byte(); r.uint(); }
       else throw new Error('unsupported import kind ' + kind);
+    }
+  }
+  // Tables: only funcref/externref element types with plain limits. A table initializer expression
+  // (0x40 0x00 form, GC/function-references) or a typed reference element type can hold functions the
+  // scan does not enumerate: fail closed (K65 review vK65b).
+  const tb = sec(4);
+  if (tb) {
+    const r = reader(tb.data);
+    for (let n = r.uint(); n; n--) {
+      const b = r.byte();
+      if (b === 0x40) throw new Error('unsupported table with an initializer expression (call-graph analysis supports funcref/externref tables only)');
+      tableRefType(b); const f = r.byte(); r.uint(); if (f & 1) r.uint();
+      if (f & ~1) throw new Error('unsupported table limits flags ' + f);
     }
   }
   const fn = sec(3);
@@ -116,6 +129,9 @@ export function analyzeModule(bytes) {
   return { types, sig, imports, exports, importedFunctions, functions, tableTargets, tableShared, opaqueTable, names: functionNames(bytes) };
 }
 
+function tableRefType(b) {
+  if (b !== 0x70 && b !== 0x6f) throw new Error('unsupported table element type 0x' + b.toString(16) + ' (call-graph analysis supports funcref/externref tables only)');
+}
 function skipLeb(r) { for (let i = 0; i < 10; i++) if (!(r.byte() & 0x80)) return; throw new Error('oversized wasm LEB'); }
 
 function scanBody(data, start, end, index, refFunc) {

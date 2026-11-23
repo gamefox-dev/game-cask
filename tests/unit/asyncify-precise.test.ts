@@ -220,3 +220,22 @@ it('passes >128 KiB cut lists through response files in every Binaryen and CLI h
   execFileSync(process.execPath, [fileURLToPath(new URL('../../tools/build/asyncify.mjs', import.meta.url)), file, ...ARGS, '--pass-arg=asyncify-removelist@@' + list, '-o', out], { stdio: 'pipe' });
   expect(verifyAsyncify(readFileSync(out), { cutNames: new Set(names) }).instrumented).toBeLessThanOrEqual(1);
 });
+
+// K65 review vK65b: GC/function-references tables (typed element type, initializer expression) can hold
+// functions the scan does not enumerate: the analysis and the transform fail closed, publishing nothing.
+it.each([
+  ['initializer expression', '(table $t 2 (ref null $v) (ref.func $s))'],
+  ['typed element type', '(table $t 2 (ref null $v)) (elem declare func $s)'],
+])('refuses a table with a %s', (_kind, table) => {
+  const wat = `(module (type $v (func)) (import "bgt" "yield" (func $yield)) (memory (export "memory") 2) ${table}
+    (func $s (type $v) (call $yield)) (func $caller (export "caller") (call_indirect $t (type $v) (i32.const 0)))
+    (func $bgt_async_buffer (export "bgt_async_buffer") (result i32) (i32.const 1024)))`;
+  const m = binaryen.parseText(wat);
+  let bytes: Buffer;
+  try { m.setFeatures(binaryen.Features.All); bytes = Buffer.from(m.emitBinary()); } finally { m.dispose(); }
+  expect(() => analyzeModule(bytes)).toThrow(/unsupported table/);
+  const file = join(dir, 'gc-table.wasm'), out = join(dir, 'gc-table-out.wasm'); writeFileSync(file, bytes); rmSync(out, { force: true });
+  for (const options of [{}, { wholeLimit: 0, partitionBytes: 1024 }])
+    expect(() => transform(file, out, ['--enable-gc', '--enable-reference-types', '--enable-bulk-memory', ...ARGS], options)).toThrow();
+  expect(existsSync(out)).toBe(false);
+});

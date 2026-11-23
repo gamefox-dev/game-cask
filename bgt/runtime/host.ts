@@ -250,7 +250,7 @@ export class GameHost {
   private asyncState = AsyncState.Normal;
   private asyncBuf = 0;
   private inUpdate = false;
-  private nestedEntries = 0; /* K65: active host->wasm export calls other than bgt_update */
+  private wasmEntries = 0; /* K65: active host->wasm calls through host.exports (re-entry check) */
   private jspiUpdate: ((dt: number) => Promise<void>) | null = null;
   private jspiTask: Promise<void> | null = null;
   private jspiResume: (() => void) | null = null;
@@ -310,12 +310,20 @@ export class GameHost {
     if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) host.rawExports = instance.exports;
     // Every synchronous export boundary can abandon a C span (including init,
     // render and diagnostics). Normal returns/Asyncify unwinds do not clean up.
+    // K65: every host->wasm function entry through host.exports is counted (wasmEntries), including
+    // bgt_update and bgt_profile_abort, which keep their own (no profile-abort) wrapper. The yield
+    // import is legal only from the outermost bgt_update (see yield). rawExports (dev/test) bypass the
+    // count on purpose: savestate-host uses them only for the generated checkpoint accessors and
+    // table/memory/global values (instrumentCheckpointWasm), whose bodies contain no calls, so they
+    // can neither re-enter the game nor reach bgt_yield; table restore needs the real wasm functions.
     host.exports = Object.fromEntries(Object.entries(instance.exports).map(([name, value]) => [name,
-      typeof value === 'function' && name !== 'bgt_profile_abort' && name !== 'bgt_update' ? (...args: unknown[]) => {
-        // K65: count host->wasm entries other than bgt_update (see the yield import's re-entry check).
-        host.nestedEntries++;
-        try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.nestedEntries--; }
-      } : value])) as unknown as GameExports;
+      typeof value !== 'function' ? value : name === 'bgt_profile_abort' || name === 'bgt_update' ? (...args: unknown[]) => {
+        host.wasmEntries++;
+        try { return value(...args); } finally { host.wasmEntries--; }
+      } : (...args: unknown[]) => {
+        host.wasmEntries++;
+        try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.wasmEntries--; }
+      }])) as unknown as GameExports;
     // promising requires the actual wasm function, not the synchronous guard.
     if (config.suspensionMode === 'jspi') host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);
     const v = host.exports.bgt_abi_version() >>> 0;
@@ -620,7 +628,10 @@ export class GameHost {
           // K65: import -> JS -> export -> bgt_yield would suspend across a JS frame: Asyncify cannot
           // unwind it (silent state corruption on resume) and JSPI cannot suspend it. Refuse clearly.
           // (asyncify_* helpers called below are entries too, but only after this check.)
-          if (this.nestedEntries > 0) throw new GameAbort(-7, 'bgt_yield reached through a re-entrant host call (import -> JS -> export); suspension cannot cross JS frames');
+          // Legal only from the outermost update: Asyncify enters through host.exports.bgt_update (1
+          // entry); JSPI through the raw promising bgt_update (0 entries). Anything more is re-entry.
+          // Outside an update the existing "only valid inside bgt_update" errors apply unchanged.
+          if (this.inUpdate && this.wasmEntries > (this.config.suspensionMode === 'jspi' ? 0 : 1)) throw new GameAbort(-7, 'bgt_yield reached through a re-entrant host call (import -> JS -> export); suspension cannot cross JS frames');
           if (this.config.suspensionMode === 'jspi') return this.suspendJspi();
           const ex = this.exports;
           if (this.asyncState === AsyncState.Rewinding) {
