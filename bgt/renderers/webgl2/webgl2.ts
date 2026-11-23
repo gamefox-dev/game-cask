@@ -39,6 +39,8 @@ export interface WebGL2Options {
   gpuTiming?: boolean;
   /** K53: keep a pass framebuffer bound for the next same-image pass (default on). */
   batch?: boolean;
+  /** K71 (Q128): commit §13 texture storage on first use (default on); false allocates at creation (A/B). */
+  lazyTextures?: boolean;
 }
 
 /** Whole-drawFrame GPU time via TIME_ELAPSED queries, read without stalling a few frames later. */

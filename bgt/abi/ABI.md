@@ -1085,7 +1085,10 @@ internal block in the next free uniform slot (offset 256-aligned in the same buf
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
-16 MiB through 0xffffffff. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
+16 MiB through 0xffffffff. The manifest `gpu` object takes only `budgetBytes` and (K71, runtime only, no ABI effect)
+`recoveryShadows` (boolean, default true: keep CPU copies of uploaded texture levels for device-loss recovery;
+false: drop them, except WebGPU 3D levels, which are its CPU mip-generation source; a loss after an upload whose copy was
+dropped is a reported `device-lost` stop, i.e. on WebGL 2 after any texture upload, on WebGPU after a 2D/array upload); `build.mjs` rejects other keys. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep
 their separate frozen budgets. Queued GPU upload/source copies additionally total at most 256 MiB per frame;
 exceeding this → E_LIMIT. All existing submit/command/2D frame limits still apply. Resource updates are ordered, not
 coalesced across draws or passes. No backend may reorder a deletion ahead of earlier commands using that resource.

@@ -24,6 +24,7 @@ import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs
 import { selectExampleDirs } from './test-examples.mjs';
 import { functionNames, stripDwarf } from './wasm-names.mjs';
 import { buildEngineVariants, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
+import { validateGpuConfig } from './manifest-config.mjs';
 
 const OUT_ROOT = join(ROOT, 'web', 'public', 'games');
 
@@ -104,6 +105,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   cfg.coverageGameId=cfg.id;
   if(coverage!==null){if(coverage!=='on'&&coverage!=='off')throw new Error('coverage must be on or off');cfg.coverageRecording=coverage;}
   if(selection!==null){if(!cfg.pipeline)throw new Error("--selection needs a pipeline game");cfg.pipeline.selection=selection;}
+  validateGpuConfig(cfg.gpu);
   for (const value of [cfg.pipeline?.jspi, cfg.jspi])
     if (value !== undefined && typeof value !== 'boolean') throw new Error('pipeline.jspi/jspi must be boolean');
   if (cfg.suspension !== undefined && !['asyncify','jspi-preferred'].includes(cfg.suspension)) throw new Error('suspension must be asyncify or jspi-preferred');

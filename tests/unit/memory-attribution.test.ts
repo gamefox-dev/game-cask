@@ -142,7 +142,8 @@ describe('WebGL 2 executor memory', () => {
     let m = gpu.memory();
     const chain = textureLevelBytes({ width: 256, height: 256, depth: 1, dimension: 0 }, 9, 4);
     expect(m.buffers).toEqual({ count: 1, bytes: 4096, nativeBytes: 4096 });
-    expect(m.textures).toEqual({ count: 1, bytes: chain, depthStencilBytes: 0 });
+    // K71: never used, so no native storage yet; the reserved chain is reported as lazy.
+    expect(m.textures).toEqual({ count: 1, bytes: 0, depthStencilBytes: 0, lazy: { count: 1, bytes: chain, depthStencilBytes: 0 } });
     expect(m.shadows).toEqual({ bufferBytes: 4096, textureBytes: 0 }); // eager: 256*256*4 + every grown level
     ok(O.TEXTURE_GENERATE_MIPS, [1, 0]);
     expect(gpu.memory().shadows.textureBytes).toBe(0); // generated from a zero base: no zero chain
@@ -153,7 +154,7 @@ describe('WebGL 2 executor memory', () => {
     expect(gpu.memory().shadows.textureBytes).toBe(256 * 256 * 4 * 2 + (chain - 256 * 256 * 4)); // base + generated copy + chain
     ok(O.TEXTURE_CREATE_EX, [2, 0, 64, 64, 1, 1, 5, 2]); // depth24-stencil8 attachment
     m = gpu.memory();
-    expect(m.textures.depthStencilBytes).toBe(64 * 64 * 4);
+    expect(m.textures.lazy!.depthStencilBytes).toBe(64 * 64 * 4); // K71: an attachment that was never drawn
     expect(m.renderbuffers).toEqual({ count: 0, bytes: 0 });
   });
 });

@@ -50,7 +50,9 @@ test('native completeness and uniform reflection follow storage/program generati
     for(const item of init.items)if(gpu.execute(item))throw Error(errors.join(' '));
     const original=g.checkFramebufferStatus.bind(g);let queries=0;
     g.checkFramebufferStatus=(t:number)=>{queries++;return original(t);};
-    const pass=(h=1,mip=0)=>send(O.PASS_BEGIN,[1,0,0,0,0,0x3f800000,0,h,mip,1,0,0,0,0]);
+    // K71: an in-pass op makes each pass native (a clear-only pass over storage-less attachments is otherwise
+    // virtual and never reaches a framebuffer, so it would not exercise the completeness cache at all).
+    const pass=(h=1,mip=0)=>{send(O.PASS_BEGIN,[1,0,0,0,0,0x3f800000,0,h,mip,1,0,0,0,0]);send(O.SCISSOR,[0,0,1,1]);};
     pass();send(O.PASS_END,[]);pass();send(O.PASS_END,[]);const repeat=queries;
     send(O.TEXTURE_DELETE,[1]);send(O.TEXTURE_CREATE_EX,[1,0,16,16,1,2,0,3]);
     pass();send(O.PASS_END,[]);const reused=queries;
