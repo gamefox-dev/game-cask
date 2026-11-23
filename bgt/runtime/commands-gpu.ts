@@ -2,6 +2,7 @@
 import {
   BGT_OK, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_UNSUPPORTED,
   GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN, GPU_VARYING_COMPONENTS_DEFAULT, GPU_VIEWPORT_BOUND,
+  GPU_PORTABLE_LIMITS, reportedLimit, type GpuLimitsMode,
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
@@ -42,15 +43,22 @@ export class GpuState {
   /** Negotiated by gpu_buffer_handles, never inferred from backend support alone. */
   bufferHandles = false;
   pass?: Pass;
-  /** K51: the backend's actual UNIFORM_BUFFER range limit (§13.6 offset 52), fixed for this namespace. */
+  /** K51/K73: the UNIFORM_BUFFER range limit this namespace reports (§13.6 offset 52) and enforces (E_LIMIT above
+   * it), fixed for the namespace: min(portable 16384, device) by default, the device's in 'device' mode. */
   readonly uniformRange: number;
-  /** K62: the backend's guaranteed GLSL varying components (§13.6 offset 76). */
+  /** K62/K73: the GLSL varying components this namespace reports (§13.6 offset 76): min(portable 84, device) by
+   * default, the device's in 'device' mode. */
   readonly varyingComponents: number;
-  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
+  /** K73 diagnostics: the device's own values (what 'device' mode would report). */
+  readonly deviceUniformRange: number;
+  readonly deviceVaryingComponents: number;
+  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget, readonly limitsMode: GpuLimitsMode = 'portable') {
     this.budget = budget;
-    this.uniformRange = backendUniformRange(backend);
+    this.deviceUniformRange = backendUniformRange(backend);
     const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
-    this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.deviceVaryingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.uniformRange = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.uniformRange, this.deviceUniformRange);
+    this.varyingComponents = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.varyingComponents, this.deviceVaryingComponents);
   }
   /** K64: the reservation split by kind (sums to `bytes`). Buffer bytes are also this decoder's JS shadow copies. */
   reservedByKind(): { buffers: number; textures: number; shaders: number } {

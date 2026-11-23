@@ -115,7 +115,10 @@ Write a one-line verdict per reviewed screenshot into the queue item or `reports
 2. A pixel assertion: a region changed, a color census or centroid moved, cross-backend diff under a tolerance.
 3. A screenshot attached to the test (for human/validator review).
 4. Console/diagnostics are clean: `errors: []`, `commandErrors.count == 0`, `assets.missing == []`.
-   The `collector` fixture fails the test on page errors, console errors or failed requests.
+   The `collector` fixture fails the test on page errors, console errors, HTTP >= 400 and (K73) network-level request
+   failures (aborted, DNS, connection refused). `collector.allow(re)` covers errors and HTTP statuses only;
+   `collector.allow({ pattern, max })` allows at most `max` matches (bound an authentic repeated guest error, cite it in
+   the queue); `collector.allowRequestFailure(re | { pattern, max })` is the only way to allow an intentional abort.
 
 ## Classification (be strict)
 - **booted (L1)**: `ready()`, no errors, and the first screen is **authentic** (matches the original's look;

@@ -39,7 +39,8 @@ it('x64-gl-raster: off-target viewports, depth range, provoking vertex and byte 
   // Every GL 3.3 implementation-dependent value against the minimum table (documented exceptions exact).
   const limits = new Map<number, string>();
   for (const l of h.logs) { const r = /x64-gl-raster limit 0x([0-9a-f]{4}) (.*)$/.exec(l); if (r) limits.set(parseInt(r[1], 16), r[2]); }
-  expect(checkGl33Limits(limits, { varyings: 60, uniformBlock: 65536 })).toEqual([]);
+  // K73 (Q135): a backend that states no uniform range (65536) reports the portable 16384 by default.
+  expect(checkGl33Limits(limits, { varyings: 60, uniformBlock: 16384 })).toEqual([]);
 
   // Wire: off-target viewports reach §13 VIEWPORT unclamped (top-left origin), reversed depth ranges as (f, n).
   const vps = stream.items.filter(i => i.op === O.VIEWPORT).map(i => i.words.map(f));

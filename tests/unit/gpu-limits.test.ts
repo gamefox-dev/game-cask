@@ -70,13 +70,57 @@ it('an explicitly enabled GPU host reports its language mask and clears no unrel
   expect(words[4]).toBe(1); expect(words[16]).toBe(6); expect(words[25]).toBe(CAP_GPU | CAP_ENTROPY | 1); // LANE-K1
 });
 // K51: offset 52 must be the backend's real (clamped) limit; a fixed 65536 would lie to a 16384-byte WebGL2 device.
+// K73: that is 'device' mode (gpu.limits: "device"); the default 'portable' mode is tested below.
 it.each([[undefined, 65536], [16384, 16384], [32776, 32768], [131072, 65536]])(
-  'max_uniform_range reports backend limit %s as %i', async (native, expected) => {
+  'max_uniform_range reports backend limit %s as %i in device mode', async (native, expected) => {
     const host = await GameHost.create(wasm, { log: () => {}, vfs: new Vfs(), now: () => 0 }, {
       backend: 3, caps: CAP_GPU, seed: 1, displayWidth: 64, displayHeight: 64, arg0: 0, arg1: 80,
-      gpuBackend: { languages: 6, maxUniformRange: native, execute: () => 0 },
+      gpuBackend: { languages: 6, maxUniformRange: native, execute: () => 0 }, gpuLimits: 'device',
     });
     host.init();
     const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
     expect(words[4]).toBe(1); expect(words[13]).toBe(expected);
   });
+
+// K73 (Q135): the default reports one portable table on every device: ANGLE Metal (16384 uniform range, 84 varyings,
+// 16384 textures), SwiftShader (65536, 87, 8192) and WebGPU (65536, 102, 8192) all read 8192 / 16384 / 84 at offsets
+// 4 / 52 / 76. Would catch a host that still reports the device value (the MMX8 r30 cross-backend divergence).
+const devices: [string, number, number, number][] = [
+  ['ANGLE Metal', 16384, 84, 16384], ['SwiftShader', 65536, 87, 8192], ['WebGPU Chromium', 65536, 102, 8192], ['WebGPU WebKit', 65536, 114, 8192]];
+const limitWords = async (uniform: number, varyings: number, texture: number, gpuLimits?: 'portable' | 'device') => {
+  const host = await GameHost.create(wasm, { log: () => {}, vfs: new Vfs(), now: () => 0 }, {
+    backend: 3, caps: CAP_GPU, seed: 1, displayWidth: 64, displayHeight: 64, arg0: 0, arg1: 80, maxTextureDimension: texture,
+    gpuBackend: { languages: 6, maxUniformRange: uniform, maxVaryingComponents: varyings, execute: () => 0 }, gpuLimits,
+  });
+  host.init();
+  const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
+  return { words: [words[1], words[13], words[19]], host };
+};
+it.each(devices)('portable limits (default) on %s: offsets 4/52/76 = 8192/16384/84', async (_name, uniform, varyings, texture) => {
+  const { words, host } = await limitWords(uniform, varyings, texture);
+  expect(words).toEqual([8192, 16384, 84]);
+  expect(host.gpuLimits).toEqual({ mode: 'portable', maxUniformRange: 16384, deviceMaxUniformRange: uniform,
+    maxVaryingComponents: 84, deviceMaxVaryingComponents: varyings, maxTextureDimension: 8192, deviceMaxTextureDimension: texture });
+});
+it.each(devices)('device limits (gpu.limits: "device") on %s report the device values', async (_name, uniform, varyings, texture) => {
+  const { words, host } = await limitWords(uniform, varyings, texture, 'device');
+  expect(words).toEqual([texture, uniform, varyings]);
+  expect(host.gpuLimits?.mode).toBe('device');
+});
+it('portable limits never exceed a smaller device (16-location WebGPU adapter: 54 varyings; 4096 textures)', async () => {
+  const { words } = await limitWords(65536, 54, 4096);
+  expect(words).toEqual([4096, 16384, 54]);
+});
+it('rejects an unknown gpuLimits mode', async () => {
+  await expect(GameHost.create(wasm, { log: () => {}, vfs: new Vfs(), now: () => 0 }, {
+    backend: 3, caps: CAP_GPU, seed: 1, displayWidth: 64, displayHeight: 64, arg0: 0, arg1: 80,
+    gpuBackend: { languages: 6, execute: () => 0 }, gpuLimits: 'max' as 'device',
+  })).rejects.toThrow(/invalid gpuLimits/);
+});
+it('a WebGPU -> WebGL 2 fallback keeps the portable values (no stale, larger limit for the guest)', async () => {
+  const { host } = await limitWords(65536, 102, 8192);
+  host.setBackend(2, { languages: 6, maxUniformRange: 16384, maxVaryingComponents: 84, execute: () => 0 });
+  host.init();
+  const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
+  expect([words[13], words[19]]).toEqual([16384, 84]);
+});

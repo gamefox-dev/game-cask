@@ -17,6 +17,8 @@ export interface StreamOptions {
   onLog?: (message: string) => void;
   entropy?: (bytes: Uint8Array) => void; /* LANE-K1: explicit oracle replay only */
   gpuBackend?: GpuBackend;
+  /** K73: guest-visible GPU limits (default: the manifest's gpu.limits, else 'portable', as the runtime). */
+  gpuLimits?: 'portable' | 'device';
   executeFrame?: (frame: Frame) => void;
 }
 
@@ -74,6 +76,7 @@ export async function loadHeadless(id: string, opts: StreamOptions & {
       (opts.gpuBackend ? CAP_GPU : 0) | (opts.executeFrame ? CAP_READBACK : 0), /* LANE-GL */
     gpuBackend: opts.gpuBackend,
     gpuBudgetBytes: manifest.gpu?.budgetBytes,
+    gpuLimits: opts.gpuLimits ?? manifest.gpu?.limits,
     seed: opts.seed ?? 1,
     displayWidth: 640,
     displayHeight: 360,

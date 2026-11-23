@@ -46,7 +46,8 @@ import { Vfs } from './vfs';
 import { Requests } from './requests';
 /* LANE-S1: additive GPU host wiring and extended limits; no backend enabled by default. */
 import { GpuState } from './commands-gpu';
-import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, CAP_GPU_CONST_ATTRIB, GPU_LIMITS_SIZE, E_UNSUPPORTED } from './abi';
+import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, CAP_GPU_CONST_ATTRIB, GPU_LIMITS_SIZE, E_UNSUPPORTED,
+  GPU_PORTABLE_LIMITS, isGpuLimitsMode, reportedLimit, type GpuLimitsMode } from './abi';
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 import type { captureHost } from './savestate-host';
@@ -92,6 +93,9 @@ export interface HostConfig {
   /* LANE-S1 */ gpuBackend?: GpuBackend;
   /** Reservation/accounting limit; not measured physical VRAM. */
   gpuBudgetBytes?: number;
+  /** K73 (Q135): 'portable' (default) reports the portable table (GPU_PORTABLE_LIMITS) for the backend-dependent
+   * §13.6 limits (offsets 4, 52, 76), the same on every supported device; 'device' reports the device's values. */
+  gpuLimits?: GpuLimitsMode;
   sliceCode?: number[];
   sliceCodeRanges?: {addr:number;end:number}[];
 }
@@ -261,6 +265,8 @@ export class GameHost {
   yields = 0;
   /** set when the game changed its logical size during an update (v0.2) */
   sizeChanged = false;
+  /** K73: the renderer's own max texture dimension before the portable clamp (diagnostics). */
+  private deviceMaxTextureDimension: number | null = null;
 
   private constructor(
     private readonly services: HostServices,
@@ -270,6 +276,12 @@ export class GameHost {
     if (typeof services.entropy === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') config.caps |= CAP_ENTROPY;
     else config.caps &= ~CAP_ENTROPY;
     if (config.sliceCode) this.allowedCode = new Set(config.sliceCode);
+    if (config.gpuLimits === undefined) config.gpuLimits = 'portable';
+    else if (!isGpuLimitsMode(config.gpuLimits)) throw new HostError(`invalid gpuLimits ${String(config.gpuLimits)}; expected portable or device`);
+    /* K73: §13.6 offset 4 (and the legacy TEXTURE_CREATE check) use the reported value, never more than the device's. */
+    this.deviceMaxTextureDimension = config.maxTextureDimension ?? null;
+    if (config.maxTextureDimension !== undefined)
+      config.maxTextureDimension = reportedLimit(config.gpuLimits, GPU_PORTABLE_LIMITS.textureDimension, config.maxTextureDimension);
     /* LANE-S1: a caller cannot advertise an absent/unsupported GPU implementation. */
     if (config.gpuBudgetBytes !== undefined) {
       if (!Number.isSafeInteger(config.gpuBudgetBytes) || config.gpuBudgetBytes < GPU_BUDGET_MIN || config.gpuBudgetBytes > GPU_BUDGET_MAX) {
@@ -277,7 +289,7 @@ export class GameHost {
       }
     } else config.gpuBudgetBytes = GPU_LIMITS.budget;
     if (config.gpuBackend?.languages && (config.caps & CAP_GPU)) {
-      this.gpu = new GpuState(config.gpuBackend, config.gpuBudgetBytes);
+      this.gpu = new GpuState(config.gpuBackend, config.gpuBudgetBytes, config.gpuLimits);
     }
     else config.caps &= ~CAP_GPU;
     if (this.gpu?.backend.bufferHandles) config.caps |= CAP_GPU_BUFFER_HANDLES;
@@ -761,6 +773,15 @@ export class GameHost {
   /** Backend switched at runtime (WebGPU loss -> WebGL 2); signalled to the game with BGT_EVENT_DEVICE_RESET. */
   /** K51: the uniform range this host reports at §13.6 offset 52, or null without a GPU namespace. */
   get gpuUniformRange(): number | null { return this.gpu?.uniformRange ?? null; }
+  /** K73 (Q135): the backend-dependent §13.6 values this host reports and the device values behind them. */
+  get gpuLimits(): { mode: GpuLimitsMode; maxUniformRange: number; deviceMaxUniformRange: number;
+    maxVaryingComponents: number; deviceMaxVaryingComponents: number; maxTextureDimension: number | null;
+    deviceMaxTextureDimension: number | null } | null {
+    const g = this.gpu; if (!g) return null;
+    return { mode: g.limitsMode, maxUniformRange: g.uniformRange, deviceMaxUniformRange: g.deviceUniformRange,
+      maxVaryingComponents: g.varyingComponents, deviceMaxVaryingComponents: g.deviceVaryingComponents,
+      maxTextureDimension: this.config.maxTextureDimension ?? null, deviceMaxTextureDimension: this.deviceMaxTextureDimension };
+  }
 
   setBackend(backend: number, gpuBackend?: GpuBackend): void {
     if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
@@ -768,7 +789,7 @@ export class GameHost {
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;
-    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes); }
+    if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes, this.config.gpuLimits); }
     else { this.config.caps &= ~CAP_GPU; this.gpu = undefined; }
     if (this.abiVersion >= 0x000300 && this.gpu?.backend.bufferHandles) this.config.caps |= CAP_GPU_BUFFER_HANDLES;
     else this.config.caps &= ~CAP_GPU_BUFFER_HANDLES;
