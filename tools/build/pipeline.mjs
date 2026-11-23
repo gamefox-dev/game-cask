@@ -266,7 +266,10 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   mkdirSync(work, { recursive: true });
   // vK72: the interpret-only oracle build compiles the fixture in the lifted build's directory, so both load
   // byte-identical images (lld embeds source/output paths in the PE debug data the guest maps).
-  const fixtureWork = p.interpretOnly && cfg.coverageGameId ? join(CACHE, 'pipeline', cfg.coverageGameId, 'fixture') : join(work, 'fixture');
+  // Only the oracle twin (build option interpretOnly renames the id to <id>-interp); a game whose own game.json sets
+  // pipeline.interpretOnly keeps its directory.
+  const oracleTwin = p.interpretOnly && cfg.coverageGameId && cfg.id === `${cfg.coverageGameId}-interp`;
+  const fixtureWork = oracleTwin ? join(CACHE, 'pipeline', cfg.coverageGameId, 'fixture') : join(work, 'fixture');
   const fixtureFiles = {};
   if (p.fixture) {
     for (const data of p.fixture.patternFiles ?? []) {
