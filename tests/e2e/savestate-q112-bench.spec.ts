@@ -57,21 +57,28 @@ for(const {mib,artifactBytes,updates,heavy} of [{mib:64,artifactBytes:2_000_000,
       const result=await page.evaluate(async ({updates,suffixFrames})=>{
         const {__BGT_TEST__:t,__k77Digest:digest}=window as unknown as {__BGT_TEST__:BGTTestAPI;__k77Digest:{calls:number;ms:number}};
         const bootHash={...digest};
-        const lead=performance.now();await t.step(updates);const leadMs=performance.now()-lead, journal=t.journalStats();
-        const leadState=t.diagnostics();
-        if(leadState.frame!==updates||leadState.errors.length||leadState.commandErrors.count)
-          throw new Error('Benchmark did not reach capture: '+JSON.stringify({frame:leadState.frame,errors:leadState.errors,commands:leadState.commandErrors}));
+        const lead=performance.now();await t.step(updates);
+        if(t.diagnostics().frame!==updates)throw new Error('Benchmark did not complete its lead-in');
+        // The fixture yields at the tail of bgt_update; the next host step
+        // only returns from that call. Park at the next yield if needed.
+        const parkStep=t.diagnostics().suspended?0:1;
+        if(parkStep)await t.step(parkStep);
+        const leadMs=performance.now()-lead, journal=t.journalStats(), leadState=t.diagnostics();
+        if(leadState.frame!==updates+parkStep||!leadState.suspended||leadState.errors.length||leadState.commandErrors.count)
+          throw new Error('Benchmark did not reach a suspended capture: '+JSON.stringify({frame:leadState.frame,suspended:leadState.suspended,errors:leadState.errors,commands:leadState.commandErrors}));
         const calls=digest.calls,start=performance.now(), s=await t.snapshot(), snapshotMs=performance.now()-start;
         const captureHashCalls=digest.calls-calls;
         const exportAt=performance.now(), reader=t.exportSnapshot(s).getReader();let fileBytes=0;
         for(;;){const p=await reader.read();if(p.done)break;fileBytes+=p.value.length;}
         const exportMs=performance.now()-exportAt;
-        // Probe every large texture in the rotated sample set on both branches.
-        const suffix=async()=>{const values:string[]=[];
+        // Two host steps per draw: resume the previous update, then draw/yield.
+        // Compare a whole rotation of the 60 textures on both branches.
+        const suffix=async()=>{const values:{hash:string;pixels:string}[]=[];
           for(let i=0;i<suffixFrames;i++) {
             await t.step(1);
-            const pixels=await t.readPixels();if(!pixels)throw new Error('Missing suffix pixels');
-            values.push(t.stateHash()+':'+pixels.base64);
+            const pixels=await t.readPixels(),hash=t.stateHash();
+            if(!pixels||hash===null)throw new Error('Missing suffix pixels or guest hash');
+            values.push({hash,pixels:pixels.base64});
           }
           return values;
         };
@@ -79,12 +86,14 @@ for(const {mib,artifactBytes,updates,heavy} of [{mib:64,artifactBytes:2_000_000,
         const restoreAt=performance.now();await t.restore(s);const restoreMs=performance.now()-restoreAt;
         const actual=await suffix();
         return {leadMs,journal,snapshotMs,restoreMs,exportMs,fileBytes,bootHash,captureHashCalls,memoryBytes:s.host.wasm.memory.byteLength,pages:s.host.wasm.memory.pages.size,
-          stats:s.stats,suspended:leadState.suspended,errors:t.diagnostics().errors,frame:t.diagnostics().frame,
-          equal:actual.every((value,i)=>value===expected[i])};
-      },{updates,suffixFrames:heavy?60:1});
+          stats:s.stats,captureFrame:leadState.frame,suspended:leadState.suspended,errors:t.diagnostics().errors,frame:t.diagnostics().frame,
+          distinctImages:new Set(expected.map(value=>value.pixels)).size,
+          equal:actual.every((value,i)=>value.hash===expected[i].hash&&value.pixels===expected[i].pixels)};
+      },{updates,suffixFrames:heavy?120:2});
       console.log('Q112',backendParam,artifactBytes,JSON.stringify({bootMs,...result}));
       await info.attach('q112.json',{body:JSON.stringify({backendParam,mib,artifactBytes,updates,bootMs,...result}),contentType:'application/json'});
-      expect(result.frame).toBe(updates+(heavy?60:1));expect(result.suspended).toBe(true);expect(result.equal).toBe(true);
+      expect(result.frame).toBe(result.captureFrame+(heavy?120:2));expect(result.suspended).toBe(true);expect(result.equal).toBe(true);
+      if(heavy)expect(result.distinctImages).toBeGreaterThanOrEqual(60);
       expect(result.errors).toEqual([]);expect(result.bootHash.calls).toBeGreaterThan(0);expect(result.captureHashCalls).toBe(0);
       expect(result.memoryBytes).toBeGreaterThan(mib*1024**2);
       expect(result.pages).toBeLessThan(heavy?110:40);
