@@ -130,6 +130,11 @@ uint64_t w32_gl_deferred_lists(void);
 uint64_t w32_gl_deferred_rejects(void);
 uint64_t w32_audio_events_coalesced(void);
 void w32_wait_transport(void);
+void w32_wait_present(void); /* Tail of a GL SwapBuffers import. */
+int w32_checkpoint_exit(int outer_return);
+int w32_schedule_cap(int portable);
+int w32_schedule_idle(uint32_t ms, int portable);
+int w32_thread_schedule_step(int phase, int portable);
 /* K53: submit the GL profile's deferred GPU list (frame boundaries, foreign submissions). */
 void w32_gl_flush(void);
 void w32_gdi_present_boundary(void);

@@ -7,6 +7,7 @@ uint64_t w32_thread_api(const char *name);
 void w32_thread_init(void);
 void w32_thread_schedule(void);
 void w32_thread_return(uint32_t code);
+void w32_thread_return_step(uint32_t code, int outer_return);
 void w32_thread_quantum(void);
 int w32_thread_quantum_probe(void); /* K52 */
 void w32_thread_yield(void);

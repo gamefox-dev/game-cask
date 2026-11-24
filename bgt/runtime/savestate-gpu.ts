@@ -107,7 +107,10 @@ function resources(records: CheckpointFrame[]): Resources {
  * Known constants are materialized exactly at the cut, not read back or inferred
  * from end-of-suffix data. Partial uploads, blits and sampling are not reset proofs. */
 export function proveResidual(prefix: CheckpointFrame[], residual: CheckpointFrame[]): void {
-  const r=resources(prefix), pending=new Map<number,Map<number,number>>();
+  checkResidual(resources(prefix),residual);
+}
+function checkResidual(r: Resources,residual: CheckpointFrame[]): void {
+  const pending=new Map<number,Map<number,number>>();
   for(const [h,t] of r.textures) if(t.item.words[6]===5) pending.set(h,new Map(t.constants.map((c,i)=>[i,(c[0]===null?1:0)|(c[1]===null?2:0)])));
   let pass:{handle:number;mip:number;fullScissor:boolean;width:number;height:number}|undefined;
   const reset=(h:number,mip:number,aspects:number)=>{const p=pending.get(h);if(p)p.set(mip,(p.get(mip)??0)&~aspects);};
@@ -154,26 +157,34 @@ export function proveResidual(prefix: CheckpointFrame[], residual: CheckpointFra
 export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
   const replay=new CheckpointReplay(renderer);
   if(base) { await replay.draw(base.frame); renderer.restoreTestSurfaces(base.surfaces); }
-  for(const f of journal) await replay.draw(f);
+  // WebGPU canvas current textures are invalidated at task boundaries. A fixed
+  // GPU fence every batch bounds queued work without a per-frame GPU/CPU rendezvous.
+  for(let i=0;i<journal.length;i++) await replay.draw(journal[i], (i+1)%16===0||i===journal.length-1);
 }
 export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[], live?:Renderer & CheckpointRenderer) {
   const last=journal.at(-1) ?? base?.frame;
-  if(!last) return {base,journal,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0}};
+  if(!last) return {base,journal,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0}};
   const earliest=last.update-RESIDUAL_UPDATES+1;
   const candidates=[...journal.keys()].filter(i=>journal[i].update>=earliest && (!i || journal[i-1].update!==journal[i].update));
-  // No unreadable resources: the end boundary needs no residual at all.
-  if(![...resources([...(base?[base.frame]:[]),...journal]).textures.values()].some(t=>t.item.words[6]===5)) candidates.push(journal.length);
-  let cut=-1, failure:unknown;
+  // Try the live end cut first, including packed textures with proven constants.
+  candidates.push(journal.length);
+  let cut=-1, failure:unknown, atCut: Resources|undefined;
   for(const i of candidates.reverse()) {
     const tail=journal.slice(i);
     if(tail.reduce((n,f)=>n+f.items.length,0)>RESIDUAL_COMMANDS) continue;
-    try { proveResidual([...(base?[base.frame]:[]),...journal.slice(0,i)],tail);cut=i;break; } catch(e) { failure=e; }
+    try {
+      const r=resources([...(base?[base.frame]:[]),...journal.slice(0,i)]);
+      // Residual proof changes the handle->descriptor map as resources are reused.
+      checkResidual({...r,textures:new Map(r.textures)},tail);cut=i;atCut=r;break;
+    } catch(e) { failure=e; }
   }
   if(cut<0) throw failure ?? new Error('Unsupported savestate GPU residual exceeds command/update bound');
   const prefix=journal.slice(0,cut), residual=journal.slice(cut), at=prefix.at(-1) ?? base?.frame ?? journal[0];
-  const r=resources([...(base?[base.frame]:[]),...prefix]);
+  const r=atCut!;
   const source=cut===journal.length&&live&&![...r.legacy.values()].some(t=>t.item.renderTarget)?live:renderer;
+  const replayStart=performance.now();
   if(source===renderer)await replayGPU(renderer,base,prefix);
+  const replayMs=source===renderer?performance.now()-replayStart:0;
   const surfaces=await source.captureTestSurfaces(at.letterbox);
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
   const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
@@ -234,5 +245,5 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   const compact:GPUCheckpoint={frame:{...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),
     packedConstants:[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants])},surfaces};
   return {base:compact,journal:residual,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
-    residualUpdates:new Set(residual.map(f=>f.update)).size}};
+    residualUpdates:new Set(residual.map(f=>f.update)).size,replayFrames:source===renderer?prefix.length:0,replayMs}};
 }

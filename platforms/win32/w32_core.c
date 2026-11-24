@@ -30,6 +30,18 @@ uint32_t w32_nmods;
 
 static const w32_config_t *cfg;
 static int started;
+/* Test-mode JSPI handshake. All continuation fields are ordinary wasm state. */
+static int checkpoint_enabled, checkpoint_parked, checkpoint_root, schedule_phase;
+static uint32_t entry_floor;
+static int pending_present_return;
+static x86_word_t present_result;
+static int wait_host(int transport, int portable);
+void w32_enable_checkpoint_boundaries(void) {
+#ifdef X86_FLAT_GUEST
+    if (!started) checkpoint_enabled = 1;
+#endif
+}
+uint32_t w32_checkpoint_parked(void) { return (uint32_t)checkpoint_parked; }
 
 /* ------------------------------------------------------------------ helpers */
 uint32_t w32_slen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
@@ -126,12 +138,18 @@ static uint32_t instruction_cap(void) { return cfg && cfg->instruction_cap ? cfg
 /* K52: would committing a quantum of `units`, with `carry` instructions left as live debt (K75), leave the cap check
  * below without waiting? Its sync charges clock_debt(units) at the quantum and then the carry (charged reset to 0). */
 int w32_clock_quantum_fits(uint32_t units, uint32_t carry) { return frame_units + clock_debt(units) + carry < instruction_cap(); }
-void w32_clock_check_cap(void) {
-    w32_clock_sync();
-    if(frame_units >= instruction_cap()) {
-        cap_hits++;w32_wait_frame();
-    }
+static int wait_frame(int portable) {
+    clock_boundary(1,0);
+    w32_gdi_present_boundary();
+    return wait_host(0, portable);
 }
+int w32_schedule_cap(int portable) {
+    w32_clock_sync();
+    if(frame_units < instruction_cap()) return 0;
+    cap_hits++;
+    return wait_frame(portable);
+}
+void w32_clock_check_cap(void) { w32_schedule_cap(0); }
 /* K50 review ruling: swap interval 0 does not end the host update. The guest keeps running and
  * later presents replace the displayed frame until the next 16667-us frame target. To show a
  * complete frame, the update ends at the present after which the next frame would cross that target
@@ -162,18 +180,19 @@ int w32_clock_swap0(int budget_full) {
     else boundary_us=target+(now-target)/BGT_DT_US*BGT_DT_US;
     present_us=now>boundary_us?now:boundary_us;
     frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
-    w32_wait_transport();
+    w32_wait_present();
     return 1;
 }
-void w32_idle_ms(uint32_t ms) {
+int w32_schedule_idle(uint32_t ms, int portable) {
     w32_clock_sync(); update_neutral = 0;
     uint64_t boundary=(boundary_us+BGT_DT_US)*CLOCK_UNITS_PER_US;
-    if(virtual_units>=boundary) { w32_wait_frame();return; }
+    if(virtual_units>=boundary) return wait_frame(portable);
     uint64_t deadline=virtual_units+(uint64_t)ms*1000u*CLOCK_UNITS_PER_US;
     virtual_units=deadline<boundary?deadline:boundary;
     w32_audio_pump();w32_user_fire_timers();
-    if(virtual_units==boundary)w32_wait_frame();
+    return virtual_units==boundary ? wait_frame(portable) : 0;
 }
+void w32_idle_ms(uint32_t ms) { w32_schedule_idle(ms,0); }
 void w32_sleep_ms(uint32_t ms) {
     if (!ms) { w32_wait_frame(); return; }
     w32_clock_sync(); update_neutral = 0;
@@ -566,6 +585,7 @@ static int thunk_handler_impl(uint32_t addr) {
     w32_m.api_calls++;
     uint32_t transfer=(uint32_t)X.transfer;
     if(X.mode64){static const int reg[4]={ECX,EDX,R8,R9};for(uint32_t k=0;k<4;k++)x86_wr64((uint32_t)X.r[ESP]+8+8*k,X.r[reg[k]]);}
+    x86_word_t saved_eax = X.r[EAX];
     int special = 0;
     /* LANE-C: shared thread APIs take precedence over old single-thread CRT bridges. */
     const w32_api_t *thread = s->thread;
@@ -605,6 +625,14 @@ static int thunk_handler_impl(uint32_t addr) {
         X.r[EAX] = s->api->fn();
     }
     if (X.transfer != (int)transfer) return 0;
+    if (checkpoint_parked) {
+        /* A root SwapBuffers finished its C body, but the resumed host pumps
+         * (including workers) must still see its original CPU/ABI context. */
+        present_result = X.r[EAX]; X.r[EAX] = saved_eax;
+        pending_present_return = 1;
+        X.transfer = X86_CHECKPOINT;
+        return 0;
+    }
     if (X.mode64 && !special && !s->crt && X.r[EAX] == 0xffffffffu &&
         (w32_streqi(s->name, "CreateFileA") || w32_streqi(s->name, "CreateFileW") ||
          w32_streqi(s->name, "FindFirstFileW") || w32_streqi(s->name, "FindFirstFileExW") ||
@@ -848,7 +876,8 @@ int32_t w32_boot(const w32_config_t *c, bgt_io_t *io) {
 /* K65: metrics-only fallback for builds that compile this serializer without the x86 runtime object
  * (test fixtures); the runtime's strong definition (x86_rt.c) wins whenever it is linked. */
 __attribute__((weak)) int x86_asyncify_artifact(void) { return 0; }
-static void wait_host(int transport) {
+static void resume_host(void);
+static int wait_host(int transport, int portable) {
     w32_gl_flush(); /* K53: deferred GL work belongs to the frame this yield completes */
 #if X86_ACCOUNTING_ENABLED
     static int accounted_exit;
@@ -866,8 +895,16 @@ static void wait_host(int transport) {
     w32_gl_host_yield(0); /* K50 review: post-present GL work stays queued for the next update */
     yield_kind = transport && update_neutral ? 1u : 0u; neutral_yields += yield_kind;
     x86_profile_idle_begin();
+    if (portable) {
+        checkpoint_parked = 1;
+        return 1;
+    }
     x86_check_suspendable(); /* K65: never unwind through an uninstrumented native step */
     bgt_yield();
+    resume_host();
+    return 0;
+}
+static void resume_host(void) {
     x86_profile_idle_end();
     update_neutral = 1; yield_kind = 0;
     w32_gl_host_yield(1);
@@ -882,15 +919,61 @@ static void wait_host(int transport) {
     /* Resume workers only after the new host input/virtual-time boundary. */
     w32_thread_yield();
 }
-void w32_wait_frame(void) {
-    clock_boundary(1,0);
-    w32_gdi_present_boundary();
-    wait_host(0);
+void w32_wait_frame(void) { wait_frame(0); }
+void w32_wait_transport(void) { transport_yields++;wait_host(1,0); }
+void w32_wait_present(void) {
+    transport_yields++;
+    /* At the tail of a real import, the thunk can finish the guest ABI return
+     * before the outer flat dispatcher drops its C frames. Other callers (e.g.
+     * a window-proc callback) keep the original JSPI wait and native locals. */
+    wait_host(1,checkpoint_root && x86_checkpoint_can_return());
 }
-void w32_wait_transport(void) { transport_yields++;wait_host(1); }
+int w32_checkpoint_exit(int outer_return) {
+    if (!checkpoint_root || (!outer_return && !x86_checkpoint_can_return())) return 0;
+    /* A root ExitProcess import or last-thread return has no guest continuation. */
+    wait_frame(1);
+    X.transfer = X86_CHECKPOINT;
+    return 1;
+}
 
 #define RET_SENTINEL 0xfffffff4u
+static void portable_update(void) {
+    if (checkpoint_parked) {
+        checkpoint_parked = 0;
+        if (X.transfer == X86_CHECKPOINT) X.transfer = 0;
+        resume_host();
+        if (pending_present_return) {
+            pending_present_return = 0;
+            X.r[EAX] = present_result;
+            w32_trace_result(X.r[EAX]);
+            X.eip = (uint32_t)x86_pop(); /* Win64 thunk return, no stdcall cleanup. */
+            if (w32_thread_pending()) X.transfer = X86_SCHEDULE;
+        }
+    }
+    if (w32_exited) { wait_frame(1); return; }
+    for (;;) {
+        if (!schedule_phase && X.eip == X86_THREAD_RETURN) w32_thread_return_step((uint32_t)X.r[EAX],1);
+        if (checkpoint_parked) return;
+        if (schedule_phase || X.transfer == X86_SCHEDULE) {
+            schedule_phase = w32_thread_schedule_step(schedule_phase, 1);
+            if (schedule_phase) return;
+            entry_floor = (uint32_t)X.r[ESP];
+        } else if (X.transfer) {
+            X.transfer = 0;
+            entry_floor = (uint32_t)X.r[ESP];
+        }
+        x86_checkpoint_dispatch(RET_SENTINEL, entry_floor);
+        if (checkpoint_parked) return;
+        if (!X.transfer && X.eip == RET_SENTINEL) {
+            w32_exited = 1;
+            w32_log("win32 profile: program returned from its entry point");
+            wait_frame(1);
+            return;
+        }
+    }
+}
 void w32_update(void) {
+    if (checkpoint_root) { portable_update(); return; }
     if (started) return; /* the guest lives inside bgt_yield from here on */
     started = 1;
     w32_thread_init(); /* LANE-C: thread identity exists before process TLS callbacks. */
@@ -904,6 +987,13 @@ void w32_update(void) {
     w32_module_t *mainm = w32_mod_by_handle(0);
     if (!mainm || !mainm->entry) x86_fault("no program entry point", 0);
     x86_push(RET_SENTINEL);
+    if (checkpoint_enabled) {
+        checkpoint_root = 1;
+        entry_floor = (uint32_t)X.r[ESP];
+        X.eip = mainm->entry;
+        portable_update();
+        return;
+    }
     x86_invoke(mainm->entry, RET_SENTINEL);
     /* LANE-C: unwind native lifted frames before selecting a different guest context. */
     while (X.transfer || X.eip != RET_SENTINEL) {

@@ -3,6 +3,12 @@
 #include "bgt.h"
 #include "bgt_cmd.h"
 BGT_DEFINE_IO(io)
+#ifdef K77_MEMORY_MIB
+static uint32_t scratch_base;
+static _Alignas(16) unsigned char async_buffer[65536];
+BGT_EXPORT(bgt_async_buffer) uint32_t bgt_async_buffer(void) { return (uint32_t)(uintptr_t)async_buffer; }
+BGT_EXPORT(bgt_async_buffer_size) uint32_t bgt_async_buffer_size(void) { return sizeof async_buffer; }
+#endif
 #ifndef STRESS_DRAWS
 #define STRESS_DRAWS 1
 #endif
@@ -131,6 +137,17 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
     blit.source_rect[2]=64;blit.source_rect[3]=64;blit.destination_rect[2]=64;blit.destination_rect[3]=64;blit.mask=1;
     blit.scissor[2]=64;blit.scissor[3]=64;
     bgt_cmd_gpu_blit(&cb,&blit);check(bgt_cmd_submit(&cb));hash=hash*33u+tick+io.buttons;
+#ifdef K77_MEMORY_MIB
+    if(!scratch_base) {
+        scratch_base=__builtin_wasm_memory_size(0)*65536u;
+        if(__builtin_wasm_memory_grow(0,K77_MEMORY_MIB*16u)==(unsigned long)-1)bgt_abort(-1,"grow",4);
+    }
+    uint32_t off=(tick&7u)*(K77_MEMORY_MIB*1024u*1024u/8u);
+    volatile uint32_t *p=(volatile uint32_t *)(uintptr_t)(scratch_base+off);
+    *p=(*p*31u)^hash;
+    hash^=*p;
+    bgt_yield();
+#endif
 }
 BGT_EXPORT(bgt_render) void bgt_render(void) {}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) {return hash;}

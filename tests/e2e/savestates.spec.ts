@@ -12,15 +12,14 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
     expect(await openGame(page,backendParam,{game,suspension,deterministic:'1'})).toBe('ready');
     await assertBackend(page,backendParam,info);
     expect((await diagnostics(page)).suspension).toBe(suspension);
-    await step(page,game==='x64-threads'?1:3);
+    // The GL fixture boots through shader/readback transports before its first
+    // SwapBuffers. Only the present boundary is portable in JSPI.
+    await step(page,game==='x64-threads'?1:game==='x64-gl-fbo'&&suspension==='jspi'?40:3);
     if(game==='x64-threads') expect(((await diagnostics(page)).metrics as {exited:number}).exited).toBe(0);
     const wasSuspended = (await diagnostics(page)).suspended;
     const result = await page.evaluate(async (game) => {
       const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};
     const t = (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
-      if (t.diagnostics().suspension === 'jspi' && t.diagnostics().suspended) {
-        try { await t.snapshot(); return {unsupported:false}; } catch(e) { return {unsupported:String(e).includes('suspended JSPI')}; }
-      }
       const early=game==='x64-gl-fbo'?await t.snapshot():null;
       if(early)await t.step(300);
       const snap = await t.snapshot();
@@ -39,14 +38,14 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
         }
         traces.push(trace);
       }
-      return {unsupported:null,savedHash,exited:(t.diagnostics().metrics as {exited?:number})?.exited, measurement:{game,bytes:savedBytes,earlyBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
+      return {savedHash,exited:(t.diagnostics().metrics as {exited?:number})?.exited, measurement:{game,bytes:savedBytes,earlyBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
         equal:traces.slice(1).map(trace=>trace.map((x,i)=>x.hash===traces[0][i].hash && x.pixels===traces[0][i].pixels)),
         errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
     },game);
     if(result.measurement) await info.attach('savestate-measurement.json',{body:JSON.stringify(result.measurement),contentType:'application/json'});
-    if (suspension==='jspi' && wasSuspended) expect(result.unsupported).toBe(true);
-    else {
-      expect(result.unsupported).toBeNull();
+    // Pipeline fixtures must actually park at an update boundary, not exit or silently choose another artifact.
+    if(game!=='sample2d') expect(wasSuspended).toBe(true);
+    {
       if(game==='x64-gl-fbo')expect(result.measurement!.bytes).toBeLessThan(result.measurement!.earlyBytes!*2);
       expect(result.hashes!.every(x=>x!==null)).toBe(true);
       const updates=game==='x64-threads'?24:8;

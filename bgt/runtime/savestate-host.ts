@@ -1,16 +1,27 @@
 // Loaded only by the opt-in browser test controller, before host creation.
 import { GameHost, HostError } from './host';
-import { captureWasm, restoreWasm } from './savestate-wasm';
+import { captureWasm, checkpointDirty, restoreWasm } from './savestate-wasm';
+import { markHostWrite } from './savestate-dirty';
+export function trackCheckpointHost(host: GameHost): GameHost {
+  const bitmap = host['rawExports'][checkpointDirty];
+  if (bitmap instanceof WebAssembly.Memory) {
+    const dirty = new Uint8Array(bitmap.buffer);
+    host.testTrackWrites = (at, bytes) => markHostWrite(dirty,at,bytes);
+  }
+  return host;
+}
 import {cloneCheckpoint} from './savestate-clone';
 export function assertBoundary(this: GameHost): void {
     if (this['inUpdate'] || this['ioPending'] || this['frame'].items.length) throw new HostError('Checkpoint requires a consumed quiescent update boundary');
-    if (this['jspiTask'] || this['jspiResume']) throw new HostError('Unsupported checkpoint state: suspended JSPI continuation; use Asyncify');
+    if (this['jspiTask'] || this['jspiResume']) throw new HostError('Unsupported checkpoint state: suspended JSPI continuation (not a returnable frame boundary)');
   }
-export function captureHost(this: GameHost) {
+export function captureHost(this: GameHost, onWasmMs?: (ms:number)=>void) {
     this['assertCheckpointBoundary']();
     const {backend: _backend, ...gpu} = this['gpu'] ?? {backend:undefined};
     void _backend;
-    return {wasm: captureWasm(this['rawExports']), data: cloneCheckpoint({
+    const started=performance.now(), wasm=captureWasm(this['rawExports']);
+    onWasmMs?.(performance.now()-started);
+    return {wasm, data: cloneCheckpoint({
       abiVersion:this['abiVersion'], ioPtr:this['ioPtr'], initialized:this['initialized'], asyncState:this['asyncState'],
       asyncBuf:this['asyncBuf'], gamepads:this['gamepads'], state:this['state'], logicalWidth:this['logicalWidth'],
       logicalHeight:this['logicalHeight'], flags:this['flags'], frameIndex:this['frameIndex'], yields:this['yields'],

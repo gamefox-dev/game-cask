@@ -5,7 +5,7 @@ import {validateSavestate} from './savestate-validation';
 import type { GameHost, HostServices } from './host';
 import type { BGTRuntime } from './runtime';
 import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type CheckpointFrame} from './savestate-recording';
-import './savestate-host';
+import {trackCheckpointHost} from './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
 import { compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
@@ -21,7 +21,8 @@ export interface Savestate {
   input: ReturnType<BGTRuntime['input']['checkpoint']>;
   services: {ticks: number; rng: number; audioQueued: number; audioTimeUs: number; storage: Map<string, Uint8Array>};
   journal: CheckpointFrame[]; gpuBase: GPUCheckpoint | null;
-  stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number};
+  stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number;
+    wasmMs?:number;hostMs?:number;gpuMs?:number;replayFrames?:number;replayMs?:number};
 }
 
 export class Savestates {
@@ -36,6 +37,8 @@ export class Savestates {
   private journalBytes = 0;
   private journalError: string | null = null;
   private readonly journalLimit = 2 * 1024 * 1024 * 1024;
+  private nextCompaction = 128;
+  private compacting = 0;
   private executions = new WeakMap<object,Record<string,unknown>>();
   private wrappedRenderer: Renderer | null = null;
 
@@ -44,7 +47,9 @@ export class Savestates {
     this.rng = (seed >>> 0) || 1;
     rt.testHarness = {
       services: s => this.services(s),
+      trackHost: trackCheckpointHost,
       updated: () => { this.ticks++; this.drainAudio(); },
+      afterFrame: () => this.rollJournal(),
 
       frame: (...args) => {
         if (this.journalError) return;
@@ -109,23 +114,36 @@ export class Savestates {
     return this.exclusive(async () => {
       const rt = this.rt, started = performance.now();
       if (this.journalError) throw new Error(this.journalError);
-      if (rt.diagnostics().deviceResets) throw new Error('Savestates unsupported after graphics device loss');
-      const host = rt.host!.checkpoint(), vfs = rt.vfs.checkpoint(), input = rt.input.checkpoint();
-      const compact = await this.materialize();
+      if (rt['deviceResets']) throw new Error('Savestates unsupported after graphics device loss');
+      let wasmMs=0;
+      const host = rt.host!.checkpoint(ms=>{wasmMs=ms;}), vfs = rt.vfs.checkpoint(), input = rt.input.checkpoint();
+      const hostMs=performance.now()-started, compact=await this.materialize(), gpuMs=performance.now()-started-hostMs;
+      const gpuBase=cloneCheckpoint(this.gpuBase),journal=cloneCheckpoint(this.journal);
+      const services=cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,audioTimeUs:this.audioTimeUs,storage:this.storage});
       return {schema:'bgt-savestate/1',identity:this.identity(),backend:rt.renderer!.kind,
-        width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,
-        gpuBase:cloneCheckpoint(this.gpuBase),stats:{...compact.stats,snapshotMs:performance.now()-started},
-        services:cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,audioTimeUs:this.audioTimeUs,storage:this.storage}),
-        journal:cloneCheckpoint(this.journal)};
+        width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,gpuBase,services,journal,
+        stats:{...compact.stats,wasmMs,hostMs,gpuMs,snapshotMs:performance.now()-started}};
     });
   }
   compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
-  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:this.journalLimit,error:this.journalError};}
+  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:this.journalLimit,error:this.journalError,compactions:this.compacting};}
+  private async rollJournal() {
+    // The runtime holds the render/update handoff until this completes. Never
+    // compound an unsupported cut on every update; retry exponentially as new
+    // resource resets/deletions can make a later cut provable.
+    if(this.journalError||this.rt.renderer!.lost||this.rt['deviceResets']||this.journal.length<this.nextCompaction)return;
+    try {
+      await this.rt.renderer!.finish();
+      await this.materialize();
+      this.compacting++;
+    } catch { this.nextCompaction = this.journal.length * 2; }
+  }
   private async materialize() {
     const temporary = await this.createRenderer();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
     try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{this.park(temporary);}
     this.gpuBase=compact.base;this.journal=compact.journal;
+    this.nextCompaction=128;
     this.journalBytes=this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
     return compact;
   }
@@ -147,7 +165,7 @@ export class Savestates {
       const rt = this.rt;
       if (s.schema !== 'bgt-savestate/1' || s.identity !== this.identity() || s.backend !== rt.renderer!.kind ||
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
-      // Reject live JSPI continuation before allocating a replacement; never silently abandon a suspended task.
+      // Reject an arbitrary parked JSPI stack before allocating a replacement; returnable boundaries have no task.
       rt.host!.assertCheckpointBoundary();
       validateSavestate(s);
       // All fallible preparation precedes the commit. These detached plain records are
@@ -166,7 +184,7 @@ export class Savestates {
         Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
         this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
-        this.journalBytes = journalBytes; this.journalError = null;
+        this.journalBytes = journalBytes; this.journalError = null; this.nextCompaction=128;
       } finally { if (renderer) this.park(renderer); }
     }, () => {
       // Capture synchronously, before even finish() can yield to caller mutation.

@@ -62,7 +62,7 @@ export class CheckpointReplay {
       }finally{this.expected=undefined;}
     };}
   }
-  async draw(record:CheckpointFrame):Promise<void>{
+  async draw(record:CheckpointFrame, finish = true):Promise<void>{
     const frame=restoreCheckpointFrame(record),pending:Promise<void>[]=[];
     frame.items.forEach((item,i)=>{
       if(item.kind==='gpu'&&item.op===O.SHADER_CREATE)pending.push(new Promise<void>((resolve,reject)=>{
@@ -74,7 +74,10 @@ export class CheckpointReplay {
     });
     if(this.renderer.canvas.width!==record.width||this.renderer.canvas.height!==record.height)this.renderer.resize(record.width,record.height);
     const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-    await this.renderer.drawFrame(frame,record.letterbox,false);await this.renderer.finish();
+    await this.renderer.drawFrame(frame,record.letterbox,false);
+    // Native work is ordered within one renderer/queue. Shader completions are
+    // still checked before replay can proceed; other frames need no GPU fence.
+    if(finish||pending.length)await this.renderer.finish();
     const error=await done;if(error)throw error;if(this.errors.length)throw new Error(this.errors.join('\n'));
   }
 }
