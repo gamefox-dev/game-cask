@@ -61,18 +61,25 @@ static void l64f_flag_io(const x86_insn_t *in, uint32_t *r, uint32_t *w) {
 /* K75 observed flags (default; liftFast.flags "abi" = the K52 rule only, for measurement). Compiled guest code never
  * reads EFLAGS across a call or return, but the platform profile does see them: RtlCaptureContext, RaiseException
  * and APIs that raise (HeapAlloc with HEAP_GENERATE_EXCEPTIONS) store them in a CONTEXT. A second, interprocedural
- * liveness (l64f_obs_io) tracks only those observations: a call or tail jump to an EFLAGS-observing import
- * (tools/x86/lift64_eflags.h), or to code that is no analyzed function, reads every flag; every profile call
- * passes them through (x86_callback64 restores them around guest callbacks); a direct call or tail call reads them when the callee observes its entry flags; a RET reads them
- * when some caller observes the flags a callee returns with (that caller reloads X.flags after the call). Writers
- * are the instructions that define flags; everything else, generic instructions included, passes them through
- * (their local reads stay in the K52 liveness). l64f_observe computes the two function sets once per lift over
- * the whole module; emission uses the union of both livenesses, so only code on a path into a profile call
- * computes otherwise dead flags. Indirect calls/jumps to unknown non-import targets stay ABI boundaries (counted:
- * fastFlagUnknownCallees). */
+ * liveness (l64f_obs_io) tracks only those observations, soundly:
+ *  - a call or tail jump to an EFLAGS-storing profile import (tools/x86/lift64_eflags.h) reads every flag; other
+ *    profile imports pass them through (x86_callback64 restores them around guest callbacks);
+ *  - a call or tail jump whose callee is not statically known (an indirect call or unresolved indirect jump: function
+ *    pointers, vtables, GetProcAddress results), an import that another guest module provides (--fast-guest-dlls),
+ *    or code that is no analyzed function, reads every flag; after an unknown callee returns, the caller reloads
+ *    X.flags, and every function whose address is taken (entry, export, relocated or immediate pointer) returns
+ *    exact flags (fastFlagTakenExits), so whatever it reaches through a pointer, the callee is covered;
+ *  - a direct call or tail call reads them when the callee observes its entry flags; a RET reads them when some
+ *    caller observes the flags a callee returns with (that caller reloads X.flags after the call).
+ * Writers are the instructions that define flags; everything else, generic instructions included, passes them
+ * through (their local reads stay in the K52 liveness). l64f_observe computes the two function sets once per lift
+ * over the whole module; emission uses the union of both livenesses, so only code on a path into such a call
+ * computes otherwise dead flags. */
 static int lift_fast_flags_abi;   /* --fast-flags abi */
 static uint8_t *l64f_obs_entry, *l64f_exact_exit; /* per a->f index (l64f_observe); null: K52 rule */
-static uint32_t l64f_obs_stats[4]; /* observing functions, exact-exit functions, indirect calls with live flags after, passes */
+static uint32_t l64f_obs_stats[4]; /* observing functions, exact-exit functions, unknown callees with live flags after, passes */
+static uint32_t l64f_obs_taken;    /* address-taken functions marked exact-exit up front */
+static const char *lift_fast_guest_dlls; /* --fast-guest-dlls: comma list of the other guest modules' DLL names */
 static double l64f_obs_ms;      /* CPU time of l64f_observe (stats: fastFlagAnalysis_cpu_ms) */
 /* addr -> a->f index by binary search (func_index is linear; the observation pass looks up every call). */
 static uint64_t *l64f_fsorted; static uint32_t l64f_fsorted_n;
@@ -100,13 +107,38 @@ static int l64f_import_observes(an_t *a, uint32_t iat) {
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) if (!strcmp(im->name, names[i])) return 1;
     return 0;
 }
-static void l64f_obs_io(an_t *a, const func_t *f, const x86_insn_t *in, uint32_t hint, uint32_t *r, uint32_t *w) {
+/* The import behind an IAT slot is another guest module's export (lifted guest code, not the profile). */
+static int l64f_import_guest(an_t *a, uint32_t iat) {
+    const import_t *im = import_at_iat(a->pe, iat);
+    if (!im || !lift_fast_guest_dlls) return 0;
+    size_t n = strlen(im->dll);
+    for (const char *p = lift_fast_guest_dlls; *p;) {
+        const char *e = strchr(p, ','); size_t m = e ? (size_t)(e - p) : strlen(p);
+        if (m == n) {
+            size_t i = 0;
+            while (i < n && tolower((unsigned char)p[i]) == tolower((unsigned char)im->dll[i])) i++;
+            if (i == n) return 1;
+        }
+        if (!e) break;
+        p = e + 1;
+    }
+    return 0;
+}
+/* A profile import: the slot names an import that no other guest module provides. */
+static int l64f_profile_hint(an_t *a, uint32_t hint) { return hint && import_at_iat(a->pe, hint) && !l64f_import_guest(a, hint); }
+static void l64f_obs_io(an_t *a, const func_t *f, const x86_insn_t *in, uint32_t hint, int table, uint32_t *r, uint32_t *w) {
     *r = *w = 0;
     if (!in->len || !l64_specialized(in)) return;
     switch (in->op) {
-    /* Profile calls pass EFLAGS through; only the observing ones read them. An unknown indirect callee defines them. */
-    case XO_CALL_IND: if (hint) { if (l64f_import_observes(a, hint)) *r = L64_FLAGS; } else *w = L64_FLAGS; return;
-    case XO_JMP_IND: if ((hint && l64f_import_observes(a, hint)) || l64f_fn_exact_exit(a, f)) *r = L64_FLAGS; return;
+    /* Profile calls pass EFLAGS through, the storing ones read them. An unknown callee reads and defines them. */
+    case XO_CALL_IND:
+        if (l64f_profile_hint(a, hint)) { if (l64f_import_observes(a, hint)) *r = L64_FLAGS; }
+        else { *r = L64_FLAGS; *w = L64_FLAGS; }
+        return;
+    case XO_JMP_IND:
+        if (l64f_profile_hint(a, hint)) { if (l64f_import_observes(a, hint) || l64f_fn_exact_exit(a, f)) *r = L64_FLAGS; }
+        else if (hint || !table) *r = L64_FLAGS; /* unknown tail target (a recovered switch stays internal) */
+        return;
     case XO_CALL: *r = l64f_fn_observes(a, in->target) ? L64_FLAGS : 0; *w = L64_FLAGS; return;
     case XO_RET: *r = l64f_fn_exact_exit(a, f) ? L64_FLAGS : 0; return;
     case XO_JMP: case XO_JCC:
@@ -213,7 +245,7 @@ static uint32_t *l64f_liveness(an_t *a, const func_t *f, const x86_insn_t *ins, 
             if (succ[j].table) for (uint32_t q = 0; q < succ[j].table->n; q++) {
                 int t = l64_index(f, succ[j].table->v[q]); v |= t >= 0 ? in[t] : obs ? 0 : L64_FLAGS;
             }
-            if (obs) l64f_obs_io(a, f, &ins[j], hints[j], &r, &w); else l64f_flag_io(&ins[j], &r, &w);
+            if (obs) l64f_obs_io(a, f, &ins[j], hints[j], succ[j].table != 0, &r, &w); else l64f_flag_io(&ins[j], &r, &w);
             out[j] = v; v = r | (v & ~w);
             if (in[j] != v) { in[j] = v; changed = 1; }
         }
@@ -239,6 +271,9 @@ static void l64f_observe(an_t *a) {
     vec_t *callers = xcalloc(nf, sizeof *callers);
     uint32_t *queue = xcalloc(nf + 1, sizeof *queue), head = 0, tail = 0; uint8_t *queued = xcalloc(nf, 1);
     for (uint32_t i = 0; i < nf; i++) { queue[tail++] = i; queued[i] = 1; }
+    /* Unknown callers (pointers, other modules, the profile) may observe what these return with. */
+    l64f_obs_taken = 0;
+    for (uint32_t i = 0; i < nf; i++) if (a->f[i].taken) { l64f_exact_exit[i] = 1; l64f_obs_taken++; }
     tail %= nf + 1;
     uint8_t *edges_done = xcalloc(nf, 1);
     while (head != tail) {
@@ -254,17 +289,30 @@ static void l64f_observe(an_t *a) {
         for (uint32_t k = 0; k < n; k++) succ[k] = l64f_successors(f, ins, k, hints, rel);
         uint32_t *out = l64f_liveness(a, f, ins, succ, hints, 1);
         /* Entry: live-in of the function's first listed instruction (the fast form requires it to be the entry). */
-        uint32_t r, w; l64f_obs_io(a, f, &ins[0], hints[0], &r, &w);
+        uint32_t r, w; l64f_obs_io(a, f, &ins[0], hints[0], succ[0].table != 0, &r, &w);
         if (((r | (out[0] & ~w)) & L64_FLAGS) && !l64f_obs_entry[fi]) {
             l64f_obs_entry[fi] = 1; l64f_obs_stats[0]++;
             for (uint32_t c = 0; c < callers[fi].n; c++) { uint32_t g = callers[fi].v[c]; if (!queued[g]) { queued[g] = 1; queue[tail] = g; tail = (tail + 1) % (nf + 1); } }
         }
         for (uint32_t k = 0; k < n; k++) {
             const x86_insn_t *in = &ins[k]; int g = -1, tailcall = 0;
+            /* A code address materialized by this instruction (LEA/MOV of a function start, RIP-relative or absolute)
+             * is a pointer some unknown caller may call through: that function returns exact flags. */
+            if (!edges_done[fi] && in->len) for (int o = 0; o < in->nops; o++) {
+                const x86_opnd_t *q = &in->o[o]; uint64_t v = 0;
+                if (q->kind == XK_IMM && in->op != XO_CALL && in->op != XO_JMP && in->op != XO_JCC) v = q->imm;
+                else if (q->kind == XK_MEM && in->op == XO_LEA && q->base == X86_NOREG && q->index == X86_NOREG)
+                    v = (q->pad & 4) ? q->imm : (q->pad & 2) ? (uint32_t)q->disp : (uint64_t)(int64_t)q->disp;
+                int t = v && v <= UINT32_MAX ? l64f_fidx(a, (uint32_t)v) : -1;
+                if (t >= 0 && !l64f_exact_exit[t]) {
+                    l64f_exact_exit[t] = 1; l64f_obs_taken++;
+                    if (!queued[t]) { queued[t] = 1; queue[tail] = (uint32_t)t; tail = (tail + 1) % (nf + 1); }
+                }
+            }
             if (!in->len || !l64_specialized(in)) continue;
             if (in->op == XO_CALL) g = l64f_fidx(a, in->target);
             else if ((in->op == XO_JMP || in->op == XO_JCC) && l64_index(f, in->target) < 0) { g = l64f_fidx(a, in->target); tailcall = 1; }
-            else if (in->op == XO_CALL_IND && !hints[k] && (out[k] & L64_FLAGS)) { if (!edges_done[fi]) l64f_obs_stats[2]++; continue; }
+            else if (in->op == XO_CALL_IND && !l64f_profile_hint(a, hints[k]) && (out[k] & L64_FLAGS)) { if (!edges_done[fi]) l64f_obs_stats[2]++; continue; }
             else continue;
             if (g < 0) continue;
             if (!edges_done[fi]) vpush(&callers[g], fi);
@@ -346,7 +394,7 @@ static void l64f_direct(FILE *o, an_t *a, uint32_t target, const char *after) {
 }
 /* Per-function fast analysis, shared by top-level emission and inlined copies. */
 typedef struct {
-    func_t *f; uint32_t n, used, written;
+    an_t *a; func_t *f; uint32_t n, used, written;
     x86_insn_t *ins; uint32_t *hints, *live, *olive; vec_t *rel; l64f_succ_t *succ; /* olive: K75 observation liveness */
     uint8_t *header, *entry, *start, *fuse;
     int64_t *sp; /* static RSP delta before each instruction (L64F_UNK unknown) */
@@ -433,7 +481,7 @@ static void l64f_spset(FILE *o, int64_t d) {
 static int64_t l64f_total(int64_t d, int64_t off) { return d == L64F_UNK || off == L64F_UNK ? L64F_UNK : d + off; }
 static l64f_fn_t *l64f_analyze(an_t *a, func_t *f) {
     l64f_fn_t *x = xcalloc(1, sizeof *x);
-    uint32_t n = x->n = f->insns.n; x->f = f;
+    uint32_t n = x->n = f->insns.n; x->f = f; x->a = a;
     x->ins = xcalloc(n, sizeof *x->ins);
     for (uint32_t k = 0; k < n; k++) decode_at(a->pe, f->insns.v[k], &x->ins[k]);
     x86_insn_t *ins = x->ins;
@@ -636,7 +684,7 @@ static void l64f_reload_call(FILE *o, const l64f_fn_t *x, uint16_t live) { char 
 static uint16_t l64f_live_after(const l64f_fn_t *x, uint32_t k) { return k + 1 < x->n ? x->glive[k + 1] : 0; }
 /* K75: a returned non-profile call whose flags are observed later takes the callee's exact flags from X. */
 static const char *l64f_flags_after(const l64f_fn_t *x, uint32_t k) {
-    return x->olive && !x->hints[k] && (x->olive[k] & L64_FLAGS) ? "flags=X.flags;" : "";
+    return x->olive && !l64f_profile_hint(x->a, x->hints[k]) && (x->olive[k] & L64_FLAGS) ? "flags=X.flags;" : "";
 }
 /* K72 liftFast.calls "outlined" (--fast-calls outlined): call sites store the registers, then xf_enter (clock,
  * flags, X.eip, depth slot), the plain C call, xf_leave (depth, abnormal-exit check); see x86_guest.h. */

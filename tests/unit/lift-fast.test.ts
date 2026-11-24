@@ -4,7 +4,7 @@
 // clock: X.tsc and the quantum's frame_insns). EFLAGS at a frame end are not compared (fast mode treats them as dead
 // across calls/returns per the Win64 ABI); K75: the EFLAGS a profile call observes are (see the observed-flags test).
 import { it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ROOT } from '../support/headless';
@@ -22,7 +22,7 @@ import { functionNames } from '../../tools/build/wasm-names.mjs';
 import { instantiateFixture } from '../support/wasm-fixture';
 import { perTestTool } from '../support/per-test-tool';
 // @ts-expect-error plain ESM
-import { x86tool } from '../../tools/build/pipeline.mjs';
+import { x86tool, refuseTestCorruptPort } from '../../tools/build/pipeline.mjs';
 const tool = perTestTool(x86tool);
 const modes = ['asyncify', ...(jspiApi() ? ['jspi'] : [])] as ('asyncify' | 'jspi')[];
 
@@ -108,6 +108,17 @@ it('policy: exact stays byte-for-byte default; fast mode, knobs and BGT_LIFT_MOD
   expect(() => liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'stack' } }, {})).toThrow(/test-only/);
   expect(liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'stack' } }, { VITEST: 'true' }).liftFast).toEqual({ testCorrupt: 'stack' });
   expect(liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'off' } }, {}).liftFast).toEqual({ testCorrupt: 'off' });
+  // vK75: also refused under port/ by real path (a symlinked alias of port/ or of the game directory).
+  const root = mkdtempSync(join(ROOT, 'node_modules/.cache/bgt/lift-fast-port-')), corrupt = { liftFast: { testCorrupt: 'stack' } };
+  try {
+    mkdirSync(join(root, 'port/game'), { recursive: true }); mkdirSync(join(root, 'kit/game'), { recursive: true });
+    symlinkSync(join(root, 'port'), join(root, 'alias')); symlinkSync(join(root, 'port/game'), join(root, 'kit/link'));
+    for (const dir of ['port/game', 'alias/game', 'kit/link']) expect(() => refuseTestCorruptPort(corrupt, join(root, dir), root), dir).toThrow(/port builds/);
+    expect(() => refuseTestCorruptPort(corrupt, join(root, 'kit/game'), root)).not.toThrow();
+    expect(() => refuseTestCorruptPort({ liftFast: { testCorrupt: 'off' } }, join(root, 'alias/game'), root)).not.toThrow();
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  // K75: other guest modules' DLL names reach the fast lifter (their imports are guest code, not profile calls).
+  expect(liftPolicyArgs({ liftMode: 'fast', fastGuestDlls: ['engine.dll', 'game.exe'] })).toEqual(['--lift-mode', 'fast', '--fast-guest-dlls', 'engine.dll,game.exe']);
   expect(() => liftPolicy({}, { BGT_LIFT_MODE: 'turbo' })).toThrow(/BGT_LIFT_MODE/);
   expect(() => liftPolicy({ liftFast: { memory: 'mask' } }, {})).toThrow(/requires liftMode/);
   expect(() => liftPolicy({ liftMode: 'fast', liftFast: { memory: 'none' } }, {})).toThrow(/liftFast.memory/);
@@ -245,9 +256,18 @@ const OBSERVED = (() => {
   Buffer.from('b82a000000c3', 'hex').copy(code, 0x80);
   return code;
 })();
-for (const [shape, extra] of SHAPES) for (const inline of ['0', '48'])
-it(`execution (${shape}, inline ${inline}): EFLAGS observed by profile calls match the interpreter (entry and returned flags)`, async () => {
-  const h = await harness(OBSERVED, [0, 0x40, 0x60, 0x80], [...FAST, '--fast-inline', inline, ...extra]);
+// vK75: through pointers. f: sub rsp,0x28; mov eax,5; cmp eax,7; mov rcx,SERVICE; call rcx (an unknown callee sees
+// the cmp's flags); mov rcx,g; call rcx (g, address-taken, returns ZF|PF); call SERVICE; add rsp,0x28; ret.
+const INDIRECT = (() => {
+  const code = Buffer.alloc(0xa0, 0x90);
+  Buffer.from('4883ec28' + 'b805000000' + '83f807' + '48c7c100700000' + 'ffd1' + '48c7c140200000' + 'ffd1' + 'e8dd4f0000' + '4883c428' + 'c3', 'hex').copy(code);
+  Buffer.from('b803000000' + '83e803' + 'c3', 'hex').copy(code, 0x40);
+  Buffer.from('b82a000000c3', 'hex').copy(code, 0x80);
+  return code;
+})();
+for (const [shape, extra] of SHAPES) for (const inline of ['0', '48']) for (const [name, code, cuts] of [['entry and returned flags', OBSERVED, [0, 0x40, 0x60, 0x80]], ['through pointers', INDIRECT, [0, 0x40, 0x80]]] as [string, Buffer, number[]][])
+it(`execution (${shape}, inline ${inline}): EFLAGS observed by profile calls match the interpreter (${name})`, async () => {
+  const h = await harness(code, cuts, [...FAST, '--fast-inline', inline, ...extra]);
   const captured = (interpreted: number) => {
     const got = h.run(interpreted, 0, () => h.ex.configure_service(0));
     expect(h.ex.service_count()).toBe(2);
@@ -256,7 +276,7 @@ it(`execution (${shape}, inline ${inline}): EFLAGS observed by profile calls mat
   const fast = captured(0); expect(h.ex.interpretation()).toBe(0);
   expect(fast.flags).toEqual([0x202 | 0x91, 0x202 | 0x44]);
   expect(fast).toEqual(captured(1));
-  const abi = await harness(OBSERVED, [0, 0x40, 0x60, 0x80], [...FAST, '--fast-inline', inline, '--fast-flags', 'abi', ...extra]);
+  const abi = await harness(code, cuts, [...FAST, '--fast-inline', inline, '--fast-flags', 'abi', ...extra]);
   abi.run(0, 0, () => abi.ex.configure_service(0));
   expect([abi.ex.service_flag(0), abi.ex.service_flag(1)]).not.toEqual([0x202 | 0x91, 0x202 | 0x44]);
 }, 120000);

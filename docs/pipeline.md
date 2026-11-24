@@ -432,17 +432,29 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
   guest code); compare/test/arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
   **K75 observed flags** (default; `liftFast.flags: "abi"` restores the K52 rule for measurement): a few profile
   APIs store the caller's EFLAGS in a `CONTEXT` (`tools/x86/lift64_eflags.h`: RtlCaptureContext, RaiseException,
-  RtlUnwindEx, and HeapCreate/HeapAlloc/HeapReAlloc, which raise under `HEAP_GENERATE_EXCEPTIONS`). A second,
-  interprocedural liveness (`l64f_obs_io`) makes EFLAGS exact exactly there: a call or tail jump to one of those
-  imports, or to code that is no analyzed function, reads every flag; every profile call passes EFLAGS through
-  (`x86_callback64` restores them around guest callbacks, in every mode); generic instructions do not observe across
-  calls. A module-wide pass (`l64f_observe`, once per lift, independent of the chunk selection) marks functions
-  whose entry flags reach such a call (their direct callers compute flags before calling) and functions whose return
-  flags reach one in a caller (their RETs compute exact flags, the caller reloads `X.flags` after the call). Emission
-  uses the union of both livenesses, so only code on a path into an EFLAGS-storing API pays (CC0 C++ fixture: 8 more
-  flag computations of 7k; the K52 benchmarks: none). Stats: `fastFlagObservers`, `fastFlagExactExits`,
-  `fastFlagUnknownCallees` (indirect calls whose callee's returned flags reach such an API: the remaining inexact
-  edge, together with APIs reached through `GetProcAddress` pointers), `fastFlagAnalysis_cpu_ms`.
+  RtlUnwindEx, and HeapCreate/HeapAlloc/HeapReAlloc, which raise under `HEAP_GENERATE_EXCEPTIONS`; a unit test checks
+  the list against the profile sources: `w64_context_save` is the only reader of `X.flags`). A second,
+  interprocedural liveness (`l64f_obs_io`) makes EFLAGS exact wherever such an API can be reached:
+  - a call or tail jump to one of those imports reads every flag; every other profile import passes EFLAGS through
+    (`x86_callback64` restores them around guest callbacks, in every mode);
+  - a call or jump whose target is not statically known (indirect calls and unresolved indirect jumps: function
+    pointers, vtables, `GetProcAddress` results), an import another guest module provides (`fastGuestDlls`, set by the
+    pipeline from `pipeline.modules`), or code that is no analyzed function, reads every flag and, for a call,
+    defines them: the caller reloads `X.flags` after it returns;
+  - every function whose address is taken (PE entry, export, relocated pointer, LEA/MOV of its start) returns exact
+    flags (`fastFlagTakenExits`), so a pointer call returns them exactly; a direct call reads them when the callee
+    observes its entry flags, and a RET when some caller observes the flags it returns with.
+  Generic instructions do not observe across calls. `l64f_observe` computes the sets once per lift over the whole
+  module, independent of the chunk selection; emission uses the union with the K52 liveness. Cost (K52 fixtures, vs
+  `"abi"`): +0.2% wasm; speed within ±1.3% except the memory fixture (+3.2% JSPI / +6.4% Asyncify: its loop makes an
+  indirect call and an import call every few dozen instructions). **Not covered** (exact mode covers them): a pointer
+  to an analyzed function that the analyzer cannot see being taken (stored in data without a relocation, or computed)
+  and called by pointer, with the caller's next instruction reaching an EFLAGS-storing API before any flag writer;
+  such a function returns ABI-dead flags. **Other EFLAGS consumers:** GetThreadContext/SetThreadContext fail with
+  `ERROR_NOT_SUPPORTED` (no asynchronous context access); AddVectoredExceptionHandler fails and no hardware exception
+  is dispatched to guest handlers (faults stop the game); setjmp/longjmp buffers hold no EFLAGS (Win64 `_JUMP_BUFFER`
+  has none; the profile saves MXCSR and the x87 control word); RtlRestoreContext and exception continuation restore
+  `CONTEXT.EFlags` into `X.flags`.
 - **Memory.** `liftFast.memory: "mask"` (default) addresses `x86_flat + (addr & window mask)`: no compare,
   never a host address outside the guest window; a wild pointer aliases guest memory or traps past the committed
   end. `"range"` adds one compare against the committed bound and stops with the usual diagnostic. `"off"` keeps
@@ -460,7 +472,10 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
   interpreter would have charged up to the poll (2000000 units per quantum, `x86_quantum_charge`) and carries the
   remaining instructions into the next quantum instead of dropping them: the guest instruction clock and every time
   value derived from it (QPC, timeGetTime, GetTickCount) match the interpreter at every API call. Only *where*
-  a quantum yields (which thread runs next, a loop header instead of an instruction) still differs.
+  a quantum yields (which thread runs next, a loop header instead of an instruction) still differs. The inline
+  probe (`w32_thread_quantum_probe`) counts the charge plus the carry exactly as the cap check after it does, so an
+  inline quantum never waits for the next frame inside lifted code (vK75: a 2000001-unit cap with a carry made
+  Asyncify fault; `tests/unit/oracle-fast.test.ts` covers that boundary in both suspension modes).
 - **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
   the fast emitter as guarded switch candidates; the real computed target is always compared.
 

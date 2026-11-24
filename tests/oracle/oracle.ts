@@ -96,7 +96,8 @@ async function run(id: string, frames: number, script: OracleStep[], parts = 0, 
     // `current` (fast builds): a frame that ended at the instruction cap stops at a loop header in fast mode but at the
     // exact instruction in the interpreter, so its CPU is not comparable; such frames record "cap" instead.
     let capped = false;
-    if (parts & 8) { const hits = Number((h.host.metrics() as { cap_hits?: number }).cap_hits ?? 0); capped = hits !== capHits; capHits = hits; }
+    // vK75: the counter is guest_time.cap_hits (a decimal string); the former top-level read was always 0.
+    if (parts & 8) { const hits = Number((h.host.metrics() as { guest_time?: { cap_hits?: string } }).guest_time?.cap_hits ?? 0); capped = hits !== capHits; capHits = hits; }
     const cpu = parts & 1 ? capped ? 'cap' : h.host.guestStateHash(parts & 11) : null;
     let mem: string | null = null;
     if (parts & 4 && memoryHashDue(n, next, last, plan)) {

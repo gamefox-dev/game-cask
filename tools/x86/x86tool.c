@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "../../platforms/x86/x86_decode.h"
 
 /* ------------------------------------------------------------------ utilities */
@@ -236,6 +237,7 @@ typedef struct {
     ijump_t *ij; uint32_t nij;
     uint32_t indirect_calls, unsupported, fpu, undecodable;
     int seed_kind;     /* 0 entry, 1 export, 2 call target, 3 relocated pointer, 4 immediate pointer */
+    int taken;         /* K75: reachable other than by direct calls: entry, export, relocated or immediate pointer */
 } func_t;
 
 typedef struct { uint32_t addr; int seed_kind; const char *reason; } dseed_t;
@@ -255,8 +257,11 @@ static int func_index(an_t *a, uint32_t addr) {
 static void add_func(an_t *a, uint32_t addr, int kind) {
     if (!is_code(a->pe, addr)) return;
     int existing = func_index(a, addr);
+    /* .pdata ranges seed kind 0 too; only the PE entry counts as an address taken among them. */
+    int taken = kind == 1 || kind == 3 || kind == 4 || (kind == 0 && addr == a->pe->entry);
     if (existing >= 0) {
         if (kind < a->f[existing].seed_kind) a->f[existing].seed_kind = kind;
+        a->f[existing].taken |= taken;
         return;
     }
     if (vhas(&a->blocked, addr) && kind >= 3) return;
@@ -265,7 +270,7 @@ static void add_func(an_t *a, uint32_t addr, int kind) {
     if (a->nf == a->capf) { a->capf = a->capf ? a->capf * 2 : 256; a->f = realloc(a->f, a->capf * sizeof(func_t)); if (!a->f) die("oom"); }
     func_t *f = &a->f[a->nf++];
     memset(f, 0, sizeof *f);
-    f->addr = addr; f->seed_kind = kind;
+    f->addr = addr; f->seed_kind = kind; f->taken = taken;
 }
 
 /* jump table: jmp dword [index*4 + table] — collect consecutive code pointers (bounded by a
@@ -954,6 +959,7 @@ int main(int argc, char **argv) {
             if (strcmp(argv[i + 1], "observed") && strcmp(argv[i + 1], "abi")) die("--fast-flags must be observed or abi");
             lift_fast_flags_abi = !strcmp(argv[i + 1], "abi");
         }
+        else if (!strcmp(argv[i], "--fast-guest-dlls")) lift_fast_guest_dlls = argv[i + 1]; /* K75: comma list, other guest modules */
         else if (!strcmp(argv[i], "--fast-calls")) {
             if (strcmp(argv[i + 1], "outlined") && strcmp(argv[i + 1], "inline")) die("--fast-calls must be outlined or inline");
             lift_fast_calls_out = !strcmp(argv[i + 1], "outlined");
@@ -1046,8 +1052,8 @@ int main(int argc, char **argv) {
                     "\"flagsElided\": %u, \"entries\": %u, ",
                     emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved,
                     st.flags_elided, pe.mode64 ? emitted : st.entries);
-            if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, \"fastFlagObservers\": %u, \"fastFlagExactExits\": %u, \"fastFlagUnknownCallees\": %u, \"fastFlagAnalysis_cpu_ms\": %.3f, ",
-                                   lift_fast_functions, lift_fast_inlined, l64f_obs_stats[0], l64f_obs_stats[1], l64f_obs_stats[2], l64f_obs_ms); /* K52/K75: fast mode only */
+            if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, \"fastFlagObservers\": %u, \"fastFlagExactExits\": %u, \"fastFlagUnknownCallees\": %u, \"fastFlagTakenExits\": %u, \"fastFlagAnalysis_cpu_ms\": %.3f, ",
+                                   lift_fast_functions, lift_fast_inlined, l64f_obs_stats[0], l64f_obs_stats[1], l64f_obs_stats[2], l64f_obs_taken, l64f_obs_ms); /* K52/K75: fast mode only */
             fprintf(sf, "\"analysis_cpu_ms\": %.3f, \"c_generation_cpu_ms\": %.3f}\n", analysis_ms, generation_ms);
             fclose(sf);
         }

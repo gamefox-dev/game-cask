@@ -70,6 +70,7 @@ export function liftPolicy(p = {}, env = process.env) {
 export function liftPolicyArgs(policy) {
   return Object.entries(policy).flatMap(([key, value]) => {
     if (key === 'liftMode') return ['--lift-mode', value];
+    if (key === 'fastGuestDlls') return value.length ? ['--fast-guest-dlls', value.join(',')] : [];
     if (key === 'liftFast') return Object.entries(value).flatMap(([k, v]) => ['--fast-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), v]);
     return ['--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off'];
   });
