@@ -5,6 +5,7 @@ import { test, expect, openGame, assertBackend, diagnostics, step } from './fixt
 import type { BGTTestAPI } from '../../bgt/runtime/testapi';
 
 for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspension of ['asyncify','jspi']) {
+  if(game==='x64-threads'&&suspension==='jspi')continue; // its live wait is covered by the refusal test below
   test('savestate ' + game + ' ' + suspension + ': continuous and two restored suffixes agree every update',async({page,backendParam,collector},info)=>{
     void collector;
     // x64-gl-fbo steps 300 extra updates; Asyncify on the CI software rasterizer needs ~70 s (dev.29/dev.33 CI timeouts).
@@ -12,17 +13,28 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
     expect(await openGame(page,backendParam,{game,suspension,deterministic:'1'})).toBe('ready');
     await assertBackend(page,backendParam,info);
     expect((await diagnostics(page)).suspension).toBe(suspension);
-    // The GL fixture boots through shader/readback transports before its first
-    // SwapBuffers. Only the present boundary is portable in JSPI.
-    await step(page,game==='x64-threads'?1:game==='x64-gl-fbo'&&suspension==='jspi'?40:3);
+    await step(page,game==='x64-threads'?1:3);
     if(game==='x64-threads') expect(((await diagnostics(page)).metrics as {exited:number}).exited).toBe(0);
-    const wasSuspended = (await diagnostics(page)).suspended;
-    const result = await page.evaluate(async (game) => {
+    const result = await page.evaluate(async ({game,suspension}) => {
       const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};
-    const t = (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
-      const early=game==='x64-gl-fbo'?await t.snapshot():null;
+      const t = (window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+      // The first presentation follows several shader/readback transport waits.
+      // Early presents may also retain the startup probe's packed stencil.
+      // Search for a returnable, GPU-capturable boundary; propagate unrelated errors.
+      const checkpoint=async()=>{
+        for(let i=0;i<120;i++) {
+          try{return await t.snapshot();}catch(e){
+            if(game!=='x64-gl-fbo'||suspension!=='jspi'||
+              !/suspended JSPI continuation|Unsupported savestate GPU provenance/.test(String(e)))throw e;
+          }
+          await t.step(1);
+        }
+        throw new Error('No returnable GL presentation within 120 updates');
+      };
+      const early=game==='x64-gl-fbo'?await checkpoint():null;
       if(early)await t.step(300);
-      const snap = await t.snapshot();
+      const snap = await checkpoint();
+      const wasSuspended=t.diagnostics().suspended;
       const earlyBytes=early?await fileBytes(t.exportSnapshot(early)):null;
       const savedHash=t.stateHash(),savedBytes=await fileBytes(t.exportSnapshot(snap)),restoreMs:number[]=[];
       const traces: {hash:string|null;pixels:string}[][] = [];
@@ -38,13 +50,13 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
         }
         traces.push(trace);
       }
-      return {savedHash,exited:(t.diagnostics().metrics as {exited?:number})?.exited, measurement:{game,bytes:savedBytes,earlyBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
+      return {savedHash,wasSuspended,exited:(t.diagnostics().metrics as {exited?:number})?.exited, measurement:{game,bytes:savedBytes,earlyBytes,stats:snap.stats,restoreMs},hashes:traces[0].map(x=>x.hash),
         equal:traces.slice(1).map(trace=>trace.map((x,i)=>x.hash===traces[0][i].hash && x.pixels===traces[0][i].pixels)),
         errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};
-    },game);
+    },{game,suspension});
     if(result.measurement) await info.attach('savestate-measurement.json',{body:JSON.stringify(result.measurement),contentType:'application/json'});
     // Pipeline fixtures must actually park at an update boundary, not exit or silently choose another artifact.
-    if(game!=='sample2d') expect(wasSuspended).toBe(true);
+    if(game!=='sample2d') expect(result.wasSuspended).toBe(true);
     {
       if(game==='x64-gl-fbo')expect(result.measurement!.bytes).toBeLessThan(result.measurement!.earlyBytes!*2);
       expect(result.hashes!.every(x=>x!==null)).toBe(true);
@@ -59,6 +71,62 @@ for (const game of ['sample2d','x64-gl-fbo','x64-threads']) for (const suspensio
     }
   });
 }
+
+// The worker is live at update 1, but the Wait/Sleep path still owns a native
+// continuation. Refuse both operations without losing the running thread or advancing time.
+test('savestate x64-threads jspi: refuses a live native wait without changing the suffix',async({page,backendParam,collector},info)=>{
+  void collector;
+  const run=async(reject:boolean)=>{
+    expect(await openGame(page,backendParam,{game:'x64-threads',suspension:'jspi',deterministic:'1'})).toBe('ready');
+    await assertBackend(page,backendParam,info);
+    return page.evaluate(async reject=>{
+      const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+      await t.step(1);
+      const d=t.diagnostics(), before=t.stateHash(), errors:string[]=[];
+      if(reject){
+        // No checkpoint should even be inspected while the JSPI stack is live.
+        const unreadable=new Proxy({} as Awaited<ReturnType<BGTTestAPI['snapshot']>>,{ownKeys(){throw new Error('restore inspected input');}});
+        for(const attempt of [()=>t.snapshot(),()=>t.restore(unreadable)]){
+          try{await attempt();errors.push('accepted');}catch(e){errors.push(String(e));}
+        }
+        if(t.stateHash()!==before||t.diagnostics().frame!==d.frame)throw new Error('Refusal changed live guest');
+      }
+      const hashes:(string|null)[]=[];
+      for(let i=0;i<24;i++){await t.step(1);hashes.push(t.stateHash());}
+      const end=t.diagnostics();
+      return {mode:d.suspension,suspended:d.suspended,live:!(d.metrics as {exited:number}).exited,
+        exited:(end.metrics as {exited:number}).exited,errors,guestErrors:end.errors,before,hashes,pixels:(await t.readPixels())?.base64};
+    },reject);
+  };
+  const control=await run(false),actual=await run(true);
+  expect(actual.errors).toHaveLength(2);
+  for(const error of actual.errors)expect(error).toContain('suspended JSPI continuation (not a returnable frame boundary)');
+  expect({...actual,errors:[]}).toEqual(control);
+  expect(actual.mode).toBe('jspi');expect(actual.suspended).toBe(true);expect(actual.live).toBe(true);expect(actual.exited).toBe(1);
+  expect(actual.hashes[0]).not.toBe(actual.before);expect(actual.guestErrors).toEqual([]);expect(actual.pixels).toBeTruthy();
+});
+
+test('savestate x64-gl-fbo jspi: returnable dispatch preserves conventional JSPI presents',async({page,backendParam,collector},info)=>{
+  void collector;
+  const runs=[];
+  for(const deterministic of ['0','1']){
+    expect(await openGame(page,backendParam,{game:'x64-gl-fbo',suspension:'jspi',deterministic})).toBe('ready');
+    await assertBackend(page,backendParam,info);
+    runs.push(await page.evaluate(async()=>{
+      const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__,trace=[];
+      for(let i=0;i<6;i++){
+        await t.step(10);
+        const d=t.diagnostics(),metrics=d.metrics as {guest_time:unknown;exited:number};
+        trace.push({mode:d.suspension,exited:metrics.exited,clock:metrics.guest_time,hash:t.stateHash(),pixels:(await t.readPixels())?.base64});
+      }
+      return {trace,errors:t.diagnostics().errors};
+    }));
+  }
+  expect(runs[1]).toEqual(runs[0]);
+  expect(runs[0].errors).toEqual([]);
+  expect(runs[0].trace.every(x=>x.mode==='jspi'&&!x.exited&&x.pixels)).toBe(true);
+  expect(new Set(runs[0].trace.map(x=>x.hash)).size).toBeGreaterThan(1);
+});
 
 test('savestates are opt-in and reject overlapping updates',async({page,backendParam,collector})=>{
   void collector;

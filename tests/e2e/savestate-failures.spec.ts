@@ -51,8 +51,20 @@ test('rejected restore is transactional for malformed sections',async({page,back
     const rejected:string[]=[];
     for(const [name,mutate] of attempts){const copy=await t.importSnapshot(t.exportSnapshot(saved));mutate(copy);let failed=false;try{await t.restore(copy);}catch{failed=true}if(!failed)throw new Error(name+' restore unexpectedly succeeded');
       const after={hash:t.stateHash(),pixels:(await t.readPixels())!.base64};if(JSON.stringify(after)!==JSON.stringify(before))throw new Error(name+' restore changed live state');rejected.push(name);}
-    const {GameHost}=await import(hostPath),original=GameHost.prototype.restoreCheckpoint;
-    GameHost.prototype.restoreCheckpoint=function(s:unknown){original.call(this,s);throw new Error('Injected mid-build failure');};
+    const {GameHost}=await import(hostPath) as typeof import('../../bgt/runtime/host');
+    let host: import('../../bgt/runtime/host').GameHost|undefined;
+    const capture=GameHost.prototype.checkpoint;
+    GameHost.prototype.checkpoint=function(...args){host=this;return capture.apply(this,args);};
+    try {await t.snapshot();}finally{GameHost.prototype.checkpoint=capture;}
+    if(!host)throw new Error('Checkpoint did not call live host');
+    const request=host.requests.reserve();if(typeof request==='number')throw new Error('Cannot reserve test request');
+    for(const attempt of [()=>t.snapshot(),()=>t.restore(saved)]) {
+      try{await attempt();throw new Error('Accepted pending request');}catch(e){if(!String(e).includes('pending requests'))throw e;}
+    }
+    host.requests.complete(request,new Uint8Array([9]));
+    if(!request.done||request.data?.[0]!==9||t.stateHash()!==before.hash)throw new Error('Refusal changed live request/guest');
+    const original=GameHost.prototype.restoreCheckpoint;
+    GameHost.prototype.restoreCheckpoint=function(s){original.call(this,s);throw new Error('Injected mid-build failure');};
     try{let failed=false;try{await t.restore(saved);}catch{failed=true;}if(!failed)throw new Error('Mid-build exception was lost');
       if(t.stateHash()!==before.hash||(await t.readPixels())!.base64!==before.pixels)throw new Error('Mid-build failure changed live state');rejected.push('mid-build');
     }finally{GameHost.prototype.restoreCheckpoint=original;}

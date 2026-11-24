@@ -11,13 +11,14 @@ import {compileC} from '../support/compile';
 const wasmUint=(n:number)=>{const out:number[]=[];do{out.push((n&127)|(n>>>7?128:0));n>>>=7;}while(n);return out;};
 import type {BGTTestAPI} from '../../bgt/runtime/testapi';
 
-for(const {mib,artifactBytes,updates} of [{mib:64,artifactBytes:2_000_000,updates:256},
-  {mib:1024,artifactBytes:300_000_000,updates:2048}]) {
+for(const {mib,artifactBytes,updates,heavy} of [{mib:64,artifactBytes:2_000_000,updates:256,heavy:false},
+  {mib:1024,artifactBytes:300_000_000,updates:2048,heavy:false},
+  {mib:1024,artifactBytes:291_000_000,updates:12262,heavy:true}]) {
   test('Q112 capture bench: '+artifactBytes+' bytes / '+mib+' MiB / '+updates+' updates',async({page,backendParam,collector},info)=>{
     test.skip(process.env.BGT_K77_BENCH!=='1','run explicitly for scale measurements');
-    void collector;test.setTimeout(240_000);
+    void collector;test.setTimeout(600_000);
     await page.setViewportSize({width:320,height:200});
-    const wasm=await compileC('tests/fixtures/c/savestate-gpu.c',['STRESS_DRAWS=24','K77_MEMORY_MIB='+mib]);
+    const wasm=await compileC('tests/fixtures/c/savestate-gpu.c',['STRESS_DRAWS=24','K77_MEMORY_MIB='+mib,...(heavy?['K77_GPU_HEAVY=1']:[])]);
     const dir=mkdtempSync(join(tmpdir(),'bgt-q112-'));
     const filename='q112-'+process.pid+'.wasm', path=join('web/public/games/sample2d',filename);
     try {
@@ -39,27 +40,59 @@ for(const {mib,artifactBytes,updates} of [{mib:64,artifactBytes:2_000_000,update
         m.wasm={url:filename,size:artifactBytes,sha256};m.assets=[];
         await route.fulfill({response,json:m});
       });
+      await page.addInitScript(()=>{
+        const timing={calls:0,ms:0},digest=SubtleCrypto.prototype.digest;
+        Object.assign(window,{__k77Digest:timing});
+        SubtleCrypto.prototype.digest=async function(...args:Parameters<typeof digest>){
+          const at=performance.now();timing.calls++;
+          try{return await digest.apply(this,args);}finally{timing.ms+=performance.now()-at;}
+        };
+      });
+      // Boot includes download, artifact integrity hashing and compilation. Stream
+      // export and in-memory capture are timed separately below.
+      const bootStart=performance.now();
       expect(await openGame(page,backendParam,{deterministic:'1',suspension:'asyncify'})).toBe('ready');
+      const bootMs=performance.now()-bootStart;
       await assertBackend(page,backendParam,info);
-      const result=await page.evaluate(async updates=>{
-        const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+      const result=await page.evaluate(async ({updates,suffixFrames})=>{
+        const {__BGT_TEST__:t,__k77Digest:digest}=window as unknown as {__BGT_TEST__:BGTTestAPI;__k77Digest:{calls:number;ms:number}};
+        const bootHash={...digest};
         const lead=performance.now();await t.step(updates);const leadMs=performance.now()-lead, journal=t.journalStats();
-        const start=performance.now(), s=await t.snapshot(), snapshotMs=performance.now()-start;
-        await t.step(1);const expected=t.stateHash(), pixels=(await t.readPixels())?.base64;
+        const leadState=t.diagnostics();
+        if(leadState.frame!==updates||leadState.errors.length||leadState.commandErrors.count)
+          throw new Error('Benchmark did not reach capture: '+JSON.stringify({frame:leadState.frame,errors:leadState.errors,commands:leadState.commandErrors}));
+        const calls=digest.calls,start=performance.now(), s=await t.snapshot(), snapshotMs=performance.now()-start;
+        const captureHashCalls=digest.calls-calls;
+        const exportAt=performance.now(), reader=t.exportSnapshot(s).getReader();let fileBytes=0;
+        for(;;){const p=await reader.read();if(p.done)break;fileBytes+=p.value.length;}
+        const exportMs=performance.now()-exportAt;
+        // Probe every large texture in the rotated sample set on both branches.
+        const suffix=async()=>{const values:string[]=[];
+          for(let i=0;i<suffixFrames;i++) {
+            await t.step(1);
+            const pixels=await t.readPixels();if(!pixels)throw new Error('Missing suffix pixels');
+            values.push(t.stateHash()+':'+pixels.base64);
+          }
+          return values;
+        };
+        const expected=await suffix();
         const restoreAt=performance.now();await t.restore(s);const restoreMs=performance.now()-restoreAt;
-        await t.step(1);
-        return {leadMs,journal,snapshotMs,restoreMs,memoryBytes:s.host.wasm.memory.byteLength,pages:s.host.wasm.memory.pages.size,
-          stats:s.stats,suspended:t.diagnostics().suspended,errors:t.diagnostics().errors,frame:t.diagnostics().frame,
-          equal:!!pixels&&expected===t.stateHash()&&pixels===(await t.readPixels())?.base64};
-      },updates);
-      console.log('Q112',backendParam,artifactBytes,JSON.stringify(result));
-      await info.attach('q112.json',{body:JSON.stringify({backendParam,mib,artifactBytes,updates,...result}),contentType:'application/json'});
-      expect(result.frame).toBe(updates+1);expect(result.suspended).toBe(true);expect(result.equal).toBe(true);
-      expect(result.errors).toEqual([]);expect(result.memoryBytes).toBeGreaterThan(mib*1024**2);
-      expect(result.pages).toBeLessThan(40);
+        const actual=await suffix();
+        return {leadMs,journal,snapshotMs,restoreMs,exportMs,fileBytes,bootHash,captureHashCalls,memoryBytes:s.host.wasm.memory.byteLength,pages:s.host.wasm.memory.pages.size,
+          stats:s.stats,suspended:leadState.suspended,errors:t.diagnostics().errors,frame:t.diagnostics().frame,
+          equal:actual.every((value,i)=>value===expected[i])};
+      },{updates,suffixFrames:heavy?60:1});
+      console.log('Q112',backendParam,artifactBytes,JSON.stringify({bootMs,...result}));
+      await info.attach('q112.json',{body:JSON.stringify({backendParam,mib,artifactBytes,updates,bootMs,...result}),contentType:'application/json'});
+      expect(result.frame).toBe(updates+(heavy?60:1));expect(result.suspended).toBe(true);expect(result.equal).toBe(true);
+      expect(result.errors).toEqual([]);expect(result.bootHash.calls).toBeGreaterThan(0);expect(result.captureHashCalls).toBe(0);
+      expect(result.memoryBytes).toBeGreaterThan(mib*1024**2);
+      expect(result.pages).toBeLessThan(heavy?110:40);
+      if(heavy)expect(result.stats.nativeBytes).toBeGreaterThanOrEqual(240*1024**2);
       // Baseline can be measured against the base runtime (the comparable timings
       // are printed above); the dirty/replay work bound is independent of hardware.
       if(result.stats.replayFrames!==undefined) expect(result.stats.replayFrames).toBeLessThan(128);
+      if(heavy&&result.stats.replayFrames!==undefined)expect(result.stats.readbackBytes).toBeLessThan(1024**2);
     } finally {rmSync(path,{force:true});rmSync(dir,{recursive:true,force:true});}
   });
 }

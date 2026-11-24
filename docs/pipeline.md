@@ -16,6 +16,11 @@ original/GAME.EXE ──extract──► modules ──analyze──► function
                  generated driver + lifted C + platform profile + overrides ──zig cc──► wasm ──asyncify──► game.wasm
 ```
 
+For deterministic test checkpoints, a rebuilt Win64 JSPI artifact can return through its outer dispatcher
+at a supported presentation. C callback/I/O continuations remain native JSPI waits and cannot be
+checkpointed. This opt-in handshake neither changes ordinary play nor selects another artifact; see
+[the checkpoint boundary contract](savestates.md#contract-and-boundary).
+
 ## game.json
 ```json
 {

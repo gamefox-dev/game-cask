@@ -24,7 +24,9 @@ export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:num
 }
 export function checkpointFrameBytes(f:CheckpointFrame):number {
   let bytes=128+(typeof f.vertices==='string'?f.vertices.length*2:f.vertices.byteLength);
-  for(const i of f.items)bytes+=96+(Array.isArray(i.words)?i.words.length*8:0)+(i.data instanceof Uint8Array?i.data.byteLength:typeof i.data==='string'?i.data.length*2:0);
+  for(const i of f.items)bytes+=96+(Array.isArray(i.words)?i.words.length*8:0)+
+    (i.data instanceof Uint8Array?i.data.byteLength:typeof i.data==='string'?i.data.length*2:0)+
+    (typeof i.source==='string'?i.source.length*2:0);
   return bytes;
 }
 export function restoreCheckpointFrame(record:CheckpointFrame):Frame {
@@ -51,17 +53,26 @@ export function restoreCheckpointItems(record:CheckpointFrame):FrameItem[]{
 }
 /** Checkpoint replay deliberately excludes FrameReplay's inspection/base64 machinery. */
 export class CheckpointReplay {
-  private errors:string[]=[];private expected?:number;
+  private error?:string;
+  private expected?:number;
+  private active=true;
+  private unwrap?:()=>void;
   constructor(private renderer:Renderer){
-    renderer.onError(m=>{if(!this.expected)this.errors.push(m);});renderer.onLost(m=>this.errors.push('Device/context loss: '+m));
-    if(renderer.gpu){const execute=renderer.gpu.execute.bind(renderer.gpu);renderer.gpu.execute=item=>{
+    const fail=(message:string)=>{if(this.active)this.error??=message;};
+    renderer.onError(m=>{if(!this.expected)fail(m);});renderer.onLost(m=>fail('Device/context loss: '+m));
+    const gpu=renderer.gpu;
+    if(gpu){const execute=gpu.execute.bind(gpu);this.unwrap=()=>{gpu.execute=execute;};gpu.execute=item=>{
       const expected=(item as unknown as {executeCode?:number}).executeCode;this.expected=expected;
       try{const code=execute(item);
-        if(typeof expected==='number'?code!==expected:code&&item.op!==O.SHADER_CREATE)this.errors.push('GPU opcode '+item.op+' changed outcome: '+expected+' -> '+code);
+        if(typeof expected==='number'?code!==expected:code&&item.op!==O.SHADER_CREATE)fail('GPU opcode '+item.op+' changed outcome: '+expected+' -> '+code);
         return code;
       }finally{this.expected=undefined;}
     };}
   }
+  check():void {
+    if(this.error||this.renderer.lost)throw new Error(this.error??'Checkpoint replay renderer lost');
+  }
+  stop():void {this.active=false;this.unwrap?.();this.unwrap=undefined;}
   async draw(record:CheckpointFrame, finish = true):Promise<void>{
     const frame=restoreCheckpointFrame(record),pending:Promise<void>[]=[];
     frame.items.forEach((item,i)=>{
@@ -78,6 +89,6 @@ export class CheckpointReplay {
     // Native work is ordered within one renderer/queue. Shader completions are
     // still checked before replay can proceed; other frames need no GPU fence.
     if(finish||pending.length)await this.renderer.finish();
-    const error=await done;if(error)throw error;if(this.errors.length)throw new Error(this.errors.join('\n'));
+    const error=await done;if(error)throw error;this.check();
   }
 }

@@ -28,6 +28,8 @@ test('savestate GL-heavy per-update profile',async({page,backendParam,collector}
       bytesPer1000:after.bytes-before.bytes,projected25000:(after.bytes-before.bytes)*25};
   });
   expect(growth.hashUnchanged).toBe(true);expect(growth.compacted.bytes).toBeLessThan(growth.after.bytes);
+  expect(growth.after.error).toBeNull();expect(growth.after.compactions).toBeGreaterThan(growth.before.compactions);
+  expect(growth.after.frames).toBeLessThan(128);
   await info.attach('journal-growth.json',{body:JSON.stringify(growth),contentType:'application/json'});
   await info.attach('journal-profile.json',{body:JSON.stringify(measurements),contentType:'application/json'});
   for(const m of measurements){expect(m.errors).toEqual([]);expect(m.commands).toBe(0);}

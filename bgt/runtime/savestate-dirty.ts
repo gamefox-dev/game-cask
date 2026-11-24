@@ -34,6 +34,11 @@ export function wasmReader(data: Uint8Array, start = 0, end = data.length) {
   return {byte, uint, skip, leb, get pos() { return pos; }};
 }
 
+export class UnsupportedDirtyTracking extends Error {}
+const unsupported=(detail:string):never=>{throw new UnsupportedDirtyTracking('Unsupported checkpoint write tracking: '+detail);};
+const valueType=(r:ReturnType<typeof wasmReader>)=>{
+  const t=r.byte();if(![0x7f,0x7e,0x7d,0x7c,0x7b,0x70,0x6f].includes(t))unsupported('value type 0x'+t.toString(16));
+};
 const i32 = 0x7f;
 const stores = [[i32,4],[0x7e,8],[0x7d,4],[0x7c,8],[i32,1],[i32,2],[0x7e,1],[0x7e,2],[0x7e,4]];
 const get = (i: number) => [0x20,i];
@@ -80,24 +85,30 @@ export function trackWasmStores(code: Uint8Array, helper: Helper): Uint8Array<Ar
     const bodyStart=codeReader.pos, size=codeReader.uint(), start=codeReader.pos, end=start+size;
     codeReader.skip(size);
     const r=wasmReader(code,start,end);
-    for(let j=r.uint();j;j--){r.uint();r.byte();}
+    for(let j=r.uint();j;j--){r.uint();valueType(r);}
     const ranges: Uint8Array[]=[];
     let copied=start, length=size;
     while (r.pos<end) {
       const at=r.pos, op=r.byte();
       let align=0,offset=0,bulk=0;
       if(op>=0x28&&op<=0x3e) {
-        align=r.uint(); if(align>=0x40)throw new Error('Unsupported checkpoint memory immediate');
+        align=r.uint(); if(align>=0x40)unsupported('memory immediate');
         offset=r.uint();
       } else if(op<=1||op===5||op===11||op===15||op===26||op===27||op>=0x45&&op<=0xc4||op===0xd1) {
         // No immediate.
       } else switch(op) {
-        case 2:case 3:case 4:case 0xd0:r.leb(5);break;
+        case 2:case 3:case 4: {
+          const type=r.byte();
+          if(type===0x63||type===0x64)unsupported('reference block type');
+          if(type&128)r.leb(4);
+          break;
+        }
+        case 0xd0:r.leb(5);break;
         case 12:case 13:case 16:case 18:case 32:case 33:case 34:case 35:case 36:case 37:case 38:case 0xd2:r.uint();break;
         case 14:for(let j=r.uint();j;j--)r.uint();r.uint();break;
         case 17:case 19:r.uint();r.uint();break;
-        case 28:r.skip(r.uint());break;
-        case 63:case 64:if(r.uint())throw new Error('Unsupported checkpoint memory index');break;
+        case 28:for(let j=r.uint();j;j--)valueType(r);break;
+        case 63:case 64:if(r.uint())unsupported('memory index');break;
         case 65:r.leb(5);break;
         case 66:r.leb(10);break;
         case 67:r.skip(4);break;
@@ -106,14 +117,14 @@ export function trackWasmStores(code: Uint8Array, helper: Helper): Uint8Array<Ar
           const sub=r.uint();
           if(sub<=7)break;
           if(sub===10||sub===11) {
-            if(r.uint()||(sub===10&&r.uint()))throw new Error('Unsupported checkpoint bulk memory index');
+            if(r.uint()||(sub===10&&r.uint()))unsupported('bulk memory index');
             bulk=sub;break;
           }
           if(sub===12||sub===14){r.uint();r.uint();break;}
           if(sub===13||sub===15||sub===16||sub===17){r.uint();break;}
-          throw new Error('Unsupported checkpoint bulk opcode '+sub);
+          unsupported('bulk opcode '+sub);break;
         }
-        default:throw new Error('Unsupported checkpoint write-tracking opcode 0x'+op.toString(16));
+        default:unsupported('opcode 0x'+op.toString(16));
       }
       if(op>=0x36&&op<=0x3e||bulk) {
         const bytes=barrier(op,offset,align,bulk,code.subarray(at,r.pos));

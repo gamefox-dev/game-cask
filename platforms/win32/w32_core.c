@@ -987,7 +987,7 @@ void w32_update(void) {
     w32_module_t *mainm = w32_mod_by_handle(0);
     if (!mainm || !mainm->entry) x86_fault("no program entry point", 0);
     x86_push(RET_SENTINEL);
-    if (checkpoint_enabled) {
+    if (checkpoint_enabled && X.mode64) {
         checkpoint_root = 1;
         entry_floor = (uint32_t)X.r[ESP];
         X.eip = mainm->entry;

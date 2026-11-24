@@ -1,6 +1,6 @@
 // Test-only module instrumentation. Called after integrity verification, never for ordinary loads.
 // Export numeric globals, functions and tables without changing code or index spaces.
-import { joinWasm as join, supportsDirtyTracking, trackWasmStores, wasmUint as uint, wasmReader } from './savestate-dirty';
+import { joinWasm as join, supportsDirtyTracking, trackWasmStores, UnsupportedDirtyTracking, wasmUint as uint, wasmReader } from './savestate-dirty';
 const prefix = '__bgt_checkpoint_';
 export const checkpointDirty = prefix + 'dirty';
 export const checkpointName = (kind: string, index: number) => prefix + kind + index;
@@ -86,12 +86,20 @@ export function instrumentCheckpointWasm(bytes: Uint8Array, trackDirty = false):
   const limits=wasmReader(memory.data);limits.uint();const flags=limits.uint();
   if(flags&~1)throw new Error('Checkpoint mode requires unshared memory32');
   const code=sections.find(s=>s.id===10);
-  if(trackDirty&&supportsDirtyTracking()) {
+  if(code&&trackDirty&&supportsDirtyTracking()) {
     // Preserve original memory0 limits. The independent memory1 is fixed at 64 KiB
     // (one byte per possible page of memory0), invisible to guest code and ABI.
-    if(code)code.data=trackWasmStores(code.data,(params,body)=>helper(null,[0x60,...uint(params.length),...params,0],body));
-    appendVector(5,[[1,1,1]]);
-    additions.push(exported(checkpointDirty,2,1));
+    const baseHelpers=extraFunctions.length;
+    try {
+      code.data=trackWasmStores(code.data,(params,body)=>helper(null,[0x60,...uint(params.length),...params,0],body));
+      appendVector(5,[[1,1,1]]);
+      additions.push(exported(checkpointDirty,2,1));
+    } catch(e) {
+      if(!(e instanceof UnsupportedDirtyTracking))throw e;
+      // Preserve existing checkpoint support for modules containing opcodes this
+      // store scanner cannot step safely (e.g. SIMD). Fall back as a whole module.
+      extraFunctions.length=extraTypes.length=extraBodies.length=baseHelpers;
+    }
   }
   for (const [kind, tag, n] of [['f', 0, originalFunctions], ['g', 3, count(6)], ['t', 1, count(4)]] as const)
     for (let i = 0; i < n; i++) additions.push(exported(checkpointName(kind,i),tag,i));

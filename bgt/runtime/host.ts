@@ -821,6 +821,7 @@ export class GameHost {
     }
     this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
+    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(this.ioPtr+IO.backend,4);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;
     if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes, this.config.gpuLimits); }
@@ -973,11 +974,13 @@ export class GameHost {
       } else {
         this.jspiTask = this.jspiUpdate!(DT_US).then(() => {
           this.jspiTask = null;
-          if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testPortableBoundary?.()) {
-            this.asyncState = AsyncState.Suspended;
-            this.yields++;
-          }
-          this.jspiBoundary?.resolve();
+          try {
+            if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testPortableBoundary?.()) {
+              this.asyncState = AsyncState.Suspended;
+              this.yields++;
+            }
+            this.jspiBoundary?.resolve();
+          } catch(error) { this.jspiBoundary?.reject(error); }
         }, (error: unknown) => {
           this.jspiTask = null; this.jspiBoundary?.reject(error);
         });

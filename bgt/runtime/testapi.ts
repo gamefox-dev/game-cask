@@ -25,7 +25,7 @@ export interface BGTTestAPI {
   exportSnapshotDebugJson(snapshot:Savestate):string;
   importSnapshotDebugJson(file:string):Savestate;
   compactJournal():Promise<void>;
-  journalStats():{bytes:number;frames:number;limit:number;error:string|null};
+  journalStats():{bytes:number;frames:number;limit:number;error:string|null;compactions:number;compactionMs:number};
   restore(snapshot: Savestate): Promise<void>;
   ready(): boolean;
   pause(): void;

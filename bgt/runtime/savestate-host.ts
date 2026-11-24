@@ -14,6 +14,7 @@ import {cloneCheckpoint} from './savestate-clone';
 export function assertBoundary(this: GameHost): void {
     if (this['inUpdate'] || this['ioPending'] || this['frame'].items.length) throw new HostError('Checkpoint requires a consumed quiescent update boundary');
     if (this['jspiTask'] || this['jspiResume']) throw new HostError('Unsupported checkpoint state: suspended JSPI continuation (not a returnable frame boundary)');
+    if (this['requests'].hasPending()) throw new HostError('Checkpoint has pending requests (wait for a quiescent update boundary)');
   }
 export function captureHost(this: GameHost, onWasmMs?: (ms:number)=>void) {
     this['assertCheckpointBoundary']();
@@ -65,7 +66,7 @@ Vfs.prototype.checkpoint=captureVfs;Vfs.prototype.restoreCheckpoint=restoreVfs;
 
 import { Requests } from './requests';
 export function captureRequests(this: Requests) {
-    if ([...this['entries'].values()].some(t => !t.done)) throw new Error('Checkpoint has pending requests');
+    if (this.hasPending()) throw new Error('Checkpoint has pending requests');
     return cloneCheckpoint({entries: this['entries'], epoch: this['epoch'], bytes: this['bytes'], next: this['next']});
   }
 export function restoreRequests(this: Requests,s: ReturnType<typeof captureRequests>): void { this.wakeAll(); Object.assign(this, cloneCheckpoint(s)); }

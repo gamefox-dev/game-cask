@@ -1,5 +1,5 @@
 // Test-only deterministic checkpoint controller. Installed before boot, never in normal play.
-import { DT_US } from './abi';
+import { DT_US, GPU_OP } from './abi';
 import {cloneCheckpoint} from './savestate-clone';
 import {validateSavestate} from './savestate-validation';
 import type { GameHost, HostServices } from './host';
@@ -8,11 +8,14 @@ import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type Checkpoi
 import {trackCheckpointHost} from './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
-import { compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
+import { checkpointReplay, compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
 import type { CheckpointRenderer } from '../renderers/checkpoint-surfaces';
 import { WebGL2Renderer } from '../renderers/webgl2/webgl2';
 import { WebGPURenderer } from '../renderers/webgpu/webgpu';
 import type { Renderer } from '../renderers/types';
+
+const ROLL_FRAMES=128, ROLL_BYTES=128*1024**2, ROLL_COMMANDS=50_000;
+const MAX_GPU_HISTORY={frames:2*ROLL_FRAMES,bytes:512*1024**2,commands:4*ROLL_COMMANDS};
 
 export interface Savestate {
   schema: 'bgt-savestate/1'; identity: string; backend: 'webgl2' | 'webgpu'; width: number; height: number;
@@ -22,7 +25,8 @@ export interface Savestate {
   services: {ticks: number; rng: number; audioQueued: number; audioTimeUs: number; storage: Map<string, Uint8Array>};
   journal: CheckpointFrame[]; gpuBase: GPUCheckpoint | null;
   stats: {nativeBytes:number;residualCommands:number;residualUpdates:number;snapshotMs:number;
-    wasmMs?:number;hostMs?:number;gpuMs?:number;replayFrames?:number;replayMs?:number};
+    wasmMs?:number;hostMs?:number;gpuMs?:number;replayFrames?:number;replayMs?:number;
+    provenanceMs?:number;readbackMs?:number;readbackBytes?:number;cloneMs?:number};
 }
 
 export class Savestates {
@@ -36,9 +40,12 @@ export class Savestates {
   private busy = false;
   private journalBytes = 0;
   private journalError: string | null = null;
-  private readonly journalLimit = 2 * 1024 * 1024 * 1024;
-  private nextCompaction = 128;
-  private compacting = 0;
+  private journalCommands = 0;
+  private retryAt = 0;
+  private compactions = 0;
+  private compactionMs = 0;
+  private lastRollFailure = '';
+  private pendingShaders = new Set<Record<string,unknown>>();
   private executions = new WeakMap<object,Record<string,unknown>>();
   private wrappedRenderer: Renderer | null = null;
 
@@ -54,9 +61,11 @@ export class Savestates {
       frame: (...args) => {
         if (this.journalError) return;
         const frame = recordCheckpointFrame(...args), bytes = checkpointFrameBytes(frame);
-        if (this.journalBytes + bytes > this.journalLimit) {
-          this.journalError = 'Savestate GPU journal exceeded 2 GiB; reload or restore an earlier checkpoint (call compactJournal before overflow)';
-          this.journal = []; this.journalBytes = 0; return;
+        if (this.journal.length+1>MAX_GPU_HISTORY.frames || this.journalBytes+bytes>MAX_GPU_HISTORY.bytes ||
+            this.journalCommands+frame.items.length>MAX_GPU_HISTORY.commands) {
+          this.journalError = 'Savestate GPU journal exceeded bounded history without a safe cut; restore an earlier checkpoint or reload'+
+            (this.lastRollFailure?': '+this.lastRollFailure:'');
+          this.journal = []; this.journalBytes = this.journalCommands = 0; this.gpuBase = null; this.releaseReplay(); return;
         }
         const renderer=rt.renderer!;
         if(renderer!==this.wrappedRenderer && renderer.gpu) {
@@ -69,10 +78,13 @@ export class Savestates {
           if(!recordsMutation(item))continue;
           const recorded=frame.items[i++];this.executions.set(item,recorded);
           if(item.kind==='gpu' && item.complete) {
-            const complete=item.complete;item.complete=(code,log)=>{recorded.completeCode=code;complete(code,log);};
+            if(item.op===GPU_OP.SHADER_CREATE)this.pendingShaders.add(recorded);
+            const complete=item.complete;item.complete=(code,log)=>{
+              recorded.completeCode=code;this.pendingShaders.delete(recorded);complete(code,log);
+            };
           }
         }
-        this.journal.push(frame); this.journalBytes += bytes;
+        this.journal.push(frame); this.journalBytes += bytes; this.journalCommands += frame.items.length;
       },
     };
   }
@@ -114,38 +126,72 @@ export class Savestates {
     return this.exclusive(async () => {
       const rt = this.rt, started = performance.now();
       if (this.journalError) throw new Error(this.journalError);
-      if (rt['deviceResets']) throw new Error('Savestates unsupported after graphics device loss');
       let wasmMs=0;
       const host = rt.host!.checkpoint(ms=>{wasmMs=ms;}), vfs = rt.vfs.checkpoint(), input = rt.input.checkpoint();
       const hostMs=performance.now()-started, compact=await this.materialize(), gpuMs=performance.now()-started-hostMs;
-      const gpuBase=cloneCheckpoint(this.gpuBase),journal=cloneCheckpoint(this.journal);
+      const cloneAt=performance.now(),{gpuBase,journal}=cloneCheckpoint({gpuBase:this.gpuBase,journal:this.journal});
       const services=cloneCheckpoint({ticks:this.ticks,rng:this.rng,audioQueued:this.audioQueued,audioTimeUs:this.audioTimeUs,storage:this.storage});
       return {schema:'bgt-savestate/1',identity:this.identity(),backend:rt.renderer!.kind,
         width:rt.canvas.width,height:rt.canvas.height,host,vfs,input,gpuBase,services,journal,
-        stats:{...compact.stats,wasmMs,hostMs,gpuMs,snapshotMs:performance.now()-started}};
-    });
+        stats:{...compact.stats,wasmMs,hostMs,gpuMs,cloneMs:performance.now()-cloneAt,snapshotMs:performance.now()-started}};
+    },()=>this.assertBoundary());
+  }
+  private assertBoundary():void {
+    this.rt.host!.assertCheckpointBoundary();
+    if(this.pendingShaders.size)throw new Error('Checkpoint has pending GPU shader completions');
   }
   compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
-  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:this.journalLimit,error:this.journalError,compactions:this.compacting};}
+  journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:MAX_GPU_HISTORY.bytes,
+    error:this.journalError,compactions:this.compactions,compactionMs:this.compactionMs};}
   private async rollJournal() {
-    // The runtime holds the render/update handoff until this completes. Never
-    // compound an unsupported cut on every update; retry exponentially as new
-    // resource resets/deletions can make a later cut provable.
-    if(this.journalError||this.rt.renderer!.lost||this.rt['deviceResets']||this.journal.length<this.nextCompaction)return;
+    // Hold the render/update handoff. Retry an unsupported cut only after new
+    // frames; hitting the hard journal bound disables capture, not gameplay.
+    if(this.journalError||this.rt.renderer!.lost||this.rt['deviceResets']||this.journal.length<this.retryAt||
+      (this.journal.length<ROLL_FRAMES&&this.journalBytes<ROLL_BYTES&&this.journalCommands<ROLL_COMMANDS)||
+      this.pendingShaders.size||this.rt.host!.requests.hasPending())return;
+    const started=performance.now();
     try {
-      await this.rt.renderer!.finish();
       await this.materialize();
-      this.compacting++;
-    } catch { this.nextCompaction = this.journal.length * 2; }
+      this.compactions++;
+    } catch(e) {
+      this.lastRollFailure=String(e);
+      this.retryAt=Math.min(MAX_GPU_HISTORY.frames,this.journal.length+32);
+    } finally { this.compactionMs+=performance.now()-started; }
   }
   private async materialize() {
-    const temporary = await this.createRenderer();
+    if(this.journalError)throw new Error(this.journalError);
+    if(this.pendingShaders.size)throw new Error('Checkpoint has pending GPU shader completions');
+    const live=this.rt.renderer as Renderer & CheckpointRenderer;
+    const usable=()=>{
+      if(live.lost||live!==this.rt.renderer||this.rt['deviceResets'])throw new Error('Savestates unsupported after graphics device loss');
+      const last=this.journal.at(-1)??this.gpuBase?.frame;
+      if(last&&(last.width!==live.canvas.width||last.height!==live.canvas.height))throw new Error('Savestate requires a consumed frame after canvas resize');
+    };
+    usable();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
-    try {compact=await compactGPU(temporary,this.gpuBase,this.journal,this.rt.renderer as Renderer & CheckpointRenderer);}finally{this.park(temporary);}
+    try {
+      compact=await compactGPU(async()=>{
+        if(this.replay?.renderer.lost)this.releaseReplay();
+        if(this.replay)return {cursor:this.replay,atBase:true};
+        const cursor=this.replay=checkpointReplay(await this.createRenderer());
+        return {cursor,atBase:false};
+      },this.gpuBase,this.journal,live);
+      usable();
+      if(this.replay?.renderer.lost)throw new Error('Savestate replay renderer lost');
+    } catch(e){this.releaseReplay();throw e;}
+    if(!compact.keepReplay)this.releaseReplay();
     this.gpuBase=compact.base;this.journal=compact.journal;
-    this.nextCompaction=128;
+    this.retryAt=0;this.lastRollFailure='';
     this.journalBytes=this.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
+    this.journalCommands=this.journal.reduce((n,f)=>n+f.items.length,0);
     return compact;
+  }
+  // The cursor is at the *start* of the residual, just like gpuBase. Advance
+  // it on the next roll instead of re-uploading the entire compact base.
+  private replay?: ReturnType<typeof checkpointReplay>;
+  private releaseReplay():void {
+    if(this.replay){this.replay.replay.stop();this.park(this.replay.renderer);}
+    this.replay=undefined;
   }
   /** K69: one WebGL2 context is recycled through every temporary/replaced renderer (WebGL2Renderer.reuse): WebKit frees a
    * lost context only on GC, so a new canvas per snapshot, compaction and restore exhausted its 16-context page budget. */
@@ -160,33 +206,41 @@ export class Savestates {
     if(!renderer)throw new Error('Savestate renderer unavailable');return renderer;
   }
   restore(snapshot: Savestate): Promise<void> {
-    let s:Savestate;
+    let s:Savestate, original:Renderer|null, resets:number;
     return this.exclusive(async () => {
       const rt = this.rt;
       if (s.schema !== 'bgt-savestate/1' || s.identity !== this.identity() || s.backend !== rt.renderer!.kind ||
         s.width !== rt.canvas.width || s.height !== rt.canvas.height) throw new Error('Incompatible savestate (artifact, mode, configuration, backend or canvas)');
-      // Reject an arbitrary parked JSPI stack before allocating a replacement; returnable boundaries have no task.
-      rt.host!.assertCheckpointBoundary();
       validateSavestate(s);
       // All fallible preparation precedes the commit. These detached plain records are
       // assigned synchronously after testReplace; no clone, validation or guest work follows it.
       const vfs=cloneCheckpoint(s.vfs),input=cloneCheckpoint(s.input),services=s.services;
       const journalBytes=s.journal.reduce((n,f)=>n+checkpointFrameBytes(f),0);
+      const journalCommands=s.journal.reduce((n,f)=>n+f.items.length,0);
+      if(journalBytes>MAX_GPU_HISTORY.bytes||journalCommands>MAX_GPU_HISTORY.commands||s.journal.length>MAX_GPU_HISTORY.frames)
+        throw new Error('Restored savestate exceeds bounded GPU history');
       let renderer: (Renderer & CheckpointRenderer) | null = null;
       try {
+        this.releaseReplay();
         renderer = await this.createRenderer();
         await replayGPU(renderer,s.gpuBase,s.journal);
         const host = await rt.testHostFactory!(renderer);
         host.restoreCheckpoint(s.host);
+        if(renderer.lost||rt.renderer!==original||rt.renderer!.lost||rt['deviceResets']!==resets)
+          throw new Error('Savestate restore interrupted by graphics device loss');
         const previous = rt.renderer!;
         rt.testReplace(host,renderer,input.letterbox); renderer = null;
         if (previous.kind === 'webgl2') this.scratch = previous.canvas; // destroyed by testReplace: the next temporary
         Object.assign(rt.vfs,vfs);Object.assign(rt.input,input);
         this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
-        this.journalBytes = journalBytes; this.journalError = null; this.nextCompaction=128;
+        this.journalBytes = journalBytes; this.journalError = null; this.retryAt=0; this.lastRollFailure='';
+        this.journalCommands=journalCommands;this.pendingShaders.clear();
       } finally { if (renderer) this.park(renderer); }
     }, () => {
+      // Reject before cloning or allocating anything if JSPI still owns a continuation.
+      this.assertBoundary();
+      original=this.rt.renderer;resets=this.rt['deviceResets'];
       // Capture synchronously, before even finish() can yield to caller mutation.
       s = cloneCheckpoint(snapshot);
     });

@@ -18,11 +18,15 @@ Initial resource commands must have been consumed (normally by the first step).
 - **Asyncify:** supported while parked at `bgt_yield`. The unwound C stack, Asyncify data and state,
   shadow stack pointer and all other numeric wasm globals are captured. The original suspended
   update resumes at precisely the saved callsite; it is not restarted.
-- **JSPI:** supported only when `bgt_update` actually **returned**. Suspended JSPI throws
-  `Unsupported checkpoint state: suspended JSPI continuation; use Asyncify`. The browser does not
-  expose a way to clone/rewind its engine-owned continuation. Pipeline loops commonly stay
-  suspended forever: use their Asyncify fallback for searching, then replay the discovered full
-  route from boot under JSPI. There is no silent fallback or fake JSPI checkpoint.
+- **JSPI:** supported when `bgt_update` actually **returns**, including returnable Win64 pipeline
+  presentations in dual artifacts built with the checkpoint handshake. At such a presentation the
+  outer dispatcher records the continuation in wasm, returns to JS, and resumes dispatch on the next
+  update. This is the real JSPI artifact, not boot replay or an Asyncify fallback. A live engine-owned
+  stack (for example a native callback, scheduler budget wait, or I/O transport yield) is not portable.
+  Snapshot and restore refuse it before touching guest state with
+  `Unsupported checkpoint state: suspended JSPI continuation (not a returnable frame boundary)`.
+  For in-flight steps/I/O, the general quiescence guard can reject first. Continue stepping to a
+  returnable presentation, or select Asyncify at boot if arbitrary supported yields are needed.
 - Same artifact/manifest, seed/arguments, suspension mode, backend and canvas dimensions are
   required. Same-backend reruns are exact; this does **not** promise bit-identical pixels across
   GPU vendors, browser versions or WebGPU versus WebGL2. Reload on device loss before capturing.
@@ -61,9 +65,11 @@ entropy or audio admission may behave differently in ordinary play; do not claim
 - Entire wasm linear memory (including grown pages), all numeric globals (including hidden compiler
   globals), function tables with null slots/function-index identities. Test-only load instrumentation
   adds exports and bitwise float-global accessor helpers after artifact integrity verification;
-  existing code/function/global/table indices remain unchanged. Sparse zero-page memory encoding
-  avoids copying reserved zero GiB heaps; explicit saved length still restores growth exactly. A **fresh wasm
-  instance** makes memory/table growth reversible without trying to shrink an existing wasm memory.
+  existing function/global/table indices remain unchanged. With multi-memory and supported opcodes,
+  test-only store and bulk-write barriers plus host write tracking capture touched 64 KiB pages relative
+  to the fresh module image (including explicit zero overwrites). This is cumulative since instantiate,
+  not since the last checkpoint. Without tracking, capture uses the exact sparse zero-page scan.
+  Saved length restores growth exactly; a **fresh wasm instance** makes memory/table growth reversible.
 - Host lifecycle/suspension/frame/input state, texture and GPU validator object tables, completed request
   data/error/visibility epochs/next IDs, file handles/cursors/next IDs and coverage, input held/latched/
   released/gamepad/pointer/touch/event state, deterministic clock/entropy/audio/storage.
@@ -96,13 +102,20 @@ residual remain in exact order. Handled failed shader compiles are replayed as f
 deleted objects are removed from the base. Other native failed mutations currently fail the
 checkpoint explicitly: a backend may have partially changed state before reporting its error.
 
-Compaction runs only at snapshot time or at an explicit `compactJournal()` call, never periodically during
-updates. Readback-safe end cuts capture directly from the live renderer; packed depth/stencil or legacy
-render-target cuts can replay the uncompacted prefix in a temporary renderer. Failed materialization preserves
-the recorder. A 2 GiB estimated raw-journal limit fails closed; use explicit compaction points on long routes.
-An earlier valid checkpoint can still be restored. Saved stats report native content bytes, residual
-command/update counts and snapshot ms. File size scales with nonzero guest pages and live GPU state.
-No nine-minute real-game latency certification is implied.
+The opt-in recorder rolls the journal at 128 recorded frames, 128 MiB of estimated journal data or
+50,000 commands, whichever comes first. This does work during lead-in steps, not normal play. Readback-safe
+end cuts use the live renderer. Packed depth/stencil cuts can advance an isolated renderer parked at the
+previous cut instead of re-uploading the compact base. Legacy render-target cuts still use a fresh replay.
+Native contents come from readback except where a full RGBA8 upload plus the subsequent command history proves
+the upload shadow exact. Rendering to the level, destination blits and mip generation invalidate that proof.
+
+An unsupported cut is retried only after new frames. At **256 frames / 512 MiB / 200,000 commands** of
+uncompactable history, capture fails closed with `Savestate GPU journal exceeded bounded history without a safe cut`;
+stepping still works and an earlier valid checkpoint can be restored. Explicit `compactJournal()` remains
+available before reaching that limit. Capture and restore still scale with live resource bytes and touched
+wasm pages; the bounds are not a wall-clock SLA. Stats split wasm/host capture, GPU proof/replay/readback,
+and in-memory clone time. Streaming serialization is separate; artifact integrity hashing runs at boot, not capture.
+No private-game latency certification is implied.
 
 Unsupported module features fail closed: passive/declarative data/element segment lifetime state,
 start functions, imported non-functions/multiple memories/exception tags, nonnumeric globals or
@@ -158,7 +171,8 @@ instance with matching configuration, after consuming its initial frame. Browser
 `exportSnapshot(snap)` returns a ReadableStream and `importSnapshot(stream)` consumes it asynchronously. The versioned private BGTSTATE binary format has bounded length-prefixed metadata and raw blob records (at most 1 MiB each), with optional per-chunk DEFLATE via `exportSnapshot(snap, {compression: 'deflate'})`. It rejects unknown versions, malformed lengths, duplicate sections, truncation and trailing bytes. Wasm pages, GPU blobs and byte arrays never become one giant JSON string or file buffer.
 Raw transport chunks may begin at arbitrary byte offsets; import and GPU replay copy misaligned
 byte uploads to an 8-byte-aligned allocation before any typed view is constructed. Aligned
-owned uploads remain zero-copy at replay. This does not change the BGTSTATE v2 wire layout.
+owned uploads remain zero-copy at replay. BGTSTATE v3 additionally emits repeated references to the same byte view once, preserving the alias on import.
+The reader still accepts v2 files (without aliases).
 Aggregate in-memory clones also copy byte backing buffers individually (preserving aliases/views),
 not through Chromium's approximately 2 GiB structured-clone serialization envelope. Restore captures
 the caller's checkpoint synchronously before its first await, so subsequent caller mutation cannot race replay.

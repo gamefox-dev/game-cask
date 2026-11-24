@@ -12,16 +12,22 @@ import type { CheckpointRenderer, CheckpointSurfaces } from '../renderers/checkp
 // Persist this proof alongside the base so repeated compaction cannot invent constants.
 type PackedConstants = [number | null, number | null][];
 
-export interface GPUCheckpoint { frame: CheckpointFrame; surfaces: CheckpointSurfaces }
+export interface GPUCheckpoint { frame: CheckpointFrame; surfaces: CheckpointSurfaces; nativeBytes?:number }
 export const RESIDUAL_UPDATES = 2;
 export const RESIDUAL_COMMANDS = 100000;
-interface Texture { item: GpuItem; allocated: number; constants: PackedConstants }
+interface Texture {
+  item: GpuItem; allocated: number; constants: PackedConstants;
+  /** RGBA8 mip levels whose upload shadow is proven equal to native bytes. */
+  exactUploads: Set<number>;
+}
 interface Resources {
   buffers: Map<number,GpuItem>; textures: Map<number,Texture>; samplers: Map<number,GpuItem>;
   shaders: Map<number,GpuItem>; pipelines: Map<number,GpuItem>; feedback: Map<number,GpuItem>;
   legacy: Map<number,{item: Extract<FrameItem,{kind:'texCreate'}>; data: Uint8Array<ArrayBuffer>}>;
 }
-function resources(records: CheckpointFrame[]): Resources {
+type TextureShadow = CheckpointSurfaces['textures'][number];
+const mipShadow=(shadow:TextureShadow|undefined,mip:number)=>shadow?.levels?.[mip]??shadow?.uploads?.find(u=>u.words[1]===mip)?.data;
+function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null): Resources {
   const r: Resources = {buffers:new Map(),textures:new Map(),samplers:new Map(),shaders:new Map(),pipelines:new Map(),feedback:new Map(),legacy:new Map()};
   let pass: {handle:number;mip:number;fullScissor:boolean;width:number;height:number} | undefined;
   let pipeline: GpuItem | undefined;
@@ -32,6 +38,10 @@ function resources(records: CheckpointFrame[]): Resources {
   const invalidate=(h:number,mip:number,mask:number)=>{
     const t=r.textures.get(h),c=t?.constants[mip];
     if(t?.item.words[6]===5 && c) {if(mask&1)c[0]=null;if(mask&2)c[1]=null;}
+  };
+  const noteUpload=(t:Texture,mip:number,w:number[])=>{
+    const e=mipExtent(toCanonicalTexture(t.item.words),mip);
+    if(t.item.words[6]===0&&!w[2]&&!w[3]&&!w[4]&&w[5]===e.width&&w[6]===e.height&&w[7]===e.depth)t.exactUploads.add(mip);
   };
   for (const record of records) {
    for (const item of restoreCheckpointItems(record)) {
@@ -51,13 +61,13 @@ function resources(records: CheckpointFrame[]): Resources {
       case O.BUFFER_CREATE:r.buffers.set(h,it);break;
       case O.BUFFER_DELETE:r.buffers.delete(h);break;
       case O.TEXTURE_CREATE_EX: {
-        const t:Texture={item:it,allocated:0,constants:[]};
+        const t:Texture={item:it,allocated:0,constants:[],exactUploads:new Set()};
         allocate(t,item.op===O.TEXTURE_CREATE?w[5]:1);r.textures.set(h,t);break;
       }
       case O.TEXTURE_ALLOCATE_MIPS: {const t=r.textures.get(h)!;allocate(t,Math.max(t.allocated,w[1]));break;}
       case O.TEXTURE_GENERATE_MIPS: {
         const t=r.textures.get(h)!;allocate(t,t.item.words[5]);
-        for(let mip=w[1]+1;mip<t.allocated;mip++)invalidate(h,mip,3);break;
+        for(let mip=w[1]+1;mip<t.allocated;mip++){t.exactUploads.delete(mip);invalidate(h,mip,3);}break;
       }
       case O.TEXTURE_DELETE:r.textures.delete(h);break;
       case O.SAMPLER_CREATE_EX:r.samplers.set(h,it);break;
@@ -68,6 +78,8 @@ function resources(records: CheckpointFrame[]): Resources {
       case O.PIPELINE_DELETE:r.pipelines.delete(h);r.feedback.delete(h);break;
       case O.FEEDBACK_VARYINGS:r.feedback.set(h,it);break;
       case O.PASS_BEGIN: {
+        // Conservative: even a LOAD-only pass can write color via draw or clear.
+        for(let c=0;c<w[0];c++)r.textures.get(w[7+c*7])?.exactUploads.delete(w[8+c*7]);
         const t=r.textures.get(w[1]),e=t?mipExtent(toCanonicalTexture(t.item.words),w[2]):null;
         pass={handle:w[1],mip:w[2],fullScissor:true,width:e?.width??0,height:e?.height??0};pipeline=undefined;
         const c=t?.constants[w[2]];
@@ -90,9 +102,22 @@ function resources(records: CheckpointFrame[]): Resources {
         invalidate(pass.handle,pass.mip,(!p||p[8]?1:0)|(stencil?2:0));
       }break;
       case O.PASS_END:pass=undefined;pipeline=undefined;break;
-      case O.TEXTURE_UPDATE_EX:invalidate(h,w[1],3);break;
-      case O.BLIT:invalidate(w[2],w[3],(w[12]>>>1)&3);break;
+      case O.TEXTURE_UPDATE_EX:noteUpload(r.textures.get(h)!,w[1],w);invalidate(h,w[1],3);break;
+      case O.BLIT:
+        if(w[12]&1)r.textures.get(w[2])?.exactUploads.delete(w[3]);
+        invalidate(w[2],w[3],(w[12]>>>1)&3);break;
     }
+   }
+   // A synthetic base can re-upload native bytes and restore different recovery
+   // shadows. Keep the proof only where both payloads actually alias. Old or
+   // streamed checkpoints may not carry the alias: fall back to native reads.
+   if(record===base?.frame) {
+     const shadows=new Map(base.surfaces.textures.map(t=>[t.handle,t]));
+     for(const t of r.textures.values())t.exactUploads.clear();
+     for(const item of record.items)if(item.op===O.TEXTURE_UPDATE_EX&&Array.isArray(item.words)&&item.data instanceof Uint8Array) {
+       const [h,mip]=item.words as number[];
+       if(item.data===mipShadow(shadows.get(h),mip))noteUpload(r.textures.get(h)!,mip,item.words as number[]);
+     }
    }
    // Synthetic base creation initializes the native allocation, but does not prove
    // unknown pre-cut aspects. These exact constants/unknowns override that initialization.
@@ -125,7 +150,7 @@ function checkResidual(r: Resources,residual: CheckpointFrame[]): void {
       throw new Error('Unsupported savestate GPU failed mutation: '+item.op+' ('+code+')');
     const {op,words:w}=canonicalize(item.op,item.words),h=w[0];
     switch(op) {
-      case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:{...item,op,words:w},allocated:1,constants:[]});break;
+      case O.TEXTURE_CREATE_EX:r.textures.set(h,{item:{...item,op,words:w},allocated:1,constants:[],exactUploads:new Set()});break;
       case O.TEXTURE_DELETE:pending.delete(h);r.textures.delete(h);break;
       case O.PASS_BEGIN: {
         const t=r.textures.get(w[1]),e=t?mipExtent(toCanonicalTexture(t.item.words),w[2]):null;
@@ -154,16 +179,29 @@ function checkResidual(r: Resources,residual: CheckpointFrame[]): void {
   }
   if([...pending.values()].some(p=>[...p.values()].some(Boolean))) throw new Error('Unsupported savestate GPU provenance: no full packed depth/stencil clear within two updates');
 }
-export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
-  const replay=new CheckpointReplay(renderer);
+interface ReplayCursor {renderer: Renderer & CheckpointRenderer; replay: CheckpointReplay}
+export function checkpointReplay(renderer: Renderer & CheckpointRenderer): ReplayCursor {
+  return {renderer,replay:new CheckpointReplay(renderer)};
+}
+async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
+  const {renderer,replay}=cursor;
+  replay.check();
   if(base) { await replay.draw(base.frame); renderer.restoreTestSurfaces(base.surfaces); }
   // WebGPU canvas current textures are invalidated at task boundaries. A fixed
   // GPU fence every batch bounds queued work without a per-frame GPU/CPU rendezvous.
   for(let i=0;i<journal.length;i++) await replay.draw(journal[i], (i+1)%16===0||i===journal.length-1);
+  if(base&&!journal.length)await renderer.finish();
+  replay.check();
 }
-export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[], live?:Renderer & CheckpointRenderer) {
-  const last=journal.at(-1) ?? base?.frame;
-  if(!last) return {base,journal,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0}};
+export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
+  const cursor=checkpointReplay(renderer);
+  try {await advanceReplay(cursor,base,journal);} finally {cursor.replay.stop();}
+}
+export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBase:boolean}>, base: GPUCheckpoint | null,
+    journal: CheckpointFrame[], live:Renderer & CheckpointRenderer) {
+  if(!journal.length&&base)return {base,journal,keepReplay:true,stats:{nativeBytes:base.nativeBytes??0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0,readbackMs:0,readbackBytes:0,provenanceMs:0}};
+  const proofAt=performance.now(),last=journal.at(-1) ?? base?.frame;
+  if(!last) return {base,journal,keepReplay:false,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0,readbackMs:0,readbackBytes:0,provenanceMs:0}};
   const earliest=last.update-RESIDUAL_UPDATES+1;
   const candidates=[...journal.keys()].filter(i=>journal[i].update>=earliest && (!i || journal[i-1].update!==journal[i].update));
   // Try the live end cut first, including packed textures with proven constants.
@@ -173,7 +211,7 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
     const tail=journal.slice(i);
     if(tail.reduce((n,f)=>n+f.items.length,0)>RESIDUAL_COMMANDS) continue;
     try {
-      const r=resources([...(base?[base.frame]:[]),...journal.slice(0,i)]);
+      const r=resources([...(base?[base.frame]:[]),...journal.slice(0,i)],base);
       // Residual proof changes the handle->descriptor map as resources are reused.
       checkResidual({...r,textures:new Map(r.textures)},tail);cut=i;atCut=r;break;
     } catch(e) { failure=e; }
@@ -181,18 +219,26 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   if(cut<0) throw failure ?? new Error('Unsupported savestate GPU residual exceeds command/update bound');
   const prefix=journal.slice(0,cut), residual=journal.slice(cut), at=prefix.at(-1) ?? base?.frame ?? journal[0];
   const r=atCut!;
-  const source=cut===journal.length&&live&&![...r.legacy.values()].some(t=>t.item.renderTarget)?live:renderer;
-  const replayStart=performance.now();
-  if(source===renderer)await replayGPU(renderer,base,prefix);
-  const replayMs=source===renderer?performance.now()-replayStart:0;
+  const replayStart=performance.now(),provenanceMs=replayStart-proofAt;
+  const legacyTargets=[...r.legacy.values()].some(t=>t.item.renderTarget);
+  const needsReplay=cut!==journal.length||legacyTargets;
+  let source=live,cursor:ReplayCursor|undefined;
+  if(needsReplay){
+    const state=await getReplay();cursor=state.cursor;
+    source=cursor.renderer;
+    await advanceReplay(cursor,state.atBase?null:base,prefix);
+  }
+  const replayMs=needsReplay?performance.now()-replayStart:0;
+  const readAt=performance.now();
   const surfaces=await source.captureTestSurfaces(at.letterbox);
+  const textureShadows=new Map(surfaces.textures.map(t=>[t.handle,t]));
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
   const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
   const pending: Promise<void>[]=[];
-  let nativeBytes=surfaces.physical.data.length+(surfaces.logical?.data.length??0);
+  let nativeBytes=surfaces.physical.data.length+(surfaces.logical?.data.length??0),readbackBytes=nativeBytes;
   const read=(item: FrameItem, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
     pending.push(new Promise<void>((resolve,reject)=>{
-      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {if(!data||error)reject(new Error('Savestate native readback failed: '+error));else {try{nativeBytes+=data.length;complete(data);resolve();}catch(e){reject(e);}}};
+      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {if(!data||error)reject(new Error('Savestate native readback failed: '+error));else {try{nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();}catch(e){reject(e);}}};
       if(item.kind==='gpu') item.readback=done;
       else if(item.kind==='readback') item.complete=done;
       reads.items.push(item);
@@ -218,6 +264,13 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
     for(let mip=0;mip<t.allocated;mip++) {
       const e=mipExtent(desc,mip),update:GpuItem={kind:'gpu',op:O.TEXTURE_UPDATE_EX,words:[h,mip,0,0,0,e.width,e.height,e.depth,0,0]};
       frame.items.push(update);
+      const exact=t.exactUploads.has(mip)?mipShadow(textureShadows.get(h),mip):undefined;
+      if(exact?.length===e.width*e.height*e.depth*4) {
+        // Share the already owned shadow copy; no second GPU->CPU transfer or
+        // duplicate in-memory clone. Capture still owns its data independently.
+        update.data=exact;update.words=[...update.words.slice(0,9),exact.length];nativeBytes+=exact.length;continue;
+      }
+      t.exactUploads.delete(mip);
       read({kind:'gpu',op:O.TEXTURE_READBACK,words:[h,mip,0,0,0,e.width,e.height,e.depth,0]},data=>{
         // GL color readback expands half-floats through JS, which cannot preserve
         // arbitrary NaN payloads. Never silently canonicalize a non-readable value.
@@ -238,12 +291,15 @@ export async function compactGPU(renderer: Renderer & CheckpointRenderer, base: 
   }
   frame.items.push(...r.samplers.values(),...r.shaders.values(),...r.pipelines.values(),...r.feedback.values());
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-  if(source===renderer)await source.drawFrame(reads,at.letterbox,false);
+  if(legacyTargets)await source.drawFrame(reads,at.letterbox,false);
   else for(const item of reads.items){if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');source.gpu!.execute(item);}
   await source.finish();
   const error=await done;if(error)throw error;
-  const compact:GPUCheckpoint={frame:{...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),
+  cursor?.replay.check();
+  const readbackMs=performance.now()-readAt;
+  const compact:GPUCheckpoint={nativeBytes,frame:{...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),
     packedConstants:[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants])},surfaces};
-  return {base:compact,journal:residual,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
-    residualUpdates:new Set(residual.map(f=>f.update)).size,replayFrames:source===renderer?prefix.length:0,replayMs}};
+  // Legacy readFrame can present a redraw; don't reuse it as a pixel-exact cut.
+  return {base:compact,journal:residual,keepReplay:needsReplay&&!legacyTargets,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
+    residualUpdates:new Set(residual.map(f=>f.update)).size,replayFrames:needsReplay?prefix.length:0,replayMs,readbackMs,readbackBytes,provenanceMs}};
 }
