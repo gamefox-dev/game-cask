@@ -30,6 +30,8 @@ it('state spec parsing and divergence parts', () => {
   expect(() => oracleStateParts('flags')).toThrow(/need cpu/); expect(oracleStateParts('cpu,current,memory')).toBe(13); expect(() => oracleStateParts('ram')).toThrow(/BGT_ORACLE_STATE/);
   expect(divergentParts('ab|c1|m2', 'ab|c1|m3')).toEqual(['memory']); expect(divergentParts('ab|c1|m2', 'ax|c9|m2')).toEqual(['trace', 'cpu']);
   expect(divergentParts('ab', 'ab')).toEqual([]);
+  // vK75b: a fast frame that ended at the cap records "cap" plus the live-thread count (state part 16), which compares.
+  expect(divergentParts('ab|ccap0000001a|m-', 'ab|ccap0000001a|m-')).toEqual([]); expect(divergentParts('ab|ccap0000001a|m-', 'ab|ccap0000002b|m-')).toEqual(['cpu']);
   // vK72b: the last workload frame is hashed by its flag, also when startup calls (x64-smoke: 20) shift the call index
   // past `frames - 1`; budget-deferred frames are not; the interpreted run replays the lifted plan exactly.
   const frames = 10, startup = 20, due = (n: number, f: number) => memoryHashDue(n, 1e9, f === frames - 1, null);

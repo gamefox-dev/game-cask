@@ -447,10 +447,34 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
   Generic instructions do not observe across calls. `l64f_observe` computes the sets once per lift over the whole
   module, independent of the chunk selection; emission uses the union with the K52 liveness. Cost (K52 fixtures, vs
   `"abi"`): +0.2% wasm; speed within ±1.3% except the memory fixture (+3.2% JSPI / +6.4% Asyncify: its loop makes an
-  indirect call and an import call every few dozen instructions). **Not covered** (exact mode covers them): a pointer
-  to an analyzed function that the analyzer cannot see being taken (stored in data without a relocation, or computed)
-  and called by pointer, with the caller's next instruction reaching an EFLAGS-storing API before any flag writer;
-  such a function returns ABI-dead flags. **Other EFLAGS consumers:** GetThreadContext/SetThreadContext fail with
+  indirect call and an import call every few dozen instructions).
+
+  **Known uncovered paths (fast-mode limitation, vK75b ruling; `liftMode: "exact"` is exact on all of them).** The
+  analysis is per call site, so the profile can still store stale EFLAGS wherever its call-site model is wrong:
+  1. *Unrelocated pointer tables in data:* a function whose start is stored only in a table the analyzer does not
+     see as a pointer (no base relocation, not a LEA/MOV operand; e.g. a `/FIXED` image or a computed table) and is
+     called through it is not "taken": it returns ABI-dead flags. Repro shape: `dq g` in `.rdata` without a reloc;
+     `call [table]` then `call [__imp_RtlCaptureContext]` with no flag writer between; `g` ends `sub eax,3; ret`.
+  2. *Rewritten IAT slots:* an IAT slot the guest overwrites at run time (hooking, a patched thunk) keeps the
+     lift-time import's flag behaviour: a slot named after a flag-transparent import that now holds a pointer to
+     guest code or to an EFLAGS-storing API is treated as transparent.
+  3. *External targets of recovered jump tables:* an indirect jump with a recovered table (analyzer `ij` targets
+     or a fast-emitter relative table) counts as an internal switch; a table entry that leaves the function (a tail
+     jump through the table) does not make the flags at the jump exact. Repro shape: `cmp ecx,1; ja L; lea rax,[tbl]; movsxd rcx,[rax+rcx*4]; add rcx,rax; jmp rcx`
+     where one entry is the start of a function that begins with `call [__imp_RtlCaptureContext]`.
+  4. *Captures inside a guest callback:* a callback the profile invokes (`x86_callback64`) starts with the EFLAGS
+     the profile left in `X.flags` (the caller's at its import call, which are exact only when that import stores
+     them); a callback whose entry reaches RtlCaptureContext/RaiseException before any flag writer stores them.
+     Repro shape: a WndProc whose first instruction is `call [__imp_RtlCaptureContext]`, reached via
+     `DispatchMessageA` from a call site whose flags were ABI-dead.
+  5. Indirect calls whose target the analyzer cannot see as taken (computed pointers) fall under 1; imports
+     resolved by `GetProcAddress` are covered (indirect call sites read every flag).
+  **Follow-up (sound design):** instead of call-site rules, the profile's capture APIs (`w64_context_save`, the one
+  reader of `X.flags`) would materialize EFLAGS lazily from the live lifted state: fast code would publish the last
+  flag writer's kind and operands (or a pointer to them) with the call protocol it already runs, and the profile
+  would compute the flags only when it stores a CONTEXT. That removes every case above and the call-site cost, at
+  the price of a few stores per published call.
+  **Other EFLAGS consumers:** GetThreadContext/SetThreadContext fail with
   `ERROR_NOT_SUPPORTED` (no asynchronous context access); AddVectoredExceptionHandler fails and no hardware exception
   is dispatched to guest handlers (faults stop the game); setjmp/longjmp buffers hold no EFLAGS (Win64 `_JUMP_BUFFER`
   has none; the profile saves MXCSR and the x87 control word); RtlRestoreContext and exception continuation restore

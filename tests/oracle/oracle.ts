@@ -94,11 +94,12 @@ async function run(id: string, frames: number, script: OracleStep[], parts = 0, 
     if (typeof h.host.guestStateHash !== 'function' || h.host.guestStateHash(0) === null) { available = false; return ''; }
     const t = performance.now(), n = index++;
     // `current` (fast builds): a frame that ended at the instruction cap stops at a loop header in fast mode but at the
-    // exact instruction in the interpreter, so its CPU is not comparable; such frames record "cap" instead.
+    // exact instruction in the interpreter, so its CPU is not comparable; such frames record "cap" plus the live-thread
+    // count (vK75b: the count still compares; X86_STATE_THREADS = 16).
     let capped = false;
     // vK75: the counter is guest_time.cap_hits (a decimal string); the former top-level read was always 0.
     if (parts & 8) { const hits = Number((h.host.metrics() as { guest_time?: { cap_hits?: string } }).guest_time?.cap_hits ?? 0); capped = hits !== capHits; capHits = hits; }
-    const cpu = parts & 1 ? capped ? 'cap' : h.host.guestStateHash(parts & 11) : null;
+    const cpu = parts & 1 ? capped ? 'cap' + h.host.guestStateHash(16) : h.host.guestStateHash(parts & 11) : null;
     let mem: string | null = null;
     if (parts & 4 && memoryHashDue(n, next, last, plan)) {
       const m0 = performance.now(); mem = h.host.guestStateHash(4); memoryFrames.add(n);

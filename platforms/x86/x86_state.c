@@ -24,6 +24,7 @@ uint32_t x86_guest_state_hash(uint32_t parts) {
      * (x64-time frame 1, x64-threads frame 0) while memory and the trace stay identical. */
     static int multi;
     multi |= live > 1;
+    if (parts & X86_STATE_THREADS) h = state_mix(h, 0x7468726561647300ull | live);
     if ((parts & X86_STATE_CPU) && (parts & X86_STATE_CURRENT) && multi) h = state_mix(h, 0x6d74000000000000ull | live);
     else if (parts & X86_STATE_CPU) for (uint32_t i = 0; i < X86_THREADS; i++) {
         if ((!x86_tasks[i].live || (parts & X86_STATE_CURRENT)) && i != x86_current) continue;

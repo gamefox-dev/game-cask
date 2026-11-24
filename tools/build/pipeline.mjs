@@ -246,8 +246,11 @@ export function ownerCensus(env = process.env) {
  * symlinked alias of port/ (or of the game directory) cannot pass. */
 export function refuseTestCorruptPort(policy, gameDir, root = ROOT) {
   if (policy.liftFast?.testCorrupt !== 'stack') return;
+  // vK75b: both ways: the lexical and the real game path against the lexical and the real port/ path, so neither a
+  // symlink into port/ nor a symlink inside port/ that points elsewhere passes.
   const real = (q) => { try { return realpathSync(q); } catch { return resolve(q); } };
-  if ((real(gameDir) + '/').startsWith(real(join(root, 'port')) + '/')) throw new Error('pipeline.liftFast.testCorrupt is test-only and refused in port builds');
+  const ports = [resolve(root, 'port'), real(join(root, 'port'))], games = [resolve(gameDir), real(gameDir)];
+  if (games.some((g) => ports.some((p) => (g + '/').startsWith(p + '/')))) throw new Error('pipeline.liftFast.testCorrupt is test-only and refused in port builds');
 }
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;

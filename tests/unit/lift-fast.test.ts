@@ -113,7 +113,8 @@ it('policy: exact stays byte-for-byte default; fast mode, knobs and BGT_LIFT_MOD
   try {
     mkdirSync(join(root, 'port/game'), { recursive: true }); mkdirSync(join(root, 'kit/game'), { recursive: true });
     symlinkSync(join(root, 'port'), join(root, 'alias')); symlinkSync(join(root, 'port/game'), join(root, 'kit/link'));
-    for (const dir of ['port/game', 'alias/game', 'kit/link']) expect(() => refuseTestCorruptPort(corrupt, join(root, dir), root), dir).toThrow(/port builds/);
+    symlinkSync(join(root, 'kit/game'), join(root, 'port/out')); // vK75b: inside port/, pointing out of it
+    for (const dir of ['port/game', 'alias/game', 'kit/link', 'port/out']) expect(() => refuseTestCorruptPort(corrupt, join(root, dir), root), dir).toThrow(/port builds/);
     expect(() => refuseTestCorruptPort(corrupt, join(root, 'kit/game'), root)).not.toThrow();
     expect(() => refuseTestCorruptPort({ liftFast: { testCorrupt: 'off' } }, join(root, 'alias/game'), root)).not.toThrow();
   } finally { rmSync(root, { recursive: true, force: true }); }
