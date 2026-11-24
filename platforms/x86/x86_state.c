@@ -19,7 +19,9 @@ uint32_t x86_guest_state_hash(uint32_t parts) {
     for (uint32_t i = 0; i < X86_THREADS; i++) live += x86_tasks[i].live || i == x86_current;
     /* CURRENT (fast builds): once a second thread has been live, which thread ran when, where it stopped (loop
      * headers in fast mode) and the scratch registers blocking APIs leave all depend on quantum positions: from then
-     * on compare the live-thread count only (memory still compares every page). */
+     * on compare the live-thread count only (memory still compares every page). K75 measured the stricter forms the
+     * vK72b review asked for: every thread's CPU, and only the running and API-blocked threads' CPU, both diverge
+     * (x64-time frame 1, x64-threads frame 0) while memory and the trace stay identical. */
     static int multi;
     multi |= live > 1;
     if ((parts & X86_STATE_CPU) && (parts & X86_STATE_CURRENT) && multi) h = state_mix(h, 0x6d74000000000000ull | live);
@@ -30,6 +32,16 @@ uint32_t x86_guest_state_hash(uint32_t parts) {
     }
     if (parts & X86_STATE_MEMORY) for (uint32_t p = 0; p < (1u << 20); p++) {
         const uint8_t *page = x86_pages[p];
+#ifdef X86_FLAT_GUEST
+        /* vK72b: a fast build's masked store to an unmapped page inside the committed flat window lands in host
+         * backing the page table does not list. Such a page enters the hash only when it holds a nonzero byte,
+         * so clean runs hash exactly as before and a stray store is still seen. */
+        if (!page && x86_flat && (uint64_t)(p + 1u) * X86_PAGE <= x86_guest_committed) {
+            const uint8_t *backing = x86_flat + (uint64_t)p * X86_PAGE; uint64_t any = 0, w;
+            for (uint32_t o = 0; o < X86_PAGE; o += 8) { __builtin_memcpy(&w, backing + o, 8); any |= w; }
+            if (any) { page = backing; h = state_mix(h, 0x756e6d6170706564ull); }
+        }
+#endif
         if (!page) continue;
         uint64_t w, a = state_mix(h, p), b = 0;
         for (uint32_t o = 0; o < X86_PAGE; o += 16) {

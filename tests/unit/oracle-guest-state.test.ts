@@ -6,7 +6,7 @@ import { it, expect } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../support/headless';
-import { oracle, oracleStateParts, divergentParts, defaultStateParts } from '../oracle/oracle';
+import { oracle, oracleStateParts, divergentParts, defaultStateParts, memoryHashDue } from '../oracle/oracle';
 // @ts-expect-error plain ESM
 import { buildGame } from '../../tools/build/build.mjs';
 
@@ -30,6 +30,12 @@ it('state spec parsing and divergence parts', () => {
   expect(() => oracleStateParts('flags')).toThrow(/need cpu/); expect(oracleStateParts('cpu,current,memory')).toBe(13); expect(() => oracleStateParts('ram')).toThrow(/BGT_ORACLE_STATE/);
   expect(divergentParts('ab|c1|m2', 'ab|c1|m3')).toEqual(['memory']); expect(divergentParts('ab|c1|m2', 'ax|c9|m2')).toEqual(['trace', 'cpu']);
   expect(divergentParts('ab', 'ab')).toEqual([]);
+  // vK72b: the last workload frame is hashed by its flag, also when startup calls (x64-smoke: 20) shift the call index
+  // past `frames - 1`; budget-deferred frames are not; the interpreted run replays the lifted plan exactly.
+  const frames = 10, startup = 20, due = (n: number, f: number) => memoryHashDue(n, 1e9, f === frames - 1, null);
+  expect(Array.from({ length: frames }, (_, f) => due(startup + f, f))).toEqual([...Array(frames - 1).fill(false), true]);
+  expect(memoryHashDue(frames - 1, 1e9, false, null)).toBe(false);
+  expect(memoryHashDue(3, 0, false, new Set([2]))).toBe(false); expect(memoryHashDue(2, 1e9, false, new Set([2]))).toBe(true);
 });
 
 it('a lifted result that only changes RAM passes the trace-only oracle and fails the guest-state oracle', async () => {
@@ -46,6 +52,7 @@ it('a lifted result that only changes RAM passes the trace-only oracle and fails
   const clean = await oracle('oracle-state-clean', 30);
   expect(clean.state?.parts).toBe(13);
   expect(clean.identical, JSON.stringify(clean.state)).toBe(true);
-  // Fast mode treats EFLAGS as dead across calls (Win64 ABI): the flags at a frame boundary inside Sleep differ.
+  // Fast mode treats EFLAGS as dead across calls (Win64 ABI; K75: exact only at calls to the APIs that store them,
+  // tools/x86/lift64_eflags.h, which Sleep is not): the flags at a frame boundary inside Sleep differ.
   expect((await oracle('oracle-state-clean', 30, undefined, { state: 3 })).state?.firstDivergence?.parts).toEqual(['cpu']);
 }, 900000);

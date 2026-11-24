@@ -428,8 +428,21 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
 - **Entry restriction.** Entries are the function start, loop headers (targets of DFS retreating edges, where
   quantum yields resume) and post-call return sites. Any other PC takes the slow path: one interpreted
   instruction, then re-entry (the interpreter re-enters lifted code at the next entry).
-- **Flags.** Liveness treats calls, returns and tail calls as Win64 ABI boundaries (flags dead); compare/test/
-  arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
+- **Flags.** Liveness treats calls, returns and tail calls as Win64 ABI boundaries (flags dead for compiled
+  guest code); compare/test/arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
+  **K75 observed flags** (default; `liftFast.flags: "abi"` restores the K52 rule for measurement): a few profile
+  APIs store the caller's EFLAGS in a `CONTEXT` (`tools/x86/lift64_eflags.h`: RtlCaptureContext, RaiseException,
+  RtlUnwindEx, and HeapCreate/HeapAlloc/HeapReAlloc, which raise under `HEAP_GENERATE_EXCEPTIONS`). A second,
+  interprocedural liveness (`l64f_obs_io`) makes EFLAGS exact exactly there: a call or tail jump to one of those
+  imports, or to code that is no analyzed function, reads every flag; every profile call passes EFLAGS through
+  (`x86_callback64` restores them around guest callbacks, in every mode); generic instructions do not observe across
+  calls. A module-wide pass (`l64f_observe`, once per lift, independent of the chunk selection) marks functions
+  whose entry flags reach such a call (their direct callers compute flags before calling) and functions whose return
+  flags reach one in a caller (their RETs compute exact flags, the caller reloads `X.flags` after the call). Emission
+  uses the union of both livenesses, so only code on a path into an EFLAGS-storing API pays (CC0 C++ fixture: 8 more
+  flag computations of 7k; the K52 benchmarks: none). Stats: `fastFlagObservers`, `fastFlagExactExits`,
+  `fastFlagUnknownCallees` (indirect calls whose callee's returned flags reach such an API: the remaining inexact
+  edge, together with APIs reached through `GetProcAddress` pointers), `fastFlagAnalysis_cpu_ms`.
 - **Memory.** `liftFast.memory: "mask"` (default) addresses `x86_flat + (addr & window mask)`: no compare,
   never a host address outside the guest window; a wild pointer aliases guest memory or traps past the committed
   end. `"range"` adds one compare against the committed bound and stops with the usual diagnostic. `"off"` keeps
@@ -442,7 +455,12 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
 - **Generic instructions** execute inline (`x86_fast_exec`) with cooperation deferred; **quantum** polls only
   at function entries and loop headers. A poll runs the scheduler inline when the profile's probe
   (`x86_set_quantum_probe`, Win32: one thread and the frame cap not reached) proves it cannot suspend or
-  transfer; otherwise all native frames unwind (`x86_fast_yield`) and the driver cooperates.
+  transfer; otherwise all native frames unwind (`x86_fast_yield`) and the driver cooperates. **K75:** a poll is
+  later than the interpreter's quantum point (its 2000001st instruction), so cooperation charges exactly what the
+  interpreter would have charged up to the poll (2000000 units per quantum, `x86_quantum_charge`) and carries the
+  remaining instructions into the next quantum instead of dropping them: the guest instruction clock and every time
+  value derived from it (QPC, timeGetTime, GetTickCount) match the interpreter at every API call. Only *where*
+  a quantum yields (which thread runs next, a loop header instead of an instruction) still differs.
 - **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
   the fast emitter as guarded switch candidates; the real computed target is always compared.
 
@@ -454,8 +472,9 @@ assembly passes values in flags or clobbers callee-saved registers, and whenever
 and `memory: "range"` is the checked option. The pipeline default stays `exact` until the game measurement.
 
 Dropped on purpose (STRATEGY-UNRESTRICTED): exact fault order and faulting state, per-instruction entries,
-page holes/protections inside the window, coverage beyond function entries, the exact quantum position, flags
-observed across calls/returns and callee-saved registers clobbered against the ABI. Guest-visible results
+page holes/protections inside the window, coverage beyond function entries, the exact quantum position (not its
+clock charge, K75), flags read by guest code across calls/returns (flags stored by the profile are exact, K75)
+and callee-saved registers clobbered against the ABI. Guest-visible results
 (outputs, API traces, guest instruction clock) match the exact mode on the K52 fixtures and pipeline examples.
 Ablation knobs (`liftFast.{resume,fuse,memory,entries,quantum,stack,inline}`) exist for measurement only.
 Measurements, per-change gains and the go/no-go input: [K52 handoff](handoff/K52.md).
@@ -491,12 +510,21 @@ All default off: the default lift policy, cache keys and generated C are unchang
 is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds.
 
 The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
-(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`x86_sched.c`): the CPU of every live guest thread
+(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`platforms/x86/x86_state.c`): the CPU of every live guest thread
 (GPRs, RIP, flags CF/PF/AF/ZF/SF/OF/DF, fs/gs base, XMM, MXCSR, x87, instruction clock) and every mapped guest page.
 `BGT_ORACLE_STATE=off` or a list of `cpu`, `flags`, `current`, `memory`. Default for exact builds: every thread with
 flags, and memory; for `liftMode: "fast"` builds: the running thread without flags, and memory, with frames that end
 at the instruction cap, and every frame after a second guest thread was live, comparing memory and the live-thread
-count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). Known fast-mode memory difference: `CONTEXT.EFlags` captured by an API (x64-cpp's C++ throw). The
+count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). K75: the vK72 fast-mode
+memory differences (`CONTEXT.EFlags` captured by an API in x64-cpp and x64-heap; a QPC value one microsecond late in
+x64-time after fast quanta dropped their overshoot) are fixed, and `tests/unit/oracle-fast.test.ts` runs the default
+fast-mode oracle on fast copies of x64-cpp, x64-heap, x64-time and x64-gl-programs. Stricter fast-mode sets were
+measured and do not hold: every thread's CPU once a second thread ran, or only the running and API-blocked threads'
+CPU, diverge (x64-time frame 1, x64-threads frame 0; memory and trace identical), because a quantum yields at a loop
+header, not at the interpreter's instruction; flags at an arbitrary frame boundary inside an API are not exact by
+design. The memory part hashes every mapped page and, in flat builds, any unmapped page inside the committed window
+whose host backing holds a nonzero byte (a fast build's masked wild store lands there; vK72b); an all-zero unmapped
+page is not hashed. The
 report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), how many frames hashed memory
 (large guests are hashed less often, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
 bytes: the interpret-only build compiles a fixture in the lifted build's directory (lld embeds paths in PE debug

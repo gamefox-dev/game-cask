@@ -468,7 +468,7 @@ void w32_thread_yield(void) {
  * so a fast lifted frame may run it inline without unwinding. Mirrors the code below. */
 int w32_thread_quantum_probe(void) {
     if (nthreads > 1 || X.transfer) return 0;
-    return w32_clock_quantum_fits(X.frame_insns > 2000000u ? 2000000u : X.frame_insns);
+    return w32_clock_quantum_fits(X.frame_insns > 2000000u ? x86_quantum_charge(X.frame_insns, 0) : X.frame_insns);
 }
 void w32_thread_quantum(void) {
     /* Rotate at 2M units, but end a host update only at the process cap. */

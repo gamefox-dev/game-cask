@@ -246,6 +246,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
   const timeModel = guestTimeModel(p.timeModel);
   const policy = liftPolicy(p);
+  if (policy.liftFast?.testCorrupt === 'stack' && (resolve(gameDir) + '/').startsWith(resolve(ROOT, 'port') + '/')) throw new Error('pipeline.liftFast.testCorrupt is test-only and refused in port builds');
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');

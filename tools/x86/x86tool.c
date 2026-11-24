@@ -950,6 +950,10 @@ int main(int argc, char **argv) {
             if (strcmp(argv[i + 1], "stack") && strcmp(argv[i + 1], "off")) die("--fast-test-corrupt must be stack or off");
             lift_fast_test_corrupt = !strcmp(argv[i + 1], "stack");
         }
+        else if (!strcmp(argv[i], "--fast-flags")) {
+            if (strcmp(argv[i + 1], "observed") && strcmp(argv[i + 1], "abi")) die("--fast-flags must be observed or abi");
+            lift_fast_flags_abi = !strcmp(argv[i + 1], "abi");
+        }
         else if (!strcmp(argv[i], "--fast-calls")) {
             if (strcmp(argv[i + 1], "outlined") && strcmp(argv[i + 1], "inline")) die("--fast-calls must be outlined or inline");
             lift_fast_calls_out = !strcmp(argv[i + 1], "outlined");
@@ -1042,7 +1046,8 @@ int main(int argc, char **argv) {
                     "\"flagsElided\": %u, \"entries\": %u, ",
                     emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved,
                     st.flags_elided, pe.mode64 ? emitted : st.entries);
-            if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, ", lift_fast_functions, lift_fast_inlined); /* K52: fast mode only */
+            if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, \"fastFlagObservers\": %u, \"fastFlagExactExits\": %u, \"fastFlagUnknownCallees\": %u, \"fastFlagAnalysis_cpu_ms\": %.3f, ",
+                                   lift_fast_functions, lift_fast_inlined, l64f_obs_stats[0], l64f_obs_stats[1], l64f_obs_stats[2], l64f_obs_ms); /* K52/K75: fast mode only */
             fprintf(sf, "\"analysis_cpu_ms\": %.3f, \"c_generation_cpu_ms\": %.3f}\n", analysis_ms, generation_ms);
             fclose(sf);
         }

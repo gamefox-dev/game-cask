@@ -143,23 +143,34 @@ void x86_set_scheduler(void (*schedule)(void)) { scheduler = schedule; }
 unsigned x86_fast_depth, x86_fast_yield, x86_fast_inline;
 static int (*quantum_probe)(void);
 void x86_set_quantum_probe(int (*probe)(void)) { quantum_probe = probe; }
-void x86_cooperate(void) {
+/* Interpreter/exact callers (fast = 0) arrive when a quantum's 2000001st instruction starts, before it executes:
+ * charge 2000000; without a transfer it then executes uncounted, with one it re-executes later (counted in the next
+ * quantum, X.tsc counting it twice). K75: fast callers (fast = 1) arrive at a later poll with every counted
+ * instruction executed; they are charged exactly what the interpreter would have charged up to there and carry the
+ * rest (x86_quantum_charge), and on a transfer the trigger instruction's re-execution is accounted for (+1 carried,
+ * +1 X.tsc), so the guest clock and the time derived from it match the interpreter at every later API call. */
+static void x86_cooperate_quantum(int fast) {
     if (x86_fast_inline) return;
     if (!scheduler) x86_fault("AMD64 instruction budget exhausted without scheduler", X.eip);
-    x86_quantum_insns = X.frame_insns > 2000000u ? 2000000u : X.frame_insns;
-    X.frame_insns = 0;
+    uint32_t carry = 0;
+    x86_quantum_insns = X.frame_insns > 2000000u ? x86_quantum_charge(X.frame_insns, &carry) : X.frame_insns;
+    X.frame_insns = fast ? carry : 0;
     double start=0,*span=exclusive_pause(&start);
     int active=interpreter_span_set(0);
     scheduler();
     interpreter_span_set(active);
     exclusive_resume(span,start);
+    if (fast && x86_quantum_insns >= 2000000u && X.transfer) { X.frame_insns++; X.tsc++; }
 }
+void x86_cooperate(void) { x86_cooperate_quantum(0); }
 uint32_t x86_address(uint64_t a) { if(a>UINT32_MAX)x86_fault("64-bit guest pointer outside low address space",X.eip);return (uint32_t)a; }
 /* K52: state (at least X.tsc/X.frame_insns) is published. 0: the quantum ran inline and the
  * fast frame continues; 1: unwind all native frames (x86_fast_yield or X.transfer is set). */
 int x86_fast_quantum(void) {
+    /* K75: the interpreter cooperates only once a quantum's 2000001st instruction starts. */
+    if (X.frame_insns <= 2000000u) return 0;
     if (scheduler && quantum_probe && quantum_probe()) {
-        x86_cooperate();
+        x86_cooperate_quantum(1);
         return X.transfer ? 1 : 0;
     }
     x86_fast_yield = 1;
@@ -767,7 +778,7 @@ static void interp_loop(uint32_t ret_addr, uint32_t esp_floor) {
                 } else if (x86_fast_yield) {
                     /* K52: a fast frame unwound for a quantum that may suspend/transfer. */
                     x86_fast_yield = 0;
-                    x86_cooperate();
+                    x86_cooperate_quantum(1);
                 } else if (X.eip == old && X.tsc == old_clock && !X.transfer) {
                     x86_fault("lifted AMD64 entry made no progress", old);
                 }
@@ -961,7 +972,9 @@ uint64_t x86_callback64(uint32_t fn,uint32_t nargs,const uint64_t *args) {
 #else
     uint64_t saved[16];__builtin_memcpy(saved,X.r,sizeof saved);
     x86_vec_t xmm[16];__builtin_memcpy(xmm,X.xmm,sizeof xmm);
-    uint32_t ip=X.eip;uint64_t sp=(X.r[ESP]-32u-8u*(nargs>4?nargs-4:0))&~15ull;
+    /* K75: EFLAGS pass through a profile call unchanged, also when it runs guest callbacks (Windows leaves them
+     * unspecified after a call); fast lifted code relies on it at observed import call sites. */
+    uint32_t ip=X.eip,flags=X.flags;uint64_t sp=(X.r[ESP]-32u-8u*(nargs>4?nargs-4:0))&~15ull;
     X.r[ESP]=sp;
     static const int regs[4]={ECX,EDX,R8,R9};
     for(uint32_t i=0;i<nargs;i++) {if(i<4)X.r[regs[i]]=args[i];else x86_wr64((uint32_t)sp+32+8*(i-4),args[i]);}
@@ -969,7 +982,7 @@ uint64_t x86_callback64(uint32_t fn,uint32_t nargs,const uint64_t *args) {
     x86_push(X86_CALLBACK_SENTINEL);x86_invoke(fn,X86_CALLBACK_SENTINEL);
     X.callback_depth--;
     uint64_t result=X.r[EAX];
-    if(!X.transfer){__builtin_memcpy(X.r,saved,sizeof saved);__builtin_memcpy(X.xmm,xmm,sizeof xmm);X.eip=ip;}
+    if(!X.transfer){__builtin_memcpy(X.r,saved,sizeof saved);__builtin_memcpy(X.xmm,xmm,sizeof xmm);X.eip=ip;X.flags=flags;}
     return result;
 #endif
 }
