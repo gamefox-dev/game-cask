@@ -113,6 +113,33 @@ it(`check (${shape}): after a reported clobber of a read-only register, a preser
   expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([3, 3, 0x2000, 0x2000, 0x2004, 0x2040]);
 }, 120000);
 
+// vK78b review (HIGH): RBX read only by a generic instruction (BSF eax,ebx: no local, lives in X) and changed by an
+// inlined CPUID. f: sub rsp,0x28; xor eax,eax; call g; bsf eax,ebx; add rsp,0x28; ret.  g (0x40): cpuid; ret
+const GENERIC_READER = Buffer.from('4883ec2831c0e8350000000fbcc34883c428c3' + '90'.repeat(45) + '0fa2c3', 'hex');
+for (const [shape, extra] of [['full sync', []], ['compact', COMPACT]] as [string, string[]][])
+it(`check (${shape}): an inlined CPUID changing RBX that only generic instructions read is reported as kind 4`, async () => {
+  const h = await harness(GENERIC_READER, [0, 0x40], [...FAST, '--fast-inline', '48', ...extra, ...CHECK]);
+  expect(h.text).toContain('L_i1_00002040');
+  const fast = h.run(0, 0);
+  expect(fast).toEqual(h.run(1, 0)); // the inlined copy behaves like the interpreter
+  h.ex.sync_reset(); h.run(0, 0);
+  expect(h.ex.sync_violations(), h.logs.map((l) => l.message).join('\n')).toBe(1);
+  expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([4, 3, 0x2000, 0x2000, 0x2006, 0x2040]);
+}, 120000);
+
+// vK78b review (MEDIUM): after a real callee clobbered RBX (reported once, kind 3), an inlined flag-only generic (CLC)
+// reloads the locals from X; that must not blame the inlined callee. f: sub rsp,0x28; call g; call h; mov eax,ebx;
+// add rsp,0x28; ret.  g (0x40, padded past the inline limit): mov ebx,9; ret.  h (0x80, inlined): clc; ret
+const FLAG_ONLY = Buffer.from('4883ec28e837000000e87200000089d84883c428c3' + '90'.repeat(43) + 'bb09000000c3' + '90'.repeat(58) + 'f8c3', 'hex');
+for (const [shape, extra] of [['full sync', []], ['compact', COMPACT]] as [string, string[]][])
+it(`check (${shape}): an inlined flag-only generic after an earlier clobber is not blamed`, async () => {
+  const h = await harness(FLAG_ONLY, [0, 0x40, 0x80], [...FAST, '--fast-inline', '16', ...extra, ...CHECK]);
+  expect(h.text).toContain('L_i1_00002080'); expect(h.text).not.toContain('L_i1_00002040');
+  h.run(0, 0);
+  expect(h.ex.sync_violations(), h.logs.map((l) => l.message).join('\n')).toBe(1);
+  expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([3, 3, 0x2000, 0x2000, 0x2004, 0x2040]);
+}, 120000);
+
 // Deliberately wrong minimal-sync decisions: the test fails if the check misses them or does not repair them.
 for (const extra of [COMPACT, ['--fast-sync', 'minimal']])
 it(`check (${extra.join(' ')}): wrong minimal-sync decisions are reported (dirty miss, liveness miss) and repaired`, async () => {

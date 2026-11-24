@@ -563,9 +563,21 @@ static void l64f_plan(an_t *a, l64f_fn_t *x, l64f_inline_t *c, uint32_t *used, u
 /* K78 check: whether a function, with everything it would inline (same decisions as l64f_plan), holds a generic
  * (helper-emulated) instruction. Those write registers in X and the following XF_RELOAD puts every used register
  * back into the locals, so l64f_regs (specialized instructions only) does not bound what the subtree changes. */
+/* vK78b: a generic instruction that certainly writes no general register (flag/direction-only, SIMD to an XMM register or
+ * memory); anything else may write any register. */
+static int l64f_generic_no_gpr(const x86_insn_t *in) {
+    switch (in->op) {
+    case XO_CLC: case XO_STC: case XO_CMC: case XO_CLD: case XO_STD: case XO_NOP: return 1;
+    case XO_SIMD: return in->o[0].kind != XK_REG && in->simd_op != 0x7e;
+    default: return 0;
+    }
+}
 static int l64f_plan_generic(an_t *a, l64f_fn_t *x, l64f_inline_t *c) {
     int generic = 0;
-    for (uint32_t k = 0; k < x->n; k++) if (!x->ins[k].len || !l64_specialized(&x->ins[k])) generic = 1;
+    for (uint32_t k = 0; k < x->n; k++) {
+        const x86_insn_t *in = &x->ins[k];
+        if (!in->len || (!l64_specialized(in) && !l64f_generic_no_gpr(in))) generic = 1;
+    }
     for (uint32_t k = 0; k < x->n; k++) {
         func_t *g = l64f_inline_target(a, x, k, c);
         if (!g) continue;
@@ -1028,15 +1040,21 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 c->budget -= g->insns.n; c->stack[++c->depth] = g->addr; lift_fast_inlined++;
                 lift_stats_t copy = *st; /* inlined copies are not additional lifted instructions */
                 /* K78 check: the callee-saved registers the inlined subtree writes must come back unchanged. */
-                uint16_t ck_saved = 0; unsigned ck_depth = c->depth;
+                uint16_t ck_saved = 0; unsigned ck_depth = c->depth; int ck_generic = 0;
                 if (lift_fast_check) {
                     uint32_t pu = 0, pw = 0; l64f_inline_t cc = *c; l64f_plan(a, y, &cc, &pu, &pw);
-                    /* Every write path: specialized writes (l64f_plan) and, when the subtree holds a generic
-                     * instruction, every register the locals reload from X after it (vK78: an inlined CPUID). */
+                    /* Every write path: specialized writes (l64f_plan) and, when the subtree holds a generic instruction
+                     * that may write a general register (vK78: an inlined CPUID), every callee-saved register: one the
+                     * function keeps in a local reloads from X after it, any other lives in X only (vK78b: read only by
+                     * generic instructions, e.g. BSF eax,ebx). Flag-only generics (CLC) write no register. */
                     cc = *c;
-                    if (l64f_plan_generic(a, y, &cc)) pw |= l64f_used_set;
-                    ck_saved = (uint16_t)(pw & L64F_CALLEE_SAVED);
-                    for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) fprintf(o, "xc%u_%d=r[%d];", ck_depth, i, i);
+                    ck_generic = l64f_plan_generic(a, y, &cc);
+                    ck_saved = (uint16_t)((ck_generic ? 0xffffu : pw) & L64F_CALLEE_SAVED);
+                    for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) {
+                        if (!(l64f_used_set & (1u << i))) fprintf(o, "xc%u_%d=X.r[%d];", ck_depth, i, i);
+                        else if (ck_generic) fprintf(o, "xc%u_%d=r[%d];xd%u_%d=X.r[%d];", ck_depth, i, i, ck_depth, i, i);
+                        else fprintf(o, "xc%u_%d=r[%d];", ck_depth, i, i);
+                    }
                 }
                 l64f_body(o, a, y, st, c, gpre, next, label, l64_fast_sp, (uint16_t)(dk | L64F_RSP), live_next);
                 *st = copy;
@@ -1046,9 +1064,14 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                  * real r[4], exactly as after a non-inlined call. */
                 fprintf(o, "%s: __attribute__((unused));", label); l64f_spset(o, sp_call);
                 for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) {
-                    char reg[8], got[16], want[16], callee[16];
-                    snprintf(reg, sizeof reg, "%d", i); snprintf(got, sizeof got, "r[%d]", i); snprintf(want, sizeof want, "xc%u_%d", ck_depth, i); snprintf(callee, sizeof callee, "0x%08xu", g->addr);
-                    fprintf(o, "if(__builtin_expect(r[%d]!=%s,0)){", i, want); l64f_ck_report(o, 4, reg, x, callee, got, want); fputs("}", o);
+                    char reg[8], got[16], want[16], callee[16]; int local = (l64f_used_set & (1u << i)) != 0;
+                    snprintf(reg, sizeof reg, "%d", i); snprintf(got, sizeof got, local ? "r[%d]" : "X.r[%d]", i);
+                    snprintf(want, sizeof want, "xc%u_%d", ck_depth, i); snprintf(callee, sizeof callee, "0x%08xu", g->addr);
+                    /* vK78b: a reload after a generic instruction that only brings back a value X already held at the call
+                     * (an earlier, already reported clobber) is not this callee's change. */
+                    if (local && ck_generic) fprintf(o, "if(__builtin_expect(r[%d]!=%s&&r[%d]!=xd%u_%d,0)){", i, want, i, ck_depth, i);
+                    else fprintf(o, "if(__builtin_expect(%s!=%s,0)){", got, want);
+                    l64f_ck_report(o, 4, reg, x, callee, got, want); fputs("}", o);
                 }
                 fprintf(o, "\n");
                 continue;
@@ -1133,7 +1156,7 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
         fputs("uint16_t xs=0,xk=0;(void)xs;(void)xk;", o);
         for (int i = 0; i < 16; i++) if ((L64F_CALLEE_SAVED & used & ~written) & (1u << i)) fprintf(o, "uint64_t xr_%d=0;(void)xr_%d;", i, i);
         for (unsigned d = 1; d <= L64F_INLINE_DEPTH; d++) for (int i = 0; i < 16; i++)
-            if ((L64F_CALLEE_SAVED & used) & (1u << i)) fprintf(o, "uint64_t xc%u_%d=0;(void)xc%u_%d;", d, i, d, i);
+            if (L64F_CALLEE_SAVED & (1u << i)) fprintf(o, "uint64_t xc%u_%d=0,xd%u_%d=0;(void)xc%u_%d;(void)xd%u_%d;", d, i, d, i, d, i, d, i);
         fputs("x86_sync_check.live=1;\n", o);
     }
     fprintf(o, "XR_OWNER(0x%08xu)\nXF_RELOAD\nswitch(pc){", f->addr);

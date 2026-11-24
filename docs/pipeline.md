@@ -583,6 +583,13 @@ minimal sync; 3/4 are guest code outside the Win64 contract (MSVC LTCG custom co
 name the function for an override or `liftMode: "exact"`. EFLAGS are not checked (fast mode never computes dead
 flags; K75 covers the profile's observers). With `sync: "full"` only kinds 3 and 4 are checked. Cost and the porter
 procedure: [K78 handoff](handoff/K78.md).
+Known limits (diagnostic, opt-in; vK78b ruling): the logged first violation of a site names the first callee seen
+there; later different callees at the same indirect call site are counted (`violations`, per kind) but not logged
+again (logging is per distinct kind, register and PC). Kind 4 treats an inlined generic instruction that may write a
+general register as writing every callee-saved one (flag-only and SIMD-to-XMM/memory generics excepted) and does not
+blame a reload that only brings back a value `X` already held at the call (an earlier clobber, reported as kind 3); a
+callee that writes exactly that same value again is not reported. Kind 3 reports a register the caller only reads
+once per clobber (the clobbered value becomes the reference).
 
 The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
 (vK72, default) a guest-state hash from `bgt_guest_state_hash` (`platforms/x86/x86_state.c`): the CPU of every live guest thread
