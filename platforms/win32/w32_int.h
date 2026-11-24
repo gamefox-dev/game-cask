@@ -123,6 +123,7 @@ int w32_clock_quantum_fits(uint32_t units, uint32_t carry); /* K52; K75 carry */
 void w32_clock_present(uint32_t interval);
 int w32_clock_swap0(int budget_full);
 void w32_gl_host_yield(int resume);
+void w32_gl_finish_swap0(void);
 void w32_gl_charge_foreign(uint32_t bytes, uint32_t commands);
 uint64_t w32_gl_deferred_yields(void);
 uint64_t w32_gl_torn_frames(void);

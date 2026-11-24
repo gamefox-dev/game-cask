@@ -98,10 +98,17 @@ for(const {mib,artifactBytes,updates,heavy} of [{mib:64,artifactBytes:2_000_000,
       expect(result.memoryBytes).toBeGreaterThan(mib*1024**2);
       expect(result.pages).toBeLessThan(heavy?110:40);
       if(heavy)expect(result.stats.nativeBytes).toBeGreaterThanOrEqual(240*1024**2);
-      // Baseline can be measured against the base runtime (the comparable timings
-      // are printed above); the dirty/replay work bound is independent of hardware.
-      if(result.stats.replayFrames!==undefined) expect(result.stats.replayFrames).toBeLessThan(128);
-      if(heavy&&result.stats.replayFrames!==undefined)expect(result.stats.readbackBytes).toBeLessThan(1024**2);
+      // The work bounds are independent of hardware. Missing counters fail,
+      // as does bypassing replay in the heavy case (it needs a packed cut).
+      expect(result.stats.replayFrames).toBeLessThan(128);
+      expect(result.journal.error).toBeNull();
+      expect(result.journal.compactions).toBeGreaterThan(0);
+      if(heavy) {
+        expect(result.stats.replayFrames).toBeGreaterThan(0);
+        expect(result.stats.readbackBytes).toBeGreaterThan(0);
+        expect(result.stats.readbackBytes).toBeLessThan(1024**2);
+        expect(result.snapshotMs).toBeLessThan(5000);
+      }
     } finally {rmSync(path,{force:true});rmSync(dir,{recursive:true,force:true});}
   });
 }

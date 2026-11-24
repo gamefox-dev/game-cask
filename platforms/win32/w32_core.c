@@ -33,9 +33,10 @@ static int started;
 /* Test-mode JSPI handshake. All continuation fields are ordinary wasm state. */
 static int checkpoint_enabled, checkpoint_parked, checkpoint_root, schedule_phase;
 static uint32_t entry_floor;
-static int pending_present_return;
+static int pending_present_return, finish_parked_swap0;
 static x86_word_t present_result;
 static int wait_host(int transport, int portable);
+static void wait_present(int swap0);
 void w32_enable_checkpoint_boundaries(void) {
 #ifdef X86_FLAT_GUEST
     if (!started) checkpoint_enabled = 1;
@@ -180,7 +181,7 @@ int w32_clock_swap0(int budget_full) {
     else boundary_us=target+(now-target)/BGT_DT_US*BGT_DT_US;
     present_us=now>boundary_us?now:boundary_us;
     frame_units=0;clock_frames++;swap_units=0;swap_us=boundary_us;
-    w32_wait_present();
+    wait_present(1);
     return 1;
 }
 int w32_schedule_idle(uint32_t ms, int portable) {
@@ -921,13 +922,15 @@ static void resume_host(void) {
 }
 void w32_wait_frame(void) { wait_frame(0); }
 void w32_wait_transport(void) { transport_yields++;wait_host(1,0); }
-void w32_wait_present(void) {
+static void wait_present(int swap0) {
     transport_yields++;
     /* At the tail of a real import, the thunk can finish the guest ABI return
      * before the outer flat dispatcher drops its C frames. Other callers (e.g.
      * a window-proc callback) keep the original JSPI wait and native locals. */
-    wait_host(1,checkpoint_root && x86_checkpoint_can_return());
+    if (wait_host(1,checkpoint_root && x86_checkpoint_can_return())) finish_parked_swap0 = swap0;
+    else if (swap0) w32_gl_finish_swap0();
 }
+void w32_wait_present(void) { wait_present(0); }
 int w32_checkpoint_exit(int outer_return) {
     if (!checkpoint_root || (!outer_return && !x86_checkpoint_can_return())) return 0;
     /* A root ExitProcess import or last-thread return has no guest continuation. */
@@ -942,6 +945,7 @@ static void portable_update(void) {
         checkpoint_parked = 0;
         if (X.transfer == X86_CHECKPOINT) X.transfer = 0;
         resume_host();
+        if (finish_parked_swap0) { finish_parked_swap0 = 0; w32_gl_finish_swap0(); }
         if (pending_present_return) {
             pending_present_return = 0;
             X.r[EAX] = present_result;

@@ -61,7 +61,7 @@ function blendState(mode: number): GPUBlendState | undefined {
   return undefined;
 }
 
-import type { CheckpointSurfaces } from '../checkpoint-surfaces';
+import type { CheckpointRenderer, CheckpointSurfaces } from '../checkpoint-surfaces';
 import { WebGPUTiming } from './timing';
 
 /** Logical §13 passes of a frame (stats.passes counts these plus 2D passes). */
@@ -586,7 +586,8 @@ export class WebGPURenderer implements Renderer {
     return { width: w, height: h, data };
   }
 
-  declare captureTestSurfaces: (letterbox: Letterbox) => Promise<CheckpointSurfaces>;
+  declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
+  declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];
   declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;
 
   async finish(): Promise<void> {

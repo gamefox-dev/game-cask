@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import binaryen from 'binaryen';
 import { proveResidual } from '../../bgt/runtime/savestate-gpu';
-import { GPU_OP as O } from '../../bgt/runtime/abi';
+import { GameHost } from '../../bgt/runtime/host';
+import { Vfs } from '../../bgt/runtime/vfs';
+import { ABI_VERSION, BACKEND_HEADLESS, GPU_OP as O } from '../../bgt/runtime/abi';
 import { Frame } from '../../bgt/runtime/commands';
 import { recordFrame } from '../../bgt/renderers/recording';
 import { captureWasm, restoreWasm, instrumentCheckpointWasm, checkpointName, checkpointDirty } from '../../bgt/runtime/savestate-wasm';
-import { markHostWrite, supportsDirtyTracking } from '../../bgt/runtime/savestate-dirty';
+import { supportsDirtyTracking } from '../../bgt/runtime/savestate-dirty';
+import { trackCheckpointHost } from '../../bgt/runtime/savestate-host';
 import { exportSavestate, importSavestate } from '../../bgt/runtime/savestate-file';
 import type { Savestate } from '../../bgt/runtime/savestates';
 const wasm = (wat: string): Uint8Array<ArrayBuffer> => { const m = binaryen.parseText(wat); try { return new Uint8Array(m.emitBinary()); } finally { m.dispose(); } };
@@ -70,17 +73,38 @@ describe('complete engine-state checkpoints',()=>{
     expect([...dirty.slice(0,11)]).toEqual([1,1,1,1,1,1,0,0,0,1,0]);
     const memory=(e:WebAssembly.Exports)=>new Uint8Array((e.memory as WebAssembly.Memory).buffer);
     expect(Buffer.compare(memory(a),memory(original))).toBe(0);
-    // A host import writing across a page edge has no wasm store instruction.
-    memory(a).set([0x48,0x49],458751);markHostWrite(dirty,458751,2); markHostWrite(dirty,655360,-5);
     const state=captureWasm(a);
     expect(state.memory.baseline).toBe('module');
-    expect([...state.memory.pages.keys()]).toEqual([0,1,2,3,4,5,6,7,9].map(page=>page*65536));
+    expect([...state.memory.pages.keys()]).toEqual([0,1,2,3,4,5,9].map(page=>page*65536));
     expect(state.memory.pages.get(0)?.slice(10,15)).toEqual(new Uint8Array(5));
     expect(dirty[10]).toBe(0);
     const b=(await WebAssembly.instantiate(bytes)).instance.exports;
     restoreWasm(b,state);expect(Buffer.compare(memory(a),memory(b))).toBe(0);
     expect(captureWasm(b)).toEqual(state);
     (a.mutate as ()=>void)();(b.mutate as ()=>void)();expect(captureWasm(b)).toEqual(captureWasm(a));
+  });
+  it.skipIf(!supportsDirtyTracking())('tracks real host imports made by startup exports, including writes across a page edge',async()=>{
+    const raw=wasm(`(module
+      (import "bgt" "random_bytes" (func $random (param i32 i32) (result i32)))
+      (memory (export "memory") 5)
+      (data (i32.const 262144) "untouched")
+      (func (export "bgt_abi_version") (result i32)
+        (drop (call $random (i32.const 131071) (i32.const 2))) (i32.const ${ABI_VERSION}))
+      (func (export "bgt_io") (result i32)
+        (drop (call $random (i32.const 196610) (i32.const 2))) (i32.const 8))
+      (func (export "bgt_init") (param i32) (result i32) (i32.const 0))
+      (func (export "bgt_update") (param i32)) (func (export "bgt_render")) (func (export "bgt_shutdown")))`);
+    const bytes=instrumentCheckpointWasm(raw,true);
+    const host=await GameHost.create(bytes,{vfs:new Vfs(), log:()=>{}, now:()=>0, entropy:b=>b.set([0x48,0x49])},
+      {backend:BACKEND_HEADLESS,caps:0,seed:1,arg0:0,arg1:0,displayWidth:1,displayHeight:1},trackCheckpointHost);
+    const memory=new Uint8Array(host.memory.buffer);
+    expect([...memory.slice(131071,131073), ...memory.slice(196610,196612)]).toEqual([0x48,0x49,0x48,0x49]);
+    const state=host.checkpoint().wasm;
+    expect(state.memory.baseline).toBe('module');
+    expect([...state.memory.pages.keys()]).toEqual([1,2,3].map(page=>page*65536));
+    const fresh=(await WebAssembly.instantiate(bytes,{bgt:{random_bytes:()=>0}})).instance.exports;
+    restoreWasm(fresh,state);
+    expect(Buffer.compare(new Uint8Array(host.memory.buffer),new Uint8Array((fresh.memory as WebAssembly.Memory).buffer))).toBe(0);
   });
   it('falls back to an exact sparse scan for untracked SIMD stores',async()=>{
     const raw=wasm(`(module (memory (export "memory") 3) (data (i32.const 0) "a")

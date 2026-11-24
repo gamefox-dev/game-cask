@@ -217,7 +217,7 @@ export class BGTRuntime {
   /** Installed only by the opt-in test API, before start(). */
   declare testHarness?: {
     services(s: HostServices): HostServices;
-    trackHost(host: GameHost): GameHost;
+    trackHost(host: GameHost): void;
     updated(): void;
     afterFrame?(): Promise<void>;
     frame(frame: Frame, letterbox: Letterbox, update: number, width: number, height: number): void;
@@ -558,10 +558,9 @@ export class BGTRuntime {
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testHarness) {
         Object.assign(config, {checkpointBoundaries:true});
         const harness=this.testHarness;
-        this.testHostFactory = renderer => GameHost.create(wasm,actualServices,{...config,gpuBackend:renderer.gpu}).then(harness.trackHost);
-      }
-      this.host = await GameHost.create(wasm,actualServices,config);
-      if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testHarness?.trackHost(this.host);
+        this.testHostFactory = renderer => GameHost.create(wasm,actualServices,{...config,gpuBackend:renderer.gpu},harness.trackHost);
+        this.host = await this.testHostFactory(this.renderer);
+      } else this.host = await GameHost.create(wasm,actualServices,config);
       this.linearAtInstantiate = this.host.memoryBytes;
       this.loadMarks.instantiateMs = this.host.instantiateMs;
       this.samplePeak();

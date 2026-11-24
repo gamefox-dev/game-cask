@@ -3,8 +3,10 @@
 // including resources deleted/reused later in the suffix. No end-of-suffix shadows.
 import { GPU_OP as O } from './abi';
 import { Frame, type FrameItem } from './commands';
-import { canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
-import {recordCheckpointFrame,restoreCheckpointItems,CheckpointReplay,type CheckpointFrame} from './savestate-recording';
+import { TEXEL_BYTES, canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
+import {recordCheckpointFrame,restoreCheckpointItems,CheckpointReplay,checkpointFrameBytes,type CheckpointFrame} from './savestate-recording';
+import { checkpointShadowBytes, detachedRendererBytes } from './savestate-budget';
+import { cloneCheckpoint } from './savestate-clone';
 import type { Renderer, GpuItem } from '../renderers/types';
 import type { CheckpointRenderer, CheckpointSurfaces } from '../renderers/checkpoint-surfaces';
 
@@ -23,7 +25,7 @@ interface Texture {
 interface Resources {
   buffers: Map<number,GpuItem>; textures: Map<number,Texture>; samplers: Map<number,GpuItem>;
   shaders: Map<number,GpuItem>; pipelines: Map<number,GpuItem>; feedback: Map<number,GpuItem>;
-  legacy: Map<number,{item: Extract<FrameItem,{kind:'texCreate'}>; data: Uint8Array<ArrayBuffer>}>;
+  legacy: Map<number,{item: Extract<FrameItem,{kind:'texCreate'}>; updates: Extract<FrameItem,{kind:'texUpdate'}>[]}>;
 }
 type TextureShadow = CheckpointSurfaces['textures'][number];
 const mipShadow=(shadow:TextureShadow|undefined,mip:number)=>shadow?.levels?.[mip]??shadow?.uploads?.find(u=>u.words[1]===mip)?.data;
@@ -49,12 +51,9 @@ function resources(records: CheckpointFrame[], base: GPUCheckpoint|null = null):
     const code=(item as unknown as {executeCode?:number}).executeCode;
     if(code && item.kind==='gpu' && item.op!==O.SHADER_CREATE && item.op!==O.PIPELINE_CREATE)
       throw new Error('Unsupported savestate GPU failed mutation: '+item.op+' ('+code+')');
-    if (item.kind === 'texCreate') r.legacy.set(item.handle,{item,data:new Uint8Array(item.width*item.height*4)});
+    if (item.kind === 'texCreate') r.legacy.set(item.handle,{item,updates:[]});
     if (item.kind === 'texDelete') r.legacy.delete(item.handle);
-    if (item.kind === 'texUpdate') {
-      const t=r.legacy.get(item.handle)!;
-      for(let y=0;y<item.h;y++) t.data.set(item.data.subarray(y*item.w*4,(y+1)*item.w*4),((y+item.y)*t.item.width+item.x)*4);
-    }
+    if (item.kind === 'texUpdate') r.legacy.get(item.handle)!.updates.push(item);
     if (item.kind !== 'gpu') continue;
     const {op,words:w}=canonicalize(item.op,item.words), h=w[0], it={...item,op,words:w};
     switch(op) {
@@ -179,26 +178,42 @@ function checkResidual(r: Resources,residual: CheckpointFrame[]): void {
   }
   if([...pending.values()].some(p=>[...p.values()].some(Boolean))) throw new Error('Unsupported savestate GPU provenance: no full packed depth/stencil clear within two updates');
 }
-interface ReplayCursor {renderer: Renderer & CheckpointRenderer; replay: CheckpointReplay}
-export function checkpointReplay(renderer: Renderer & CheckpointRenderer): ReplayCursor {
-  return {renderer,replay:new CheckpointReplay(renderer)};
+export class ReplayCursor {
+  readonly replay: CheckpointReplay;
+  private legacy = new Map<number,number>();
+  private shaders = new Map<number,number>();
+  private extraBytes = 0;
+  constructor(readonly renderer: Renderer & CheckpointRenderer) { this.replay=new CheckpointReplay(renderer); }
+  bytes():number { return detachedRendererBytes(this.renderer)+this.extraBytes; }
+  async draw(frame:CheckpointFrame, finish?:boolean):Promise<void> {
+    const set=(map:Map<number,number>,h:number,n:number)=>{this.extraBytes+=n-(map.get(h)??0);if(n)map.set(h,n);else map.delete(h);};
+    for(const i of frame.items) {
+      if(i.kind==='texCreate')set(this.legacy,Number(i.handle),Number(i.width)*Number(i.height)*4+256);
+      if(i.kind==='texDelete')set(this.legacy,Number(i.handle),0);
+      if(i.kind==='gpu'&&Array.isArray(i.words)) {
+        if(i.op===O.SHADER_CREATE)set(this.shaders,i.words[0],96+String(i.source??'').length*2);
+        if(i.op===O.SHADER_DELETE)set(this.shaders,i.words[0],0);
+      }
+    }
+    await this.replay.draw(frame,finish);
+  }
 }
-async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
+async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, journal: CheckpointFrame[], check:()=>void): Promise<void> {
   const {renderer,replay}=cursor;
-  replay.check();
-  if(base) { await replay.draw(base.frame); renderer.restoreTestSurfaces(base.surfaces); }
+  replay.check();check();
+  if(base) { await cursor.draw(base.frame); check();renderer.restoreTestSurfaces(base.surfaces);check(); }
   // WebGPU canvas current textures are invalidated at task boundaries. A fixed
   // GPU fence every batch bounds queued work without a per-frame GPU/CPU rendezvous.
-  for(let i=0;i<journal.length;i++) await replay.draw(journal[i], (i+1)%16===0||i===journal.length-1);
+  for(let i=0;i<journal.length;i++) {await cursor.draw(journal[i], (i+1)%16===0||i===journal.length-1);check();}
   if(base&&!journal.length)await renderer.finish();
   replay.check();
 }
-export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[]): Promise<void> {
-  const cursor=checkpointReplay(renderer);
-  try {await advanceReplay(cursor,base,journal);} finally {cursor.replay.stop();}
+export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[], check:(bytes:number)=>void): Promise<void> {
+  const cursor=new ReplayCursor(renderer);
+  try {await advanceReplay(cursor,base,journal,()=>check(cursor.bytes()));} finally {cursor.replay.stop();}
 }
 export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBase:boolean}>, base: GPUCheckpoint | null,
-    journal: CheckpointFrame[], live:Renderer & CheckpointRenderer) {
+    journal: CheckpointFrame[], live:Renderer & CheckpointRenderer, check:(nextBase:number,staging:number,residual:CheckpointFrame[],keepReplay:boolean)=>void) {
   if(!journal.length&&base)return {base,journal,keepReplay:true,stats:{nativeBytes:base.nativeBytes??0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0,readbackMs:0,readbackBytes:0,provenanceMs:0}};
   const proofAt=performance.now(),last=journal.at(-1) ?? base?.frame;
   if(!last) return {base,journal,keepReplay:false,stats:{nativeBytes:0,residualCommands:0,residualUpdates:0,replayFrames:0,replayMs:0,readbackMs:0,readbackBytes:0,provenanceMs:0}};
@@ -226,19 +241,22 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
   if(needsReplay){
     const state=await getReplay();cursor=state.cursor;
     source=cursor.renderer;
-    await advanceReplay(cursor,state.atBase?null:base,prefix);
+    await advanceReplay(cursor,state.atBase?null:base,prefix,()=>check(0,0,residual,false));
   }
   const replayMs=needsReplay?performance.now()-replayStart:0;
   const readAt=performance.now();
-  const surfaces=await source.captureTestSurfaces(at.letterbox);
-  const textureShadows=new Map(surfaces.textures.map(t=>[t.handle,t]));
+  const {shadows,lazy,pixelBytes}=source.inspectTestSurfaces();
+  const textureShadows=new Map(shadows.textures.map(t=>[t.handle,t]));
+  const exactUploads: [GpuItem,number,number][]=[];
+  const fillLegacy:(()=>void)[]=[];
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
   const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
   const pending: Promise<void>[]=[];
-  let nativeBytes=surfaces.physical.data.length+(surfaces.logical?.data.length??0),readbackBytes=nativeBytes;
-  const read=(item: FrameItem, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
+  let nativeBytes=pixelBytes,readbackBytes=pixelBytes,readBytes=0,legacyBytes=0,stagingBytes=2*pixelBytes;
+  const read=(item: FrameItem, bytes:number, staging:number, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
+    readBytes+=bytes;stagingBytes+=staging;
     pending.push(new Promise<void>((resolve,reject)=>{
-      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {if(!data||error)reject(new Error('Savestate native readback failed: '+error));else {try{nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();}catch(e){reject(e);}}};
+      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {if(!data||error||data.length!==bytes)reject(new Error('Savestate native readback failed: '+error));else {try{nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();}catch(e){reject(e);}}};
       if(item.kind==='gpu') item.readback=done;
       else if(item.kind==='readback') item.complete=done;
       reads.items.push(item);
@@ -246,12 +264,25 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
   };
   for(const [h,b] of r.buffers) {
     const create={...b,words:[h,b.words[1],b.words[2],0,b.words[2]]};frame.items.push(create);
-    read({kind:'gpu',op:O.BUFFER_READBACK,words:[h,0,b.words[2],0]},data=>{create.data=data;});
+    delete create.data; // don't charge an old upload in addition to the planned readback
+    read({kind:'gpu',op:O.BUFFER_READBACK,words:[h,0,b.words[2],0]},b.words[2],source.kind==='webgpu'?Math.ceil(b.words[2]/4)*4:0,data=>{create.data=data;});
   }
   for(const [h,t] of r.textures) {
     frame.items.push(t.item);
     if(t.allocated>1)frame.items.push({kind:'gpu',op:O.TEXTURE_ALLOCATE_MIPS,words:[h,t.allocated]});
     const desc=toCanonicalTexture(t.item.words);
+    const levels=lazy.get(h);
+    if(levels) {
+      // K71: replay only the deferred clears. No native readback is needed,
+      // and neither successful nor rejected capture allocates live storage.
+      levels.forEach((c,mip)=>{
+        if(c?.color)frame.items.push({kind:'gpu',op:O.PASS_BEGIN,words:[1,0,0,0,0,0,0,h,mip,1,...c.color]},
+          {kind:'gpu',op:O.PASS_END,words:[]});
+        else if(c&&(c.depth!==undefined||c.stencil!==undefined))frame.items.push({kind:'gpu',op:O.PASS_BEGIN,
+          words:[0,h,mip,c.depth===undefined?0:1,c.stencil===undefined?0:1,c.depth??0,c.stencil??0]}, {kind:'gpu',op:O.PASS_END,words:[]});
+      });
+      continue;
+    }
     if(desc.format===5) {
       for(let mip=0;mip<t.allocated;mip++) {
         const [depth,stencil]=t.constants[mip];
@@ -268,10 +299,12 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
       if(exact?.length===e.width*e.height*e.depth*4) {
         // Share the already owned shadow copy; no second GPU->CPU transfer or
         // duplicate in-memory clone. Capture still owns its data independently.
-        update.data=exact;update.words=[...update.words.slice(0,9),exact.length];nativeBytes+=exact.length;continue;
+        exactUploads.push([update,h,mip]);update.words=[...update.words.slice(0,9),exact.length];nativeBytes+=exact.length;continue;
       }
       t.exactUploads.delete(mip);
-      read({kind:'gpu',op:O.TEXTURE_READBACK,words:[h,mip,0,0,0,e.width,e.height,e.depth,0]},data=>{
+      const row=e.width*TEXEL_BYTES[desc.format];
+      read({kind:'gpu',op:O.TEXTURE_READBACK,words:[h,mip,0,0,0,e.width,e.height,e.depth,0]},row*e.height*e.depth,
+        source.kind==='webgpu'?Math.ceil(row/256)*256*e.height*e.depth:e.width*e.height*16,data=>{
         // GL color readback expands half-floats through JS, which cannot preserve
         // arbitrary NaN payloads. Never silently canonicalize a non-readable value.
         const half=[4,8,9].includes(desc.format),float=[6,10,11,12].includes(desc.format),dv=new DataView(data.buffer,data.byteOffset,data.byteLength);
@@ -284,22 +317,37 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
   }
   for(const t of r.legacy.values()) {
     frame.items.push(t.item);
-    const update:Extract<FrameItem,{kind:'texUpdate'}>={kind:'texUpdate',handle:t.item.handle,x:0,y:0,w:t.item.width,h:t.item.height,data:t.data};
+    const {width:w,height:h,handle}=t.item, bytes=w*h*4;
+    const update:Extract<FrameItem,{kind:'texUpdate'}>={kind:'texUpdate',handle,x:0,y:0,w,h,data:new Uint8Array(0)};
     frame.items.push(update);
-    if(t.item.renderTarget)read({kind:'readback',target:t.item.handle,x:0,y:0,w:t.item.width,h:t.item.height,complete:()=>{}},data=>{update.data=data;});
-    else nativeBytes+=t.data.length;
+    if(t.item.renderTarget)read({kind:'readback',target:handle,x:0,y:0,w,h,complete:()=>{}},bytes,source.kind==='webgpu'?Math.ceil(w*4/256)*256*h:bytes,data=>{update.data=data;});
+    else {legacyBytes+=bytes;nativeBytes+=bytes;fillLegacy.push(()=>{
+      const data=update.data=new Uint8Array(bytes);
+      for(const u of t.updates)for(let y=0;y<u.h;y++)data.set(u.data.subarray(y*u.w*4,(y+1)*u.w*4),((y+u.y)*w+u.x)*4);
+    });}
   }
   frame.items.push(...r.samplers.values(),...r.shaders.values(),...r.pipelines.values(),...r.feedback.values());
+  const packedConstants: CheckpointFrame['packedConstants']=[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants]);
+  const pack=()=>({...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),packedConstants});
+  const keepReplay=needsReplay&&!legacyTargets;
+  const planned=checkpointFrameBytes(pack())+checkpointShadowBytes(shadows,new Set())+pixelBytes+readBytes+legacyBytes;
+  check(planned,stagingBytes,residual,keepReplay);
+  const surfaces=await source.captureTestSurfaces(at.letterbox,cloneCheckpoint(shadows));
+  const capturedTextures=new Map(surfaces.textures.map(t=>[t.handle,t]));
+  for(const [update,h,mip] of exactUploads) update.data=mipShadow(capturedTextures.get(h),mip)!;
+  for(const fill of fillLegacy)fill();
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
   if(legacyTargets)await source.drawFrame(reads,at.letterbox,false);
-  else for(const item of reads.items){if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');source.gpu!.execute(item);}
+  else for(const item of reads.items){
+    if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');
+    const code=source.gpu!.execute(item);if(code)item.readback?.(undefined,code);
+  }
   await source.finish();
   const error=await done;if(error)throw error;
   cursor?.replay.check();
   const readbackMs=performance.now()-readAt;
-  const compact:GPUCheckpoint={nativeBytes,frame:{...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),
-    packedConstants:[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants])},surfaces};
+  const compact:GPUCheckpoint={nativeBytes,frame:pack(),surfaces};
   // Legacy readFrame can present a redraw; don't reuse it as a pixel-exact cut.
-  return {base:compact,journal:residual,keepReplay:needsReplay&&!legacyTargets,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
+  return {base:compact,journal:residual,keepReplay,stats:{nativeBytes,residualCommands:residual.reduce((n,f)=>n+f.items.length,0),
     residualUpdates:new Set(residual.map(f=>f.update)).size,replayFrames:needsReplay?prefix.length:0,replayMs,readbackMs,readbackBytes,provenanceMs}};
 }

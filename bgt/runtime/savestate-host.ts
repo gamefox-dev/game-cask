@@ -2,13 +2,12 @@
 import { GameHost, HostError } from './host';
 import { captureWasm, checkpointDirty, restoreWasm } from './savestate-wasm';
 import { markHostWrite } from './savestate-dirty';
-export function trackCheckpointHost(host: GameHost): GameHost {
+export function trackCheckpointHost(host: GameHost): void {
   const bitmap = host['rawExports'][checkpointDirty];
   if (bitmap instanceof WebAssembly.Memory) {
     const dirty = new Uint8Array(bitmap.buffer);
     host.testTrackWrites = (at, bytes) => markHostWrite(dirty,at,bytes);
   }
-  return host;
 }
 import {cloneCheckpoint} from './savestate-clone';
 export function assertBoundary(this: GameHost): void {

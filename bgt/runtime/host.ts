@@ -304,7 +304,8 @@ export class GameHost {
     if (this.gpu?.backend.constAttrib) config.caps |= CAP_GPU_CONST_ATTRIB; else config.caps &= ~CAP_GPU_CONST_ATTRIB;
   }
 
-  static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig): Promise<GameHost> {
+  static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig,
+    onInstance?: (host: GameHost) => void): Promise<GameHost> {
     const host = new GameHost(services, config);
     const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
     const imports = host.imports();
@@ -344,6 +345,9 @@ export class GameHost {
         host.wasmEntries++;
         try { return value(...args); } catch (error) { host.abortProfile(); throw error; } finally { host.wasmEntries--; }
       }])) as unknown as GameExports;
+    // Instrumented modules reject wasm start functions. Install write tracking
+    // with memory bound but before *any* startup export can call a host import.
+    if (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) onInstance?.(host);
     // promising requires the actual wasm function, not the synchronous guard.
     if (config.suspensionMode === 'jspi') {
       host.jspiUpdate = jspiApi()!.promising(instance.exports.bgt_update as GameExports['bgt_update']);

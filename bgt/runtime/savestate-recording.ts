@@ -22,10 +22,16 @@ export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:num
       return [{...item}];
     })};
 }
-export function checkpointFrameBytes(f:CheckpointFrame):number {
-  let bytes=128+(typeof f.vertices==='string'?f.vertices.length*2:f.vertices.byteLength);
+export function checkpointFrameBytes(f:CheckpointFrame,seen=new Set<ArrayBufferLike>()):number {
+  const dataBytes=(v:Uint8Array|string|undefined)=>{
+    if(typeof v==='string')return v.length*2;
+    if(!v||seen.has(v.buffer))return 0;
+    seen.add(v.buffer);return v.buffer.byteLength;
+  };
+  let bytes=128+dataBytes(f.vertices);
+  for(const [,levels] of f.packedConstants??[])bytes+=32+32*levels.length;
   for(const i of f.items)bytes+=96+(Array.isArray(i.words)?i.words.length*8:0)+
-    (i.data instanceof Uint8Array?i.data.byteLength:typeof i.data==='string'?i.data.length*2:0)+
+    dataBytes(i.data instanceof Uint8Array||typeof i.data==='string'?i.data:undefined)+
     (typeof i.source==='string'?i.source.length*2:0);
   return bytes;
 }
