@@ -68,11 +68,18 @@ export function textureReadbackStagingBytes(kind: Renderer['kind'], format: numb
 // A post-frame census alone misses create/delete pairs and old+new mip stores.
 // Count deletions only at the next census (queued native work can still use them).
 export class ReplayAllocations {
-  private textures=new Map<number,{desc:CanonicalTexture;mips:number}>();
+  private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean}>();
   constructor(private kind:Renderer['kind']) {}
+  restoreShadows(s:CheckpointShadows):void {
+    for(const t of this.textures.values())t.shadows.clear();
+    for(const data of s.textures){
+      const t=this.textures.get(data.handle);if(!t)continue;
+      data.levels?.forEach((level,mip)=>{if(level)t.shadows.add(mip);});
+      for(const u of data.uploads??[])t.shadows.add(u.words[1]);
+    }
+  }
   frame(f:CheckpointFrame):number {
     let allocations=0, staging=0;
-    const uploads=new Map<number,Set<number>>();
     const level=(t:CanonicalTexture,mip:number)=>{
       const e=mipExtent(t,mip);return e.width*e.height*e.depth*TEXEL_BYTES[t.format];
     };
@@ -99,16 +106,32 @@ export class ReplayAllocations {
           const desc=toCanonicalTexture(old?[h,0,w[1],w[2],1,w[3],w[4],w[5]]:w);
           if(!Number.isInteger(desc.mips)||desc.mips<1||desc.mips>32)throw new Error('Invalid replay mip count');
           const mips=old||this.kind==='webgl2'&&desc.dimension!==0?desc.mips:1;
-          this.textures.set(h,{desc,mips});uploads.delete(h);allocations+=chain(desc,mips);break;
+          this.textures.set(h,{desc,mips,shadows:new Set(),used:false});allocations+=chain(desc,mips);break;
         }
-        case O.TEXTURE_DELETE:this.textures.delete(h);uploads.delete(h);break;
+        case O.TEXTURE_DELETE:this.textures.delete(h);break;
+        case O.TEXTURE: {
+          const t=this.textures.get(w[1]);if(t)t.used=true;break;
+        }
         case O.TEXTURE_ALLOCATE_MIPS:case O.TEXTURE_GENERATE_MIPS: {
           const t=this.textures.get(h);if(!t)break;
           const n=i.op===O.TEXTURE_ALLOCATE_MIPS?w[1]:t.desc.mips;
           if(!Number.isInteger(n)||n<1||n>t.desc.mips)throw new Error('Invalid replay mip allocation');
           if(n>t.mips){allocations+=chain(t.desc,n);t.mips=n;}
-          // A generated chain may own new recovery copies even without mip growth.
-          if(i.op===O.TEXTURE_GENERATE_MIPS)allocations+=chain(t.desc,n);
+          if(i.op===O.TEXTURE_GENERATE_MIPS) {
+            const base=w[1];
+            // Zero/lazy chains have no recovery arrays. Non-volume generation
+            // copies only when there was a shadow at the source level.
+            const volume=t.desc.dimension===1&&t.used;
+            if(t.shadows.has(base)||volume) {
+              let generated=level(t.desc,base);
+              for(let mip=base+1;mip<n;mip++) {
+                const bytes=level(t.desc,mip);
+                if(t.shadows.has(mip)||volume)generated+=bytes;
+                if(!t.shadows.has(mip)){allocations+=bytes;t.shadows.add(mip);}
+              }
+              staging=Math.max(staging,generated);
+            } else for(const mip of t.shadows)if(mip>base)t.shadows.delete(mip);
+          }
           break;
         }
         case O.TEXTURE_UPDATE:case O.TEXTURE_UPDATE_EX: {
@@ -120,8 +143,28 @@ export class ReplayAllocations {
           }
           // Older recordings can express implicit allocation with an upload.
           if(mip>=t.mips){allocations+=chain(t.desc,mip+1);t.mips=mip+1;}
-          let levels=uploads.get(h);if(!levels)uploads.set(h,levels=new Set());
-          if(!levels.has(mip)){levels.add(mip);allocations+=level(t.desc,mip);}
+          if(!t.shadows.has(mip)){t.shadows.add(mip);allocations+=level(t.desc,mip);}
+          t.used=true;break;
+        }
+        case O.BLIT: {
+          const [src,sm,dst]=w, mask=w[12];
+          const [sx,sy,sx2,sy2,dx,dy,dx2,dy2]=w.slice(4,12).map(n=>n|0);
+          if(!w[16]||!w[17]||sx===sx2||sy===sy2||dx===dx2||dy===dy2)break;
+          const from=this.textures.get(src)?.desc, to=this.textures.get(dst)?.desc;
+          const {width,height}=from?mipExtent(from,sm):{width:f.logicalW,height:f.logicalH};
+          const area=width*height, self=src===dst?area*TEXEL_BYTES[from?.format??0]:0;
+          if(this.kind==='webgpu') {
+            const dest=to&&mipExtent(to,w[3]);
+            const fullStencilCopy=src!==dst&&from?.format===5&&to?.format===5&&mask===6&&dest&&
+              sx===0&&sy===0&&dx===0&&dy===0&&sx2===width&&sy2===height&&dx2===width&&dy2===height&&
+              dest.width===width&&dest.height===height&&w[14]===0&&w[15]===0&&w[16]>=width&&w[17]>=height;
+            // Submitted together at the frame boundary; keep all temporary
+            // source copies and all eight stencil planes in the reservation.
+            allocations+=self+32+((mask&4)&&!fullStencilCopy?8*area:0);
+          } else {
+            const fallback=(mask&4)&&((sx2-sx)!==(dx2-dx)||(sy2-sy)!==(dy2-dy));
+            staging=Math.max(staging,self+(fallback?area:0));
+          }
           break;
         }
         case O.SHADER_CREATE:allocations+=96+String(i.source??'').length*2;break;

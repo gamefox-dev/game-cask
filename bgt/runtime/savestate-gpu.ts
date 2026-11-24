@@ -188,6 +188,9 @@ export class ReplayCursor {
     this.replay=new CheckpointReplay(renderer);this.allocations=new ReplayAllocations(renderer.kind);
   }
   bytes():number { return detachedRendererBytes(this.renderer)+this.extraBytes; }
+  restoreSurfaces(s:CheckpointSurfaces):void {
+    this.renderer.restoreTestSurfaces(s);this.allocations.restoreShadows(s);
+  }
   async draw(frame:CheckpointFrame, check:(extra:number)=>void, finish?:boolean):Promise<void> {
     const {canvas}=this.renderer, resize=canvas.width!==frame.width||canvas.height!==frame.height;
     const pixels=frame.width*frame.height*4;
@@ -215,7 +218,7 @@ async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, j
     // Restore copies shadows and uploads new surfaces while the synthetic
     // base's executor resources and the checkpoint payloads are still owned.
     check(checkpointShadowBytes(s,new Set())+2*pixels);
-    renderer.restoreTestSurfaces(s);check(0);
+    cursor.restoreSurfaces(s);check(0);
   }
   // WebGPU canvas current textures are invalidated at task boundaries. A fixed
   // GPU fence every batch bounds queued work without a per-frame GPU/CPU rendezvous.

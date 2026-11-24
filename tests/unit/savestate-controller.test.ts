@@ -7,7 +7,7 @@ import { Vfs } from '../../bgt/runtime/vfs';
 import { InputManager } from '../../bgt/input/input';
 import { Savestates } from '../../bgt/runtime/savestates';
 import { replayGPU } from '../../bgt/runtime/savestate-gpu';
-import { checkGPUBytes, paddedReadbackBytes, textureReadbackStagingBytes } from '../../bgt/runtime/savestate-budget';
+import { ReplayAllocations, checkGPUBytes, paddedReadbackBytes, textureReadbackStagingBytes } from '../../bgt/runtime/savestate-budget';
 import { recordCheckpointFrame } from '../../bgt/runtime/savestate-recording';
 import { instrumentCheckpointWasm } from '../../bgt/runtime/savestate-wasm';
 import type { BGTRuntime } from '../../bgt/runtime/runtime';
@@ -81,6 +81,29 @@ it('charges narrow WebGPU rows and both allocations in depth readback',()=>{
   expect(textureReadbackStagingBytes('webgpu',0,extent)).toBe(16_384);
   expect(textureReadbackStagingBytes('webgpu',6,extent)).toBe(17_408);
   expect(textureReadbackStagingBytes('webgl2',6,extent)).toBe(2_048);
+});
+
+it('reserves queued self-blit copies and stencil fallback planes before replay',()=>{
+  const {lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  const blit=cmd(GPU_OP.BLIT,[1,0,1,0,0,0,4,4,0,0,2,2,4,0,0,0,2,2]);
+  frame.items=[cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,5,3]),blit,blit];
+  const record=recordCheckpointFrame(frame,lb,1,4,4);
+  expect(new ReplayAllocations('webgpu').frame(record)).toBe(64+2*(64+32+8*16));
+  expect(new ReplayAllocations('webgl2').frame(record)).toBe(64+64+16);
+});
+
+it('does not charge a new recovery chain for every lazy zero mip generation',()=>{
+  const {lb}=harness(), frame=new Frame();frame.reset(4,4);
+  frame.items=[{kind:'gpu',op:GPU_OP.TEXTURE_CREATE_EX,words:[1,0,4096,4096,1,13,0,1]},
+    ...Array.from({length:40},()=>({kind:'gpu' as const,op:GPU_OP.TEXTURE_GENERATE_MIPS,words:[1,0]}))];
+  const record=recordCheckpointFrame(frame,lb,1,4,4);
+  for(const backend of ['webgl2','webgpu'] as const){
+    const budget=new ReplayAllocations(backend);
+    const fullMipBytes=4*(4**13-1)/3;
+    expect(budget.frame(record)).toBe(4096**2*4+fullMipBytes);
+    expect(budget.frame({...record,items:record.items.slice(1)})).toBe(0);
+  }
 });
 
 it('rejects transient same-frame replay buffer churn before drawing',async()=>{
