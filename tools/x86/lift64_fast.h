@@ -681,7 +681,9 @@ static void l64f_flow(an_t *a, l64f_fn_t *x, const l64f_inline_t *c, uint16_t en
  *     is written, and the callee had changed it (`xs`: volatile locals that would be stale);
  *   3 callee-saved clobber: a returned call changed RBX/RBP/RSI/RDI/R12-R15 (fast mode keeps the caller's value);
  *   4 inlined callee-saved clobber: an inlined body (or its tail callee) returned with a callee-saved register changed
- *     (the inlined copy exposes it, a real call hides it: the result depends on liftFast.inline).
+ *     (the inlined copy exposes it, a real call hides it: the result depends on liftFast.inline);
+ *   5 register-model miss: an instruction's emitted C uses a register l64f_gpr_reads/writes lack (found at lift time,
+ *     reported when the instruction runs).
  * With `sync: full` only 3 and 4 are checked. EFLAGS are not checked (fast mode never computes dead flags). */
 static int lift_fast_check;
 /* vK72 TEST ONLY (--fast-test-corrupt stack, liftFast.testCorrupt): every lifted RET flips a byte 512 bytes below RSP,
