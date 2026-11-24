@@ -560,6 +560,34 @@ static void l64f_plan(an_t *a, l64f_fn_t *x, l64f_inline_t *c, uint32_t *used, u
         c->depth--; l64f_release(y);
     }
 }
+/* K78 check: whether a function, with everything it would inline (same decisions as l64f_plan), holds a generic
+ * (helper-emulated) instruction. Those write registers in X and the following XF_RELOAD puts every used register
+ * back into the locals, so l64f_regs (specialized instructions only) does not bound what the subtree changes. */
+/* vK78b: a generic instruction that certainly writes no general register (flag/direction-only, SIMD to an XMM register or
+ * memory); anything else may write any register. */
+static int l64f_generic_no_gpr(const x86_insn_t *in) {
+    switch (in->op) {
+    case XO_CLC: case XO_STC: case XO_CMC: case XO_CLD: case XO_STD: case XO_NOP: return 1;
+    case XO_SIMD: return in->o[0].kind != XK_REG && in->simd_op != 0x7e;
+    default: return 0;
+    }
+}
+static int l64f_plan_generic(an_t *a, l64f_fn_t *x, l64f_inline_t *c) {
+    int generic = 0;
+    for (uint32_t k = 0; k < x->n; k++) {
+        const x86_insn_t *in = &x->ins[k];
+        if (!in->len || (!l64_specialized(in) && !l64f_generic_no_gpr(in))) generic = 1;
+    }
+    for (uint32_t k = 0; k < x->n; k++) {
+        func_t *g = l64f_inline_target(a, x, k, c);
+        if (!g) continue;
+        l64f_fn_t *y = l64f_analyze(a, g);
+        c->budget -= g->insns.n; c->stack[++c->depth] = g->addr;
+        generic |= l64f_plan_generic(a, y, c);
+        c->depth--; l64f_release(y);
+    }
+    return generic;
+}
 /* K72 (liftFast.sync "minimal", --fast-sync minimal): call sites and exits spill only the registers written
  * since the last synchronization with X (function entry reload, a returned call, a generic instruction), and
  * after a call reload only the volatile registers that are live (plus RSP). Invariant per register: either it
@@ -613,6 +641,12 @@ static void l64f_flow(an_t *a, l64f_fn_t *x, const l64f_inline_t *c, uint16_t en
     /* Forward: dirty registers (union over paths). */
     uint8_t *seen = xcalloc(n + 1, 1);
     if (n) { x->dirty[0] = entry_dirty; seen[0] = 1; }
+    /* K78: native execution also starts at every other entry (post-call sites, loop headers), synchronized (XF_RELOAD:
+     * dirty 0). Code that only those entries reach (the analyzer sweeps a function's whole .pdata range: C++ landing
+     * pads and catch continuations, case bodies behind jump tables it cannot recover) must propagate its writes into
+     * the code it jumps back to, or the next call/exit there does not store them (found by liftFast.check on a landing
+     * pad that rejoins its loop; tests/unit/fast-check.test.ts). An inlined copy is entered only at its start. */
+    if (!inlined) for (uint32_t k = 1; k < n; k++) if (x->entry[k]) seen[k] = 1;
     for (int changed = 1; changed;) {
         changed = 0;
         for (uint32_t k = 0; k < n; k++) {
@@ -630,8 +664,8 @@ static void l64f_flow(an_t *a, l64f_fn_t *x, const l64f_inline_t *c, uint16_t en
             }
         }
     }
-    /* Code reached only through the slow path / entries starts synchronized (dirty 0). Unreached code that is
-     * not an entry is still emitted; treat it as fully dirty so its spills stay complete. */
+    /* Code no entry reaches is still emitted (it never runs natively: the slow path interprets up to an entry);
+     * treat it as fully dirty so its spills stay complete. */
     for (uint32_t k = 0; k < n; k++) if (!seen[k] && !x->entry[k]) x->dirty[k] = 0xffffu;
     free(seen);
     /* Backward: live registers before each instruction (spills are reads). */
@@ -665,22 +699,120 @@ static void l64f_flow(an_t *a, l64f_fn_t *x, const l64f_inline_t *c, uint16_t en
         }
     }
 }
+/* K78 liftFast.check "sync" (--fast-check sync): a self-checking diagnostic build. It executes with the values the
+ * full form would have (every register minimal sync leaves clean is compared with X at each spill and repaired; every
+ * used volatile register reloads after a call) and reports, without trapping, each point where minimal sync or the
+ * Win64 call contract would have produced a different value (xf_sync_violation in x86_rt.c, metrics `sync_check`):
+ *   1 dirty miss: a register minimal sync does not store differs from X at a call/exit (the callee or the caller
+ *     after the exit would read a stale value);
+ *   2 liveness miss: a volatile register minimal sync does not reload after a call is read (or stored) before it
+ *     is written, and the callee had changed it (`xs`: volatile locals that would be stale);
+ *   3 callee-saved clobber: a returned call changed RBX/RBP/RSI/RDI/R12-R15 (fast mode keeps the caller's value);
+ *   4 inlined callee-saved clobber: an inlined body (or its tail callee) returned with a callee-saved register changed
+ *     (the inlined copy exposes it, a real call hides it: the result depends on liftFast.inline);
+ *   5 register-model miss: an instruction's emitted C uses a register l64f_gpr_reads/writes lack (found at lift time,
+ *     reported when the instruction runs).
+ * With `sync: full` only 3 and 4 are checked. EFLAGS are not checked (fast mode never computes dead flags). */
+static int lift_fast_check;
+/* vK72 TEST ONLY (--fast-test-corrupt stack, liftFast.testCorrupt): every lifted RET flips a byte 512 bytes below RSP,
+ * a deliberately wrong lifted result that changes guest RAM but no register and no API argument. The oracle's guest
+ * state hash must catch it (tests/unit/oracle-guest-state.test.ts). K78 (--fast-test-corrupt sync, = 2): deliberately
+ * wrong minimal-sync decisions (every spill omits its highest-numbered dirty non-RSP register; no volatile register reloads
+ * after a call), which the check build must report (tests/unit/fast-check.test.ts). Never for real builds. */
+static int lift_fast_test_corrupt;
+static uint16_t l64f_corrupt_spill(uint16_t mask) {
+    if (lift_fast_test_corrupt != 2) return mask;
+    uint16_t m = (uint16_t)(mask & ~L64F_RSP);
+    return m ? (uint16_t)(mask & ~(1u << (31 - __builtin_clz(m)))) : mask;
+}
+static uint32_t l64f_ck_owner;              /* the top-level function being emitted */
+static const char *l64f_ck_callee = "0u";   /* the call/tail-call target expression of the next spill */
+#define L64F_CALLEE_SAVED ((uint16_t)~(l64f_volatile | L64F_RSP))
+static void l64f_ck_report(FILE *o, unsigned kind, const char *reg, const l64f_fn_t *x, const char *callee, const char *got, const char *want) {
+    fprintf(o, "xf_sync_violation(%uu<<8|%s,0x%08xu,0x%08xu,0x%08xu,%s,%s,%s);", kind, reg, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, got, want);
+}
+static uint32_t lift_fast_check_model; /* lift stats: register-model misses found in emitted instruction text */
+/* The guest registers a piece of emitted C reads and writes: `r[N]` (not `X.r[N]`) followed by `=` (not `==`) is a
+ * write, a compound assignment both, anything else a read. */
+static void l64f_text_regs(const char *s, uint16_t *reads, uint16_t *writes) {
+    for (const char *p = s; (p = strstr(p, "r[")); p += 2) {
+        if (p > s && (isalnum((unsigned char)p[-1]) || p[-1] == '_' || p[-1] == '.' || p[-1] == '>')) continue;
+        char *e; long n = strtol(p + 2, &e, 10);
+        if (e == p + 2 || *e != ']' || n < 0 || n > 15) continue;
+        const char *q = e + 1; while (*q == ' ') q++;
+        int assign = q[0] == '=' && q[1] != '=';
+        int compound = (strchr("+-*/%&|^", q[0]) && q[0] && q[1] == '=') || ((q[0] == '<' || q[0] == '>') && q[1] == q[0] && q[2] == '=');
+        if (assign) *writes |= (uint16_t)(1u << n);
+        else if (compound) { *writes |= (uint16_t)(1u << n); *reads |= (uint16_t)(1u << n); }
+        else *reads |= (uint16_t)(1u << n);
+    }
+}
+/* Before a minimal spill of `mask`: the clean registers must already be in X; no stale volatile may be stored. */
+static void l64f_ck_spill(FILE *o, const l64f_fn_t *x, uint16_t mask) {
+    if (!lift_fast_check || !lift_fast_sync || !x->dirty) return;
+    uint16_t clean = (uint16_t)(l64f_spill_set & ~mask), stale = (uint16_t)(mask & l64f_volatile);
+    for (int i = 0; i < 16; i++) if (clean & (1u << i)) {
+        char reg[8], g[16], w[16]; snprintf(reg, sizeof reg, "%d", i); snprintf(g, sizeof g, "X.r[%d]", i); snprintf(w, sizeof w, "r[%d]", i);
+        fprintf(o, "if(__builtin_expect(X.r[%d]!=r[%d],0)){", i, i); l64f_ck_report(o, 1, reg, x, l64f_ck_callee, g, w); fprintf(o, "X.r[%d]=r[%d];}", i, i);
+    }
+    if (stale) { fprintf(o, "if(__builtin_expect(xs&%uu,0)){", stale); char reg[48]; snprintf(reg, sizeof reg, "(uint32_t)__builtin_ctz(xs&%uu)", stale); l64f_ck_report(o, 2, reg, x, l64f_ck_callee, "0", "0"); fputs("}", o); }
+}
 static void l64f_spill(FILE *o, const l64f_fn_t *x, uint16_t mask) {
     if (!lift_fast_sync || !x->dirty) { fputs("XF_SPILL;", o); return; }
-    mask &= l64f_spill_set;
+    mask = l64f_corrupt_spill((uint16_t)(mask & l64f_spill_set));
+    l64f_ck_spill(o, x, mask);
     for (int i = 0; i < 16; i++) if (mask & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
     fputs("XF_SYNC;", o);
 }
+/* Bounded append for call-site text built in a buffer (check mode makes it long). */
+static void l64f_cat(char *buf, size_t cap, size_t *at, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
+static void l64f_cat(char *buf, size_t cap, size_t *at, const char *fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    int n = *at < cap ? vsnprintf(buf + *at, cap - *at, fmt, ap) : -1;
+    va_end(ap);
+    if (n < 0 || (size_t)n >= cap - *at) die("fast emission: call-site text too long");
+    *at += (size_t)n;
+}
+/* Check mode after a normal call return: callee-saved registers the caller uses must be unchanged in X. A clobbered
+ * one the function stores is put back (the full form would store the caller's value at its next spill anyway). */
+static void l64f_ck_saved(char *buf, size_t cap, size_t *at, const l64f_fn_t *x, const char *callee) {
+    if (!lift_fast_check) return;
+    uint16_t saved = (uint16_t)(l64f_used_set & L64F_CALLEE_SAVED);
+    for (int i = 0; i < 16; i++) if (saved & (1u << i)) {
+        if (l64f_spill_set & (1u << i)) { /* repaired in X: the next call compares against the caller's value again */
+            l64f_cat(buf, cap, at, "if(__builtin_expect(X.r[%d]!=r[%d],0)){xf_sync_violation(3u<<8|%du,0x%08xu,0x%08xu,0x%08xu,%s,X.r[%d],r[%d]);X.r[%d]=r[%d];}",
+                i, i, i, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, i, i, i, i);
+            continue;
+        }
+        /* vK78: a register this function only reads stays clobbered in X (the full form never stores it). After a report
+         * the clobbered value becomes the reference (xk/xr_N), so a later callee is blamed only if it changes X again. */
+        l64f_cat(buf, cap, at, "{uint64_t e_=(xk&%uu)?xr_%d:r[%d];if(__builtin_expect(X.r[%d]!=e_,0)){xf_sync_violation(3u<<8|%du,0x%08xu,0x%08xu,0x%08xu,%s,X.r[%d],e_);xk|=%uu;xr_%d=X.r[%d];}}",
+            1u << i, i, i, i, i, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, i, 1u << i, i, i);
+    }
+}
 /* After a normal call return: live volatile registers and RSP. `live` = registers live at the return site. */
-static const char *l64f_reload_text(char *buf, size_t cap, const l64f_fn_t *x, uint16_t live) {
-    if (!lift_fast_sync || !x->dirty) return "XF_RELOAD_CALL ";
-    uint16_t mask = l64f_used_set & (uint16_t)((l64f_volatile & live) | L64F_RSP);
+static const char *l64f_reload_text(char *buf, size_t cap, const l64f_fn_t *x, uint16_t live, const char *callee) {
     size_t at = 0; buf[0] = 0;
-    for (int i = 0; i < 16; i++) if (mask & (1u << i)) at += (size_t)snprintf(buf + at, cap - at, "r[%d]=X.r[%d];", i, i);
-    snprintf(buf + at, cap - at, "XF_RELOAD_CLOCK ");
+    if (!lift_fast_sync || !x->dirty) {
+        l64f_cat(buf, cap, &at, "XF_RELOAD_CALL ");
+        l64f_ck_saved(buf, cap, &at, x, callee);
+        return buf;
+    }
+    uint16_t mask = l64f_used_set & (uint16_t)((l64f_volatile & live) | L64F_RSP);
+    if (lift_fast_test_corrupt == 2) mask &= L64F_RSP;
+    if (lift_fast_check) {
+        /* Reload every used volatile (the full form's values); remember the ones minimal sync would leave stale. */
+        uint16_t skipped = (uint16_t)(l64f_used_set & l64f_volatile & ~mask);
+        l64f_cat(buf, cap, &at, "xs&=%uu;", (unsigned)(uint16_t)~mask);
+        for (int i = 0; i < 16; i++) if (skipped & (1u << i)) l64f_cat(buf, cap, &at, "if(r[%d]!=X.r[%d])xs|=%uu;r[%d]=X.r[%d];", i, i, 1u << i, i, i);
+        l64f_ck_saved(buf, cap, &at, x, callee);
+    }
+    for (int i = 0; i < 16; i++) if (mask & (1u << i)) l64f_cat(buf, cap, &at, "r[%d]=X.r[%d];", i, i);
+    l64f_cat(buf, cap, &at, "XF_RELOAD_CLOCK ");
     return buf;
 }
-static void l64f_reload_call(FILE *o, const l64f_fn_t *x, uint16_t live) { char b[400]; fputs(l64f_reload_text(b, sizeof b, x, live), o); }
+#define L64F_TEXT 12288
+static void l64f_reload_call(FILE *o, const l64f_fn_t *x, uint16_t live, const char *callee) { char b[L64F_TEXT]; fputs(l64f_reload_text(b, sizeof b, x, live, callee), o); }
 static uint16_t l64f_live_after(const l64f_fn_t *x, uint32_t k) { return k + 1 < x->n ? x->glive[k + 1] : 0; }
 /* K75: a returned non-profile call whose flags are observed later takes the callee's exact flags from X. */
 static const char *l64f_flags_after(const l64f_fn_t *x, uint32_t k) {
@@ -689,12 +821,9 @@ static const char *l64f_flags_after(const l64f_fn_t *x, uint32_t k) {
 /* K72 liftFast.calls "outlined" (--fast-calls outlined): call sites store the registers, then xf_enter (clock,
  * flags, X.eip, depth slot), the plain C call, xf_leave (depth, abnormal-exit check); see x86_guest.h. */
 static int lift_fast_calls_out;
-/* vK72 TEST ONLY (--fast-test-corrupt stack, liftFast.testCorrupt): every lifted RET flips a byte 512 bytes below RSP,
- * a deliberately wrong lifted result that changes guest RAM but no register and no API argument. The oracle's guest
- * state hash must catch it (tests/unit/oracle-guest-state.test.ts). Never for real builds. */
-static int lift_fast_test_corrupt;
 static void l64f_spill_regs(FILE *o, const l64f_fn_t *x, uint16_t mask) {
-    mask = (lift_fast_sync && x->dirty ? mask : 0xffffu) & l64f_spill_set;
+    mask = (lift_fast_sync && x->dirty ? l64f_corrupt_spill((uint16_t)(mask & l64f_spill_set)) : 0xffffu) & l64f_spill_set;
+    l64f_ck_spill(o, x, mask);
     for (int i = 0; i < 16; i++) if (mask & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
     fputs("XR_LIFT(clock-retire_clock);retire_clock=clock;", o);
 }
@@ -743,14 +872,30 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;{static const x86_insn_t I=", va); emit_insn_struct(o, in);
             if (lift_fast_calls_out) fprintf(o, ";x86_fast_exec(&I);}if(xf_check(0x%08xu))return;XF_RELOAD ", next);
             else fprintf(o, ";x86_fast_exec(&I);}if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD ", next);
+            if (lift_fast_check && lift_fast_sync) fputs("xs=0;", o); /* K78: every used register reloaded */
+            if (lift_fast_check) fputs("xk=0;", o);
             l64f_spset(o, sp_next); fprintf(o, "\n");
             if (!l64f_contiguous(f, ins, k)) fprintf(o, "return;\n");
             continue;
         }
         st->specialized++;
+        if (lift_fast_check && lift_fast_sync) {
+            /* K78 check: a volatile register minimal sync would have left stale after a call must not be read. */
+            uint16_t rd = (uint16_t)(l64f_gpr_reads(in) & l64f_volatile), df = (uint16_t)(l64f_gpr_defs(in) & l64f_volatile);
+            if (rd) {
+                char reg[48]; snprintf(reg, sizeof reg, "(uint32_t)__builtin_ctz(xs&%uu)", rd);
+                fprintf(o, "if(__builtin_expect(xs&%uu,0)){", rd); l64f_ck_report(o, 2, reg, x, "0u", "0", "0"); fputs("}", o);
+            }
+            if (df) fprintf(o, "xs&=%uu;", (unsigned)(uint16_t)~df);
+        }
         l64_replay = (l64_replay_t){0}; l64_fault_writes = 0; l64_position = 0;
         uint32_t mask = x->live[k] & L64_FLAGS;
         int fused_consumer = k && x->fuse[k - 1];
+        /* K78 check mode: emit the instruction into a buffer and compare the registers its C text reads and writes
+         * with the register model the sync analysis uses (l64f_gpr_reads/l64f_gpr_writes); a miss is reported at run
+         * time (kind 5) when the instruction executes, and counted in the lift stats. */
+        FILE *ck_out = 0; char *ck_text = 0; size_t ck_len = 0;
+        if (lift_fast_check && !l64f_control(in) && (ck_out = open_memstream(&ck_text, &ck_len))) { FILE *t_ = o; o = ck_out; ck_out = t_; }
         if (l64_atomic(in)) { l64_atomic_emit(o, in, next); } else switch (in->op) {
         case XO_MOV: case XO_MOVZX: case XO_MOVSX:
             l64_read(o, bb, "t", next);
@@ -826,29 +971,35 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             else {
                 int t = l64_index(f, in->target);
                 if (t >= 0) fprintf(o, "if(%s)goto L_%s%08x;", cond, pre, in->target);
-                else if (inlined) { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;return;}", in->target); }
-                else if (lift_fast_calls_out) { fprintf(o, "if(%s){", cond); l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, 0, ""); fprintf(o, "}"); }
-                else { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); l64f_direct(o, a, in->target, "return;"); fprintf(o, "}"); }
+                else {
+                    char callee[16]; snprintf(callee, sizeof callee, "0x%08xu", in->target); l64f_ck_callee = callee;
+                    if (inlined) { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;return;}", in->target); }
+                    else if (lift_fast_calls_out) { fprintf(o, "if(%s){", cond); l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, 0, ""); fprintf(o, "}"); }
+                    else { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); l64f_direct(o, a, in->target, "return;"); fprintf(o, "}"); }
+                    l64f_ck_callee = "0u";
+                }
             }
             break;
         }
         case XO_SIMD: l64_simd(o, in, next); break;
         case XO_JMP:
-            if (l64_index(f, in->target) >= 0) fprintf(o, "goto L_%s%08x;\n", pre, in->target);
-            else if (inlined) {
+            if (l64_index(f, in->target) >= 0) { fprintf(o, "goto L_%s%08x;\n", pre, in->target); continue; }
+            { char callee[16]; snprintf(callee, sizeof callee, "0x%08xu", in->target); l64f_ck_callee = callee;
+            if (inlined) {
                 /* An inlined tail call returns to the inlined call's return address. */
-                char after[512], rl[400];
+                char after[L64F_TEXT + 128], rl[L64F_TEXT];
                 /* K75: the tail callee returned with exact flags when this inlined function must return them. */
                 const char *fl = l64f_fn_exact_exit(a, f) ? "flags=X.flags;" : "";
                 if (lift_fast_calls_out) {
-                    snprintf(after, sizeof after, "%s%sgoto %s;", l64f_reload_text(rl, sizeof rl, x, exit_live), fl, ret_label);
+                    snprintf(after, sizeof after, "%s%sgoto %s;", l64f_reload_text(rl, sizeof rl, x, exit_live, callee), fl, ret_label);
                     l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, ret_to, after); fprintf(o, "\n");
                 } else {
-                    snprintf(after, sizeof after, "if(X.eip!=0x%08xu||xf_busy())return;%s%sgoto %s;", ret_to, l64f_reload_text(rl, sizeof rl, x, exit_live), fl, ret_label);
+                    snprintf(after, sizeof after, "if(X.eip!=0x%08xu||xf_busy())return;%s%sgoto %s;", ret_to, l64f_reload_text(rl, sizeof rl, x, exit_live, callee), fl, ret_label);
                     l64f_spill(o, x, dk); l64f_direct(o, a, in->target, after); fprintf(o, "\n");
                 }
             } else if (lift_fast_calls_out) { l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, 0, ""); fprintf(o, "\n"); }
             else { l64f_spill(o, x, dk); l64f_direct(o, a, in->target, "return;"); fprintf(o, "\n"); }
+            l64f_ck_callee = "0u"; }
             continue;
         case XO_JMP_IND:
             l64_read(o, aa, "t", next);
@@ -861,7 +1012,7 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 fprintf(o, "default:break;}");
                 free(uniq.v);
             }
-            l64f_spill(o, x, dk);
+            l64f_ck_callee = "(uint32_t)t"; l64f_spill(o, x, dk); l64f_ck_callee = "0u";
             if (x->hints[k]) fprintf(o, "if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
                 "if(x86_try_import(&site,t))return;if(x86_defer_import(&site,t))return;}", x->hints[k]);
             fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
@@ -888,20 +1039,48 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 l64f_fn_t *y = l64f_analyze(a, g);
                 c->budget -= g->insns.n; c->stack[++c->depth] = g->addr; lift_fast_inlined++;
                 lift_stats_t copy = *st; /* inlined copies are not additional lifted instructions */
+                /* K78 check: the callee-saved registers the inlined subtree writes must come back unchanged. */
+                uint16_t ck_saved = 0; unsigned ck_depth = c->depth; int ck_generic = 0;
+                if (lift_fast_check) {
+                    uint32_t pu = 0, pw = 0; l64f_inline_t cc = *c; l64f_plan(a, y, &cc, &pu, &pw);
+                    /* Every write path: specialized writes (l64f_plan) and, when the subtree holds a generic instruction
+                     * that may write a general register (vK78: an inlined CPUID), every callee-saved register: one the
+                     * function keeps in a local reloads from X after it, any other lives in X only (vK78b: read only by
+                     * generic instructions, e.g. BSF eax,ebx). Flag-only generics (CLC) write no register. */
+                    cc = *c;
+                    ck_generic = l64f_plan_generic(a, y, &cc);
+                    ck_saved = (uint16_t)((ck_generic ? 0xffffu : pw) & L64F_CALLEE_SAVED);
+                    for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) {
+                        if (!(l64f_used_set & (1u << i))) fprintf(o, "xc%u_%d=X.r[%d];", ck_depth, i, i);
+                        else if (ck_generic) fprintf(o, "xc%u_%d=r[%d];xd%u_%d=X.r[%d];", ck_depth, i, i, ck_depth, i, i);
+                        else fprintf(o, "xc%u_%d=r[%d];", ck_depth, i, i);
+                    }
+                }
                 l64f_body(o, a, y, st, c, gpre, next, label, l64_fast_sp, (uint16_t)(dk | L64F_RSP), live_next);
                 *st = copy;
                 c->depth--; l64f_release(y); l64_fast_pc = va;
                 /* Both the inlined RET and an inlined tail call's return arrive here. The callee may
                  * have moved RSP (alloca-style ___chkstk/__alloca): re-derive the stack base from the
                  * real r[4], exactly as after a non-inlined call. */
-                fprintf(o, "%s: __attribute__((unused));", label); l64f_spset(o, sp_call); fprintf(o, "\n");
+                fprintf(o, "%s: __attribute__((unused));", label); l64f_spset(o, sp_call);
+                for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) {
+                    char reg[8], got[16], want[16], callee[16]; int local = (l64f_used_set & (1u << i)) != 0;
+                    snprintf(reg, sizeof reg, "%d", i); snprintf(got, sizeof got, local ? "r[%d]" : "X.r[%d]", i);
+                    snprintf(want, sizeof want, "xc%u_%d", ck_depth, i); snprintf(callee, sizeof callee, "0x%08xu", g->addr);
+                    /* vK78b: a reload after a generic instruction that only brings back a value X already held at the call
+                     * (an earlier, already reported clobber) is not this callee's change. */
+                    if (local && ck_generic) fprintf(o, "if(__builtin_expect(r[%d]!=%s&&r[%d]!=xd%u_%d,0)){", i, want, i, ck_depth, i);
+                    else fprintf(o, "if(__builtin_expect(%s!=%s,0)){", got, want);
+                    l64f_ck_report(o, 4, reg, x, callee, got, want); fputs("}", o);
+                }
+                fprintf(o, "\n");
                 continue;
             }
             if (lift_fast_calls_out && !x->hints[k]) {
                 /* Outlined protocol (a call with an import hint keeps the inline form below). */
-                l64f_spill_regs(o, x, (uint16_t)(dk | L64F_RSP));
-                char rl[400], after[512];
-                if (internal) snprintf(after, sizeof after, "%s%s", l64f_reload_text(rl, sizeof rl, x, live_next), l64f_flags_after(x, k)); else snprintf(after, sizeof after, "return;");
+                l64f_ck_callee = "(uint32_t)t"; l64f_spill_regs(o, x, (uint16_t)(dk | L64F_RSP)); l64f_ck_callee = "0u";
+                char rl[L64F_TEXT], after[L64F_TEXT + 128];
+                if (internal) snprintf(after, sizeof after, "%s%s", l64f_reload_text(rl, sizeof rl, x, live_next, "(uint32_t)t"), l64f_flags_after(x, k)); else snprintf(after, sizeof after, "return;");
                 if (in->op == XO_CALL) l64f_direct_out(o, a, in->target, next, after);
                 else fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
                                 "if(xf_enter(X.eip,flags,clock,qbase)||(!step&&(x86_fast_depth--,1)))return;step(X.eip);}if(xf_leave(0x%08xu))return;%s", next, after);
@@ -909,25 +1088,36 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 fprintf(o, "\n");
                 continue;
             }
-            l64f_spill(o, x, (uint16_t)(dk | L64F_RSP));
+            l64f_ck_callee = "(uint32_t)t"; l64f_spill(o, x, (uint16_t)(dk | L64F_RSP)); l64f_ck_callee = "0u";
             if (x->hints[k]) { fprintf(o, "if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
-                "if(x86_try_import(&site,t)){if(X.eip!=0x%08xu||xf_busy())return;", x->hints[k], next); l64f_reload_call(o, x, live_next); }
+                "if(x86_try_import(&site,t)){if(X.eip!=0x%08xu||xf_busy())return;", x->hints[k], next); l64f_reload_call(o, x, live_next, "(uint32_t)t"); }
             if (x->hints[k]) { l64f_spset(o, sp_call); fprintf(o, "%s}if(x86_defer_import(&site,t))return;}", resume); }
             if (in->op == XO_CALL) l64f_direct(o, a, in->target, "");
             else fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
                             "if(step&&x86_fast_depth<" L64F_DEPTH "){x86_fast_depth++;step(X.eip);x86_fast_depth--;}else return;}");
-            if (internal) { fprintf(o, "if(X.eip!=0x%08xu||xf_busy())return;", next); l64f_reload_call(o, x, live_next); fputs(l64f_flags_after(x, k), o); l64f_spset(o, sp_call); fprintf(o, "\n"); }
+            if (internal) { fprintf(o, "if(X.eip!=0x%08xu||xf_busy())return;", next); l64f_reload_call(o, x, live_next, "(uint32_t)t"); fputs(l64f_flags_after(x, k), o); l64f_spset(o, sp_call); fprintf(o, "\n"); }
             else fprintf(o, "return;\n");
             continue;
         }
         case XO_RET:
-            if (lift_fast_test_corrupt) fprintf(o, "{uint8_t*q_=xf_base+(((uint32_t)r[4]-512u)&XF_MASK);q_[0]^=0x5au;}");
+            if (lift_fast_test_corrupt == 1) fprintf(o, "{uint8_t*q_=xf_base+(((uint32_t)r[4]-512u)&XF_MASK);q_[0]^=0x5au;}");
             l64_pointer(o, "r[4]", 8, next, 0, "0");
             fprintf(o, "t=xl_load(p,8);r[4]+=%llu;", 8ull + aa->imm);
             if (inlined) fprintf(o, "if(t==0x%08xull)goto %s;", ret_to, ret_label);
             l64f_spill(o, x, (uint16_t)(dk | L64F_RSP)); fprintf(o, "X.eip=x86_address(t);return;\n");
             continue;
         default: break;
+        }
+        if (ck_out) {
+            fclose(o); o = ck_out; fputs(ck_text, o);
+            uint16_t tr = 0, tw = 0; l64f_text_regs(ck_text, &tr, &tw); free(ck_text);
+            uint16_t miss = (uint16_t)((tr & ~l64f_gpr_reads(in)) | (tw & ~l64f_gpr_writes(in)));
+            for (int i = 0; i < 16; i++) if (miss & (1u << i)) {
+                char reg[8]; snprintf(reg, sizeof reg, "%d", i); l64f_ck_report(o, 5, reg, x, "0u", "0", "0");
+                lift_fast_check_model++;
+                char txt[160] = ""; x86_format(in, txt, sizeof txt);
+                fprintf(stderr, "x86tool: fast check: register model misses r[%d] (%s) of `%s` at %08x\n", i, tr & (1u << i) ? "read" : "write", txt, va);
+            }
         }
         fprintf(o, "\n");
         if (!l64f_contiguous(f, ins, k)) { l64f_spill(o, x, (uint16_t)(dk | l64f_gpr_writes(in))); fprintf(o, "X.eip=0x%08xu;return;\n", next); }
@@ -961,6 +1151,14 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     fprintf(o, "uint64_t r[16],clock,qbase,retire_clock,t=0,u=0,v=0,address=0,value=0,fault=0,ca=0,cb=0,cr=0;"
                "uint32_t flags,entry_index=0;uint8_t *p,*xf_sp=0;x86_vec_t av,bv;uint8_t *const xf_base=x86_flat;uint64_t xf_lim;"
                "(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)ca;(void)cb;(void)cr;(void)value;(void)fault;(void)entry_index;(void)address;(void)xf_sp;(void)xf_lim;\n");
+    if (lift_fast_check) { /* K78: stale-volatile mask (minimal sync) and inline snapshots of callee-saved registers */
+        l64f_ck_owner = f->addr;
+        fputs("uint16_t xs=0,xk=0;(void)xs;(void)xk;", o);
+        for (int i = 0; i < 16; i++) if ((L64F_CALLEE_SAVED & used & ~written) & (1u << i)) fprintf(o, "uint64_t xr_%d=0;(void)xr_%d;", i, i);
+        for (unsigned d = 1; d <= L64F_INLINE_DEPTH; d++) for (int i = 0; i < 16; i++)
+            if (L64F_CALLEE_SAVED & (1u << i)) fprintf(o, "uint64_t xc%u_%d=0,xd%u_%d=0;(void)xc%u_%d;(void)xd%u_%d;", d, i, d, i, d, i, d, i);
+        fputs("x86_sync_check.live=1;\n", o);
+    }
     fprintf(o, "XR_OWNER(0x%08xu)\nXF_RELOAD\nswitch(pc){", f->addr);
     for (uint32_t k = 0; k < n; k++) if (x->entry[k]) {
         fprintf(o, "case 0x%08xu:", f->insns.v[k]); l64f_spset(o, x->sp[k]); fprintf(o, "goto %s_%08x;", k ? "L" : "E", f->insns.v[k]);

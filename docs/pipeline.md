@@ -502,6 +502,10 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
   Asyncify fault; `tests/unit/oracle-fast.test.ts` covers that boundary in both suspension modes).
 - **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
   the fast emitter as guarded switch candidates; the real computed target is always compared.
+- **Unanalyzed addresses (K78, every mode).** The registry maps an address to the lifted owner whose range holds it.
+  An address there that is no analyzed instruction (a function without `.pdata` is walked, not swept, so a target of
+  a jump table the analyzer cannot recover is missing) is interpreted: the fast form always did (`slow:`), the exact
+  form now does too (it left without progress and the dispatcher faulted: `lifted AMD64 entry made no progress`).
 
 **ABI assumption (accepted).** Fast mode assumes Win64 calling-convention behaviour: EFLAGS are not read
 across calls/returns, and callees preserve RBX, RBP, RSI, RDI and R12-R15 (only volatile registers and RSP are
@@ -535,8 +539,15 @@ comment markers only (same code, same line numbers). On the CC0 C++ fixture call
   RSI, RDI and R12-R15 and never read EFLAGS left by the caller. A hand-written callee that breaks this gets a
   different wrong value in the two forms (full reloads none of the callee-saved registers but re-stores every
   written one at the next call; minimal re-stores only registers written since), so `full` is not a safe reference
-  for such code: use `liftMode: "exact"` for it. Detecting ABI-breaking callees in the profile/analyzer is a
-  follow-up (not implemented).
+  for such code: use `liftMode: "exact"` for it. ABI-breaking callees are found at run time by the K78 check build
+  (`liftFast.check`, below).
+  **K78 fix (entries):** native execution starts at every fast entry, not only the function start. The AMD64 analyzer
+  sweeps a function's whole `.pdata` range, so a function also holds code that no static edge from its start reaches
+  (C++ landing pads and catch continuations, case bodies behind jump tables the analyzer cannot recover); it runs from
+  the entries inside it (post-call sites, loop headers) after the slow path interpreted up to one. Before K78 the dirty
+  analysis propagated only from the start, so registers such code wrote were not stored at the next call or exit of
+  the code it jumps back into (found by the check build below on a CC0 C++ landing pad; plausible cause of Q144).
+  Every entry now seeds the analysis (synchronized, dirty 0).
 - `liftFast.calls: "outlined"` (default `"inline"`): the call protocol (clock/flags publication, `X.eip`, depth slot,
   abnormal-exit check) is `xf_enter`/`xf_leave`/`xf_check` in `x86_rt.c` instead of ~100 inline bytes per site.
 - `liftFast.inline: "16"`: smaller emission-level inlining (existing knob; 48 is the default).
@@ -546,7 +557,39 @@ comment markers only (same code, same line numbers). On the CC0 C++ fixture call
   function map is written beside it (`game.wasm.names.json`, `game.jspi.wasm.names.json`, never fetched).
 
 All default off: the default lift policy, cache keys and generated C are unchanged. `liftFast.testCorrupt: "stack"`
-is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds.
+is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds;
+K78 `testCorrupt: "sync"` (deliberately wrong minimal-sync decisions) likewise.
+
+**Self-checking diagnostic build (K78, `liftFast.check: "sync"`).** Add it to the same `liftFast` options that fail
+(e.g. `{"sync": "minimal", "calls": "outlined", "inline": "16", "check": "sync"}`). The build runs with the values the
+full form would have (every register minimal sync leaves clean is compared with `X` at each call/exit and put back,
+every used volatile register reloads after a call) and reports, never as a trap, each point where minimal sync or
+the Win64 call contract would have produced a different value:
+
+| kind (`kind_code`) | name | meaning |
+|---|---|---|
+| 1 | `minimal-sync dirty-set miss` | at a call/exit a register minimal sync does not store differs from `X` (the callee or the code after the exit would read a stale value) |
+| 2 | `minimal-sync liveness miss` | a volatile register minimal sync does not reload after a call, which the callee changed, is read (or stored) before it is written |
+| 3 | `callee changed a callee-saved register` | a returned call changed RBX/RBP/RSI/RDI/R12-R15 that the caller uses (fast mode, both sync forms, keeps the caller's value; the interpreter sees the callee's). A register the caller only reads stays clobbered in `X`; after the report the clobbered value is the reference, so a later callee is named only if it changes it again |
+| 4 | `inlined callee changed a callee-saved register` | an inlined body (or its tail callee) came back with one changed, by any write path (specialized instructions, and generic ones such as CPUID or BSF, after which the locals reload from `X`): the inlined copy exposes it, a real call hides it, so the result depends on `liftFast.inline` |
+| 5 | `lifter register-model miss` | the emitted C of an instruction uses a register the sync analysis' model of that instruction lacks (found at lift time: `fastCheckModelMisses` in the module's lift stats and a stderr line; reported when it runs) |
+
+Every violation is counted; the first is kept and the first 8 distinct (kind, register, PC) are logged as warnings:
+`x86 sync check: <name>: register <reg> at guest pc 0x... in guest function 0x... (lifted N_...), callee 0x...,
+found 0x..., full form 0x...` (`guest function` is the inlined callee when the code was inlined; `callee` is the call
+target, 0 at an exit). `host.metrics().sync_check` (null in other builds) holds `violations`, the count per kind and
+`first` (`kind`, `register`, `pc`, `function`, `owner`, `callee`, `found`, `full_form`). Kinds 1/2 are kit bugs in
+minimal sync; 3/4 are guest code outside the Win64 contract (MSVC LTCG custom conventions, hand-written assembly) and
+name the function for an override or `liftMode: "exact"`. EFLAGS are not checked (fast mode never computes dead
+flags; K75 covers the profile's observers). With `sync: "full"` only kinds 3 and 4 are checked. Cost and the porter
+procedure: [K78 handoff](handoff/K78.md).
+Known limits (diagnostic, opt-in; vK78b ruling): the logged first violation of a site names the first callee seen
+there; later different callees at the same indirect call site are counted (`violations`, per kind) but not logged
+again (logging is per distinct kind, register and PC). Kind 4 treats an inlined generic instruction that may write a
+general register as writing every callee-saved one (flag-only and SIMD-to-XMM/memory generics excepted) and does not
+blame a reload that only brings back a value `X` already held at the call (an earlier clobber, reported as kind 3); a
+callee that writes exactly that same value again is not reported. Kind 3 reports a register the caller only reads
+once per clobber (the clobbered value becomes the reference).
 
 The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
 (vK72, default) a guest-state hash from `bgt_guest_state_hash` (`platforms/x86/x86_state.c`): the CPU of every live guest thread

@@ -34,6 +34,12 @@ BGT_EXPORT(service_flag) unsigned service_flag(unsigned i){return service_flags[
 BGT_EXPORT(frame_insns) unsigned frame_insns(void){return X.frame_insns;}
 BGT_EXPORT(tsc) uint64_t tsc(void){return X.tsc;}
 BGT_EXPORT(state_hash) unsigned state_hash(unsigned parts){return x86_guest_state_hash(parts);}
+/* K78 liftFast.check "sync": the violation counters and the first violation (0 kind 1 reg 2 owner 3 fn 4 pc 5 callee). */
+BGT_EXPORT(sync_violations) unsigned sync_violations(void){return (unsigned)x86_sync_check.violations;}
+BGT_EXPORT(sync_by_kind) unsigned sync_by_kind(unsigned k){return k<X86_SYNC_KINDS?(unsigned)x86_sync_check.by_kind[k]:0;}
+BGT_EXPORT(sync_first) unsigned sync_first(unsigned i){const x86_sync_check_t*c=&x86_sync_check;const uint32_t v[6]={c->first_kind,c->first_reg,c->first_owner,c->first_fn,c->first_pc,c->first_callee};return i<6?v[i]:0;}
+BGT_EXPORT(sync_live) unsigned sync_live(void){return x86_sync_check.live;}
+BGT_EXPORT(sync_reset) void sync_reset(void){__builtin_memset(&x86_sync_check,0,sizeof x86_sync_check);}
 /* vK72b test: a byte in the host backing of an unmapped page inside the committed flat window (a stray fast store). */
 BGT_EXPORT(poke_backing) void poke_backing(unsigned addr,unsigned v){x86_flat[addr]=(uint8_t)v;}
 BGT_EXPORT(page_mapped) unsigned page_mapped(unsigned addr){return x86_pages[addr>>12]!=0;}

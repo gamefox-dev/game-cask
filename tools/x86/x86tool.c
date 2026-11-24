@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -952,8 +953,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--fast-fuse")) lift_fast_fuse = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--fast-mark")) lift_fast_mark = on_off(argv[i], argv[i + 1]);
         else if (!strcmp(argv[i], "--fast-test-corrupt")) {
-            if (strcmp(argv[i + 1], "stack") && strcmp(argv[i + 1], "off")) die("--fast-test-corrupt must be stack or off");
-            lift_fast_test_corrupt = !strcmp(argv[i + 1], "stack");
+            if (strcmp(argv[i + 1], "stack") && strcmp(argv[i + 1], "sync") && strcmp(argv[i + 1], "off")) die("--fast-test-corrupt must be stack, sync or off");
+            lift_fast_test_corrupt = !strcmp(argv[i + 1], "stack") ? 1 : !strcmp(argv[i + 1], "sync") ? 2 : 0;
         }
         else if (!strcmp(argv[i], "--fast-flags")) {
             if (strcmp(argv[i + 1], "observed") && strcmp(argv[i + 1], "abi")) die("--fast-flags must be observed or abi");
@@ -963,6 +964,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--fast-calls")) {
             if (strcmp(argv[i + 1], "outlined") && strcmp(argv[i + 1], "inline")) die("--fast-calls must be outlined or inline");
             lift_fast_calls_out = !strcmp(argv[i + 1], "outlined");
+        }
+        else if (!strcmp(argv[i], "--fast-check")) { /* K78: self-checking diagnostic build */
+            if (strcmp(argv[i + 1], "sync") && strcmp(argv[i + 1], "off")) die("--fast-check must be sync or off");
+            lift_fast_check = !strcmp(argv[i + 1], "sync");
         }
         else if (!strcmp(argv[i], "--fast-sync")) {
             if (strcmp(argv[i + 1], "minimal") && strcmp(argv[i + 1], "full")) die("--fast-sync must be minimal or full");
@@ -1052,6 +1057,7 @@ int main(int argc, char **argv) {
                     "\"flagsElided\": %u, \"entries\": %u, ",
                     emitted, a.nds, skip.n, st.specialized, st.generic, st.jt_switch, st.unresolved,
                     st.flags_elided, pe.mode64 ? emitted : st.entries);
+            if (lift_fast && lift_fast_check) fprintf(sf, "\"fastCheckModelMisses\": %u, ", lift_fast_check_model); /* K78 */
             if (lift_fast) fprintf(sf, "\"fastFunctions\": %u, \"fastInlined\": %u, \"fastFlagObservers\": %u, \"fastFlagExactExits\": %u, \"fastFlagUnknownCallees\": %u, \"fastFlagTakenExits\": %u, \"fastFlagAnalysis_cpu_ms\": %.3f, ",
                                    lift_fast_functions, lift_fast_inlined, l64f_obs_stats[0], l64f_obs_stats[1], l64f_obs_stats[2], l64f_obs_taken, l64f_obs_ms); /* K52/K75: fast mode only */
             fprintf(sf, "\"analysis_cpu_ms\": %.3f, \"c_generation_cpu_ms\": %.3f}\n", analysis_ms, generation_ms);
