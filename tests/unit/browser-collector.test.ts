@@ -38,6 +38,6 @@ describe('K73 browser collector', () => {
   });
   it('recognizes cancellation error texts of all three engines (navigation-abort candidates)', () => {
     for (const t of ['net::ERR_ABORTED', 'NS_BINDING_ABORTED', 'Load request cancelled', 'cancelled']) expect(isCancellation(t)).toBe(true);
-    for (const t of ['net::ERR_CONNECTION_REFUSED', 'net::ERR_NAME_NOT_RESOLVED', 'net::ERR_FAILED', undefined]) expect(isCancellation(t)).toBe(false);
+    for (const t of ['net::ERR_CONNECTION_REFUSED', 'net::ERR_NAME_NOT_RESOLVED', 'net::ERR_FAILED', 'Blocked by Web Inspector', undefined]) expect(isCancellation(t)).toBe(false);
   });
 });

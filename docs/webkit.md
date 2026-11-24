@@ -23,6 +23,45 @@ docs/verification.md). The release gate stays the Chromium matrix.
 
 ## WebKit behaviours the kit relies on or works around
 
+### Playwright reports navigation cancellations before the new document
+
+Playwright WebKit 2370 reports an intercepted `route.abort('aborted')` as `Blocked by Web Inspector`;
+Chromium reports `net::ERR_ABORTED`. The collector treats both as failures unless a test explicitly allows its own abort.
+For a real in-flight fetch, WebKit's `requestfailed` with `cancelled` can precede the new document's `request`,
+`pagehide` and `framenavigated`. Chromium did not emit `requestfailed` for the old load in this case.
+
+Minimal repro (in a Playwright test with `page`; import `createServer` from `node:http` and `once` from `node:events`):
+
+```js
+const server = createServer((req, res) => {
+  if (req.url !== '/hang') res.end('<link rel="icon" href="data:,">');
+});
+const listening = once(server, 'listening');
+server.listen(0, '127.0.0.1');
+await listening;
+const origin = 'http://127.0.0.1:' + server.address().port;
+try {
+  await page.goto(origin + '/first');
+  page.on('request', r => console.log('request', r.url()));
+  page.on('requestfailed', r => console.log('failed', r.failure().errorText, r.url()));
+  page.on('framenavigated', f => console.log('commit', f.url()));
+  const reached = once(server, 'request');
+  await page.evaluate(() => { void fetch('/hang').catch(() => {}); });
+  await reached;
+  await page.goto(origin + '/second');
+  // WebKit: request /hang -> failed cancelled /hang -> request /second -> commit /second
+  // Chromium: request /hang -> request /second -> commit /second
+} finally { server.close(); server.closeAllConnections(); }
+```
+
+`AbortController.abort()` on a real pending fetch also reports `cancelled` on WebKit, so treating every such error as
+navigation-related, or reclassifying it on a later navigation, can hide a real failure. For a controlled navigation
+that knowingly abandons a request, `collector.navigateAway(url, request)` associates only that pending Playwright
+`Request` with that `goto`. An early cancellation is logged as a navigation abort only if the new HTTP document
+commits; other failures still fail. The fixture no longer guesses based on `framenavigated`: it also fires for
+same-document history/hash changes, even during a pending navigation. The Chromium navigation regression still
+uses plain `page.goto`. No runtime workaround is needed.
+
 ### WebGL contexts are freed only by garbage collection (kit fix K69)
 
 WebKit allows 16 active WebGL contexts per page. `WEBGL_lose_context.loseContext()` does **not** release a context's

@@ -9,7 +9,7 @@
 import { test, expect, openGame, assertBackend, step, diagnostics, readPixels } from './fixtures';
 import { createHash } from 'node:crypto';
 import { CANVAS_BUFFERS } from '../../bgt/runtime/memory';
-import { GPU_OVERHEAD_FACTORS } from '../../bgt/runtime/gpu-overhead';
+import { GPU_OVERHEAD_FACTORS, type GpuApi } from '../../bgt/runtime/gpu-overhead';
 import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 
 type Manifest = { assets: { path: string; size: number; release?: string }[] };
@@ -60,15 +60,18 @@ test('Q138: the loader image is released after init and every §13 buffer is hel
   expect(px.data.some((v, i) => i % 4 !== 3 && v !== 0)).toBe(true);
 });
 
-test('Q137: memory().gpu.overhead attributes canvas surfaces, the presentation snapshot, depth padding and staging, and follows the canvas', async ({ page, backendParam, collector }, info) => {
+test('Q137: memory().gpu.overhead attributes canvas surfaces, the presentation snapshot, depth padding and staging, and follows the canvas', async ({ page, browserName, backendParam, collector }, info) => {
   void collector;
   expect(await openGame(page, backendParam, { game: 'x64-gl' })).toBe('ready');
   const backend = await assertBackend(page, backendParam, info);
+  // Select expected factors from the test runner's browser, not from the model under test.
+  const engine = browserName === 'webkit' ? 'webkit' : 'chromium';
+  const f = GPU_OVERHEAD_FACTORS[engine][backend as GpuApi];
   let d = await runToPass(page);
   const check = (dd: BGTDiagnostics) => {
-    const m = dd.memory, o = m.gpu!.overhead!, f = GPU_OVERHEAD_FACTORS.chromium[backend as 'webgl2' | 'webgpu'];
+    const m = dd.memory, o = m.gpu!.overhead!;
     const { width, height } = dd.canvas, n = m.gpu!.native!;
-    expect(o.model).toMatchObject({ engine: 'chromium', api: backend, assumed: false });
+    expect(o.model).toEqual({ engine, api: backend, source: f.source, assumed: browserName === 'firefox' });
     expect(o.canvasBytes).toBe(Math.max(0, Math.round(width * height * f.canvasBytesPerPixel + f.canvasFixedBytes) - width * height * 4 * CANVAS_BUFFERS));
     // WebGL 2 retains a full-canvas snapshot of each §13 frame (its screen LOAD reads the physical image); WebGPU
     // re-presents its retained logical screen and keeps none (K74).
