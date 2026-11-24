@@ -5,6 +5,8 @@
 BGT_DEFINE_IO(io)
 static uint32_t commands[128], tick, hash;
 static bgt_cmdbuf_t cb;
+/* The command stores a guest pointer; the texel must still be live at submit. */
+static const uint16_t inf_texel[4]={0x7c00,0,0,0x3c00};
 BGT_EXPORT(bgt_init) int32_t bgt_init(uint32_t p) {
     (void)p; io.logical_width=io.logical_height=4;
     bgt_cmd_init(&cb,commands,sizeof commands); return BGT_OK;
@@ -17,8 +19,7 @@ BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt) {
         bgt_gpu_pass_begin_t pass={.color_count=1};
         bgt_gpu_color_attachment_t col={1,0,BGT_GPU_LOAD_CLEAR,1.0f,0,0,1.0f};
         bgt_cmd_gpu_pass_begin(&cb,&pass,&col); bgt_cmd_gpu_pass_end(&cb);
-        uint16_t inf[4]={0x7c00,0,0,0x3c00};
-        bgt_gpu_texture_update_ex_t update={2,0,0,0,0,1,1,1,(uint32_t)(uintptr_t)inf,sizeof inf};
+        bgt_gpu_texture_update_ex_t update={2,0,0,0,0,1,1,1,(uint32_t)(uintptr_t)inf_texel,sizeof inf_texel};
         bgt_cmd_gpu_texture_update_ex(&cb,&update);
     } else if (tick==2) {
         bgt_gpu_texture_delete_t del={2}; bgt_cmd_gpu_texture_delete(&cb,&del);

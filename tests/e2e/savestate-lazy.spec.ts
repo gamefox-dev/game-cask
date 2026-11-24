@@ -31,8 +31,8 @@ test('savestate rejection does not materialize lazy textures; a valid checkpoint
     const restored=lazy(), replay=await read();
     return {before,rejection,after,afterCapture,original,restored,replay,errors:t.diagnostics().errors,commands:t.diagnostics().commandErrors.count};
   });
+  expect([result.before,result.after,result.afterCapture,result.restored], JSON.stringify(result)).toEqual([1,1,1,1]);
   expect(result.rejection).toMatch(/non-finite GPU texture checkpoint/);
-  expect([result.before,result.after,result.afterCapture,result.restored]).toEqual([1,1,1,1]);
   expect(result.original).toEqual(['ff0000ff',0]);
   expect(result.replay).toEqual(result.original);
   expect(result.errors).toEqual([]);expect(result.commands).toBe(0);
