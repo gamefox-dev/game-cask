@@ -17,6 +17,8 @@ export interface CheckpointInspection {
   lazy: Map<number, readonly ({color?: number[]; depth?: number; stencil?: number} | undefined)[]>;
 }
 export interface CheckpointRenderer {
+  /** Legacy vertex store and logical surface not included in the §13 census. */
+  checkpointStorageBytes?(): number;
   inspectTestSurfaces(): CheckpointInspection;
   captureTestSurfaces(letterbox: Letterbox, shadows: CheckpointShadows): Promise<CheckpointSurfaces>;
   restoreTestSurfaces(state: CheckpointSurfaces): void;

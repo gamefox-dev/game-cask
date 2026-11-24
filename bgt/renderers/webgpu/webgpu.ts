@@ -586,6 +586,7 @@ export class WebGPURenderer implements Renderer {
     return { width: w, height: h, data };
   }
 
+  declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];
   declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
   declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];
   declare restoreTestSurfaces: (s: CheckpointSurfaces) => void;

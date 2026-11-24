@@ -1,7 +1,7 @@
 // Test-only raw recorder: retain immutable upload views, but not the reusable
 // vertex arena or the decoder’s shared-buffer ownership keys.
-import {Frame,type FrameItem} from './commands';
-import {GPU_OP as O} from './abi';
+import {Frame,VERTEX_FLOATS,type FrameItem} from './commands';
+import {GPU_OP as O,LIMITS} from './abi';
 import type {RecordedFrame} from '../renderers/recording';
 import {decodeBytes} from '../renderers/recording';
 import type {Letterbox,Renderer} from '../renderers/types';
@@ -38,10 +38,11 @@ export function checkpointFrameBytes(f:CheckpointFrame,seen=new Set<ArrayBufferL
   return bytes;
 }
 export function restoreCheckpointFrame(record:CheckpointFrame):Frame {
-  const f=new Frame();f.reset(record.logicalW,record.logicalH);
   const vertices=typeof record.vertices==='string'?decodeBytes(record.vertices):record.vertices;
-  if(vertices.length%20||!f.reserve(vertices.length/20))throw new Error('Invalid recorded vertex bytes');
-  f.vertexCount=vertices.length/20;f.vertexBytes().set(vertices);
+  const count=vertices.length/(VERTEX_FLOATS*4);
+  if(!Number.isInteger(count)||count>LIMITS.verticesPerFrame)throw new Error('Invalid recorded vertex bytes');
+  const f=new Frame(count);f.reset(record.logicalW,record.logicalH);
+  f.vertexCount=count;f.vertexBytes().set(vertices);
   // Keep aligned upload data as read-only views; copy only misaligned views.
   f.items=restoreCheckpointItems(record);return f;
 }

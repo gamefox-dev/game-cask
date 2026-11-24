@@ -128,6 +128,45 @@ it('rejects transient same-frame replay buffer churn before drawing',async()=>{
   expect(detached.drawFrame).not.toHaveBeenCalled();
 });
 
+it('rejects queued WebGPU vertex repacks before any draw even when the bound buffer fits',async()=>{
+  const {renderer,lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const detached={...renderer,kind:'webgpu',onError:()=>{},onLost:()=>{},restoreTestSurfaces:()=>{},
+    resize:()=>{},drawFrame:vi.fn(async()=>null)};
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  // One byte-aligned UNORM8X4 attribute in each 8-byte record. The renderer
+  // repacks the entire binding, not just the 3 vertices the draw uses.
+  const span=48*1024**2;
+  const pipeline=[1,1,2,3,...Array<number>(19).fill(0),1,1,0,8,0,0,0,1,4];
+  frame.items=[cmd(GPU_OP.BUFFER_CREATE,[1,1,span,0,0]),cmd(GPU_OP.PIPELINE_CREATE,pipeline),
+    cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),cmd(GPU_OP.PIPELINE,[1]),
+    cmd(GPU_OP.VERTEX_BUFFER,[0,1,0,span]),...Array.from({length:132},()=>cmd(GPU_OP.DRAW,[3,1,0,0])),cmd(GPU_OP.PASS_END,[])];
+  await expect(replayGPU(detached as unknown as Parameters<typeof replayGPU>[0],null,[recordCheckpointFrame(frame,lb,1,4,4)],
+    bytes=>checkGPUBytes(bytes,3*1024**3,'restore workspace'))).rejects.toThrow(/bounded GPU restore workspace/);
+  expect(detached.drawFrame).not.toHaveBeenCalled();
+});
+
+it('reserves WebGPU transform feedback gather and output pools and queued clear uniforms',()=>{
+  const {lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  const pipeline=[1,1,2,3,...Array<number>(19).fill(0),1,1,0,16,0,0,0,0,3];
+  frame.items=[cmd(GPU_OP.PIPELINE_CREATE,pipeline),
+    {...cmd(GPU_OP.FEEDBACK_VARYINGS,[1,0,1,0]),source:'position 3\n'},
+    cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),cmd(GPU_OP.PIPELINE,[1]),
+    cmd(GPU_OP.VERTEX_BUFFER,[0,1,0,48]),cmd(GPU_OP.FEEDBACK_CAPTURE,[1,2,0,48]),cmd(GPU_OP.DRAW,[3,1,0,0]),
+    cmd(GPU_OP.CLEAR_BUFFER,[0|(15<<4),0,0,0,0,0]),cmd(GPU_OP.PASS_END,[])];
+  expect(new ReplayAllocations('webgpu').frame(recordCheckpointFrame(frame,lb,1,4,4))).toBeGreaterThanOrEqual(2*256+16);
+});
+
+it('reserves WebGL2 wide-stride attribute and indexed draw stores',()=>{
+  const {lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  const pipeline=[1,1,2,3,...Array<number>(19).fill(0),1,1,0,512,0,0,0,0,3];
+  frame.items=[cmd(GPU_OP.PIPELINE_CREATE,pipeline),cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),
+    cmd(GPU_OP.PIPELINE,[1]),cmd(GPU_OP.VERTEX_BUFFER,[0,1,0,512*20]),cmd(GPU_OP.INDEX_BUFFER,[2,1,0,12]),
+    cmd(GPU_OP.DRAW_INDEXED,[3,1,0,0,0]),cmd(GPU_OP.PASS_END,[])];
+  expect(new ReplayAllocations('webgl2').frame(recordCheckpointFrame(frame,lb,1,4,4))).toBeGreaterThanOrEqual(20*16+3*4);
+});
+
 it('drops a detached replay cursor whose native copy would exceed the retained cap',async()=>{
   const {rt,states,renderer,lb}=harness({retained:2000,workspace:10_000});
   // Draw into packed depth/stencil, then clear both aspects before the next draw.

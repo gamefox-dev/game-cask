@@ -1036,10 +1036,12 @@ struct VO { @builtin(position) pos: vec4f };
       textureShadows += t.generated?.source?.data?.length ?? 0;
     }
     const screenBytes = this.screen ? this.screen.width * this.screen.height * 4 : 0;
-    let poolBytes = this.poolBytes, scratchBytes = 0;
+    let poolBytes = this.poolBytes;
+    let scratchBytes = (this.views?.bytes??0)+(this.rotations?.bytes??0)+(this.rotatedIndices?.bytes??0);
     for (const b of this.retiredPool) poolBytes += b.size;
     for (const b of this.scratch) scratchBytes += b.size;
-    for (const r of this.retiredDestroy) if ('size' in r && typeof r.size === 'number') scratchBytes += r.size;
+    for (const r of this.retiredDestroy) scratchBytes += 'size' in r ? r.size :
+      r.width*r.height*(r.format==='r8uint'?1:(TEXEL_BYTES[formats.indexOf(r.format)]??4));
     return { backend: 'webgpu', buffers: { count: this.buffers.size, bytes, nativeBytes },
       textures: { count: this.textures.size, bytes: textureBytes, depthStencilBytes: depthBytes, lazy },
       renderbuffers: { count: 0, bytes: 0 },

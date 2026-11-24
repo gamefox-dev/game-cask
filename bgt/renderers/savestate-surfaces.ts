@@ -90,6 +90,12 @@ export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces
   }
 
 
+WebGL2Renderer.prototype.checkpointStorageBytes=function(){return this.stats.vertexBytes??0;};
+WebGPURenderer.prototype.checkpointStorageBytes=function(){
+  const screen=this['screen'];
+  return this['o'].vbufSize+(screen&&screen!==this.gpu['screen']?screen.width*screen.height*4:0)+36;
+};
+
 WebGL2Renderer.prototype.inspectTestSurfaces=inspectWebGL2;
 WebGPURenderer.prototype.inspectTestSurfaces=inspectWebGPU;
 WebGL2Renderer.prototype.captureTestSurfaces=captureWebGL2Renderer;

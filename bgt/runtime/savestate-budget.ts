@@ -4,9 +4,10 @@ import { checkpointFrameBytes } from './savestate-recording';
 import type { CheckpointFrame } from './savestate-recording';
 import type { GPUCheckpoint } from './savestate-gpu';
 import type { Renderer } from '../renderers/types';
-import type { CheckpointShadows } from '../renderers/checkpoint-surfaces';
+import type { CheckpointRenderer, CheckpointShadows } from '../renderers/checkpoint-surfaces';
 import { TEXEL_BYTES, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture } from '../renderers/gpu-texture';
 import { GPU_OP as O } from './abi';
+import { ReplayDrawAllocations } from './savestate-draw-budget';
 
 const MiB = 1024 ** 2;
 export const GPU_HISTORY_BYTES = 512 * MiB;
@@ -64,13 +65,23 @@ export function textureReadbackStagingBytes(kind: Renderer['kind'], format: numb
   return depthConversion+(kind==='webgpu'?paddedReadbackBytes(width*(depthConversion?16:TEXEL_BYTES[format]),height,depth):width*height*16);
 }
 
+// atob ignores ASCII whitespace; bound without decoding into a temporary string.
+function payloadLength(data:string|Uint8Array):number {
+  return typeof data==='string'?Math.ceil(data.length*3/4):data.byteLength;
+}
+function vertexStoreBytes(kind:Renderer['kind'],bytes:number):number {
+  return kind==='webgl2'||!bytes?bytes:2**Math.ceil(Math.log2(Math.max(1<<20,bytes)));
+}
+
 // Budget the backing stores created inside a replay draw before executing it.
 // A post-frame census alone misses create/delete pairs and old+new mip stores.
 // Count deletions only at the next census (queued native work can still use them).
 export class ReplayAllocations {
   private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean;generatedBytes:number}>();
-  constructor(private kind:Renderer['kind']) {}
+  private draws: ReplayDrawAllocations;
+  constructor(private kind:Renderer['kind']) { this.draws=new ReplayDrawAllocations(kind); }
   restoreShadows(s:CheckpointShadows):void {
+    this.draws.restoreBuffers(s.buffers);
     for(const t of this.textures.values()){t.shadows.clear();t.generatedBytes=0;}
     for(const data of s.textures){
       const t=this.textures.get(data.handle);if(!t)continue;
@@ -80,7 +91,12 @@ export class ReplayAllocations {
     }
   }
   frame(f:CheckpointFrame):number {
-    let allocations=0, staging=0;
+    this.draws.startFrame();
+    // Replay constructs an exact-size CPU vertex arena. The legacy native VBO
+    // is respecified on GL or grown by powers of two (minimum 1 MiB) on WebGPU.
+    const vertices=payloadLength(f.vertices);
+    let allocations=vertices+vertexStoreBytes(this.kind,vertices), staging=typeof f.vertices==='string'?3*vertices:0;
+    let decoded=0;
     const level=(t:CanonicalTexture,mip:number)=>{
       const e=mipExtent(t,mip);return e.width*e.height*e.depth*TEXEL_BYTES[t.format];
     };
@@ -88,10 +104,17 @@ export class ReplayAllocations {
       let bytes=0;for(let mip=0;mip<mips;mip++)bytes+=level(t,mip);return bytes;
     };
     for(const i of f.items) {
+      const data=i.data;
+      if(typeof data==='string'){const bytes=payloadLength(data);decoded+=bytes;staging=Math.max(staging,2*bytes);}
+      else if(data instanceof Uint8Array&&((data.byteOffset&7)||!(data.buffer instanceof ArrayBuffer)))decoded+=data.byteLength;
       if(i.kind==='texCreate')allocations+=Number(i.width)*Number(i.height)*4+256;
+      if(i.kind==='readback')throw new Error('Unexpected legacy readback in savestate replay');
       if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
       const w=i.words as number[], h=w[0];
+      this.draws.command(Number(i.op),w,i.source);
       switch(i.op) {
+        case O.BUFFER_READBACK:case O.TEXTURE_READBACK:
+          throw new Error('Unexpected GPU readback in savestate replay');
         case O.BUFFER_CREATE: {
           const bytes=w[2], native=this.kind==='webgpu'?Math.ceil(bytes/4)*4:bytes;
           allocations+=bytes+native;
@@ -101,7 +124,13 @@ export class ReplayAllocations {
         case O.BUFFER_UPDATE:
           if(this.kind==='webgpu')staging=Math.max(staging,2*(Math.ceil(w[3]/4)*4+4));
           break;
-        case O.BUFFER_COPY:staging=Math.max(staging,2*(Math.ceil(w[4]/4)*4+4));break;
+        case O.BUFFER_COPY: {
+          const bytes=w[4];
+          if(this.kind==='webgpu'&&(h===w[2]||w[1]%4||w[3]%4||bytes%4))
+            allocations+=Math.ceil((bytes+w[1]%4)/4)*4+Math.ceil((bytes+w[3]%4)/4)*4+16;
+          staging=Math.max(staging,bytes); // shadow slice on both backends
+          break;
+        }
         case O.TEXTURE_CREATE:case O.TEXTURE_CREATE_EX: {
           const old=i.op===O.TEXTURE_CREATE;
           const desc=toCanonicalTexture(old?[h,0,w[1],w[2],1,w[3],w[4],w[5]]:w);
@@ -128,14 +157,18 @@ export class ReplayAllocations {
               // The source copy is retained per texture; only the transient
               // overlap with the preceding source is shared across commands.
               allocations+=Math.max(0,baseBytes-t.generatedBytes);
-              let generated=Math.min(baseBytes,t.generatedBytes);
+              let generated=Math.min(baseBytes,t.generatedBytes), mipScratch=0;
               t.generatedBytes=baseBytes;
               for(let mip=base+1;mip<n;mip++) {
                 const bytes=level(t.desc,mip);
-                if(t.shadows.has(mip)||volume)generated+=bytes;
+                if(t.shadows.has(mip))generated+=bytes;
                 if(!t.shadows.has(mip)){allocations+=bytes;t.shadows.add(mip);}
+                // Volumes downsample into a separate array, then copy into
+                // the upload shadow. Layered textures generate one layer at a time.
+                if(volume)mipScratch+=bytes;
+                else if(t.desc.dimension===2)mipScratch=Math.max(mipScratch,bytes/t.desc.depth);
               }
-              staging=Math.max(staging,generated);
+              staging=Math.max(staging,generated+mipScratch);
             } else {
               t.generatedBytes=0;
               for(const mip of t.shadows)if(mip>base)t.shadows.delete(mip);
@@ -179,16 +212,16 @@ export class ReplayAllocations {
         case O.SHADER_CREATE:allocations+=96+String(i.source??'').length*2;break;
       }
     }
-    return allocations+staging;
+    return allocations+decoded+staging+this.draws.endFrame();
   }
 }
 
 // Detachment is additional to the executing renderer. Count resources, canvas,
 // recovery copies, pool/scratch and reserve even the detached lazy levels. The
 // replay cursor adds legacy textures and shader sources from the command stream.
-export function detachedRendererBytes(r: Renderer): number {
+export function detachedRendererBytes(r: Renderer & CheckpointRenderer): number {
   const m = r.gpu?.memory?.();
-  return r.canvas.width * r.canvas.height * 8 + (r.presentationBytes?.() ?? 0) + (m ?
+  return r.canvas.width * r.canvas.height * 8 + (r.presentationBytes?.() ?? 0) + (r.checkpointStorageBytes?.() ?? 0) + (m ?
     m.buffers.nativeBytes + m.textures.bytes + (m.textures.lazy?.bytes ?? 0) + m.renderbuffers.bytes + m.internal.bytes +
     m.shadows.bufferBytes + (m.shadows.sharedBufferBytes ?? 0) + m.shadows.textureBytes : 0);
 }

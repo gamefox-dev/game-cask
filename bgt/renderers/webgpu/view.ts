@@ -19,6 +19,7 @@ export function clampViewport(x: number, y: number, w: number, h: number, width:
 }
 
 const SLOT = 256, SLOTS = 256;
+export const VIEW_RING_BYTES = SLOT * SLOTS, VIEW_RING_USABLE_SLOTS = SLOTS - 1;
 /** Per-draw transforms in a uniform ring addressed by dynamic offset (group 2, binding 0, vertex stage). Offset 0
  * is the identity. A slot is written once (queue write before the encoder that reads it is submitted) and reused
  * for equal transforms; a full ring is retired (destroyed after the pending submit) and a new one started. */
@@ -26,6 +27,7 @@ export class ViewTransforms {
   readonly layout: GPUBindGroupLayout;
   group!: GPUBindGroup;
   private buffer!: GPUBuffer;
+  get bytes(): number { return this.buffer.size; }
   private slots = new Map<string, number>();
   constructor(private device: GPUDevice, private retire: (b: GPUBuffer) => void) {
     this.layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX,
@@ -33,7 +35,7 @@ export class ViewTransforms {
     this.start();
   }
   private start(): void {
-    this.buffer = this.device.createBuffer({ size: SLOT * SLOTS, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    this.buffer = this.device.createBuffer({ size: VIEW_RING_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.device.queue.writeBuffer(this.buffer, 0, new Float32Array(IDENTITY_VIEW));
     this.group = this.device.createBindGroup({ layout: this.layout, entries: [{ binding: 0, resource: { buffer: this.buffer, size: 16 } }] });
     this.slots.clear();
@@ -44,7 +46,7 @@ export class ViewTransforms {
     const key = values.join(',');
     let at = this.slots.get(key);
     if (at !== undefined) return at;
-    if (this.slots.size >= SLOTS - 1) { this.retire(this.buffer); this.start(); }
+    if (this.slots.size >= VIEW_RING_USABLE_SLOTS) { this.retire(this.buffer); this.start(); }
     at = (this.slots.size + 1) * SLOT; this.slots.set(key, at);
     this.device.queue.writeBuffer(this.buffer, at, values);
     return at;
