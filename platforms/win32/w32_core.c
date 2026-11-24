@@ -1142,6 +1142,30 @@ static void jdispatch(void) {
     jput("},");
 }
 
+/* K78 liftFast.check "sync": null in normal builds; in a check build the violation counts by kind and the first one
+ * (guest addresses as hex strings, register by name). */
+static void jhexs(const char *k, uint64_t v) {
+    char t[19] = "0x"; int n = 0; uint64_t w = v;
+    do { n++; w >>= 4; } while (w);
+    for (int i = 0; i < n; i++) t[2 + i] = "0123456789abcdef"[(v >> ((n - 1 - i) * 4)) & 15u];
+    t[2 + n] = 0; jput("\""); jput(k); jput("\":\""); jput(t); jput("\",");
+}
+static void jsynccheck(void) {
+    const x86_sync_check_t *c = &x86_sync_check;
+    if (!c->live) { jput("\"sync_check\":null,"); return; }
+    jput("\"sync_check\":{"); jkv("violations", c->violations);
+    jkv("dirty_miss", c->by_kind[1]); jkv("liveness_miss", c->by_kind[2]); jkv("callee_saved_clobber", c->by_kind[3]);
+    jkv("inlined_callee_saved_clobber", c->by_kind[4]); jkv("register_model_miss", c->by_kind[5]);
+    if (!c->violations) jput("\"first\":null}");
+    else {
+        jput("\"first\":{\"kind\":\""); jescaped(x86_sync_kind_name(c->first_kind)); jput("\",\"register\":\""); jput(x86_reg64_name(c->first_reg)); jput("\",");
+        jhexs("pc", c->first_pc); jhexs("function", c->first_fn); jhexs("owner", c->first_owner); jhexs("callee", c->first_callee);
+        jhexs("found", c->first_got); jhexs("full_form", c->first_want); jkv("kind_code", c->first_kind);
+        json[jn - 1] = '}'; /* replace the trailing comma */
+        jput("}");
+    }
+    jput(",");
+}
 const char *w32_metrics_json(void) {
     x86_coverage_flush();
     jn = 0;json_overflow=0;
@@ -1180,6 +1204,7 @@ const char *w32_metrics_json(void) {
     jkv("direct_import_calls",x86_metrics.direct_import_calls);
     jkv("leaf_import_calls",x86_metrics.leaf_import_calls);
     jkv("native_step_suspensions",x86_metrics.native_step_suspensions);
+    jsynccheck(); /* K78 */
     jkv("asyncify_artifact",(uint64_t)x86_asyncify_artifact());
     jkv("imports_bound", nslots);
     jkv("stub_calls", w32_m.stub_calls);

@@ -242,10 +242,10 @@ export function ownerCensus(env = process.env) {
   if (value === '1' && env.BGT_CPU_ACCOUNTING === '0') throw new Error('BGT_OWNER_CENSUS=1 requires exact accounting; unset BGT_CPU_ACCOUNTING=0');
   return value === '1';
 }
-/** vK72b/vK75: the test-only wrong lifted RET is refused for any game under port/, compared by real path so a
+/** vK72b/vK75/K78: the test-only wrong lifted code (testCorrupt stack|sync) is refused for any game under port/, compared by real path so a
  * symlinked alias of port/ (or of the game directory) cannot pass. */
 export function refuseTestCorruptPort(policy, gameDir, root = ROOT) {
-  if (policy.liftFast?.testCorrupt !== 'stack') return;
+  if (!policy.liftFast?.testCorrupt || policy.liftFast.testCorrupt === 'off') return; // K78: every corruption kind
   // vK75b: both ways: the lexical and the real game path against the lexical and the real port/ path, so neither a
   // symlink into port/ nor a symlink inside port/ that points elsewhere passes.
   const real = (q) => { try { return realpathSync(q); } catch { return resolve(q); } };

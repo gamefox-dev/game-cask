@@ -248,6 +248,26 @@ void x86_fast_exec(const x86_insn_t *in);
 int xf_enter(uint32_t pc, uint32_t flags, uint64_t clock, uint64_t qbase);
 int xf_leave(uint32_t next);
 int xf_check(uint32_t next);
+/* K78 liftFast.check "sync": self-checking diagnostic builds report (never trap) where minimal register sync or the
+ * Win64 call contract would have produced a different value. Kinds: 1 dirty-set miss (a register minimal sync leaves
+ * clean differs from X at a call/exit), 2 liveness miss (a volatile register not reloaded after a call is read or
+ * stored), 3 a returned call changed a callee-saved register, 4 an inlined callee did, 5 the lifter's register model
+ * misses a register the emitted instruction uses. kind_reg = kind << 8 | register; owner = lifted function, fn = the
+ * guest function whose code ran (an inlined callee inside owner), pc = guest instruction, callee = call target (0:
+ * none or unknown), got/want = the value found and the value the full form has. The first 8 distinct (kind, register,
+ * pc) are logged; every one is counted (metrics `sync_check`). */
+#define X86_SYNC_KINDS 6
+typedef struct {
+    uint32_t live;                       /* a check-mode lifted function ran */
+    uint64_t violations, by_kind[X86_SYNC_KINDS];
+    uint32_t first_kind, first_reg, first_owner, first_fn, first_pc, first_callee;
+    uint64_t first_got, first_want;
+    uint32_t logged, seen[8];            /* distinct (kind, register, pc) already logged */
+} x86_sync_check_t;
+extern x86_sync_check_t x86_sync_check;
+void xf_sync_violation(uint32_t kind_reg, uint32_t owner, uint32_t fn, uint32_t pc, uint32_t callee, uint64_t got, uint64_t want);
+const char *x86_sync_kind_name(uint32_t kind);
+const char *x86_reg64_name(uint32_t reg);
 /* Returns nonzero when the scheduler hook provably neither suspends nor transfers right now. */
 void x86_set_quantum_probe(int (*probe)(void));
 

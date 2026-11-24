@@ -260,6 +260,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const d = await p.diagnostics().catch(() => null);
     if (d?.errors?.length) log.errors.push(...d.errors.map((e) => `${e.kind}: ${e.message}`));
     log.execution_summary=d?.metrics?.execution_summary ?? null;
+    // K78 liftFast.check "sync" builds: violation counts and the first violation (null in other builds).
+    log.sync_check=d?.metrics?.sync_check ?? null;
+    if(log.sync_check){
+      const c=log.sync_check,f=c.first;
+      console.log(`probe: sync check ${c.violations} violation(s)`+(f?`; first: ${f.kind}, register ${f.register} at pc ${f.pc} in guest function ${f.function} (lifted N_${f.owner.slice(2).padStart(8,'0')}), callee ${f.callee}`:''));
+    }
     if(log.execution_summary){
       const s=log.execution_summary,fmt=n=>n==null?'unknown':Number(n).toFixed(2);
       if(s.instructions)console.log(`probe: retirement ${s.instructions.status}; ${fmt(s.instructions.instructions_per_guest_frame)} instructions/guest frame; ${fmt(s.instructions.executing_instructions_per_second)} instructions/active-wall-second; ${s.instructions.threads?.length ?? "unavailable"} guest threads; frame snapshots dropped ${s.instructions.frames?.dropped ?? "unavailable"}`);

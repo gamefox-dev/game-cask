@@ -785,7 +785,13 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
          * Keep native SSE/tiny entries; larger non-SSE landings retain bounded semantics. */
         fprintf(o, "{static const uint32_t entries[]={");
         for (uint32_t k = 0; k < f->insns.n; k++) fprintf(o, "0x%08xu,", f->insns.v[k]);
-        fprintf(o, "};if(!xl_contains(entries,%uu,pc))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n", f->insns.n);
+        /* K78: entered (not an internal indirect jump) at an address inside this region's span that is no analyzed
+         * instruction (code reached only through a jump table the analyzer could not recover; the registry maps it to
+         * this owner by range): interpret it like any interior entry. Leaving through `exit` made no progress and the
+         * dispatcher faulted ("lifted AMD64 entry made no progress"). Internal indirect jumps keep `exit`, whose
+         * registry dispatch re-enters here as a fresh entry. */
+        fprintf(o, "};if(!xl_contains(entries,%uu,pc)&&(exit_reason==XE_INDIRECT||pc<0x%08xu||pc>=0x%08xu))goto exit;}exit_reason=XE_OTHER;x86_coverage_lifted(pc,1);count=1;action=1;x86_lift_reason=XE_INTERIOR;\n",
+                f->insns.n, f->addr, f->end);
         fprintf(o, "boundary:\nif(action>=3 && t>UINT32_MAX)retire_clock++;\n"); l64_dirty_boundary = 1; l64_sync(o, 0); l64_dirty_boundary = 0;
         fprintf(o, "X.eip=pc;if(action==0)x86_lift_pending=pending;"
                    "else if(action==1)x86_lift_count=count;"
