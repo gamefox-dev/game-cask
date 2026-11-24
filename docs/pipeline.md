@@ -570,8 +570,8 @@ the Win64 call contract would have produced a different value:
 |---|---|---|
 | 1 | `minimal-sync dirty-set miss` | at a call/exit a register minimal sync does not store differs from `X` (the callee or the code after the exit would read a stale value) |
 | 2 | `minimal-sync liveness miss` | a volatile register minimal sync does not reload after a call, which the callee changed, is read (or stored) before it is written |
-| 3 | `callee changed a callee-saved register` | a returned call changed RBX/RBP/RSI/RDI/R12-R15 that the caller uses (fast mode, both sync forms, keeps the caller's value; the interpreter sees the callee's) |
-| 4 | `inlined callee changed a callee-saved register` | an inlined body (or its tail callee) came back with one changed: the inlined copy exposes it, a real call hides it, so the result depends on `liftFast.inline` |
+| 3 | `callee changed a callee-saved register` | a returned call changed RBX/RBP/RSI/RDI/R12-R15 that the caller uses (fast mode, both sync forms, keeps the caller's value; the interpreter sees the callee's). A register the caller only reads stays clobbered in `X`; after the report the clobbered value is the reference, so a later callee is named only if it changes it again |
+| 4 | `inlined callee changed a callee-saved register` | an inlined body (or its tail callee) came back with one changed, by any write path (specialized instructions, and generic ones such as CPUID or BSF, after which the locals reload from `X`): the inlined copy exposes it, a real call hides it, so the result depends on `liftFast.inline` |
 | 5 | `lifter register-model miss` | the emitted C of an instruction uses a register the sync analysis' model of that instruction lacks (found at lift time: `fastCheckModelMisses` in the module's lift stats and a stderr line; reported when it runs) |
 
 Every violation is counted; the first is kept and the first 8 distinct (kind, register, PC) are logged as warnings:

@@ -85,6 +85,34 @@ it(`check (${shape}): an inlined callee that changes RBX is reported as kind 4 (
   expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([4, 3, 0x2000, 0x2000, 0x2006, 0x2040]);
 }, 120000);
 
+// vK78 review (HIGH): an inlined callee that changes a callee-saved register through a generic (helper-emulated)
+// instruction must be reported too: generic writes land in X and the locals reload from it, outside the specialized
+// register model. f: push rbx; mov ebx,5; xor eax,eax; mov ecx,8; call g; mov eax,ebx; pop rbx; ret.
+// g (0x40): CPUID (writes RBX) / BSF ebx,ecx (RBX = 3); ret.
+const GENERIC_CLOBBER: [string, string][] = [['cpuid', '0fa2c3'], ['bsf', '0fbcd9c3']];
+for (const [name, g] of GENERIC_CLOBBER) for (const [shape, extra] of [['full sync', []], ['compact', COMPACT]] as [string, string[]][])
+it(`check (${shape}): an inlined ${name} that changes RBX is reported as kind 4`, async () => {
+  const code = Buffer.from('53bb0500000031c0b908000000e82e00000089d85bc3' + '90'.repeat(42) + g, 'hex');
+  const h = await harness(code, [0, 0x40], [...FAST, '--fast-inline', '48', ...extra, ...CHECK]);
+  expect(h.text).toContain('L_i1_00002040');
+  const fast = h.run(0, 0);
+  expect(rax(fast.regs)).not.toBe(5n); // the inlined copy exposes the generic write
+  expect(h.ex.sync_by_kind(4), h.logs.map((l) => l.message).join('\n')).toBe(1);
+  expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([4, 3, 0x2000, 0x2000, 0x200d, 0x2040]);
+}, 120000);
+
+// vK78 review (MEDIUM): a callee-saved register the caller only reads stays clobbered in X (no form stores it); the
+// check must not then blame every later callee. f: sub rsp,0x28; call g; call h; mov eax,ebx; add rsp,0x28; ret.
+// g (0x40): mov ebx,9; ret (breaks the ABI).  h (0x60): ret (preserves RBX).  Exactly one report, naming g.
+const RESYNC = Buffer.from('4883ec28e837000000e85200000089d84883c428c3' + '90'.repeat(43) + 'bb09000000c3' + '90'.repeat(26) + 'c3', 'hex');
+for (const [shape, extra] of [['full sync', []], ['compact', COMPACT]] as [string, string[]][])
+it(`check (${shape}): after a reported clobber of a read-only register, a preserving callee is not blamed`, async () => {
+  const h = await harness(RESYNC, [0, 0x40, 0x60], [...FAST, '--fast-inline', '0', ...extra, ...CHECK]);
+  h.run(0, 0);
+  expect(h.ex.sync_violations(), h.logs.map((l) => l.message).join('\n')).toBe(1);
+  expect([0, 1, 2, 3, 4, 5].map((i) => h.ex.sync_first(i))).toEqual([3, 3, 0x2000, 0x2000, 0x2004, 0x2040]);
+}, 120000);
+
 // Deliberately wrong minimal-sync decisions: the test fails if the check misses them or does not repair them.
 for (const extra of [COMPACT, ['--fast-sync', 'minimal']])
 it(`check (${extra.join(' ')}): wrong minimal-sync decisions are reported (dirty miss, liveness miss) and repaired`, async () => {

@@ -560,6 +560,22 @@ static void l64f_plan(an_t *a, l64f_fn_t *x, l64f_inline_t *c, uint32_t *used, u
         c->depth--; l64f_release(y);
     }
 }
+/* K78 check: whether a function, with everything it would inline (same decisions as l64f_plan), holds a generic
+ * (helper-emulated) instruction. Those write registers in X and the following XF_RELOAD puts every used register
+ * back into the locals, so l64f_regs (specialized instructions only) does not bound what the subtree changes. */
+static int l64f_plan_generic(an_t *a, l64f_fn_t *x, l64f_inline_t *c) {
+    int generic = 0;
+    for (uint32_t k = 0; k < x->n; k++) if (!x->ins[k].len || !l64_specialized(&x->ins[k])) generic = 1;
+    for (uint32_t k = 0; k < x->n; k++) {
+        func_t *g = l64f_inline_target(a, x, k, c);
+        if (!g) continue;
+        l64f_fn_t *y = l64f_analyze(a, g);
+        c->budget -= g->insns.n; c->stack[++c->depth] = g->addr;
+        generic |= l64f_plan_generic(a, y, c);
+        c->depth--; l64f_release(y);
+    }
+    return generic;
+}
 /* K72 (liftFast.sync "minimal", --fast-sync minimal): call sites and exits spill only the registers written
  * since the last synchronization with X (function entry reload, a returned call, a generic instruction), and
  * after a call reload only the volatile registers that are live (plus RSP). Invariant per register: either it
@@ -751,10 +767,15 @@ static void l64f_ck_saved(char *buf, size_t cap, size_t *at, const l64f_fn_t *x,
     if (!lift_fast_check) return;
     uint16_t saved = (uint16_t)(l64f_used_set & L64F_CALLEE_SAVED);
     for (int i = 0; i < 16; i++) if (saved & (1u << i)) {
-        l64f_cat(buf, cap, at, "if(__builtin_expect(X.r[%d]!=r[%d],0)){xf_sync_violation(3u<<8|%du,0x%08xu,0x%08xu,0x%08xu,%s,X.r[%d],r[%d]);",
-            i, i, i, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, i, i);
-        if (l64f_spill_set & (1u << i)) l64f_cat(buf, cap, at, "X.r[%d]=r[%d];", i, i);
-        l64f_cat(buf, cap, at, "}");
+        if (l64f_spill_set & (1u << i)) { /* repaired in X: the next call compares against the caller's value again */
+            l64f_cat(buf, cap, at, "if(__builtin_expect(X.r[%d]!=r[%d],0)){xf_sync_violation(3u<<8|%du,0x%08xu,0x%08xu,0x%08xu,%s,X.r[%d],r[%d]);X.r[%d]=r[%d];}",
+                i, i, i, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, i, i, i, i);
+            continue;
+        }
+        /* vK78: a register this function only reads stays clobbered in X (the full form never stores it). After a report
+         * the clobbered value becomes the reference (xk/xr_N), so a later callee is blamed only if it changes X again. */
+        l64f_cat(buf, cap, at, "{uint64_t e_=(xk&%uu)?xr_%d:r[%d];if(__builtin_expect(X.r[%d]!=e_,0)){xf_sync_violation(3u<<8|%du,0x%08xu,0x%08xu,0x%08xu,%s,X.r[%d],e_);xk|=%uu;xr_%d=X.r[%d];}}",
+            1u << i, i, i, i, i, l64f_ck_owner, x->f->addr, l64_fast_pc, callee, i, 1u << i, i, i);
     }
 }
 /* After a normal call return: live volatile registers and RSP. `live` = registers live at the return site. */
@@ -840,6 +861,7 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             if (lift_fast_calls_out) fprintf(o, ";x86_fast_exec(&I);}if(xf_check(0x%08xu))return;XF_RELOAD ", next);
             else fprintf(o, ";x86_fast_exec(&I);}if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD ", next);
             if (lift_fast_check && lift_fast_sync) fputs("xs=0;", o); /* K78: every used register reloaded */
+            if (lift_fast_check) fputs("xk=0;", o);
             l64f_spset(o, sp_next); fprintf(o, "\n");
             if (!l64f_contiguous(f, ins, k)) fprintf(o, "return;\n");
             continue;
@@ -1009,6 +1031,10 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 uint16_t ck_saved = 0; unsigned ck_depth = c->depth;
                 if (lift_fast_check) {
                     uint32_t pu = 0, pw = 0; l64f_inline_t cc = *c; l64f_plan(a, y, &cc, &pu, &pw);
+                    /* Every write path: specialized writes (l64f_plan) and, when the subtree holds a generic
+                     * instruction, every register the locals reload from X after it (vK78: an inlined CPUID). */
+                    cc = *c;
+                    if (l64f_plan_generic(a, y, &cc)) pw |= l64f_used_set;
                     ck_saved = (uint16_t)(pw & L64F_CALLEE_SAVED);
                     for (int i = 0; i < 16; i++) if (ck_saved & (1u << i)) fprintf(o, "xc%u_%d=r[%d];", ck_depth, i, i);
                 }
@@ -1104,7 +1130,8 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
                "(void)t;(void)u;(void)v;(void)p;(void)av;(void)bv;(void)ca;(void)cb;(void)cr;(void)value;(void)fault;(void)entry_index;(void)address;(void)xf_sp;(void)xf_lim;\n");
     if (lift_fast_check) { /* K78: stale-volatile mask (minimal sync) and inline snapshots of callee-saved registers */
         l64f_ck_owner = f->addr;
-        fputs("uint16_t xs=0;(void)xs;", o);
+        fputs("uint16_t xs=0,xk=0;(void)xs;(void)xk;", o);
+        for (int i = 0; i < 16; i++) if ((L64F_CALLEE_SAVED & used & ~written) & (1u << i)) fprintf(o, "uint64_t xr_%d=0;(void)xr_%d;", i, i);
         for (unsigned d = 1; d <= L64F_INLINE_DEPTH; d++) for (int i = 0; i < 16; i++)
             if ((L64F_CALLEE_SAVED & used) & (1u << i)) fprintf(o, "uint64_t xc%u_%d=0;(void)xc%u_%d;", d, i, d, i);
         fputs("x86_sync_check.live=1;\n", o);
