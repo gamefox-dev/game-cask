@@ -68,14 +68,15 @@ export function textureReadbackStagingBytes(kind: Renderer['kind'], format: numb
 // A post-frame census alone misses create/delete pairs and old+new mip stores.
 // Count deletions only at the next census (queued native work can still use them).
 export class ReplayAllocations {
-  private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean}>();
+  private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean;generatedBytes:number}>();
   constructor(private kind:Renderer['kind']) {}
   restoreShadows(s:CheckpointShadows):void {
-    for(const t of this.textures.values())t.shadows.clear();
+    for(const t of this.textures.values()){t.shadows.clear();t.generatedBytes=0;}
     for(const data of s.textures){
       const t=this.textures.get(data.handle);if(!t)continue;
       data.levels?.forEach((level,mip)=>{if(level)t.shadows.add(mip);});
       for(const u of data.uploads??[])t.shadows.add(u.words[1]);
+      t.generatedBytes=(data.generated?.data??data.generated?.source?.data)?.byteLength??0;
     }
   }
   frame(f:CheckpointFrame):number {
@@ -106,7 +107,7 @@ export class ReplayAllocations {
           const desc=toCanonicalTexture(old?[h,0,w[1],w[2],1,w[3],w[4],w[5]]:w);
           if(!Number.isInteger(desc.mips)||desc.mips<1||desc.mips>32)throw new Error('Invalid replay mip count');
           const mips=old||this.kind==='webgl2'&&desc.dimension!==0?desc.mips:1;
-          this.textures.set(h,{desc,mips,shadows:new Set(),used:false});allocations+=chain(desc,mips);break;
+          this.textures.set(h,{desc,mips,shadows:new Set(),used:false,generatedBytes:0});allocations+=chain(desc,mips);break;
         }
         case O.TEXTURE_DELETE:this.textures.delete(h);break;
         case O.TEXTURE: {
@@ -121,16 +122,24 @@ export class ReplayAllocations {
             const base=w[1];
             // Zero/lazy chains have no recovery arrays. Non-volume generation
             // copies only when there was a shadow at the source level.
-            const volume=t.desc.dimension===1&&t.used;
+            const volume=this.kind==='webgpu'&&t.desc.dimension===1&&t.used;
             if(t.shadows.has(base)||volume) {
-              let generated=level(t.desc,base);
+              const baseBytes=level(t.desc,base);
+              // The source copy is retained per texture; only the transient
+              // overlap with the preceding source is shared across commands.
+              allocations+=Math.max(0,baseBytes-t.generatedBytes);
+              let generated=Math.min(baseBytes,t.generatedBytes);
+              t.generatedBytes=baseBytes;
               for(let mip=base+1;mip<n;mip++) {
                 const bytes=level(t.desc,mip);
                 if(t.shadows.has(mip)||volume)generated+=bytes;
                 if(!t.shadows.has(mip)){allocations+=bytes;t.shadows.add(mip);}
               }
               staging=Math.max(staging,generated);
-            } else for(const mip of t.shadows)if(mip>base)t.shadows.delete(mip);
+            } else {
+              t.generatedBytes=0;
+              for(const mip of t.shadows)if(mip>base)t.shadows.delete(mip);
+            }
           }
           break;
         }

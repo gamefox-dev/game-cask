@@ -106,6 +106,15 @@ it('does not charge a new recovery chain for every lazy zero mip generation',()=
   }
 });
 
+it('reserves a retained mip source copy for each uploaded texture generated in one frame',()=>{
+  const {lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  for(const h of [1,2])frame.items.push(cmd(GPU_OP.TEXTURE_CREATE_EX,[h,0,4,4,1,1,0,1]),
+    cmd(GPU_OP.TEXTURE_UPDATE_EX,[h,0,0,0,0,4,4,1,0,64]),cmd(GPU_OP.TEXTURE_GENERATE_MIPS,[h,0]));
+  const record=recordCheckpointFrame(frame,lb,1,4,4);
+  for(const backend of ['webgl2','webgpu'] as const)expect(new ReplayAllocations(backend).frame(record)).toBe(2*3*64);
+});
+
 it('rejects transient same-frame replay buffer churn before drawing',async()=>{
   const {renderer,lb}=harness(), frame=new Frame();frame.reset(4,4);
   const detached={...renderer,onError:()=>{},onLost:()=>{},restoreTestSurfaces:()=>{},
