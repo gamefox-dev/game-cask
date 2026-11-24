@@ -72,6 +72,9 @@ export interface RuntimeOptions {
   ioBurstMs?: number;
   /** K70: false re-runs a burst update without waiting for the unresolved request result it polled (pre-K70 A/B). */
   ioWait?: boolean;
+  /** K73 (vK73): wall budget (ms) shared by all of one step(n) call's request waits (default 10000; 0 = no wait time:
+   * any pending wait times out at once). Exhausting it records a 'step-wait' error and ends waiting for that call. */
+  stepWaitMs?: number;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -98,7 +101,7 @@ export interface Manifest {
 }
 
 export interface RuntimeErrorRecord {
-  kind: 'trap' | 'abort' | 'gpu' | 'asset' | 'init' | 'js' | 'device-lost';
+  kind: 'trap' | 'abort' | 'gpu' | 'asset' | 'init' | 'js' | 'device-lost' | /** K73: a step() request wait exhausted its budget */ 'step-wait';
   message: string;
   time: number;
   frame: number;
@@ -107,7 +110,8 @@ export interface RuntimeErrorRecord {
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
 import { retainedAccumulator, continueTransport, settlesWithin, TRANSPORT_BURST_MS } from './page-pacing';
-/** K73 (Q139): hang guard for step()'s wait on a polled request result (results normally arrive within ms). */
+/** K73 (Q139): hang guard for step()'s waits on polled request results, one budget per step(n) call (results
+ * normally arrive within ms; x64-gl-programs: 96 waits, ~20 ms in total). */
 const STEP_REQUEST_WAIT_MS = 10_000;
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 import { guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
@@ -638,7 +642,7 @@ export class BGTRuntime {
     this.measure();
     gl.restoreTextures(this.host.textures);
     if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
-    this.host.setBackend(BACKEND_WEBGL2, gl.gpu);
+    this.host.setBackend(BACKEND_WEBGL2, gl.gpu, gl.maxTextureSize);
     this.backendNotes.push(`webgpu: device lost and not recoverable (${reason}); switched to webgl2`);
     this.deviceResets++;
     this.input.markEvent('deviceReset');
@@ -982,12 +986,13 @@ export class BGTRuntime {
     this.pause();
     try {
     await this.tickTail; // K66: a page-loop transport burst never overlaps a test step
+    const wait = { leftMs: this.opts.stepWaitMs ?? STEP_REQUEST_WAIT_MS, exhausted: false };
     for (let i = 0; i < frames; i++) {
       if (this.failed || this.outsideSlice) break;
       await this.renderTail;
       await this.host?.settleRequests();
       if(this.outsideSlice)break;
-      await this.stepRequestWait();
+      await this.stepRequestWait(wait);
       await this.stepGuarded();
       if (this.failed || this.outsideSlice) break;
       // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.
@@ -1008,18 +1013,25 @@ export class BGTRuntime {
    * step(n) on WebGPU (results resolve asynchronously, outside host I/O work) ran every update of the chunk polling
    * the same 0 and saw the result only after the chunk's final renderer.finish(), so step(n) != n x step(1)
    * (MMX8 r30: 1893 vs 5567 presents at update 7000). WebGL 2 results complete inside the render: never waits.
-   * Bounded by STEP_REQUEST_WAIT_MS as a hang guard only (a timeout is counted; the update then polls again).
-   * `ioWait: false` restores the pre-K73 behaviour (A/B).
+   * vK73: all waits of one step(n) call share one wall budget (`stepWaitMs`, default STEP_REQUEST_WAIT_MS), so a
+   * never-settling request costs at most that much per call (not per update). Exhausting it is reported: a
+   * 'step-wait' error in diagnostics().errors (tests fail on it) and a counted timeout; the rest of the call then
+   * runs without waiting (pre-K73 behaviour). `ioWait: false` restores the pre-K73 behaviour (A/B).
    */
-  private async stepRequestWait(): Promise<void> {
+  private async stepRequestWait(budget: { leftMs: number; exhausted: boolean }): Promise<void> {
     const host = this.host;
-    if (!host || this.opts.ioWait === false) return;
+    if (!host || this.opts.ioWait === false || budget.exhausted) return;
     const wait = host.transportWait();
     if (!wait) return;
     const stats = this.pageLoopStats, w0 = performance.now();
-    const done = await settlesWithin(wait, STEP_REQUEST_WAIT_MS);
-    stats.stepRequestWaits++; stats.stepRequestWaitMs += performance.now() - w0;
-    if (!done) stats.stepRequestWaitTimeouts++;
+    const done = await settlesWithin(wait, Math.max(0, budget.leftMs));
+    const ms = performance.now() - w0;
+    stats.stepRequestWaits++; stats.stepRequestWaitMs += ms; budget.leftMs -= ms;
+    if (!done) {
+      stats.stepRequestWaitTimeouts++; budget.exhausted = true;
+      this.record('step-wait', `step(): a polled request result did not arrive within the step's ${this.opts.stepWaitMs ?? STEP_REQUEST_WAIT_MS} ms ` +
+        `wait budget (frame ${host.frameIndex}); the rest of this step() runs without waiting, so its timeline may differ from n x step(1)`);
+    }
   }
 
   declare testReplace: (host: GameHost,renderer: Renderer,letterbox: Letterbox) => void;

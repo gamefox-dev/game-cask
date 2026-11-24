@@ -301,7 +301,8 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
   previous update polled unresolved (renderer results resolve asynchronously on WebGPU), so `step(n)` and n x `step(1)`
   give the same guest timeline (presents, guest time, state hash) on every backend. Before K73 a WebGPU `step(n)`
   polled the same 0 for the whole chunk (MMX8: 1893 vs 5567 presents at update 7000). `?iowait=0` disables this wait
-  too (A/B); a 10 s hang guard counts `stepRequestWaitTimeouts`.
+  too (A/B). vK73: all waits of one call share one budget (10 s; `?stepwaitms=`); exhausting it records a `step-wait`
+  error in `diagnostics().errors`, counts `stepRequestWaitTimeouts`, and the rest of that call does not wait.
 - `?paused=1` starts paused at frame 0, so a test owns every simulation step.
 - `peek(addr, len)` (v0.2.1) returns a copy of `len` (1..65536) bytes of guest memory through the optional
   `bgt_debug_peek` export, or `null` (no export, unmapped, bad length). It exists only where the test API exists
@@ -1093,7 +1094,7 @@ the supported backends and device classes measured in K73, never below the GL 3.
 
 | Offset | Field | portable | ANGLE Metal (Chromium, WebKit) | SwiftShader | WebGPU Chromium M4 | WebGPU WebKit M4 | GL 3.3 min |
 |---:|---|---:|---:|---:|---:|---:|---:|
-| 4 | max_texture_dimension | 8192 | 16384 | 8192 | 8192 (default device limits) | 8192 (default device limits) | 1024 |
+| 4 | max_texture_dimension (legacy 2D textures; §13 GPU textures keep their fixed 4096) | 8192 | 16384 | 8192 | 8192 (default device limits) | 8192 (default device limits) | 1024 |
 | 52 | max_uniform_range | 16384 | 16384 | 65536 | 65536 | 65536 | 16384 |
 | 76 | max_varying_components | 84 | 84 (30 varying vectors) | 87 (31) | 102 (28 inter-stage) | 114 (31) | 60 |
 
@@ -1105,7 +1106,7 @@ blocks above offset 52, so a program that links on one backend links on all. `"d
 `RuntimeOptions.gpuLimits`, `?gpulimits=device`) reports the device's own values (K51/K62 behaviour) for a game that
 needs more; `diagnostics().gpuDevice.limits` lists the mode, its source and each reported value next to the device
 value. Every other limit and string the WGL profile reports (GL_VENDOR/RENDERER/VERSION, the extension list,
-GL_MAX_TEXTURE_SIZE 4096, the K62 GL 3.3 table) is a constant independent of the backend; the identity words
+GL_MAX_TEXTURE_SIZE 4096 = the fixed §13 GPU texture ceiling, enforced; offset 4 does not affect it, the K62 GL 3.3 table) is a constant independent of the backend; the identity words
 `bgt_io_t.backend` and offset 64 `shader_languages` (WebGPU adds WGSL) are capabilities, not limits, and the WGL
 profile reads neither for guest-visible values.
 

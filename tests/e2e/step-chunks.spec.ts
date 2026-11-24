@@ -46,3 +46,28 @@ test('x64-gl-programs: step(25) chunks and 25 x step(1) give the same presents, 
   if (backendParam === 'webgpu' && wait === undefined) expect(chunked.loop.stepRequestWaits).toBeGreaterThan(0);
   expect(chunked.loop.stepRequestWaitTimeouts).toBe(0);
 });
+
+// vK73. Catches: a step(n) whose request waits are bounded per update only (a never-settling result would make
+// step(600) wait 600 x 10 s and then pass silently). One budget per step() call; exhausting it is a reported
+// 'step-wait' error (at most one per call) and the rest of the call runs without waiting. `?stepwaitms=0` gives
+// every pending WebGPU result zero wait time, i.e. the timeout path (WebGL 2 results never pend: nothing to wait for).
+test('a step() whose request-wait budget runs out reports a step-wait error, once per call, and does not stall', async ({ page, backendParam }, info) => {
+  test.skip(backendParam !== 'webgpu', 'WebGPU results resolve outside the render; WebGL 2 never waits');
+  expect(await openGame(page, backendParam, { game: 'x64-gl-programs', stepwaitms: '0' })).toBe('ready');
+  await assertBackend(page, backendParam, info);
+  const CALLS = 4;
+  const r = await page.evaluate(async (calls) => {
+    const api = (window as any).__BGT_TEST__, t0 = performance.now();
+    for (let i = 0; i < calls; i++) await api.step(25);
+    const d = api.diagnostics();
+    return { ms: performance.now() - t0, frame: d.frame, kinds: d.errors.map((e: { kind: string }) => e.kind),
+      messages: d.errors.map((e: { message: string }) => e.message), loop: api.pageLoop() };
+  }, CALLS);
+  console.log('K73 step-wait budget', JSON.stringify(r));
+  expect(r.frame).toBe(CALLS * 25);
+  expect(r.loop.stepRequestWaitTimeouts).toBeGreaterThanOrEqual(1);
+  expect(r.loop.stepRequestWaitTimeouts).toBeLessThanOrEqual(CALLS);
+  expect(r.kinds).toEqual(new Array(r.loop.stepRequestWaitTimeouts).fill('step-wait'));
+  expect(r.messages[0]).toMatch(/did not arrive within the step's 0 ms wait budget/);
+  expect(r.ms).toBeLessThan(30_000);
+});

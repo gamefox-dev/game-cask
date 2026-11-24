@@ -436,7 +436,8 @@ export type GpuLimitsMode = 'portable' | 'device';
  * - varyingComponents (offset 76, GL_MAX_VARYING_COMPONENTS): ANGLE Metal / WebKit WebGL 2 84, SwiftShader 87,
  *   WebGPU Chromium 102, WebGPU WebKit 114 -> 84 (GL 3.3 minimum 60). A WebGPU adapter with only the default 16
  *   inter-stage variables gives 54: there the device value is reported (documented exception).
- * - textureDimension (offset 4, max_texture_dimension): ANGLE Metal / WebKit WebGL 2 16384, SwiftShader 8192,
+ * - textureDimension (offset 4, max_texture_dimension; the legacy 2D texture layer only: §13 GPU textures and
+ *   GL_MAX_TEXTURE_SIZE keep the fixed GPU_LIMITS.textureDimension 4096): ANGLE Metal / WebKit WebGL 2 16384, SwiftShader 8192,
  *   WebGPU device (default limits) 8192 -> 8192.
  */
 export const GPU_PORTABLE_LIMITS = { uniformRange: 16384, varyingComponents: 84, textureDimension: 8192 } as const;

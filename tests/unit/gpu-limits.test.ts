@@ -124,3 +124,13 @@ it('a WebGPU -> WebGL 2 fallback keeps the portable values (no stale, larger lim
   const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
   expect([words[13], words[19]]).toEqual([16384, 84]);
 });
+// vK73: a backend switch recomputes offset 4 from the new renderer (it kept the old renderer's value before).
+it.each([['portable', 4096, 4096], ['portable', 16384, 8192], ['device', 4096, 4096], ['device', 16384, 16384]] as const)(
+  'setBackend recomputes max_texture_dimension (%s mode, new renderer %i -> %i)', async (mode, texture, expected) => {
+    const { host } = await limitWords(65536, 102, 8192, mode);
+    host.setBackend(2, { languages: 6, maxUniformRange: 16384, maxVaryingComponents: 84, execute: () => 0 }, texture);
+    host.init();
+    const bytes = host.peek(0, 112)!, words = new Uint32Array(bytes.buffer, bytes.byteOffset, 28);
+    expect(words[1]).toBe(expected);
+    expect(host.gpuLimits).toMatchObject({ maxTextureDimension: expected, deviceMaxTextureDimension: texture });
+  });

@@ -38,6 +38,8 @@ const rt = new BGTRuntime({
   // K70: ?iowait=0 re-runs burst updates without waiting for a polled renderer result (pre-K70 busy-poll, A/B);
   // K73: it also drops step()'s wait for that result (pre-K73 step(n), A/B).
   ioWait: q.get('iowait') !== '0',
+  // K73: ?stepwaitms=N sets step()'s per-call request-wait budget (test of the timeout path).
+  stepWaitMs: q.has('stepwaitms') ? Math.max(0, num('stepwaitms', 10000)) : undefined,
   seed: num('seed', 1),
   arg0: num('arg0', 0),
   arg1: num('arg1', 0),

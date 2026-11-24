@@ -783,8 +783,13 @@ export class GameHost {
       maxTextureDimension: this.config.maxTextureDimension ?? null, deviceMaxTextureDimension: this.deviceMaxTextureDimension };
   }
 
-  setBackend(backend: number, gpuBackend?: GpuBackend): void {
+  setBackend(backend: number, gpuBackend?: GpuBackend, maxTextureDimension?: number): void {
     if (this.hasGpuWork) throw new Error('Cannot migrate live GPU resources or pending GPU work');
+    /* vK73: §13.6 offset 4 follows the new renderer (min with the portable table); ABI < 0.3 keeps the frozen 4096. */
+    if (maxTextureDimension !== undefined && this.abiVersion >= 0x000300) {
+      this.deviceMaxTextureDimension = maxTextureDimension;
+      this.config.maxTextureDimension = reportedLimit(this.config.gpuLimits ?? 'portable', GPU_PORTABLE_LIMITS.textureDimension, maxTextureDimension);
+    }
     this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
