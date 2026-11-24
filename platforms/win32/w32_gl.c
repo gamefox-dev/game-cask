@@ -161,11 +161,21 @@ static int fits(const gpu_usage_t *base, const gpu_usage_t *extra) {
         base->vertices + extra->vertices <= 1572864u;
 }
 static int journal_fits_frame(void) { host_frame_sync(); return fits(&frame_use, &journal_use); }
-/* Wire words carry 32-bit wasm addresses (PTR). In wasm this is the identity; the 64-bit native test
- * adapter keeps all profile memory in one static image, so the upper address bits are shared. */
-static const void *wire_address(uint32_t p) {
-    return (const void *)(((uintptr_t)&frame_use & ~(uintptr_t)UINT32_MAX) | p);
+/* Wire words carry 32-bit wasm addresses (PTR). In wasm this is the identity. The 64-bit native test adapter keeps
+ * all profile memory in one static image (well under 2 GiB), but that image can straddle a 4 GiB boundary (Linux PIE +
+ * ASLR), so the upper bits are not shared: rebuild the address nearest to a static anchor (vK72: the CI journal
+ * SIGSEGV was a host arena address rebuilt with the anchor's upper half, 4 GiB off). */
+static inline uintptr_t w32_gl_rebase(uintptr_t anchor, uint32_t p) {
+#if UINTPTR_MAX > 0xffffffffu
+    uintptr_t c = (anchor & ~(uintptr_t)UINT32_MAX) | p;
+    if (c > anchor && c - anchor > 0x80000000u) c -= (uintptr_t)1 << 32;
+    else if (c < anchor && anchor - c > 0x80000000u) c += (uintptr_t)1 << 32;
+    return c;
+#else
+    (void)anchor; return p;
+#endif
 }
+static const void *wire_address(uint32_t p) { return (const void *)w32_gl_rebase((uintptr_t)&frame_use, p); }
 static int journal_add(const uint8_t *buf, uint32_t len, const gpu_usage_t *u) {
     gpu_usage_t total = journal_use, empty = {0}; usage_add(&total, u);
     if (!fits(&empty, &total)) return 0; /* the deferred span must fit a fresh host frame */
@@ -509,7 +519,7 @@ static int submit_deferred_x(uint32_t reserve) {
         if (data_field(code, &pi, &li)) {
             uint32_t src, n; copy(&src, payload + pi * 4, 4); copy(&n, payload + li * 4, 4);
             uint8_t *dst = pend_data + pend_used;
-            if (n) __builtin_memcpy(dst, (const void *)(uintptr_t)src, n);
+            if (n) __builtin_memcpy(dst, wire_address(src), n);
             uint32_t at = PTR(dst); copy(payload + pi * 4, &at, 4); pend_used += (n + 15u) & ~15u;
             r->src = dst;
         }

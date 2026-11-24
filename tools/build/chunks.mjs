@@ -55,7 +55,9 @@ export function liftPolicy(p = {}, env = process.env) {
     policy.liftMode = 'fast';
     const knobs = p.liftFast ?? {};
     const allowed = { resume: ['on', 'off'], fuse: ['on', 'off'], memory: ['range', 'mask', 'select', 'off'], entries: ['restricted', 'all'],
-      quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'] };
+      quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'],
+      sync: ['full', 'minimal'], calls: ['inline', 'outlined'],
+      testCorrupt: ['off', 'stack'] /* vK72 test only: a deliberately wrong lifted RET (guest-state oracle test) */ };
     for (const [key, value] of Object.entries(knobs)) {
       if (!allowed[key]?.includes(value)) throw new Error(`pipeline.liftFast.${key} must be one of ${allowed[key]?.join('/') ?? '(unknown knob)'}`);
     }
@@ -66,7 +68,7 @@ export function liftPolicy(p = {}, env = process.env) {
 export function liftPolicyArgs(policy) {
   return Object.entries(policy).flatMap(([key, value]) => {
     if (key === 'liftMode') return ['--lift-mode', value];
-    if (key === 'liftFast') return Object.entries(value).flatMap(([k, v]) => ['--fast-' + k, v]);
+    if (key === 'liftFast') return Object.entries(value).flatMap(([k, v]) => ['--fast-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), v]);
     return ['--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off'];
   });
 }

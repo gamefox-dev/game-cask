@@ -460,6 +460,49 @@ observed across calls/returns and callee-saved registers clobbered against the A
 Ablation knobs (`liftFast.{resume,fuse,memory,entries,quantum,stack,inline}`) exist for measurement only.
 Measurements, per-change gains and the go/no-go input: [K52 handoff](handoff/K52.md).
 
+### Module size (K72, opt-in)
+
+Engine-side compiled-code memory scales with wasm bytes (K71: ~4 MB per MB in Chromium after the code ran, ~4-8 MB
+per MB in WebKit, which compiles at load), so module bytes are the main lever for a phone-sized tab. Where the bytes
+go: `npm run bench:wasm-size -- --wasm FILE [--work node_modules/.cache/bgt/pipeline/ID] [--coverage cov.json]`
+(sections, per-function kinds and distribution, never-entered lifted bytes); per guest instruction class by DWARF
+line attribution: build once with `"cflags": ["-gline-tables-only"]` and `BGT_KEEP_DWARF=1 BGT_JSPI_WASM_OPT=0`, then
+`npm run bench:wasm-lines -- --wasm FILE --work DIR` (needs llvm-dwarfdump). `x86tool lift --fast-mark on` adds
+comment markers only (same code, same line numbers). On the CC0 C++ fixture call sites are ~50% of lifted code.
+
+- `liftFast.sync: "minimal"` (default `"full"`): call sites and exits store only registers written since the last
+  synchronization with `X` (entry reload, returned call, generic instruction); after a call only live volatile
+  registers and RSP reload. Spills count as reads in the liveness. Same Win64 assumptions as the full form.
+  **ABI assumption (same as the full form, now load-bearing for which value is wrong):** callees preserve RBX, RBP,
+  RSI, RDI and R12-R15 and never read EFLAGS left by the caller. A hand-written callee that breaks this gets a
+  different wrong value in the two forms (full reloads none of the callee-saved registers but re-stores every
+  written one at the next call; minimal re-stores only registers written since), so `full` is not a safe reference
+  for such code: use `liftMode: "exact"` for it. Detecting ABI-breaking callees in the profile/analyzer is a
+  follow-up (not implemented).
+- `liftFast.calls: "outlined"` (default `"inline"`): the call protocol (clock/flags publication, `X.eip`, depth slot,
+  abnormal-exit check) is `xf_enter`/`xf_leave`/`xf_check` in `x86_rt.c` instead of ~100 inline bytes per site.
+- `liftFast.inline: "16"`: smaller emission-level inlining (existing knob; 48 is the default).
+- `pipeline.selection: "recorded"`: lift only the owners of recorded entries, without the static call closure;
+  everything else interprets (and is recorded, so the next build includes it). Not for strict slices.
+- `pipeline.wasmNames: "strip"` (or `BGT_WASM_NAMES=strip`): artifacts without the `name` section; each one's
+  function map is written beside it (`game.wasm.names.json`, `game.jspi.wasm.names.json`, never fetched).
+
+All default off: the default lift policy, cache keys and generated C are unchanged. `liftFast.testCorrupt: "stack"`
+is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds.
+
+The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
+(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`x86_sched.c`): the CPU of every live guest thread
+(GPRs, RIP, flags CF/PF/AF/ZF/SF/OF/DF, fs/gs base, XMM, MXCSR, x87, instruction clock) and every mapped guest page.
+`BGT_ORACLE_STATE=off` or a list of `cpu`, `flags`, `current`, `memory`. Default for exact builds: every thread with
+flags, and memory; for `liftMode: "fast"` builds: the running thread without flags, and memory, with frames that end
+at the instruction cap, and every frame after a second guest thread was live, comparing memory and the live-thread
+count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). Known fast-mode memory difference: `CONTEXT.EFlags` captured by an API (x64-cpp's C++ throw). The
+report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), how many frames hashed memory
+(large guests are hashed less often, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
+bytes: the interpret-only build compiles a fixture in the lifted build's directory (lld embeds paths in PE debug
+data), and fixture builds zero PE timestamps and the CodeView GUID. `examples/x64-compact` builds
+the CC0 STL fixture with all of them. Measurements and the decision: [K72 handoff](handoff/K72.md).
+
 ### Guarded direct imports (K29, unit blocker repaired; acceptance external)
 
 AMD64 IAT memory calls and tail veneers are read normally; conservative MOV/copy CFG provenance

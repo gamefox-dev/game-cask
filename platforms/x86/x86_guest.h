@@ -230,6 +230,14 @@ extern const struct x86_import_binding *x86_pending_import;
 x86_native_fn x86_fast_lookup(x86_fast_site_t *site, uint32_t target);
 int x86_fast_quantum(void);
 void x86_fast_exec(const x86_insn_t *in);
+/* K72 liftFast.calls "outlined": the call protocol of a fast call site as three small out-of-line helpers
+ * (identical semantics to the inline form, fewer bytes per site). xf_enter publishes the clock and flags, sets
+ * X.eip = callee and takes a depth slot (nonzero: depth cap reached, the caller returns); xf_leave releases it and
+ * reports whether the caller must return (abnormal exit: X.eip is not the return site or a frame is busy);
+ * xf_check is xf_leave without the depth slot (imports, generic instructions). */
+int xf_enter(uint32_t pc, uint32_t flags, uint64_t clock, uint64_t qbase);
+int xf_leave(uint32_t next);
+int xf_check(uint32_t next);
 /* Returns nonzero when the scheduler hook provably neither suspends nor transfers right now. */
 void x86_set_quantum_probe(int (*probe)(void));
 

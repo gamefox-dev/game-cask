@@ -1,0 +1,15 @@
+{
+  "id": "x64-compact", "name": "CC0 Win64 STL runtime conformance, K72 size options",
+  "pipeline": {
+    "platform": "win32",
+    "liftMode": "fast",
+    "liftFast": {"sync": "minimal", "calls": "outlined", "inline": "16"},
+    "wasmNames": "strip",
+    "suspensionBuild": "dual",
+    "fixture": {
+      "target": "x86_64-windows-gnu", "crt": true, "cpp": true,
+      "out": "cpprt.exe", "sources": ["../x64-cpprt/cpprt.cpp"]
+    },
+    "modules": [{"from": "./build/cpprt.exe", "main": true}]
+  }
+}

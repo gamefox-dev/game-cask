@@ -22,7 +22,7 @@ import { leaseCache, pruneCache, touchCache } from './cache.mjs';
 import { buildLock } from './lock.mjs';
 import { cacheDirectory, hermeticTimeFlags, prepareObjects } from './objects.mjs';
 import { selectExampleDirs } from './test-examples.mjs';
-import { functionNames, stripDwarf } from './wasm-names.mjs';
+import { functionNames, stripDwarf, stripNames } from './wasm-names.mjs';
 import { reader, sections } from './wasm-sections.mjs';
 import { buildEngineVariants, validateConfig as validateEngineConfig } from '../engine/framework.mjs';
 import { validateGpuConfig } from './manifest-config.mjs';
@@ -70,6 +70,12 @@ export function asyncifyArgs({ asyncifyAnalysis = 'precise', asyncifyPartitionBy
 /** vK70: the exact asyncify.mjs arguments of the plain JSPI optimization (no --asyncify). */
 export function jspiOptArgs({ asyncifyPartitionBytes = null } = {}) {
   return [...WASM_OPT_FEATURES, '-O2', ...(asyncifyPartitionBytes === null ? [] : ['--bgt-partition-bytes=' + asyncifyPartitionBytes])];
+}
+/** K72: name-section policy of a pipeline build: game.json pipeline.wasmNames > BGT_WASM_NAMES > "keep". */
+export function wasmNamesMode(cfg, env = process.env) {
+  const v = cfg.pipeline?.wasmNames ?? (env.BGT_WASM_NAMES || 'keep');
+  if (v !== 'keep' && v !== 'strip') throw new Error('pipeline.wasmNames (or BGT_WASM_NAMES) must be keep or strip');
+  return v;
 }
 /** vK70: refuse a JSPI artifact that carries Asyncify exports or the Asyncify marker (checks the bytes themselves). */
 export function assertJspiArtifact(bytes) {
@@ -261,7 +267,9 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   }
   // Keep symbol names needed by Asyncify without shipping toolchain libc DWARF.
   // wasm-ld --strip-debug removes both, so strip only DWARF custom sections here.
-  if(pipe)writeFileSync(wasmPath,stripDwarf(readFileSync(wasmPath)));
+  // K72 measurement: BGT_KEEP_DWARF=1 keeps DWARF (with game.json "cflags": ["-gline-tables-only"]) for
+  // tools/report/wasm-lines.mjs attribution; never for shipped builds.
+  if(pipe && process.env.BGT_KEEP_DWARF!=='1')writeFileSync(wasmPath,stripDwarf(readFileSync(wasmPath)));
   const preAsyncifyBytes=statSync(wasmPath).size;
   const jspiStarted = performance.now();
   let jspiArtifact = null, jspiOpt = null;
@@ -336,6 +344,22 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
   }
   const asyncifyMs = performance.now()-asyncifyStarted;
   if (withCrt) writeFileSync(join(outDir, 'CRT-NOTICES.txt'), libcNotices(zig.path));
+  // K72 (Q131): `pipeline.wasmNames: "strip"` (or BGT_WASM_NAMES=strip) ships the artifacts without the name section
+  // and writes each one's function map beside it (`<artifact>.names.json`, never fetched by the runtime) for
+  // symbolizing CPU profiles. Default "keep" (unchanged artifacts).
+  const wasmNames = wasmNamesMode(cfg, process.env);
+  let namesStripped = null;
+  if (pipe && wasmNames === 'strip') {
+    namesStripped = {};
+    for (const file of ['game.wasm', ...(jspiArtifact ? ['game.jspi.wasm'] : [])]) {
+      const path = join(outDir, file), bytes = readFileSync(path), names = functionNames(bytes);
+      const { bytes: out, stripped } = stripNames(bytes);
+      writeFileSync(path, out);
+      writeFileSync(path + '.names.json', JSON.stringify({ schema: 'game-cask/wasm-functions/1', artifact: file, sha256: sha256(out), functions: names }) + '\n');
+      namesStripped[file] = stripped;
+      if (file === 'game.jspi.wasm') { const hash = sha256(out); jspiArtifact = { url: 'game.jspi.wasm?h=' + hash.slice(0, 16), size: out.length, sha256: hash }; }
+    }
+  }
   const wasm = readFileSync(wasmPath);
 
   const assets = [];
@@ -452,6 +476,7 @@ function buildGameUnlocked(gameDirArg, { check = false, quiet = false, interpret
       link_ms: compileMetrics?.link_ms ?? 0, wasm_opt_ms: asyncifyMs },
       ...(jspiArtifact ? { jspi_bytes: jspiArtifact.size, jspi_emit_ms: jspiMs, jspi_ready_ms: linkedMs } : {}),
       // K70: JSPI wasm-opt (null = not emitted or BGT_JSPI_WASM_OPT=0).
+      wasm_names: wasmNames, wasm_names_stripped_bytes: namesStripped,
       jspi_opt: jspiOpt ? { linked_bytes: jspiOpt.linked_bytes, ms: Math.round(jspiOpt.ms * 1000) / 1000, cached: jspiOpt.cached,
         mode: jspiOpt.mode, partitions: jspiOpt.partitions } : null,
       phase_timing_scope: 'phase wall times except C generation: summed child CPU, nested within lift (which reanalyzes); not additive',
