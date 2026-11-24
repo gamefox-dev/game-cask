@@ -6,6 +6,9 @@ import { Frame } from '../../bgt/runtime/commands';
 import { Vfs } from '../../bgt/runtime/vfs';
 import { InputManager } from '../../bgt/input/input';
 import { Savestates } from '../../bgt/runtime/savestates';
+import { replayGPU } from '../../bgt/runtime/savestate-gpu';
+import { checkGPUBytes, paddedReadbackBytes, textureReadbackStagingBytes } from '../../bgt/runtime/savestate-budget';
+import { recordCheckpointFrame } from '../../bgt/runtime/savestate-recording';
 import { instrumentCheckpointWasm } from '../../bgt/runtime/savestate-wasm';
 import type { BGTRuntime } from '../../bgt/runtime/runtime';
 import { compileC } from '../support/compile';
@@ -14,7 +17,7 @@ function harness(budget?: {retained:number;workspace:number}) {
   const canvas = {width: 4, height: 4}, lb = {x: 0, y: 0, w: 4, h: 4, scale: 1};
   const renderer = {
     canvas, kind: 'webgl2', lost: false, finish: async () => {},
-    inspectTestSurfaces: () => ({pixelBytes:64, shadows:{buffers:[],textures:[]}, lazy:new Map()}),
+    inspectTestSurfaces: () => ({pixelBytes:64, pixelStagingBytes:64, shadows:{buffers:[],textures:[]}, lazy:new Map()}),
     captureTestSurfaces: vi.fn(async () => ({physical:{...canvas,data:new Uint8Array(64)}, buffers:[], textures:[], retained:false, letterbox:lb})),
   };
   const vfs = new Vfs(), input = new InputManager(canvas as HTMLCanvasElement);
@@ -70,6 +73,27 @@ it('charges the previous base and input journal while a replacement base is bein
   await expect(states.compactJournal()).rejects.toThrow(/bounded GPU capture workspace/);
   expect(renderer.captureTestSurfaces).toHaveBeenCalledTimes(1);
   expect(states.journalStats()).toMatchObject({frames:1,error:null});
+});
+
+it('charges narrow WebGPU rows and both allocations in depth readback',()=>{
+  const extent={width:1,height:64,depth:1};
+  expect(paddedReadbackBytes(4,64)).toBe(16_384);
+  expect(textureReadbackStagingBytes('webgpu',0,extent)).toBe(16_384);
+  expect(textureReadbackStagingBytes('webgpu',6,extent)).toBe(17_408);
+  expect(textureReadbackStagingBytes('webgl2',6,extent)).toBe(2_048);
+});
+
+it('rejects transient same-frame replay buffer churn before drawing',async()=>{
+  const {renderer,lb}=harness(), frame=new Frame();frame.reset(4,4);
+  const detached={...renderer,onError:()=>{},onLost:()=>{},restoreTestSurfaces:()=>{},
+    resize:()=>{},drawFrame:vi.fn(async()=>null),destroy:vi.fn()};
+  for(let i=0;i<2;i++)frame.items.push(
+    {kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,4096,0,0]},
+    {kind:'gpu',op:GPU_OP.BUFFER_DELETE,words:[1]});
+  const records=[recordCheckpointFrame(frame,lb,1,4,4)];
+  await expect(replayGPU(detached as unknown as Parameters<typeof replayGPU>[0],null,records,
+    bytes=>checkGPUBytes(bytes,12_000,'restore workspace'))).rejects.toThrow(/bounded GPU restore workspace/);
+  expect(detached.drawFrame).not.toHaveBeenCalled();
 });
 
 it('drops a detached replay cursor whose native copy would exceed the retained cap',async()=>{

@@ -5,7 +5,7 @@ import { GPU_OP as O } from './abi';
 import { Frame, type FrameItem } from './commands';
 import { TEXEL_BYTES, canonicalize, mipExtent, toCanonicalTexture } from '../renderers/gpu-texture';
 import {recordCheckpointFrame,restoreCheckpointItems,CheckpointReplay,checkpointFrameBytes,type CheckpointFrame} from './savestate-recording';
-import { checkpointShadowBytes, detachedRendererBytes } from './savestate-budget';
+import { ReplayAllocations, checkpointShadowBytes, detachedRendererBytes, paddedReadbackBytes, textureReadbackStagingBytes } from './savestate-budget';
 import { cloneCheckpoint } from './savestate-clone';
 import type { Renderer, GpuItem } from '../renderers/types';
 import type { CheckpointRenderer, CheckpointSurfaces } from '../renderers/checkpoint-surfaces';
@@ -183,9 +183,16 @@ export class ReplayCursor {
   private legacy = new Map<number,number>();
   private shaders = new Map<number,number>();
   private extraBytes = 0;
-  constructor(readonly renderer: Renderer & CheckpointRenderer) { this.replay=new CheckpointReplay(renderer); }
+  private allocations: ReplayAllocations;
+  constructor(readonly renderer: Renderer & CheckpointRenderer) {
+    this.replay=new CheckpointReplay(renderer);this.allocations=new ReplayAllocations(renderer.kind);
+  }
   bytes():number { return detachedRendererBytes(this.renderer)+this.extraBytes; }
-  async draw(frame:CheckpointFrame, finish?:boolean):Promise<void> {
+  async draw(frame:CheckpointFrame, check:(extra:number)=>void, finish?:boolean):Promise<void> {
+    const {canvas}=this.renderer, resize=canvas.width!==frame.width||canvas.height!==frame.height;
+    const pixels=frame.width*frame.height*4;
+    // Compose/snapshot can allocate while the previous frame's surfaces exist.
+    check(this.allocations.frame(frame)+(resize?2*pixels:0)+pixels+frame.logicalW*frame.logicalH*4);
     const set=(map:Map<number,number>,h:number,n:number)=>{this.extraBytes+=n-(map.get(h)??0);if(n)map.set(h,n);else map.delete(h);};
     for(const i of frame.items) {
       if(i.kind==='texCreate')set(this.legacy,Number(i.handle),Number(i.width)*Number(i.height)*4+256);
@@ -198,19 +205,27 @@ export class ReplayCursor {
     await this.replay.draw(frame,finish);
   }
 }
-async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, journal: CheckpointFrame[], check:()=>void): Promise<void> {
+async function advanceReplay(cursor: ReplayCursor, base: GPUCheckpoint | null, journal: CheckpointFrame[], check:(extra:number)=>void): Promise<void> {
   const {renderer,replay}=cursor;
-  replay.check();check();
-  if(base) { await cursor.draw(base.frame); check();renderer.restoreTestSurfaces(base.surfaces);check(); }
+  replay.check();check(0);
+  if(base) {
+    await cursor.draw(base.frame,check);
+    const s=base.surfaces;
+    const pixels=s.physical.data.byteLength+(s.logical?.data.byteLength??0);
+    // Restore copies shadows and uploads new surfaces while the synthetic
+    // base's executor resources and the checkpoint payloads are still owned.
+    check(checkpointShadowBytes(s,new Set())+2*pixels);
+    renderer.restoreTestSurfaces(s);check(0);
+  }
   // WebGPU canvas current textures are invalidated at task boundaries. A fixed
   // GPU fence every batch bounds queued work without a per-frame GPU/CPU rendezvous.
-  for(let i=0;i<journal.length;i++) {await cursor.draw(journal[i], (i+1)%16===0||i===journal.length-1);check();}
+  for(let i=0;i<journal.length;i++) {await cursor.draw(journal[i],check,(i+1)%16===0||i===journal.length-1);check(0);}
   if(base&&!journal.length)await renderer.finish();
   replay.check();
 }
 export async function replayGPU(renderer: Renderer & CheckpointRenderer, base: GPUCheckpoint | null, journal: CheckpointFrame[], check:(bytes:number)=>void): Promise<void> {
   const cursor=new ReplayCursor(renderer);
-  try {await advanceReplay(cursor,base,journal,()=>check(cursor.bytes()));} finally {cursor.replay.stop();}
+  try {await advanceReplay(cursor,base,journal,extra=>check(cursor.bytes()+extra));} finally {cursor.replay.stop();}
 }
 export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBase:boolean}>, base: GPUCheckpoint | null,
     journal: CheckpointFrame[], live:Renderer & CheckpointRenderer, check:(nextBase:number,staging:number,residual:CheckpointFrame[],keepReplay:boolean)=>void) {
@@ -241,18 +256,18 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
   if(needsReplay){
     const state=await getReplay();cursor=state.cursor;
     source=cursor.renderer;
-    await advanceReplay(cursor,state.atBase?null:base,prefix,()=>check(0,0,residual,false));
+    await advanceReplay(cursor,state.atBase?null:base,prefix,extra=>check(0,extra,residual,false));
   }
   const replayMs=needsReplay?performance.now()-replayStart:0;
   const readAt=performance.now();
-  const {shadows,lazy,pixelBytes}=source.inspectTestSurfaces();
+  const {shadows,lazy,pixelBytes,pixelStagingBytes}=source.inspectTestSurfaces();
   const textureShadows=new Map(shadows.textures.map(t=>[t.handle,t]));
   const exactUploads: [GpuItem,number,number][]=[];
   const fillLegacy:(()=>void)[]=[];
   const frame=new Frame();frame.reset(at.logicalW,at.logicalH);
   const reads=new Frame();reads.reset(at.logicalW,at.logicalH);
   const pending: Promise<void>[]=[];
-  let nativeBytes=pixelBytes,readbackBytes=pixelBytes,readBytes=0,legacyBytes=0,stagingBytes=2*pixelBytes;
+  let nativeBytes=pixelBytes,readbackBytes=pixelBytes,readBytes=0,legacyBytes=0,stagingBytes=pixelStagingBytes;
   const read=(item: FrameItem, bytes:number, staging:number, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
     readBytes+=bytes;stagingBytes+=staging;
     pending.push(new Promise<void>((resolve,reject)=>{
@@ -304,7 +319,7 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
       t.exactUploads.delete(mip);
       const row=e.width*TEXEL_BYTES[desc.format];
       read({kind:'gpu',op:O.TEXTURE_READBACK,words:[h,mip,0,0,0,e.width,e.height,e.depth,0]},row*e.height*e.depth,
-        source.kind==='webgpu'?Math.ceil(row/256)*256*e.height*e.depth:e.width*e.height*16,data=>{
+        textureReadbackStagingBytes(source.kind,desc.format,e),data=>{
         // GL color readback expands half-floats through JS, which cannot preserve
         // arbitrary NaN payloads. Never silently canonicalize a non-readable value.
         const half=[4,8,9].includes(desc.format),float=[6,10,11,12].includes(desc.format),dv=new DataView(data.buffer,data.byteOffset,data.byteLength);
@@ -320,7 +335,7 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
     const {width:w,height:h,handle}=t.item, bytes=w*h*4;
     const update:Extract<FrameItem,{kind:'texUpdate'}>={kind:'texUpdate',handle,x:0,y:0,w,h,data:new Uint8Array(0)};
     frame.items.push(update);
-    if(t.item.renderTarget)read({kind:'readback',target:handle,x:0,y:0,w,h,complete:()=>{}},bytes,source.kind==='webgpu'?Math.ceil(w*4/256)*256*h:bytes,data=>{update.data=data;});
+    if(t.item.renderTarget)read({kind:'readback',target:handle,x:0,y:0,w,h,complete:()=>{}},bytes,source.kind==='webgpu'?paddedReadbackBytes(w*4,h):bytes,data=>{update.data=data;});
     else {legacyBytes+=bytes;nativeBytes+=bytes;fillLegacy.push(()=>{
       const data=update.data=new Uint8Array(bytes);
       for(const u of t.updates)for(let y=0;y<u.h;y++)data.set(u.data.subarray(y*u.w*4,(y+1)*u.w*4),((y+u.y)*w+u.x)*4);
@@ -328,7 +343,7 @@ export async function compactGPU(getReplay:()=>Promise<{cursor:ReplayCursor;atBa
   }
   frame.items.push(...r.samplers.values(),...r.shaders.values(),...r.pipelines.values(),...r.feedback.values());
   const packedConstants: CheckpointFrame['packedConstants']=[...r.textures].filter(([,t])=>t.item.words[6]===5).map(([h,t])=>[h,t.constants]);
-  const pack=()=>({...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height,false),packedConstants});
+  const pack=()=>({...recordCheckpointFrame(frame,at.letterbox,at.update,at.width,at.height),packedConstants});
   const keepReplay=needsReplay&&!legacyTargets;
   const planned=checkpointFrameBytes(pack())+checkpointShadowBytes(shadows,new Set())+pixelBytes+readBytes+legacyBytes;
   check(planned,stagingBytes,residual,keepReplay);

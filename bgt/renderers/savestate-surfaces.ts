@@ -2,20 +2,26 @@
 import { WebGL2Renderer } from './webgl2/webgl2';
 import { WebGPURenderer } from './webgpu/webgpu';
 import { RECOVERY_SHADOWS_OFF } from './gpu-texture';
+import { paddedReadbackBytes } from '../runtime/savestate-budget';
 import type { CheckpointInspection, CheckpointShadows, CheckpointSurfaces } from './checkpoint-surfaces';
 import type { Letterbox, Pixels } from './types';
 // Inspect executor tables only. Never evaluate WebGPU's lazy native getter.
 function inspectWebGL2(this: WebGL2Renderer): CheckpointInspection {
   const textures = [...this.gpu['textures']];
   if(textures.some(([,t])=>t.unshadowed))throw new Error(`Checkpoint needs texture upload shadows: ${RECOVERY_SHADOWS_OFF}`);
-  return {pixelBytes:this.canvas.width*this.canvas.height*4, lazy:new Map(textures.flatMap(([h,t])=>t.storage?[]:[[h,t.constants??[]]])),
+  const pixelBytes=this.canvas.width*this.canvas.height*4;
+  return {pixelBytes, pixelStagingBytes:pixelBytes, lazy:new Map(textures.flatMap(([h,t])=>t.storage?[]:[[h,t.constants??[]]])),
     shadows:{buffers:[...this.gpu['buffers']].map(([handle,b])=>({handle,shadow:b.data,generated:!!b.generated})),
       textures:textures.map(([handle,t])=>({handle,levels:t.levels,generated:t.generated}))}};
 }
 function inspectWebGPU(this: WebGPURenderer): CheckpointInspection {
   const textures = [...this.gpu['textures']], screen=this['screen'];
   if(textures.some(([,t])=>t.unshadowed))throw new Error(`Checkpoint needs texture upload shadows: ${RECOVERY_SHADOWS_OFF}`);
-  return {pixelBytes:(this.canvas.width*this.canvas.height+(screen?screen.width*screen.height:0))*4,
+  const {width,height}=this.canvas, physical=width*height*4;
+  const compose=screen&&!this['snapshot']?physical:0;
+  const pixelStagingBytes=Math.max(paddedReadbackBytes(width*4,height)+compose,
+    screen?paddedReadbackBytes(screen.width*4,screen.height):0);
+  return {pixelBytes:physical+(screen?screen.width*screen.height*4:0),pixelStagingBytes,
     lazy:new Map(textures.flatMap(([h,t])=>t.live?[]:[[h,t.constants??[]]])),
     shadows:{buffers:[...this.gpu.buffers].map(([handle,b])=>({handle,shadow:b.shadow,generated:!!b.generated})),
       textures:textures.map(([handle,t])=>({handle,uploads:t.uploads,generated:t.generated}))}};
@@ -50,9 +56,15 @@ export function restoreWebGL2Renderer(this: WebGL2Renderer,s: CheckpointSurfaces
 export async function captureWebGPURenderer(this: WebGPURenderer,letterbox: Letterbox,shadows:CheckpointShadows): Promise<CheckpointSurfaces> {
     // K74: §13 frames keep no full-canvas snapshot; the physical image is the retained screen presented with the
     // current letterbox (exactly what an empty frame shows), never a possibly fresh getCurrentTexture().
-    let output: GPUTexture | undefined = this['snapshot'];
-    if (!output) { output = this['ctx'].getCurrentTexture(); if (this['screen']) this['presentTexture'](output, this['screen'].createView(), letterbox, [0, 0, 1, 1]); }
-    const physical = await this['readback'](output,this['format'] === 'bgra8unorm');
+    const snapshot=this['snapshot'], screen=this['screen'];
+    // Do not submit presentation work to the game's live canvas during capture.
+    const temp=!snapshot&&screen?this['o'].device.createTexture({size:[this.canvas.width,this.canvas.height],
+      format:this['format'],usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}):undefined;
+    let physical:Pixels;
+    try {
+      if(temp&&screen)this['presentTexture'](temp,screen.createView(),letterbox,[0,0,1,1]);
+      physical=await this['readback'](snapshot??temp??this['ctx'].getCurrentTexture(),this['format']==='bgra8unorm');
+    } finally { temp?.destroy(); }
     const logical = this['screen'] ? await this['readback'](this['screen']) : undefined;
     return {physical,logical,...shadows,retained:!!this['snapshot'],letterbox:{...letterbox}};
   }

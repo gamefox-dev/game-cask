@@ -13,6 +13,7 @@ export interface CheckpointInspection {
   // Borrowed until the controller has budgeted and cloned the surface payloads.
   shadows: CheckpointShadows;
   pixelBytes: number;
+  pixelStagingBytes: number;
   lazy: Map<number, readonly ({color?: number[]; depth?: number; stencil?: number} | undefined)[]>;
 }
 export interface CheckpointRenderer {

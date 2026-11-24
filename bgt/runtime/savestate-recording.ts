@@ -1,5 +1,5 @@
-// Test-only raw recorder: decoder uploads/words are already owned, renderer-read-only.
-// Retain those views; copy only the reusable legacy vertex arena. No base64/JSON on update path.
+// Test-only raw recorder: retain immutable upload views, but not the reusable
+// vertex arena or the decoder’s shared-buffer ownership keys.
 import {Frame,type FrameItem} from './commands';
 import {GPU_OP as O} from './abi';
 import type {RecordedFrame} from '../renderers/recording';
@@ -7,14 +7,16 @@ import {decodeBytes} from '../renderers/recording';
 import type {Letterbox,Renderer} from '../renderers/types';
 export type CheckpointFrame=Omit<RecordedFrame,'vertices'> & {vertices:string|Uint8Array<ArrayBuffer>;packedConstants?:[number,[number|null,number|null][]][]};
 export function recordsMutation(item:FrameItem):boolean {return item.kind!=='readback'&&!(item.kind==='gpu'&&(item.op===O.TEXTURE_READBACK||item.op===O.BUFFER_READBACK));}
-export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:number,width:number,height:number,copy=true):CheckpointFrame {
+export function recordCheckpointFrame(frame:Frame,letterbox:Letterbox,update:number,width:number,height:number):CheckpointFrame {
   return {type:'frame',update,width,height,logicalW:frame.logicalW,logicalH:frame.logicalH,letterbox:{...letterbox},
-    vertices:copy?frame.vertexBytes().slice():frame.vertexBytes(),items:frame.items.flatMap<Record<string,unknown>>(item=>{
+    vertices:frame.vertexBytes().slice(),items:frame.items.flatMap<Record<string,unknown>>(item=>{
       // Observation results already live in the host request checkpoint. Replay must not issue them.
       if(!recordsMutation(item))return [];
       if(item.kind==='gpu'){
         const outcome=item as typeof item & {executeCode?:number;completeCode?:number};
-        return [{kind:'gpu',op:item.op,words:item.words,...(item.data?{data:item.data}:{}),...(item.source!==undefined?{source:item.source}:{}),
+        // K74 keys the decoder's buffer store on the original words object.
+        const words=(item.op===O.BUFFER_CREATE||item.op===O.BUFFER_UPDATE||item.op===O.BUFFER_COPY)?item.words.slice():item.words;
+        return [{kind:'gpu',op:item.op,words,...(item.data?{data:item.data}:{}),...(item.source!==undefined?{source:item.source}:{}),
           ...(outcome.executeCode!==undefined?{executeCode:outcome.executeCode}:{}),...(outcome.completeCode!==undefined?{completeCode:outcome.completeCode}:{})}];
       }
       if(item.kind==='draw')return [{...item,clip:{...item.clip}}];
