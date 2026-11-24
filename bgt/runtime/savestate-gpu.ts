@@ -190,7 +190,7 @@ export class ReplayCursor {
   private extraBytes = 0;
   private allocations: ReplayAllocations;
   constructor(readonly renderer: Renderer & CheckpointRenderer) {
-    this.replay=new CheckpointReplay(renderer);this.allocations=new ReplayAllocations(renderer.kind);
+    this.replay=new CheckpointReplay(renderer);this.allocations=new ReplayAllocations(renderer.kind,renderer.checkpointIndices?.());
   }
   bytes():number { return detachedRendererBytes(this.renderer)+this.extraBytes; }
   restoreSurfaces(s:CheckpointSurfaces):void {

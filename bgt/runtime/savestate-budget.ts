@@ -7,7 +7,7 @@ import type { Renderer } from '../renderers/types';
 import type { CheckpointRenderer, CheckpointShadows } from '../renderers/checkpoint-surfaces';
 import { TEXEL_BYTES, isDepthFormat, mipExtent, toCanonicalTexture, type CanonicalTexture } from '../renderers/gpu-texture';
 import { GPU_OP as O } from './abi';
-import { ReplayDrawAllocations } from './savestate-draw-budget';
+import { ReplayDrawAllocations, type ReplayIndexSource } from './savestate-draw-budget';
 
 const MiB = 1024 ** 2;
 export const GPU_HISTORY_BYTES = 512 * MiB;
@@ -80,7 +80,7 @@ function vertexStoreBytes(kind:Renderer['kind'],bytes:number):number {
 export class ReplayAllocations {
   private textures=new Map<number,{desc:CanonicalTexture;mips:number;shadows:Set<number>;used:boolean;generatedBytes:number}>();
   private draws: ReplayDrawAllocations;
-  constructor(private kind:Renderer['kind']) { this.draws=new ReplayDrawAllocations(kind); }
+  constructor(private kind:Renderer['kind'],indices?:ReplayIndexSource) { this.draws=new ReplayDrawAllocations(kind,indices); }
   restoreShadows(s:CheckpointShadows):void {
     this.draws.restoreBuffers(s.buffers);
     for(const t of this.textures.values()){t.shadows.clear();t.generatedBytes=0;}
@@ -112,7 +112,7 @@ export class ReplayAllocations {
       if(i.kind==='readback')throw new Error('Unexpected legacy readback in savestate replay');
       if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
       const w=i.words as number[], h=w[0];
-      this.draws.command(Number(i.op),w,i.source);
+      this.draws.command(Number(i.op),w,i.source,i.executeCode?null:data);
       switch(i.op) {
         case O.BUFFER_READBACK:case O.TEXTURE_READBACK:
           throw new Error('Unexpected GPU readback in savestate replay');

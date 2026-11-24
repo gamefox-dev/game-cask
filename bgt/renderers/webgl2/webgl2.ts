@@ -464,6 +464,7 @@ export class WebGL2Renderer implements Renderer {
     return out;
   }
 
+  declare checkpointIndices: CheckpointRenderer['checkpointIndices'];
   declare checkpointStorageBytes: CheckpointRenderer['checkpointStorageBytes'];
   declare inspectTestSurfaces: CheckpointRenderer['inspectTestSurfaces'];
   declare captureTestSurfaces: CheckpointRenderer['captureTestSurfaces'];

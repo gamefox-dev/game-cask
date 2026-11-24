@@ -90,6 +90,13 @@ export function restoreWebGPURenderer(this: WebGPURenderer,s: CheckpointSurfaces
   }
 
 
+WebGL2Renderer.prototype.checkpointIndices=function(){
+  const gpu=this.gpu;
+  return {maxElementIndex:gpu['maxElementIndex'],readBuffer(handle){
+    const buffer=gpu['buffers'].get(handle);
+    return buffer&&!buffer.generated?buffer.data:undefined;
+  }};
+};
 WebGL2Renderer.prototype.checkpointStorageBytes=function(){return this.stats.vertexBytes??0;};
 WebGPURenderer.prototype.checkpointStorageBytes=function(){
   const screen=this['screen'];

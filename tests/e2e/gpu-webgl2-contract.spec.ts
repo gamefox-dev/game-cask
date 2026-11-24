@@ -18,6 +18,15 @@ async function probe<T>(page: Page, name: string, file = 'gpu-webgl2-probe.ts'):
   }, { name, url: '/@fs'+resolve('tests/e2e', file) });
 }
 
+test('GPU WebGL2: replay budgets wide-stride draws by fetched index span', async ({ page, backendParam }) => {
+  test.skip(backendParam !== 'webgl2', 'WebGL2-specific replay budget');
+  const r=await probe<{readPixel:number[];maxExtra:number;refusals:string[]}>(page,'replayIndexedBudgetProbe');
+  near(r.readPixel,[64,128,191,255]);
+  expect(r.maxExtra).toBeLessThan(4096);
+  expect(r.refusals).toHaveLength(3);
+  for(const failure of r.refusals)expect(failure).toMatch(/bounded GPU restore workspace/);
+});
+
 // Catches format allocation/upload/clear/sRGB conversion and independently blended/masked MRT errors.
 test('GPU WebGL2: every color format, top-left uploads and independent MRT state', async ({ page, backendParam }) => {
   test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');

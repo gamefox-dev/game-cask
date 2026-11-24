@@ -18,12 +18,20 @@ interface Layout {
   feedback?:number;
 }
 
+export interface ReplayIndexSource {
+  maxElementIndex: number;
+  readBuffer(handle:number):Uint8Array|undefined;
+}
+
 export class ReplayDrawAllocations {
   private glsl = new Set<number>();
   private pipelines = new Map<number,Layout>();
   private buffers = new Map<number,{bytes:number;generated:boolean}>();
   private bindings = new Map<number,number[]>();
   private pipeline?:Layout;
+  private index?:number[];
+  private indexSources=new Map<number,Uint8Array|null|undefined>();
+  private ranges=new Map<string,{elements:number;remap:boolean}>();
   private capture?:number[];
   private viewRing = false;
   private sequence = new Map<number,number>();
@@ -31,7 +39,7 @@ export class ReplayDrawAllocations {
   private viewports = 0;
   native = 0;
   staging = 0;
-  constructor(private kind:Renderer['kind']) {}
+  constructor(private kind:Renderer['kind'],private indices?:ReplayIndexSource) {}
 
   restoreBuffers(buffers:readonly {handle:number;generated:boolean}[]):void {
     for(const {handle,generated} of buffers) {
@@ -40,22 +48,30 @@ export class ReplayDrawAllocations {
   }
   startFrame():void {
     this.native=this.staging=this.indexDemand=this.viewports=0;
-    this.resetPass();
+    this.indexSources.clear();this.ranges.clear();this.resetPass();
   }
-  private resetPass():void {this.pipeline=this.capture=undefined;this.bindings.clear();}
+  private resetPass():void {this.pipeline=this.capture=this.index=undefined;this.bindings.clear();}
+  private indexWrite(handle:number,source:Uint8Array|null|undefined):void {
+    if(this.kind!=='webgl2')return;
+    this.indexSources.set(handle,source);this.ranges.clear();
+  }
   endFrame():number {
     // A new ring wastes less than the write that overflowed the previous one,
     // or is rounded up from that write. Cover both plus an initially empty ring.
     const rings=this.indexDemand?indexRingSize(0)+4*this.indexDemand:0;
+    this.indexSources.clear();this.ranges.clear();
     return this.native+this.staging+rings;
   }
-  command(op:number,w:number[],source:unknown):void {
+  command(op:number,w:number[],source:unknown,data:unknown):void {
     const h=w[0], gpu=this.kind==='webgpu';
     switch(op) {
       case O.SHADER_CREATE: if(w[2])this.glsl.add(h);else this.glsl.delete(h);break;
       case O.SHADER_DELETE: this.glsl.delete(h);break;
-      case O.BUFFER_CREATE: this.buffers.set(h,{bytes:w[2],generated:false});break;
-      case O.BUFFER_DELETE: this.buffers.delete(h);break;
+      case O.BUFFER_CREATE:
+        this.buffers.set(h,{bytes:w[2],generated:false});
+        this.indexWrite(h,!w[4]&&(data===undefined||data instanceof Uint8Array&&!data.length)?null:
+          data instanceof Uint8Array&&data.length===w[2]?data:undefined);break;
+      case O.BUFFER_DELETE: this.buffers.delete(h);this.indexWrite(h,undefined);break;
       case O.BUFFER_UPDATE: {
         const buffer=this.buffers.get(h);if(!buffer)break;
         const {bytes}=buffer, whole=!w[1]&&w[3]===bytes;
@@ -67,10 +83,12 @@ export class ReplayDrawAllocations {
           } else if(!gpu&&!whole&&bytes<=32768)this.native+=bytes; // orphaned store
         }
         if(whole)buffer.generated=false;
+        this.indexWrite(h,whole&&data instanceof Uint8Array&&data.length===bytes?data:undefined);
         break;
       }
       case O.BUFFER_COPY: {
         const dst=this.buffers.get(w[2]);if(!dst)break;
+        this.indexWrite(w[2],undefined);
         if(this.buffers.get(h)?.generated)dst.generated=true;
         else if(!w[3]&&w[4]===dst.bytes)dst.generated=false;
         break;
@@ -102,6 +120,7 @@ export class ReplayDrawAllocations {
       case O.PASS_BEGIN:case O.PASS_END: this.resetPass();break;
       case O.PIPELINE:this.pipeline=this.pipelines.get(h);break;
       case O.VERTEX_BUFFER:this.bindings.set(h,w);break;
+      case O.INDEX_BUFFER:this.index=w;break;
       case O.FEEDBACK_CAPTURE:this.capture=w;break;
       case O.VIEWPORT:if(gpu)this.reserveViews(++this.viewports);break;
       case O.CLEAR_BUFFER:if(gpu&&(h&3)!==2)this.native+=16;break;
@@ -111,7 +130,7 @@ export class ReplayDrawAllocations {
         const indexed=op===O.DRAW_INDEXED;
         if(gpu)this.webgpuDraw(p,w,indexed,capture);else this.webglDraw(p,w,indexed,!!capture);
         if(capture&&feedbackVertexCount(p.topology,h))for(let j=1;j<capture.length;j+=3){
-          const dst=this.buffers.get(capture[j]);if(dst)dst.generated=true;
+          const dst=this.buffers.get(capture[j]);if(dst){dst.generated=true;this.indexWrite(capture[j],undefined);}
         }
         break;
       }
@@ -157,9 +176,35 @@ export class ReplayDrawAllocations {
       }
     }
   }
+  private indexedRange(w:number[]):{elements:number;remap:boolean}|undefined {
+    if(!this.index||!this.indices)return;
+    const [handle,format,byteOffset,boundBytes]=this.index,size=format?4:2,count=w[0];
+    const start=w[2]*size,end=start+count*size,at=byteOffset+start;
+    if(!Number.isInteger(count)||count<=0||count>1572864||!Number.isInteger(at)||at<0||start<0||end>boundBytes)return;
+    const key=`${handle}:${size}:${at}:${count}`;
+    const hit=this.ranges.get(key);if(hit)return hit;
+    const data=this.indexSources.has(handle)?this.indexSources.get(handle):this.indices.readBuffer(handle);
+    let elements=1; // null means a newly created all-zero buffer
+    if(data!==null){
+      if(!data||at+count*size>data.byteLength)return;
+      const view=new DataView(data.buffer,data.byteOffset,data.byteLength);
+      let min=0xffffffff,max=0;
+      for(let i=at,end=at+count*size;i<end;i+=size){
+        const index=size===4?view.getUint32(i,true):view.getUint16(i,true);
+        min=Math.min(min,index);max=Math.max(max,index);
+      }
+      elements=max-min+1; // adding baseVertex to both ends leaves the span unchanged
+    }
+    const result=elements-1>this.indices.maxElementIndex||elements===0x100000000?{elements:count,remap:true}:{elements,remap:false};
+    this.ranges.set(key,result);return result;
+  }
   private webglDraw(p:Layout,w:number[],indexed:boolean,capture:boolean):void {
     const count=w[0], strip=p.topology===2||p.topology===4;
-    const remap=capture&&(indexed||strip)?feedbackVertexCount(p.topology,count):indexed?count:0;
+    // Indexed feedback explicitly gathers its order. Otherwise only scan the
+    // index shadow when narrowing a wide per-vertex repack can save space.
+    const range=indexed&&!capture&&p.attrs.some(({slot})=>!p.slots[slot].step&&p.slots[slot].stride>255&&this.bindings.has(slot))
+      ?this.indexedRange(w):undefined;
+    const remap=capture&&(indexed||strip)?feedbackVertexCount(p.topology,count):indexed&&(!range||range.remap)?count:0;
     const padded=remap<=4096?remap:4096*Math.ceil(remap/4096);
     // Dense indices + optional ID texture + upload arrays (and feedback order).
     this.native+=4*(Number(indexed)*count+padded)+4;
@@ -168,9 +213,10 @@ export class ReplayDrawAllocations {
     for(const {slot,size} of p.attrs) {
       const {stride,step}=p.slots[slot], binding=this.bindings.get(slot);
       if(!binding||!stride||(stride<=255&&(!remap||step)))continue;
-      // Without reading the actual index store we cannot know the fetched
-      // interval. The binding bounds it, even for very sparse native indices.
-      const elements=step?w[1]:capture&&remap?remap:indexed?Math.ceil(binding[3]/stride):count;
+      // Same-frame partial mutations or older encoded payloads may hide the
+      // authoritative indices. Then reserve the greater of the bound interval
+      // and a dense remap (which can include repeated indices).
+      const elements=step?w[1]:capture&&remap?remap:indexed?range?.elements??Math.max(count,Math.ceil(binding[3]/stride)):count;
       const bytes=elements*size;
       const buffer=this.buffers.get(binding[1]);
       this.native+=bytes;
