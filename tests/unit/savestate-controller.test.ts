@@ -11,6 +11,7 @@ import { ReplayAllocations, checkGPUBytes, paddedReadbackBytes, textureReadbackS
 import { recordCheckpointFrame } from '../../bgt/runtime/savestate-recording';
 import { instrumentCheckpointWasm } from '../../bgt/runtime/savestate-wasm';
 import type { BGTRuntime } from '../../bgt/runtime/runtime';
+import type { GpuItem } from '../../bgt/renderers/types';
 import { compileC } from '../support/compile';
 
 function harness(budget?: {retained:number;workspace:number}) {
@@ -133,6 +134,39 @@ it('recovers capture after an over-cap packed prefix once a live cut becomes pro
   expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
   expect(renderer.captureTestSurfaces).toHaveBeenCalledOnce();
   expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(1500);
+});
+
+it.each(['rewrite','delete','repeated writes'])('backs off failed live readback and handles texture %s',async action=>{
+  const {rt,states,renderer,lb}=harness({retained:1600,workspace:8192});
+  const frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[]):GpuItem=>({kind:'gpu',op,words});
+  let pixel=NaN;
+  const readback=vi.fn((item:GpuItem)=>{
+    expect(item.op).toBe(GPU_OP.TEXTURE_READBACK);
+    item.readback!(new Uint8Array(new Float32Array(16).fill(pixel).buffer));return 0;
+  });
+  Object.assign(renderer,{gpu:{execute:readback}});
+  const hooks=rt.testHarness!;
+  const step=async(update:number,items:typeof frame.items)=>{
+    frame.items=items;hooks.frame(frame,lb,update,4,4);await hooks.afterFrame!();
+  };
+  const clear=[cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),cmd(GPU_OP.PASS_END,[])];
+  await step(1,[cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,10,3]),...Array.from({length:8},()=>clear).flat()]);
+  expect(states.journalStats().error).toMatch(/non-finite GPU texture checkpoint/);
+  expect(readback).toHaveBeenCalledOnce();
+  const repeated=action==='repeated writes';
+  const write=[cmd(GPU_OP.PASS_BEGIN,[1,0,0,0,0,0,0,1,0,1,0,0,0,0]),cmd(GPU_OP.PASS_END,[])];
+  for(let update=2;update<=32;update++)await step(update,repeated?write:clear);
+  expect(readback).toHaveBeenCalledTimes(repeated?2:1); // unrelated writes never wake; repeated writes wake once
+  await step(33,[]);
+  expect(readback).toHaveBeenCalledTimes(repeated?3:2);
+  expect(states.journalStats().error).not.toBeNull();
+  pixel=0.5;
+  const data=new Uint8Array(new Float32Array(16).fill(pixel).buffer);
+  await step(34,action==='rewrite'?[{...cmd(GPU_OP.TEXTURE_UPDATE_EX,[1,0,0,0,0,4,4,1,1,64]),data}]:[cmd(GPU_OP.TEXTURE_DELETE,[1])]);
+  expect(readback).toHaveBeenCalledTimes(action==='delete'?2:3);
+  expect(renderer.captureTestSurfaces).toHaveBeenCalledTimes(repeated?4:3);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
 });
 
 it('charges narrow WebGPU rows and both allocations in depth readback',()=>{

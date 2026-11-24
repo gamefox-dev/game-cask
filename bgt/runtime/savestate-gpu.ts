@@ -239,6 +239,45 @@ type CaptureCheck=(nextBase:number,staging:number,residual:CheckpointFrame[],kee
 type ReplayFactory=()=>Promise<{cursor:ReplayCursor;atBase:boolean}>;
 type CheckpointSource=Renderer & CheckpointRenderer;
 
+export class GPUReadbackFailure extends Error {
+  constructor(cause:unknown,readonly live:boolean,readonly op?:number,readonly handle?:number) {
+    super(cause instanceof Error?cause.message:String(cause),{cause});
+  }
+
+  // Screen draws and writes to other textures do not clear a bad texture's
+  // texels. A target pass matters only if it clears or issues a write there.
+  changed(frame:CheckpointFrame):'delete'|'write'|undefined {
+    const {op,handle}=this;
+    let attached=false, wrote=false;
+    for(const i of frame.items) {
+      if(i.kind!=='gpu'||!Array.isArray(i.words))continue;
+      const [h]=i.words;
+      if(op===O.BUFFER_READBACK) {
+        if(h===handle&&i.op===O.BUFFER_DELETE)return 'delete';
+        if(h===handle&&i.op===O.BUFFER_UPDATE||i.op===O.BUFFER_COPY&&i.words[2]===handle)wrote=true;
+      } else if(op===O.TEXTURE_READBACK) {
+        switch(i.op) {
+          case O.TEXTURE_DELETE:if(h===handle)return 'delete';break;
+          case O.TEXTURE_UPDATE:case O.TEXTURE_UPDATE_EX:case O.TEXTURE_GENERATE_MIPS:
+            if(h===handle)wrote=true;break;
+          case O.BLIT:if(i.words[2]===handle)wrote=true;break;
+          case O.PASS_BEGIN:
+            attached=i.words[1]===handle;
+            if(attached&&i.words[3])wrote=true;
+            for(let c=0;c<h;c++)if(i.words[7+c*7]===handle) {
+              if(i.words[9+c*7])wrote=true;
+              attached=true;
+            }
+            break;
+          case O.PASS_END:attached=false;break;
+          case O.DRAW:case O.DRAW_INDEXED:case O.CLEAR_BUFFER:if(attached)wrote=true;break;
+        }
+      }
+    }
+    return wrote?'write':undefined;
+  }
+}
+
 // Bounded, live-end-only recovery after the replay journal no longer fits.
 // No discarded pixel/vertex/upload bytes or renderer are held. Legacy textures
 // cannot be rebuilt from this recipe; their deletion/replacement or restoring
@@ -320,7 +359,12 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
   const read=(item: FrameItem, bytes:number, staging:number, complete:(data:Uint8Array<ArrayBuffer>)=>void) => {
     readBytes+=bytes;stagingBytes+=staging;
     pending.push(new Promise<void>((resolve,reject)=>{
-      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {if(!data||error||data.length!==bytes)reject(new Error('Savestate native readback failed: '+error));else {try{nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();}catch(e){reject(e);}}};
+      const done=(data?:Uint8Array<ArrayBuffer>,error?:number) => {
+        try {
+          if(!data||error||data.length!==bytes)throw new Error('Savestate native readback failed: '+error);
+          nativeBytes+=data.length;readbackBytes+=data.length;complete(data);resolve();
+        } catch(e) {reject(new GPUReadbackFailure(e,!cursor,item.kind==='gpu'?item.op:undefined,item.kind==='gpu'?item.words[0]:undefined));}
+      };
       if(item.kind==='gpu') item.readback=done;
       else if(item.kind==='readback') item.complete=done;
       reads.items.push(item);
@@ -404,17 +448,22 @@ async function captureCut(r:Resources,at:CheckpointFrame,residual:CheckpointFram
   const keepReplay=!!cursor&&!legacyTargets;
   const planned=checkpointFrameBytes(pack())+checkpointShadowBytes(shadows,new Set())+pixelBytes+readBytes+legacyBytes;
   check(planned,stagingBytes,residual,keepReplay);
-  const surfaces=await source.captureTestSurfaces(at.letterbox,cloneCheckpoint(shadows));
+  const owned=cloneCheckpoint(shadows);
+  let surfaces:CheckpointSurfaces;
+  try {surfaces=await source.captureTestSurfaces(at.letterbox,owned);}
+  catch(e){throw new GPUReadbackFailure(e,!cursor);}
   const capturedTextures=new Map(surfaces.textures.map(t=>[t.handle,t]));
   for(const [update,h,mip] of exactUploads) update.data=mipShadow(capturedTextures.get(h),mip)!;
   for(const fill of fillLegacy)fill();
   const done=Promise.all(pending).then(()=>undefined,e=>e as Error);
-  if(legacyTargets)await source.drawFrame(reads,at.letterbox,false);
-  else for(const item of reads.items){
-    if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');
-    const code=source.gpu!.execute(item);if(code)item.readback?.(undefined,code);
-  }
-  await source.finish();
+  try {
+    if(legacyTargets)await source.drawFrame(reads,at.letterbox,false);
+    else for(const item of reads.items){
+      if(item.kind!=='gpu')throw new Error('Invalid live checkpoint readback');
+      const code=source.gpu!.execute(item);if(code)item.readback?.(undefined,code);
+    }
+    await source.finish();
+  } catch(e){throw new GPUReadbackFailure(e,!cursor);}
   const error=await done;if(error)throw error;
   cursor?.replay.check();
   const readbackMs=performance.now()-readAt;

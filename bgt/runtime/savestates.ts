@@ -8,7 +8,7 @@ import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type Checkpoi
 import {trackCheckpointHost} from './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
-import { LiveGPUCut, ReplayCursor, compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
+import { GPUReadbackFailure, LiveGPUCut, ReplayCursor, compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
 import { GPUByteLimit, checkGPUBytes, checkpointGPUBytes, GPU_HISTORY_BYTES, GPU_CAPTURE_BUDGET, type GPUCaptureBudget } from './savestate-budget';
 import type { CheckpointRenderer } from '../renderers/checkpoint-surfaces';
 import { WebGL2Renderer } from '../renderers/webgl2/webgl2';
@@ -45,7 +45,7 @@ export class Savestates {
   private journalError: string | null = null;
   private recovery?: LiveGPUCut;
   private incoming?: {frame:CheckpointFrame;bytes:number;admitted:boolean};
-  private recoveryWait=0;
+  private recoveryWait?: {frames:number;readback?:GPUReadbackFailure;retriedWrite?:boolean};
   private journalCommands = 0;
   private retryAt = 0;
   private compactions = 0;
@@ -156,7 +156,7 @@ export class Savestates {
       const recovery=new LiveGPUCut(this.gpuBase,[...this.journal,frame]);
       this.recovery=recovery.bytes()<=this.gpuBudget.retained?recovery:undefined;
     } catch {this.recovery=undefined;}
-    this.recoveryWait=0;
+    this.recoveryWait=undefined;
     this.journal=[];this.baseBytes=this.journalBytes=this.journalCommands=0;this.gpuBase=null;this.releaseReplay();
   }
   journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:MAX_GPU_HISTORY.bytes,
@@ -185,8 +185,10 @@ export class Savestates {
       this.compactions++;
     } catch(e) {
       this.lastRollFailure=String(e);
-      if(overflow)this.disableJournal(frame,this.lastRollFailure);
-      else this.retryAt=Math.min(MAX_GPU_HISTORY.frames,this.journal.length+32);
+      if(overflow){
+        this.disableJournal(frame,this.lastRollFailure);
+        if(e instanceof GPUReadbackFailure&&e.live)this.recoveryWait={frames:31,readback:e};
+      } else this.retryAt=Math.min(MAX_GPU_HISTORY.frames,this.journal.length+32);
     } finally { this.compactionMs+=performance.now()-started; }
   }
   private async recoverLive(frame:CheckpointFrame):Promise<void> {
@@ -198,9 +200,18 @@ export class Savestates {
     } catch {this.recovery=undefined;return;}
     const live=this.rt.renderer as Renderer & CheckpointRenderer;
     if(this.pendingShaders.size||live.lost||this.rt['deviceResets'])return;
-    if(this.recoveryWait>0&&!frame.items.some(i=>i.kind==='texDelete'||i.op===GPU_OP.BUFFER_DELETE||i.op===GPU_OP.TEXTURE_DELETE)) {
-      this.recoveryWait--;return;
+    const wait=this.recoveryWait;
+    let retryingWrite=false;
+    if(wait?.frames) {
+      wait.frames--;
+      const changed=wait.readback?.op!==undefined?wait.readback.changed(frame):
+        frame.items.some(i=>i.kind==='texDelete'||i.op===GPU_OP.BUFFER_DELETE||i.op===GPU_OP.TEXTURE_DELETE)?'delete':undefined;
+      // A targeted write gets one early retry per window. If the guest keeps
+      // rendering non-finite values to the same target, don't read every frame.
+      retryingWrite=changed==='write'&&!wait.retriedWrite;
+      if(changed!=='delete'&&!retryingWrite)return;
     }
+    this.recoveryWait=undefined;
     const started=performance.now();
     try {
       const compact=await recovery.capture(live,frame,(base,staging)=>{
@@ -209,12 +220,14 @@ export class Savestates {
       });
       if(live.lost||live!==this.rt.renderer||this.rt['deviceResets'])return;
       this.gpuBase=compact.base;this.baseBytes=checkpointGPUBytes(this.gpuBase);
-      this.recovery=undefined;this.journalError=null;this.retryAt=this.recoveryWait=0;this.lastRollFailure='';
+      this.recovery=undefined;this.journalError=null;this.retryAt=0;this.lastRollFailure='';
       this.compactions++;
     } catch(e) {
-      // Provenance can become safe as soon as the next full clear. Throttle
-      // heavy/over-budget retries unless a deletion has changed live size.
-      if(e instanceof GPUByteLimit)this.recoveryWait=31;
+      // Provenance refusals never read back; the next packed clear can make
+      // them safe. Throttle only budget refusals and actual readback failures.
+      if(e instanceof GPUByteLimit)this.recoveryWait={frames:31};
+      if(e instanceof GPUReadbackFailure)this.recoveryWait=retryingWrite
+        ?{frames:wait!.frames,readback:e,retriedWrite:true}:{frames:31,readback:e};
     } finally {this.compactionMs+=performance.now()-started;}
   }
   private async materialize(forSnapshot=false,overflow?:{frame:CheckpointFrame;bytes:number}) {
@@ -307,7 +320,7 @@ export class Savestates {
         this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
         this.baseBytes = baseBytes; this.journalBytes = journalBytes; this.journalError = null; this.retryAt=0; this.lastRollFailure='';
-        this.recovery=undefined;this.incoming=undefined;this.recoveryWait=0;
+        this.recovery=undefined;this.incoming=undefined;this.recoveryWait=undefined;
         this.journalCommands=journalCommands;this.pendingShaders.clear();
       } finally { if (renderer) this.park(renderer); }
     }, () => {
