@@ -8,8 +8,8 @@
 //   so a port can bound an authentic repeated guest error instead of allowing it without limit.
 // - `allowRequestFailure(...)` is the only allowlist for request failures (an `allow(/guest:/)` never masks one).
 //   Same entry forms. Use it for an intentional abort (e.g. a test that `route.abort()`s a request on purpose).
-// - A request cancelled because the page navigated away (the main frame committed a new document after the request
-//   started, and the failure is a cancellation) is a navigation abort: logged, never a failure.
+// - Navigation aborts are logged separately by the fixture. For early WebKit cancellations where the public
+//   events cannot identify a navigation yet, use the fixture's explicit navigateAway(url, request).
 
 export type AllowEntry = RegExp | { pattern: RegExp; max: number };
 
