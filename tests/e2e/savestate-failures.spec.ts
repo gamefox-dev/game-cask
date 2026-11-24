@@ -34,6 +34,59 @@ for(const suspension of ['asyncify','jspi'])test('savestate preserves live and d
 });
 
 
+test('restore does not rerun startup exports or retain replacement-only dirty pages',async({page,backendParam,collector},info)=>{
+  void collector;
+  const bytes=Buffer.from(await compileC('tests/fixtures/c/savestate-startup.c'));
+  await page.route('**/games/sample2d/manifest.json',async route=>{
+    const response=await route.fetch(),m=await response.json();delete m.variants;m.suspension='asyncify';
+    m.wasm={url:'startup.wasm',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};m.assets=[];
+    await route.fulfill({response,json:m});
+  });
+  await page.route('**/games/sample2d/startup.wasm',r=>r.fulfill({contentType:'application/wasm',body:bytes}));
+  const [hostModule,ready]=await Promise.all([
+    page.waitForResponse(r=>/\/bgt\/runtime\/host\.ts$/.test(new URL(r.url()).pathname)),
+    openGame(page,backendParam,{deterministic:'1',suspension:'asyncify'}),
+  ]);
+  expect(ready).toBe('ready');
+  await assertBackend(page,backendParam,info);
+  const result=await page.evaluate(async(hostPath)=>{
+    const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+    const {GameHost}=await import(hostPath) as typeof import('../../bgt/runtime/host');
+    const capture=GameHost.prototype.checkpoint;
+    const inspect=async()=>{
+      let memory!: Uint8Array;
+      GameHost.prototype.checkpoint=function(...args){
+        memory=new Uint8Array(this.memory.buffer).slice();return capture.apply(this,args);
+      };
+      try{return {state:await t.snapshot(),memory};}
+      finally{GameHost.prototype.checkpoint=capture;}
+    };
+    const {state:saved,memory}=await inspect(), before=t.stateHash();
+    await t.step(1);
+    const live=await t.snapshot();
+    const restore=GameHost.prototype.restoreCheckpoint;
+    GameHost.prototype.restoreCheckpoint=function(){throw new Error('Injected before host restore');};
+    let rejection='';
+    try{await t.restore(saved);}catch(e){rejection=String(e);}
+    finally{GameHost.prototype.restoreCheckpoint=restore;}
+    const startupSideEffect=(await t.snapshot()).services.storage.has('startup-ran');
+    await t.restore(saved);
+    const after=t.stateHash(), recaptured=await inspect();
+    const offsets=(s:Savestate)=>[...s.host.wasm.memory.pages.keys()];
+    return {before,after,liveFlag:live.services.storage.get('boot')?.[0],rejection,startupSideEffect,
+      sameMemory:memory.length===recaptured.memory.length&&memory.every((byte,i)=>byte===recaptured.memory[i]),
+      baseline:saved.host.wasm.memory.baseline,saved:offsets(saved),restored:offsets(recaptured.state)};
+  },hostModule.url());
+  expect(result.liveFlag).toBe(0x51);
+  expect(result.baseline).toBe('module');
+  expect(result.before).toBe('00000000');
+  expect(result.after).toBe(result.before);
+  expect(result.sameMemory).toBe(true);
+  expect(result.restored).toEqual(result.saved);
+  expect(result.rejection).toMatch(/Injected before host restore/);
+  expect(result.startupSideEffect).toBe(false);
+});
+
 test('rejected restore is transactional for malformed sections',async({page,backendParam,collector},info)=>{
   void collector;
   // A Vite-transformed import can carry a cache-busting query. Patch the

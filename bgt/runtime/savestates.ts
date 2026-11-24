@@ -240,7 +240,8 @@ export class Savestates {
         this.releaseReplay();
         renderer = await this.createRenderer();
         await replayGPU(renderer,s.gpuBase,s.journal,bytes=>checkGPUBytes(this.retainedBytes()+baseBytes+journalBytes+bytes,this.gpuBudget.workspace,'restore workspace'));
-        const host = await rt.testHostFactory!(renderer);
+        const {abiVersion,ioPtr}=s.host.data;
+        const host = await rt.testHostFactory!(renderer,{abiVersion,ioPtr,memoryBytes:s.host.wasm.memory.byteLength});
         host.restoreCheckpoint(s.host);
         if(renderer.lost||rt.renderer!==original||rt.renderer!.lost||rt['deviceResets']!==resets)
           throw new Error('Savestate restore interrupted by graphics device loss');

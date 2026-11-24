@@ -27,7 +27,7 @@ import {
 } from './abi';
 import { resolveGpuLimits, type GpuLimitsPolicy } from './gpu-limits-policy';
 import type { CommandError, DecodeResult, Frame } from './commands';
-import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices } from './host';
+import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices, type CheckpointBootState } from './host';
 import { Vfs } from './vfs';
 import { RangeFiles, OutsideDataRange, type StreamedFile } from './range-files';
 import { WebAudioSink } from '../audio/audio';
@@ -222,7 +222,7 @@ export class BGTRuntime {
     afterFrame?(): Promise<void>;
     frame(frame: Frame, letterbox: Letterbox, update: number, width: number, height: number): void;
   };
-  declare testHostFactory?: (renderer: Renderer) => Promise<GameHost>;
+  declare testHostFactory?: (renderer: Renderer, checkpointBoot?: CheckpointBootState) => Promise<GameHost>;
   declare testQuiescent: () => boolean;
   private stepping = false;
   declare testCheckpointBusy: boolean;
@@ -558,7 +558,8 @@ export class BGTRuntime {
       if ((import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') && this.testHarness) {
         Object.assign(config, {checkpointBoundaries:true});
         const harness=this.testHarness;
-        this.testHostFactory = renderer => GameHost.create(wasm,actualServices,{...config,gpuBackend:renderer.gpu},harness.trackHost);
+        this.testHostFactory = (renderer, checkpointBoot) =>
+          GameHost.create(wasm,actualServices,{...config,gpuBackend:renderer.gpu},harness.trackHost,checkpointBoot);
         this.host = await this.testHostFactory(this.renderer);
       } else this.host = await GameHost.create(wasm,actualServices,config);
       this.linearAtInstantiate = this.host.memoryBytes;

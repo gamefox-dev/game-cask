@@ -167,13 +167,15 @@ export function restoreWasm(exports: WebAssembly.Exports, state: WasmCheckpoint)
   while(exports[checkpointName('t',tables)])tables++;
   if(state.globals.length!==globals||state.tables.length!==tables)throw new Error('Invalid checkpoint globals/tables length');
   if (memory.buffer.byteLength > state.memory.byteLength || state.memory.byteLength % 65536) throw new Error('Invalid checkpoint memory size');
-  // Called only on a fresh instance. Clear its initialized data pages, not the entire
-  // reserved (often 1 GiB) zero memory: touching every zero page commits physical RAM.
+  // No startup exports have run: omitted pages are exactly the module image.
+  // A scan-format snapshot is relative to zero, so clear initialized pages only
+  // (touching every page of a reserved 1 GiB memory would commit physical RAM).
   if(state.memory.baseline!==undefined&&state.memory.baseline!=='module')throw new Error('Invalid checkpoint baseline');
   const initial=state.memory.baseline==='module'?null:captureMemory(memory);
   const grow=(state.memory.byteLength-memory.buffer.byteLength)/65536;
   if(grow)memory.grow(grow);
   const bytes=new Uint8Array(memory.buffer),dirty=dirtyMemory(exports);
+  dirty?.fill(0); // track the restored delta from the module image, then new writes
   for(const at of initial?.pages.keys()??[]){bytes.fill(0,at,at+65536);if(dirty)dirty[at/65536]=1;}
   for(const [at,data] of state.memory.pages) {
     if(at%65536 || at<0 || at+65536>bytes.length || data.length!==65536)throw new Error('Invalid checkpoint memory page');

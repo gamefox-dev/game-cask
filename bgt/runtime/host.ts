@@ -80,6 +80,9 @@ export interface HostServices {
   rangeRead?(path: string, offset: number, length: number, ahead?: boolean): Promise<Uint8Array<ArrayBuffer>>;
 }
 
+/** Dev/test only: startup metadata already validated at the original boot. */
+export interface CheckpointBootState { abiVersion: number; ioPtr: number; memoryBytes: number }
+
 export interface HostConfig {
   suspensionMode?: 'asyncify' | 'jspi';
   checkpointBoundaries?: boolean; // opt-in dev/test, never automatic fallback to Asyncify
@@ -305,7 +308,8 @@ export class GameHost {
   }
 
   static async create(wasm: BufferSource | WebAssembly.Module, services: HostServices, config: HostConfig,
-    onInstance?: (host: GameHost) => void): Promise<GameHost> {
+    onInstance?: (host: GameHost) => void, checkpointBoot?: CheckpointBootState): Promise<GameHost> {
+    const restored = typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') ? checkpointBoot : undefined;
     const host = new GameHost(services, config);
     const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
     const imports = host.imports();
@@ -355,19 +359,23 @@ export class GameHost {
         const enable = instance.exports.bgt_enable_checkpoint_boundaries;
         const parked = instance.exports.bgt_checkpoint_parked;
         if (typeof enable === 'function' && typeof parked === 'function') {
-          enable(); host.testPortableBoundary = parked as () => number;
+          if (!restored) enable(); // its wasm state is included in the snapshot
+          host.testPortableBoundary = parked as () => number;
         }
       }
     }
-    const v = host.exports.bgt_abi_version() >>> 0;
+    // Checkpoint instrumentation forbids a wasm start function. Leave this
+    // instance at its pristine module image for sparse restore; calling even
+    // the metadata exports can write memory or mutate live host services.
+    const v = (restored ? restored.abiVersion : host.exports.bgt_abi_version()) >>> 0;
     host.abiVersion = v;
     if (v < 0x000300) host.config.caps &= ~(CAP_GPU_BUFFER_HANDLES | CAP_GPU_GL_RASTER | CAP_GPU_CONST_ATTRIB);
     if (v < 0x000300) host.config.maxTextureDimension = LIMITS.textureDim; // frozen v0.2 limits
     if (v >> 16 !== ABI_VERSION >> 16 || ((v >> 8) & 0xff) > ((ABI_VERSION >> 8) & 0xff)) {
       throw new HostError(`game built for BGT ABI 0x${v.toString(16)}, runtime provides 0x${ABI_VERSION.toString(16)}`);
     }
-    host.ioPtr = host.exports.bgt_io() >>> 0;
-    if (host.ioPtr === 0 || host.ioPtr % 4 !== 0 || host.ioPtr + IO.SIZE > host.memory.buffer.byteLength) {
+    host.ioPtr = (restored ? restored.ioPtr : host.exports.bgt_io()) >>> 0;
+    if (host.ioPtr === 0 || host.ioPtr % 4 !== 0 || host.ioPtr + IO.SIZE > (restored?.memoryBytes ?? host.memory.buffer.byteLength)) {
       throw new HostError(`bgt_io() returned invalid address ${host.ioPtr}`);
     }
     return host;
