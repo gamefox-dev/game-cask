@@ -2,11 +2,14 @@
 import {
   BGT_OK, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_UNSUPPORTED,
   GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN, GPU_VARYING_COMPONENTS_DEFAULT, GPU_VIEWPORT_BOUND,
+  GPU_PORTABLE_LIMITS, reportedLimit, type GpuLimitsMode,
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
 import { feedbackLayout, feedbackVertexCount, validateFeedbackInterface, type FeedbackLayout } from './feedback';
+import { BufferJournal, attachSharedWrite } from './shared-buffers';
 
+/** `shadow` is the buffer's one CPU store, shared with the executor (K74): read it through `GpuState.read()`. */
 type BufferEntry = { usage: number; shadow: Uint8Array<ArrayBuffer>; generated?: boolean };
 type TextureEntry = {
   width: number; height: number; depth: number; dimension: number; mips: number; format: number; usage: number;
@@ -42,17 +45,35 @@ export class GpuState {
   /** Negotiated by gpu_buffer_handles, never inferred from backend support alone. */
   bufferHandles = false;
   pass?: Pass;
-  /** K51: the backend's actual UNIFORM_BUFFER range limit (§13.6 offset 52), fixed for this namespace. */
+  /** K51/K73: the UNIFORM_BUFFER range limit this namespace reports (§13.6 offset 52) and enforces (E_LIMIT above
+   * it), fixed for the namespace: min(portable 16384, device) by default, the device's in 'device' mode. */
   readonly uniformRange: number;
-  /** K62: the backend's guaranteed GLSL varying components (§13.6 offset 76). */
+  /** K62/K73: the GLSL varying components this namespace reports (§13.6 offset 76): min(portable 84, device) by
+   * default, the device's in 'device' mode. */
   readonly varyingComponents: number;
-  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
+  /** K74 (Q138): writes decoded but not yet settled (see shared-buffers.ts). Non-enumerable: never checkpointed. */
+  declare readonly journal: BufferJournal;
+  /** K73 diagnostics: the device's own values (what 'device' mode would report). */
+  readonly deviceUniformRange: number;
+  readonly deviceVaryingComponents: number;
+  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget, readonly limitsMode: GpuLimitsMode = 'portable') {
+    Object.defineProperty(this, 'journal', { value: new BufferJournal(), enumerable: false, writable: false });
     this.budget = budget;
-    this.uniformRange = backendUniformRange(backend);
+    this.deviceUniformRange = backendUniformRange(backend);
     const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
-    this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.deviceVaryingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.uniformRange = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.uniformRange, this.deviceUniformRange);
+    this.varyingComponents = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.varyingComponents, this.deviceVaryingComponents);
   }
-  /** K64: the reservation split by kind (sums to `bytes`). Buffer bytes are also this decoder's JS shadow copies. */
+  /** K74: buffer bytes as the guest sees them now (the shared store plus this frame's pending writes). */
+  read(b: BufferEntry, offset: number, length: number): Uint8Array { return this.journal.read(b.shadow, offset, length); }
+  /** K74: record a guest write; the executor applies it to the shared store in execution order. */
+  write(item: GpuItem, b: BufferEntry, offset: number, data: Uint8Array): void {
+    attachSharedWrite(item, this.journal.write(b.shadow, offset, data), this.backend);
+  }
+  /** K74: the host consumed the frame: apply what the sharing executor did not (returns how many). */
+  settle(): number { return this.journal.settle(); }
+  /** K64: the reservation split by kind (sums to `bytes`). Buffer bytes are the one shared CPU copy (K74). */
   reservedByKind(): { buffers: number; textures: number; shaders: number } {
     let buffers = 0, textures = 0, shaders = 0;
     for (const b of this.buffers.values()) buffers += b.shadow.length;
@@ -160,7 +181,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const transferBytes = 2 * (Math.ceil((w[4] + 3) / 4) * 4);
       if (ctx.frame.gpuUploadBytes + transferBytes > g.budget) return E_LIMIT;
       ctx.frame.gpuUploadBytes += transferBytes;
-      dest.shadow.set(source.shadow.slice(w[1], w[1] + w[4]), w[3]);
+      g.write(item, dest, w[3], g.read(source, w[1], w[4]).slice());
       if (source.generated) dest.generated = true;
       else if (!w[3] && w[4] === dest.shadow.length) dest.generated = false;
       return emit();
@@ -200,6 +221,8 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       const data = copy(w[3], w[4]); if (typeof data === 'number') return data;
       item.data = data;
       const shadow = new Uint8Array(w[2]); shadow.set(data);
+      // K74: the executor adopts this store on execution (no second copy); nothing else writes it before then.
+      attachSharedWrite(item, { store: shadow, offset: 0, data, applied: false }, g.backend);
       g.buffers.set(h, { usage: w[1], shadow }); reserve(w[2]);
       return emit();
     }
@@ -209,7 +232,7 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
       if (b.generated && (w[1]%4 || w[3]%4) && !(w[1]===0&&w[3]===b.shadow.length)) return E_UNSUPPORTED;
       if (w[1] + w[3] > b.shadow.length) return E_BOUNDS;
       const data = copy(w[2], w[3]); if (typeof data === 'number') return data;
-      b.shadow.set(data, w[1]); if(w[1]===0&&w[3]===b.shadow.length)b.generated=false; item.data = data;
+      g.write(item, b, w[1], data); if(w[1]===0&&w[3]===b.shadow.length)b.generated=false; item.data = data;
       return emit();
     }
     case GPU_OP.BUFFER_DELETE: {
@@ -538,12 +561,12 @@ export function executeGpu(op: number, dv: DataView, p: number, n: number, mem: 
         const size = ib.format ? 4 : 2;
         if ((w[2] + h) * size > ib.size) return E_BOUNDS;
         if (g.buffers.get(ib.handle)!.generated) return E_UNSUPPORTED;
-        const shadow = g.buffers.get(ib.handle)!.shadow;
-        const view = new DataView(shadow.buffer);
+        const bytes = g.read(g.buffers.get(ib.handle)!, ib.offset + w[2] * size, h * size);
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const base = w[3] | 0;
         maxVertex = 0;
         for (let i = 0; i < h; i++) {
-          const offset = ib.offset + (w[2] + i) * size;
+          const offset = i * size;
           const vertex = (size === 2 ? view.getUint16(offset, true) : view.getUint32(offset, true)) + base;
           if (vertex < 0 || vertex > 0xffffffff) return E_BOUNDS;
           maxVertex = Math.max(maxVertex, vertex);

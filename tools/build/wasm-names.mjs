@@ -9,6 +9,17 @@ export function stripDwarf(bytes) {
   }
   return Buffer.concat(parts);
 }
+/** K72: drop the standard `name` custom section (every other section byte-identical). */
+export function stripNames(bytes) {
+  let p=8;const parts=[bytes.subarray(0,8)];let stripped=0;
+  const uleb=()=>{let n=0,s=0;for(let i=0;i<5;i++){if(p>=bytes.length)throw new Error('truncated wasm metadata');const b=bytes[p++];n+=(b&127)*2**s;if(!(b&128))return n;s+=7;}throw new Error('oversized wasm metadata');};
+  while(p<bytes.length){const begin=p,id=bytes[p++],size=uleb(),end=p+size;if(end>bytes.length)throw new Error('truncated wasm section');
+    let discard=false;
+    if(id===0){const n=uleb();if(p+n>end)throw new Error('truncated custom section');discard=Buffer.from(bytes.subarray(p,p+n)).toString('utf8')==='name';}
+    if(discard)stripped+=end-begin;else parts.push(bytes.subarray(begin,end));p=end;
+  }
+  return {bytes:Buffer.concat(parts),stripped};
+}
 export function encodeFunctionNames(names) {
   const leb=n=>{const b=[];do{let v=n%128;n=Math.floor(n/128);if(n)v|=128;b.push(v);}while(n);return Buffer.from(b);};
   const string=s=>{const b=Buffer.from(s);return Buffer.concat([leb(b.length),b]);};

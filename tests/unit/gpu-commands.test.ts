@@ -185,7 +185,8 @@ describe('GPU command validation', () => {
     ] as [number[],number][]){const before=t.frame.items.length;expect(t.send(O.BUFFER_COPY,words).status).toBe(status);expect(t.frame.items).toHaveLength(before);}
     expect(t.inPass(O.BUFFER_COPY,[3,0,1,0,4]).status).toBe(A.E_STATE);
     const src=t.ctx.gpu!.buffers.get(1)!,dst=t.ctx.gpu!.buffers.get(3)!;src.shadow[1]=123;
-    expect(t.send(O.BUFFER_COPY,[1,1,3,3,7]).status).toBe(0);expect(dst.shadow[3]).toBe(123);expect(dst.shadow[2]).toBe(0);
+    // K74: the decoder's view is the shared store plus this frame's journaled writes (the executor applies them).
+    expect(t.send(O.BUFFER_COPY,[1,1,3,3,7]).status).toBe(0);expect(t.ctx.gpu!.read(dst,0,64)[3]).toBe(123);expect(t.ctx.gpu!.read(dst,0,64)[2]).toBe(0);
     src.generated=true;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(true);
     src.generated=false;expect(t.send(O.BUFFER_COPY,[1,0,3,0,64]).status).toBe(0);expect(dst.generated).toBe(false);
     t.frame.gpuUploadBytes=t.ctx.gpu!.budget;const before=t.frame.items.length;
@@ -330,15 +331,34 @@ describe('GPU command validation', () => {
   });
 
   // K51: would catch a validator that keeps the fixed 65536 ceiling on a 16384-byte (ANGLE Metal) device.
+  // K73: that is 'device' mode now; the default 'portable' mode reports and enforces 16384 on every device (below).
   it.each([[16384, 16384], [16390, 16384], [65536, 65536], [1 << 20, 65536]])(
-    'UNIFORM_BUFFER ranges follow backend limit %i (effective %i)', (native, effective) => {
-      const t = setup(); t.ctx.gpu = new GpuState({ languages: 7, maxUniformRange: native, execute: () => 0 });
+    'UNIFORM_BUFFER ranges follow backend limit %i (effective %i) in device mode', (native, effective) => {
+      const t = setup(); t.ctx.gpu = new GpuState({ languages: 7, maxUniformRange: native, execute: () => 0 }, undefined, 'device');
       expect(t.ctx.gpu.uniformRange).toBe(effective);
       t.resources();
       expect(t.send(O.BUFFER_CREATE, [2, 4, 131072, 0, 0]).status).toBe(0);
       expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 0, effective]).status).toBe(0);
       expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 256, effective + 16]).status).toBe(A.E_LIMIT);
     });
+  // K73 (Q135): would catch a validator that enforces the device value (65536 on WebGPU/SwiftShader) while the guest
+  // was told 16384: an over-limit binding must fail identically on every backend.
+  it.each([16384, 16390, 65536, 1 << 20, undefined])('portable mode reports and enforces 16384 on a %s-byte device', (native) => {
+    const t = setup(); t.ctx.gpu = new GpuState({ languages: 7, maxUniformRange: native, maxVaryingComponents: 102, execute: () => 0 });
+    expect(t.ctx.gpu.limitsMode).toBe('portable');
+    expect(t.ctx.gpu.uniformRange).toBe(16384); expect(t.ctx.gpu.varyingComponents).toBe(84);
+    expect(t.ctx.gpu.deviceVaryingComponents).toBe(102);
+    t.resources();
+    expect(t.send(O.BUFFER_CREATE, [2, 4, 131072, 0, 0]).status).toBe(0);
+    expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 0, 16384]).status).toBe(0);
+    expect(t.inPass(O.UNIFORM_BUFFER, [0, 2, 256, 16400]).status).toBe(A.E_LIMIT);
+  });
+  it('portable mode never reports more varyings than the device (a 16-location WebGPU adapter keeps 54)', () => {
+    expect(new GpuState({ languages: 7, maxVaryingComponents: 54, execute: () => 0 }).varyingComponents).toBe(54);
+    expect(new GpuState({ languages: 7, maxVaryingComponents: 84, execute: () => 0 }).varyingComponents).toBe(84);
+    expect(new GpuState({ languages: 7, maxVaryingComponents: 87, execute: () => 0 }).varyingComponents).toBe(84);
+    expect(new GpuState({ languages: 7, maxVaryingComponents: 102, execute: () => 0 }, undefined, 'device').varyingComponents).toBe(102);
+  });
   it('rejects a backend below the WebGL2/GL 3.3 uniform block minimum instead of under-reporting', () => {
     expect(() => new GpuState({ languages: 6, maxUniformRange: 16368, execute: () => 0 })).toThrow(/below the required 16384/);
   });

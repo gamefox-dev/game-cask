@@ -23,6 +23,22 @@ static int lift_fast_fuse = 1;    /* --fast-fuse off: no fused predicates (measu
 /* Ablation knobs (measurement only): --fast-entries all makes every block start an entry,
  * --fast-quantum block polls every block (--fast-memory/--fast-stack/--fast-inline in lift64.h/below). */
 static int lift_fast_all_entries, lift_fast_block_quantum;
+/* K72 measurement: --fast-mark on writes comments only (identical compiled code): a function marker and the guest
+ * mnemonic before every emitted instruction (`+` = inlined copy), read by tools/report/wasm-size.mjs. */
+static int lift_fast_mark;
+static void l64f_mark(FILE *o, const x86_insn_t *in, int inlined) {
+    if (!lift_fast_mark) return;
+    char txt[160] = "", *s = txt;
+    if (in->len && l64_specialized(in)) x86_format(in, txt, sizeof txt); else snprintf(txt, sizeof txt, "generic");
+    if (in->op == XO_SIMD) { fprintf(o, "/*@%ss.", inlined ? "+" : ""); for (; *s && *s != ' '; s++) fputc(*s >= 'A' && *s <= 'Z' ? *s + 32 : *s, o); fputs("*/", o); return; }
+    for (; *s && *s != ' '; s++) if (*s >= 'A' && *s <= 'Z') *s += 32;
+    *s = 0;
+    if (in->op == XO_JCC) snprintf(txt, sizeof txt, "jcc"); else if (in->op == XO_SETCC) snprintf(txt, sizeof txt, "setcc");
+    else if (in->op == XO_CMOVCC) snprintf(txt, sizeof txt, "cmovcc"); else if (in->op == XO_CALL_IND) snprintf(txt, sizeof txt, "call_ind");
+    else if (in->op == XO_JMP_IND) snprintf(txt, sizeof txt, "jmp_ind");
+    for (s = txt; *s; s++) if (!((*s >= 'a' && *s <= 'z') || (*s >= '0' && *s <= '9') || *s == '_' || *s == '.')) *s = '_';
+    fprintf(o, "/*@%s%s*/", inlined ? "+" : "", txt);
+}
 static uint32_t lift_fast_functions, lift_fast_inlined;
 #define L64F_EXT (-2)
 typedef struct { int s[2]; const vec_t *table; uint32_t ext; } l64f_succ_t;
@@ -35,12 +51,102 @@ static int l64f_control(const x86_insn_t *in) {
     return in->op == XO_JCC || in->op == XO_JMP || in->op == XO_JMP_IND || in->op == XO_CALL ||
         in->op == XO_CALL_IND || in->op == XO_RET;
 }
-/* Fast-mode flag effects: unknown/generic code observes everything; the Win64 ABI makes flags
- * dead across calls and returns (callee/caller never read them). */
+/* Fast-mode flag effects (local liveness): unknown/generic code observes everything; the Win64 ABI makes flags dead
+ * across calls and returns (callee/caller never read them). */
 static void l64f_flag_io(const x86_insn_t *in, uint32_t *r, uint32_t *w) {
     if (!in->len || !l64_specialized(in)) { *r = L64_FLAGS; *w = 0; return; }
     if (in->op == XO_CALL || in->op == XO_CALL_IND || in->op == XO_RET) { *r = 0; *w = L64_FLAGS; return; }
     l64_flag_io(in, r, w);
+}
+/* K75 observed flags (default; liftFast.flags "abi" = the K52 rule only, for measurement). Compiled guest code never
+ * reads EFLAGS across a call or return, but the platform profile does see them: RtlCaptureContext, RaiseException
+ * and APIs that raise (HeapAlloc with HEAP_GENERATE_EXCEPTIONS) store them in a CONTEXT. A second, interprocedural
+ * liveness (l64f_obs_io) tracks only those observations, soundly:
+ *  - a call or tail jump to an EFLAGS-storing profile import (tools/x86/lift64_eflags.h) reads every flag; other
+ *    profile imports pass them through (x86_callback64 restores them around guest callbacks);
+ *  - a call or tail jump whose callee is not statically known (an indirect call or unresolved indirect jump: function
+ *    pointers, vtables, GetProcAddress results), an import that another guest module provides (--fast-guest-dlls),
+ *    or code that is no analyzed function, reads every flag; after an unknown callee returns, the caller reloads
+ *    X.flags, and every function whose address is taken (entry, export, relocated or immediate pointer) returns
+ *    exact flags (fastFlagTakenExits), so whatever it reaches through a pointer, the callee is covered;
+ *  - a direct call or tail call reads them when the callee observes its entry flags; a RET reads them when some
+ *    caller observes the flags a callee returns with (that caller reloads X.flags after the call).
+ * Writers are the instructions that define flags; everything else, generic instructions included, passes them
+ * through (their local reads stay in the K52 liveness). l64f_observe computes the two function sets once per lift
+ * over the whole module; emission uses the union of both livenesses, so only code on a path into such a call
+ * computes otherwise dead flags. */
+static int lift_fast_flags_abi;   /* --fast-flags abi */
+static uint8_t *l64f_obs_entry, *l64f_exact_exit; /* per a->f index (l64f_observe); null: K52 rule */
+static uint32_t l64f_obs_stats[4]; /* observing functions, exact-exit functions, unknown callees with live flags after, passes */
+static uint32_t l64f_obs_taken;    /* address-taken functions marked exact-exit up front */
+static const char *lift_fast_guest_dlls; /* --fast-guest-dlls: comma list of the other guest modules' DLL names */
+static double l64f_obs_ms;      /* CPU time of l64f_observe (stats: fastFlagAnalysis_cpu_ms) */
+/* addr -> a->f index by binary search (func_index is linear; the observation pass looks up every call). */
+static uint64_t *l64f_fsorted; static uint32_t l64f_fsorted_n;
+static int l64f_fidx(an_t *a, uint32_t addr) {
+    if (!l64f_fsorted) return func_index(a, addr);
+    uint32_t lo = 0, hi = l64f_fsorted_n;
+    while (lo < hi) { uint32_t m = (lo + hi) / 2; if ((uint32_t)(l64f_fsorted[m] >> 32) < addr) lo = m + 1; else hi = m; }
+    return lo < l64f_fsorted_n && (uint32_t)(l64f_fsorted[lo] >> 32) == addr ? (int)(uint32_t)l64f_fsorted[lo] : -1;
+}
+static int l64f_fn_observes(an_t *a, uint32_t target) {
+    int g = l64f_fidx(a, target);
+    return l64f_obs_entry && (g < 0 || l64f_obs_entry[g]);
+}
+static int l64f_fn_exact_exit(an_t *a, const func_t *f) {
+    if (!l64f_exact_exit) return 0;
+    int i = l64f_fidx(a, f->addr);
+    return i >= 0 && l64f_exact_exit[i];
+}
+#include "lift64_eflags.h"
+/* The import behind an IAT slot observes EFLAGS (lift64_eflags.h); a slot that names no import is unknown: observes. */
+static int l64f_import_observes(an_t *a, uint32_t iat) {
+    static const char *const names[] = {W32_EFLAGS_OBSERVERS};
+    const import_t *im = import_at_iat(a->pe, iat);
+    if (!im) return 1;
+    for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) if (!strcmp(im->name, names[i])) return 1;
+    return 0;
+}
+/* The import behind an IAT slot is another guest module's export (lifted guest code, not the profile). */
+static int l64f_import_guest(an_t *a, uint32_t iat) {
+    const import_t *im = import_at_iat(a->pe, iat);
+    if (!im || !lift_fast_guest_dlls) return 0;
+    size_t n = strlen(im->dll);
+    for (const char *p = lift_fast_guest_dlls; *p;) {
+        const char *e = strchr(p, ','); size_t m = e ? (size_t)(e - p) : strlen(p);
+        if (m == n) {
+            size_t i = 0;
+            while (i < n && tolower((unsigned char)p[i]) == tolower((unsigned char)im->dll[i])) i++;
+            if (i == n) return 1;
+        }
+        if (!e) break;
+        p = e + 1;
+    }
+    return 0;
+}
+/* A profile import: the slot names an import that no other guest module provides. */
+static int l64f_profile_hint(an_t *a, uint32_t hint) { return hint && import_at_iat(a->pe, hint) && !l64f_import_guest(a, hint); }
+static void l64f_obs_io(an_t *a, const func_t *f, const x86_insn_t *in, uint32_t hint, int table, uint32_t *r, uint32_t *w) {
+    *r = *w = 0;
+    if (!in->len || !l64_specialized(in)) return;
+    switch (in->op) {
+    /* Profile calls pass EFLAGS through, the storing ones read them. An unknown callee reads and defines them. */
+    case XO_CALL_IND:
+        if (l64f_profile_hint(a, hint)) { if (l64f_import_observes(a, hint)) *r = L64_FLAGS; }
+        else { *r = L64_FLAGS; *w = L64_FLAGS; }
+        return;
+    case XO_JMP_IND:
+        if (l64f_profile_hint(a, hint)) { if (l64f_import_observes(a, hint) || l64f_fn_exact_exit(a, f)) *r = L64_FLAGS; }
+        else if (hint || !table) *r = L64_FLAGS; /* unknown tail target (a recovered switch stays internal) */
+        return;
+    case XO_CALL: *r = l64f_fn_observes(a, in->target) ? L64_FLAGS : 0; *w = L64_FLAGS; return;
+    case XO_RET: *r = l64f_fn_exact_exit(a, f) ? L64_FLAGS : 0; return;
+    case XO_JMP: case XO_JCC:
+        /* (Conditional) tail call: the callee sees our flags at entry and returns to our caller. */
+        if (l64_index(f, in->target) < 0 && (l64f_fn_observes(a, in->target) || l64f_fn_exact_exit(a, f))) *r = L64_FLAGS;
+        return;
+    default: { uint32_t lr, lw; l64_flag_io(in, &lr, &lw); *w = lw; return; }
+    }
 }
 /* Relative jump tables (clang: movsx r,[b+i*4]; add r,b; jmp r; MSVC: mov r32,[b+i*4+rva]; add r,b;
  * jmp r) whose base b is set by one constant LEA in the function. The recovered targets are only
@@ -128,22 +234,101 @@ static l64f_succ_t l64f_successors(const func_t *f, const x86_insn_t *ins, uint3
     }
 }
 /* Live-out flags per instruction (backwards fixed point). */
-static uint32_t *l64f_liveness(const func_t *f, const x86_insn_t *ins, const l64f_succ_t *succ) {
+/* obs = 0: the K52 local liveness; obs = 1: the K75 observation liveness (no external-edge reads, l64f_obs_io). */
+static uint32_t *l64f_liveness(an_t *a, const func_t *f, const x86_insn_t *ins, const l64f_succ_t *succ, const uint32_t *hints, int obs) {
     uint32_t n = f->insns.n, *in = xcalloc(n, sizeof *in), *out = xcalloc(n, sizeof *out);
     for (int changed = 1; changed;) {
         changed = 0;
         for (uint32_t j = n; j-- > 0;) {
-            uint32_t v = succ[j].ext, r, w;
+            uint32_t v = obs ? 0 : succ[j].ext, r, w;
             for (int q = 0; q < 2; q++) if (succ[j].s[q] >= 0) v |= in[succ[j].s[q]];
             if (succ[j].table) for (uint32_t q = 0; q < succ[j].table->n; q++) {
-                int t = l64_index(f, succ[j].table->v[q]); v |= t >= 0 ? in[t] : L64_FLAGS;
+                int t = l64_index(f, succ[j].table->v[q]); v |= t >= 0 ? in[t] : obs ? 0 : L64_FLAGS;
             }
-            l64f_flag_io(&ins[j], &r, &w);
+            if (obs) l64f_obs_io(a, f, &ins[j], hints[j], succ[j].table != 0, &r, &w); else l64f_flag_io(&ins[j], &r, &w);
             out[j] = v; v = r | (v & ~w);
             if (in[j] != v) { in[j] = v; changed = 1; }
         }
     }
     free(in); return out;
+}
+/* K75: the module-wide observed-flags sets (see l64f_flag_io). Worklist fixed point over every analyzed function,
+ * independent of the chunk selection: a function observes its entry flags when they are live at its first
+ * instruction; a callee must return exact flags when the flags are live after some direct call to it (or a tail
+ * call from a function that must). Both sets only grow. Functions the exact emitter keeps are analyzed alike
+ * (they compute every flag anyway; what matters is what their fast callers and callees must provide). */
+static int l64f_u64cmp(const void *p, const void *q) { uint64_t x = *(const uint64_t *)p, y = *(const uint64_t *)q; return x > y ? 1 : x < y ? -1 : 0; }
+static void l64f_observe(an_t *a) {
+    uint32_t nf = a->nf;
+    free(l64f_obs_entry); free(l64f_exact_exit); free(l64f_fsorted);
+    l64f_obs_entry = 0; l64f_exact_exit = 0; l64f_fsorted = 0; memset(l64f_obs_stats, 0, sizeof l64f_obs_stats);
+    if (lift_fast_flags_abi || !nf) return;
+    clock_t started = clock();
+    l64f_fsorted = xcalloc(nf, sizeof *l64f_fsorted); l64f_fsorted_n = nf;
+    for (uint32_t i = 0; i < nf; i++) l64f_fsorted[i] = ((uint64_t)a->f[i].addr << 32) | i;
+    qsort(l64f_fsorted, nf, sizeof *l64f_fsorted, l64f_u64cmp);
+    l64f_obs_entry = xcalloc(nf, 1); l64f_exact_exit = xcalloc(nf, 1);
+    vec_t *callers = xcalloc(nf, sizeof *callers);
+    uint32_t *queue = xcalloc(nf + 1, sizeof *queue), head = 0, tail = 0; uint8_t *queued = xcalloc(nf, 1);
+    for (uint32_t i = 0; i < nf; i++) { queue[tail++] = i; queued[i] = 1; }
+    /* Unknown callers (pointers, other modules, the profile) may observe what these return with. */
+    l64f_obs_taken = 0;
+    for (uint32_t i = 0; i < nf; i++) if (a->f[i].taken) { l64f_exact_exit[i] = 1; l64f_obs_taken++; }
+    tail %= nf + 1;
+    uint8_t *edges_done = xcalloc(nf, 1);
+    while (head != tail) {
+        uint32_t fi = queue[head]; head = (head + 1) % (nf + 1); queued[fi] = 0;
+        func_t *f = &a->f[fi]; uint32_t n = f->insns.n;
+        l64f_obs_stats[3]++;
+        if (!n) continue;
+        x86_insn_t *ins = xcalloc(n, sizeof *ins);
+        for (uint32_t k = 0; k < n; k++) decode_at(a->pe, f->insns.v[k], &ins[k]);
+        uint32_t *hints = l64_import_hints(a->pe, f);
+        vec_t *rel = xcalloc(n, sizeof *rel); l64f_succ_t *succ = xcalloc(n, sizeof *succ);
+        for (uint32_t k = 0; k < n; k++) if (ins[k].op == XO_JMP_IND) l64f_rel_table(a, f, ins, k, &rel[k]);
+        for (uint32_t k = 0; k < n; k++) succ[k] = l64f_successors(f, ins, k, hints, rel);
+        uint32_t *out = l64f_liveness(a, f, ins, succ, hints, 1);
+        /* Entry: live-in of the function's first listed instruction (the fast form requires it to be the entry). */
+        uint32_t r, w; l64f_obs_io(a, f, &ins[0], hints[0], succ[0].table != 0, &r, &w);
+        if (((r | (out[0] & ~w)) & L64_FLAGS) && !l64f_obs_entry[fi]) {
+            l64f_obs_entry[fi] = 1; l64f_obs_stats[0]++;
+            for (uint32_t c = 0; c < callers[fi].n; c++) { uint32_t g = callers[fi].v[c]; if (!queued[g]) { queued[g] = 1; queue[tail] = g; tail = (tail + 1) % (nf + 1); } }
+        }
+        for (uint32_t k = 0; k < n; k++) {
+            const x86_insn_t *in = &ins[k]; int g = -1, tailcall = 0;
+            /* A code address materialized by this instruction (LEA/MOV of a function start, RIP-relative or absolute)
+             * is a pointer some unknown caller may call through: that function returns exact flags. */
+            if (!edges_done[fi] && in->len) for (int o = 0; o < in->nops; o++) {
+                const x86_opnd_t *q = &in->o[o]; uint64_t v = 0;
+                if (q->kind == XK_IMM && in->op != XO_CALL && in->op != XO_JMP && in->op != XO_JCC) v = q->imm;
+                else if (q->kind == XK_MEM && in->op == XO_LEA && q->base == X86_NOREG && q->index == X86_NOREG)
+                    v = (q->pad & 4) ? q->imm : (q->pad & 2) ? (uint32_t)q->disp : (uint64_t)(int64_t)q->disp;
+                int t = v && v <= UINT32_MAX ? l64f_fidx(a, (uint32_t)v) : -1;
+                if (t >= 0 && !l64f_exact_exit[t]) {
+                    l64f_exact_exit[t] = 1; l64f_obs_taken++;
+                    if (!queued[t]) { queued[t] = 1; queue[tail] = (uint32_t)t; tail = (tail + 1) % (nf + 1); }
+                }
+            }
+            if (!in->len || !l64_specialized(in)) continue;
+            if (in->op == XO_CALL) g = l64f_fidx(a, in->target);
+            else if ((in->op == XO_JMP || in->op == XO_JCC) && l64_index(f, in->target) < 0) { g = l64f_fidx(a, in->target); tailcall = 1; }
+            else if (in->op == XO_CALL_IND && !l64f_profile_hint(a, hints[k]) && (out[k] & L64_FLAGS)) { if (!edges_done[fi]) l64f_obs_stats[2]++; continue; }
+            else continue;
+            if (g < 0) continue;
+            if (!edges_done[fi]) vpush(&callers[g], fi);
+            int need = tailcall ? l64f_exact_exit[fi] : (out[k] & L64_FLAGS) != 0;
+            if (need && !l64f_exact_exit[g]) {
+                l64f_exact_exit[g] = 1; l64f_obs_stats[1]++;
+                if (!queued[g]) { queued[g] = 1; queue[tail] = (uint32_t)g; tail = (tail + 1) % (nf + 1); }
+            }
+        }
+        edges_done[fi] = 1;
+        for (uint32_t k = 0; k < n; k++) free(rel[k].v);
+        free(rel); free(succ); free(out); free(hints); free(ins);
+    }
+    for (uint32_t i = 0; i < nf; i++) free(callers[i].v);
+    free(callers); free(queue); free(queued); free(edges_done);
+    l64f_obs_ms = (double)(clock() - started) * 1000.0 / CLOCKS_PER_SEC;
 }
 /* Loop headers: targets of DFS retreating edges (every cycle has one). Roots: the function
  * start, then every remaining label so code reached only through the slow path still polls. */
@@ -209,10 +394,14 @@ static void l64f_direct(FILE *o, an_t *a, uint32_t target, const char *after) {
 }
 /* Per-function fast analysis, shared by top-level emission and inlined copies. */
 typedef struct {
-    func_t *f; uint32_t n, used, written;
-    x86_insn_t *ins; uint32_t *hints, *live; vec_t *rel; l64f_succ_t *succ;
+    an_t *a; func_t *f; uint32_t n, used, written;
+    x86_insn_t *ins; uint32_t *hints, *live, *olive; vec_t *rel; l64f_succ_t *succ; /* olive: K75 observation liveness */
     uint8_t *header, *entry, *start, *fuse;
     int64_t *sp; /* static RSP delta before each instruction (L64F_UNK unknown) */
+    /* K72 --fast-sync minimal: per instruction the registers possibly written since the last point where
+     * X and the locals agreed (dirty, before the instruction), the registers live before it, and the
+     * inlining decision of each call with the inlined subtree's register sets. */
+    uint16_t *dirty, *glive, *inl_u, *inl_w; func_t **inl;
 } l64f_fn_t;
 /* Forward RSP-delta dataflow from the owner entry: push/pop/call (ABI: net zero)/add/sub/lea of
  * RSP by constants; any other RSP write makes it unknown. Emitted code re-derives the stack base
@@ -292,7 +481,7 @@ static void l64f_spset(FILE *o, int64_t d) {
 static int64_t l64f_total(int64_t d, int64_t off) { return d == L64F_UNK || off == L64F_UNK ? L64F_UNK : d + off; }
 static l64f_fn_t *l64f_analyze(an_t *a, func_t *f) {
     l64f_fn_t *x = xcalloc(1, sizeof *x);
-    uint32_t n = x->n = f->insns.n; x->f = f;
+    uint32_t n = x->n = f->insns.n; x->f = f; x->a = a;
     x->ins = xcalloc(n, sizeof *x->ins);
     for (uint32_t k = 0; k < n; k++) decode_at(a->pe, f->insns.v[k], &x->ins[k]);
     x86_insn_t *ins = x->ins;
@@ -301,7 +490,11 @@ static l64f_fn_t *l64f_analyze(an_t *a, func_t *f) {
     x->rel = xcalloc(n, sizeof *x->rel);
     for (uint32_t k = 0; k < n; k++) if (ins[k].op == XO_JMP_IND) l64f_rel_table(a, f, ins, k, &x->rel[k]);
     for (uint32_t k = 0; k < n; k++) x->succ[k] = l64f_successors(f, ins, k, x->hints, x->rel);
-    x->live = l64f_liveness(f, ins, x->succ);
+    x->live = l64f_liveness(a, f, ins, x->succ, x->hints, 0);
+    if (l64f_obs_entry) { /* K75: emission computes flags the profile observes too (union of both livenesses) */
+        x->olive = l64f_liveness(a, f, ins, x->succ, x->hints, 1);
+        for (uint32_t k = 0; k < n; k++) x->live[k] |= x->olive[k];
+    }
     x->header = xcalloc(n, 1); x->entry = xcalloc(n, 1); x->start = xcalloc(n + 1, 1); x->fuse = xcalloc(n, 1);
     l64f_headers(f, x->succ, x->header);
     if (lift_fast_block_quantum) for (uint32_t k = 0; k < n; k++) x->header[k] = 1;
@@ -334,8 +527,9 @@ static l64f_fn_t *l64f_analyze(an_t *a, func_t *f) {
 }
 static void l64f_release(l64f_fn_t *x) {
     for (uint32_t k = 0; k < x->n; k++) free(x->rel[k].v);
-    free(x->rel); free(x->ins); free(x->hints); free(x->succ); free(x->live);
-    free(x->header); free(x->entry); free(x->start); free(x->fuse); free(x->sp); free(x);
+    free(x->rel); free(x->ins); free(x->hints); free(x->succ); free(x->live); free(x->olive);
+    free(x->header); free(x->entry); free(x->start); free(x->fuse); free(x->sp);
+    free(x->dirty); free(x->glive); free(x->inl_u); free(x->inl_w); free(x->inl); free(x);
 }
 /* Emitter-level inlining of small direct callees (no state publication, no busy checks): the
  * callee body runs on the caller's locals; its RET jumps back when it pops the pushed return
@@ -366,8 +560,160 @@ static void l64f_plan(an_t *a, l64f_fn_t *x, l64f_inline_t *c, uint32_t *used, u
         c->depth--; l64f_release(y);
     }
 }
-static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inline_t *c, const char *pre, uint32_t ret_to, const char *ret_label, int64_t sp_off);
-static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inline_t *c, const char *pre, uint32_t ret_to, const char *ret_label, int64_t sp_off) {
+/* K72 (liftFast.sync "minimal", --fast-sync minimal): call sites and exits spill only the registers written
+ * since the last synchronization with X (function entry reload, a returned call, a generic instruction), and
+ * after a call reload only the volatile registers that are live (plus RSP). Invariant per register: either it
+ * is dirty (the local is the value) or X holds the value, and a live clean local equals X. Spills count as
+ * reads in the liveness, so a register spilled later without an intervening write is reloaded after a call.
+ * Same Win64 assumptions as the full form (callee-saved registers survive calls); no new ones. */
+static int lift_fast_sync;
+static uint16_t l64f_spill_set, l64f_used_set; /* the top-level function's written / used registers */
+#define L64F_RSP ((uint16_t)(1u << ESP))
+static uint16_t l64f_reg_bit(unsigned r) { return r >= 16 ? (uint16_t)(1u << (r - 16)) : (uint16_t)(1u << r); }
+/* Registers an instruction fully defines without reading (32/64-bit destination of a pure move/load). */
+static uint16_t l64f_gpr_defs(const x86_insn_t *in) {
+    const x86_opnd_t *d = &in->o[0];
+    if (!in->len || !l64_specialized(in) || l64_atomic(in) || d->kind != XK_REG || d->reg >= 16 || d->size < 4) return 0;
+    return in->op == XO_MOV || in->op == XO_MOVZX || in->op == XO_MOVSX || in->op == XO_LEA || in->op == XO_POP ? (uint16_t)(1u << d->reg) : 0;
+}
+static uint16_t l64f_gpr_reads(const x86_insn_t *in) {
+    if (!in->len || !l64_specialized(in)) return 0xffffu;
+    uint32_t used = 0, written = 0;
+    uint16_t defs = l64f_gpr_defs(in);
+    if (!defs) { l64f_regs(in, &used, &written); return (uint16_t)used; }
+    const x86_opnd_t *b = &in->o[1]; uint16_t r = in->op == XO_POP ? L64F_RSP : 0;
+    if (b->kind == XK_REG) r |= l64f_reg_bit(b->reg);
+    if (b->kind == XK_MEM) { if (b->base != X86_NOREG) r |= l64f_reg_bit(b->base); if (b->index != X86_NOREG) r |= l64f_reg_bit(b->index); }
+    return r;
+}
+static uint16_t l64f_gpr_writes(const x86_insn_t *in) { uint32_t used = 0, written = 0; l64f_regs(in, &used, &written); return (uint16_t)written; }
+/* Same decisions as l64f_body/l64f_plan from the context `c` (by value): which calls inline, and their subtree sets. */
+static void l64f_decide(an_t *a, l64f_fn_t *x, l64f_inline_t c) {
+    for (uint32_t k = 0; k < x->n; k++) {
+        func_t *g = l64f_inline_target(a, x, k, &c);
+        x->inl[k] = g;
+        if (!g) continue;
+        l64f_fn_t *y = l64f_analyze(a, g);
+        uint32_t u = 0, w = 0;
+        c.budget -= g->insns.n; c.stack[++c.depth] = g->addr;
+        l64f_plan(a, y, &c, &u, &w);
+        c.depth--; l64f_release(y);
+        x->inl_u[k] = (uint16_t)(u | w); x->inl_w[k] = (uint16_t)w;
+    }
+}
+static int l64f_exits_inline(const l64f_fn_t *x, uint32_t k) { /* the fall-through after k leaves the function */
+    const x86_insn_t *in = &x->ins[k];
+    return in->len && l64_specialized(in) && !l64f_control(in) && !l64f_contiguous(x->f, x->ins, k);
+}
+static void l64f_flow(an_t *a, l64f_fn_t *x, const l64f_inline_t *c, uint16_t entry_dirty, uint16_t exit_live, int inlined) {
+    uint32_t n = x->n;
+    x->dirty = xcalloc(n + 1, sizeof *x->dirty); x->glive = xcalloc(n + 1, sizeof *x->glive);
+    x->inl_u = xcalloc(n + 1, sizeof *x->inl_u); x->inl_w = xcalloc(n + 1, sizeof *x->inl_w); x->inl = xcalloc(n + 1, sizeof *x->inl);
+    l64f_decide(a, x, *c);
+    /* Forward: dirty registers (union over paths). */
+    uint8_t *seen = xcalloc(n + 1, 1);
+    if (n) { x->dirty[0] = entry_dirty; seen[0] = 1; }
+    for (int changed = 1; changed;) {
+        changed = 0;
+        for (uint32_t k = 0; k < n; k++) {
+            if (!seen[k]) continue;
+            const x86_insn_t *in = &x->ins[k]; uint16_t d = x->dirty[k], out;
+            if (!in->len || !l64_specialized(in)) out = 0;          /* generic: spilled, executed, fully reloaded */
+            else if ((in->op == XO_CALL || in->op == XO_CALL_IND) && !x->inl[k]) out = 0; /* returned call */
+            else if (x->inl[k]) out = d | L64F_RSP | x->inl_w[k];
+            else out = d | l64f_gpr_writes(in);
+            const l64f_succ_t *sc = &x->succ[k]; uint32_t ntab = sc->table ? sc->table->n : 0;
+            for (uint32_t e = 0; e < 2 + ntab; e++) {
+                int t = e < 2 ? sc->s[e] : l64_index(x->f, sc->table->v[e - 2]);
+                if (t < 0) continue;
+                if (!seen[t] || (x->dirty[t] | out) != x->dirty[t]) { x->dirty[t] |= out; seen[t] = 1; changed = 1; }
+            }
+        }
+    }
+    /* Code reached only through the slow path / entries starts synchronized (dirty 0). Unreached code that is
+     * not an entry is still emitted; treat it as fully dirty so its spills stay complete. */
+    for (uint32_t k = 0; k < n; k++) if (!seen[k] && !x->entry[k]) x->dirty[k] = 0xffffu;
+    free(seen);
+    /* Backward: live registers before each instruction (spills are reads). */
+    for (int changed = 1; changed;) {
+        changed = 0;
+        for (uint32_t k = n; k-- > 0;) {
+            const x86_insn_t *in = &x->ins[k]; const l64f_succ_t *sc = &x->succ[k];
+            uint16_t d = x->dirty[k], out = 0, v;
+            uint32_t ntab = sc->table ? sc->table->n : 0;
+            for (uint32_t e = 0; e < 2 + ntab; e++) {
+                int t = e < 2 ? sc->s[e] : l64_index(x->f, sc->table->v[e - 2]);
+                if (t >= 0) out |= x->glive[t];
+            }
+            if (!in->len) v = d;
+            else if (!l64_specialized(in)) v = d;                   /* reads X after spilling d; reloads every used register */
+            else if (in->op == XO_CALL || in->op == XO_CALL_IND) {
+                uint16_t r = l64f_gpr_reads(in) | L64F_RSP | d;
+                if (x->inl[k]) v = r | x->inl_u[k] | out;
+                else v = r | (uint16_t)(out & ~(l64f_volatile | L64F_RSP));
+            } else if (in->op == XO_RET) v = l64f_gpr_reads(in) | d | L64F_RSP | (inlined ? exit_live : 0);
+            else if (in->op == XO_JMP && l64_index(x->f, in->target) < 0)
+                v = d | (inlined ? (uint16_t)(L64F_RSP | (exit_live & ~(l64f_volatile | L64F_RSP))) : 0);
+            else {
+                uint16_t defs = l64f_gpr_defs(in);
+                v = (uint16_t)(out & ~defs) | l64f_gpr_reads(in);
+                if (in->op == XO_JCC || in->op == XO_JMP_IND) v |= d;  /* external taken path / dispatch miss spills */
+                if (l64f_exits_inline(x, k)) v |= (uint16_t)((d | l64f_gpr_writes(in)) & ~defs) | l64f_gpr_reads(in);
+            }
+            if (x->header[k]) v |= d;                                /* the poll's yield exit spills */
+            if (v != x->glive[k]) { x->glive[k] = v; changed = 1; }
+        }
+    }
+}
+static void l64f_spill(FILE *o, const l64f_fn_t *x, uint16_t mask) {
+    if (!lift_fast_sync || !x->dirty) { fputs("XF_SPILL;", o); return; }
+    mask &= l64f_spill_set;
+    for (int i = 0; i < 16; i++) if (mask & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
+    fputs("XF_SYNC;", o);
+}
+/* After a normal call return: live volatile registers and RSP. `live` = registers live at the return site. */
+static const char *l64f_reload_text(char *buf, size_t cap, const l64f_fn_t *x, uint16_t live) {
+    if (!lift_fast_sync || !x->dirty) return "XF_RELOAD_CALL ";
+    uint16_t mask = l64f_used_set & (uint16_t)((l64f_volatile & live) | L64F_RSP);
+    size_t at = 0; buf[0] = 0;
+    for (int i = 0; i < 16; i++) if (mask & (1u << i)) at += (size_t)snprintf(buf + at, cap - at, "r[%d]=X.r[%d];", i, i);
+    snprintf(buf + at, cap - at, "XF_RELOAD_CLOCK ");
+    return buf;
+}
+static void l64f_reload_call(FILE *o, const l64f_fn_t *x, uint16_t live) { char b[400]; fputs(l64f_reload_text(b, sizeof b, x, live), o); }
+static uint16_t l64f_live_after(const l64f_fn_t *x, uint32_t k) { return k + 1 < x->n ? x->glive[k + 1] : 0; }
+/* K75: a returned non-profile call whose flags are observed later takes the callee's exact flags from X. */
+static const char *l64f_flags_after(const l64f_fn_t *x, uint32_t k) {
+    return x->olive && !l64f_profile_hint(x->a, x->hints[k]) && (x->olive[k] & L64_FLAGS) ? "flags=X.flags;" : "";
+}
+/* K72 liftFast.calls "outlined" (--fast-calls outlined): call sites store the registers, then xf_enter (clock,
+ * flags, X.eip, depth slot), the plain C call, xf_leave (depth, abnormal-exit check); see x86_guest.h. */
+static int lift_fast_calls_out;
+/* vK72 TEST ONLY (--fast-test-corrupt stack, liftFast.testCorrupt): every lifted RET flips a byte 512 bytes below RSP,
+ * a deliberately wrong lifted result that changes guest RAM but no register and no API argument. The oracle's guest
+ * state hash must catch it (tests/unit/oracle-guest-state.test.ts). Never for real builds. */
+static int lift_fast_test_corrupt;
+static void l64f_spill_regs(FILE *o, const l64f_fn_t *x, uint16_t mask) {
+    mask = (lift_fast_sync && x->dirty ? mask : 0xffffu) & l64f_spill_set;
+    for (int i = 0; i < 16; i++) if (mask & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
+    fputs("XR_LIFT(clock-retire_clock);retire_clock=clock;", o);
+}
+/* Outlined direct call or tail call of a known function start; registers are already stored. `after` follows a
+ * normal return when next != 0 (call: `if(xf_leave(next))return;` + after), else the frame returns (tail call). */
+static void l64f_direct_out(FILE *o, an_t *a, uint32_t target, uint32_t next, const char *after) {
+    int fi = func_index(a, target);
+    if (fi < 0 || vhas(&skip, target)) {
+        fprintf(o, "X.flags=flags;X.tsc=clock;X.frame_insns=(uint32_t)(clock-qbase);X.eip=0x%08xu;return;", target); return;
+    }
+    char weak[48] = "";
+    if (!lift_selected(target)) snprintf(weak, sizeof weak, "||(!N_%08x&&(x86_fast_depth--,1))", target);
+    fprintf(o, "if(xf_enter(0x%08xu,flags,clock,qbase)%s)return;N_%08x(0x%08xu);", target, weak, target, target);
+    if (next) fprintf(o, "if(xf_leave(0x%08xu))return;%s", next, after);
+    else fputs("xf_leave(0);return;", o);
+}
+static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inline_t *c, const char *pre, uint32_t ret_to, const char *ret_label, int64_t sp_off, uint16_t entry_dirty, uint16_t exit_live);
+static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inline_t *c, const char *pre, uint32_t ret_to, const char *ret_label, int64_t sp_off, uint16_t entry_dirty, uint16_t exit_live) {
+    if (lift_fast_sync) l64f_flow(a, x, c, entry_dirty, exit_live, ret_label != 0);
     func_t *f = x->f; uint32_t n = x->n; x86_insn_t *ins = x->ins;
     int inlined = ret_label != 0;
     for (uint32_t k = 0; k < n; k++) {
@@ -380,16 +726,23 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             uint32_t count = 0;
             if (in->len && l64_specialized(in)) for (uint32_t j = k; j < n && (j == k || !x->start[j]); j++) count++;
             fprintf(o, "L_%s%08x: __attribute__((unused));", pre, va);
-            if (x->header[k]) fprintf(o, "if(__builtin_expect(clock-qbase>=2000000u,0)){X.tsc=clock;X.frame_insns=(uint32_t)(clock-qbase);"
-                "XR_LIFT(clock-retire_clock);retire_clock=clock;if(x86_fast_quantum()){XF_SPILL;X.eip=0x%08xu;return;}qbase=clock-X.frame_insns;}", va);
+            if (x->header[k]) {
+                fprintf(o, "if(__builtin_expect(clock-qbase>=2000000u,0)){X.tsc=clock;X.frame_insns=(uint32_t)(clock-qbase);"
+                    "XR_LIFT(clock-retire_clock);retire_clock=clock;if(x86_fast_quantum()){");
+                l64f_spill(o, x, x->dirty ? x->dirty[k] : 0);
+                fprintf(o, "X.eip=0x%08xu;return;}qbase=clock-X.frame_insns;}", va);
+            }
             if (count) fprintf(o, "clock+=%uu;", count);
             fprintf(o, "\n");
         }
-        if (!in->len) { fprintf(o, "XF_SPILL;X.eip=0x%08xu;return;\n", f->insns.v[k]); continue; }
+        l64f_mark(o, in, inlined);
+        uint16_t dk = x->dirty ? x->dirty[k] : 0;
+        if (!in->len) { l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;return;\n", f->insns.v[k]); continue; }
         if (!l64_specialized(in)) {
             st->generic++;
-            fprintf(o, "XF_SPILL;X.eip=0x%08xu;{static const x86_insn_t I=", va); emit_insn_struct(o, in);
-            fprintf(o, ";x86_fast_exec(&I);}if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD ", next);
+            l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;{static const x86_insn_t I=", va); emit_insn_struct(o, in);
+            if (lift_fast_calls_out) fprintf(o, ";x86_fast_exec(&I);}if(xf_check(0x%08xu))return;XF_RELOAD ", next);
+            else fprintf(o, ";x86_fast_exec(&I);}if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD ", next);
             l64f_spset(o, sp_next); fprintf(o, "\n");
             if (!l64f_contiguous(f, ins, k)) fprintf(o, "return;\n");
             continue;
@@ -473,8 +826,9 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             else {
                 int t = l64_index(f, in->target);
                 if (t >= 0) fprintf(o, "if(%s)goto L_%s%08x;", cond, pre, in->target);
-                else if (inlined) fprintf(o, "if(%s){XF_SPILL;X.eip=0x%08xu;return;}", cond, in->target);
-                else { fprintf(o, "if(%s){XF_SPILL;", cond); l64f_direct(o, a, in->target, "return;"); fprintf(o, "}"); }
+                else if (inlined) { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); fprintf(o, "X.eip=0x%08xu;return;}", in->target); }
+                else if (lift_fast_calls_out) { fprintf(o, "if(%s){", cond); l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, 0, ""); fprintf(o, "}"); }
+                else { fprintf(o, "if(%s){", cond); l64f_spill(o, x, dk); l64f_direct(o, a, in->target, "return;"); fprintf(o, "}"); }
             }
             break;
         }
@@ -483,9 +837,18 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             if (l64_index(f, in->target) >= 0) fprintf(o, "goto L_%s%08x;\n", pre, in->target);
             else if (inlined) {
                 /* An inlined tail call returns to the inlined call's return address. */
-                char after[96]; snprintf(after, sizeof after, "if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD_CALL goto %s;", ret_to, ret_label);
-                fprintf(o, "XF_SPILL;"); l64f_direct(o, a, in->target, after); fprintf(o, "\n");
-            } else { fprintf(o, "XF_SPILL;"); l64f_direct(o, a, in->target, "return;"); fprintf(o, "\n"); }
+                char after[512], rl[400];
+                /* K75: the tail callee returned with exact flags when this inlined function must return them. */
+                const char *fl = l64f_fn_exact_exit(a, f) ? "flags=X.flags;" : "";
+                if (lift_fast_calls_out) {
+                    snprintf(after, sizeof after, "%s%sgoto %s;", l64f_reload_text(rl, sizeof rl, x, exit_live), fl, ret_label);
+                    l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, ret_to, after); fprintf(o, "\n");
+                } else {
+                    snprintf(after, sizeof after, "if(X.eip!=0x%08xu||xf_busy())return;%s%sgoto %s;", ret_to, l64f_reload_text(rl, sizeof rl, x, exit_live), fl, ret_label);
+                    l64f_spill(o, x, dk); l64f_direct(o, a, in->target, after); fprintf(o, "\n");
+                }
+            } else if (lift_fast_calls_out) { l64f_spill_regs(o, x, dk); l64f_direct_out(o, a, in->target, 0, ""); fprintf(o, "\n"); }
+            else { l64f_spill(o, x, dk); l64f_direct(o, a, in->target, "return;"); fprintf(o, "\n"); }
             continue;
         case XO_JMP_IND:
             l64_read(o, aa, "t", next);
@@ -498,7 +861,7 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 fprintf(o, "default:break;}");
                 free(uniq.v);
             }
-            fprintf(o, "XF_SPILL;");
+            l64f_spill(o, x, dk);
             if (x->hints[k]) fprintf(o, "if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
                 "if(x86_try_import(&site,t))return;if(x86_defer_import(&site,t))return;}", x->hints[k]);
             fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
@@ -516,6 +879,8 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
             if (l64_fast_sp != L64F_UNK) l64_fast_sp -= 8;
             { char ret[40]; snprintf(ret, sizeof ret, "0x%08xull", next); l64_pointer(o, "r[4]", 8, next, 1, ret); fprintf(o, "xl_store(p,%s,8);", ret); }
             func_t *g = l64f_inline_target(a, x, k, c);
+            if (x->dirty && g != x->inl[k]) die("fast sync: inlining decision diverged from the flow analysis");
+            uint16_t live_next = x->dirty ? l64f_live_after(x, k) : 0;
             if (g) {
                 char gpre[32], label[48];
                 snprintf(gpre, sizeof gpre, "i%u_", ++c->sites); snprintf(label, sizeof label, "Q_%s%08x", pre, next);
@@ -523,7 +888,7 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 l64f_fn_t *y = l64f_analyze(a, g);
                 c->budget -= g->insns.n; c->stack[++c->depth] = g->addr; lift_fast_inlined++;
                 lift_stats_t copy = *st; /* inlined copies are not additional lifted instructions */
-                l64f_body(o, a, y, st, c, gpre, next, label, l64_fast_sp);
+                l64f_body(o, a, y, st, c, gpre, next, label, l64_fast_sp, (uint16_t)(dk | L64F_RSP), live_next);
                 *st = copy;
                 c->depth--; l64f_release(y); l64_fast_pc = va;
                 /* Both the inlined RET and an inlined tail call's return arrive here. The callee may
@@ -532,27 +897,40 @@ static void l64f_body(FILE *o, an_t *a, l64f_fn_t *x, lift_stats_t *st, l64f_inl
                 fprintf(o, "%s: __attribute__((unused));", label); l64f_spset(o, sp_call); fprintf(o, "\n");
                 continue;
             }
-            fprintf(o, "XF_SPILL;");
-            if (x->hints[k]) fprintf(o, "if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
-                "if(x86_try_import(&site,t)){if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD_CALL ", x->hints[k], next);
+            if (lift_fast_calls_out && !x->hints[k]) {
+                /* Outlined protocol (a call with an import hint keeps the inline form below). */
+                l64f_spill_regs(o, x, (uint16_t)(dk | L64F_RSP));
+                char rl[400], after[512];
+                if (internal) snprintf(after, sizeof after, "%s%s", l64f_reload_text(rl, sizeof rl, x, live_next), l64f_flags_after(x, k)); else snprintf(after, sizeof after, "return;");
+                if (in->op == XO_CALL) l64f_direct_out(o, a, in->target, next, after);
+                else fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
+                                "if(xf_enter(X.eip,flags,clock,qbase)||(!step&&(x86_fast_depth--,1)))return;step(X.eip);}if(xf_leave(0x%08xu))return;%s", next, after);
+                if (internal) l64f_spset(o, sp_call);
+                fprintf(o, "\n");
+                continue;
+            }
+            l64f_spill(o, x, (uint16_t)(dk | L64F_RSP));
+            if (x->hints[k]) { fprintf(o, "if(t<=UINT32_MAX){X.eip=(uint32_t)t;static x86_import_site_t site={.iat=0x%08xu};"
+                "if(x86_try_import(&site,t)){if(X.eip!=0x%08xu||xf_busy())return;", x->hints[k], next); l64f_reload_call(o, x, live_next); }
             if (x->hints[k]) { l64f_spset(o, sp_call); fprintf(o, "%s}if(x86_defer_import(&site,t))return;}", resume); }
             if (in->op == XO_CALL) l64f_direct(o, a, in->target, "");
             else fprintf(o, "X.eip=x86_address(t);{static x86_fast_site_t site;x86_native_fn step=xf_lookup(&site,X.eip);"
                             "if(step&&x86_fast_depth<" L64F_DEPTH "){x86_fast_depth++;step(X.eip);x86_fast_depth--;}else return;}");
-            if (internal) { fprintf(o, "if(X.eip!=0x%08xu||xf_busy())return;XF_RELOAD_CALL ", next); l64f_spset(o, sp_call); fprintf(o, "\n"); }
+            if (internal) { fprintf(o, "if(X.eip!=0x%08xu||xf_busy())return;", next); l64f_reload_call(o, x, live_next); fputs(l64f_flags_after(x, k), o); l64f_spset(o, sp_call); fprintf(o, "\n"); }
             else fprintf(o, "return;\n");
             continue;
         }
         case XO_RET:
+            if (lift_fast_test_corrupt) fprintf(o, "{uint8_t*q_=xf_base+(((uint32_t)r[4]-512u)&XF_MASK);q_[0]^=0x5au;}");
             l64_pointer(o, "r[4]", 8, next, 0, "0");
             fprintf(o, "t=xl_load(p,8);r[4]+=%llu;", 8ull + aa->imm);
             if (inlined) fprintf(o, "if(t==0x%08xull)goto %s;", ret_to, ret_label);
-            fprintf(o, "XF_SPILL;X.eip=x86_address(t);return;\n");
+            l64f_spill(o, x, (uint16_t)(dk | L64F_RSP)); fprintf(o, "X.eip=x86_address(t);return;\n");
             continue;
         default: break;
         }
         fprintf(o, "\n");
-        if (!l64f_contiguous(f, ins, k)) fprintf(o, "XF_SPILL;X.eip=0x%08xu;return;\n", next);
+        if (!l64f_contiguous(f, ins, k)) { l64f_spill(o, x, (uint16_t)(dk | l64f_gpr_writes(in))); fprintf(o, "X.eip=0x%08xu;return;\n", next); }
     }
 }
 static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
@@ -564,7 +942,9 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     used |= written;
     lift_fast_functions++;
     /* Spill/reload macros are function-local: each spills exactly this function's locals. */
-    fprintf(o, "\n/* function %08x (%u instructions): K52 fast whole-function form */\n#undef XF_SPILL\n#undef XF_RELOAD\n#undef XF_RELOAD_CALL\n#define XF_SPILL ", f->addr, n);
+    fprintf(o, "\n");
+    if (lift_fast_mark) fprintf(o, "/*@F %08x %u*/", f->addr, n); /* same line: marked and unmarked C share line numbers */
+    fprintf(o, "/* function %08x (%u instructions): K52 fast whole-function form */\n#undef XF_SPILL\n#undef XF_RELOAD\n#undef XF_RELOAD_CALL\n#define XF_SPILL ", f->addr, n);
     for (int i = 0; i < 16; i++) if (written & (1u << i)) fprintf(o, "X.r[%d]=r[%d];", i, i);
     fprintf(o, "X.flags=flags;X.tsc=clock;X.frame_insns=(uint32_t)(clock-qbase);XR_LIFT(clock-retire_clock);retire_clock=clock;\n#define XF_RELOAD ");
     for (int i = 0; i < 16; i++) if (used & (1u << i)) fprintf(o, "r[%d]=X.r[%d];", i, i);
@@ -572,6 +952,11 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
     /* Win64 ABI: callee-saved registers come back unchanged; only volatile ones and RSP reload. */
     for (int i = 0; i < 16; i++) if ((used & (1u << i)) && ((l64f_volatile & (1u << i)) || i == ESP)) fprintf(o, "r[%d]=X.r[%d];", i, i);
     fprintf(o, "clock=X.tsc;qbase=clock-X.frame_insns;retire_clock=clock;xf_lim=x86_guest_committed;\n");
+    l64f_spill_set = (uint16_t)written; l64f_used_set = (uint16_t)used;
+    if (lift_fast_sync) {
+        fprintf(o, "#undef XF_SYNC\n#undef XF_RELOAD_CLOCK\n#define XF_SYNC X.flags=flags;X.tsc=clock;X.frame_insns=(uint32_t)(clock-qbase);XR_LIFT(clock-retire_clock);retire_clock=clock\n"
+                   "#define XF_RELOAD_CLOCK clock=X.tsc;qbase=clock-X.frame_insns;retire_clock=clock;xf_lim=x86_guest_committed;\n");
+    }
     fprintf(o, "void N_%08x(uint32_t pc){\n", f->addr);
     fprintf(o, "uint64_t r[16],clock,qbase,retire_clock,t=0,u=0,v=0,address=0,value=0,fault=0,ca=0,cb=0,cr=0;"
                "uint32_t flags,entry_index=0;uint8_t *p,*xf_sp=0;x86_vec_t av,bv;uint8_t *const xf_base=x86_flat;uint64_t xf_lim;"
@@ -586,7 +971,7 @@ static void l64f_lift(FILE *o, an_t *a, func_t *f, lift_stats_t *st) {
             f->addr, f->addr, f->addr);
     l64_fast = 1;
     c = (l64f_inline_t){.stack = {f->addr}, .budget = L64F_INLINE_BUDGET};
-    l64f_body(o, a, x, st, &c, "", 0, 0, 0);
+    l64f_body(o, a, x, st, &c, "", 0, 0, 0, 0, 0);
     l64_fast = 0; l64_fast_sp = L64F_UNK;
     /* Any other PC: interpret one instruction and retry (the interpreter re-enters lifted code). */
     fprintf(o, "slow:X.eip=pc;x86_lift_count=1;x86_lift_reason=XE_INTERIOR;return;\n"

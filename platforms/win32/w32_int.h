@@ -119,7 +119,7 @@ void w32_clock_sync(void);
 void w32_idle_ms(uint32_t ms);
 void w32_clock_quantum(uint32_t units);
 void w32_clock_check_cap(void);
-int w32_clock_quantum_fits(uint32_t units); /* K52 */
+int w32_clock_quantum_fits(uint32_t units, uint32_t carry); /* K52; K75 carry */
 void w32_clock_present(uint32_t interval);
 int w32_clock_swap0(int budget_full);
 void w32_gl_host_yield(int resume);

@@ -550,6 +550,15 @@ int main(int argc,char **argv) {
     CHECK(argc==2);
     if(!strcmp(argv[1],"error-order"))error_order_cases();
     else if(!strcmp(argv[1],"journal"))journal_growth();
+    else if(!strcmp(argv[1],"wire-address")) {
+        /* vK72: a static image straddling a 4 GiB boundary (Linux PIE + ASLR) must rebuild every wire address. */
+        const uintptr_t g = (uintptr_t)1 << 32;
+        CHECK(w32_gl_rebase(2 * g - 0x1000, 0x00001000u) == 2 * g + 0x1000);   /* past the boundary, anchor below */
+        CHECK(w32_gl_rebase(2 * g + 0x1000, 0xfffff000u) == 2 * g - 0x1000);   /* before the boundary, anchor above */
+        CHECK(w32_gl_rebase(3 * g + 0x40000000u, 0x50000000u) == 3 * g + 0x50000000u); /* same half: unchanged */
+        CHECK(wire_address(PTR(host + 12345)) == host + 12345 && wire_address(PTR(memory)) == memory);
+        puts("wire addresses rebuilt across a 4 GiB boundary OK");
+    }
     else if(!strcmp(argv[1],"hotpaths"))hotpath_cases();
     else if(!strcmp(argv[1],"uniform-limits"))uniform_limit_cases();
     else if(!strcmp(argv[1],"hotpath-bench"))hotpath_bench();

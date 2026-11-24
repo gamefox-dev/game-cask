@@ -40,6 +40,12 @@ A port is mostly configuration. The kit converts the original binary reproducibl
   loss after an upload whose copy was dropped then stops the game with a `device-lost` error (WebGL 2: any texture
   upload; WebGPU: a 2D/array upload). Unknown `gpu` keys and a non-boolean `recoveryShadows` fail the
   build. Measure before and after (`memory()`, `npm run bench:footprint`; docs/performance.md §5).
+- Module size (engine-side compiled-code memory scales with wasm bytes; K72, docs/pipeline.md "Module size"):
+  `"pipeline": {"liftMode": "fast", "liftFast": {"sync": "minimal", "calls": "outlined", "inline": "16"}}` shrinks
+  lifted code (opt-in; oracle-identical on the kit fixtures), `"selection": "recorded"` lifts only owners of
+  recorded entries (no static call closure; the rest interprets and is recorded for the next build), and
+  `"wasmNames": "strip"` ships without the name section (symbol maps `game*.wasm.names.json` beside). See where the
+  bytes go with `npm run bench:wasm-size -- --wasm web/public/games/<id>/game.jspi.wasm`.
 
 ## 2. Build and read the summary
 `npm run build:port` prints, per module:

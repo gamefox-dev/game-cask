@@ -23,9 +23,12 @@ test('memory breakdown is consistent and the GPU reservation matches the backend
   expect(api.schema).toBe('bgt-memory/1');
   expect(api.estimate.totalBytes).toBe(m.estimate.totalBytes);
 
-  // Totals: disjoint components sum to the estimate; JS-held parts sum to their total.
+  // Totals: disjoint components sum to the estimate (K74: + the modeled GPU-process overhead); JS-held parts sum to their total.
   const c = m.estimate.components;
-  expect(c.wasmLinear + c.wasmModule + c.gpuNative + c.jsHeld).toBe(m.estimate.totalBytes);
+  expect(c.wasmLinear + c.wasmModule + c.gpuNative + c.jsHeld + c.gpuOverhead).toBe(m.estimate.totalBytes);
+  const o = m.gpu!.overhead!;
+  expect(o.canvasBytes + o.presentationBytes + o.depthStencilBytes + o.stagingBytes).toBe(o.totalBytes);
+  expect(c.gpuOverhead).toBe(o.totalBytes);
   const js = m.js;
   expect(js.assetBytes + js.streamCacheBytes + js.gpuDecoderShadowBytes + js.audioQueuedBytes + js.loadBuffersBytes
     + js.gpuRecoveryShadowBytes + js.legacyTextureShadowBytes).toBe(js.heldBytes);
@@ -69,7 +72,9 @@ test('memory breakdown is consistent and the GPU reservation matches the backend
   expect(js.gpuDecoderShadowBytes).toBe(gpu.reserved.buffers);
   // Recovery shadows hold only uploaded bytes. x64-gl never uploads its depth/stencil or FBO color targets, and
   // uploads only tiny textures: eager shadows (one per allocated level; 288,804 B here) fail both bounds.
-  expect(n.shadows.bufferBytes).toBe(n.buffers.bytes);
+  // K74 (Q138): buffer bytes are one store shared by decoder and executor: no private executor copy remains.
+  expect(n.shadows.bufferBytes).toBe(0);
+  expect(n.shadows.sharedBufferBytes).toBe(n.buffers.bytes);
   expect(n.textures.depthStencilBytes).toBeGreaterThan(0);
   expect(n.shadows.textureBytes).toBeLessThanOrEqual(n.textures.bytes - n.textures.depthStencilBytes);
   expect(n.shadows.textureBytes).toBeLessThan(n.textures.bytes / 100);

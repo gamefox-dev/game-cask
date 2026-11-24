@@ -79,6 +79,8 @@ export interface WebGPUOptions {
   batch?: boolean;
   /** K71 (Q128): create §13 textures on first use (default on); false creates them at TEXTURE_CREATE (A/B). */
   lazyTextures?: boolean;
+  /** K74 (Q137): largest single queue write (row bands); Infinity issues each write whole (pre-K74, A/B). */
+  uploadChunkBytes?: number;
 }
 
 interface DeviceObjects {
@@ -133,6 +135,9 @@ export class WebGPURenderer implements Renderer {
     private readonly format: GPUTextureFormat,
     readonly opts: WebGPUOptions,
   ) {}
+
+  /** K74 (Q137): the retained full-canvas snapshot (canvas format, 4 B/px), a presentation copy outside the executor. */
+  presentationBytes(): number { return this.snapshot ? this.snapshot.width * this.snapshot.height * 4 : 0; }
 
   /** Returns null when WebGPU is unavailable; throws on unexpected init failures. */
   static async create(canvas: HTMLCanvasElement, opts: WebGPUOptions = {}): Promise<WebGPURenderer | null> {
@@ -236,6 +241,7 @@ export class WebGPURenderer implements Renderer {
     else this.gpu = new WebGPUCommands(device, m => this.errorCbs.forEach(cb => cb(`WebGPU: ${m}`)), describeAdapter(this.adapter),
       { lazyTextures: this.opts.lazyTextures });
     this.gpu.merge = this.opts.batch !== false;
+    if (this.opts.uploadChunkBytes !== undefined && this.opts.uploadChunkBytes > 0) this.gpu.uploadChunkBytes = this.opts.uploadChunkBytes;
     this.timing?.destroy();
     this.timing = this.opts.gpuTiming && WebGPUTiming.supported(device) ? new WebGPUTiming(device, b => rawSubmit(b)) : undefined;
     this.gpu.timing = this.timing;
@@ -355,6 +361,12 @@ export class WebGPURenderer implements Renderer {
     if (bytes.byteLength) q.writeBuffer(this.o.vbuf!, 0, bytes);
 
     const outputLB = lb, output = this.ctx.getCurrentTexture();
+    // K74 (Q137): a frame without items after a §13 screen frame re-presents the retained logical screen, which is
+    // exactly what that frame presented (nothing has touched it since); no full-canvas snapshot copy is kept for it.
+    if (!frame.items.length && this.screen && !this.snapshot) {
+      this.presentTexture(output, this.screen.createView(), lb, [0, 0, 1, 1]);
+      return readback ? this.readback(output, this.format === 'bgra8unorm') : null;
+    }
     // §13 requires a shared logical RGBA8 screen, independent of the canvas' preferred BGRA format.
     // Keep the frozen physical-pixel 2D path until the first GPU screen pass (including fractional scaling).
     if (!frame.items.length && this.snapshot && this.snapshotLB) {
@@ -497,8 +509,11 @@ export class WebGPURenderer implements Renderer {
       close();
       open(0); // screen never drawn this frame: still clear it
     }
-    if ((gpuFrame || this.snapshot) && (this.snapshot?.width !== output.width || this.snapshot.height !== output.height)) {
-      this.snapshot?.destroy();
+    // K74 (Q137): a §13 screen frame keeps no snapshot (the retained screen re-presents it, above); only the 2D-only
+    // path still keeps the presented physical image. Before K74 every screen frame copied the canvas into one.
+    if (gpuFrame && this.snapshot) { this.snapshot.destroy(); this.snapshot = undefined; this.snapshotLB = undefined; }
+    if (this.snapshot && (this.snapshot.width !== output.width || this.snapshot.height !== output.height)) {
+      this.snapshot.destroy();
       this.snapshot = device.createTexture({ size: [output.width, output.height], format: this.format,
         usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
     }
@@ -506,7 +521,7 @@ export class WebGPURenderer implements Renderer {
     // separate short command buffer, see WebGPUCommands.flush; a frame without a §13 screen pass draws its 2D passes
     // into the canvas texture itself, as before). At most one of the §13 frame encoder and an open 2D pass holds work
     // here (2D draws flush §13 work first).
-    const snapshot = gpuFrame || this.snapshot ? this.snapshot! : undefined;
+    const snapshot = this.snapshot;
     if (snapshot) this.snapshotLB = { ...outputLB };
     const tail = (e: GPUCommandEncoder) => {
       if (gpuFrame) this.presentTexture(output, view, outputLB, [0,0,1,1], e);

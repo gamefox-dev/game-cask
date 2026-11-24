@@ -167,6 +167,14 @@ integrity checks. Reads are then **synchronous** from memory. Paths are relative
 `/`-separated, with no `.`/`..` or empty segments. A missing asset returns `BGT_E_NOT_FOUND`
 and is listed in `diagnostics().assets.missing`. At most 256 open handles.
 
+**Init-only assets (K74, additive).** A manifest asset entry may carry `"release": "after-init"`: the runtime drops
+its bytes once `bgt_init` returns and no handle is open on it (one still open then is dropped when its last handle
+closes).
+Opening it afterwards returns `BGT_E_NOT_FOUND`, counted in `diagnostics().assets.released.reopened` rather than
+`missing`. The pipeline build marks the Win32 profile's compacted PE images (`loader/<module>`, read only by the PE
+loader inside `bgt_init`; guest file opens of a module name resolve to the streamed `modules/<module>`), so their JS
+copy no longer outlives the mapping into linear memory. `diagnostics().assets.released` = `{count, bytes, reopened}`.
+
 ### Audio
 
 Signed 16-bit mono at `audio_sample_rate` (48000 in v0.1). Audio starts **locked**. The
@@ -279,7 +287,8 @@ interface BGTTestAPI {
   peek(addr: number, len: number): Uint8Array | null;   // v0.2.1, test-only, read-only (bgt_debug_peek)
   measurePage(windowMs: number, warmupMs?: number): Promise<PageWindowSummary>; // K51 real-page window
   pageLoop(): { ticks; updates; transportUpdates; maxUpdatesPerTick;   // K66: page-loop counters since load
-    requestWaits; requestWaitMs; requestWaitTimeouts; maxTickMs };    // K70: burst waits for a polled request result
+    requestWaits; requestWaitMs; requestWaitTimeouts; maxTickMs;     // K70: burst waits for a polled request result
+    stepRequestWaits; stepRequestWaitMs; stepRequestWaitTimeouts };  // K73: step()'s waits for a polled request result
   memory(): MemoryDiagnostics; loadMetrics(): LoadDiagnostics; // K64 runtime metrics, = diagnostics().memory/.load
 }
 type BGTTestInputEvent =
@@ -296,6 +305,12 @@ It reaches the game unchanged as `bgt_io_t.pointer_buttons`. When `buttons` is g
 - `step(n)` pauses free-running, then for each of n steps: applies input, runs one
   `bgt_update`, renders and draws. It resolves after `onSubmittedWorkDone` (WebGPU) or
   `gl.finish` (WebGL), so a following `readPixels`/`screenshot` sees the result.
+  K73 (Q139): before each update it settles host I/O and, as the K70 page loop does, waits for the request result the
+  previous update polled unresolved (renderer results resolve asynchronously on WebGPU), so `step(n)` and n x `step(1)`
+  give the same guest timeline (presents, guest time, state hash) on every backend. Before K73 a WebGPU `step(n)`
+  polled the same 0 for the whole chunk (MMX8: 1893 vs 5567 presents at update 7000). `?iowait=0` disables this wait
+  too (A/B). vK73: all waits of one call share one budget (10 s; `?stepwaitms=`); exhausting it records a `step-wait`
+  error in `diagnostics().errors`, counts `stepRequestWaitTimeouts`, and the rest of that call does not wait.
 - `?paused=1` starts paused at frame 0, so a test owns every simulation step.
 - `peek(addr, len)` (v0.2.1) returns a copy of `len` (1..65536) bytes of guest memory through the optional
   `bgt_debug_peek` export, or `null` (no export, unmapped, bad length). It exists only where the test API exists
@@ -1068,16 +1083,42 @@ The first 16 bytes retain their existing texture-limit meanings, independent of 
 | 40 | max_binding_slots | 8 each uniform/texture namespace |
 | 44 | max_color_attachments | 4 |
 | 48 | uniform_offset_alignment | 256 |
-| 52 | max_uniform_range | 65536 without CAP_GPU; with CAP_GPU min(65536, native limit) — 16384..65536 (K51) |
+| 52 | max_uniform_range | 65536 without CAP_GPU; with CAP_GPU min(65536, native limit) — 16384..65536 (K51); K73 default `portable`: 16384 on every backend |
 | 56 | max_vertex_stride | 2048 |
 | 60 | max_shader_bytes | 1048576 |
 | 64 | shader_languages | bit 0 WGSL, bit 1 GLSL330, bit 2 GLSLES300; 0 without CAP_GPU |
 | 68 | max_mip_levels | 13 |
 | 72 | max_instances | 65535 |
-| 76 | max_varying_components | K62 (with CAP_GPU_GL_RASTER): GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend, for any topology and with transform feedback: WebGPU 4 x (maxInterStageShaderVariables - 1) - 6 (packed vec4 interface; the translated fragment stage's front_facing input or a point-list topology costs one location; the adapter's limit is requested; vertex outputs the fragment stage does not read occupy none), WebGL 2 3 x (MAX_VARYING_VECTORS - 2) (one row for the renderer's clip coordinates, one for a captured gl_Position); 60 if a backend does not state it; 0 without CAP_GPU. Formerly `reserved` (0); `bgt_gpu_limits_v3_t.reserved` remains a source-compatible alias |
+| 76 | max_varying_components | K62 (with CAP_GPU_GL_RASTER): GLSL user varying components (gl_Position excluded) every program of that size links with on the active backend, for any topology and with transform feedback: WebGPU 4 x (maxInterStageShaderVariables - 1) - 6 (packed vec4 interface; the translated fragment stage's front_facing input or a point-list topology costs one location; the adapter's limit is requested; vertex outputs the fragment stage does not read occupy none), WebGL 2 3 x (MAX_VARYING_VECTORS - 2) (one row for the renderer's clip coordinates, one for a captured gl_Position); 60 if a backend does not state it; 0 without CAP_GPU; K73 default `portable`: min(84, that value). Formerly `reserved` (0); `bgt_gpu_limits_v3_t.reserved` remains a source-compatible alias |
 
 These are fixed portable ceilings, not native-driver maxima; unsupported backends still return the ceilings with
-supported/languages zero. **Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
+supported/languages zero.
+
+**K73 portable limits (Q135).** Three values depend on the device: offset 4 `max_texture_dimension` (ABI ≥ 0.3), offset
+52 `max_uniform_range` and offset 76 `max_varying_components`. A guest whose behaviour depends on one of them (e.g. how
+it lays out its uniforms) would otherwise run a different timeline per backend. By default (`HostConfig.gpuLimits` /
+manifest `gpu.limits` = `"portable"`) the host reports `min(portable, device)` from this table, the minimum across
+the supported backends and device classes measured in K73, never below the GL 3.3 / WebGL 2 minimum:
+
+| Offset | Field | portable | ANGLE Metal (Chromium, WebKit) | SwiftShader | WebGPU Chromium M4 | WebGPU WebKit M4 | GL 3.3 min |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 4 | max_texture_dimension (legacy 2D textures; §13 GPU textures keep their fixed 4096) | 8192 | 16384 | 8192 | 8192 (default device limits) | 8192 (default device limits) | 1024 |
+| 52 | max_uniform_range | 16384 | 16384 | 65536 | 65536 | 65536 | 16384 |
+| 76 | max_varying_components | 84 | 84 (30 varying vectors) | 87 (31) | 102 (28 inter-stage) | 114 (31) | 60 |
+
+Reporting less than the device can do is legal; reporting more is never done (the minimum with the device value):
+a WebGPU adapter with only the default 16 inter-stage variables reports its 54 varying components (a documented
+exception to "the same everywhere"). The host enforces the reported value, not the device's: UNIFORM_BUFFER sizes
+above offset 52 and legacy textures above offset 4 are E_LIMIT, and the WGL profile fails links above offset 76 and
+blocks above offset 52, so a program that links on one backend links on all. `"device"` (game.json `gpu.limits`,
+`RuntimeOptions.gpuLimits`, `?gpulimits=device`) reports the device's own values (K51/K62 behaviour) for a game that
+needs more; `diagnostics().gpuDevice.limits` lists the mode, its source and each reported value next to the device
+value. Every other limit and string the WGL profile reports (GL_VENDOR/RENDERER/VERSION, the extension list,
+GL_MAX_TEXTURE_SIZE 4096 = the fixed §13 GPU texture ceiling, enforced; offset 4 does not affect it, the K62 GL 3.3 table) is a constant independent of the backend; the identity words
+`bgt_io_t.backend` and offset 64 `shader_languages` (WebGPU adds WGSL) are capabilities, not limits, and the WGL
+profile reads neither for guest-visible values.
+
+**Exception (K51): `max_uniform_range`** is the active backend's real limit, clamped to the
 portable ceiling and rounded down to 16: WebGL2 `MAX_UNIFORM_BLOCK_SIZE` (ANGLE Metal reports the WebGL2/GL 3.3
 minimum 16384), WebGPU `maxUniformBufferBindingSize` (default 65536). A backend below 16384 does not advertise
 CAP_GPU. UNIFORM_BUFFER sizes above the reported value are E_LIMIT, and a native backend never binds a larger range.
@@ -1094,7 +1135,7 @@ internal block in the next free uniform slot (offset 256-aligned in the same buf
 texture mip consumes width*height*format_size; shader sources consume source_len; buffers consume size. No physical
 alignment overhead is charged. `gpu_budget_bytes` is a configurable reservation/accounting limit (default 268435456),
 not measured physical VRAM; `HostConfig.gpuBudgetBytes` and `game.json` `gpu.budgetBytes` accept validated values from
-16 MiB through 0xffffffff. The manifest `gpu` object takes only `budgetBytes` and (K71, runtime only, no ABI effect)
+16 MiB through 0xffffffff. The manifest `gpu` object takes only `budgetBytes`, `limits` (K73, above) and (K71, runtime only, no ABI effect)
 `recoveryShadows` (boolean, default true: keep CPU copies of uploaded texture levels for device-loss recovery;
 false: drop them, except WebGPU 3D levels, which are its CPU mip-generation source; a loss after an upload whose copy was
 dropped is a reported `device-lost` stop, i.e. on WebGL 2 after any texture upload, on WebGPU after a 2D/array upload); `build.mjs` rejects other keys. Samplers/pipelines count only against their namespaces. Samplers/pipelines count only against their namespaces. Legacy 2D resources keep

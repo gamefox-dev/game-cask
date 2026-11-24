@@ -419,6 +419,33 @@ export const GPU_LIMITS = {
 export const GPU_UNIFORM_RANGE_MIN = 16384;
 /** K62: §13.6 offset 76 when a backend does not state its varying capacity (GL 3.3's MAX_VARYING_COMPONENTS). */
 export const GPU_VARYING_COMPONENTS_DEFAULT = 60;
+/**
+ * K73 (Q135): which values the guest sees for the backend-dependent §13.6 limits.
+ * 'portable' (default): the same value on every supported backend and device class, from GPU_PORTABLE_LIMITS, so a
+ * guest's behaviour (and a recorded input route) does not depend on the device; 'device': the device's own value
+ * (K51/K62 behaviour), for a game that needs more than the portable table. Either way the value is never above what
+ * the device can do (min with the device value).
+ */
+export type GpuLimitsMode = 'portable' | 'device';
+/**
+ * K73 (Q135): the portable table, the minimum across the supported backends and device classes measured in K73
+ * (Apple M4, Chromium ANGLE Metal / SwiftShader / WebGPU Metal, WebKit WebGL 2 / WebGPU; docs/handoff/K73.md), never
+ * below the GL 3.3 / WebGL 2 minimum:
+ * - uniformRange (offset 52, GL_MAX_UNIFORM_BLOCK_SIZE): ANGLE Metal / WebKit WebGL 2 16384, SwiftShader 65536,
+ *   WebGPU 65536 -> 16384 (= the GL 3.3 minimum).
+ * - varyingComponents (offset 76, GL_MAX_VARYING_COMPONENTS): ANGLE Metal / WebKit WebGL 2 84, SwiftShader 87,
+ *   WebGPU Chromium 102, WebGPU WebKit 114 -> 84 (GL 3.3 minimum 60). A WebGPU adapter with only the default 16
+ *   inter-stage variables gives 54: there the device value is reported (documented exception).
+ * - textureDimension (offset 4, max_texture_dimension; the legacy 2D texture layer only: §13 GPU textures and
+ *   GL_MAX_TEXTURE_SIZE keep the fixed GPU_LIMITS.textureDimension 4096): ANGLE Metal / WebKit WebGL 2 16384, SwiftShader 8192,
+ *   WebGPU device (default limits) 8192 -> 8192.
+ */
+export const GPU_PORTABLE_LIMITS = { uniformRange: 16384, varyingComponents: 84, textureDimension: 8192 } as const;
+export const GPU_LIMITS_MODES: readonly GpuLimitsMode[] = ['portable', 'device'];
+export const isGpuLimitsMode = (v: unknown): v is GpuLimitsMode => v === 'portable' || v === 'device';
+/** K73: the reported value of one backend-dependent limit: the device's in 'device' mode, else min(portable, device). */
+export const reportedLimit = (mode: GpuLimitsMode, portable: number, device: number): number =>
+  mode === 'device' ? device : Math.min(portable, device);
 /** K62: §13.4 VIEWPORT x, y within [-bound, bound] and width, height in (0, bound]; it may exceed the attachment. */
 export const GPU_VIEWPORT_BOUND = 32768;
 /** A reservation/accounting limit, never a claim about measured physical VRAM. */

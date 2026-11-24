@@ -1,5 +1,5 @@
 // Chromium CDP profiles remain valid DevTools .cpuprofile JSON. Mapping lives in a sidecar.
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 export function profileRange(value='0:300') {
   if(!/^\d+:\d+$/.test(value))throw new Error('--cpu-profile requires START:END update frames');
@@ -7,16 +7,29 @@ export function profileRange(value='0:300') {
   if(!Number.isSafeInteger(end)||end<=start)throw new Error('invalid CPU profile range');
   return {start,end};
 }
-export function mapProfile(profile) {
+/** vK72: function-index -> name maps of a build's artifacts (`pipeline.wasmNames: "strip"` writes
+ * `<artifact>.names.json`); keyed by suspension mode, as the profile does not say which artifact ran. */
+export function loadSymbolMaps(gameDir) {
+  const maps={};
+  for(const [mode,file] of [['asyncify','game.wasm'],['jspi','game.jspi.wasm']]) {
+    const path=join(gameDir,file+'.names.json');
+    if(existsSync(path))maps[mode]=new Map(JSON.parse(readFileSync(path,'utf8')).functions.map(f=>[f.index,f.name]));
+  }
+  return maps;
+}
+/** `symbols` (index -> name) names stripped `wasm-function[N]` frames; the original frame name is kept. */
+export function mapProfile(profile,symbols=null) {
   return profile.nodes.map(n=>{
-    const name=n.callFrame.functionName;
+    const frame=n.callFrame.functionName,wasmFunction=/wasm-function\[(\d+)\]/.exec(frame)?.[1] ?? null;
+    const symbol=wasmFunction!==null?symbols?.get(Number(wasmFunction)) ?? null:null;
+    const name=symbol ?? frame;
     const m=name.match(/\b[FNR]_([0-9a-f]{8})(?:_([0-9a-f]{8}))?/i);
-    return {node:n.id,functionName:name,guestAddress:m?Number.parseInt(m[1],16):null,
-      regionAddress:m?.[2]?Number.parseInt(m[2],16):null,wasmFunction:/wasm-function\[(\d+)\]/.exec(name)?.[1] ?? null,
+    return {node:n.id,functionName:frame,...(symbol?{symbol}:{}),guestAddress:m?Number.parseInt(m[1],16):null,
+      regionAddress:m?.[2]?Number.parseInt(m[2],16):null,wasmFunction,
       hitCount:n.hitCount ?? 0};
   });
 }
-export async function createCpuProfiler(page,range,out,log) {
+export async function createCpuProfiler(page,range,out,log,{symbolMaps={}}={}) {
   const cdp=await page.context().newCDPSession(page);
   await cdp.send('Profiler.enable');await cdp.send('Profiler.setSamplingInterval',{interval:1000});
   let active=false,done=false;
@@ -26,7 +39,10 @@ export async function createCpuProfiler(page,range,out,log) {
     const {profile}=await cdp.send('Profiler.stop');active=false;done=true;
     const file=join(out,'cpu.cpuprofile'),mapping=join(out,'cpu-mapping.json');
     writeFileSync(file,JSON.stringify(profile)+'\n');
-    const nodes=mapProfile(profile);
+    const mode=await page.evaluate(()=>window.__BGT_TEST__.diagnostics().suspension).catch(()=>null);
+    const symbols=symbolMaps[mode] ?? (Object.keys(symbolMaps).length===1?Object.values(symbolMaps)[0]:null);
+    const nodes=mapProfile(profile,symbols);
+    if(symbols)report.symbolMap=mode ?? 'single';
     writeFileSync(mapping,JSON.stringify({schema:'game-cask/cpu-map/1',nodes},null,2)+'\n');
     Object.assign(report,{endedFrame:frame,complete:frame===range.end,mappedNodes:nodes.filter(n=>n.guestAddress!==null).length,
       unmappedWasmNodes:nodes.filter(n=>n.guestAddress===null && n.wasmFunction!==null).length});

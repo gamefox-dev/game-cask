@@ -2,13 +2,16 @@
 // Catches: (1) CAP_GPU refused on a real WebGL2 GPU that only guarantees 16384-byte uniform blocks
 // (ANGLE Metal on Apple silicon), (2) the guest being told a fixed 65536 instead of the device's limit,
 // (3) an at-limit std140 block not reaching the native compiler/draw intact.
+// K73 (Q135): the guest sees the device's limit only with gpu.limits "device" (?gpulimits=device); by default every
+// backend reports the portable 16384, and the 16384-byte block draws on every backend (split default block too).
 import { test, expect, openGame, assertBackend, diagnostics, readPixels } from './fixtures';
 import { stepUntilLog } from './guest-progress';
 
 test.beforeEach(async ({ collector }) => { void collector; });
 
-test('x64-gl-limits: guest GL_MAX_UNIFORM_BLOCK_SIZE is the device limit; an at-limit block draws', async ({ page, backendParam }, info) => {
-  expect(await openGame(page, backendParam, { game: 'x64-gl-limits' })).toBe('ready');
+for (const mode of ['device', 'portable'] as const)
+test(`x64-gl-limits: guest GL_MAX_UNIFORM_BLOCK_SIZE is the ${mode} limit; an at-limit block draws`, async ({ page, backendParam }, info) => {
+  expect(await openGame(page, backendParam, { game: 'x64-gl-limits', ...(mode === 'device' ? { gpulimits: 'device' } : {}) })).toBe('ready');
   await assertBackend(page, backendParam, info);
   await stepUntilLog(page, 'x64-gl-limits pixel=', 60);
   const d = await diagnostics(page);
@@ -17,8 +20,10 @@ test('x64-gl-limits: guest GL_MAX_UNIFORM_BLOCK_SIZE is the device limit; an at-
   expect(logs.filter(l => l.includes('FAIL')), logs.join('\n')).toEqual([]);
   const device = d.gpuDevice!;
   expect(device, 'CAP_GPU must be available on this backend').not.toBeNull();
-  const expected = Math.min(65536, device.nativeMaxUniformRange - device.nativeMaxUniformRange % 16);
+  const native = Math.min(65536, device.nativeMaxUniformRange - device.nativeMaxUniformRange % 16);
+  const expected = mode === 'device' ? native : 16384;
   expect(device.maxUniformRange).toBe(expected);
+  expect(device.limits).toMatchObject({ mode, maxUniformRange: expected, deviceMaxUniformRange: native });
   expect(logs.some(l => l.endsWith(`x64-gl-limits uniform-block-limit=${expected}`)), logs.join('\n')).toBe(true);
   expect(logs.some(l => l.endsWith(`x64-gl-limits PASS checks limit=${expected} failures=0`)), logs.join('\n')).toBe(true);
   // v[0] + v[limit/16 - 2] + tail == magenta; the green clear means the at-limit draw did not happen.
@@ -28,7 +33,7 @@ test('x64-gl-limits: guest GL_MAX_UNIFORM_BLOCK_SIZE is the device limit; an at-
   const px = await readPixels(page), b = d.letterbox;
   const at = (Math.floor(b.y + b.h / 2) * px.width + Math.floor(b.x + b.w * 3 / 4)) * 4;
   expect([...px.data.slice(at, at + 4)]).toEqual([255, 0, 255, 255]);
-  await info.attach('gpu-device.json', { body: JSON.stringify({ backend: d.backend, device }, null, 2), contentType: 'application/json' });
+  await info.attach(`gpu-device-${mode}.json`, { body: JSON.stringify({ backend: d.backend, device }, null, 2), contentType: 'application/json' });
   // Opt-in hardware gate: BGT_WEBGL2_GPU=1 runs the WebGL2 project on the native GPU; it must not be a CPU rasterizer.
   if (backendParam === 'webgl2' && process.env.BGT_WEBGL2_GPU === '1') expect(device.software, device.renderer ?? '').toBe(false);
 });

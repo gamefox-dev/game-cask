@@ -108,6 +108,16 @@ void x86_wr32_slow(uint32_t a, uint32_t v);
 void x86_cooperate(void);
 void x86_set_scheduler(void (*schedule)(void));
 extern uint32_t x86_quantum_insns; /* completed budget epoch, published before scheduler hook */
+/* K75: budget units charged for `insns` instructions counted since the last quantum, and the instructions that
+ * carry into the next one, exactly as the interpreter's per-instruction check (`++frame_insns > 2000000`) would
+ * have charged them: each quantum charges 2000000 units at its 2000001st instruction, which then starts the next
+ * quantum uncounted. Fast lifted code polls later than that instruction (loop headers, function entries, after
+ * REP generics), so it cooperates with insns > 2000001 and must neither drop the overshoot nor lose quanta. */
+static inline uint32_t x86_quantum_charge(uint32_t insns, uint32_t *carry) {
+    uint32_t quanta = insns > 2000000u ? (insns - 2000001u) / 2000001u + 1u : 0u;
+    if (carry) *carry = insns - quanta * 2000001u;
+    return quanta * 2000000u;
+}
 #ifdef X86_FLAT_GUEST
 #ifndef X86_FLAT_BYTES
 #define X86_FLAT_BYTES (1024ull << 20)
@@ -230,6 +240,14 @@ extern const struct x86_import_binding *x86_pending_import;
 x86_native_fn x86_fast_lookup(x86_fast_site_t *site, uint32_t target);
 int x86_fast_quantum(void);
 void x86_fast_exec(const x86_insn_t *in);
+/* K72 liftFast.calls "outlined": the call protocol of a fast call site as three small out-of-line helpers
+ * (identical semantics to the inline form, fewer bytes per site). xf_enter publishes the clock and flags, sets
+ * X.eip = callee and takes a depth slot (nonzero: depth cap reached, the caller returns); xf_leave releases it and
+ * reports whether the caller must return (abnormal exit: X.eip is not the return site or a frame is busy);
+ * xf_check is xf_leave without the depth slot (imports, generic instructions). */
+int xf_enter(uint32_t pc, uint32_t flags, uint64_t clock, uint64_t qbase);
+int xf_leave(uint32_t next);
+int xf_check(uint32_t next);
 /* Returns nonzero when the scheduler hook provably neither suspends nor transfers right now. */
 void x86_set_quantum_probe(int (*probe)(void));
 

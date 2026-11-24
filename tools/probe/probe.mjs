@@ -13,7 +13,7 @@ import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { resourceSnapshot } from './resources.mjs';
 import {publishCoverage} from '../build/coverage.mjs';
-import { createCpuProfiler, profileRange } from './cpu-profile.mjs';
+import { createCpuProfiler, profileRange, loadSymbolMaps } from './cpu-profile.mjs';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from '../build/toolchain.mjs';
 import { startServer, stopServer, validatePort } from './server.mjs';
@@ -249,7 +249,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     page.on('console', (m) => log.console.push(`${m.type()}: ${m.text()}`));
     page.on('pageerror', (e) => log.errors.push(e.message));
     const api = (fn, ...args) => page.evaluate(([f, x]) => window.__BGT_TEST__[f](...x), [fn, args]);
-    profiler = a.cpuProfile ? await createCpuProfiler(page, a.cpuProfile, out, log) : null;
+    profiler = a.cpuProfile ? await createCpuProfiler(page, a.cpuProfile, out, log, { symbolMaps: loadSymbolMaps(join(ROOT, 'web', 'public', 'games', a.game)) }) : null;
     const p = makeProbe(page, { game: a.game, backend: a.backend, out, params: a.params, log, profiler, software: !!a.software });
     await p.start();
     await script.default(p);

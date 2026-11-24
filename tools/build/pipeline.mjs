@@ -18,7 +18,7 @@
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
 import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
@@ -66,11 +66,31 @@ function zigWinInclude() {
   return join(env.lib_dir, 'libc', 'include', 'any-windows-any');
 }
 
-/** Zero the COFF TimeDateStamp so fixture builds are byte-reproducible. */
-function stripTimestamp(file) {
+/** Zero the COFF TimeDateStamp so fixture builds are byte-reproducible. vK72: also the debug directory entries'
+ * TimeDateStamp and the CodeView (RSDS) GUID, which lld derives from the build's output path: a lifted and an
+ * interpret-only build of one game (different work directories) must load byte-identical images, or the oracle's
+ * guest-memory hash sees a build difference. */
+export function stripTimestamp(file) {
   const b = readFileSync(file);
   const nt = b.readUInt32LE(0x3c);
   b.writeUInt32LE(0, nt + 8);
+  const opt = nt + 24, magic = b.readUInt16LE(opt), dirs = opt + (magic === 0x20b ? 112 : 96);
+  const sections = opt + b.readUInt16LE(nt + 20), count = b.readUInt16LE(nt + 6);
+  const raw = (rva) => {
+    for (let i = 0; i < count; i++) {
+      const s = sections + i * 40, va = b.readUInt32LE(s + 12), size = Math.max(b.readUInt32LE(s + 8), b.readUInt32LE(s + 16));
+      if (rva >= va && rva < va + size) return b.readUInt32LE(s + 20) + rva - va;
+    }
+    return null;
+  };
+  if (b.readUInt32LE(opt + (magic === 0x20b ? 108 : 92)) > 6) {
+    const rva = b.readUInt32LE(dirs + 6 * 8), size = b.readUInt32LE(dirs + 6 * 8 + 4), at = rva ? raw(rva) : null;
+    if (at !== null) for (let e = at; e + 28 <= at + size && e + 28 <= b.length; e += 28) {
+      b.writeUInt32LE(0, e + 4);
+      const data = b.readUInt32LE(e + 24);
+      if (b.readUInt32LE(e + 12) === 2 && data + 24 <= b.length && b.toString('latin1', data, data + 4) === 'RSDS') b.fill(0, data + 4, data + 20);
+    }
+  }
   writeFileSync(file, b);
 }
 
@@ -222,10 +242,24 @@ export function ownerCensus(env = process.env) {
   if (value === '1' && env.BGT_CPU_ACCOUNTING === '0') throw new Error('BGT_OWNER_CENSUS=1 requires exact accounting; unset BGT_CPU_ACCOUNTING=0');
   return value === '1';
 }
+/** vK72b/vK75: the test-only wrong lifted RET is refused for any game under port/, compared by real path so a
+ * symlinked alias of port/ (or of the game directory) cannot pass. */
+export function refuseTestCorruptPort(policy, gameDir, root = ROOT) {
+  if (policy.liftFast?.testCorrupt !== 'stack') return;
+  // vK75b: both ways: the lexical and the real game path against the lexical and the real port/ path, so neither a
+  // symlink into port/ nor a symlink inside port/ that points elsewhere passes.
+  const real = (q) => { try { return realpathSync(q); } catch { return resolve(q); } };
+  const ports = [resolve(root, 'port'), real(join(root, 'port'))], games = [resolve(gameDir), real(gameDir)];
+  if (games.some((g) => ports.some((p) => (g + '/').startsWith(p + '/')))) throw new Error('pipeline.liftFast.testCorrupt is test-only and refused in port builds');
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
   const timeModel = guestTimeModel(p.timeModel);
   const policy = liftPolicy(p);
+  refuseTestCorruptPort(policy, gameDir);
+  // K75: in fast mode an import that another guest module provides is guest code, not a flag-transparent profile call.
+  if (policy.liftMode === 'fast' && p.modules?.length > 1)
+    policy.fastGuestDlls = p.modules.map((m) => m.name ?? basename(m.from.split('#').pop()).toLowerCase()).sort();
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');
@@ -234,9 +268,9 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   const coverage = coverageInstrumentation(cfg);
   const census = ownerCensus();
   const mode=selectionMode(p,!!cfg.slice);
-  const recorded=cfg.slice?.coverage ?? (mode==='coverage'?p.coverage:null);
+  const recorded=cfg.slice?.coverage ?? (mode!=='all'?p.coverage:null);
   const files=[...(typeof recorded==='string'?[recorded]:recorded ?? []),
-    ...(!cfg.slice && mode==='coverage'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
+    ...(!cfg.slice && mode!=='all'?automaticCoverageFiles(ROOT,cfg.coverageGameId ?? cfg.id):[])];
   const plan=files.length ? coveragePlan(files,gameDir) : null;
   if(plan)validateCoverageIdentity(plan,cfg.coverageGameId ?? cfg.id,plan.modules,{strict:!!cfg.slice});
   const sliceCode=new Set(), sliceRanges=[], codeRanges=[], codeOwners=[];
@@ -244,15 +278,21 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   if (p.platform !== 'win32') throw new Error(`pipeline: platform "${p.platform}" is not implemented (kit gap; v0.2 has win32)`);
   const work = join(CACHE, 'pipeline', cfg.id + (p.interpretOnly ? '-interp' : ''));
   mkdirSync(work, { recursive: true });
+  // vK72: the interpret-only oracle build compiles the fixture in the lifted build's directory, so both load
+  // byte-identical images (lld embeds source/output paths in the PE debug data the guest maps).
+  // Only the oracle twin (build option interpretOnly renames the id to <id>-interp); a game whose own game.json sets
+  // pipeline.interpretOnly keeps its directory.
+  const oracleTwin = p.interpretOnly && cfg.coverageGameId && cfg.id === `${cfg.coverageGameId}-interp`;
+  const fixtureWork = oracleTwin ? join(CACHE, 'pipeline', cfg.coverageGameId, 'fixture') : join(work, 'fixture');
   const fixtureFiles = {};
   if (p.fixture) {
     for (const data of p.fixture.patternFiles ?? []) {
       if (!/^[a-z0-9-]+\.[a-z0-9]+$/.test(data.name) || !Number.isInteger(data.bytes) || data.bytes < 0 || data.bytes > 512*1024*1024) throw new Error('invalid CC0 pattern fixture');
-      const dir=join(work,'fixture');mkdirSync(dir,{recursive:true});
+      const dir=fixtureWork;mkdirSync(dir,{recursive:true});
       const fd=openSync(join(dir,data.name),'w');
       try {const b=Buffer.alloc(65536);for(let off=0;off<data.bytes;off+=b.length){const n=Math.min(b.length,data.bytes-off);for(let i=0;i<n;i++)b[i]=(((off+i)*(data.multiplier ?? 1)+(data.increment ?? 0))^(data.xorShift ? (off+i)>>>data.xorShift : 0))&255;writeSync(fd,b,0,n);}}finally{closeSync(fd);}
     }
-    const f = buildFixture(gameDir, p.fixture, join(work, 'fixture'));
+    const f = buildFixture(gameDir, p.fixture, fixtureWork);
     fixtureFiles[`./build/${p.fixture.out}`] = f;
   }
   const tool = x86tool();
@@ -376,6 +416,7 @@ export function runPipeline(gameDir, cfg, outAssetsDir) {
   writeFileSync(driver, `/* GENERATED by tools/build/pipeline.mjs for "${cfg.id}" — do not edit. */
 #include "bgt.h"
 #include "w32.h"
+#include "x86_sched.h"
 BGT_DEFINE_IO(io)
 ${ext}
 static const w32_module_cfg_t modules[] = {
@@ -398,6 +439,7 @@ BGT_EXPORT(bgt_render) void bgt_render(void) { w32_render(); }
 BGT_EXPORT(bgt_shutdown) void bgt_shutdown(void) {}
 ${cfg.slice && plan ? 'BGT_EXPORT(bgt_slice_policy) uint32_t bgt_slice_policy(uint32_t entries,uint32_t ranges) { return x86_prepare_host_slice(entries,ranges); }\nBGT_EXPORT(bgt_slice_first_entry) uint32_t bgt_slice_first_entry(void) {return x86_slice_first_entry();}' : ''}
 BGT_EXPORT(bgt_state_hash) uint32_t bgt_state_hash(void) { return w32_state_hash(); }
+BGT_EXPORT(bgt_guest_state_hash) uint32_t bgt_guest_state_hash(uint32_t parts) { return x86_guest_state_hash(parts); }
 BGT_EXPORT(bgt_metrics) uint32_t bgt_metrics(void) { return (uint32_t)(uintptr_t)w32_metrics_json(); }
 BGT_EXPORT(bgt_profile_reset) void bgt_profile_reset(void) {x86_profile_reset();}
 BGT_EXPORT(bgt_interpreter_coverage) uint32_t bgt_interpreter_coverage(void) {return (uint32_t)(uintptr_t)x86_interpreter_coverage();}
@@ -418,7 +460,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     ...['avrt', 'bcrypt', 'dinput8', 'dwmapi', 'imm32', 'iphlpapi', 'shlwapi', 'ws2_32', 'wsock32']
       .map((dll) => `platforms/win32/w32_${dll}.c`),
     /* LANE-C: cooperative scheduler and shared thread APIs (both guest widths). */
-    'platforms/win32/w32_x64.c', 'platforms/win32/w32_thread.c', 'platforms/x86/x86_sched.c',
+    'platforms/win32/w32_x64.c', 'platforms/win32/w32_thread.c', 'platforms/x86/x86_sched.c', 'platforms/x86/x86_state.c',
     'platforms/win32/w32_core.c', 'platforms/win32/w32_kernel.c', 'platforms/win32/w32_user.c', 'platforms/win32/w32_gdi.c',
     'platforms/win32/w32_replay.c', 'platforms/win32/w32_crt.c',
     'platforms/common/font5x7.c',
@@ -461,7 +503,7 @@ BGT_EXPORT(bgt_debug_peek) uint32_t bgt_debug_peek(uint32_t addr, uint32_t len) 
     nativeLiftSymbols,
     streams,
     slicePlan: cfg.slice && plan ? {code:[...sliceCode].sort((a,b)=>a-b),codeRanges:sliceRanges,ranges:plan.ranges} : null,
-    fixtureDir: p.fixture ? join(work,'fixture') : null,
+    fixtureDir: p.fixture ? fixtureWork : null,
     includes: ['platforms/x86', 'platforms/win32'],
     cflags: [
       ...(process.env.BGT_CPU_PROFILE === '0' ? ['-DX86_PROFILE_ENABLED=0'] : []),

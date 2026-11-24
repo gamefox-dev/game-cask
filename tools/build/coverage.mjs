@@ -123,10 +123,13 @@ export function staticClosure(analysis,recorded) {
   }
   return [...selected].sort((a,b)=>a-b);
 }
+// K72: "recorded" lifts only the owners of recorded entries (no static call closure): the smallest module for a
+// representative recording; anything else interprets (and is recorded) until a later build includes it.
 export function selectionMode(p,slice) {
   const mode=p.selection ?? 'coverage';
-  if(!['coverage','all'].includes(mode))throw new Error('pipeline.selection must be coverage or all');
+  if(!['coverage','all','recorded'].includes(mode))throw new Error('pipeline.selection must be coverage, all or recorded');
   if(slice && mode==='all')throw new Error('pipeline.selection all cannot broaden a strict slice');
+  if(slice && mode==='recorded')throw new Error('pipeline.selection recorded does not apply to a strict slice (slices keep their own closure)');
   return mode;
 }
 export function selectionProvenance(analysis,plan,mode) {
@@ -134,8 +137,8 @@ export function selectionProvenance(analysis,plan,mode) {
   const owner=a=>rangeOwner(ranges,a) ?? (fns.has(a)?a:undefined);
   const recorded=new Set([...(plan?.code ?? [])].map(owner).filter(a=>a!==undefined));
   const interpreted=new Set((plan?.interpreter ?? []).map(e=>owner(e.address)).filter(a=>a!==undefined));
-  const selected=mode==='all'||!plan?[...fns].sort((a,b)=>a-b):staticClosure(analysis,plan.code);
-  return {mode:mode==='all'?'all':plan?'coverage':'all-no-recordings',analyzed_functions:fns.size,selected_functions:selected.length,
+  const selected=mode==='all'||!plan?[...fns].sort((a,b)=>a-b):mode==='recorded'?[...recorded].sort((a,b)=>a-b):staticClosure(analysis,plan.code);
+  return {mode:mode==='all'?'all':plan?mode:'all-no-recordings',analyzed_functions:fns.size,selected_functions:selected.length,
     owners:selected,recorded_owners:[...recorded].sort((a,b)=>a-b),interpreter_owners:[...interpreted].sort((a,b)=>a-b),
     static_closure_owners:plan&&mode==='coverage'?selected.filter(a=>!recorded.has(a)):[]};
 }

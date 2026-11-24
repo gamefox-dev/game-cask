@@ -72,22 +72,51 @@ export class Vfs {
       ranges.set(`${path}:${off}`,{path,offset:off,length:Math.min(65536,size-off)});
   }
   totalBytes = 0;
+  /** K74 (Q138): eager assets the manifest marks `release: "after-init"` (the Win32 profile's compacted PE images under
+   * `loader/`, read only by the PE loader inside bgt_init). Their bytes are dropped once bgt_init returns. */
+  private releaseAfterInit = new Set<string>();
+  /** Released paths and their sizes; an open after the release fails with E_NOT_FOUND and is listed in `reopened`. */
+  readonly released = new Map<string, number>();
+  readonly reopened = new Set<string>();
+  releasedBytes = 0;
+  /** Set once bgt_init returned: an init-only asset still open then is released when its last handle closes. */
+  private initDone = false;
 
-  add(path: string, data: Uint8Array): void {
+  add(path: string, data: Uint8Array, release?: 'after-init'): void {
     const p = normalizeAssetPath(path);
     if (!p) throw new Error(`invalid asset path: ${path}`);
     const prev = this.files.get(p);
     if (prev) this.totalBytes -= prev.byteLength;
     this.files.set(p, data);
     this.totalBytes += data.byteLength;
+    if (release === 'after-init') this.releaseAfterInit.add(p); else this.releaseAfterInit.delete(p);
+  }
+
+  /** bgt_init returned: drop every `release: "after-init"` asset no handle still reads; one still open is dropped
+   * when its last handle closes. Returns the bytes released now. */
+  releaseInitAssets(): number {
+    this.initDone = true;
+    let bytes = 0;
+    for (const p of [...this.releaseAfterInit]) bytes += this.releaseIfUnused(p);
+    return bytes;
+  }
+
+  private releaseIfUnused(p: string): number {
+    if ([...this.open.values()].some((f) => f.path === p)) return 0; // still open: released on its last close
+    const data = this.files.get(p);
+    if (!data) return 0;
+    this.files.delete(p); this.releaseAfterInit.delete(p);
+    this.totalBytes -= data.byteLength; this.releasedBytes += data.byteLength;
+    this.released.set(p, data.byteLength);
+    return data.byteLength;
   }
 
   get fileCount(): number {
-    return this.files.size + this.streamed.size;
+    return this.files.size + this.streamed.size + this.released.size;
   }
 
   list(): string[] {
-    return [...this.files.keys(),...this.streamed.keys()].sort();
+    return [...this.files.keys(),...this.streamed.keys(),...this.released.keys()].sort();
   }
 
   openFile(path: string): number {
@@ -95,7 +124,7 @@ export class Vfs {
     if (!p) return E_INVALID;
     const data = this.files.get(p);
     if (!data && !this.streamed.has(p)) {
-      this.missing.add(p);
+      if (this.released.has(p)) this.reopened.add(p); else this.missing.add(p);
       return E_NOT_FOUND;
     }
     if (this.open.size >= LIMITS.assetHandles) return E_LIMIT;
@@ -132,6 +161,10 @@ export class Vfs {
   }
 
   close(handle: number): number {
-    return this.open.delete(handle) ? 0 : E_NOT_FOUND;
+    const f = this.open.get(handle);
+    if (!f) return E_NOT_FOUND;
+    this.open.delete(handle);
+    if (this.initDone && this.releaseAfterInit.has(f.path)) this.releaseIfUnused(f.path);
+    return 0;
   }
 }
