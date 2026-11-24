@@ -1,7 +1,6 @@
 // @bgt-examples: sample2d
 // vK42 P1: an expected, consumed shader failure is state, not a restore exception.
 import {createHash} from 'node:crypto';
-import {resolve} from 'node:path';
 import type {Savestate} from '../../bgt/runtime/savestates';
 import {test,expect,openGame,step,assertBackend} from './fixtures';
 import {compileC} from '../support/compile';
@@ -37,7 +36,13 @@ for(const suspension of ['asyncify','jspi'])test('savestate preserves live and d
 
 test('rejected restore is transactional for malformed sections',async({page,backendParam,collector},info)=>{
   void collector;
-  expect(await openGame(page,backendParam,{deterministic:'1',suspension:'asyncify'})).toBe('ready');
+  // A Vite-transformed import can carry a cache-busting query. Patch the
+  // actual module instance loaded by the page, not a second URL for the file.
+  const [hostModule, ready]=await Promise.all([
+    page.waitForResponse(r=>/\/bgt\/runtime\/host\.ts$/.test(new URL(r.url()).pathname)),
+    openGame(page,backendParam,{deterministic:'1',suspension:'asyncify'}),
+  ]);
+  expect(ready).toBe('ready');
   await assertBackend(page,backendParam,info);await step(page,3);
   const result=await page.evaluate(async(hostPath)=>{
     const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
@@ -52,10 +57,11 @@ test('rejected restore is transactional for malformed sections',async({page,back
     for(const [name,mutate] of attempts){const copy=await t.importSnapshot(t.exportSnapshot(saved));mutate(copy);let failed=false;try{await t.restore(copy);}catch{failed=true}if(!failed)throw new Error(name+' restore unexpectedly succeeded');
       const after={hash:t.stateHash(),pixels:(await t.readPixels())!.base64};if(JSON.stringify(after)!==JSON.stringify(before))throw new Error(name+' restore changed live state');rejected.push(name);}
     const {GameHost}=await import(hostPath) as typeof import('../../bgt/runtime/host');
-    let host: import('../../bgt/runtime/host').GameHost|undefined;
+    const hosts: (typeof GameHost.prototype)[]=[];
     const capture=GameHost.prototype.checkpoint;
-    GameHost.prototype.checkpoint=function(...args){host=this;return capture.apply(this,args);};
+    GameHost.prototype.checkpoint=function(...args){hosts.push(this);return capture.apply(this,args);};
     try {await t.snapshot();}finally{GameHost.prototype.checkpoint=capture;}
+    const [host]=hosts;
     if(!host)throw new Error('Checkpoint did not call live host');
     const request=host.requests.reserve();if(typeof request==='number')throw new Error('Cannot reserve test request');
     for(const attempt of [()=>t.snapshot(),()=>t.restore(saved)]) {
@@ -65,10 +71,10 @@ test('rejected restore is transactional for malformed sections',async({page,back
     if(!request.done||request.data?.[0]!==9||t.stateHash()!==before.hash)throw new Error('Refusal changed live request/guest');
     const original=GameHost.prototype.restoreCheckpoint;
     GameHost.prototype.restoreCheckpoint=function(s){original.call(this,s);throw new Error('Injected mid-build failure');};
-    try{let failed=false;try{await t.restore(saved);}catch{failed=true;}if(!failed)throw new Error('Mid-build exception was lost');
+    try{let failed=false;try{await t.restore(saved);}catch(e){if(!String(e).includes('Injected mid-build failure'))throw e;failed=true;}if(!failed)throw new Error('Mid-build exception was lost');
       if(t.stateHash()!==before.hash||(await t.readPixels())!.base64!==before.pixels)throw new Error('Mid-build failure changed live state');rejected.push('mid-build');
     }finally{GameHost.prototype.restoreCheckpoint=original;}
     return {rejected,errors:t.diagnostics().errors};
-  },'/@fs'+resolve('bgt/runtime/host.ts'));
+  },hostModule.url());
   expect(result.rejected).toEqual(['services','globals','memory','gpu','mid-build']);expect(result.errors).toEqual([]);
 });
