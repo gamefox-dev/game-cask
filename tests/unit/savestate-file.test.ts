@@ -36,10 +36,22 @@ it.each([1,2,3,4,5,6,7])('assembles raw Uint32 blob offset %i before constructin
  const imported=await importSavestate(split()) as Savestate & {words:Uint32Array};
  expect(imported.words).toEqual(words);expect(imported.words.byteOffset%4).toBe(0);
 });
+it('v3 keeps shared native/upload byte views while accepting old v2 files without aliases',async()=>{
+  const data=new Uint8Array(257).fill(91);
+  const shared=await snapshotChunks(exportSavestate(state({base:{data},shadow:{data}})));
+  const blobHeader=(b:Uint8Array)=>b.length===24&&new DataView(b.buffer,b.byteOffset,24).getUint32(0,true)===3;
+  expect(shared.filter(blobHeader)).toHaveLength(1);
+  const imported=await importSavestate(fragmented(shared)) as Savestate & {base:{data:Uint8Array};shadow:{data:Uint8Array}};
+  expect(imported.base.data).toBe(imported.shadow.data);expect(imported.base.data).toEqual(data);
+  const legacy=await snapshotChunks(exportSavestate(state({base:{data},shadow:{data:data.slice()}})));
+  new DataView(legacy[0].buffer).setUint32(8,2,true);
+  const old=await importSavestate(fileChunks(legacy)) as typeof imported;
+  expect(old.base.data).toEqual(old.shadow.data);expect(old.base.data).not.toBe(old.shadow.data);
+});
 it('binary transfer fails closed on versions, lengths, truncation, trailing data and missing blobs',async()=>{
   const chunks=await snapshotChunks(exportSavestate(state({data:new Uint8Array([1,2,3])})));
   const copy=()=>chunks.map(b=>b.slice());
-  for(const value of [0,1,3,99]){const version=copy();new DataView(version[0].buffer).setUint32(8,value,true);
+  for(const value of [0,1,4,99]){const version=copy();new DataView(version[0].buffer).setUint32(8,value,true);
     await expect(importSavestate(fileChunks(version))).rejects.toThrow(/version/);}
   const length=copy();new DataView(length[1].buffer).setUint32(16,0xffffffff,true);
   await expect(importSavestate(fileChunks(length))).rejects.toThrow(/chunk/);

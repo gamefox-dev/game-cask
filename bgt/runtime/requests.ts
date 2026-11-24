@@ -44,6 +44,10 @@ export class Requests {
     if (dst.length < data.length) return E_LIMIT;
     dst.set(data); return data.length;
   }
+  hasPending(): boolean {
+    for(const entry of this.entries.values())if(!entry.done)return true;
+    return false;
+  }
   close(id: number): number {
     const t = this.entries.get(id);
     if (!t) return E_NOT_FOUND;

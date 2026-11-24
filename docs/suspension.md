@@ -10,8 +10,10 @@ A 2M-unit quantum rotates guest contexts without automatically yielding a host u
 idle/legacy wait and transport boundaries still suspend only through bgt.yield, at the exact call site.
 `step(n)` counts n consumed host updates, not instruction quanta or guaranteed guest presents. Nominal
 instruction-rate clock progress, positive swap-interval snapping and idle deadlines are deterministic;
-no host wall-time-dependent scheduling is added. Clock/budget state is wasm checkpoint state. The existing
-JSPI suspended-continuation checkpoint rejection remains unchanged; no restart or fake snapshot is used.
+no host wall-time-dependent scheduling is added. Clock/budget state is wasm checkpoint state. Test builds
+can opt in to returnable Win64 JSPI presentations: the outer wasm dispatch really returns and re-enters
+from explicit guest/ABI state on the next update. A callback, transport wait or other live JSPI stack is
+still rejected; no restart, alternate artifact or fake snapshot is used. See [savestates](savestates.md).
 
 ## Build/package policy
 

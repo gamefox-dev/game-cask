@@ -47,6 +47,7 @@ void w32_logf2(const char *a,const char *b){fprintf(stderr,"%s%s\n",a,b);}
 void w32_log(const char *s){fprintf(stderr,"%s\n",s);}
 void w32_wait_frame(void){abort();}
 void w32_wait_transport(void){abort();}
+void w32_wait_present(void){w32_wait_transport();}
 void w32_clock_present(uint32_t interval){(void)interval;abort();}
 int w32_clock_swap0(int budget_full){(void)budget_full;abort();}
 /* Recording transport, intentionally not a GLSL validator. Validate source ownership,

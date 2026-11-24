@@ -1,6 +1,12 @@
 // Browser-side §13 backend probes. Native scenes cover the ABI; these isolate driver edge cases.
 import { WebGL2Gpu } from '../../bgt/renderers/webgl2/gpu';
 import { GPU_OP as OP } from '../../bgt/runtime/abi';
+import { WebGL2Renderer } from '../../bgt/renderers/webgl2/webgl2';
+import '../../bgt/renderers/savestate-surfaces';
+import { checkGPUBytes, detachedRendererBytes } from '../../bgt/runtime/savestate-budget';
+import { ReplayCursor } from '../../bgt/runtime/savestate-gpu';
+import { recordCheckpointFrame } from '../../bgt/runtime/savestate-recording';
+import { Frame } from '../../bgt/runtime/commands';
 import type { GpuItem } from '../../bgt/renderers/types';
 
 const bits = (n: number) => new Uint32Array(new Float32Array([n]).buffer)[0];
@@ -62,6 +68,77 @@ class Probe {
     this.begin(); this.op(OP.TEXTURE, [0, texture, sampler]); this.draw(pipeline); return this.pixel();
   }
   dispose(): void { this.gl.getExtension('WEBGL_lose_context')!.loseContext(); }
+}
+
+// Use real replay, shaders and buffers. A large binding need not be repacked
+// in full, but an index mutation can make a later draw need exactly that.
+export async function replayIndexedBudgetProbe() {
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=8;
+  const renderer=WebGL2Renderer.create(canvas)!;
+  const cursor=new ReplayCursor(renderer), lb={x:0,y:0,w:8,h:8,scale:1}, frame=new Frame();
+  frame.reset(8,8);
+  const cmd=(op:number,words:number[],data?:Uint8Array<ArrayBuffer>):GpuItem=>({kind:'gpu',op,words,data});
+  const shader=(h:number,source:string):GpuItem=>({...cmd(OP.SHADER_CREATE,[h,h,1,0,source.length,h]),source});
+  const span=512*1024, vertices=new Uint8Array(span), view=new DataView(vertices.buffer);
+  for(const [i,x,y] of [[0,-1,1],[1,-1,-3],[2,3,1],[1023,3,1]]) {
+    view.setFloat32(512*i,x,true);view.setFloat32(512*i+4,y,true);
+  }
+  const indices=new Uint8Array(new Uint16Array([65535,65535,17,18,19]).buffer);
+  const draw=[cmd(OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,bits(1)]),cmd(OP.PIPELINE,[1]),
+    cmd(OP.VERTEX_BUFFER,[0,1,0,span]),cmd(OP.INDEX_BUFFER,[2,0,2,8]),cmd(OP.DRAW_INDEXED,[3,1,1,-17>>>0,0]),cmd(OP.PASS_END,[])];
+  const limit=4096, check=(extra:number)=>checkGPUBytes(extra,limit,'restore workspace');
+  const delta=(word:number)=>new Uint8Array(new Uint16Array([word]).buffer);
+  const narrow=cmd(OP.BUFFER_UPDATE,[2,0,1,indices.length],indices);
+  const wide=cmd(OP.BUFFER_UPDATE,[2,8,1,2],delta(1040));
+  try {
+    frame.items=[cmd(OP.BUFFER_CREATE,[1,1,span,1,span],vertices),cmd(OP.BUFFER_CREATE,[2,2,indices.length,1,indices.length],indices),
+      shader(1,version+'layout(location=0) in vec2 pos;void main(){gl_Position=vec4(pos,0,1);}'),shader(2,fragment)];
+    await cursor.draw(recordCheckpointFrame(frame,lb,1,8,8),()=>{});
+    frame.items=[cmd(OP.PIPELINE_CREATE,[1,1,2,3,0,0,0xffffffff,0,0,7,0,255,255,7,0,0,0,7,0,0,0,
+      0,0,1,1,1,512,0,0,0,0,1,0,0,1,0,0,1,0,0,15])];
+    await cursor.draw(recordCheckpointFrame(frame,lb,2,8,8),()=>{});
+    const gl=canvas.getContext('webgl2')!, pixels=new Uint8Array(4);
+    let maxExtra=0;
+    frame.items=draw;
+    await cursor.draw(recordCheckpointFrame(frame,lb,3,8,8),extra=>{check(extra);maxExtra=extra;});
+    gl.readPixels(4,4,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    const readPixel=[...pixels];
+    const attempt=async(items:GpuItem[])=>{
+      frame.items=items;
+      await cursor.draw(recordCheckpointFrame(frame,lb,4,8,8),check);
+    };
+    const refusals=[];
+    for(const items of [[wide,...draw],[...draw,wide,...draw]]) {
+      try {await attempt(items);refusals.push('accepted');} catch(e){refusals.push(String(e));}
+    }
+    // After a successful playback of a partial write, the next frame must see
+    // that new shadow and reject the now wide draw even with no writes in-frame.
+    await attempt([wide]);
+    try {await attempt(draw);refusals.push('accepted');} catch(e){refusals.push(String(e));}
+    // A whole upload makes an in-frame narrow draw authoritative again.
+    await attempt([narrow,...draw]);
+    return {readPixel,maxExtra,refusals};
+  } finally {cursor.replay.stop();renderer.destroy();}
+}
+
+export async function persistentReplayStoresProbe() {
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=8;
+  const renderer=WebGL2Renderer.create(canvas)!;
+  const errors:string[]=[];renderer.onError(e=>errors.push(e));
+  const lb={x:0,y:0,w:8,h:8,scale:1}, frame=new Frame();frame.reset(8,8);
+  const cmd=(op:number,words:number[]):GpuItem=>({kind:'gpu',op,words});
+  const shader=(h:number,source:string):GpuItem=>({...cmd(OP.SHADER_CREATE,[h,h,1,0,source.length,h]),source});
+  const count=()=>detachedRendererBytes(renderer)-8*8*8-renderer.presentationBytes()-renderer.gpu.memory().internal.screenBytes;
+  try {
+    const before=count();
+    frame.items=[shader(1,vertex),shader(2,fragment),cmd(OP.PIPELINE_CREATE,[1,1,2,3,0,0,0xffffffff,0,0,7,
+      0,255,255,7,0,0,0,7,0,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,15]),
+      cmd(OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),cmd(OP.PIPELINE,[1]),cmd(OP.DRAW,[3,1,0,0]),cmd(OP.PASS_END,[])];
+    renderer.drawFrame(frame,lb,false);
+    const draws=renderer.stats.drawCalls, afterDraw=count();
+    frame.items=[];renderer.drawFrame(frame,lb,false);await renderer.finish();
+    return {before,afterDraw,afterEmpty:count(),draws,emptyDraws:renderer.stats.drawCalls,errors};
+  } finally {renderer.destroy();}
 }
 
 export function formatsProbe(): Record<string, number[]> {

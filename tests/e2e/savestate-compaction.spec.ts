@@ -17,7 +17,20 @@ for(const suspension of ['asyncify','jspi'])for(const variant of variants)for(co
   await step(page,6);
   if(variant==='NO_CLEAR'||variant.startsWith('PROVENANCE_MUTATION')) {
     const result=await page.evaluate(async()=>{const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;let error='';try{await t.snapshot();}catch(e){error=String(e);}await t.step(2);return {error,errors:t.diagnostics().errors,commandErrors:t.diagnostics().commandErrors.count};});
-    expect(result.error).toMatch(/provenance/);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);return;
+    expect(result.error).toMatch(/provenance/);expect(result.errors).toEqual([]);expect(result.commandErrors).toBe(0);
+    if(variant==='NO_CLEAR'){
+      const bounded=await page.evaluate(async()=>{
+        const t=(window as unknown as {__BGT_TEST__:BGTTestAPI}).__BGT_TEST__;
+        await t.step(260);const before=t.stateHash(),d=t.diagnostics(),journal=t.journalStats();
+        let error='';try{await t.snapshot();}catch(e){error=String(e);}
+        if(t.stateHash()!==before||t.diagnostics().frame!==d.frame)throw new Error('Refusal changed game state');
+        await t.step(1);
+        return {error,journal,advanced:t.stateHash()!==before,errors:t.diagnostics().errors};
+      });
+      expect(bounded.error).toMatch(/bounded history without a safe cut.*provenance/);
+      expect(bounded.journal.frames).toBe(0);expect(bounded.advanced).toBe(true);expect(bounded.errors).toEqual([]);
+    }
+    return;
   }
   const result=await page.evaluate(async({transfer})=>{
     const fileBytes=async(s:ReadableStream<Uint8Array>)=>{const r=s.getReader();let n=0;for(;;){const p=await r.read();if(p.done)return n;n+=p.value.length;}};

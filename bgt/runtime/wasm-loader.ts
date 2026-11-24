@@ -11,7 +11,7 @@ export interface WasmLoadResult {
   streaming: boolean;
   downloadCompileVerifyMs: number;
   /** K64 load evidence: why streaming compilation was (not) used, and what the server sent. */
-  streamingReason: 'streaming' | 'no-compileStreaming' | 'no-body' | 'wrong-content-type';
+  streamingReason: 'streaming' | 'no-compileStreaming' | 'no-body' | 'wrong-content-type' | 'checkpoint-rewrite';
   contentType: string | null;
   contentEncoding: string | null;
   /** The module's own linear memory limits (bytes), from its memory section; null if imported/absent. */
@@ -68,7 +68,11 @@ export async function compileVerifiedWasm(response: Response, expected: { size: 
   const contentType = response.headers.get('content-type'), contentEncoding = response.headers.get('content-encoding');
   const streamingReason: WasmLoadResult['streamingReason'] = typeof WebAssembly.compileStreaming !== 'function' ? 'no-compileStreaming' :
     !response.body ? 'no-body' : contentType?.split(';')[0].trim().toLowerCase() !== 'application/wasm' ? 'wrong-content-type' : 'streaming';
-  const streaming = streamingReason === 'streaming';
+  // Keep the dynamic import under the build-time guard so flag-off builds
+  // do not emit a savestate chunk. Only compile the bytes we will instantiate.
+  const rewrite = (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && checkpoint
+    ? async (bytes: Uint8Array<ArrayBuffer>) => (await import('./savestate-wasm')).instrumentCheckpointWasm(bytes,true) : undefined;
+  const streaming = streamingReason === 'streaming' && !rewrite;
   const copy = streaming ? response.clone() : response;
   const compiled = streaming ? WebAssembly.compileStreaming(response) : null;
   // Attach a rejection handler immediately; an early compile error must not be unhandled during download.
@@ -95,7 +99,8 @@ export async function compileVerifiedWasm(response: Response, expected: { size: 
   if (got && got !== expected.sha256) throw new Error('integrity check failed for game.wasm');
   const result = await compileResult;
   if (result && 'error' in result) throw result.error;
-  const module = (typeof import.meta.env !== 'undefined' && (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1')) && checkpoint ? await WebAssembly.compile((await import('./savestate-wasm')).instrumentCheckpointWasm(bytes)) : result?.module ?? await WebAssembly.compile(bytes);
-  return {module,streaming,downloadCompileVerifyMs:performance.now()-start,streamingReason,contentType,contentEncoding,
+  const module = result?.module ?? await WebAssembly.compile(rewrite ? await rewrite(bytes) : bytes);
+  return {module,streaming,downloadCompileVerifyMs:performance.now()-start,
+    streamingReason:rewrite?'checkpoint-rewrite':streamingReason,contentType,contentEncoding,
     memoryLimits:wasmMemoryLimits(bytes)};
 }

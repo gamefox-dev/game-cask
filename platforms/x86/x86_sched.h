@@ -4,6 +4,9 @@
 #include "x86.h"
 #define X86_THREADS 64u
 #define X86_SCHEDULE 2
+#define X86_CHECKPOINT 3 /* Return the outer flat dispatcher to the host, not a thread switch. */
+int x86_checkpoint_can_return(void);
+void x86_checkpoint_dispatch(uint32_t stop, uint32_t floor);
 #define X86_THREAD_RETURN 0xffffffe0u
 enum { XA_INACTIVE, XA_RUNNING, XA_READY, XA_SLEEP, XA_OBJECT, XA_IO,
        XA_SUSPENDED, XA_HOST_YIELD, XA_EXITED, XA_STATES };

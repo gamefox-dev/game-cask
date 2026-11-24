@@ -26,8 +26,9 @@ export function validateSavestate(s:Savestate):void {
  requireState(object(s.host)&&object(s.host.data)&&object(s.host.requests)&&object(s.host.wasm));
  requireState(s.host.requests.entries instanceof Map&&integer(s.host.requests.epoch)&&integer(s.host.requests.bytes)&&integer(s.host.requests.next));
  requireState(s.host.data.textures?.entries instanceof Map&&s.host.data.codeCoverage instanceof Map);
+ requireState(integer(s.host.data.abiVersion)&&s.host.data.abiVersion<=0xffffffff&&integer(s.host.data.ioPtr)&&s.host.data.ioPtr<=0xffffffff);
  const wasm=s.host.wasm,m=wasm.memory;
- requireState(object(m)&&integer(m.byteLength)&&m.byteLength%65536===0&&m.pages instanceof Map&&array(wasm.globals)&&array(wasm.tables));
+ requireState(object(m)&&integer(m.byteLength)&&m.byteLength%65536===0&&(m.baseline===undefined||m.baseline==='module')&&m.pages instanceof Map&&array(wasm.globals)&&array(wasm.tables));
  for(const [at,b] of m.pages)requireState(integer(at)&&at%65536===0&&at+65536<=m.byteLength&&b instanceof Uint8Array&&b.length===65536);
  for(const g of wasm.globals)requireState(typeof g==='number'||typeof g==='bigint'||object(g)&&(typeof g.bits==='number'||typeof g.bits==='bigint'));
  for(const table of wasm.tables)requireState(array(table)&&table.every(i=>i===null||integer(i)));

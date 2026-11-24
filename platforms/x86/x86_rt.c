@@ -926,12 +926,26 @@ static void invoke_inner(uint32_t target, uint32_t ret_addr) {
     interp_until(ret_addr, esp_floor);
 }
 
+/* Only this *outer* flat dispatch may return at a checkpoint. Nested x86_invoke
+ * (including callbacks and pending generic CALLs) still owns a native continuation. */
+static int checkpoint_dispatch;
+int x86_checkpoint_can_return(void) {
+    return checkpoint_dispatch && !X.callback_depth && !X.transfer && !x86_native_live;
+}
+void x86_checkpoint_dispatch(uint32_t stop, uint32_t floor) {
+    checkpoint_dispatch = 1;
+    interp_until(stop, floor);
+    checkpoint_dispatch = 0;
+}
 void x86_invoke(uint32_t target, uint32_t ret_addr) {
+    int outer = checkpoint_dispatch;
+    if (outer) checkpoint_dispatch = 0;
     double start=0,*span=exclusive_pause(&start);
     int active=interpreter_span_set(0);
     invoke_inner(target,ret_addr);
     interpreter_span_set(active);
     exclusive_resume(span,start);
+    if (outer) checkpoint_dispatch = outer;
 }
 
 void x86_call(uint32_t target, uint32_t next) {

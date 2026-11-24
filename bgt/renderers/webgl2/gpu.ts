@@ -1151,6 +1151,7 @@ export class WebGL2Gpu implements GpuBackend {
     if (!this.scratchIds) {
       this.scratchIds = g.createTexture()!; g.bindTexture(g.TEXTURE_2D, this.scratchIds);
       g.texImage2D(g.TEXTURE_2D, 0, g.R32UI, 1, 1, 0, g.RED_INTEGER, g.UNSIGNED_INT, new Uint32Array(1));
+      this.scratchBytes.set('ids', 4);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAX_LEVEL, 0);

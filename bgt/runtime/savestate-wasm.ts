@@ -1,13 +1,14 @@
 // Test-only module instrumentation. Called after integrity verification, never for ordinary loads.
 // Export numeric globals, functions and tables without changing code or index spaces.
+import { joinWasm as join, supportsDirtyTracking, trackWasmStores, UnsupportedDirtyTracking, wasmUint as uint, wasmReader } from './savestate-dirty';
 const prefix = '__bgt_checkpoint_';
+export const checkpointDirty = prefix + 'dirty';
 export const checkpointName = (kind: string, index: number) => prefix + kind + index;
-export function instrumentCheckpointWasm(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
-  const uint = (n: number): number[] => { const out: number[] = []; do { const b = n % 128; n = Math.floor(n / 128); out.push(b | (n ? 128 : 0)); } while (n); return out; };
+export function instrumentCheckpointWasm(bytes: Uint8Array, trackDirty = false): Uint8Array<ArrayBuffer> {
   let p = 8;
   const read = () => { let n = 0, shift = 0, b: number; do { if (p >= bytes.length || shift > 28) throw new Error('Invalid wasm integer'); b = bytes[p++]; n += (b & 127) * 2 ** shift; shift += 7; } while (b & 128); return n; };
   const sections: {id: number; data: Uint8Array}[] = [];
-  while (p < bytes.length) { const id = bytes[p++], len = read(), end = p + len; if (end > bytes.length) throw new Error('Invalid wasm section'); sections.push({id, data: bytes.slice(p, end)}); p = end; }
+  while (p < bytes.length) { const id = bytes[p++], len = read(), end = p + len; if (end > bytes.length) throw new Error('Invalid wasm section'); sections.push({id, data: bytes.subarray(p, end)}); p = end; }
   // BGT imports are functions only. Reject new import kinds rather than misnumbering hidden state.
   let imports = 0;
   for (const s of sections) if (s.id === 2) {
@@ -57,11 +58,17 @@ export function instrumentCheckpointWasm(bytes: Uint8Array): Uint8Array<ArrayBuf
     }
   }
   const originalFunctions=imports+count(3), types=count(1), extraTypes:number[][]=[], extraFunctions:number[][]=[], extraBodies:number[][]=[], extraExports:Uint8Array[]=[];
-  const helper=(name:string,type:number[],body:number[])=>{
-    const n=new TextEncoder().encode(name),idx=originalFunctions+extraFunctions.length;
-    extraExports.push(new Uint8Array([...uint(n.length),...n,0,...uint(idx)]));
+  const encoder = new TextEncoder();
+  const exported=(name:string,tag:number,index:number)=>{
+    const n=encoder.encode(name);
+    return new Uint8Array([...uint(n.length),...n,tag,...uint(index)]);
+  };
+  const helper=(name:string|null,type:number[],body:number[])=>{
+    const idx=originalFunctions+extraFunctions.length;
+    if(name)extraExports.push(exported(name,0,idx));
     extraFunctions.push(uint(types+extraTypes.length));extraTypes.push(type);
     extraBodies.push([...uint(body.length+2),0,...body,11]);
+    return idx;
   };
   for(const g of floatGlobals) {
     const bitType=g.type===0x7d?0x7f:0x7e;
@@ -71,25 +78,39 @@ export function instrumentCheckpointWasm(bytes: Uint8Array): Uint8Array<ArrayBuf
   const appendVector=(id:number,entries:number[][])=>{
     if(!entries.length)return;
     let s=sections.find(s=>s.id===id);
-    if(s){let q=0;while(s.data[q++]&128){/*count*/}s.data=join([new Uint8Array(uint(count(id)+entries.length)),s.data.slice(q),...entries.map(e=>new Uint8Array(e))]);}
+    if(s){let q=0;while(s.data[q++]&128){/*count*/}s.data=join([new Uint8Array(uint(count(id)+entries.length)),s.data.subarray(q),...entries.map(e=>new Uint8Array(e))]);}
     else {s={id,data:join([new Uint8Array(uint(entries.length)),...entries.map(e=>new Uint8Array(e))])};const at=sections.findIndex(x=>x.id>id);sections.splice(at<0?sections.length:at,0,s);}
   };
-  const memoryName = new TextEncoder().encode(prefix + 'memory');
-  const additions: Uint8Array[] = [new Uint8Array([...uint(memoryName.length),...memoryName,2,0])];
+  const additions: Uint8Array[] = [exported(prefix+'memory',2,0)];
+  const memory=sections.find(s=>s.id===5)!;
+  const limits=wasmReader(memory.data);limits.uint();const flags=limits.uint();
+  if(flags&~1)throw new Error('Checkpoint mode requires unshared memory32');
+  const code=sections.find(s=>s.id===10);
+  if(code&&trackDirty&&supportsDirtyTracking()) {
+    // Preserve original memory0 limits. The independent memory1 is fixed at 64 KiB
+    // (one byte per possible page of memory0), invisible to guest code and ABI.
+    const baseHelpers=extraFunctions.length;
+    try {
+      code.data=trackWasmStores(code.data,(params,body)=>helper(null,[0x60,...uint(params.length),...params,0],body));
+      appendVector(5,[[1,1,1]]);
+      additions.push(exported(checkpointDirty,2,1));
+    } catch(e) {
+      if(!(e instanceof UnsupportedDirtyTracking))throw e;
+      // Preserve existing checkpoint support for modules containing opcodes this
+      // store scanner cannot step safely (e.g. SIMD). Fall back as a whole module.
+      extraFunctions.length=extraTypes.length=extraBodies.length=baseHelpers;
+    }
+  }
   for (const [kind, tag, n] of [['f', 0, originalFunctions], ['g', 3, count(6)], ['t', 1, count(4)]] as const)
-    for (let i = 0; i < n; i++) { const name = new TextEncoder().encode(checkpointName(kind, i)); additions.push(new Uint8Array([...uint(name.length), ...name, tag, ...uint(i)])); }
+    for (let i = 0; i < n; i++) additions.push(exported(checkpointName(kind,i),tag,i));
   additions.push(...extraExports);
   appendVector(1,extraTypes);appendVector(3,extraFunctions);appendVector(10,extraBodies);
   const exp = sections.find(s => s.id === 7);
   if (!exp) throw new Error('Checkpoint module requires exports');
   let q = 0; while (exp.data[q++] & 128) { /* skip old count */ }
-  const chunks = [new Uint8Array(uint(count(7) + additions.length)), exp.data.slice(q), ...additions];
+  const chunks = [new Uint8Array(uint(count(7) + additions.length)), exp.data.subarray(q), ...additions];
   exp.data = join(chunks);
-  return join([bytes.slice(0, 8), ...sections.flatMap(s => [new Uint8Array([s.id, ...uint(s.data.length)]), s.data])]);
-}
-function join(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
-  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0)); let p = 0;
-  for (const c of chunks) { out.set(c, p); p += c.length; } return out;
+  return join([bytes.subarray(0, 8), ...sections.flatMap(s => [new Uint8Array([s.id, ...uint(s.data.length)]), s.data])]);
 }
 
 function captureMemory(memory: WebAssembly.Memory): SparseMemory {
@@ -101,7 +122,21 @@ function captureMemory(memory: WebAssembly.Memory): SparseMemory {
   return {byteLength:bytes.length,pages};
 }
 export interface FloatBits { bits:number|bigint }
-export interface SparseMemory { byteLength:number; pages:Map<number,Uint8Array<ArrayBuffer>> }
+export interface SparseMemory { byteLength:number; pages:Map<number,Uint8Array<ArrayBuffer>>; baseline?:'module' }
+function dirtyMemory(exports: WebAssembly.Exports): Uint8Array<ArrayBuffer> | undefined {
+  const map=exports[checkpointDirty] as WebAssembly.Memory|undefined;
+  return map&&new Uint8Array(map.buffer as ArrayBuffer);
+}
+function captureDirty(memory: WebAssembly.Memory, dirty: Uint8Array): SparseMemory {
+  const bytes=new Uint8Array(memory.buffer),pages=new Map<number,Uint8Array<ArrayBuffer>>();
+  for(let page=dirty.indexOf(1);page!==-1;page=dirty.indexOf(1,page+1)) {
+    const at=page*65536;
+    if(at>=bytes.length)throw new Error('Dirty page outside checkpoint memory');
+    pages.set(at,bytes.slice(at,at+65536));
+  }
+  return {byteLength:bytes.length,pages,baseline:'module'};
+}
+const functionIdentities = new WeakMap<WebAssembly.Exports,Map<unknown,number>>();
 export interface WasmCheckpoint { memory: SparseMemory; globals: (number | bigint | FloatBits)[]; tables: (number | null)[][] }
 export function captureWasm(exports: WebAssembly.Exports): WasmCheckpoint {
   if (exports[prefix+'memory'] !== exports.memory) throw new Error('Wasm was not instrumented for checkpoints before boot');
@@ -112,13 +147,18 @@ export function captureWasm(exports: WebAssembly.Exports): WasmCheckpoint {
     const v: unknown = g.value; if (typeof v !== 'number' && typeof v !== 'bigint') throw new Error('Unsupported checkpoint reference global');
     globals.push(v);
   }
-  const functions = new Map<unknown, number>();
-  for (let i = 0; ; i++) { const f = exports[checkpointName('f', i)]; if (!f) break; functions.set(f, i); }
+  let functions = functionIdentities.get(exports);
+  if(!functions) {
+    functions = new Map();
+    for (let i = 0; ; i++) { const f = exports[checkpointName('f', i)]; if (!f) break; functions.set(f, i); }
+    functionIdentities.set(exports,functions);
+  }
   for (let i = 0; ; i++) { const t = exports[checkpointName('t', i)] as WebAssembly.Table | undefined; if (!t) break;
     tables.push(Array.from({length: t.length}, (_, j) => { const f: unknown = t.get(j); if (f === null) return null;
       const index = functions.get(f); if (index === undefined) throw new Error('Unsupported checkpoint table reference'); return index; }));
   }
-  return { memory: captureMemory(exports.memory as WebAssembly.Memory), globals, tables };
+  const memory=exports.memory as WebAssembly.Memory, dirty=dirtyMemory(exports);
+  return { memory:dirty?captureDirty(memory,dirty):captureMemory(memory),globals,tables };
 }
 export function restoreWasm(exports: WebAssembly.Exports, state: WasmCheckpoint): void {
   const memory = exports.memory as WebAssembly.Memory;
@@ -127,15 +167,20 @@ export function restoreWasm(exports: WebAssembly.Exports, state: WasmCheckpoint)
   while(exports[checkpointName('t',tables)])tables++;
   if(state.globals.length!==globals||state.tables.length!==tables)throw new Error('Invalid checkpoint globals/tables length');
   if (memory.buffer.byteLength > state.memory.byteLength || state.memory.byteLength % 65536) throw new Error('Invalid checkpoint memory size');
-  // Called only on a fresh instance. Clear its initialized data pages, not the entire
-  // reserved (often 1 GiB) zero memory: touching every zero page commits physical RAM.
-  const initial=captureMemory(memory);
-  memory.grow((state.memory.byteLength - memory.buffer.byteLength) / 65536);
-  const bytes=new Uint8Array(memory.buffer);
-  for(const at of initial.pages.keys())bytes.fill(0,at,at+65536);
+  // No startup exports have run: omitted pages are exactly the module image.
+  // A scan-format snapshot is relative to zero, so clear initialized pages only
+  // (touching every page of a reserved 1 GiB memory would commit physical RAM).
+  if(state.memory.baseline!==undefined&&state.memory.baseline!=='module')throw new Error('Invalid checkpoint baseline');
+  const initial=state.memory.baseline==='module'?null:captureMemory(memory);
+  const grow=(state.memory.byteLength-memory.buffer.byteLength)/65536;
+  if(grow)memory.grow(grow);
+  const bytes=new Uint8Array(memory.buffer),dirty=dirtyMemory(exports);
+  dirty?.fill(0); // track the restored delta from the module image, then new writes
+  for(const at of initial?.pages.keys()??[]){bytes.fill(0,at,at+65536);if(dirty)dirty[at/65536]=1;}
   for(const [at,data] of state.memory.pages) {
     if(at%65536 || at<0 || at+65536>bytes.length || data.length!==65536)throw new Error('Invalid checkpoint memory page');
     bytes.set(data,at);
+    if(dirty)dirty[at/65536]=1;
   }
   state.globals.forEach((v, i) => { const g = exports[checkpointName('g', i)] as WebAssembly.Global;
     if(typeof v==='object') {

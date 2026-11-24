@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import binaryen from 'binaryen';
 import { proveResidual } from '../../bgt/runtime/savestate-gpu';
-import { GPU_OP as O } from '../../bgt/runtime/abi';
+import { GameHost } from '../../bgt/runtime/host';
+import { Vfs } from '../../bgt/runtime/vfs';
+import { ABI_VERSION, BACKEND_HEADLESS, GPU_OP as O } from '../../bgt/runtime/abi';
 import { Frame } from '../../bgt/runtime/commands';
 import { recordFrame } from '../../bgt/renderers/recording';
-import { captureWasm, restoreWasm, instrumentCheckpointWasm, checkpointName } from '../../bgt/runtime/savestate-wasm';
+import { captureWasm, restoreWasm, instrumentCheckpointWasm, checkpointName, checkpointDirty } from '../../bgt/runtime/savestate-wasm';
+import { supportsDirtyTracking } from '../../bgt/runtime/savestate-dirty';
+import { trackCheckpointHost } from '../../bgt/runtime/savestate-host';
 import { exportSavestate, importSavestate } from '../../bgt/runtime/savestate-file';
 import type { Savestate } from '../../bgt/runtime/savestates';
 const wasm = (wat: string): Uint8Array<ArrayBuffer> => { const m = binaryen.parseText(wat); try { return new Uint8Array(m.emitBinary()); } finally { m.dispose(); } };
@@ -46,6 +50,74 @@ describe('complete engine-state checkpoints',()=>{
     expect(state.memory.pages.size).toBe(1);
     const imported=await importSavestate(exportSavestate({schema:'bgt-savestate/1',host:{wasm:state}} as Savestate));
     expect(imported.host.wasm).toEqual(state);
+  });
+  it.skipIf(!supportsDirtyTracking())('tracks cross-page stores, grown pages, bulk writes and zero overwrites of active data',async()=>{
+    const raw=wasm(`(module (memory (export "memory") 9 12)
+      (data (i32.const 10) "stale") (data (i32.const 524288) "untouched")
+      (func (export "writes")
+        (i32.store offset=7 (i32.const 65527) (i32.const 0x12345678))
+        (i64.store16 (i32.const 196607) (i64.const -1))
+        (f64.store offset=129 (i32.const 262007) (f64.const -3.75))
+        (memory.fill (i32.const 10) (i32.const 0) (i32.const 5))
+        (memory.copy (i32.const 327678) (i32.const 65534) (i32.const 4))
+        (drop (memory.grow (i32.const 1)))
+        (memory.fill (i32.const 589824) (i32.const 241) (i32.const 1))
+        (memory.copy (i32.const 458752) (i32.const 0) (i32.const 0)))
+      (func (export "trap") (i64.store offset=8 (i32.const -1) (i64.const 0)))
+      (func (export "mutate") (i32.store8 (i32.const 458753) (i32.const 193))))`);
+    const bytes=instrumentCheckpointWasm(raw,true);
+    const a=(await WebAssembly.instantiate(bytes)).instance.exports, original=(await WebAssembly.instantiate(raw)).instance.exports;
+    (a.writes as ()=>void)();(original.writes as ()=>void)();
+    const dirty=new Uint8Array((a[checkpointDirty] as WebAssembly.Memory).buffer);
+    expect(()=> (a.trap as ()=>void)()).toThrow(WebAssembly.RuntimeError);
+    expect([...dirty.slice(0,11)]).toEqual([1,1,1,1,1,1,0,0,0,1,0]);
+    const memory=(e:WebAssembly.Exports)=>new Uint8Array((e.memory as WebAssembly.Memory).buffer);
+    expect(Buffer.compare(memory(a),memory(original))).toBe(0);
+    const state=captureWasm(a);
+    expect(state.memory.baseline).toBe('module');
+    expect([...state.memory.pages.keys()]).toEqual([0,1,2,3,4,5,9].map(page=>page*65536));
+    expect(state.memory.pages.get(0)?.slice(10,15)).toEqual(new Uint8Array(5));
+    expect(dirty[10]).toBe(0);
+    const b=(await WebAssembly.instantiate(bytes)).instance.exports;
+    restoreWasm(b,state);expect(Buffer.compare(memory(a),memory(b))).toBe(0);
+    expect(captureWasm(b)).toEqual(state);
+    (a.mutate as ()=>void)();(b.mutate as ()=>void)();expect(captureWasm(b)).toEqual(captureWasm(a));
+  });
+  it.skipIf(!supportsDirtyTracking())('tracks real host imports made by startup exports, including writes across a page edge',async()=>{
+    const raw=wasm(`(module
+      (import "bgt" "random_bytes" (func $random (param i32 i32) (result i32)))
+      (memory (export "memory") 5)
+      (data (i32.const 262144) "untouched")
+      (func (export "bgt_abi_version") (result i32)
+        (drop (call $random (i32.const 131071) (i32.const 2))) (i32.const ${ABI_VERSION}))
+      (func (export "bgt_io") (result i32)
+        (drop (call $random (i32.const 196610) (i32.const 2))) (i32.const 8))
+      (func (export "bgt_init") (param i32) (result i32) (i32.const 0))
+      (func (export "bgt_update") (param i32)) (func (export "bgt_render")) (func (export "bgt_shutdown")))`);
+    const bytes=instrumentCheckpointWasm(raw,true);
+    const host=await GameHost.create(bytes,{vfs:new Vfs(), log:()=>{}, now:()=>0, entropy:b=>b.set([0x48,0x49])},
+      {backend:BACKEND_HEADLESS,caps:0,seed:1,arg0:0,arg1:0,displayWidth:1,displayHeight:1},trackCheckpointHost);
+    const memory=new Uint8Array(host.memory.buffer);
+    expect([...memory.slice(131071,131073), ...memory.slice(196610,196612)]).toEqual([0x48,0x49,0x48,0x49]);
+    const state=host.checkpoint().wasm;
+    expect(state.memory.baseline).toBe('module');
+    expect([...state.memory.pages.keys()]).toEqual([1,2,3].map(page=>page*65536));
+    const fresh=(await WebAssembly.instantiate(bytes,{bgt:{random_bytes:()=>0}})).instance.exports;
+    restoreWasm(fresh,state);
+    expect(Buffer.compare(new Uint8Array(host.memory.buffer),new Uint8Array((fresh.memory as WebAssembly.Memory).buffer))).toBe(0);
+  });
+  it('falls back to an exact sparse scan for untracked SIMD stores',async()=>{
+    const raw=wasm(`(module (memory (export "memory") 3) (data (i32.const 0) "a")
+      (func (export "write") (i32.store (i32.const 0) (i32.const 0))
+        (v128.store (i32.const 65534) (i32x4.splat (i32.const -1)))))`);
+    const bytes=instrumentCheckpointWasm(raw,true);
+    const a=(await WebAssembly.instantiate(bytes)).instance.exports;
+    expect(a[checkpointDirty]).toBeUndefined();
+    (a.write as ()=>void)();
+    const state=captureWasm(a),b=(await WebAssembly.instantiate(bytes)).instance.exports;
+    expect(state.memory.baseline).toBeUndefined();
+    restoreWasm(b,state);expect(captureWasm(b)).toEqual(state);
+    expect(new Uint8Array((b.memory as WebAssembly.Memory).buffer)[65548]).toBe(255);
   });
   it('roundtrips Infinity and exact f32/f64 NaN global payloads through file export, including mutable setters',async()=>{
     const bytes=instrumentCheckpointWasm(wasm(`(module (memory (export "memory") 1)
