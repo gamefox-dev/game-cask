@@ -103,15 +103,20 @@ deleted objects are removed from the base. Other native failed mutations current
 checkpoint explicitly: a backend may have partially changed state before reporting its error.
 
 The opt-in recorder rolls the journal at 128 recorded frames, 128 MiB of estimated journal data or
-50,000 commands, whichever comes first. This does work during lead-in steps, not normal play. Readback-safe
+50,000 commands, or sooner if another frame the size of the last would exceed retained capacity.
+This does work during lead-in steps, not normal play. Readback-safe
 end cuts use the live renderer. Packed depth/stencil cuts can advance an isolated renderer parked at the
 previous cut instead of re-uploading the compact base. Legacy render-target cuts still use a fresh replay.
 Native contents come from readback except where a full RGBA8 upload plus the subsequent command history proves
 the upload shadow exact. Rendering to the level, destination blits and mip generation invalidate that proof.
 
-An unsupported cut is retried only after new frames. At **256 frames / 512 MiB / 200,000 commands** of
-uncompactable history, capture fails closed with `Savestate GPU journal exceeded bounded history without a safe cut`;
-stepping still works and an earlier valid checkpoint can be restored. Explicit `compactJournal()` remains
+An unsupported cut is retried after new frames. At **256 frames / 512 MiB / 200,000 commands** or the
+**1 GiB retained limit**, the recorder tries a safe cut with the just-consumed frame before dropping history.
+If no cut fits, capture fails closed with `Savestate GPU journal exceeded bounded history without a safe cut`;
+stepping still works and an earlier valid checkpoint can be restored. If a bounded resource/provenance
+recipe survives, capture also recovers at a later, in-budget live cut (for example after a full packed
+clear or deletion). This fallback cannot reconstruct discarded legacy texture uploads; it waits for those
+textures to be deleted. Explicit `compactJournal()` remains
 available before reaching that limit. Capture and restore still scale with live resource bytes and touched
 wasm pages; the bounds are not a wall-clock SLA. Stats split wasm/host capture, GPU proof/replay/readback,
 and in-memory clone time. Streaming serialization is separate; artifact integrity hashing runs at boot, not capture.

@@ -8,8 +8,8 @@ import {recordCheckpointFrame,checkpointFrameBytes,recordsMutation,type Checkpoi
 import {trackCheckpointHost} from './savestate-host';
 import './savestate-runtime';
 import '../renderers/savestate-surfaces';
-import { ReplayCursor, compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
-import { checkGPUBytes, checkpointGPUBytes, GPU_HISTORY_BYTES, GPU_CAPTURE_BUDGET, type GPUCaptureBudget } from './savestate-budget';
+import { LiveGPUCut, ReplayCursor, compactGPU, replayGPU, type GPUCheckpoint } from './savestate-gpu';
+import { GPUByteLimit, checkGPUBytes, checkpointGPUBytes, GPU_HISTORY_BYTES, GPU_CAPTURE_BUDGET, type GPUCaptureBudget } from './savestate-budget';
 import type { CheckpointRenderer } from '../renderers/checkpoint-surfaces';
 import { WebGL2Renderer } from '../renderers/webgl2/webgl2';
 import { WebGPURenderer } from '../renderers/webgpu/webgpu';
@@ -43,6 +43,9 @@ export class Savestates {
   private journalBytes = 0;
   private baseBytes = 0;
   private journalError: string | null = null;
+  private recovery?: LiveGPUCut;
+  private incoming?: {frame:CheckpointFrame;bytes:number;admitted:boolean};
+  private recoveryWait=0;
   private journalCommands = 0;
   private retryAt = 0;
   private compactions = 0;
@@ -62,16 +65,12 @@ export class Savestates {
       afterFrame: () => this.rollJournal(),
 
       frame: (...args) => {
-        if (this.journalError) return;
+        if (this.journalError&&!this.recovery) return;
         const frame = recordCheckpointFrame(...args), bytes = checkpointFrameBytes(frame);
         if (this.retainedBytes()+bytes>this.gpuBudget.retained)this.releaseReplay();
-        if (this.baseBytes+this.journalBytes+bytes>this.gpuBudget.retained ||
-            this.journal.length+1>MAX_GPU_HISTORY.frames || this.journalBytes+bytes>MAX_GPU_HISTORY.bytes ||
-            this.journalCommands+frame.items.length>MAX_GPU_HISTORY.commands) {
-          this.journalError = 'Savestate GPU journal exceeded bounded history without a safe cut; restore an earlier checkpoint or reload'+
-            (this.lastRollFailure?': '+this.lastRollFailure:'');
-          this.journal = []; this.baseBytes = this.journalBytes = this.journalCommands = 0; this.gpuBase = null; this.releaseReplay(); return;
-        }
+        const admitted=!this.journalError&&this.fits(this.journalBytes+bytes,this.journal.length+1,this.journalCommands+frame.items.length);
+        this.incoming={frame,bytes,admitted};
+        if(admitted){this.journal.push(frame);this.journalBytes+=bytes;this.journalCommands+=frame.items.length;}
         const renderer=rt.renderer!;
         if(renderer!==this.wrappedRenderer && renderer.gpu) {
           const execute=renderer.gpu.execute.bind(renderer.gpu);
@@ -89,7 +88,6 @@ export class Savestates {
             };
           }
         }
-        this.journal.push(frame); this.journalBytes += bytes; this.journalCommands += frame.items.length;
       },
     };
   }
@@ -146,56 +144,113 @@ export class Savestates {
     if(this.pendingShaders.size)throw new Error('Checkpoint has pending GPU shader completions');
   }
   compactJournal(): Promise<void> { return this.exclusive(async()=>{ await this.materialize(); }); }
-  private retainedBytes() { return this.baseBytes+this.journalBytes+this.replayBytes; }
+  private retainedBytes() { return this.baseBytes+this.journalBytes+this.replayBytes+(this.recovery?.bytes()??0); }
+  private fits(bytes:number,frames:number,commands:number):boolean {
+    return bytes<=MAX_GPU_HISTORY.bytes&&this.baseBytes+bytes<=this.gpuBudget.retained&&
+      frames<=MAX_GPU_HISTORY.frames&&commands<=MAX_GPU_HISTORY.commands;
+  }
+  private disableJournal(frame:CheckpointFrame,failure:string):void {
+    this.journalError = 'Savestate GPU journal exceeded bounded history without a safe cut; restore an earlier checkpoint or wait for a live cut'+
+      (failure?': '+failure:'');
+    try {
+      const recovery=new LiveGPUCut(this.gpuBase,[...this.journal,frame]);
+      this.recovery=recovery.bytes()<=this.gpuBudget.retained?recovery:undefined;
+    } catch {this.recovery=undefined;}
+    this.recoveryWait=0;
+    this.journal=[];this.baseBytes=this.journalBytes=this.journalCommands=0;this.gpuBase=null;this.releaseReplay();
+  }
   journalStats() {return {bytes:this.journalBytes,frames:this.journal.length,limit:MAX_GPU_HISTORY.bytes,
     retainedBytes:this.retainedBytes(),retainedLimit:this.gpuBudget.retained,
     error:this.journalError,compactions:this.compactions,compactionMs:this.compactionMs};}
   private async rollJournal() {
-    // Hold the render/update handoff. Retry an unsupported cut only after new
-    // frames; hitting the hard journal bound disables capture, not gameplay.
-    // File I/O and readback results affect guest checkpoints, not recorded GPU
-    // mutations. Only shader results can change replay outcomes at this cut.
-    if(this.journalError||this.rt.renderer!.lost||this.rt['deviceResets']||this.journal.length<this.retryAt||
-      (this.journal.length<ROLL_FRAMES&&this.journalBytes<ROLL_BYTES&&this.journalCommands<ROLL_COMMANDS)||
-      this.pendingShaders.size)return;
+    // An over-cap record is held only for the current render. The renderer has
+    // consumed it now, so a clear/delete in this frame can make a cut possible.
+    // Hold the update handoff while trying the cut; never publish an over-cap
+    // history or discard provenance before trying an available in-budget cut.
+    const incoming=this.incoming;this.incoming=undefined;
+    if(!incoming)return;
+    const {frame,bytes,admitted}=incoming;
+    if(this.journalError){await this.recoverLive(frame);return;}
+    const overflow=!admitted;
+    const due=this.journal.length>=ROLL_FRAMES||this.journalBytes>=ROLL_BYTES||this.journalCommands>=ROLL_COMMANDS||
+      this.baseBytes+this.journalBytes+bytes>this.gpuBudget.retained;
+    if(!overflow&&(!due||this.journal.length<this.retryAt))return;
+    if(this.pendingShaders.size||this.rt.renderer!.lost||this.rt['deviceResets']) {
+      if(overflow)this.disableJournal(frame,this.lastRollFailure||'renderer or shader results not ready');
+      return;
+    }
     const started=performance.now();
     try {
-      await this.materialize();
+      await this.materialize(false,overflow?incoming:undefined);
       this.compactions++;
     } catch(e) {
       this.lastRollFailure=String(e);
-      this.retryAt=Math.min(MAX_GPU_HISTORY.frames,this.journal.length+32);
+      if(overflow)this.disableJournal(frame,this.lastRollFailure);
+      else this.retryAt=Math.min(MAX_GPU_HISTORY.frames,this.journal.length+32);
     } finally { this.compactionMs+=performance.now()-started; }
   }
-  private async materialize(forSnapshot=false) {
+  private async recoverLive(frame:CheckpointFrame):Promise<void> {
+    const recovery=this.recovery;
+    if(!recovery)return;
+    try {
+      recovery.append(frame);
+      if(recovery.bytes()>this.gpuBudget.retained){this.recovery=undefined;return;}
+    } catch {this.recovery=undefined;return;}
+    const live=this.rt.renderer as Renderer & CheckpointRenderer;
+    if(this.pendingShaders.size||live.lost||this.rt['deviceResets'])return;
+    if(this.recoveryWait>0&&!frame.items.some(i=>i.kind==='texDelete'||i.op===GPU_OP.BUFFER_DELETE||i.op===GPU_OP.TEXTURE_DELETE)) {
+      this.recoveryWait--;return;
+    }
+    const started=performance.now();
+    try {
+      const compact=await recovery.capture(live,frame,(base,staging)=>{
+        checkGPUBytes(base,this.gpuBudget.retained,'retained history');
+        checkGPUBytes(this.retainedBytes()+checkpointFrameBytes(frame)+base+staging,this.gpuBudget.workspace,'capture workspace');
+      });
+      if(live.lost||live!==this.rt.renderer||this.rt['deviceResets'])return;
+      this.gpuBase=compact.base;this.baseBytes=checkpointGPUBytes(this.gpuBase);
+      this.recovery=undefined;this.journalError=null;this.retryAt=this.recoveryWait=0;this.lastRollFailure='';
+      this.compactions++;
+    } catch(e) {
+      // Provenance can become safe as soon as the next full clear. Throttle
+      // heavy/over-budget retries unless a deletion has changed live size.
+      if(e instanceof GPUByteLimit)this.recoveryWait=31;
+    } finally {this.compactionMs+=performance.now()-started;}
+  }
+  private async materialize(forSnapshot=false,overflow?:{frame:CheckpointFrame;bytes:number}) {
+    const journal=overflow?[...this.journal,overflow.frame]:this.journal;
+    const journalBytes=this.journalBytes+(overflow?.bytes??0);
     if(this.journalError)throw new Error(this.journalError);
     if(this.pendingShaders.size)throw new Error('Checkpoint has pending GPU shader completions');
     const live=this.rt.renderer as Renderer & CheckpointRenderer;
     const usable=()=>{
       if(live.lost||live!==this.rt.renderer||this.rt['deviceResets'])throw new Error('Savestates unsupported after graphics device loss');
-      const last=this.journal.at(-1)??this.gpuBase?.frame;
+      const last=journal.at(-1)??this.gpuBase?.frame;
       if(last&&(last.width!==live.canvas.width||last.height!==live.canvas.height))throw new Error('Savestate requires a consumed frame after canvas resize');
     };
     usable();
     let compact: Awaited<ReturnType<typeof compactGPU>>;
     let retainCursor=true;
-    const workspace=(next:number)=>checkGPUBytes(this.baseBytes+this.journalBytes+next,this.gpuBudget.workspace,'capture workspace');
-    if(forSnapshot&&!this.journal.length)workspace(this.baseBytes+this.replayBytes);
+    const workspace=(next:number)=>checkGPUBytes(this.baseBytes+journalBytes+next,this.gpuBudget.workspace,'capture workspace');
+    if(forSnapshot&&!journal.length)workspace(this.baseBytes+this.replayBytes);
     try {
+      workspace(0); // even a live cut overlaps the consumed input history
       compact=await compactGPU(async()=>{
         if(this.replay?.renderer.lost)this.releaseReplay();
         if(this.replay)return {cursor:this.replay,atBase:true};
         const cursor=this.replay=new ReplayCursor(await this.createRenderer());
         return {cursor,atBase:false};
-      },this.gpuBase,this.journal,live,(base,staging,residual,keepReplay)=>{
+      },this.gpuBase,journal,live,(base,staging,residual,keepReplay)=>{
         const cursor=this.replay?.bytes()??0;
         workspace(cursor+base+staging); // previous base + whole input journal still owned
         if(!base)return; // intermediate replay allocation (no candidate base yet)
-        const next=base+historyBytes(residual);
+        const residualBytes=historyBytes(residual),next=base+residualBytes;
         checkGPUBytes(next,this.gpuBudget.retained,'retained history');
+        if(residual.length>MAX_GPU_HISTORY.frames||residualBytes>MAX_GPU_HISTORY.bytes||
+            residual.reduce((n,f)=>n+f.items.length,0)>MAX_GPU_HISTORY.commands)throw new GPUByteLimit('Savestate residual exceeds bounded GPU history');
         retainCursor=keepReplay&&next+cursor<=this.gpuBudget.retained;
         if(forSnapshot)checkGPUBytes(2*next+(retainCursor?cursor:0),this.gpuBudget.workspace,'capture workspace');
-      });
+      },()=>this.releaseReplay());
       usable();
       if(this.replay?.renderer.lost)throw new Error('Savestate replay renderer lost');
     } catch(e){this.releaseReplay();throw e;}
@@ -252,6 +307,7 @@ export class Savestates {
         this.ticks = services.ticks; this.rng = services.rng; this.audioQueued = services.audioQueued; this.audioTimeUs = services.audioTimeUs;
         this.storage = services.storage; this.journal = s.journal; this.gpuBase = s.gpuBase;
         this.baseBytes = baseBytes; this.journalBytes = journalBytes; this.journalError = null; this.retryAt=0; this.lastRollFailure='';
+        this.recovery=undefined;this.incoming=undefined;this.recoveryWait=0;
         this.journalCommands=journalCommands;this.pendingShaders.clear();
       } finally { if (renderer) this.park(renderer); }
     }, () => {

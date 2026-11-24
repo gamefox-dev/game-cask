@@ -75,6 +75,66 @@ it('charges the previous base and input journal while a replacement base is bein
   expect(states.journalStats()).toMatchObject({frames:1,error:null});
 });
 
+it('rolls for retained headroom below the fixed frame, byte and command triggers',async()=>{
+  const {rt,states,lb}=harness({retained:820,workspace:4096});
+  const frame=new Frame();frame.reset(4,4);
+  const hooks=rt.testHarness!;
+  const record=async(update:number,clears:number)=>{
+    frame.items=Array.from({length:clears},()=>({kind:'draw' as const,first:0,count:0,texture:0,filter:0,blend:0,clip:{x:0,y:0,w:4,h:4},target:0}));
+    hooks.frame(frame,lb,update,4,4);await hooks.afterFrame!();
+  };
+  await record(1,0);await states.compactJournal();
+  await record(2,1);await record(3,1);
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(820);
+});
+
+it('tries the consumed over-cap frame before dropping history',async()=>{
+  const {rt,states,lb}=harness({retained:820,workspace:4096});
+  const frame=new Frame();frame.reset(4,4);
+  const hooks=rt.testHarness!;
+  hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();await states.compactJournal();
+  // Without compaction no residual can fit beside the current base.
+  frame.items=Array.from({length:6},()=>({kind:'draw' as const,first:0,count:0,texture:0,filter:0,blend:0,clip:{x:0,y:0,w:4,h:4},target:0}));
+  hooks.frame(frame,lb,2,4,4);await hooks.afterFrame!();
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(820);
+});
+
+it('tries an earlier cut when the live end is safe but its base cannot fit',async()=>{
+  const {rt,states,renderer,lb}=harness({retained:700,workspace:8192});
+  const detached={...renderer,onError:()=>{},onLost:()=>{},resize:()=>{},drawFrame:async()=>null,
+    destroy:()=>{},gpu:{execute:()=>0}};
+  vi.spyOn(states as unknown as {createRenderer: () => Promise<typeof detached>},'createRenderer').mockResolvedValue(detached);
+  const frame=new Frame();frame.reset(4,4);
+  const hooks=rt.testHarness!;
+  hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();
+  frame.items=[{kind:'gpu',op:GPU_OP.BUFFER_CREATE,words:[1,1,1024,0,0]}];
+  hooks.frame(frame,lb,2,4,4);await hooks.afterFrame!();
+  // Both cuts are logically safe. The latest needs 1024 readback bytes, so
+  // keep the smaller previous base plus the command that creates the buffer.
+  await states.compactJournal();
+  expect(states.journalStats()).toMatchObject({frames:1,error:null});
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(700);
+});
+
+it('recovers capture after an over-cap packed prefix once a live cut becomes provable',async()=>{
+  const {rt,states,renderer,lb}=harness({retained:1500,workspace:4096});
+  const frame=new Frame();frame.reset(4,4);
+  const cmd=(op:number,words:number[])=>({kind:'gpu' as const,op,words});
+  const hooks=rt.testHarness!;
+  frame.items=[cmd(GPU_OP.TEXTURE_CREATE_EX,[1,0,4,4,1,1,5,3]),
+    cmd(GPU_OP.PASS_BEGIN,[0,1,0,0,0,0,0]),...Array.from({length:14},()=>cmd(GPU_OP.DRAW,[3,1,0,0])),cmd(GPU_OP.PASS_END,[])];
+  hooks.frame(frame,lb,1,4,4);await hooks.afterFrame!();
+  expect(states.journalStats()).toMatchObject({frames:0,error:expect.stringMatching(/safe cut/)});
+  expect(renderer.captureTestSurfaces).not.toHaveBeenCalled();
+  frame.items=[cmd(GPU_OP.PASS_BEGIN,[0,1,0,1,1,0x3f800000,3]),cmd(GPU_OP.PASS_END,[])];
+  hooks.frame(frame,lb,2,4,4);await hooks.afterFrame!();
+  expect(states.journalStats()).toMatchObject({frames:0,compactions:1,error:null});
+  expect(renderer.captureTestSurfaces).toHaveBeenCalledOnce();
+  expect(states.journalStats().retainedBytes).toBeLessThanOrEqual(1500);
+});
+
 it('charges narrow WebGPU rows and both allocations in depth readback',()=>{
   const extent={width:1,height:64,depth:1};
   expect(paddedReadbackBytes(4,64)).toBe(16_384);

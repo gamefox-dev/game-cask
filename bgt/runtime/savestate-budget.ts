@@ -16,8 +16,9 @@ export const GPU_HISTORY_BYTES = 512 * MiB;
 // two such states and one isolated renderer without overwriting the live one.
 export const GPU_CAPTURE_BUDGET = { retained: 1024 * MiB, workspace: 3 * 1024 * MiB };
 export type GPUCaptureBudget = typeof GPU_CAPTURE_BUDGET;
+export class GPUByteLimit extends Error {}
 export const checkGPUBytes = (bytes: number, limit: number, area: string) => {
-  if (!(bytes <= limit)) throw new Error('Savestate exceeds bounded GPU ' + area + ' bytes');
+  if (!(bytes <= limit)) throw new GPUByteLimit('Savestate exceeds bounded GPU ' + area + ' bytes');
 };
 
 export function checkpointShadowBytes(shadows: CheckpointShadows, seen: Set<ArrayBufferLike>): number {
