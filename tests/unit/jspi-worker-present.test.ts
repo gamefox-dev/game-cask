@@ -7,6 +7,7 @@ import { BACKEND_HEADLESS, CAP_DIRECT_DRAW, CAP_GPU, CAP_RENDER_TARGETS, GPU_OP 
 import { GameHost } from '../../bgt/runtime/host';
 import { jspiApi } from '../../bgt/runtime/jspi';
 import { Vfs } from '../../bgt/runtime/vfs';
+import type { GpuItem } from '../../bgt/renderers/types';
 import { ROOT } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 // @ts-expect-error plain ESM
@@ -34,7 +35,7 @@ it.skipIf(!jspiApi())('submits the same GL work after a worker presents in eithe
       const step = async () => {
         await host.update();
         const frame = host.render();
-        const clears = frame.items.filter(i => i.kind === 'gpu' && i.op === GPU_OP.PASS_BEGIN);
+        const clears = frame.items.filter((i): i is GpuItem => i.kind === 'gpu' && i.op === GPU_OP.PASS_BEGIN);
         stream.executeFrame!(frame);
         host.consume();
         return clears;
