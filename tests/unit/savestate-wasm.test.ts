@@ -49,8 +49,8 @@ describe('complete engine-state checkpoints',()=>{
     expect(imported.host.wasm).toEqual(state);
   });
   it.skipIf(!supportsDirtyTracking())('tracks cross-page stores, grown pages, bulk writes and zero overwrites of active data',async()=>{
-    const raw=wasm(`(module (memory (export "memory") 8 12)
-      (data (i32.const 10) "stale") (data (i32.const 131072) "untouched")
+    const raw=wasm(`(module (memory (export "memory") 9 12)
+      (data (i32.const 10) "stale") (data (i32.const 524288) "untouched")
       (func (export "writes")
         (i32.store offset=7 (i32.const 65527) (i32.const 0x12345678))
         (i64.store16 (i32.const 196607) (i64.const -1))
@@ -58,7 +58,7 @@ describe('complete engine-state checkpoints',()=>{
         (memory.fill (i32.const 10) (i32.const 0) (i32.const 5))
         (memory.copy (i32.const 327678) (i32.const 65534) (i32.const 4))
         (drop (memory.grow (i32.const 1)))
-        (memory.fill (i32.const 524288) (i32.const 241) (i32.const 1))
+        (memory.fill (i32.const 589824) (i32.const 241) (i32.const 1))
         (memory.copy (i32.const 458752) (i32.const 0) (i32.const 0)))
       (func (export "trap") (i64.store offset=8 (i32.const -1) (i64.const 0)))
       (func (export "mutate") (i32.store8 (i32.const 458753) (i32.const 193))))`);
@@ -66,18 +66,17 @@ describe('complete engine-state checkpoints',()=>{
     const a=(await WebAssembly.instantiate(bytes)).instance.exports, original=(await WebAssembly.instantiate(raw)).instance.exports;
     (a.writes as ()=>void)();(original.writes as ()=>void)();
     const dirty=new Uint8Array((a[checkpointDirty] as WebAssembly.Memory).buffer);
-    expect([...dirty.slice(0,10)]).toEqual([1,1,1,1,1,1,0,0,1,0]);
     expect(()=> (a.trap as ()=>void)()).toThrow(WebAssembly.RuntimeError);
-    expect(dirty[9]).toBe(0);
+    expect([...dirty.slice(0,11)]).toEqual([1,1,1,1,1,1,0,0,0,1,0]);
     const memory=(e:WebAssembly.Exports)=>new Uint8Array((e.memory as WebAssembly.Memory).buffer);
     expect(Buffer.compare(memory(a),memory(original))).toBe(0);
     // A host import writing across a page edge has no wasm store instruction.
-    memory(a).set([0x48,0x49],458751);markHostWrite(dirty,458751,2); markHostWrite(dirty,655350,-5);
+    memory(a).set([0x48,0x49],458751);markHostWrite(dirty,458751,2); markHostWrite(dirty,655360,-5);
     const state=captureWasm(a);
     expect(state.memory.baseline).toBe('module');
-    expect(state.memory.pages.size).toBe(8);
+    expect([...state.memory.pages.keys()]).toEqual([0,1,2,3,4,5,6,7,9].map(page=>page*65536));
     expect(state.memory.pages.get(0)?.slice(10,15)).toEqual(new Uint8Array(5));
-    expect(dirty[9]).toBe(0);
+    expect(dirty[10]).toBe(0);
     const b=(await WebAssembly.instantiate(bytes)).instance.exports;
     restoreWasm(b,state);expect(Buffer.compare(memory(a),memory(b))).toBe(0);
     expect(captureWasm(b)).toEqual(state);
