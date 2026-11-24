@@ -87,7 +87,9 @@ resolve asynchronously in the renderer, not in host file I/O. A burst used to re
 ~1000 updates per tick (32k/s), each with its own render and submit, which also flooded the GPU process and delayed
 the result itself (~190 ms per program). The burst now waits, within the tick budget, for the request the last update
 polled unresolved (`Requests.awaited()`); `pageLoop()` adds `requestWaits`, `requestWaitMs`, `requestWaitTimeouts`;
-`?iowait=0` is the A/B switch. Fixture `examples/x64-gl-programs` (24 programs: 2 compiles, 2 link stage modules and
+`?iowait=0` is the A/B switch. K73 (Q139): the test API's `step(n)` waits the same way before each of its updates
+(`stepRequestWaits`, `stepRequestWaitMs`, `stepRequestWaitTimeouts`), so `step(n)` == n x `step(1)` on WebGPU too.
+Fixture `examples/x64-gl-programs` (24 programs: 2 compiles, 2 link stage modules and
 one glReadPixels each), spec `tests/e2e/gl-programs.spec.ts`.
 
 **JSPI artifact optimization (K70, Q127).** The JSPI artifact (dual `game.jspi.wasm`, JSPI-only `game.wasm`) gets

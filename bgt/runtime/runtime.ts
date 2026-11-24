@@ -23,7 +23,9 @@ import {
   LIMITS,
   GPU_CONTINUATION_LIMITS,
   OP,
+  type GpuLimitsMode,
 } from './abi';
+import { resolveGpuLimits, type GpuLimitsPolicy } from './gpu-limits-policy';
 import type { CommandError, DecodeResult, Frame } from './commands';
 import { GameHost, InputSnapshot, emptyInput, OutsideSlice, type HostServices } from './host';
 import { Vfs } from './vfs';
@@ -61,6 +63,8 @@ export interface RuntimeOptions {
   uploadChunkBytes?: number;
   /** K71 (Q129): keep texture recovery shadows; overrides `?recoveryshadows=` and manifest `gpu.recoveryShadows`. */
   recoveryShadows?: boolean;
+  /** K73 (Q135): guest-visible GPU limits, 'portable' (default) or 'device'; overrides `?gpulimits=` and manifest `gpu.limits`. */
+  gpuLimits?: GpuLimitsMode;
   /** Start with the simulation paused (deterministic tests step from frame 0). */
   startPaused?: boolean;
   /** Opt-in JSPI; both manifest and runtime request must opt in. */
@@ -70,6 +74,9 @@ export interface RuntimeOptions {
   ioBurstMs?: number;
   /** K70: false re-runs a burst update without waiting for the unresolved request result it polled (pre-K70 A/B). */
   ioWait?: boolean;
+  /** K73 (vK73): wall budget (ms) shared by all of one step(n) call's request waits (default 10000; 0 = no wait time:
+   * any pending wait times out at once). Exhausting it records a 'step-wait' error and ends waiting for that call. */
+  stepWaitMs?: number;
   onProgress?: (loaded: number, total: number, label: string) => void;
 }
 
@@ -88,7 +95,7 @@ export interface Manifest {
   preferredSuspension?: 'jspi'; // Per-game opt-in, still requiring API + variant.
   suspension?: 'jspi'; // Explicit JSPI-only package: fail clearly without the API, never treat raw wasm as Asyncify.
   /** K71: `recoveryShadows: false` drops texture upload shadows (loss after an upload is then fatal; docs/performance.md). */
-  gpu?: { budgetBytes?: number; recoveryShadows?: boolean };
+  gpu?: { budgetBytes?: number; recoveryShadows?: boolean; /** K73 (Q135): 'portable' (default) or 'device'. */ limits?: GpuLimitsMode };
   /** K64: estimated-total memory budget for this game (game.json "memoryBudget"); default 1.5 GiB. */
   memoryBudget?: { bytes?: number };
   slice?: {code?:number[];codeRanges?:{addr:number;end:number}[];data?:boolean};
@@ -97,7 +104,7 @@ export interface Manifest {
 }
 
 export interface RuntimeErrorRecord {
-  kind: 'trap' | 'abort' | 'gpu' | 'asset' | 'init' | 'js' | 'device-lost';
+  kind: 'trap' | 'abort' | 'gpu' | 'asset' | 'init' | 'js' | 'device-lost' | /** K73: a step() request wait exhausted its budget */ 'step-wait';
   message: string;
   time: number;
   frame: number;
@@ -106,6 +113,9 @@ export interface RuntimeErrorRecord {
 import { compileVerifiedWasm } from './wasm-loader';
 import { selectWasmVariant, suspensionCapabilities, type SuspensionCapabilities } from './jspi';
 import { retainedAccumulator, continueTransport, settlesWithin, TRANSPORT_BURST_MS } from './page-pacing';
+/** K73 (Q139): hang guard for step()'s waits on polled request results, one budget per step(n) call (results
+ * normally arrive within ms; x64-gl-programs: 96 waits, ~20 ms in total). */
+const STEP_REQUEST_WAIT_MS = 10_000;
 import { newPageLog, pageLogPush, summarizePageWindow, type PageLoopLog, type PageWindowSummary } from './page-fps';
 import { gpuEngine, gpuOverhead } from './gpu-overhead';
 import { CANVAS_BUFFERS, guestMemoryFromMetrics, memoryBreakdown, resolveMemoryBudget, resolveRecoveryShadows, type MemoryBudgetSource, type MemoryDiagnostics, type MemoryInputs,
@@ -120,8 +130,12 @@ export interface BGTDiagnostics {
   backend: 'webgpu' | 'webgl2' | 'unavailable';
   backendNotes: string[];
   nativeQueryPolicy: 'production' | 'strict' | null;
-  /** K51: native device identity and the uniform range reported to the guest (§13.6 offset 52); null without CAP_GPU. */
-  gpuDevice: { renderer: string | null; software: boolean; nativeMaxUniformRange: number; maxUniformRange: number; languages: number } | null;
+  /** K51: native device identity and the uniform range reported to the guest (§13.6 offset 52); null without CAP_GPU.
+   * K73 (Q135): `limits` = the limits mode and its source, and every backend-dependent §13.6 value as reported to the
+   * guest next to the device's own value. */
+  gpuDevice: { renderer: string | null; software: boolean; nativeMaxUniformRange: number; maxUniformRange: number; languages: number;
+    limits: (GpuLimitsPolicy & { maxUniformRange: number; deviceMaxUniformRange: number; maxVaryingComponents: number;
+      deviceMaxVaryingComponents: number; maxTextureDimension: number | null; deviceMaxTextureDimension: number | null }) | null } | null;
   ready: boolean;
   paused: boolean;
   failed: boolean;
@@ -238,6 +252,7 @@ export class BGTRuntime {
   private linearAtInstantiate = 0;
   private memoryBudget: { bytes: number; source: MemoryBudgetSource } = resolveMemoryBudget();
   private recoveryShadows: RecoveryShadowPolicy = { enabled: true, source: 'default' };
+  private gpuLimitsPolicy: GpuLimitsPolicy = { mode: 'portable', source: 'default' };
   private memoryPeaks = { linear: 0, total: 0 };
   /** Load-time buffers the runtime still holds, for the milestone peak samples (vK64). */
   private loadBuffers = 0;
@@ -441,6 +456,7 @@ export class BGTRuntime {
     this.loadMarks.manifestMs = performance.now() - this.loadStarted;
     this.memoryBudget = this.resolveBudget(manifest);
     this.recoveryShadows = this.resolveRecoveryPolicy(manifest);
+    this.gpuLimitsPolicy = this.resolveGpuLimitsPolicy(manifest);
     this.rangeFiles = new RangeFiles(base);
     for (const file of manifest.streams ?? []) { this.rangeFiles.add(file); this.vfs.addStream(file.path,file.size,file.chunks); }
     document.title = `${manifest.name} — Game Cask`;
@@ -533,6 +549,7 @@ export class BGTRuntime {
           arg1: this.opts.arg1 ?? 0,
           maxTextureDimension: this.renderer.maxTextureSize,
           gpuBudgetBytes: manifest.gpu?.budgetBytes,
+          gpuLimits: this.gpuLimitsPolicy.mode,
           sliceCode: manifest.slice?.code,
           sliceCodeRanges: manifest.slice?.codeRanges,
           suspensionMode: variant.mode,
@@ -632,7 +649,7 @@ export class BGTRuntime {
     this.measure();
     gl.restoreTextures(this.host.textures);
     if ([...this.host.textures.entries.values()].some((e) => e.renderTarget)) this.input.markEvent('targetsLost');
-    this.host.setBackend(BACKEND_WEBGL2, gl.gpu);
+    this.host.setBackend(BACKEND_WEBGL2, gl.gpu, gl.maxTextureSize);
     this.backendNotes.push(`webgpu: device lost and not recoverable (${reason}); switched to webgl2`);
     this.deviceResets++;
     this.input.markEvent('deviceReset');
@@ -874,6 +891,8 @@ export class BGTRuntime {
   readonly pageLoopStats = { ticks: 0, updates: 0, transportUpdates: 0, maxUpdatesPerTick: 0,
     /** K70: burst waits for an unresolved polled request result, their wall time, and waits that hit the tick budget. */
     requestWaits: 0, requestWaitMs: 0, requestWaitTimeouts: 0,
+    /** K73 (Q139): the same wait before each update of a test step(n), its wall time, and hang-guard timeouts. */
+    stepRequestWaits: 0, stepRequestWaitMs: 0, stepRequestWaitTimeouts: 0,
     /** vK70: longest wall time of a tick's updates (first update + burst), ms. */
     maxTickMs: 0 };
 
@@ -975,11 +994,13 @@ export class BGTRuntime {
     this.pause();
     try {
     await this.tickTail; // K66: a page-loop transport burst never overlaps a test step
+    const wait = { leftMs: this.opts.stepWaitMs ?? STEP_REQUEST_WAIT_MS, exhausted: false };
     for (let i = 0; i < frames; i++) {
       if (this.failed || this.outsideSlice) break;
       await this.renderTail;
       await this.host?.settleRequests();
       if(this.outsideSlice)break;
+      await this.stepRequestWait(wait);
       await this.stepGuarded();
       if (this.failed || this.outsideSlice) break;
       // Wait out device-loss recovery (or the switch to WebGL 2) instead of drawing into a dead context.
@@ -992,6 +1013,33 @@ export class BGTRuntime {
     }
     await this.renderer?.finish();
     } finally { this.stepping = false; }
+  }
+
+  /**
+   * K73 (Q139): before each stepped update, wait for the request result the previous update polled and found
+   * unresolved (a renderer result: shader compile, pipeline, readback), as the K70 page loop does. Without it,
+   * step(n) on WebGPU (results resolve asynchronously, outside host I/O work) ran every update of the chunk polling
+   * the same 0 and saw the result only after the chunk's final renderer.finish(), so step(n) != n x step(1)
+   * (MMX8 r30: 1893 vs 5567 presents at update 7000). WebGL 2 results complete inside the render: never waits.
+   * vK73: all waits of one step(n) call share one wall budget (`stepWaitMs`, default STEP_REQUEST_WAIT_MS), so a
+   * never-settling request costs at most that much per call (not per update). Exhausting it is reported: a
+   * 'step-wait' error in diagnostics().errors (tests fail on it) and a counted timeout; the rest of the call then
+   * runs without waiting (pre-K73 behaviour). `ioWait: false` restores the pre-K73 behaviour (A/B).
+   */
+  private async stepRequestWait(budget: { leftMs: number; exhausted: boolean }): Promise<void> {
+    const host = this.host;
+    if (!host || this.opts.ioWait === false || budget.exhausted) return;
+    const wait = host.transportWait();
+    if (!wait) return;
+    const stats = this.pageLoopStats, w0 = performance.now();
+    const done = await settlesWithin(wait, Math.max(0, budget.leftMs));
+    const ms = performance.now() - w0;
+    stats.stepRequestWaits++; stats.stepRequestWaitMs += ms; budget.leftMs -= ms;
+    if (!done) {
+      stats.stepRequestWaitTimeouts++; budget.exhausted = true;
+      this.record('step-wait', `step(): a polled request result did not arrive within the step's ${this.opts.stepWaitMs ?? STEP_REQUEST_WAIT_MS} ms ` +
+        `wait budget (frame ${host.frameIndex}); the rest of this step() runs without waiting, so its timeline may differ from n x step(1)`);
+    }
   }
 
   declare testReplace: (host: GameHost,renderer: Renderer,letterbox: Letterbox) => void;
@@ -1063,6 +1111,21 @@ export class BGTRuntime {
     }
     if (!policy.enabled) this.backendNotes.push(`gpu: texture recovery shadows disabled (${policy.source}); ` +
       'a GPU device/context loss after a texture upload stops the game (device-lost)');
+    return policy;
+  }
+
+  private resolveGpuLimitsPolicy(manifest: Manifest | null): GpuLimitsPolicy {
+    const url = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('gpulimits') : null;
+    let policy: GpuLimitsPolicy;
+    try { policy = resolveGpuLimits(this.opts.gpuLimits, url, manifest?.gpu?.limits); }
+    catch (e) {
+      if (url === null || this.opts.gpuLimits !== undefined) throw new RuntimeFailure('init', (e as Error).message);
+      this.backendNotes.push(`gpu: ${(e as Error).message}; ignored`);
+      try { policy = resolveGpuLimits(undefined, null, manifest?.gpu?.limits); }
+      catch (m) { throw new RuntimeFailure('init', (m as Error).message); }
+    }
+    if (policy.mode === 'device') this.backendNotes.push(`gpu: device limits reported to the guest (${policy.source}); ` +
+      'guest-visible limits differ between backends/devices');
     return policy;
   }
 
@@ -1151,7 +1214,8 @@ export class BGTRuntime {
       backendNotes: [...this.backendNotes],
       nativeQueryPolicy: r?.gpu?.nativeQueryPolicy ?? null,
       gpuDevice: r?.gpu?.device && r.gpu.languages ? { ...r.gpu.device, languages: r.gpu.languages,
-        maxUniformRange: host?.gpuUniformRange ?? r.gpu.maxUniformRange ?? 65536 } : null,
+        maxUniformRange: host?.gpuUniformRange ?? r.gpu.maxUniformRange ?? 65536,
+        limits: host?.gpuLimits ? { ...this.gpuLimitsPolicy, ...host.gpuLimits, mode: host.gpuLimits.mode } : null } : null,
       ready: this.ready,
       paused: this.paused,
       failed: this.failed,

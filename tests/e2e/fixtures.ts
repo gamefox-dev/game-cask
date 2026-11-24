@@ -8,14 +8,22 @@ import type { BGTDiagnostics } from '../../bgt/runtime/runtime';
 import { assertWebGPUAvailable, webGPUWasAvailable } from './webgpu-availability';
 import { suspensionCapabilities } from '../../bgt/runtime/jspi';
 import { jspiUnavailableReason } from '../support/suspension-modes';
+import { isCancellation, unexpected, validateAllow, type AllowEntry } from '../support/browser-collector';
 
 export interface Collector {
   consoleErrors: string[];
   consoleWarnings: string[];
   pageErrors: string[];
   failedRequests: string[];
-  /** Substrings of console errors/failed requests this test expects. */
-  allow(...patterns: RegExp[]): void;
+  /** K73: network-level request failures (`requestfailed`: aborted, DNS, refused, ...), `${errorText} ${method} ${url}`. */
+  requestFailures: string[];
+  /** K73: requests cancelled because the page navigated away (logged, never failures). */
+  navigationAborts: string[];
+  /** Page errors, console errors and HTTP >= 400 this test expects: a RegExp, or (K73) `{ pattern, max }` to allow at
+   * most `max` matches in the whole test (bound an authentic repeated guest error). Never covers request failures. */
+  allow(...patterns: AllowEntry[]): void;
+  /** K73: the explicit allowlist for intentional network-level request failures (same entry forms). */
+  allowRequestFailure(...patterns: AllowEntry[]): void;
 }
 
 export interface Pixels {
@@ -38,13 +46,16 @@ export const test = base.extend<Fixtures>({
   },
   backendParam: ['webgl2', { option: true }],
   collector: async ({ page }, use, testInfo) => {
-    const allowed: RegExp[] = [];
+    const allowed: AllowEntry[] = [], allowedFailures: AllowEntry[] = [];
     const c: Collector = {
       consoleErrors: [],
       consoleWarnings: [],
       pageErrors: [],
       failedRequests: [],
-      allow: (...p) => allowed.push(...p),
+      requestFailures: [],
+      navigationAborts: [],
+      allow: (...p) => { validateAllow(p); allowed.push(...p); },
+      allowRequestFailure: (...p) => { validateAllow(p); allowedFailures.push(...p); },
     };
     page.on('console', (m) => {
       if (m.type() === 'error') c.consoleErrors.push(m.text());
@@ -53,6 +64,17 @@ export const test = base.extend<Fixtures>({
     page.on('pageerror', (e) => c.pageErrors.push(e.message));
     page.on('response', (r) => {
       if (r.status() >= 400) c.failedRequests.push(`${r.status()} ${r.url()}`);
+    });
+    // K73: network-level failures. A cancellation of a request issued before the main frame's latest navigation is
+    // the navigation's doing (the old document's in-flight loads), not a failure.
+    let navigations = 0;
+    const startedAt = new WeakMap<object, number>();
+    page.on('request', (r) => startedAt.set(r, navigations));
+    page.on('framenavigated', (f) => { if (f === page.mainFrame()) navigations++; });
+    page.on('requestfailed', (r) => {
+      const error = r.failure()?.errorText ?? 'unknown', line = `${error} ${r.method()} ${r.url()}`;
+      const navigated = (startedAt.get(r) ?? navigations) < navigations;
+      (navigated && isCancellation(error) ? c.navigationAborts : c.requestFailures).push(line);
     });
     await use(c);
     try {
@@ -64,14 +86,10 @@ export const test = base.extend<Fixtures>({
         // Final-outcome reporter publishes only after ALL fixture teardowns pass.
       }
     } catch { /* deliberate unavailable-runtime tests may have no API */ }
-    const unexpected = (xs: string[]) => xs.filter((x) => !allowed.some((p) => p.test(x)));
-    const problems = {
-      pageErrors: unexpected(c.pageErrors),
-      consoleErrors: unexpected(c.consoleErrors),
-      failedRequests: unexpected(c.failedRequests),
-    };
-    await testInfo.attach('browser-log.json', { body: JSON.stringify({ ...c, allow: undefined }, null, 2), contentType: 'application/json' });
-    expect(problems, 'unexpected JS exceptions, console errors, or failed requests').toEqual({ pageErrors: [], consoleErrors: [], failedRequests: [] });
+    const problems = unexpected(c, allowed, allowedFailures);
+    await testInfo.attach('browser-log.json', { body: JSON.stringify({ ...c, allow: undefined, allowRequestFailure: undefined }, null, 2), contentType: 'application/json' });
+    expect(problems, 'unexpected JS exceptions, console errors, failed requests (HTTP >= 400) or network request failures')
+      .toEqual({ pageErrors: [], consoleErrors: [], failedRequests: [], requestFailures: [] });
   },
 });
 

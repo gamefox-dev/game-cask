@@ -1,14 +1,15 @@
 // @bgt-examples: x64-gl-limits
-// SPDX-License-Identifier: CC0-1.0. K51: the guest sees the device's real GL_MAX_UNIFORM_BLOCK_SIZE.
+// SPDX-License-Identifier: CC0-1.0. K51: the guest sees the device's real GL_MAX_UNIFORM_BLOCK_SIZE (K73: in
+// gpu.limits "device" mode; the default portable mode reports 16384 on every device, last test).
 // Would catch a profile that still reports a fixed 65536 (or a validator/translator ignoring the device limit).
 import { expect, it } from 'vitest';
 import { loadHeadless } from '../support/headless';
 import { glStream } from '../support/x64-gl-stream';
 import { GPU_OP as O } from '../../bgt/runtime/abi';
-it.each([16384, 32768, 65536])('x64-gl-limits: device uniform range %i is the guest limit and binding size', async (limit) => {
+const run = async (device: number, gpuLimits: 'portable' | 'device', limit: number) => {
   const stream = glStream();
-  stream.gpuBackend = { ...stream.gpuBackend!, maxUniformRange: limit };
-  const h = await loadHeadless('x64-gl-limits', stream);
+  stream.gpuBackend = { ...stream.gpuBackend!, maxUniformRange: device };
+  const h = await loadHeadless('x64-gl-limits', { ...stream, gpuLimits });
   // Each compile/link waits for its backend completion on a later host frame: step until the pixel log.
   for (let i = 0; i < 60 && !h.logs.some(l => l.includes('x64-gl-limits default-pixel=')); i++) await h.stepAsync(1);
   expect(h.logs.filter(s => /FAIL|command error/.test(s)), h.logs.join('\n')).toEqual([]);
@@ -36,4 +37,14 @@ it.each([16384, 32768, 65536])('x64-gl-limits: device uniform range %i is the gu
   expect(stream.items.filter(i => i.op === O.PIPELINE_CREATE)).toHaveLength(2);
   const m = h.host.metrics() as Record<string, any>;
   expect(m.gl_unimplemented).toBe(0); expect(m.gl_stubs).toEqual([]);
-}, 60_000);
+  return stream.items.map(i => `${i.op}:${i.words.join(',')}`);
+};
+it.each([16384, 32768, 65536])('x64-gl-limits: device uniform range %i is the guest limit and binding size (device mode)',
+  async (limit) => { await run(limit, 'device', limit); }, 60_000);
+// K73 (Q135): portable mode: ANGLE Metal (16384), a 32768 device and SwiftShader/WebGPU (65536) all report 16384, take
+// the same split layout and send the same GPU command stream. Would catch a backend-dependent guest limit.
+it('x64-gl-limits: portable mode gives every device the 16384 limit and an identical GPU stream', async () => {
+  const streams = [];
+  for (const device of [16384, 32768, 65536]) streams.push(await run(device, 'portable', 16384));
+  expect(streams[1]).toEqual(streams[0]); expect(streams[2]).toEqual(streams[0]);
+}, 120_000);

@@ -2,6 +2,7 @@
 import {
   BGT_OK, E_BOUNDS, E_INVALID, E_LIMIT, E_NOT_FOUND, E_STATE, E_UNSUPPORTED,
   GPU, GPU_LAYOUT, GPU_LIMITS, GPU_OP, GPU_UNIFORM_RANGE_MIN, GPU_VARYING_COMPONENTS_DEFAULT, GPU_VIEWPORT_BOUND,
+  GPU_PORTABLE_LIMITS, reportedLimit, type GpuLimitsMode,
 } from './abi';
 import type { DecodeContext } from './commands';
 import type { GpuBackend, GpuItem } from '../renderers/types';
@@ -44,18 +45,25 @@ export class GpuState {
   /** Negotiated by gpu_buffer_handles, never inferred from backend support alone. */
   bufferHandles = false;
   pass?: Pass;
-  /** K51: the backend's actual UNIFORM_BUFFER range limit (§13.6 offset 52), fixed for this namespace. */
+  /** K51/K73: the UNIFORM_BUFFER range limit this namespace reports (§13.6 offset 52) and enforces (E_LIMIT above
+   * it), fixed for the namespace: min(portable 16384, device) by default, the device's in 'device' mode. */
   readonly uniformRange: number;
-  /** K62: the backend's guaranteed GLSL varying components (§13.6 offset 76). */
+  /** K62/K73: the GLSL varying components this namespace reports (§13.6 offset 76): min(portable 84, device) by
+   * default, the device's in 'device' mode. */
   readonly varyingComponents: number;
   /** K74 (Q138): writes decoded but not yet settled (see shared-buffers.ts). Non-enumerable: never checkpointed. */
   declare readonly journal: BufferJournal;
-  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget) {
+  /** K73 diagnostics: the device's own values (what 'device' mode would report). */
+  readonly deviceUniformRange: number;
+  readonly deviceVaryingComponents: number;
+  constructor(readonly backend: GpuBackend, budget = GPU_LIMITS.budget, readonly limitsMode: GpuLimitsMode = 'portable') {
     Object.defineProperty(this, 'journal', { value: new BufferJournal(), enumerable: false, writable: false });
     this.budget = budget;
-    this.uniformRange = backendUniformRange(backend);
+    this.deviceUniformRange = backendUniformRange(backend);
     const varyings = backend.maxVaryingComponents ?? GPU_VARYING_COMPONENTS_DEFAULT;
-    this.varyingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.deviceVaryingComponents = Number.isSafeInteger(varyings) && varyings > 0 ? Math.min(varyings, 0xffff) : GPU_VARYING_COMPONENTS_DEFAULT;
+    this.uniformRange = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.uniformRange, this.deviceUniformRange);
+    this.varyingComponents = reportedLimit(limitsMode, GPU_PORTABLE_LIMITS.varyingComponents, this.deviceVaryingComponents);
   }
   /** K74: buffer bytes as the guest sees them now (the shared store plus this frame's pending writes). */
   read(b: BufferEntry, offset: number, length: number): Uint8Array { return this.journal.read(b.shadow, offset, length); }
