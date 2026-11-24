@@ -51,6 +51,9 @@ import { CAP_ENTROPY, CAP_GPU, CAP_GPU_BUFFER_HANDLES, CAP_GPU_GL_RASTER, CAP_GP
 import type { GpuBackend } from '../renderers/types';
 import { jspiApi } from './jspi';
 import type { captureHost } from './savestate-host';
+/** Test-only hooks (dev server or VITE_BGT_TEST builds). Guarded: host.ts also runs under plain Node (test setup), where
+ * `import.meta.env` is undefined; Vite still folds the flags at build time. */
+const TEST_HOOKS = typeof import.meta.env !== 'undefined' && !!(import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1');
 
 export interface AudioSink {
   readonly sampleRate: number;
@@ -512,7 +515,7 @@ export class GameHost {
               else globalThis.crypto.getRandomValues(chunk);
             }
             this.mem().set(bytes, ptr >>> 0);
-            if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(ptr >>> 0, bytes.length);
+            if (TEST_HOOKS) this.testTrackWrites?.(ptr >>> 0, bytes.length);
             return BGT_OK;
           } catch { return E_IO; }
         },
@@ -540,7 +543,7 @@ export class GameHost {
           if (n && dst + n * 8 > this.mem().byteLength) return E_BOUNDS;
           const dv = new DataView(this.mem().buffer, this.mem().byteOffset);
           for (let i = 0; i < n; i++) { dv.setUint32(dst + i * 8, failed[i].offset, true); dv.setUint32(dst + i * 8 + 4, failed[i].code >>> 0, true); }
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst,n*8);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst,n*8);
           return failed.length;
         },
         slice_missing: (kind: number,addr: number) => {
@@ -584,14 +587,14 @@ export class GameHost {
             this.gpu?.backend.languages ?? 0, 13, 65535, this.gpu?.varyingComponents ?? 0,
           );
           values.forEach((v, i) => dv.setUint32((dst >>> 0) + i * 4, v, true));
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst>>>0,size);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,size);
           return 0;
         },
         request_status: (id: number) => this.requests.status(id >>> 0),
         request_read: (id: number, dst: number, cap: number) => {
           if (!this.inRange(dst,cap)) return E_BOUNDS;
           const n=this.requests.read(id >>> 0,this.mem().subarray(dst >>> 0,(dst >>> 0)+(cap >>> 0)));
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst>>>0,n);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,n);
           return n;
         },
         request_close: (id: number) => this.requests.close(id >>> 0),
@@ -604,7 +607,7 @@ export class GameHost {
           if (!this.inRange(dst,8)) return E_BOUNDS;
           const size=s.vfs.size(h);if(size<0)return size;
           this.dv().setBigUint64(dst >>> 0,BigInt(size),true);
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst>>>0,8);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,8);
           return 0;
         },
         asset_range_request: (h: number,lo: number,hi: number,len: number) => rangeRequest(h,lo,hi,len),
@@ -620,7 +623,7 @@ export class GameHost {
         asset_read: (h: number, dst: number, size: number) => {
           if (!this.inRange(dst, size)) return E_BOUNDS;
           const n=s.vfs.read(h, this.mem().subarray(dst >>> 0, (dst >>> 0) + (size >>> 0)));
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst>>>0,n);
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,n);
           return n;
         },
         asset_seek: (h: number, off: number) => s.vfs.seek(h, off >>> 0),
@@ -652,7 +655,7 @@ export class GameHost {
           dv.setUint32(p + 4, pad?.buttons ?? 0, true);
           for (let a = 0; a < 4; a++) dv.setInt16(p + 8 + 2 * a, pad?.axes[a] ?? 0, true);
           for (let t = 0; t < 2; t++) dv.setUint16(p + 16 + 2 * t, pad?.triggers[t] ?? 0, true);
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(p,20);
+          if (TEST_HOOKS) this.testTrackWrites?.(p,20);
           return BGT_OK;
         },
         audio_queued: () => (s.audio ? s.audio.queued() : 0),
@@ -664,7 +667,7 @@ export class GameHost {
           const v = s.storage.read(key);
           if (!v) return -5;
           this.mem().set(v.subarray(0, Math.min(v.byteLength, cap >>> 0)), dst >>> 0);
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(dst>>>0,Math.min(v.byteLength,cap>>>0));
+          if (TEST_HOOKS) this.testTrackWrites?.(dst>>>0,Math.min(v.byteLength,cap>>>0));
           return v.byteLength;
         },
         storage_write: (kp: number, kl: number, src: number, len: number) => {
@@ -697,7 +700,7 @@ export class GameHost {
           const size = this.exports.bgt_async_buffer_size!() >>> 0;
           dv.setUint32(this.asyncBuf, this.asyncBuf + 8, true);
           dv.setUint32(this.asyncBuf + 4, this.asyncBuf + size, true);
-          if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(this.asyncBuf,8);
+          if (TEST_HOOKS) this.testTrackWrites?.(this.asyncBuf,8);
           ex.asyncify_start_unwind!(this.asyncBuf);
           this.asyncState = AsyncState.Unwinding;
         },
@@ -743,7 +746,7 @@ export class GameHost {
     dv.setUint32(p + IO.arg1, c.arg1 >>> 0, true);
     this.frame.reset(1, 1);
     this.state = defaultState(1, 1);
-    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(p,IO.SIZE);
+    if (TEST_HOOKS) this.testTrackWrites?.(p,IO.SIZE);
     const rc = this.exports.bgt_init(p) | 0;
     if (rc !== BGT_OK) throw new HostError(`bgt_init failed with ${errorName(rc)}`);
     const d2 = this.dv();
@@ -787,7 +790,7 @@ export class GameHost {
         overlap(ep,entries.length*4,rp,ranges.length*8))throw new HostError('overlapping slice-policy buffers');
       entries.forEach((a,i)=>v.setUint32(ep+4*i,a,true));
       ranges.forEach((r,i)=>{v.setUint32(rp+8*i,r.addr,true);v.setUint32(rp+8*i+4,r.end,true);});
-      if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') { this.testTrackWrites?.(ep,entries.length*4); this.testTrackWrites?.(rp,ranges.length*8); }
+      if (TEST_HOOKS) { this.testTrackWrites?.(ep,entries.length*4); this.testTrackWrites?.(rp,ranges.length*8); }
     }
     this.initialized = true;
     return rc;
@@ -833,7 +836,7 @@ export class GameHost {
     }
     this.config.backend = backend;
     this.dv().setUint32(this.ioPtr + IO.backend, backend, true);
-    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(this.ioPtr+IO.backend,4);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr+IO.backend,4);
     /* LANE-WG: fallback without live GPU handles must renegotiate instead of queuing to a lost device. */
     this.config.gpuBackend = gpuBackend;
     if (gpuBackend?.languages) { this.config.caps |= CAP_GPU; this.gpu = new GpuState(gpuBackend, this.config.gpuBudgetBytes, this.config.gpuLimits); }
@@ -846,14 +849,14 @@ export class GameHost {
     else this.config.caps &= ~CAP_GPU_CONST_ATTRIB;
     this.dv().setUint32(this.ioPtr + IO.caps,
       (this.config.caps | (this.asyncCapable ? CAP_YIELD : 0)) >>> 0, true);
-    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(this.ioPtr,IO.SIZE);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr,IO.SIZE);
   }
 
   setDisplaySize(w: number, h: number): void {
     const dv = this.dv();
     dv.setUint32(this.ioPtr + IO.display_width, w, true);
     dv.setUint32(this.ioPtr + IO.display_height, h, true);
-    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(this.ioPtr,IO.SIZE);
+    if (TEST_HOOKS) this.testTrackWrites?.(this.ioPtr,IO.SIZE);
   }
 
   private gamepads: GamepadSnapshot[] = [];
@@ -882,7 +885,7 @@ export class GameHost {
     const n = Math.min(MAX_TOUCHES, inp.touches.length);
     dv.setUint32(p + IO.touch_count, n, true);
     dv.setUint32(p + IO.events, inp.events >>> 0, true);
-    if (import.meta.env.DEV || import.meta.env.VITE_BGT_TEST === '1') this.testTrackWrites?.(p,IO.SIZE);
+    if (TEST_HOOKS) this.testTrackWrites?.(p,IO.SIZE);
     for (let k = 0; k < MAX_TOUCHES; k++) {
       const o = p + IO.touches + k * IO.TOUCH_SIZE;
       const t = inp.touches[k];
