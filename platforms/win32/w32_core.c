@@ -1152,7 +1152,7 @@ static void jhexs(const char *k, uint64_t v) {
 }
 static void jsynccheck(void) {
     const x86_sync_check_t *c = &x86_sync_check;
-    if (!c->live) { jput("\"sync_check\":null,"); return; }
+    if (!c || !c->live) { jput("\"sync_check\":null,"); return; }
     jput("\"sync_check\":{"); jkv("violations", c->violations);
     jkv("dirty_miss", c->by_kind[1]); jkv("liveness_miss", c->by_kind[2]); jkv("callee_saved_clobber", c->by_kind[3]);
     jkv("inlined_callee_saved_clobber", c->by_kind[4]); jkv("register_model_miss", c->by_kind[5]);

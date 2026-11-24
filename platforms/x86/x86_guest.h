@@ -264,10 +264,18 @@ typedef struct {
     uint64_t first_got, first_want;
     uint32_t logged, seen[8];            /* distinct (kind, register, pc) already logged */
 } x86_sync_check_t;
-extern x86_sync_check_t x86_sync_check;
+/* Weak: serializers built without the x86 runtime (metrics fixtures) see a null address and report null. */
+extern x86_sync_check_t x86_sync_check __attribute__((weak));
 void xf_sync_violation(uint32_t kind_reg, uint32_t owner, uint32_t fn, uint32_t pc, uint32_t callee, uint64_t got, uint64_t want);
-const char *x86_sync_kind_name(uint32_t kind);
-const char *x86_reg64_name(uint32_t reg);
+static inline const char *x86_sync_kind_name(uint32_t kind) {
+    static const char *const names[X86_SYNC_KINDS] = {"none", "minimal-sync dirty-set miss", "minimal-sync liveness miss",
+        "callee changed a callee-saved register", "inlined callee changed a callee-saved register", "lifter register-model miss"};
+    return kind < X86_SYNC_KINDS ? names[kind] : "unknown";
+}
+static inline const char *x86_reg64_name(uint32_t reg) {
+    static const char *const names[16] = {"rax","rcx","rdx","rbx","rsp","rbp","rsi","rdi","r8","r9","r10","r11","r12","r13","r14","r15"};
+    return reg < 16 ? names[reg] : "?";
+}
 /* Returns nonzero when the scheduler hook provably neither suspends nor transfers right now. */
 void x86_set_quantum_probe(int (*probe)(void));
 

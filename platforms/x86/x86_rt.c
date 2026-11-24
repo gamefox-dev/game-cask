@@ -189,15 +189,6 @@ __attribute__((noinline)) int xf_leave(uint32_t next) { x86_fast_depth--; return
 __attribute__((noinline)) int xf_check(uint32_t next) { return xf_abnormal(next); }
 /* K78 liftFast.check "sync" reporter (see x86_guest.h). Cold: a check build calls it only on a violation. */
 x86_sync_check_t x86_sync_check;
-const char *x86_sync_kind_name(uint32_t kind) {
-    static const char *const names[X86_SYNC_KINDS] = {"none", "minimal-sync dirty-set miss", "minimal-sync liveness miss",
-        "callee changed a callee-saved register", "inlined callee changed a callee-saved register", "lifter register-model miss"};
-    return kind < X86_SYNC_KINDS ? names[kind] : "unknown";
-}
-const char *x86_reg64_name(uint32_t reg) {
-    static const char *const names[16] = {"rax","rcx","rdx","rbx","rsp","rbp","rsi","rdi","r8","r9","r10","r11","r12","r13","r14","r15"};
-    return reg < 16 ? names[reg] : "?";
-}
 static uint32_t sync_put(char *b, uint32_t n, uint32_t cap, const char *s) { while (*s && n + 1 < cap) b[n++] = *s++; return n; }
 static uint32_t sync_hex(char *b, uint32_t n, uint32_t cap, uint64_t v, int digits) {
     if (digits > 0) n = sync_put(b, n, cap, "0x"); else digits = -digits;
