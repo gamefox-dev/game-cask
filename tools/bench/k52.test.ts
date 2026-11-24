@@ -29,6 +29,7 @@ const VARIANTS: Record<string, Pipeline> = {
   'fast-block-quantum': { liftMode: 'fast', liftFast: { quantum: 'block' } },
   'fast-nofuse': { liftMode: 'fast', liftFast: { fuse: 'off' } },
   'fast-noresume': { liftMode: 'fast', liftFast: { resume: 'off' } },
+  'fast-flagsabi': { liftMode: 'fast', liftFast: { flags: 'abi' } }, /* K75: the K52 flag rule (no observed-flags analysis) */
 };
 const root = process.env.BGT_K52_OUT ?? '';
 const kinds = (process.env.BGT_K52_KINDS ?? K52_KINDS.join(',')).split(',');

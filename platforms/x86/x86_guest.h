@@ -108,6 +108,16 @@ void x86_wr32_slow(uint32_t a, uint32_t v);
 void x86_cooperate(void);
 void x86_set_scheduler(void (*schedule)(void));
 extern uint32_t x86_quantum_insns; /* completed budget epoch, published before scheduler hook */
+/* K75: budget units charged for `insns` instructions counted since the last quantum, and the instructions that
+ * carry into the next one, exactly as the interpreter's per-instruction check (`++frame_insns > 2000000`) would
+ * have charged them: each quantum charges 2000000 units at its 2000001st instruction, which then starts the next
+ * quantum uncounted. Fast lifted code polls later than that instruction (loop headers, function entries, after
+ * REP generics), so it cooperates with insns > 2000001 and must neither drop the overshoot nor lose quanta. */
+static inline uint32_t x86_quantum_charge(uint32_t insns, uint32_t *carry) {
+    uint32_t quanta = insns > 2000000u ? (insns - 2000001u) / 2000001u + 1u : 0u;
+    if (carry) *carry = insns - quanta * 2000001u;
+    return quanta * 2000000u;
+}
 #ifdef X86_FLAT_GUEST
 #ifndef X86_FLAT_BYTES
 #define X86_FLAT_BYTES (1024ull << 20)

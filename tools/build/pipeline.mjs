@@ -18,7 +18,7 @@
 // The generated files land in node_modules/.cache/bgt/pipeline/<id>/ (never committed).
 import { execFileSync } from './exec.mjs';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, openSync, closeSync, fstatSync, readSync, writeSync, rmSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { ROOT } from './toolchain.mjs';
 import { buildRes } from '../x86/mkres.mjs';
@@ -242,10 +242,24 @@ export function ownerCensus(env = process.env) {
   if (value === '1' && env.BGT_CPU_ACCOUNTING === '0') throw new Error('BGT_OWNER_CENSUS=1 requires exact accounting; unset BGT_CPU_ACCOUNTING=0');
   return value === '1';
 }
+/** vK72b/vK75: the test-only wrong lifted RET is refused for any game under port/, compared by real path so a
+ * symlinked alias of port/ (or of the game directory) cannot pass. */
+export function refuseTestCorruptPort(policy, gameDir, root = ROOT) {
+  if (policy.liftFast?.testCorrupt !== 'stack') return;
+  // vK75b: both ways: the lexical and the real game path against the lexical and the real port/ path, so neither a
+  // symlink into port/ nor a symlink inside port/ that points elsewhere passes.
+  const real = (q) => { try { return realpathSync(q); } catch { return resolve(q); } };
+  const ports = [resolve(root, 'port'), real(join(root, 'port'))], games = [resolve(gameDir), real(gameDir)];
+  if (games.some((g) => ports.some((p) => (g + '/').startsWith(p + '/')))) throw new Error('pipeline.liftFast.testCorrupt is test-only and refused in port builds');
+}
 export function runPipeline(gameDir, cfg, outAssetsDir) {
   const p = cfg.pipeline;
   const timeModel = guestTimeModel(p.timeModel);
   const policy = liftPolicy(p);
+  refuseTestCorruptPort(policy, gameDir);
+  // K75: in fast mode an import that another guest module provides is guest code, not a flag-transparent profile call.
+  if (policy.liftMode === 'fast' && p.modules?.length > 1)
+    policy.fastGuestDlls = p.modules.map((m) => m.name ?? basename(m.from.split('#').pop()).toLowerCase()).sort();
   const guestWindowMiB = p.memory?.guestWindowMiB ?? 1024;
   if (!Number.isInteger(guestWindowMiB) || guestWindowMiB < 128 || guestWindowMiB > 2048) {
     throw new Error('pipeline.memory.guestWindowMiB must be an integer in 128..2048');

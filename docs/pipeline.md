@@ -428,8 +428,57 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
 - **Entry restriction.** Entries are the function start, loop headers (targets of DFS retreating edges, where
   quantum yields resume) and post-call return sites. Any other PC takes the slow path: one interpreted
   instruction, then re-entry (the interpreter re-enters lifted code at the next entry).
-- **Flags.** Liveness treats calls, returns and tail calls as Win64 ABI boundaries (flags dead); compare/test/
-  arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
+- **Flags.** Liveness treats calls, returns and tail calls as Win64 ABI boundaries (flags dead for compiled
+  guest code); compare/test/arithmetic directly followed by Jcc/SETcc/CMOVcc becomes one fused predicate.
+  **K75 observed flags** (default; `liftFast.flags: "abi"` restores the K52 rule for measurement): a few profile
+  APIs store the caller's EFLAGS in a `CONTEXT` (`tools/x86/lift64_eflags.h`: RtlCaptureContext, RaiseException,
+  RtlUnwindEx, and HeapCreate/HeapAlloc/HeapReAlloc, which raise under `HEAP_GENERATE_EXCEPTIONS`; a unit test checks
+  the list against the profile sources: `w64_context_save` is the only reader of `X.flags`). A second,
+  interprocedural liveness (`l64f_obs_io`) makes EFLAGS exact wherever such an API can be reached:
+  - a call or tail jump to one of those imports reads every flag; every other profile import passes EFLAGS through
+    (`x86_callback64` restores them around guest callbacks, in every mode);
+  - a call or jump whose target is not statically known (indirect calls and unresolved indirect jumps: function
+    pointers, vtables, `GetProcAddress` results), an import another guest module provides (`fastGuestDlls`, set by the
+    pipeline from `pipeline.modules`), or code that is no analyzed function, reads every flag and, for a call,
+    defines them: the caller reloads `X.flags` after it returns;
+  - every function whose address is taken (PE entry, export, relocated pointer, LEA/MOV of its start) returns exact
+    flags (`fastFlagTakenExits`), so a pointer call returns them exactly; a direct call reads them when the callee
+    observes its entry flags, and a RET when some caller observes the flags it returns with.
+  Generic instructions do not observe across calls. `l64f_observe` computes the sets once per lift over the whole
+  module, independent of the chunk selection; emission uses the union with the K52 liveness. Cost (K52 fixtures, vs
+  `"abi"`): +0.2% wasm; speed within ±1.3% except the memory fixture (+3.2% JSPI / +6.4% Asyncify: its loop makes an
+  indirect call and an import call every few dozen instructions).
+
+  **Known uncovered paths (fast-mode limitation, vK75b ruling; `liftMode: "exact"` is exact on all of them).** The
+  analysis is per call site, so the profile can still store stale EFLAGS wherever its call-site model is wrong:
+  1. *Unrelocated pointer tables in data:* a function whose start is stored only in a table the analyzer does not
+     see as a pointer (no base relocation, not a LEA/MOV operand; e.g. a `/FIXED` image or a computed table) and is
+     called through it is not "taken": it returns ABI-dead flags. Repro shape: `dq g` in `.rdata` without a reloc;
+     `call [table]` then `call [__imp_RtlCaptureContext]` with no flag writer between; `g` ends `sub eax,3; ret`.
+  2. *Rewritten IAT slots:* an IAT slot the guest overwrites at run time (hooking, a patched thunk) keeps the
+     lift-time import's flag behaviour: a slot named after a flag-transparent import that now holds a pointer to
+     guest code or to an EFLAGS-storing API is treated as transparent.
+  3. *External targets of recovered jump tables:* an indirect jump with a recovered table (analyzer `ij` targets
+     or a fast-emitter relative table) counts as an internal switch; a table entry that leaves the function (a tail
+     jump through the table) does not make the flags at the jump exact. Repro shape: `cmp ecx,1; ja L; lea rax,[tbl]; movsxd rcx,[rax+rcx*4]; add rcx,rax; jmp rcx`
+     where one entry is the start of a function that begins with `call [__imp_RtlCaptureContext]`.
+  4. *Captures inside a guest callback:* a callback the profile invokes (`x86_callback64`) starts with the EFLAGS
+     the profile left in `X.flags` (the caller's at its import call, which are exact only when that import stores
+     them); a callback whose entry reaches RtlCaptureContext/RaiseException before any flag writer stores them.
+     Repro shape: a WndProc whose first instruction is `call [__imp_RtlCaptureContext]`, reached via
+     `DispatchMessageA` from a call site whose flags were ABI-dead.
+  5. Indirect calls whose target the analyzer cannot see as taken (computed pointers) fall under 1; imports
+     resolved by `GetProcAddress` are covered (indirect call sites read every flag).
+  **Follow-up (sound design):** instead of call-site rules, the profile's capture APIs (`w64_context_save`, the one
+  reader of `X.flags`) would materialize EFLAGS lazily from the live lifted state: fast code would publish the last
+  flag writer's kind and operands (or a pointer to them) with the call protocol it already runs, and the profile
+  would compute the flags only when it stores a CONTEXT. That removes every case above and the call-site cost, at
+  the price of a few stores per published call.
+  **Other EFLAGS consumers:** GetThreadContext/SetThreadContext fail with
+  `ERROR_NOT_SUPPORTED` (no asynchronous context access); AddVectoredExceptionHandler fails and no hardware exception
+  is dispatched to guest handlers (faults stop the game); setjmp/longjmp buffers hold no EFLAGS (Win64 `_JUMP_BUFFER`
+  has none; the profile saves MXCSR and the x87 control word); RtlRestoreContext and exception continuation restore
+  `CONTEXT.EFlags` into `X.flags`.
 - **Memory.** `liftFast.memory: "mask"` (default) addresses `x86_flat + (addr & window mask)`: no compare,
   never a host address outside the guest window; a wild pointer aliases guest memory or traps past the committed
   end. `"range"` adds one compare against the committed bound and stops with the usual diagnostic. `"off"` keeps
@@ -442,7 +491,15 @@ Functions above 4096 instructions keep the exact emitter; both kinds share the r
 - **Generic instructions** execute inline (`x86_fast_exec`) with cooperation deferred; **quantum** polls only
   at function entries and loop headers. A poll runs the scheduler inline when the profile's probe
   (`x86_set_quantum_probe`, Win32: one thread and the frame cap not reached) proves it cannot suspend or
-  transfer; otherwise all native frames unwind (`x86_fast_yield`) and the driver cooperates.
+  transfer; otherwise all native frames unwind (`x86_fast_yield`) and the driver cooperates. **K75:** a poll is
+  later than the interpreter's quantum point (its 2000001st instruction), so cooperation charges exactly what the
+  interpreter would have charged up to the poll (2000000 units per quantum, `x86_quantum_charge`) and carries the
+  remaining instructions into the next quantum instead of dropping them: the guest instruction clock and every time
+  value derived from it (QPC, timeGetTime, GetTickCount) match the interpreter at every API call. Only *where*
+  a quantum yields (which thread runs next, a loop header instead of an instruction) still differs. The inline
+  probe (`w32_thread_quantum_probe`) counts the charge plus the carry exactly as the cap check after it does, so an
+  inline quantum never waits for the next frame inside lifted code (vK75: a 2000001-unit cap with a carry made
+  Asyncify fault; `tests/unit/oracle-fast.test.ts` covers that boundary in both suspension modes).
 - **Jump tables.** Clang/MSVC relative tables (`movsxd/mov r,[b+i*4]; add r,b; jmp r`) are recovered inside
   the fast emitter as guarded switch candidates; the real computed target is always compared.
 
@@ -454,8 +511,9 @@ assembly passes values in flags or clobbers callee-saved registers, and whenever
 and `memory: "range"` is the checked option. The pipeline default stays `exact` until the game measurement.
 
 Dropped on purpose (STRATEGY-UNRESTRICTED): exact fault order and faulting state, per-instruction entries,
-page holes/protections inside the window, coverage beyond function entries, the exact quantum position, flags
-observed across calls/returns and callee-saved registers clobbered against the ABI. Guest-visible results
+page holes/protections inside the window, coverage beyond function entries, the exact quantum position (not its
+clock charge, K75), flags read by guest code across calls/returns (flags stored by the profile are exact, K75)
+and callee-saved registers clobbered against the ABI. Guest-visible results
 (outputs, API traces, guest instruction clock) match the exact mode on the K52 fixtures and pipeline examples.
 Ablation knobs (`liftFast.{resume,fuse,memory,entries,quantum,stack,inline}`) exist for measurement only.
 Measurements, per-change gains and the go/no-go input: [K52 handoff](handoff/K52.md).
@@ -491,12 +549,21 @@ All default off: the default lift policy, cache keys and generated C are unchang
 is test-only (a deliberately wrong lifted RET; see the oracle's guest-state hash below), never for real builds.
 
 The differential oracle (`npm run oracle`, `tests/oracle/oracle.ts`) compares, per frame, the API-call trace hash and
-(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`x86_sched.c`): the CPU of every live guest thread
+(vK72, default) a guest-state hash from `bgt_guest_state_hash` (`platforms/x86/x86_state.c`): the CPU of every live guest thread
 (GPRs, RIP, flags CF/PF/AF/ZF/SF/OF/DF, fs/gs base, XMM, MXCSR, x87, instruction clock) and every mapped guest page.
 `BGT_ORACLE_STATE=off` or a list of `cpu`, `flags`, `current`, `memory`. Default for exact builds: every thread with
 flags, and memory; for `liftMode: "fast"` builds: the running thread without flags, and memory, with frames that end
 at the instruction cap, and every frame after a second guest thread was live, comparing memory and the live-thread
-count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). Known fast-mode memory difference: `CONTEXT.EFlags` captured by an API (x64-cpp's C++ throw). The
+count only (fast mode keeps flags dead across calls, parks threads and stops at loop headers). K75: the vK72 fast-mode
+memory differences (`CONTEXT.EFlags` captured by an API in x64-cpp and x64-heap; a QPC value one microsecond late in
+x64-time after fast quanta dropped their overshoot) are fixed, and `tests/unit/oracle-fast.test.ts` runs the default
+fast-mode oracle on fast copies of x64-cpp, x64-heap, x64-time and x64-gl-programs. Stricter fast-mode sets were
+measured and do not hold: every thread's CPU once a second thread ran, or only the running and API-blocked threads'
+CPU, diverge (x64-time frame 1, x64-threads frame 0; memory and trace identical), because a quantum yields at a loop
+header, not at the interpreter's instruction; flags at an arbitrary frame boundary inside an API are not exact by
+design. The memory part hashes every mapped page and, in flat builds, any unmapped page inside the committed window
+whose host backing holds a nonzero byte (a fast build's masked wild store lands there; vK72b); an all-zero unmapped
+page is not hashed. The
 report's `state` names the first divergent frame and part (`trace`, `cpu`, `memory`), how many frames hashed memory
 (large guests are hashed less often, ~2 ms/frame budget) and the hashing time. Both builds must load identical module
 bytes: the interpret-only build compiles a fixture in the lifted build's directory (lld embeds paths in PE debug

@@ -56,11 +56,13 @@ export function liftPolicy(p = {}, env = process.env) {
     const knobs = p.liftFast ?? {};
     const allowed = { resume: ['on', 'off'], fuse: ['on', 'off'], memory: ['range', 'mask', 'select', 'off'], entries: ['restricted', 'all'],
       quantum: ['sparse', 'block'], stack: ['on', 'off'], inline: ['0', '16', '32', '48', '64', '96', '128'],
-      sync: ['full', 'minimal'], calls: ['inline', 'outlined'],
+      sync: ['full', 'minimal'], calls: ['inline', 'outlined'], flags: ['observed', 'abi'] /* K75: abi = K52 rule, measurement */,
       testCorrupt: ['off', 'stack'] /* vK72 test only: a deliberately wrong lifted RET (guest-state oracle test) */ };
     for (const [key, value] of Object.entries(knobs)) {
       if (!allowed[key]?.includes(value)) throw new Error(`pipeline.liftFast.${key} must be one of ${allowed[key]?.join('/') ?? '(unknown knob)'}`);
     }
+    // vK72b: the deliberately wrong lifted RET exists for the kit's own oracle test; never in a port or a normal build.
+    if (knobs.testCorrupt && knobs.testCorrupt !== 'off' && !env.VITEST) throw new Error('pipeline.liftFast.testCorrupt is test-only (kit unit tests under vitest)');
     if (Object.keys(knobs).length) policy.liftFast = Object.fromEntries(Object.entries(knobs).sort());
   } else if (p.liftFast !== undefined) throw new Error('pipeline.liftFast requires liftMode "fast"');
   return policy;
@@ -68,6 +70,7 @@ export function liftPolicy(p = {}, env = process.env) {
 export function liftPolicyArgs(policy) {
   return Object.entries(policy).flatMap(([key, value]) => {
     if (key === 'liftMode') return ['--lift-mode', value];
+    if (key === 'fastGuestDlls') return value.length ? ['--fast-guest-dlls', value.join(',')] : [];
     if (key === 'liftFast') return Object.entries(value).flatMap(([k, v]) => ['--fast-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), v]);
     return ['--' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), value ? 'on' : 'off'];
   });
@@ -118,6 +121,9 @@ export function liftChunks({ tool, file, id, base, work, analysis, key, selected
     const s = JSON.parse(readFileSync(t.out+'.stats.json','utf8'));
     for (const k of ['functions','specialized','generic','jumpTables','unresolvedJumps','flagsElided','entries']) stats[k] += s[k] ?? 0;
     if (s.fastFunctions !== undefined) stats.fastFunctions = (stats.fastFunctions ?? 0) + s.fastFunctions; // K52 fast mode only
+    // K75: the observed-flags sets are module-wide (every chunk computes the same); their analysis time adds up.
+    for (const k of ['fastFlagObservers', 'fastFlagExactExits', 'fastFlagUnknownCallees']) if (s[k] !== undefined) stats[k] = Math.max(stats[k] ?? 0, s[k]);
+    if (s.fastFlagAnalysis_cpu_ms !== undefined) stats.fastFlagAnalysis_cpu_ms = (stats.fastFlagAnalysis_cpu_ms ?? 0) + s.fastFlagAnalysis_cpu_ms;
     const bytes = statSync(t.out).size; sourceBytes += bytes; largest = Math.max(largest,bytes); sourceLines += text.split('\n').length;
   }
   rows.sort((a,b)=>a.addr-b.addr);

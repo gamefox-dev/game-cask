@@ -471,6 +471,7 @@ static void lift64(FILE *o, an_t *a, const char *name, lift_stats_t *st) {
             if(!lift_selected(target)&&!vhas(&skip,target)&&func_index(a,target)>=0)vpush(&weak,target);
         }
     if(lift_fast)l64f_declare_tails(o,a,&weak);
+    if(lift_fast)l64f_observe(a); /* K75: module-wide observed-flags sets, before any fast function is emitted */
     vsort_uniq(&weak);
     for(uint32_t i=0;i<weak.n;i++)fprintf(o,"__attribute__((weak)) void N_%08x(uint32_t);\n",weak.v[i]);
     free(weak.v);

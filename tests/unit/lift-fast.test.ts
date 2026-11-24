@@ -1,9 +1,10 @@
 // @bgt-examples: none
 // Original CC0-1.0. K52 fast lifting mode: policy plumbing, emission shape, and execution through
-// the production runtime against the interpreter (registers, RAM, RIP and retirement; EFLAGS are
-// not compared: fast mode treats them as dead across calls/returns per the Win64 ABI).
+// the production runtime against the interpreter (registers, RAM, RIP, retirement and, since K75, the instruction
+// clock: X.tsc and the quantum's frame_insns). EFLAGS at a frame end are not compared (fast mode treats them as dead
+// across calls/returns per the Win64 ABI); K75: the EFLAGS a profile call observes are (see the observed-flags test).
 import { it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ROOT } from '../support/headless';
@@ -21,7 +22,7 @@ import { functionNames } from '../../tools/build/wasm-names.mjs';
 import { instantiateFixture } from '../support/wasm-fixture';
 import { perTestTool } from '../support/per-test-tool';
 // @ts-expect-error plain ESM
-import { x86tool } from '../../tools/build/pipeline.mjs';
+import { x86tool, refuseTestCorruptPort } from '../../tools/build/pipeline.mjs';
 const tool = perTestTool(x86tool);
 const modes = ['asyncify', ...(jspiApi() ? ['jspi'] : [])] as ('asyncify' | 'jspi')[];
 
@@ -65,7 +66,8 @@ async function harness(code: Buffer, cuts: number[], args: string[], suspension?
     }
     const { exports, host } = await instantiateFixture(raw, suspension ? { suspensionMode: suspension } : {});
     const ex = exports as unknown as { memory: WebAssembly.Memory; prepare(i: number, pc: number, b: number): void; execute(): void; resume(): void; cpu(): number; ram(): number;
-      interpretation(): number; generic(): number; set_reg(i: number, v: bigint): void; configure_service(n: number): void; service_count(): number; service_complete(): number; retired(): bigint };
+      interpretation(): number; generic(): number; set_reg(i: number, v: bigint): void; configure_service(n: number): void; service_count(): number; service_complete(): number; retired(): bigint;
+      service_flag(i: number): number; frame_insns(): number; tsc(): bigint; state_hash(parts: number): number; poke_backing(addr: number, v: number): void; page_mapped(addr: number): number };
     const view = () => new DataView(ex.memory.buffer);
     const eip = () => view().getUint32(ex.cpu() + 128, true);
     /* Run to the sentinel return, resuming after every scheduler transfer. */
@@ -73,7 +75,8 @@ async function harness(code: Buffer, cuts: number[], args: string[], suspension?
       ex.prepare(interpreted, 0x2000, budget); setup?.(); ex.execute();
       for (let n = 0; n < 64 && eip() !== 0xfffffff4; n++) ex.resume();
       expect(eip()).toBe(0xfffffff4);
-      return { regs: new Uint8Array(ex.memory.buffer).slice(ex.cpu(), ex.cpu() + 128), ram: new Uint8Array(ex.memory.buffer).slice(ex.ram() + 0x1000, ex.ram() + 0xa000), retired: ex.retired() };
+      return { regs: new Uint8Array(ex.memory.buffer).slice(ex.cpu(), ex.cpu() + 128), ram: new Uint8Array(ex.memory.buffer).slice(ex.ram() + 0x1000, ex.ram() + 0xa000), retired: ex.retired(),
+        clock: { tsc: ex.tsc(), frame: ex.frame_insns() } };
     };
     return { ex, host, text, run };
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -99,6 +102,24 @@ it('policy: exact stays byte-for-byte default; fast mode, knobs and BGT_LIFT_MOD
   expect(liftPolicy({}, { BGT_LIFT_MODE: 'fast' }).liftMode).toBe('fast');
   expect(liftPolicy({ liftMode: 'exact' }, { BGT_LIFT_MODE: 'fast' }).liftMode).toBeUndefined();
   expect(() => liftPolicy({ liftMode: 'turbo' }, {})).toThrow(/liftMode/);
+  // K75: liftFast.flags (observed default, abi = the K52 rule for measurement); vK72b: testCorrupt only under vitest.
+  expect(liftPolicyArgs(liftPolicy({ liftMode: 'fast', liftFast: { flags: 'abi' } }, {})).slice(-2)).toEqual(['--fast-flags', 'abi']);
+  expect(() => liftPolicy({ liftMode: 'fast', liftFast: { flags: 'lazy' } }, {})).toThrow(/liftFast.flags/);
+  expect(() => liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'stack' } }, {})).toThrow(/test-only/);
+  expect(liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'stack' } }, { VITEST: 'true' }).liftFast).toEqual({ testCorrupt: 'stack' });
+  expect(liftPolicy({ liftMode: 'fast', liftFast: { testCorrupt: 'off' } }, {}).liftFast).toEqual({ testCorrupt: 'off' });
+  // vK75: also refused under port/ by real path (a symlinked alias of port/ or of the game directory).
+  const root = mkdtempSync(join(ROOT, 'node_modules/.cache/bgt/lift-fast-port-')), corrupt = { liftFast: { testCorrupt: 'stack' } };
+  try {
+    mkdirSync(join(root, 'port/game'), { recursive: true }); mkdirSync(join(root, 'kit/game'), { recursive: true });
+    symlinkSync(join(root, 'port'), join(root, 'alias')); symlinkSync(join(root, 'port/game'), join(root, 'kit/link'));
+    symlinkSync(join(root, 'kit/game'), join(root, 'port/out')); // vK75b: inside port/, pointing out of it
+    for (const dir of ['port/game', 'alias/game', 'kit/link', 'port/out']) expect(() => refuseTestCorruptPort(corrupt, join(root, dir), root), dir).toThrow(/port builds/);
+    expect(() => refuseTestCorruptPort(corrupt, join(root, 'kit/game'), root)).not.toThrow();
+    expect(() => refuseTestCorruptPort({ liftFast: { testCorrupt: 'off' } }, join(root, 'alias/game'), root)).not.toThrow();
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  // K75: other guest modules' DLL names reach the fast lifter (their imports are guest code, not profile calls).
+  expect(liftPolicyArgs({ liftMode: 'fast', fastGuestDlls: ['engine.dll', 'game.exe'] })).toEqual(['--lift-mode', 'fast', '--fast-guest-dlls', 'engine.dll,game.exe']);
   expect(() => liftPolicy({}, { BGT_LIFT_MODE: 'turbo' })).toThrow(/BGT_LIFT_MODE/);
   expect(() => liftPolicy({ liftFast: { memory: 'mask' } }, {})).toThrow(/requires liftMode/);
   expect(() => liftPolicy({ liftMode: 'fast', liftFast: { memory: 'none' } }, {})).toThrow(/liftFast.memory/);
@@ -221,6 +242,79 @@ it(`execution (${shape}, inline ${inline}, path ${taken ? 'A' : 'B'}): dirty joi
   const got = h.run(0, 0); expect(h.ex.interpretation()).toBe(0);
   expect(new DataView(got.regs.buffer).getBigUint64(0, true)).toBe(taken ? 7n : 5n);
   expect(got).toEqual(h.run(1, 0));
+}, 120000);
+
+// K75: EFLAGS at a call into the platform profile are guest-visible (RtlCaptureContext, RaiseException, heap
+// exceptions store them in a CONTEXT). f: sub rsp,0x28; mov eax,5; cmp eax,7; call h; call g; call SERVICE; add rsp,0x28;
+// ret. h: call SERVICE; ret (observes its entry flags: the cmp's 0x91). g: mov eax,3; sub eax,3; ret (returns ZF|PF,
+// observed by f's next profile call). Both captures equal the interpreter's, inlined or not; the K52 rule
+// (--fast-flags abi) loses both (the test fails without the K75 analysis).
+const OBSERVED = (() => {
+  const code = Buffer.alloc(0xa0, 0x90);
+  Buffer.from('4883ec28' + 'b805000000' + '83f807' + 'e84f000000' + 'e82a000000' + 'e8e54f0000' + '4883c428' + 'c3', 'hex').copy(code);
+  Buffer.from('b803000000' + '83e803' + 'c3', 'hex').copy(code, 0x40);
+  Buffer.from('e89b4f0000' + 'c3', 'hex').copy(code, 0x60);
+  Buffer.from('b82a000000c3', 'hex').copy(code, 0x80);
+  return code;
+})();
+// vK75: through pointers. f: sub rsp,0x28; mov eax,5; cmp eax,7; mov rcx,SERVICE; call rcx (an unknown callee sees
+// the cmp's flags); mov rcx,g; call rcx (g, address-taken, returns ZF|PF); call SERVICE; add rsp,0x28; ret.
+const INDIRECT = (() => {
+  const code = Buffer.alloc(0xa0, 0x90);
+  Buffer.from('4883ec28' + 'b805000000' + '83f807' + '48c7c100700000' + 'ffd1' + '48c7c140200000' + 'ffd1' + 'e8dd4f0000' + '4883c428' + 'c3', 'hex').copy(code);
+  Buffer.from('b803000000' + '83e803' + 'c3', 'hex').copy(code, 0x40);
+  Buffer.from('b82a000000c3', 'hex').copy(code, 0x80);
+  return code;
+})();
+for (const [shape, extra] of SHAPES) for (const inline of ['0', '48']) for (const [name, code, cuts] of [['entry and returned flags', OBSERVED, [0, 0x40, 0x60, 0x80]], ['through pointers', INDIRECT, [0, 0x40, 0x80]]] as [string, Buffer, number[]][])
+it(`execution (${shape}, inline ${inline}): EFLAGS observed by profile calls match the interpreter (${name})`, async () => {
+  const h = await harness(code, cuts, [...FAST, '--fast-inline', inline, ...extra]);
+  const captured = (interpreted: number) => {
+    const got = h.run(interpreted, 0, () => h.ex.configure_service(0));
+    expect(h.ex.service_count()).toBe(2);
+    return { got, flags: [h.ex.service_flag(0), h.ex.service_flag(1)] };
+  };
+  const fast = captured(0); expect(h.ex.interpretation()).toBe(0);
+  expect(fast.flags).toEqual([0x202 | 0x91, 0x202 | 0x44]);
+  expect(fast).toEqual(captured(1));
+  const abi = await harness(code, cuts, [...FAST, '--fast-inline', inline, '--fast-flags', 'abi', ...extra]);
+  abi.run(0, 0, () => abi.ex.configure_service(0));
+  expect([abi.ex.service_flag(0), abi.ex.service_flag(1)]).not.toEqual([0x202 | 0x91, 0x202 | 0x44]);
+}, 120000);
+
+// K75: the lifter makes EFLAGS exact only at calls to the APIs listed in tools/x86/lift64_eflags.h. The list must be
+// exactly the profile APIs that read X.flags: w64_context_save is the only reader, called by RtlCaptureContext and by
+// unwind_exception with no initial context (RaiseException, RtlUnwindEx outside a dispatch, w32_heap_no_memory via
+// k_heap_oom in the heap APIs).
+it('lift64_eflags.h lists exactly the profile APIs that store EFLAGS', () => {
+  const dir = join(ROOT, 'platforms/win32');
+  const sources = readdirSync(dir).filter((f) => /\.(c|h)$/.test(f)).map((f) => [f, readFileSync(join(dir, f), 'utf8')] as const);
+  const reads = sources.flatMap(([f, t]) => [...t.matchAll(/X\.flags(?!\s*=[^=])/g)].map(() => f));
+  expect(reads).toEqual(['w32_x64.c']); // the CONTEXT store in w64_context_save
+  const x64 = sources.find(([f]) => f === 'w32_x64.c')![1], kernel = sources.find(([f]) => f === 'w32_kernel.c')![1];
+  const all = sources.map(([, t]) => t).join('\n');
+  expect([...all.matchAll(/w64_context_save\(/g)].length).toBe(4); // declaration, definition, unwind_exception, rtl_capture
+  const handlers = new Map([...x64.matchAll(/\{"(\w+)",(\w+)\}/g)].map((m) => [m[2], m[1]]));
+  const unwindNoInitial = ['raise_exception', 'rtl_unwind'].filter((fn) => new RegExp(`static uint32_t ${fn}\\(void\\)\\{[^\\n]*unwind_exception\\(`).test(x64));
+  // Each API handler's text runs to the next top-level `static` definition.
+  const heap = [...kernel.matchAll(/static uint32_t (k_\w+)\(void\) ?\{([\s\S]*?)(?=\nstatic |\n#|$)/g)].filter((m) => m[2].includes('k_heap_oom(')).map((m) => m[1]);
+  const heapNames = heap.map((fn) => new RegExp(`API\\("(\\w+)", \\d+, ${fn}\\)`).exec(kernel)?.[1]);
+  const expected = [handlers.get('rtl_capture'), ...unwindNoInitial.map((fn) => handlers.get(fn)), ...heapNames].sort();
+  const listed = JSON.parse('[' + /#define W32_EFLAGS_OBSERVERS (.*)/.exec(readFileSync(join(ROOT, 'tools/x86/lift64_eflags.h'), 'utf8'))![1] + ']').sort();
+  expect(expected).toEqual(['HeapAlloc', 'HeapCreate', 'HeapReAlloc', 'RaiseException', 'RtlCaptureContext', 'RtlUnwindEx']);
+  expect(listed).toEqual(expected);
+});
+
+// vK72b review: the guest-state memory part also sees a stray store into the host backing of an unmapped page
+// inside the committed flat window (a fast build's masked wild pointer lands there); clean zero backing hashes as before.
+it('guest-state hash: nonzero backing of an unmapped committed page changes the memory part', async () => {
+  const h = await harness(recursive(), [0, 0x40, 0x80], FAST);
+  h.run(0, 0);
+  expect(h.ex.page_mapped(0x10)).toBe(0); expect(h.ex.page_mapped(0x1010)).toBe(1);
+  const clean = h.ex.state_hash(4);
+  h.ex.poke_backing(0x10, 0x5a); const stray = h.ex.state_hash(4);
+  h.ex.poke_backing(0x10, 0); expect(h.ex.state_hash(4)).toBe(clean);
+  expect(stray).not.toBe(clean);
 }, 120000);
 
 // vK52 must-fix: an inlined alloca-style callee (pop r11; sub rsp,rax; push r11; ret, as in mingw

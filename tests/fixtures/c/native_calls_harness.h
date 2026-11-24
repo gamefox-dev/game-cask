@@ -8,6 +8,8 @@
 #include "../../../platforms/x86/x86_exec.c"
 #include "../../../platforms/x86/x86_exec64.c"
 #include "../../../platforms/x86/x86_simd.c"
+#include "../../../platforms/x86/x86_sched.c"
+#include "../../../platforms/x86/x86_state.c"
 void x86_x87(const x86_insn_t *in){(void)in;__builtin_trap();}
 static void schedule(void){X.transfer=X86_SCHEDULE;}
 BGT_DEFINE_IO(io)
@@ -16,8 +18,9 @@ static unsigned service_mode, service_calls, service_depth, service_done, servic
 static uint8_t async_buf[65536] __attribute__((aligned(8)));
 BGT_EXPORT(bgt_async_buffer) unsigned async_buffer(void){return (unsigned)(uintptr_t)async_buf;}
 BGT_EXPORT(bgt_async_buffer_size) unsigned async_size(void){return sizeof async_buf;}
+static uint32_t service_flags[8];
 static int service(uint32_t pc){
- (void)pc;service_calls++;service_depth=native_depth;
+ (void)pc;service_flags[service_calls&7]=X.flags;service_calls++;service_depth=native_depth; /* K75: EFLAGS a profile call observes */
  if(x86_callback(0x2080,0,0)!=42)__builtin_trap();
  if(service_mode==1){x86_profile_idle_begin();bgt_yield();x86_profile_idle_end();}
  if(service_mode==2){/* nonlocal guest transfer: discard both generated caller frames */
@@ -27,6 +30,13 @@ static int service(uint32_t pc){
 }
 BGT_EXPORT(configure_service) void configure_service(unsigned mode){service_mode=mode;service_calls=service_depth=service_done=0;service_update=1;x86_set_thunks(0x7000,0x7010,service);}
 BGT_EXPORT(service_count) unsigned service_count(void){return service_calls;}
+BGT_EXPORT(service_flag) unsigned service_flag(unsigned i){return service_flags[i&7];}
+BGT_EXPORT(frame_insns) unsigned frame_insns(void){return X.frame_insns;}
+BGT_EXPORT(tsc) uint64_t tsc(void){return X.tsc;}
+BGT_EXPORT(state_hash) unsigned state_hash(unsigned parts){return x86_guest_state_hash(parts);}
+/* vK72b test: a byte in the host backing of an unmapped page inside the committed flat window (a stray fast store). */
+BGT_EXPORT(poke_backing) void poke_backing(unsigned addr,unsigned v){x86_flat[addr]=(uint8_t)v;}
+BGT_EXPORT(page_mapped) unsigned page_mapped(unsigned addr){return x86_pages[addr>>12]!=0;}
 BGT_EXPORT(service_frames) unsigned service_frames(void){return service_depth;}
 BGT_EXPORT(service_complete) unsigned service_complete(void){return service_done;}
 BGT_EXPORT(bgt_update) void bgt_update(uint32_t dt){(void)dt;if(service_update){x86_invoke(X.eip,0xfffffff4u);service_update=0;service_done++;}}
