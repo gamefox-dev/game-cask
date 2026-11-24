@@ -97,7 +97,7 @@ WebGL2Renderer.prototype.checkpointIndices=function(){
     return buffer&&!buffer.generated?buffer.data:undefined;
   }};
 };
-WebGL2Renderer.prototype.checkpointStorageBytes=function(){return this.stats.vertexBytes??0;};
+WebGL2Renderer.prototype.checkpointStorageBytes=function(){return (this.stats.vertexBytes??0)+4;}; // legacy 1x1 white
 WebGPURenderer.prototype.checkpointStorageBytes=function(){
   const screen=this['screen'];
   return this['o'].vbufSize+(screen&&screen!==this.gpu['screen']?screen.width*screen.height*4:0)+36;

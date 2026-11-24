@@ -27,6 +27,13 @@ test('GPU WebGL2: replay budgets wide-stride draws by fetched index span', async
   for(const failure of r.refusals)expect(failure).toMatch(/bounded GPU restore workspace/);
 });
 
+test('GPU WebGL2: checkpoint census retains the white and initial ID textures across an empty frame', async ({ page, backendParam }) => {
+  test.skip(backendParam !== 'webgl2', 'WebGL2-specific replay stores');
+  expect(await probe(page,'persistentReplayStoresProbe')).toEqual({
+    before:4,afterDraw:8,afterEmpty:8,draws:1,emptyDraws:0,errors:[],
+  });
+});
+
 // Catches format allocation/upload/clear/sRGB conversion and independently blended/masked MRT errors.
 test('GPU WebGL2: every color format, top-left uploads and independent MRT state', async ({ page, backendParam }) => {
   test.skip(backendParam !== 'webgl2', 'WebGL2-specific backend contract');

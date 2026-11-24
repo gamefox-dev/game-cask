@@ -3,7 +3,7 @@ import { WebGL2Gpu } from '../../bgt/renderers/webgl2/gpu';
 import { GPU_OP as OP } from '../../bgt/runtime/abi';
 import { WebGL2Renderer } from '../../bgt/renderers/webgl2/webgl2';
 import '../../bgt/renderers/savestate-surfaces';
-import { checkGPUBytes } from '../../bgt/runtime/savestate-budget';
+import { checkGPUBytes, detachedRendererBytes } from '../../bgt/runtime/savestate-budget';
 import { ReplayCursor } from '../../bgt/runtime/savestate-gpu';
 import { recordCheckpointFrame } from '../../bgt/runtime/savestate-recording';
 import { Frame } from '../../bgt/runtime/commands';
@@ -119,6 +119,26 @@ export async function replayIndexedBudgetProbe() {
     await attempt([narrow,...draw]);
     return {readPixel,maxExtra,refusals};
   } finally {cursor.replay.stop();renderer.destroy();}
+}
+
+export async function persistentReplayStoresProbe() {
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=8;
+  const renderer=WebGL2Renderer.create(canvas)!;
+  const errors:string[]=[];renderer.onError(e=>errors.push(e));
+  const lb={x:0,y:0,w:8,h:8,scale:1}, frame=new Frame();frame.reset(8,8);
+  const cmd=(op:number,words:number[]):GpuItem=>({kind:'gpu',op,words});
+  const shader=(h:number,source:string):GpuItem=>({...cmd(OP.SHADER_CREATE,[h,h,1,0,source.length,h]),source});
+  const count=()=>detachedRendererBytes(renderer)-8*8*8-renderer.presentationBytes()-renderer.gpu.memory().internal.screenBytes;
+  try {
+    const before=count();
+    frame.items=[shader(1,vertex),shader(2,fragment),cmd(OP.PIPELINE_CREATE,[1,1,2,3,0,0,0xffffffff,0,0,7,
+      0,255,255,7,0,0,0,7,0,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,15]),
+      cmd(OP.PASS_BEGIN,[1,0,0,0,0,0,0,0,0,1,0,0,0,0]),cmd(OP.PIPELINE,[1]),cmd(OP.DRAW,[3,1,0,0]),cmd(OP.PASS_END,[])];
+    renderer.drawFrame(frame,lb,false);
+    const draws=renderer.stats.drawCalls, afterDraw=count();
+    frame.items=[];renderer.drawFrame(frame,lb,false);await renderer.finish();
+    return {before,afterDraw,afterEmpty:count(),draws,emptyDraws:renderer.stats.drawCalls,errors};
+  } finally {renderer.destroy();}
 }
 
 export function formatsProbe(): Record<string, number[]> {
